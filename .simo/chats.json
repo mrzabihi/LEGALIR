@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "conversations": [
+    {
+      "id": "aecb6de7-9036-4339-a25b-59e007911e35",
+      "title": "Session 16 - phase 14 \nسشن قبل رو ادامه بده \nPha",
+      "updatedAt": "2026-08-05T09:26:17.888Z",
+      "messages": [
+        {
+          "id": "ea547e4f-d2f7-43dc-be0e-12e1cd475234",
+          "role": "user",
+          "body": "Session 16 - phase 14 \nسشن قبل رو ادامه بده \nPhase 14 — نسخه Demo Development\n[Insert the shared LEGALIR instructions here]\n\nExecute only Phase 14: LEGALIR Development Demo Release.\n\nThe goal is to produce a stable, reviewable Frontend Demo using MSW.\n\nRequired demo flow:\n\n1. Start application.\n2. Show four-second LEGALIR animated Splash.\n3. Open Persian public Landing page.\n4. Register with Iranian mobile number.\n5. Verify using Development OTP `405405`.\n6. Enter Workplace Dashboard.\n7. Complete profile.\n8. View subscription plans.\n9. Select a mock plan.\n10. Start an AI legal conversation.\n11. View structured answer, references, sources, and AI run state.\n12. Upload a mock PDF/DOCX/Image document.\n13. Observe processing lifecycle.\n14. View legal document risk report.\n15. Create a mock contract.\n16. View contract draft and risk findings.\n17. View categorized history.\n18. Switch Light/Dark themes.\n19. Demonstrate mobile responsive behavior.\n\nRequirements:\n\n- Seed coherent Persian demo data.\n- Do not expose the fixed OTP in UI.\n- Do not use random unrelated mock content.\n- Demo data must tell one consistent legal-product story.\n- Add a documented demo user and demo script without containing sensitive information.\n- Fix all blockers discovered during full E2E execution.\n- Run:\n  - lint\n  - typecheck\n  - unit tests\n  - integration tests\n  - E2E tests\n  - production build\n- Produce final screenshots only when repository policy allows.\n- Do not connect real production providers.\n\nCreate:\n\n- `DOCUMENTS/IMPLEMENTATION_REPORTS/FRONTEND/PHASE_14_REPORT.md`\n- `DOCUMENTS/IMPLEMENTATION_REPORTS/FRONTEND/DEMO_SCRIPT.md`\n- `DOCUMENTS/IMPLEMENTATION_REPORTS/FRONTEND/FRONTEND_RELEASE_CHECKLIST.md`\n- `DOCUMENTS/IMPLEMENTATION_REPORTS/FRONTEND/KNOWN_LIMITATIONS.md`\n\nTag or commit the result as the approved Development Demo candidate according to the repository workflow.\n\nStop after Phase 14.",
+          "timestamp": "10:06 AM",
+          "coreUuid": "3271a489-e1b7-49e8-a845-34e02d6abe52"
+        },
+        {
+          "id": "61be2e54-de4a-4ec9-8a14-61dd5f13e032",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:10 AM"
+        },
+        {
+          "id": "477b9426-9377-4420-be7d-2ad97f7b961b",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:16 AM"
+        },
+        {
+          "id": "34d7ac2a-decf-40fc-b41f-6813296a33df",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:23 AM"
+        },
+        {
+          "id": "5dbc7774-7c72-4846-a275-d0419200d429",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:31 AM"
+        },
+        {
+          "id": "1c3cec33-aa0c-4949-a034-a3a77bf30064",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:42 AM"
+        },
+        {
+          "id": "29dc373e-9eed-4210-9b5f-511f98aff055",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:52 AM"
+        },
+        {
+          "id": "12f8965a-1c2b-4f9b-95ed-a6bfc06f0e14",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "11:14 AM"
+        },
+        {
+          "id": "d0dfe314-be6b-46bd-acab-fd3b83484b03",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "11:17 AM"
+        },
+        {
+          "id": "cdb7e127-0c40-4fc7-9bc9-28b8a0939dd8",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "11:22 AM"
+        },
+        {
+          "id": "969e15e4-7966-47a7-876a-c097ba92f49b",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "11:34 AM"
+        },
+        {
+          "id": "2c86435b-37f5-4ff8-83e9-279e95389432",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "12:10 PM"
+        },
+        {
+          "id": "0f69b8a9-02de-4f7d-aacc-a7ebff2ceb80",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "12:24 PM"
+        },
+        {
+          "id": "e1879902-c793-4f5b-b5b2-0b6e68b24d5d",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "12:49 PM"
+        },
+        {
+          "id": "68b2fced-39d0-43f9-bb44-d0c8e68db60a",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "12:53 PM"
+        },
+        {
+          "id": "07a143e1-7fa3-40d5-83b6-a01100f513da",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "12:56 PM"
+        }
+      ],
+      "coreSessionId": "ae50b83f-932d-48f8-aa12-a36c487a76bb"
+    },
+    {
+      "id": "6c4c23b9-1ce2-4450-b680-7b5392b21840",
+      "title": "session 15- پروژه رو تا هر جا دولوپ فنی کردی با ",
+      "updatedAt": "2026-08-05T06:35:16.358Z",
+      "messages": [
+        {
+          "id": "d3a94d1f-a916-4c16-866f-bedc4a2ebee4",
+          "role": "user",
+          "body": "session 15- پروژه رو تا هر جا دولوپ فنی کردی با مهارت ها و ایجنتا های خودت بخصوص ui ux pro max بیار بالا ببینم",
+          "timestamp": "07:47 AM",
+          "coreUuid": "df1c1866-f612-4652-a0bd-eb779f50c442"
+        },
+        {
+          "id": "0a9ec21b-7d2c-4b67-b6e9-78a55e6c52bb",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "08:01 AM"
+        },
+        {
+          "id": "053374ef-1eaa-4895-9821-e933b19067e3",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "08:24 AM"
+        },
+        {
+          "id": "622be85c-476e-42c4-b396-95eb579cd04e",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "08:32 AM"
+        },
+        {
+          "id": "7edb15f9-e528-40c9-8c9d-772bdd5e324c",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "08:41 AM"
+        },
+        {
+          "id": "5aa30ed1-7002-4dd1-9b02-5c74fcffb0ae",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "08:54 AM"
+        },
+        {
+          "id": "035c1281-fd05-4c46-bdf8-5607664b9123",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "09:06 AM"
+        },
+        {
+          "id": "63b68a67-ac65-4393-b7b6-64a0062afc37",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "09:50 AM"
+        },
+        {
+          "id": "3dfaa522-52ea-4c3b-a4f7-06b84a41bc4e",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "09:52 AM"
+        },
+        {
+          "id": "712962b1-c487-4ba4-af99-1c408d9d28da",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "09:55 AM"
+        },
+        {
+          "id": "dd3faaa6-027f-4b30-ab09-4dd1b6e78784",
+          "role": "system",
+          "body": "Connection problem — the message wasn't processed. The conversation is intact; use Retry to resend.",
+          "timestamp": "10:05 AM"
+        }
+      ],
+      "coreSessionId": "eb249bd1-9a27-43b1-b8d2-27e4407fba22"
+    }
+  ]
+}

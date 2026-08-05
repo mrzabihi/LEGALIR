@@ -1,0 +1,1 @@
+- [Auto-use all skills and agents](feedback_auto_use_all_tools.md) — Automatically invoke all installed skills and agents in every session without manual prompting

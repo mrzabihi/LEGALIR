@@ -1,0 +1,13 @@
+{
+  "name": "LEGALIR",
+  "short_name": "LEGALIR",
+  "description": "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F8FA",
+  "theme_color": "#102E4A",
+  "orientation": "any",
+  "lang": "fa-IR",
+  "dir": "rtl",
+  "icons": []
+}
