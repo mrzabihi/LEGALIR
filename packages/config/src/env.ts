@@ -56,7 +56,7 @@ export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
 // --- Parse helpers ---
 
-const env = process.env;
+const env = typeof process !== "undefined" ? process.env : {} as Record<string, string | undefined>;
 
 export function validateBrowserEnv(): BrowserEnv {
   const raw = {

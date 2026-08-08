@@ -17,7 +17,7 @@ export type { BrowserEnv, ServerEnv } from "./env";
 /*******************************************************************************
  * Browser-safe env reads (bracket notation for noUncheckedIndexedAccess)
  ******************************************************************************/
-const pe = process.env;
+const pe = typeof process !== "undefined" ? process.env : {} as Record<string, string | undefined>;
 
 export const env = {
   apiMode: (pe["NEXT_PUBLIC_API_MODE"] ?? "mock") as

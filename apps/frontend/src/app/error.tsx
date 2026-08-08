@@ -10,14 +10,10 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <html lang="fa-IR" dir="rtl">
-      <body>
-        <ErrorDisplay
+    <ErrorDisplay
           title="خطای بحرانی"
           message={error.message || "خطای غیرمنتظره‌ای رخ داده است. لطفاً صفحه را refresh کنید."}
           onRetry={reset}
         />
-      </body>
-    </html>
   );
 }
