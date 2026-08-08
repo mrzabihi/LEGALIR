@@ -72,7 +72,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
     <div className="flex h-dvh overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       {sidebar && (
-        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-divider bg-surface">
+        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-neutral-200 bg-neutral-50">
           {sidebar}
         </aside>
       )}
@@ -86,13 +86,17 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
             aria-hidden="true"
           />
           <aside
-            className="absolute top-0 bottom-0 end-0 w-[85vw] max-w-[320px] bg-surface shadow-elevation-16 animate-slide-in-end flex flex-col"
+            className="absolute top-0 bottom-0 end-0 w-[85vw] max-w-[320px] bg-neutral-50 shadow-elevation-16 animate-slide-in-end flex flex-col"
             role="dialog"
             aria-modal="true"
             aria-label="منوی موبایل"
           >
-            <div className="flex items-center justify-between p-4 border-b border-divider">
-              <span className="text-titleMedium text-onSurface">LEGALIR</span>
+            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+              <img
+                src="/legalir-logo.png"
+                alt="LEGALIR"
+                className="h-10 w-auto"
+              />
               <button
                 onClick={() => setDrawerOpen(false)}
                 className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
@@ -110,7 +114,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
         {/* Top Bar */}
         {topBar && (
-          <header className="shrink-0 h-16 border-b border-divider bg-surface flex items-center px-4 gap-3">
+          <header className="shrink-0 h-16 border-b border-neutral-200 bg-neutral-0 flex items-center px-4 gap-3">
             {sidebar && (
               <button
                 onClick={toggleDrawer}
@@ -132,7 +136,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
 
         {/* Mobile Bottom Navigation */}
         {bottomNav && (
-          <nav className="desktop:hidden shrink-0 border-t border-divider bg-surface safe-bottom">
+          <nav className="desktop:hidden shrink-0 border-t border-neutral-100 bg-neutral-0 safe-bottom">
             {bottomNav}
           </nav>
         )}

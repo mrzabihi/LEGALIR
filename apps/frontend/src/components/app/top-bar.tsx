@@ -52,7 +52,7 @@ export function TopBar() {
       {/* Mobile hamburger button (rendered inside AppShell header) */}
       <button
         onClick={toggleDrawer}
-        className="desktop:hidden w-12 h-12 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target-min"
+        className="desktop:hidden w-12 h-12 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-colors touch-target-min"
         aria-label="منوی اصلی"
       >
         <IconMenu size={22} />
@@ -61,14 +61,13 @@ export function TopBar() {
       {/* Logo area — visible when sidebar is hidden */}
       <Link
         href="/dashboard"
-        className="desktop:hidden flex items-center gap-2 shrink-0"
+        className="desktop:hidden flex items-center shrink-0"
       >
-        <div className="h-8 w-8 rounded-small bg-primary flex items-center justify-center text-white font-bold text-caption">
-          ل
-        </div>
-        <span className="text-titleSmall text-primary font-bold hidden mobile-s:inline">
-          LEGALIR
-        </span>
+        <img
+          src="/legalir-logo.png"
+          alt="LEGALIR"
+          className="h-10 w-auto"
+        />
       </Link>
 
       {/* Spacer */}
@@ -81,15 +80,15 @@ export function TopBar() {
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setUserMenuOpen(!userMenuOpen)}
-          className="flex items-center gap-2 rounded-full p-1 hover:bg-onSurface/[0.05] transition-colors touch-target"
+          className="flex items-center gap-2 rounded-full p-1 hover:bg-neutral-100 transition-colors touch-target"
           aria-label="منوی کاربری"
           aria-expanded={userMenuOpen}
           aria-haspopup="true"
         >
-          <div className="h-8 w-8 rounded-full bg-primary-variant flex items-center justify-center text-white text-labelSmall font-medium">
+          <div className="h-9 w-9 rounded-full bg-primary-700 flex items-center justify-center text-white text-labelSmall font-medium">
             {avatarInitial}
           </div>
-          <span className="hidden tablet:inline text-labelLarge text-onSurface truncate max-w-[120px]">
+          <span className="hidden tablet:inline text-labelLarge text-neutral-700 truncate max-w-[120px]">
             {displayName ?? "کاربر"}
           </span>
         </button>
@@ -110,7 +109,7 @@ function ThemeToggleButton() {
   return (
     <button
       onClick={toggleTheme}
-      className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target-min"
+      className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-colors touch-target-min"
       aria-label={theme === "light" ? "حالت تیره" : "حالت روشن"}
     >
       {theme === "light" ? <IconDarkMode size={22} /> : <IconLightMode size={22} />}
@@ -127,7 +126,6 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
   const { data: meData } = useMe();
   const { logout, isPending: isLoggingOut } = useLogout();
   const session = useAuthStore((s) => s.session);
-  const _clearSession = useAuthStore((s) => s.clearSession);
 
   const profile = meData?.profile;
   const displayName = profile?.displayName;
@@ -140,15 +138,15 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="absolute top-full end-0 mt-2 w-64 rounded-large bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-fade-in"
+      className="absolute top-full end-0 mt-2 w-64 rounded-large bg-neutral-0 border border-neutral-200 shadow-elevation-8 z-50 overflow-hidden animate-fade-in"
       role="menu"
     >
       {/* User Info */}
-      <div className="px-4 py-3 border-b border-divider/50">
-        <p className="text-labelLarge text-onSurface font-medium">
+      <div className="px-4 py-3 border-b border-neutral-100">
+        <p className="text-labelLarge text-neutral-800 font-medium">
           {displayName ?? "کاربر LEGALIR"}
         </p>
-        {mobile && <p className="text-caption text-muted dir-ltr text-right">{mobile}</p>}
+        {mobile && <p className="text-caption text-neutral-500 dir-ltr text-right">{mobile}</p>}
       </div>
 
       {/* Menu Items */}
@@ -158,7 +156,7 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
             onClose();
             router.push("/profile");
           }}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-onSurfaceVariant hover:bg-onSurface/[0.05] transition-colors"
+          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-neutral-700 hover:bg-neutral-50 transition-colors touch-target-min"
           role="menuitem"
         >
           <IconPerson size={18} />
@@ -169,7 +167,7 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
             onClose();
             router.push("/subscription");
           }}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-onSurfaceVariant hover:bg-onSurface/[0.05] transition-colors"
+          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-neutral-700 hover:bg-neutral-50 transition-colors touch-target-min"
           role="menuitem"
         >
           <IconSubscription size={18} />
@@ -180,7 +178,7 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
             onClose();
             router.push("/settings");
           }}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-onSurfaceVariant hover:bg-onSurface/[0.05] transition-colors"
+          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-neutral-700 hover:bg-neutral-50 transition-colors touch-target-min"
           role="menuitem"
         >
           <IconSettings size={18} />
@@ -189,11 +187,11 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Logout */}
-      <div className="border-t border-divider/50 py-1">
+      <div className="border-t border-neutral-100 py-1">
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-error hover:bg-error/[0.04] transition-colors disabled:opacity-50"
+          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-error hover:bg-error/[0.04] transition-colors disabled:opacity-50 touch-target-min"
           role="menuitem"
         >
           <IconLogout size={18} />

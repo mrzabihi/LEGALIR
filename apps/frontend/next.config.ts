@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+
+// CSP: dev needs 'unsafe-eval' for Next.js React Refresh (hot reload)
+const cspScriptSrc = isDev
+  ? "'self' 'unsafe-inline' 'unsafe-eval'"
+  : "'self' 'unsafe-inline'";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
@@ -52,6 +59,25 @@ const nextConfig: NextConfig = {
         { key: "X-Frame-Options", value: "DENY" },
         { key: "X-XSS-Protection", value: "1; mode=block" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        {
+          key: "Content-Security-Policy",
+          value:
+            `default-src 'self'; ` +
+            `script-src ${cspScriptSrc}; ` +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "connect-src 'self' http://localhost:* ws://localhost:*; " +
+            "font-src 'self' data:; " +
+            "frame-ancestors 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self';",
+        },
+        ...(isDev
+          ? []
+          : [
+              { key: "Strict-Transport-Security" as const, value: "max-age=63072000; includeSubDomains; preload" as const },
+              { key: "Permissions-Policy" as const, value: "camera=(), microphone=(), geolocation=()" as const },
+            ]),
       ],
     },
   ],

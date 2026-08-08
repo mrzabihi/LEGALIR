@@ -91,6 +91,7 @@ export function OTPInput({
           onChange={(e) => handleChange(i, e)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           aria-label={`رقم ${i + 1} از ${length}`}
+          autoComplete="one-time-code"
           className={[
             "w-12 h-14 text-center text-titleLarge rounded-medium",
             "border outline-none transition-all duration-short3",

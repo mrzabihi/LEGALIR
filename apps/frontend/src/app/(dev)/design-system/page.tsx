@@ -133,25 +133,47 @@ export default function DesignSystemPage() {
 
         {/* --- Colors --- */}
         <Section title="پالت رنگ — Color Palette">
-          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-3">
-            {[
-              { name: "Primary", bg: "bg-primary", fg: "text-onPrimary" },
-              { name: "Secondary", bg: "bg-secondary", fg: "text-onSecondary" },
-              { name: "Surface", bg: "bg-surface", fg: "text-onSurface", border: true },
-              { name: "Background", bg: "bg-background", fg: "text-onBackground", border: true },
-              { name: "Error", bg: "bg-error", fg: "text-onError" },
-              { name: "Warning", bg: "bg-warning", fg: "text-onWarning" },
-              { name: "Success", bg: "bg-success", fg: "text-onSuccess" },
-              { name: "InverseSurface", bg: "bg-inverseSurface", fg: "text-inverseOnSurface" },
-            ].map((c) => (
-              <div
-                key={c.name}
-                className={`${c.bg} ${c.fg} ${c.border ? "border border-outline" : ""} p-4 rounded-medium text-center`}
-              >
-                <p className="text-labelMedium">{c.name}</p>
-              </div>
-            ))}
-          </div>
+          <SubSection title="Primary — Deep Legal Navy">
+            <div className="grid grid-cols-5 tablet:grid-cols-10 gap-2">
+              {[50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((n) => (
+                <div key={n} className={`bg-primary-${n} ${n > 400 ? "text-white" : "text-primary-900"} p-3 rounded-medium text-center text-caption`}>
+                  {n}
+                </div>
+              ))}
+            </div>
+          </SubSection>
+          <SubSection title="Secondary — Muted Gold">
+            <div className="grid grid-cols-5 tablet:grid-cols-10 gap-2">
+              {[50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((n) => (
+                <div key={n} className={`bg-secondary-${n} ${n > 500 ? "text-white" : "text-secondary-900"} p-3 rounded-medium text-center text-caption`}>
+                  {n}
+                </div>
+              ))}
+            </div>
+          </SubSection>
+          <SubSection title="Neutral">
+            <div className="grid grid-cols-6 tablet:grid-cols-12 gap-2">
+              {["0", 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => (
+                <div key={n} className={`bg-neutral-${n} ${Number(n) > 500 || n === "950" ? "text-white" : "text-neutral-900"} p-3 rounded-medium text-center text-caption border border-neutral-200`}>
+                  {n}
+                </div>
+              ))}
+            </div>
+          </SubSection>
+          <SubSection title="Semantic">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Error", bg: "bg-error", fg: "text-white" },
+                { label: "Warning", bg: "bg-warning", fg: "text-white" },
+                { label: "Success", bg: "bg-success", fg: "text-white" },
+                { label: "Info", bg: "bg-info", fg: "text-white" },
+              ].map((c) => (
+                <div key={c.label} className={`${c.bg} ${c.fg} px-4 py-2 rounded-medium text-center text-caption`}>
+                  {c.label}
+                </div>
+              ))}
+            </div>
+          </SubSection>
         </Section>
 
         {/* --- Elevation --- */}

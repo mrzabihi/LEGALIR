@@ -1,0 +1,413 @@
+// ============================================================
+// LEGALIR — JSON File Database
+// Zero native dependencies. Data stored as JSON in .data/
+// ============================================================
+
+import fs from "node:fs";
+import path from "node:path";
+import bcrypt from "bcryptjs";
+
+const DB_DIR = path.resolve(process.cwd(), ".data");
+
+function ensureDir() {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+}
+
+function readTable<T>(name: string): T[] {
+  ensureDir();
+  const file = path.join(DB_DIR, `${name}.json`);
+  if (!fs.existsSync(file)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+  } catch {
+    return [];
+  }
+}
+
+function writeTable<T>(name: string, data: T[]): void {
+  ensureDir();
+  const file = path.join(DB_DIR, `${name}.json`);
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+}
+
+// ============================================================
+// Types
+// ============================================================
+
+export interface DbUser {
+  id: string;
+  mobile: string;
+  email: string | null;
+  passwordHash: string;
+  displayName: string | null;
+  createdAt: string;
+}
+
+export interface DbSession {
+  id: string;
+  userId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface ActivityRow {
+  id: string;
+  user_id: string;
+  type: "conversation" | "document" | "contract";
+  title: string;
+  status: string;
+  status_fa: string;
+  description: string | null;
+  category: string | null;
+  category_fa: string | null;
+  created_at: string;
+  updated_at: string;
+  archived: number;
+}
+
+export interface SubscriptionRow {
+  id: string;
+  planCode: string;
+  planNameFa: string;
+  amount: number;
+  currency: string;
+  status: string;
+  statusFa: string;
+  startAt: string;
+  endAt: string;
+  purchasedAt: string;
+  autoRenew: boolean;
+}
+
+interface StoredSubscription {
+  id: string;
+  user_id: string;
+  plan_code: string;
+  plan_name_fa: string;
+  amount: number;
+  currency: string;
+  status: string;
+  status_fa: string;
+  start_at: string;
+  end_at: string;
+  purchased_at: string;
+  auto_renew: number;
+}
+
+interface UsageStatsRow {
+  user_id: string;
+  daily_requests_used: number;
+  daily_requests_total: number;
+  tokens_used: number;
+  tokens_total: number;
+  document_analyses_used: number;
+  document_analyses_total: number;
+  contracts_generated: number;
+  contracts_total: number;
+}
+
+// ============================================================
+// User operations
+// ============================================================
+
+export function findUserByMobile(mobile: string): DbUser | undefined {
+  return readTable<DbUser>("users").find((u) => u.mobile === mobile);
+}
+
+export function findUserById(id: string): DbUser | undefined {
+  return readTable<DbUser>("users").find((u) => u.id === id);
+}
+
+export function createUser(params: {
+  mobile: string;
+  email?: string;
+  passwordHash: string;
+  displayName?: string;
+}): DbUser {
+  const users = readTable<DbUser>("users");
+  const user: DbUser = {
+    id: crypto.randomUUID(),
+    mobile: params.mobile,
+    email: params.email ?? null,
+    passwordHash: params.passwordHash,
+    displayName: params.displayName ?? null,
+    createdAt: new Date().toISOString(),
+  };
+  users.push(user);
+  writeTable("users", users);
+  return user;
+}
+
+// ============================================================
+// Session operations
+// ============================================================
+
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function createSession(userId: string): DbSession {
+  const sessions = readTable<DbSession>("sessions");
+  const session: DbSession = {
+    id: crypto.randomUUID(),
+    userId,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + SESSION_MAX_AGE_MS).toISOString(),
+  };
+  sessions.push(session);
+  writeTable("sessions", sessions);
+  return session;
+}
+
+export function findSessionById(sessionId: string): DbSession | undefined {
+  const sessions = readTable<DbSession>("sessions");
+  const now = new Date().toISOString();
+  return sessions.find((s) => s.id === sessionId && s.expiresAt > now);
+}
+
+export function deleteSession(sessionId: string): void {
+  let sessions = readTable<DbSession>("sessions");
+  sessions = sessions.filter((s) => s.id !== sessionId);
+  writeTable("sessions", sessions);
+}
+
+export function deleteAllSessionsForUser(userId: string): void {
+  let sessions = readTable<DbSession>("sessions");
+  sessions = sessions.filter((s) => s.userId !== userId);
+  writeTable("sessions", sessions);
+}
+
+export function cleanupExpiredSessions(): void {
+  const now = new Date().toISOString();
+  let sessions = readTable<DbSession>("sessions");
+  sessions = sessions.filter((s) => s.expiresAt > now);
+  writeTable("sessions", sessions);
+}
+
+// ============================================================
+// Dashboard / Activity queries
+// ============================================================
+
+export function queryDashboard(userId: string) {
+  const user = findUserById(userId);
+  const activities = queryRecentActivity(userId, 5);
+  const subscription = queryActiveSubscription(userId);
+  return { user, recentActivity: activities, subscription };
+}
+
+export function queryRecentActivity(userId: string, limit = 5): ActivityRow[] {
+  return readTable<ActivityRow>("activities")
+    .filter((a) => a.user_id === userId && !a.archived)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .slice(0, limit);
+}
+
+function queryActiveSubscription(userId: string) {
+  const subs = readTable<StoredSubscription>("subscriptions");
+  const sub = subs.find((s) => s.user_id === userId && s.status === "active");
+  if (!sub) return null;
+  return {
+    id: sub.id,
+    planCode: sub.plan_code,
+    planNameFa: sub.plan_name_fa,
+    amount: sub.amount,
+    currency: sub.currency,
+    status: sub.status,
+    statusFa: sub.status_fa,
+    startAt: sub.start_at,
+    endAt: sub.end_at,
+    purchasedAt: sub.purchased_at,
+    autoRenew: Boolean(sub.auto_renew),
+  };
+}
+
+// ============================================================
+// Profile Usage
+// ============================================================
+
+export function queryProfileUsage(userId: string) {
+  const row = readTable<UsageStatsRow>("usage_stats").find((r) => r.user_id === userId);
+  if (!row) {
+    return {
+      dailyRequestsUsed: 0, dailyRequestsTotal: 300,
+      tokensUsed: 0, tokensTotal: 1300000,
+      documentAnalysesUsed: 0, documentAnalysesTotal: 10,
+      contractsGenerated: 0, contractsTotal: 8,
+    };
+  }
+  return {
+    dailyRequestsUsed: row.daily_requests_used,
+    dailyRequestsTotal: row.daily_requests_total,
+    tokensUsed: row.tokens_used,
+    tokensTotal: row.tokens_total,
+    documentAnalysesUsed: row.document_analyses_used,
+    documentAnalysesTotal: row.document_analyses_total,
+    contractsGenerated: row.contracts_generated,
+    contractsTotal: row.contracts_total,
+  };
+}
+
+// ============================================================
+// Subscription History
+// ============================================================
+
+export function querySubscriptionHistory(userId: string): SubscriptionRow[] {
+  return readTable<StoredSubscription>("subscriptions")
+    .filter((s) => s.user_id === userId)
+    .sort((a, b) => b.purchased_at.localeCompare(a.purchased_at))
+    .map((r) => ({
+      id: r.id,
+      planCode: r.plan_code,
+      planNameFa: r.plan_name_fa,
+      amount: r.amount,
+      currency: r.currency,
+      status: r.status,
+      statusFa: r.status_fa,
+      startAt: r.start_at,
+      endAt: r.end_at,
+      purchasedAt: r.purchased_at,
+      autoRenew: Boolean(r.auto_renew),
+    }));
+}
+
+export function createSubscription(params: {
+  userId: string;
+  planCode: string;
+  planNameFa: string;
+  amount: number;
+  status: string;
+  statusFa: string;
+  startAt: string;
+  endAt: string;
+}): StoredSubscription {
+  const subs = readTable<StoredSubscription>("subscriptions");
+  const sub: StoredSubscription = {
+    id: crypto.randomUUID(),
+    user_id: params.userId,
+    plan_code: params.planCode,
+    plan_name_fa: params.planNameFa,
+    amount: params.amount,
+    currency: "IRT",
+    status: params.status,
+    status_fa: params.statusFa,
+    start_at: params.startAt,
+    end_at: params.endAt,
+    purchased_at: new Date().toISOString(),
+    auto_renew: 1,
+  };
+  subs.push(sub);
+  writeTable("subscriptions", subs);
+  return sub;
+}
+
+// ============================================================
+// History with filters
+// ============================================================
+
+export interface QueryHistoryParams {
+  userId: string;
+  category?: string;
+  search?: string;
+  type?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function queryHistory(params: QueryHistoryParams) {
+  let items = readTable<ActivityRow>("activities")
+    .filter((a) => a.user_id === params.userId);
+
+  if (params.category && params.category !== "all") {
+    items = items.filter((a) => a.category === params.category);
+  }
+  if (params.search) {
+    const q = params.search.toLowerCase();
+    items = items.filter(
+      (a) => a.title.toLowerCase().includes(q) || (a.description?.toLowerCase().includes(q) ?? false)
+    );
+  }
+  if (params.type && params.type !== "all") {
+    items = items.filter((a) => a.type === params.type);
+  }
+
+  const sort = params.sort ?? "newest";
+  if (sort === "oldest") items.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  else if (sort === "title") items.sort((a, b) => a.title.localeCompare(b.title, "fa"));
+  else items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+
+  const total = items.length;
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 20;
+  const paged = items.slice((page - 1) * pageSize, page * pageSize);
+
+  return { items: paged, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
+}
+
+// ============================================================
+// Dev seed
+// ============================================================
+
+let seeded = false;
+
+export function seedDevData(): void {
+  if (seeded) return;
+  if (process.env.NODE_ENV !== "development") return;
+
+  const users = readTable<DbUser>("users");
+  if (users.length > 0) { seeded = true; return; }
+
+  // Seed demo user (password: "123456")
+const hash = bcrypt.hashSync("123456", 10);
+  const userId = crypto.randomUUID();
+
+  const user: DbUser = {
+    id: userId,
+    mobile: "09120000003",
+    email: "maryam@example.com",
+    passwordHash: hash,
+    displayName: "مریم محمدی",
+    createdAt: new Date().toISOString(),
+  };
+  writeTable("users", [user]);
+
+  // Seed activities
+  const acts: ActivityRow[] = [
+    { id: "hist-001", user_id: userId, type: "conversation", title: "مشاوره قرارداد اجاره", status: "active", status_fa: "فعال", description: "گفتگو در مورد حقوق مستأجر و ورود غیرمجاز صاحبخانه", category: "real_estate", category_fa: "املاک", created_at: "2026-07-28T10:00:00Z", updated_at: "2026-07-28T10:30:00Z", archived: 0 },
+    { id: "hist-002", user_id: userId, type: "document", title: "قرارداد-اجاره-آپارتمان.pdf", status: "ready", status_fa: "آماده", description: "تحلیل سند اجاره — ۵ یافته شناسایی شد", category: "real_estate", category_fa: "املاک", created_at: "2026-07-27T14:00:00Z", updated_at: "2026-07-27T16:00:00Z", archived: 0 },
+    { id: "hist-003", user_id: userId, type: "contract", title: "قرارداد اجاره آپارتمان", status: "generated", status_fa: "تولید شده", description: "پیش‌نویس قرارداد اجاره — نسخه ۲", category: "real_estate", category_fa: "املاک", created_at: "2026-07-30T10:00:00Z", updated_at: "2026-07-30T11:00:00Z", archived: 0 },
+    { id: "hist-004", user_id: userId, type: "conversation", title: "مشاوره طلاق توافقی", status: "completed", status_fa: "تکمیل شده", description: "گفتگو در مورد شرایط و مراحل طلاق توافقی", category: "family", category_fa: "خانواده", created_at: "2026-07-20T10:00:00Z", updated_at: "2026-07-25T18:00:00Z", archived: 0 },
+    { id: "hist-005", user_id: userId, type: "contract", title: "توافقنامه محرمانگی", status: "under_review", status_fa: "در حال بررسی", description: "NDA بین شرکت الف و شرکت ب", category: "commerce", category_fa: "تجارت", created_at: "2026-07-28T09:00:00Z", updated_at: "2026-07-28T09:30:00Z", archived: 0 },
+    { id: "hist-006", user_id: userId, type: "document", title: "قرارداد-پیمانکاری-ساختمان.pdf", status: "ready", status_fa: "آماده", description: "تحلیل قرارداد پیمانکاری — ۳ یافته", category: "commerce", category_fa: "تجارت", created_at: "2026-07-25T09:00:00Z", updated_at: "2026-07-25T11:30:00Z", archived: 0 },
+    { id: "hist-007", user_id: userId, type: "conversation", title: "چک برگشتی و نحوه اقدام", status: "archived", status_fa: "بایگانی شده", description: "راهنمایی در مورد اقدامات قانونی چک برگشتی", category: "commerce", category_fa: "تجارت", created_at: "2026-07-10T09:00:00Z", updated_at: "2026-07-15T16:00:00Z", archived: 1 },
+    { id: "hist-008", user_id: userId, type: "conversation", title: "شکایت کلاهبرداری اینترنتی", status: "active", status_fa: "فعال", description: "مشاوره در مورد کلاهبرداری آنلاین و نحوه شکایت", category: "other", category_fa: "سایر", created_at: "2026-07-25T11:00:00Z", updated_at: "2026-07-29T09:00:00Z", archived: 0 },
+    { id: "hist-009", user_id: userId, type: "document", title: "قرارداد-استخدام-شرکت-فنی.docx", status: "ready", status_fa: "آماده", description: "تحلیل قرارداد استخدام — ۱ یافته", category: "commerce", category_fa: "تجارت", created_at: "2026-07-20T10:00:00Z", updated_at: "2026-07-20T12:00:00Z", archived: 0 },
+    { id: "hist-010", user_id: userId, type: "contract", title: "قرارداد مشارکت تجاری", status: "approved", status_fa: "تأیید شده", description: "قرارداد مشارکت — نسخه ۳", category: "commerce", category_fa: "تجارت", created_at: "2026-07-15T10:00:00Z", updated_at: "2026-07-25T16:00:00Z", archived: 0 },
+  ];
+  writeTable("activities", acts);
+
+  // Seed subscriptions
+  const subs: StoredSubscription[] = [
+    { id: "subhist-001", user_id: userId, plan_code: "pro", plan_name_fa: "پرو", amount: 2000000, currency: "IRT", status: "active", status_fa: "فعال", start_at: "2026-07-01T00:00:00Z", end_at: "2026-10-01T00:00:00Z", purchased_at: "2026-07-01T00:00:00Z", auto_renew: 1 },
+    { id: "subhist-002", user_id: userId, plan_code: "ultra", plan_name_fa: "الترا", amount: 900000, currency: "IRT", status: "expired", status_fa: "منقضی", start_at: "2026-05-01T00:00:00Z", end_at: "2026-06-01T00:00:00Z", purchased_at: "2026-05-01T00:00:00Z", auto_renew: 0 },
+    { id: "subhist-003", user_id: userId, plan_code: "ultra", plan_name_fa: "الترا", amount: 900000, currency: "IRT", status: "expired", status_fa: "منقضی", start_at: "2025-12-01T00:00:00Z", end_at: "2026-01-01T00:00:00Z", purchased_at: "2025-12-01T00:00:00Z", auto_renew: 0 },
+  ];
+  writeTable("subscriptions", subs);
+
+  // Seed usage stats
+  const usage: UsageStatsRow = {
+    user_id: userId,
+    daily_requests_used: 127, daily_requests_total: 300,
+    tokens_used: 850000, tokens_total: 1300000,
+    document_analyses_used: 3, document_analyses_total: 10,
+    contracts_generated: 1, contracts_total: 8,
+  };
+  writeTable("usage_stats", [usage]);
+
+  seeded = true;
+}
+
+// Auto-seed on first import in dev
+if (process.env.NODE_ENV === "development") {
+  seedDevData();
+}

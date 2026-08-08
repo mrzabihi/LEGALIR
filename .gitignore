@@ -35,6 +35,9 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Database
+.data/
+
 # Misc
 *.pem
 .turbo

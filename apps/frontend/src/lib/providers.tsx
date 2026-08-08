@@ -6,38 +6,13 @@ import { ThemeProvider } from "@/lib/theme";
 import { ErrorBoundary } from "@/lib/error-boundary";
 import { LocaleProvider } from "@legalir/i18n";
 import { SnackbarProvider } from "@legalir/ui";
-import { SplashScreen, SplashKeyframes } from "@/lib/splash";
-import { useThemeStore } from "@/stores/theme-store";
+import { SplashKeyframes } from "@/lib/splash";
+import { AppSplashGate } from "@/components/shared/AppSplashGate";
 import { installConsoleGuard } from "@/lib/console-guard";
 
 // Install console guard early
 if (typeof window !== "undefined") {
   installConsoleGuard();
-}
-
-function AppBoot({ children }: { children: React.ReactNode }) {
-  const { splashShown, setSplashShown } = useThemeStore();
-  const [showSplash, setShowSplash] = useState(!splashShown);
-
-  // If the splash was already shown (e.g. navigating back), skip
-  useEffect(() => {
-    if (splashShown) {
-      setShowSplash(false);
-    }
-  }, [splashShown]);
-
-  if (showSplash) {
-    return (
-      <SplashScreen
-        onFinish={() => {
-          setShowSplash(false);
-          setSplashShown(true);
-        }}
-      />
-    );
-  }
-
-  return <>{children}</>;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -71,7 +46,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <ThemeProvider>
             <SnackbarProvider>
               <SplashKeyframes />
-              <AppBoot>{children}</AppBoot>
+              <AppSplashGate>{children}</AppSplashGate>
             </SnackbarProvider>
           </ThemeProvider>
         </LocaleProvider>

@@ -1,5 +1,5 @@
 // Auth layout — Login, OTP, Profile completion
-// Centered, minimal design
+// Dark gradient background with centered card
 // Authenticated users are redirected to dashboard.
 
 "use client";
@@ -21,15 +21,43 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }, [isAuthenticated, pathname, router]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 rounded-large bg-primary items-center justify-center text-white font-bold text-h1 mb-4">
-            ل
-          </div>
-          <h1 className="text-h2 text-primary">LEGALIR</h1>
+    <div className="relative min-h-screen bg-gradient-to-br from-primary-950 via-primary-900 to-primary-800 flex items-center justify-center px-4 py-12">
+      {/* Dot pattern overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-30"
+        style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)`,
+          backgroundSize: "32px 32px",
+        }}
+        aria-hidden="true"
+      />
+      {/* Gold accent glow top-right */}
+      <div
+        className="absolute -top-32 -end-32 w-80 h-80 rounded-full opacity-15 pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(212,175,55,0.5), transparent 70%)" }}
+        aria-hidden="true"
+      />
+
+      <div className="relative z-10 w-full max-w-md">
+        {/* Logo area */}
+        <div className="flex flex-col items-center mb-10">
+          <img
+            src="/legalir-logo.png"
+            alt="LEGALIR"
+            className="h-20 w-auto mb-3 drop-shadow-lg"
+          />
+          <div className="h-px w-16 bg-gradient-to-r from-transparent via-secondary-600/40 to-transparent" />
         </div>
-        {children}
+
+        {/* Card container — children render inside */}
+        <div className="animate-fade-in">
+          {children}
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-caption text-neutral-400 mt-8">
+          سامانه جامع حقوقی LEGALIR
+        </p>
       </div>
     </div>
   );

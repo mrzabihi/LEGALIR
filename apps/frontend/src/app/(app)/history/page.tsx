@@ -8,7 +8,6 @@
 
 import { useState, useCallback } from "react";
 import { useHistory } from "@/hooks/usePhase11";
-import { HISTORY_CATEGORY_LABELS } from "@legalir/testing";
 import { toPersianDate } from "@/lib/persian-utils";
 import {
   IconHistory,
@@ -52,34 +51,12 @@ const SORT_OPTIONS: { key: string; label: string }[] = [
   { key: "title", label: "عنوان" },
 ];
 
-const TYPE_BADGE_COLORS: Record<string, string> = {
-  conversation: "bg-blue-100 text-blue-700 border-blue-200",
-  document: "bg-green-100 text-green-700 border-green-200",
-  contract: "bg-amber-100 text-amber-700 border-amber-200",
-};
 
-const TYPE_LABELS: Record<string, string> = {
-  conversation: "گفتگو",
-  document: "سند",
-  contract: "قرارداد",
-};
 
 // ============================================================
 // Icon selector per item type
 // ============================================================
 
-function getTypeIcon(type: string, size?: number) {
-  switch (type) {
-    case "conversation":
-      return <IconChat size={size} />;
-    case "document":
-      return <IconDocument size={size} />;
-    case "contract":
-      return <IconContract size={size} />;
-    default:
-      return <IconDocument size={size} />;
-  }
-}
 
 // ============================================================
 // Sub-components
@@ -261,8 +238,214 @@ function AdminReviewModal({
 }
 
 // ============================================================
-// History Item Card
+// Service-Type-Specific Card Designs
 // ============================================================
+
+/** Status badge color map — maps raw status to color + symbol */
+function getStatusConfig(status: string): { color: string; symbol: string; label: string } {
+  const s = status.toLowerCase();
+  if (["completed", "ready", "generated", "approved", "exported", "active"].includes(s)) {
+    return { color: "bg-success/10 text-success border-success/30", symbol: "✓", label: "" };
+  }
+  if (["processing", "analyzing", "extracting", "under_review", "collecting", "uploaded"].includes(s)) {
+    return { color: "bg-blue-100 text-blue-700 border-blue-300", symbol: "⟳", label: "" };
+  }
+  if (["draft"].includes(s)) {
+    return { color: "bg-amber-100 text-amber-700 border-amber-300", symbol: "📝", label: "" };
+  }
+  if (["failed", "blocked"].includes(s)) {
+    return { color: "bg-error/10 text-error border-error/30", symbol: "✗", label: "" };
+  }
+  if (["archived"].includes(s)) {
+    return { color: "bg-surfaceVariant text-muted border-divider", symbol: "📦", label: "" };
+  }
+  return { color: "bg-surfaceVariant text-muted border-divider", symbol: "", label: "" };
+}
+
+/** Conversation card — shows question preview, category, date */
+function ConversationCard({ item, isArchived }: { item: V1HistoryItem; isArchived: boolean }) {
+  const statusCfg = getStatusConfig(item.status);
+
+  return (
+    <div
+      className={`rounded-large border p-4 transition-all hover:shadow-elevation-4 group ${
+        isArchived ? "opacity-60 bg-surfaceVariant/30" : "bg-surface border-divider"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Type icon */}
+        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+          <IconChat size={20} className="text-blue-600" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <h3 className={`text-body-1 font-semibold text-onSurface ${isArchived ? "line-through" : ""}`}>
+              {item.title}
+            </h3>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}>
+              <span>{statusCfg.symbol}</span>
+              {item.statusFa}
+            </span>
+          </div>
+
+          {/* Question preview / description */}
+          {item.description && (
+            <p className="text-body-2 text-muted line-clamp-2 mb-2">
+              {item.description}
+            </p>
+          )}
+
+          {/* Bottom: category + date */}
+          <div className="flex items-center gap-3 text-labelSmall text-muted">
+            {item.categoryFa && (
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60" />
+                {item.categoryFa}
+              </span>
+            )}
+            <span>{toPersianDate(item.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Document Analysis card — shows document name, risk level, findings count */
+function DocumentCard({ item, isArchived }: { item: V1HistoryItem; isArchived: boolean }) {
+  const statusCfg = getStatusConfig(item.status);
+  const riskLevel = item.status === "ready" ? (item.description?.includes("۵") ? "high" : "medium") : null;
+  const findingCount = item.description?.match(/(\d+)\s*یافته/)?.[1] ?? null;
+  const riskColor =
+    riskLevel === "high" ? "text-error bg-error/10" :
+    riskLevel === "medium" ? "text-warning bg-warning/10" :
+    "text-muted bg-surfaceVariant";
+
+  return (
+    <div
+      className={`rounded-large border p-4 transition-all hover:shadow-elevation-4 group ${
+        isArchived ? "opacity-60 bg-surfaceVariant/30" : "bg-surface border-divider"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Type icon */}
+        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+          <IconDocument size={20} className="text-green-600" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <h3 className={`text-body-1 font-semibold text-onSurface ${isArchived ? "line-through" : ""}`}>
+              {item.title}
+            </h3>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}>
+              <span>{statusCfg.symbol}</span>
+              {item.statusFa}
+            </span>
+          </div>
+
+          {/* Risk level + findings count */}
+          <div className="flex items-center gap-3 mb-2">
+            {riskLevel && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall ${riskColor}`}>
+                {riskLevel === "high" ? "🟡" : "🟢"}
+                ریسک {riskLevel === "high" ? "بالا" : "متوسط"}
+              </span>
+            )}
+            {findingCount && (
+              <span className="text-labelSmall text-muted">
+                {findingCount} یافته
+              </span>
+            )}
+          </div>
+
+          {/* Description */}
+          {item.description && (
+            <p className="text-body-2 text-muted line-clamp-1 mb-1">
+              {item.description}
+            </p>
+          )}
+
+          {/* Bottom: category + date */}
+          <div className="flex items-center gap-3 text-labelSmall text-muted">
+            {item.categoryFa && (
+              <span>{item.categoryFa}</span>
+            )}
+            <span>{toPersianDate(item.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Contract card — shows contract type, status, version */
+function ContractCard({ item, isArchived }: { item: V1HistoryItem; isArchived: boolean }) {
+  const statusCfg = getStatusConfig(item.status);
+  const isApproved = item.status === "approved" || item.status === "exported";
+  const isGenerated = item.status === "generated";
+
+  return (
+    <div
+      className={`rounded-large border p-4 transition-all hover:shadow-elevation-4 group ${
+        isArchived ? "opacity-60 bg-surfaceVariant/30" : "bg-surface border-divider"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Type icon */}
+        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+          <IconContract size={20} className="text-amber-600" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <h3 className={`text-body-1 font-semibold text-onSurface ${isArchived ? "line-through" : ""}`}>
+              {item.title}
+            </h3>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}>
+              <span>{statusCfg.symbol}</span>
+              {item.statusFa}
+            </span>
+            {isApproved && (
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall bg-success/10 text-success border border-success/30">
+                <span>✓</span>
+                نهایی
+              </span>
+            )}
+            {isGenerated && (
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall bg-primary/10 text-primary border border-primary/30">
+                <span>📋</span>
+                آماده بررسی
+              </span>
+            )}
+          </div>
+
+          {/* Description */}
+          {item.description && (
+            <p className="text-body-2 text-muted line-clamp-2 mb-2">
+              {item.description}
+            </p>
+          )}
+
+          {/* Bottom: category + date */}
+          <div className="flex items-center gap-3 text-labelSmall text-muted">
+            {item.categoryFa && (
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+                {item.categoryFa}
+              </span>
+            )}
+            <span>{toPersianDate(item.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function HistoryItemCard({
   item,
@@ -273,100 +456,40 @@ function HistoryItemCard({
   isArchived: boolean;
   onToggleArchive: (item: V1HistoryItem) => void;
 }) {
-  const badgeColor =
-    TYPE_BADGE_COLORS[item.type] ??
-    "bg-gray-100 text-gray-700 border-gray-200";
+  // Render type-specific card on larger screens
+  const CardComponent =
+    item.type === "conversation" ? ConversationCard :
+    item.type === "document" ? DocumentCard :
+    item.type === "contract" ? ContractCard :
+    ConversationCard;
 
   return (
-    <div
-      className={[
-        "rounded-large bg-surface shadow-elevation-1 border border-divider p-5 transition-all",
-        isArchived ? "opacity-60" : "",
-      ].join(" ")}
-    >
-      <div className="flex items-start gap-4">
-        {/* Type Icon */}
-        <div className="w-10 h-10 rounded-full bg-muted/10 flex items-center justify-center shrink-0 text-muted">
-          {getTypeIcon(item.type, 20)}
-        </div>
+    <div className="relative group/item">
+      <CardComponent item={item} isArchived={isArchived} />
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Title row */}
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <h3
-              className={[
-                "text-body-1 font-semibold text-on-surface",
-                isArchived ? "line-through" : "",
-              ].join(" ")}
-            >
-              {item.title}
-            </h3>
-
-            {/* Type badge */}
-            <span
-              className={[
-                "inline-block rounded-full px-2.5 py-0.5 text-labelSmall border",
-                badgeColor,
-              ].join(" ")}
-            >
-              {TYPE_LABELS[item.type] ?? item.type}
-            </span>
-
-            {/* Category badge */}
-            {item.category && (
-              <span className="inline-block rounded-full px-2.5 py-0.5 text-labelSmall bg-muted/15 text-muted border border-divider">
-                {item.categoryFa ??
-                  HISTORY_CATEGORY_LABELS[item.category] ??
-                  item.category}
-              </span>
-            )}
-
-            {/* Status badge */}
-            <span className="inline-block rounded-full px-2.5 py-0.5 text-labelSmall bg-muted/10 text-muted border border-divider">
-              {item.statusFa}
-            </span>
-          </div>
-
-          {/* Description */}
-          {item.description && (
-            <p className="text-body-2 text-muted mt-1 line-clamp-2">
-              {item.description}
-            </p>
-          )}
-
-          {/* Meta row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-            <span className="text-labelSmall text-muted">
-              {toPersianDate(item.createdAt)}
-            </span>
-
-            {/* Actions */}
-            <button
-              onClick={() => onToggleArchive(item)}
-              className={[
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-labelSmall font-medium transition-colors touch-target",
-                isArchived
-                  ? "bg-primary/10 text-primary hover:bg-primary/20"
-                  : "bg-muted/10 text-muted hover:bg-muted/20",
-              ].join(" ")}
-              aria-label={isArchived ? "خروج از بایگانی" : "بایگانی"}
-            >
-              {isArchived ? (
-                <>
-                  <IconCheck size={14} />
-                  خروج از بایگانی
-                </>
-              ) : (
-                <>
-                  <IconArchive size={14} />
-                  بایگانی
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Archive toggle button — positioned absolutely */}
+      <button
+        onClick={() => onToggleArchive(item)}
+        className={[
+          "absolute top-3 end-3 opacity-0 group-hover/item:opacity-100 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-labelSmall font-medium transition-all touch-target",
+          isArchived
+            ? "bg-primary/10 text-primary hover:bg-primary/20"
+            : "bg-white/90 text-muted hover:bg-white shadow-sm border border-border",
+        ].join(" ")}
+        aria-label={isArchived ? "خروج از بایگانی" : "بایگانی"}
+      >
+        {isArchived ? (
+          <>
+            <IconCheck size={14} />
+            خروج از بایگانی
+          </>
+        ) : (
+          <>
+            <IconArchive size={14} />
+            بایگانی
+          </>
+        )}
+      </button>
     </div>
   );
 }

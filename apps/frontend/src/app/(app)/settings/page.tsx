@@ -25,10 +25,14 @@ import {
   IconDarkMode,
   IconShield,
   IconCheck,
-  IconClose,
   IconWarning,
   IconInfo,
   IconRefresh,
+  IconLogout,
+  IconDownload,
+  IconDelete,
+  IconFile,
+  IconPerson,
 } from "@/lib/icons";
 
 // ============================================================
@@ -43,6 +47,87 @@ function pct(used: number, total: number): number {
   if (total <= 0) return 0;
   return Math.min(100, Math.round((used / total) * 100));
 }
+
+// ============================================================
+// Mock Data
+// ============================================================
+
+interface MockSession {
+  id: string;
+  device: string;
+  browser: string;
+  location: string;
+  ip: string;
+  lastActive: string;
+  current: boolean;
+}
+
+const MOCK_SESSIONS: MockSession[] = [
+  {
+    id: "s1",
+    device: "MacBook Pro",
+    browser: "Google Chrome 134",
+    location: "تهران، ایران",
+    ip: "5.160.201.92",
+    lastActive: "اکنون",
+    current: true,
+  },
+  {
+    id: "s2",
+    device: "iPhone 16 Pro",
+    browser: "Safari 18",
+    location: "تهران، ایران",
+    ip: "5.211.89.45",
+    lastActive: "۲ ساعت پیش",
+    current: false,
+  },
+  {
+    id: "s3",
+    device: "Windows Desktop",
+    browser: "Microsoft Edge 134",
+    location: "اصفهان، ایران",
+    ip: "46.209.108.17",
+    lastActive: "۱ روز پیش",
+    current: false,
+  },
+];
+
+interface MockLoginHistory {
+  id: string;
+  date: string;
+  time: string;
+  device: string;
+  ip: string;
+  success: boolean;
+}
+
+const MOCK_LOGIN_HISTORY: MockLoginHistory[] = [
+  { id: "l1", date: "۱۴ مرداد ۱۴۰۵", time: "۱۴:۳۲", device: "MacBook Pro — Chrome", ip: "5.160.201.92", success: true },
+  { id: "l2", date: "۱۴ مرداد ۱۴۰۵", time: "۰۹:۱۷", device: "iPhone 16 — Safari", ip: "5.211.89.45", success: true },
+  { id: "l3", date: "۱۳ مرداد ۱۴۰۵", time: "۲۲:۰۵", device: "Windows — Edge", ip: "46.209.108.17", success: false },
+  { id: "l4", date: "۱۳ مرداد ۱۴۰۵", time: "۱۸:۴۴", device: "MacBook Pro — Chrome", ip: "5.160.201.92", success: true },
+  { id: "l5", date: "۱۲ مرداد ۱۴۰۵", time: "۱۱:۲۰", device: "iPhone 16 — Safari", ip: "5.211.89.45", success: true },
+];
+
+interface MockExport {
+  id: string;
+  date: string;
+  status: "ready" | "downloading" | "expired";
+  statusFa: string;
+  fileName: string;
+}
+
+const MOCK_EXPORTS: MockExport[] = [
+  { id: "e1", date: "۱۴ مرداد ۱۴۰۵", status: "ready", statusFa: "آماده", fileName: "legalir-data-14050514.zip" },
+  { id: "e2", date: "۲۰ تیر ۱۴۰۴", status: "expired", statusFa: "منقضی", fileName: "legalir-data-14040420.zip" },
+  { id: "e3", date: "۰۵ خرداد ۱۴۰۴", status: "expired", statusFa: "منقضی", fileName: "legalir-data-14040305.zip" },
+];
+
+const EXPORT_STATUS_CLASS: Record<string, string> = {
+  ready: "bg-success/10 text-success border-success/20",
+  downloading: "bg-info/10 text-info border-info/20",
+  expired: "bg-muted/10 text-muted border-muted/20",
+};
 
 // ============================================================
 // Sub-components
@@ -431,6 +516,214 @@ function PreferenceToggleGroup({
 }
 
 // ============================================================
+// Delete History Button (with confirmation dialog)
+// ============================================================
+
+function DeleteHistoryButton() {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback(() => {
+    setDeleting(true);
+    // Simulate API call
+    setTimeout(() => {
+      setDeleting(false);
+      setShowConfirm(false);
+    }, 1500);
+  }, []);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowConfirm(true)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-error/30 px-4 py-2 text-body-2 text-error transition hover:bg-error/5"
+      >
+        <IconDelete size={16} />
+        حذف تاریخچه خروجی‌ها
+      </button>
+
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowConfirm(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-history-title"
+        >
+          <div className="w-full max-w-sm rounded-large bg-surface p-6 shadow-elevation-8">
+            <h3
+              id="delete-history-title"
+              className="text-h4 text-on-surface mb-2"
+            >
+              تأیید حذف تاریخچه
+            </h3>
+            <p className="text-body-2 text-muted mb-5">
+              آیا مطمئن هستید که می‌خواهید تمام تاریخچه خروجی داده‌ها را حذف
+              کنید؟ این عمل قابل بازگشت نیست.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                disabled={deleting}
+                className="rounded-full border border-divider px-4 py-2 text-body-2 text-on-surface transition hover:bg-surface-hover"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 rounded-full bg-error px-4 py-2 text-body-2 text-on-error font-medium transition hover:bg-error/90 disabled:opacity-60"
+              >
+                {deleting ? (
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-on-error border-t-transparent" />
+                ) : (
+                  <IconDelete size={16} />
+                )}
+                {deleting ? "در حال حذف..." : "تأیید حذف"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ============================================================
+// Account Closure Form
+// ============================================================
+
+const CLOSURE_REASONS = [
+  { value: "no-need", label: "دیگر نیاز ندارم" },
+  { value: "privacy", label: "نگرانی حریم خصوصی" },
+  { value: "quality", label: "کیفیت پایین خدمات" },
+  { value: "financial", label: "دلایل مالی" },
+  { value: "other", label: "سایر" },
+] as const;
+
+function AccountClosureForm() {
+  const [step, setStep] = useState<"idle" | "confirm" | "deleting">("idle");
+  const [confirmText, setConfirmText] = useState("");
+  const [reason, setReason] = useState("");
+
+  const canDelete =
+    step === "confirm" &&
+    confirmText === "DELETE" &&
+    reason !== "";
+
+  const handleInitiate = useCallback(() => {
+    setStep("confirm");
+  }, []);
+
+  const handleDelete = useCallback(() => {
+    if (!canDelete) return;
+    setStep("deleting");
+    // Simulate API call
+    setTimeout(() => {
+      setStep("idle");
+      setConfirmText("");
+      setReason("");
+    }, 2000);
+  }, [canDelete]);
+
+  const handleCancel = useCallback(() => {
+    setStep("idle");
+    setConfirmText("");
+    setReason("");
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {/* Reason dropdown — always visible */}
+      <div>
+        <label
+          htmlFor="closure-reason"
+          className="block text-body-2 text-on-surface mb-1.5"
+        >
+          دلیل حذف حساب
+        </label>
+        <select
+          id="closure-reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          disabled={step === "deleting"}
+          className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface focus:outline-none focus:border-error transition disabled:opacity-50"
+        >
+          <option value="">انتخاب دلیل...</option>
+          {CLOSURE_REASONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Step-based actions */}
+      {step === "idle" && (
+        <button
+          type="button"
+          onClick={handleInitiate}
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-error/60 bg-error/5 px-5 py-2.5 text-body-2 text-error font-medium transition hover:bg-error/10"
+        >
+          <IconDelete size={16} />
+          درخواست حذف حساب
+        </button>
+      )}
+
+      {step === "confirm" && (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-4 space-y-3">
+          <p className="text-body-2 text-error font-medium">
+            برای تأیید، عبارت DELETE را تایپ کنید:
+          </p>
+          <input
+            type="text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="DELETE"
+            className="w-full rounded-full border border-error/40 bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-error transition"
+            dir="ltr"
+            autoFocus
+          />
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={!canDelete}
+              className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2.5 text-body-2 text-on-error font-medium transition hover:bg-error/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <IconDelete size={16} />
+              تأیید نهایی حذف حساب
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="rounded-full border border-divider px-4 py-2.5 text-body-2 text-on-surface transition hover:bg-surface-hover"
+            >
+              انصراف
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === "deleting" && (
+        <div className="flex items-center gap-3 rounded-lg border border-error/30 bg-error/5 p-4">
+          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-error border-t-transparent" />
+          <span className="text-body-2 text-error font-medium">
+            در حال حذف حساب... لطفا منتظر بمانید.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // Page
 // ============================================================
 
@@ -685,45 +978,402 @@ export default function SettingsPage() {
       {/* امنیت (Security) */}
       {/* ================================================ */}
       <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-5">
           <IconShield size={22} className="text-primary" />
-          <h2 className="text-h3 text-on-surface">امنیت</h2>
+          <h2 className="text-h3 text-on-surface">امنیت حساب</h2>
         </div>
-        <p className="text-body-2 text-muted">
-          مدیریت نشست‌های فعال در نسخه‌های آینده
-        </p>
+
+        {/* Active Sessions */}
+        <div className="mb-6">
+          <h3 className="text-body-1 text-on-surface font-medium mb-3">
+            نشست‌های فعال
+          </h3>
+          <div className="space-y-2">
+            {MOCK_SESSIONS.map((session) => (
+              <div
+                key={session.id}
+                className={`flex flex-col tablet:flex-row tablet:items-center justify-between gap-2 rounded-lg border p-4 ${
+                  session.current
+                    ? "border-primary/30 bg-primary/5"
+                    : "border-divider"
+                }`}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <IconPerson size={18} className="text-muted" />
+                    <span className="text-body-2 text-on-surface font-medium">
+                      {session.device}
+                      {session.current && (
+                        <span className="mr-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-caption text-primary">
+                          جاری
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-caption text-muted">
+                    <span>{session.browser}</span>
+                    <span>
+                      {session.location} — IP: {session.ip}
+                    </span>
+                    <span>آخرین فعالیت: {session.lastActive}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={session.current}
+                  className={`inline-flex items-center gap-1.5 self-end tablet:self-auto rounded-full border px-3 py-1.5 text-caption font-medium transition ${
+                    session.current
+                      ? "cursor-not-allowed border-divider text-muted opacity-50"
+                      : "border-error/30 text-error hover:bg-error/5"
+                  }`}
+                  aria-label={`خروج از ${session.device}`}
+                >
+                  <IconLogout size={14} />
+                  خروج
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-divider px-4 py-2 text-body-2 text-on-surface opacity-50 cursor-not-allowed transition"
+          >
+            <IconLogout size={16} />
+            خروج از تمام نشست‌های دیگر
+          </button>
+        </div>
+
+        {/* Divider */}
+        <hr className="border-divider my-5" />
+
+        {/* Password Change */}
+        <div className="mb-5">
+          <h3 className="text-body-1 text-on-surface font-medium mb-3">
+            تغییر رمز عبور
+          </h3>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <label
+                htmlFor="current-password"
+                className="block text-body-2 text-on-surface mb-1.5"
+              >
+                رمز عبور فعلی
+              </label>
+              <input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary transition"
+                dir="ltr"
+              />
+            </div>
+            <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
+              <div>
+                <label
+                  htmlFor="new-password"
+                  className="block text-body-2 text-on-surface mb-1.5"
+                >
+                  رمز عبور جدید
+                </label>
+                <input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary transition"
+                  dir="ltr"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="confirm-password"
+                  className="block text-body-2 text-on-surface mb-1.5"
+                >
+                  تکرار رمز عبور جدید
+                </label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary transition"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-body-2 text-on-primary font-medium transition hover:bg-primary-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <IconCheck size={16} />
+              تغییر رمز عبور
+            </button>
+          </form>
+        </div>
+
+        {/* Divider */}
+        <hr className="border-divider my-5" />
+
+        {/* Login History */}
+        <div>
+          <h3 className="text-body-1 text-on-surface font-medium mb-3">
+            تاریخچه ورود
+          </h3>
+          {/* Mobile card view */}
+          <div className="tablet:hidden space-y-2">
+            {MOCK_LOGIN_HISTORY.map((entry) => (
+              <div
+                key={entry.id}
+                className="rounded-lg border border-divider bg-surface-hover/50 p-3"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-caption text-on-surface font-medium">
+                    {entry.date} — {entry.time}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                      entry.success
+                        ? "bg-success/10 text-success border-success/20"
+                        : "bg-error/10 text-error border-error/20"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        entry.success ? "bg-success" : "bg-error"
+                      }`}
+                    />
+                    {entry.success ? "موفق" : "ناموفق"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 text-caption text-muted">
+                  <span>{entry.device}</span>
+                  <span>IP: {entry.ip}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table view */}
+          <div className="hidden tablet:block overflow-x-auto">
+            <table className="w-full text-right text-body-2">
+              <thead>
+                <tr className="border-b border-divider text-muted">
+                  <th className="pb-2 pl-3 font-medium">تاریخ و ساعت</th>
+                  <th className="pb-2 pl-3 font-medium">دستگاه</th>
+                  <th className="pb-2 pl-3 font-medium">IP</th>
+                  <th className="pb-2 font-medium">وضعیت</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-divider">
+                {MOCK_LOGIN_HISTORY.map((entry) => (
+                  <tr
+                    key={entry.id}
+                    className="hover:bg-surface-hover/50 transition-colors"
+                  >
+                    <td className="py-2.5 pl-3 text-on-surface">
+                      {entry.date} — {entry.time}
+                    </td>
+                    <td className="py-2.5 pl-3 text-on-surface">
+                      {entry.device}
+                    </td>
+                    <td className="py-2.5 pl-3 text-muted" dir="ltr">
+                      {entry.ip}
+                    </td>
+                    <td className="py-2.5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium ${
+                          entry.success
+                            ? "bg-success/10 text-success border-success/20"
+                            : "bg-error/10 text-error border-error/20"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-2 w-2 rounded-full ${
+                            entry.success ? "bg-success" : "bg-error"
+                          }`}
+                        />
+                        {entry.success ? "موفق" : "ناموفق"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       {/* ================================================ */}
       {/* خروجی داده (Data Export) */}
       {/* ================================================ */}
       <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-        <h2 className="text-h3 text-on-surface mb-3">خروجی داده</h2>
-        <p className="text-body-2 text-muted">
-          درخواست خروجی از تمام داده‌ها
-        </p>
+        <div className="flex items-center gap-2 mb-4">
+          <IconFile size={22} className="text-primary" />
+          <h2 className="text-h3 text-on-surface">مدیریت داده‌ها</h2>
+        </div>
+
+        {/* Export Action */}
+        <div className="mb-5">
+          <p className="text-body-2 text-muted mb-3">
+            شما می‌توانید یک نسخه کامل از تمام داده‌های خود شامل تحلیل اسناد،
+            تاریخچه گفتگوها، قراردادهای تولیدشده و تنظیمات حساب را به صورت یک
+            فایل ZIP دریافت کنید. آماده‌سازی فایل ممکن است تا چند ساعت طول بکشد.
+          </p>
+          <button
+            type="button"
+            disabled
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-body-2 text-on-primary font-medium opacity-50 cursor-not-allowed transition"
+          >
+            <IconDownload size={16} />
+            دریافت خروجی از تمام داده‌های من
+          </button>
+        </div>
+
+        {/* Divider */}
+        <hr className="border-divider my-5" />
+
+        {/* Export History */}
+        <div className="mb-5">
+          <h3 className="text-body-1 text-on-surface font-medium mb-3">
+            تاریخچه خروجی‌ها
+          </h3>
+          {MOCK_EXPORTS.length === 0 ? (
+            <EmptyState text="تاکنون خروجی داده‌ای درخواست نشده است." />
+          ) : (
+            <>
+              {/* Mobile card view */}
+              <div className="tablet:hidden space-y-2">
+                {MOCK_EXPORTS.map((exp) => (
+                  <div
+                    key={exp.id}
+                    className="rounded-lg border border-divider bg-surface-hover/50 p-3"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-caption text-on-surface font-medium">
+                        {exp.date}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${EXPORT_STATUS_CLASS[exp.status]}`}
+                      >
+                        {exp.statusFa}
+                      </span>
+                    </div>
+                    <p
+                      className="text-caption text-muted truncate mb-2"
+                      dir="ltr"
+                    >
+                      {exp.fileName}
+                    </p>
+                    {exp.status === "ready" && (
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-caption text-primary font-medium opacity-50 cursor-not-allowed transition"
+                      >
+                        <IconDownload size={14} />
+                        دانلود
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Desktop table view */}
+              <div className="hidden tablet:block overflow-x-auto">
+                <table className="w-full text-right text-body-2">
+                  <thead>
+                    <tr className="border-b border-divider text-muted">
+                      <th className="pb-2 pl-3 font-medium">تاریخ درخواست</th>
+                      <th className="pb-2 pl-3 font-medium">نام فایل</th>
+                      <th className="pb-2 pl-3 font-medium">وضعیت</th>
+                      <th className="pb-2 font-medium">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-divider">
+                    {MOCK_EXPORTS.map((exp) => (
+                      <tr
+                        key={exp.id}
+                        className="hover:bg-surface-hover/50 transition-colors"
+                      >
+                        <td className="py-2.5 pl-3 text-on-surface">
+                          {exp.date}
+                        </td>
+                        <td
+                          className="py-2.5 pl-3 text-on-surface"
+                          dir="ltr"
+                        >
+                          {exp.fileName}
+                        </td>
+                        <td className="py-2.5 pl-3">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium ${EXPORT_STATUS_CLASS[exp.status]}`}
+                          >
+                            {exp.statusFa}
+                          </span>
+                        </td>
+                        <td className="py-2.5">
+                          {exp.status === "ready" && (
+                            <button
+                              type="button"
+                              disabled
+                              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-caption text-primary font-medium opacity-50 cursor-not-allowed transition"
+                            >
+                              <IconDownload size={14} />
+                              دانلود
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Divider */}
+        <hr className="border-divider my-5" />
+
+        {/* Delete History */}
+        <div>
+          <p className="text-body-2 text-muted mb-3">
+            با حذف تاریخچه خروجی‌ها، تمام فایل‌های خروجی قبلی از سرور حذف شده و
+            لینک‌های دانلود آن‌ها از کار خواهد افتاد. این عمل قابل بازگشت نیست.
+          </p>
+          <DeleteHistoryButton />
+        </div>
       </section>
 
       {/* ================================================ */}
       {/* حذف حساب (Account Closure) */}
       {/* ================================================ */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-error/30 mb-6">
-        <div className="flex items-center gap-2 mb-3">
+      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border-2 border-error/40 mb-6">
+        <div className="flex items-center gap-2 mb-4">
           <IconWarning size={22} className="text-error" />
-          <h2 className="text-h3 text-error">حذف حساب</h2>
+          <h2 className="text-h3 text-error">حذف حساب کاربری</h2>
         </div>
-        <p className="text-body-2 text-muted mb-4">
-          درخواست حذف دائمی حساب کاربری
-        </p>
-        <button
-          type="button"
-          disabled
-          className="inline-flex items-center gap-1.5 rounded-full border border-error/40 px-5 py-2 text-body-2 text-error transition cursor-not-allowed opacity-60"
-          aria-label="حذف حساب — در نسخه‌های بعدی در دسترس خواهد بود"
-        >
-          <IconClose size={16} />
-          حذف حساب
-        </button>
+
+        {/* Warning */}
+        <div className="rounded-lg bg-error/5 border border-error/20 p-4 mb-5">
+          <p className="text-body-2 text-on-surface mb-1 font-medium">
+            هشدار: این عملیات قابل بازگشت نیست
+          </p>
+          <p className="text-body-2 text-muted">
+            با حذف حساب، تمام داده‌های شما از جمله قراردادها، تحلیل اسناد،
+            تاریخچه گفتگوها و اطلاعات پروفایل به طور دائمی حذف خواهند شد. همچنین
+            تمام اشتراک‌های فعال شما لغو شده و دسترسی به حساب برای همیشه مسدود
+            می‌شود.
+          </p>
+        </div>
+
+        {/* Account closure form */}
+        <AccountClosureForm />
       </section>
     </div>
   );

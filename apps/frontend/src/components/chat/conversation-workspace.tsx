@@ -130,6 +130,9 @@ export function ConversationWorkspace({
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -163,8 +166,8 @@ export function ConversationWorkspace({
 
         {/* Streaming indicator for new messages */}
         {isStreaming && runStatus && runStatus !== "succeeded" && (
-          <div className="flex items-center gap-2 px-4 py-2 animate-pulse">
-            <span className="w-2 h-2 rounded-full bg-primary" />
+          <div className="flex items-center gap-2 px-4 py-2 animate-pulse" aria-live="polite" role="status">
+            <span className="w-2 h-2 rounded-full bg-primary" aria-hidden="true" />
             <span className="text-bodySmall text-muted">در حال پردازش...</span>
           </div>
         )}

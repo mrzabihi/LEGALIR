@@ -67,54 +67,104 @@ const sections = [
 export default function AboutPage() {
   return (
     <>
-      <div className="mx-auto max-w-4xl px-4 py-16">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-h1 text-on-surface mb-3">درباره LEGALIR</h1>
-          <p className="text-body-1 text-muted max-w-xl mx-auto">
+      {/* Page Header - Gradient */}
+      <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
+        <div className="mx-auto max-w-4xl px-4 text-center">
+          <h1 className="text-h1 text-white mb-4">درباره LEGALIR</h1>
+          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
             پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران — دسترسی به دانش حقوقی برای همه
           </p>
         </div>
+      </section>
 
-        {/* Sections */}
-        <div className="space-y-8">
-          {sections.map((section) => (
-            <section
-              key={section.id}
-              id={section.id}
-              className="rounded-large bg-surface p-8 shadow-elevation-1 border border-divider"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-medium bg-primary/10 flex items-center justify-center text-primary">
-                  {"icon" in section && section.icon ? <section.icon size={22} /> : null}
+      {/* Mission & AI Sections */}
+      <section className="bg-white py-16">
+        <div className="mx-auto max-w-4xl px-4">
+          <div className="space-y-6">
+            {sections.slice(0, 2).map((section) => (
+              <div
+                key={section.id}
+                id={section.id}
+                className="rounded-xl bg-surface p-8 shadow-sm border border-neutral-200"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-11 w-11 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700">
+                    {"icon" in section && section.icon ? <section.icon size={22} /> : null}
+                  </div>
+                  <h2 className="text-h2 text-primary-800">{section.title}</h2>
                 </div>
-                <h2 className="text-h2 text-on-surface">{section.title}</h2>
+
+                {"content" in section && section.content && (
+                  <p className="text-body-1 text-neutral-600 leading-relaxed">
+                    {section.content}
+                  </p>
+                )}
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-              {"content" in section && section.content && (
-                <p className="text-body-1 text-on-surface leading-relaxed">
-                  {section.content}
-                </p>
-              )}
-
-              {"items" in section && section.items && (
-                <div className="space-y-4">
-                  {section.items.map((item) => (
-                    <div key={item.title}>
-                      <h3 className="text-button text-on-surface mb-1">{item.title}</h3>
-                      <p className="text-body-2 text-muted">{item.desc}</p>
-                    </div>
-                  ))}
+      {/* Transparency & Roadmap Sections */}
+      <section className="bg-neutral-50 py-16 border-y border-neutral-200">
+        <div className="mx-auto max-w-4xl px-4">
+          <div className="space-y-6">
+            {sections.slice(2).map((section) => (
+              <div
+                key={section.id}
+                id={section.id}
+                className="rounded-xl bg-surface p-8 shadow-sm border border-neutral-200"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="h-11 w-11 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700">
+                    {"icon" in section && section.icon ? <section.icon size={22} /> : null}
+                  </div>
+                  <h2 className="text-h2 text-primary-800">{section.title}</h2>
                 </div>
-              )}
-            </section>
-          ))}
 
+                {"content" in section && section.content && (
+                  <p className="text-body-1 text-neutral-600 leading-relaxed">
+                    {section.content}
+                  </p>
+                )}
+
+                {"items" in section && section.items && (
+                  <div className="space-y-5">
+                    {section.items.map((item, idx) => (
+                      <div
+                        key={item.title}
+                        className="flex gap-4"
+                      >
+                        <div className="h-8 w-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-700 text-caption font-bold shrink-0 mt-0.5">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <h3 className="text-button text-primary-800 mb-1">{item.title}</h3>
+                          <p className="text-body-2 text-neutral-500 leading-relaxed">
+                            {item.desc}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Disclaimer & Privacy */}
+      <section className="bg-white py-16">
+        <div className="mx-auto max-w-4xl px-4 space-y-6">
           {/* Disclaimer */}
-          <section id="disclaimer" className="rounded-large bg-surface p-8 shadow-elevation-1">
-            <h2 className="text-h2 text-on-surface mb-4">سلب مسئولیت حقوقی</h2>
-            <div className="p-4 rounded-medium bg-warning/10 border border-warning/30">
-              <p className="text-body-2 text-on-surface leading-relaxed">
+          <div
+            id="disclaimer"
+            className="rounded-xl bg-surface p-8 shadow-sm border border-neutral-200"
+          >
+            <h2 className="text-h2 text-primary-800 mb-4">سلب مسئولیت حقوقی</h2>
+            <div className="p-5 rounded-xl bg-warning-container/60 border border-warning/25">
+              <p className="text-body-2 text-neutral-700 leading-relaxed">
                 LEGALIR یک ابزار کمک‌آموزشی و اطلاع‌رسانی حقوقی است. این پلتفرم جایگزین
                 وکیل، مشاور حقوقی یا مراجع رسمی قضایی نیست. استفاده از اطلاعات ارائه‌شده
                 در تصمیم‌گیری‌های حقوقی، بدون مشورت با وکیل متخصص، به عهده خود کاربر است.
@@ -122,25 +172,28 @@ export default function AboutPage() {
                 مصنوعی ندارد.
               </p>
             </div>
-          </section>
+          </div>
 
           {/* Privacy */}
-          <section id="privacy" className="rounded-large bg-surface p-8 shadow-elevation-1">
-            <h2 className="text-h2 text-on-surface mb-4">حریم خصوصی</h2>
-            <p className="text-body-1 text-on-surface leading-relaxed">
+          <div
+            id="privacy"
+            className="rounded-xl bg-surface p-8 shadow-sm border border-neutral-200"
+          >
+            <h2 className="text-h2 text-primary-800 mb-4">حریم خصوصی</h2>
+            <p className="text-body-1 text-neutral-600 leading-relaxed">
               LEGALIR به حریم خصوصی کاربران خود متعهد است. اطلاعات شخصی، گفتگوها، اسناد
               بارگذاری‌شده و قراردادهای تولیدشده محرمانه هستند و برای آموزش مدل‌های عمومی
               استفاده نمی‌شوند. تمام داده‌ها در سرورهای امن با رعایت استانداردهای حفاظت
               از داده نگهداری می‌شوند.
             </p>
-          </section>
-        </div>
+          </div>
 
-        {/* AI Disclaimer */}
-        <div className="mt-8">
-          <AIDisclaimer />
+          {/* AI Disclaimer */}
+          <div className="mt-6">
+            <AIDisclaimer />
+          </div>
         </div>
-      </div>
+      </section>
     </>
   );
 }

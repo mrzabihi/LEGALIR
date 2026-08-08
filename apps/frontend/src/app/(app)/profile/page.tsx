@@ -22,6 +22,7 @@ import {
   IconPhone,
   IconShield,
   IconSettings,
+  IconSubscription,
 } from "@/lib/icons";
 import type { Profile, V1SubscriptionHistoryItem, V1ProfileUsage } from "@legalir/types";
 
@@ -542,23 +543,23 @@ export default function ProfilePage() {
         )}
       </section>
 
-      {/* ---- Financial History ---- */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider">
+      {/* ---- Payment History ---- */}
+      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
         <div className="flex items-center gap-2 mb-5">
-          <IconPhone size={20} className="text-primary" />
-          <h2 className="text-h3 text-on-surface">تاریخچه مالی</h2>
+          <IconSubscription size={20} className="text-primary" />
+          <h2 className="text-h3 text-on-surface">پرداخت‌ها</h2>
         </div>
 
         {subHistory.isLoading ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 bg-surfaceVariant rounded animate-pulse" />
+              <div key={i} className="h-16 bg-surfaceVariant rounded animate-pulse" />
             ))}
           </div>
         ) : subHistory.isError ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <p className="text-body-2 text-error">
-              خطا در دریافت تاریخچه مالی
+              خطا در دریافت تاریخچه پرداخت
             </p>
             <button
               onClick={() => subHistory.refetch()}
@@ -569,53 +570,141 @@ export default function ProfilePage() {
           </div>
         ) : subItems.length === 0 ? (
           <p className="text-body-2 text-muted text-center py-4">
-            هنوز خریدی انجام نشده است.
+            هنوز پرداختی انجام نشده است.
           </p>
         ) : (
-          <>
-            {/* Mobile card view */}
-            <div className="tablet:hidden space-y-3">
-              {subItems.map((item) => (
-                <div key={item.id} className="rounded-large bg-surface p-4 border border-divider">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-caption ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES['unknown']}`}>
-                      {item.statusFa}
-                    </span>
-                    <span className="text-caption text-muted">{toPersianDate(item.purchasedAt)}</span>
+          <div className="space-y-3">
+            {subItems.map((item) => {
+              const isActive = item.status === "active";
+              const isExpired = item.status === "expired";
+              const statusStyle = isActive
+                ? "bg-success/10 text-success border-success/30"
+                : isExpired
+                  ? "bg-warning/10 text-warning border-warning/30"
+                  : item.status === "cancelled"
+                    ? "bg-error/10 text-error border-error/30"
+                    : "bg-surfaceVariant text-muted border-divider";
+              const statusIcon = isActive ? "✓" : isExpired ? "⏱" : item.status === "cancelled" ? "✗" : "؟";
+
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col mobile-l:flex-row mobile-l:items-center gap-3 p-4 rounded-large border border-divider hover:bg-surfaceVariant/30 transition-colors"
+                >
+                  {/* Plan name + status */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-body-1 text-onSurface font-semibold">
+                        {item.planNameFa}
+                      </h3>
+                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium border ${statusStyle}`}>
+                        <span>{statusIcon}</span>
+                        {item.statusFa}
+                      </span>
+                    </div>
+                    <p className="text-caption text-muted">
+                      {toPersianDate(item.purchasedAt)} — {toPersianDate(item.startAt)} تا {toPersianDate(item.endAt)}
+                    </p>
                   </div>
-                  <p className="text-body-2 text-on-surface font-medium">{item.planNameFa}</p>
-                  <p className="text-body-2 text-on-surface mt-1">{toPersianNumber(item.amount)} تومان</p>
+                  {/* Amount */}
+                  <div className="shrink-0 text-right">
+                    <p className="text-body-1 text-onSurface font-bold tabular-nums">
+                      {toPersianNumber(item.amount)} تومان
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-            {/* Desktop table view */}
-            <div className="hidden tablet:block overflow-x-auto">
-              <table className="w-full text-right">
-                <thead>
-                  <tr className="border-b border-divider">
-                    <th className="py-3 px-2 text-caption text-muted font-normal">تاریخ</th>
-                    <th className="py-3 px-2 text-caption text-muted font-normal">نام اشتراک</th>
-                    <th className="py-3 px-2 text-caption text-muted font-normal">مبلغ</th>
-                    <th className="py-3 px-2 text-caption text-muted font-normal">وضعیت</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subItems.map((item) => (
-                    <tr key={item.id} className="border-b border-divider/60 hover:bg-surfaceVariant/50 transition-colors">
-                      <td className="py-3 px-2 text-body-2 text-on-surface whitespace-nowrap">{toPersianDate(item.purchasedAt)}</td>
-                      <td className="py-3 px-2 text-body-2 text-on-surface font-medium">{item.planNameFa}</td>
-                      <td className="py-3 px-2 text-body-2 text-on-surface whitespace-nowrap">{toPersianNumber(item.amount)} تومان</td>
-                      <td className="py-3 px-2">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-caption ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES['unknown']}`}>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ---- Subscription Timeline ---- */}
+      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider">
+        <div className="flex items-center gap-2 mb-5">
+          <IconPhone size={20} className="text-primary" />
+          <h2 className="text-h3 text-on-surface">تاریخچه اشتراک</h2>
+        </div>
+
+        {subHistory.isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-4 animate-pulse">
+                <div className="w-1 bg-surfaceVariant rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-surfaceVariant rounded w-1/3" />
+                  <div className="h-3 bg-surfaceVariant rounded w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : subHistory.isError ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <p className="text-body-2 text-error">
+              خطا در دریافت تاریخچه اشتراک
+            </p>
+            <button
+              onClick={() => subHistory.refetch()}
+              className="text-body-2 text-primary underline"
+            >
+              تلاش مجدد
+            </button>
+          </div>
+        ) : subItems.length === 0 ? (
+          <p className="text-body-2 text-muted text-center py-4">
+            هنوز اشتراکی تهیه نشده است.
+          </p>
+        ) : (
+          <div className="relative">
+            {/* Timeline vertical line */}
+            <div className="absolute right-[11px] top-2 bottom-2 w-0.5 bg-divider" aria-hidden="true" />
+
+            <div className="space-y-6">
+              {subItems.map((item, idx) => {
+                const isActive = item.status === "active";
+                const isExpired = item.status === "expired";
+                const dotColor = isActive
+                  ? "bg-success ring-success/20"
+                  : isExpired
+                    ? "bg-warning ring-warning/20"
+                    : "bg-muted ring-muted/20";
+
+                return (
+                  <div key={item.id} className="flex gap-4 items-start">
+                    {/* Timeline dot */}
+                    <div className="relative z-10 shrink-0">
+                      <div className={`h-6 w-6 rounded-full ${dotColor} ring-4 flex items-center justify-center`}>
+                        <div className={`h-2.5 w-2.5 rounded-full bg-white`} />
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 pb-2">
+                      <div className="flex flex-wrap items-baseline gap-2 mb-1">
+                        <span className="text-body-2 text-onSurface font-semibold">
+                          {item.planNameFa}
+                        </span>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-caption ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES['unknown']}`}>
                           {item.statusFa}
                         </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        {idx === 0 && isActive && (
+                          <span className="text-caption text-success font-medium">
+                            (فعلی)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-caption text-muted mb-1">
+                        {toPersianDate(item.startAt)} تا {toPersianDate(item.endAt)}
+                      </p>
+                      <p className="text-caption text-onSurface font-medium tabular-nums">
+                        {toPersianNumber(item.amount)} تومان
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </>
+          </div>
         )}
       </section>
     </div>

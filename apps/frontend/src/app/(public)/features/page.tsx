@@ -73,78 +73,101 @@ const features = [
   },
 ];
 
+const categories = ["همه", "خدمات AI", "منابع", "مدیریت", "پلتفرم"] as const;
+
 export default function FeaturesPage() {
   return (
     <>
-      <div className="mx-auto max-w-6xl px-4 py-16">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-h1 text-on-surface mb-3">قابلیت‌های LEGALIR</h1>
-          <p className="text-body-1 text-muted max-w-xl mx-auto">
-            LEGALIR چگونه به شما کمک می‌کند؟ با ما آشنا شوید
+      {/* Page Header - Gradient */}
+      <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
+        <div className="mx-auto max-w-6xl px-4 text-center">
+          <h1 className="text-h1 text-white mb-4">قابلیت‌های LEGALIR</h1>
+          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+            LEGALIR چگونه به شما کمک می‌کند؟ با ابزارهای هوشمند حقوقی ما آشنا شوید
           </p>
         </div>
+      </section>
 
-        {/* Category filters */}
-        <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-          {["همه", "خدمات AI", "منابع", "مدیریت", "پلتفرم"].map((cat) => (
-            <span
-              key={cat}
-              className="px-4 py-2 rounded-full text-body-2 text-on-surface bg-surface border border-divider"
-            >
-              {cat}
-            </span>
-          ))}
+      {/* Category filters */}
+      <section className="bg-neutral-50 border-b border-neutral-200">
+        <div className="mx-auto max-w-6xl px-4 py-6">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {categories.map((cat) => (
+              <span
+                key={cat}
+                className="px-5 py-2 rounded-full text-body-2 text-neutral-600 bg-white border border-neutral-300 hover:border-primary-300 hover:text-primary-700 transition-colors cursor-pointer"
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
         </div>
+      </section>
 
-        {/* Features Grid */}
-        <div className="grid tablet:grid-cols-2 desktop:grid-cols-3 gap-6">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider hover:shadow-elevation-4 transition-shadow flex flex-col"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="h-12 w-12 rounded-large bg-primary/10 flex items-center justify-center text-primary">
-                  <f.icon size={24} />
+      {/* Features Grid */}
+      <section className="bg-white py-16">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="grid tablet:grid-cols-2 desktop:grid-cols-3 gap-6">
+            {features.map((f) => (
+              <div
+                key={f.title}
+                className="rounded-xl bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-shadow flex flex-col p-6"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="h-12 w-12 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700">
+                    <f.icon size={24} />
+                  </div>
+                  {f.badge && (
+                    <span className="text-caption px-2.5 py-0.5 rounded-full border border-primary-200 bg-primary-50 text-primary-700">
+                      {f.badge}
+                    </span>
+                  )}
                 </div>
-                {f.badge && (
-                  <span className="text-caption px-2 py-0.5 rounded-full border border-primary/20 bg-primary/5 text-primary">
-                    {f.badge}
-                  </span>
+
+                <h3 className="text-h3 text-primary-800 mb-2">{f.title}</h3>
+                <p className="text-body-2 text-neutral-500 mb-6 flex-1 leading-relaxed">
+                  {f.description}
+                </p>
+
+                {f.href ? (
+                  <Link
+                    href={f.href}
+                    className="inline-flex items-center justify-center rounded-medium bg-primary-700 text-white px-5 py-2.5 text-button hover:bg-primary-800 transition-colors touch-target mt-auto"
+                  >
+                    شروع کنید
+                  </Link>
+                ) : (
+                  <p className="text-caption text-neutral-400 mt-auto">
+                    در دسترس در نسخه فعلی
+                  </p>
                 )}
               </div>
-
-              <h3 className="text-h3 text-on-surface mb-2">{f.title}</h3>
-              <p className="text-body-2 text-muted mb-4 flex-1">{f.description}</p>
-
-              {f.href ? (
-                <Link
-                  href={f.href}
-                  className="inline-flex items-center justify-center rounded-medium bg-primary text-white px-4 py-2.5 text-button hover:bg-primary-variant transition-colors touch-target mt-2"
-                >
-                  شروع کنید
-                </Link>
-              ) : (
-                <p className="text-caption text-muted">در دسترس در نسخه فعلی</p>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
+      </section>
 
-        {/* Bottom CTA */}
-        <div className="text-center mt-12">
+      {/* Bottom CTA */}
+      <section className="bg-neutral-50 border-t border-neutral-200 py-16">
+        <div className="mx-auto max-w-6xl px-4 text-center">
+          <h2 className="text-h2 text-primary-800 mb-3">
+            آماده شروع هستید؟
+          </h2>
+          <p className="text-body-1 text-neutral-500 mb-8 max-w-lg mx-auto leading-relaxed">
+            بدون نیاز به پرداخت اولیه، دسترسی محدود رایگان دریافت کنید و
+            قابلیت‌های LEGALIR را تجربه کنید
+          </p>
           <Link
             href="/auth/mobile"
-            className="inline-block rounded-medium bg-primary text-white px-10 py-4 text-button hover:bg-primary-variant transition-colors touch-target"
+            className="inline-block rounded-medium bg-primary-700 text-white px-10 py-4 text-button hover:bg-primary-800 transition-colors touch-target shadow-elevation-1 hover:shadow-elevation-4"
           >
             شروع رایگان — بدون نیاز به پرداخت اولیه
           </Link>
-          <p className="text-caption text-muted mt-3">
+          <p className="text-caption text-neutral-400 mt-4">
             با ثبت‌نام، دسترسی محدود رایگان دریافت می‌کنید
           </p>
         </div>
-      </div>
+      </section>
     </>
   );
 }

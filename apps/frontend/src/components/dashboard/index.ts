@@ -7,4 +7,8 @@ export {
   RecentActivities,
   UsageSummaryCard,
   NotificationsPlaceholder,
+  SmartInputBar,
+  ActiveRequests,
+  SmartRecommendations,
+  RecentDocuments,
 } from "./widgets";

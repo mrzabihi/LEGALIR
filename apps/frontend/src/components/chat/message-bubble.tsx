@@ -46,7 +46,7 @@ export function MessageBubble({
       {/* Assistant avatar */}
       {isAssistant && (
         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <span className="text-primary text-labelSmall font-bold">ل</span>
+          <span className="text-primary text-labelSmall font-bold" aria-hidden="true">ل</span>
         </div>
       )}
 
@@ -147,7 +147,7 @@ export function MessageBubble({
       {/* User avatar */}
       {isUser && (
         <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-          <span className="text-white text-labelSmall font-bold">ش</span>
+          <span className="text-white text-labelSmall font-bold" aria-hidden="true">ش</span>
         </div>
       )}
     </div>

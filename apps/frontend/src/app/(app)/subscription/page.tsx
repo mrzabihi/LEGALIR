@@ -9,10 +9,12 @@ import {
   useCheckoutIntent,
   useCheckoutIntentPoll,
 } from "@/hooks/useSubscription";
+import { useQuery } from "@tanstack/react-query";
+import { fetchSubscriptionHistory } from "@/lib/api/v1";
 import { SkeletonCard, Button, ProgressLinear, ConfirmDialog } from "@legalir/ui";
-import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
-import { IconCheck, IconCheckCircle, IconWarning } from "@/lib/icons";
-import type { Plan, PlanCode, PaymentStatus } from "@legalir/types";
+import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
+import { IconCheck, IconCheckCircle, IconWarning, IconHistory } from "@/lib/icons";
+import type { Plan, PlanCode, PaymentStatus, V1SubscriptionHistoryItem } from "@legalir/types";
 
 // ============================================================
 // Constants
@@ -305,6 +307,113 @@ function UsageSummaryCard({
   );
 }
 
+function PaymentHistoryList({
+  items,
+  isLoading,
+  isError,
+  onRefresh,
+}: {
+  items: V1SubscriptionHistoryItem[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  onRefresh: () => void;
+}) {
+  if (isLoading) {
+    return (
+      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+        <SkeletonCard lines={3} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+        <p className="text-body-2 text-error mb-3">خطا در دریافت تاریخچه پرداخت</p>
+        <Button variant="text" onClick={onRefresh}>
+          تلاش مجدد
+        </Button>
+      </div>
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+        <div className="flex items-start gap-3">
+          <IconHistory size={24} className="text-muted shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-h3 text-on-surface mb-1">تاریخچه پرداخت</h2>
+            <p className="text-body-2 text-muted">
+              هنوز هیچ پرداختی ثبت نشده است.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const statusColors: Record<string, string> = {
+    active: "bg-success/10 text-success",
+    expired: "bg-surfaceVariant text-muted",
+    cancelled: "bg-error/10 text-error",
+    unknown: "bg-warning/10 text-warning",
+  };
+
+  return (
+    <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-h3 text-on-surface flex items-center gap-2">
+          <IconHistory size={22} />
+          تاریخچه پرداخت
+        </h2>
+      </div>
+
+      <div className="overflow-x-auto -mx-6">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-divider">
+              <th className="text-right py-3 px-4 text-caption text-muted font-medium">پلن</th>
+              <th className="text-right py-3 px-4 text-caption text-muted font-medium">مبلغ</th>
+              <th className="text-right py-3 px-4 text-caption text-muted font-medium">تاریخ خرید</th>
+              <th className="text-right py-3 px-4 text-caption text-muted font-medium hidden tablet:table-cell">تاریخ پایان</th>
+              <th className="text-right py-3 px-4 text-caption text-muted font-medium">وضعیت</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id} className="border-b border-divider/60 last:border-0 hover:bg-neutral-50 transition-colors">
+                <td className="py-3 px-4 text-body-2 text-on-surface font-medium">
+                  {item.planNameFa}
+                </td>
+                <td className="py-3 px-4 text-body-2 text-on-surface">
+                  {toPersianCurrency(item.amount)}
+                </td>
+                <td className="py-3 px-4 text-caption text-on-surface">
+                  {toPersianDate(item.purchasedAt)}
+                </td>
+                <td className="py-3 px-4 text-caption text-on-surface hidden tablet:table-cell">
+                  {toPersianDate(item.endAt)}
+                </td>
+                <td className="py-3 px-4">
+                  <span
+                    className={[
+                      "rounded-full px-2.5 py-0.5 text-caption font-medium inline-block",
+                      statusColors[item.status] ?? "bg-surfaceVariant text-muted",
+                    ].join(" ")}
+                  >
+                    {item.statusFa}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function PlanSelectionCard({
   plan,
   isCurrent,
@@ -504,6 +613,19 @@ export default function SubscriptionPage() {
     isLoading: _pollingLoading,
   } = useCheckoutIntentPoll(checkoutIntentId);
 
+  // Payment history
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    isError: historyError,
+    refetch: refetchHistory,
+  } = useQuery({
+    queryKey: ["v1", "subscription-history"],
+    queryFn: () => fetchSubscriptionHistory(),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+
   // Determine payment status
   const paymentStatus: PaymentStatus = checkoutStatus?.status ?? "idle";
 
@@ -561,6 +683,14 @@ export default function SubscriptionPage() {
           refetchEnt();
           refetchUsage();
         }}
+      />
+
+      {/* Payment History */}
+      <PaymentHistoryList
+        items={historyData?.items}
+        isLoading={historyLoading}
+        isError={historyError}
+        onRefresh={() => refetchHistory()}
       />
 
       {/* Plan Selection */}

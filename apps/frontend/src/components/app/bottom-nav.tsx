@@ -43,10 +43,10 @@ export function BottomNav({ userRole }: BottomNavProps) {
             key={item.path}
             href={item.path}
             className={[
-              "flex flex-col items-center justify-center gap-0.5 min-w-[64px] h-full px-2",
+              "flex flex-col items-center justify-center gap-0.5 min-w-[64px] min-h-[48px] h-full px-2",
               "transition-colors tap-highlight-transparent touch-target-min",
               "active:scale-95",
-              isActive ? "text-primary" : "text-onSurfaceVariant",
+              isActive ? "text-primary-700" : "text-neutral-400 hover:text-neutral-600",
             ].join(" ")}
             aria-label={item.titleFa}
             aria-current={isActive ? "page" : undefined}
