@@ -44,7 +44,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <img
             src="/legalir-logo.png"
             alt="LEGALIR"
-            className="h-20 w-auto mb-3 drop-shadow-lg"
+            className="h-28 w-auto mb-3 drop-shadow-lg"
           />
           <div className="h-px w-16 bg-gradient-to-r from-transparent via-secondary-600/40 to-transparent" />
         </div>

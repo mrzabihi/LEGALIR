@@ -10,6 +10,8 @@ import {
   IconInfo,
   IconWarning,
   IconArrowForward,
+  IconMinimize,
+  IconStar,
 } from "@/lib/icons";
 
 // ============================================================
@@ -121,7 +123,7 @@ interface AiAssistantPanelProps {
 }
 
 function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
-  const { messages, addMessage, closePanel } = useAssistantStore();
+  const { messages, addMessage, closePanel, minimizePanel, isMinimized, restorePanel, starredIds, toggleStar } = useAssistantStore();
   const [inputValue, setInputValue] = useState("");
   const [hasSentMessage, setHasSentMessage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -239,7 +241,25 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
     },
   ];
 
-  return (
+  if (isMinimized) {
+      return (
+        <div className="flex items-center justify-between px-4 py-2 bg-primary border-b border-divider" dir="rtl">
+          <div className="flex items-center gap-2">
+            <AiSparkleIcon size={16} />
+            <span className="text-caption text-neutral-0">دستیار LEGALIR</span>
+          </div>
+          <button
+            onClick={restorePanel}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors"
+            aria-label="باز کردن دستیار"
+          >
+            <IconArrowForward size={16} style={{ transform: 'rotate(-90deg)' }} />
+          </button>
+        </div>
+      );
+    }
+
+    return (
     <div className="flex flex-col h-full bg-surface" dir="rtl">
       {/* Panel Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-divider bg-primary">
@@ -256,6 +276,13 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
             </p>
           </div>
         </div>
+        <button
+          onClick={minimizePanel}
+          className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors touch-target"
+          aria-label="جمع کردن دستیار هوشمند"
+        >
+          <IconMinimize size={20} />
+        </button>
         <button
           onClick={closePanel}
           className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors touch-target"
@@ -304,6 +331,7 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
 
         {/* Messages */}
         {messages.map((msg, index) => {
+            const isStarred = starredIds.includes(msg.id);
           const isUser = msg.role === "user";
           const isSystem = msg.role === "system";
           const prevMsg = index > 0 ? messages[index - 1] : null;
@@ -352,6 +380,13 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
                 <p className="text-bodySmall leading-relaxed whitespace-pre-line">
                   {msg.content}
                 </p>
+                <button
+                  onClick={() => toggleStar(msg.id)}
+                  className="mt-1 flex items-center gap-1 text-caption"
+                  aria-label={isStarred ? 'حذف از نشان‌ها' : 'نشان کردن پیام'}
+                >
+                  <IconStar size={14} className={isStarred ? 'text-secondary-400' : 'text-muted opacity-40 hover:opacity-70'} />
+                </button>
                 {!showAvatar && <div className="h-8" />}
               </div>
             </div>

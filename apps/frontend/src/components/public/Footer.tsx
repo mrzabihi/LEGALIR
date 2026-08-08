@@ -45,7 +45,7 @@ export function Footer() {
                 <img
                   src="/legalir-logo.png"
                   alt="LEGALIR"
-                  className="h-10 w-auto"
+                  className="h-14 w-auto"
                 />
                 <span className="text-h3 font-bold text-primary">
                   LEGALIR

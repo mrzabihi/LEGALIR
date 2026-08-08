@@ -2,32 +2,22 @@
 
 // ============================================================
 // LEGALIR — AppSplashGate
-//
-// Thin client wrapper that gates the entire application behind
-// the SplashScreen on initial load. Once the splash completes
-// (persisted via splashShown in theme-store), children render
-// immediately on all subsequent visits.
+// Shows splash on every full page load/reload (4s duration).
+// Skip only within same SPA navigation session.
 // ============================================================
 
-import { useState, useEffect } from "react";
-import { useThemeStore } from "@/stores/theme-store";
+import { useState } from "react";
 import { SplashScreen } from "./SplashScreen";
 
+let _sessionSplashShown = false;
+
 export function AppSplashGate({ children }: { children: React.ReactNode }) {
-  const splashShown = useThemeStore((s) => s.splashShown);
-  const [showSplash, setShowSplash] = useState(!splashShown);
+  const [showSplash] = useState(!_sessionSplashShown);
 
-  // Sync with persisted flag — if splash was shown in a previous
-  // mount (e.g. after redirect), skip the animation immediately.
-  useEffect(() => {
-    if (splashShown) {
-      setShowSplash(false);
-    }
-  }, [splashShown]);
-
-  if (showSplash) {
+  if (showSplash && !_sessionSplashShown) {
     return <SplashScreen />;
   }
 
+  _sessionSplashShown = true;
   return <>{children}</>;
 }

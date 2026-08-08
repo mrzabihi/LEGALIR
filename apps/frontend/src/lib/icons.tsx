@@ -228,6 +228,14 @@ export const IconExpandMore = createIcon("ExpandMore", (
   <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z" />
 ));
 
+export const IconMinimize = createIcon("Minimize", (
+  <path d="M6 19h12v2H6v-2z" />
+));
+
+export const IconStar = createIcon("Star", (
+  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+));
+
 export const IconSend = createIcon(
   "Send",
   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />,

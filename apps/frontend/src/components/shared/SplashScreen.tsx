@@ -17,7 +17,7 @@ import Image from "next/image";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore } from "@/stores/theme-store";
 
-const MIN_SPLASH_MS = 2500;
+const MIN_SPLASH_MS = 4000;
 const EXIT_TRANSITION_MS = 500;
 
 function prefersReducedMotion(): boolean {
@@ -160,7 +160,7 @@ export function SplashScreen() {
       <div className="relative flex flex-col items-center gap-6 z-10 px-8">
         {/* Logo image with scale+fade entrance */}
         <div
-          className="relative w-28 h-28 transition-all duration-700 ease-emphasized"
+          className="relative w-40 h-40 transition-all duration-700 ease-emphasized"
           style={{
             opacity: showAnimated ? 1 : 0,
             transform: showAnimated ? "scale(1)" : "scale(0.85)",
@@ -173,7 +173,7 @@ export function SplashScreen() {
             fill
             className="object-contain"
             priority
-            sizes="112px"
+            sizes="160px"
           />
         </div>
 

@@ -4,7 +4,7 @@ import React, { useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useAppShellStore } from "./stores";
 import { useThemeStore } from "@/stores/theme-store";
-import { IconMenu, IconLightMode, IconDarkMode, IconClose } from "./icons";
+import { IconLightMode, IconDarkMode, IconClose } from "./icons";
 
 // ============================================================
 // AppShell — responsive layout container
@@ -23,7 +23,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps) {
-  const { drawerOpen, setDrawerOpen, toggleDrawer } = useAppShellStore();
+  const { drawerOpen, setDrawerOpen } = useAppShellStore();
   const pathname = usePathname();
 
   // Close drawer on route change
@@ -95,7 +95,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
               <img
                 src="/legalir-logo.png"
                 alt="LEGALIR"
-                className="h-10 w-auto"
+                className="h-14 w-auto"
               />
               <button
                 onClick={() => setDrawerOpen(false)}
@@ -115,16 +115,6 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
         {/* Top Bar */}
         {topBar && (
           <header className="shrink-0 h-16 border-b border-neutral-200 bg-neutral-0 flex items-center px-4 gap-3">
-            {sidebar && (
-              <button
-                onClick={toggleDrawer}
-                className="desktop:hidden w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
-                aria-label="باز کردن منو"
-                aria-expanded={drawerOpen}
-              >
-                <IconMenu size={20} />
-              </button>
-            )}
             {topBar}
           </header>
         )}

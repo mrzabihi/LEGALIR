@@ -26,7 +26,7 @@ export const env = {
     | "real-dev"
     | "preview"
     | "staging",
-  apiBaseUrl: pe["NEXT_PUBLIC_API_BASE_URL"] ?? "http://localhost:8000",
+  apiBaseUrl: pe["NEXT_PUBLIC_API_BASE_URL"] ?? "",
   isProduction: pe["NODE_ENV"] === "production",
   isDevelopment: pe["NODE_ENV"] === "development",
   isTest: pe["NODE_ENV"] === "test",

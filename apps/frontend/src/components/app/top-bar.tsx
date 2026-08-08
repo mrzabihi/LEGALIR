@@ -26,12 +26,14 @@ export function TopBar() {
   const { theme: _theme } = useTheme();
   const toggleDrawer = useAppShellStore((s) => s.toggleDrawer);
   const { data: meData } = useMe();
+  const session = useAuthStore((s) => s.session);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const profile = meData?.profile;
   const displayName = profile?.displayName;
-  const avatarInitial = displayName?.[0] ?? "ک";
+  const mobileFallback = meData?.user?.mobileDisplay ?? session?.mobileDisplay;
+  const avatarInitial = (displayName ?? mobileFallback)?.[0] ?? "ک";
 
   // Close menu on outside click
   const handleClickOutside = useCallback((e: MouseEvent) => {
@@ -66,7 +68,7 @@ export function TopBar() {
         <img
           src="/legalir-logo.png"
           alt="LEGALIR"
-          className="h-10 w-auto"
+          className="h-14 w-auto"
         />
       </Link>
 
@@ -89,7 +91,7 @@ export function TopBar() {
             {avatarInitial}
           </div>
           <span className="hidden tablet:inline text-labelLarge text-neutral-700 truncate max-w-[120px]">
-            {displayName ?? "کاربر"}
+            {displayName ?? meData?.user?.mobileDisplay ?? session?.mobileDisplay ?? "کاربر"}
           </span>
         </button>
 

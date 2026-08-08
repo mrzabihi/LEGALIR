@@ -94,7 +94,7 @@ export function Header() {
           <img
             src="/legalir-logo.png"
             alt="LEGALIR"
-            className="h-12 w-auto"
+            className="h-16 w-auto"
           />
           <span className="text-h3 text-primary-800 font-bold hidden mobile-l:inline">
             LEGALIR
@@ -213,7 +213,7 @@ export function Header() {
                 <img
                   src="/legalir-logo.png"
                   alt="LEGALIR"
-                  className="h-11 w-auto"
+                  className="h-14 w-auto"
                 />
               </div>
               <button

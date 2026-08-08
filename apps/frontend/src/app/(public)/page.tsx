@@ -159,8 +159,8 @@ export default function LandingPage() {
             <Image
               src="/legalir-logo.png"
               alt="LEGALIR"
-              width={88}
-              height={88}
+              width={120}
+              height={120}
               className="mx-auto drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
               priority
             />

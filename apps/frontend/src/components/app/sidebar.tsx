@@ -53,7 +53,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         <img
           src="/legalir-logo.png"
           alt="LEGALIR"
-          className="h-10 w-auto"
+          className="h-14 w-auto"
         />
         <span className="text-h3 text-primary-800 font-bold mr-3 hidden laptop:inline">LEGALIR</span>
       </div>

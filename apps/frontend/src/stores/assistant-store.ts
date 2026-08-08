@@ -39,6 +39,13 @@ interface AssistantState {
   /** Open the panel */
   openPanel: () => void;
 
+  /** Whether the panel is minimized (collapsed to a thin bar) */
+  isMinimized: boolean;
+  /** Minimize the panel */
+  minimizePanel: () => void;
+  /** Restore panel from minimized state */
+  restorePanel: () => void;
+
   /** Conversation messages */
   messages: AssistantMessage[];
   /** Add a message to the conversation */
@@ -52,6 +59,11 @@ interface AssistantState {
   markAllRead: () => void;
   /** Increment unread count (called when assistant sends a message while panel is closed) */
   incrementUnread: () => void;
+
+  /** Starred/favorited messages (IDs) */
+  starredIds: string[];
+  /** Toggle star for a message */
+  toggleStar: (messageId: string) => void;
 }
 
 let messageIdCounter = 0;
@@ -67,17 +79,23 @@ export const useAssistantStore = create<AssistantState>()(
 
       toggleOpen: () => {
         const next = !get().isOpen;
-        set({ isOpen: next });
+        set({ isOpen: next, isMinimized: false });
         if (next) {
           set({ unreadCount: 0 });
         }
       },
 
-      closePanel: () => set({ isOpen: false }),
+      closePanel: () => set({ isOpen: false, isMinimized: false }),
 
       openPanel: () => {
-        set({ isOpen: true, unreadCount: 0 });
+        set({ isOpen: true, isMinimized: false, unreadCount: 0 });
       },
+
+      isMinimized: false,
+
+      minimizePanel: () => set({ isMinimized: true }),
+
+      restorePanel: () => set({ isMinimized: false }),
 
       messages: [],
 
@@ -104,6 +122,15 @@ export const useAssistantStore = create<AssistantState>()(
 
       incrementUnread: () =>
         set((state) => ({ unreadCount: state.unreadCount + 1 })),
+
+      starredIds: [],
+
+      toggleStar: (messageId) =>
+        set((state) => ({
+          starredIds: state.starredIds.includes(messageId)
+            ? state.starredIds.filter((id) => id !== messageId)
+            : [...state.starredIds, messageId],
+        })),
     }),
     {
       name: "legalir-assistant",
