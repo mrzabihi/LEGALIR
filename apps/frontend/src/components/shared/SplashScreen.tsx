@@ -1,24 +1,20 @@
 "use client";
 
 // ============================================================
-// LEGALIR — Polished Splash Screen
-//
-// Full-screen overlay with deep navy gradient, animated logo,
-// gold accent, and auth-aware redirect after a minimum display
-// duration of 2.5 seconds.
-//
-// Shows once per persisted session (splashShown flag). On
-// subsequent mounts, navigates immediately without animation.
+// LEGALIR — Splash Screen (4s on every full page load)
 // ============================================================
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuthStore } from "@/stores/auth-store";
-import { useThemeStore } from "@/stores/theme-store";
 
 const MIN_SPLASH_MS = 4000;
 const EXIT_TRANSITION_MS = 500;
+
+interface SplashScreenProps {
+  onDone: () => void;
+}
 
 function prefersReducedMotion(): boolean {
   if (typeof window !== "undefined") {
@@ -27,19 +23,13 @@ function prefersReducedMotion(): boolean {
   return false;
 }
 
-export function SplashScreen() {
+export function SplashScreen({ onDone }: SplashScreenProps) {
   const router = useRouter();
   const session = useAuthStore((s) => s.session);
-  const { splashShown, setSplashShown } = useThemeStore();
+  const isAuthed = session !== null && session.sessionId.length > 0;
 
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [phase, setPhase] = useState<"entering" | "visible" | "exiting" | "done">(
-    splashShown ? "done" : "entering"
-  );
-  const hasFinished = useRef(false);
-
-  const isAuthed =
-    session !== null && session.sessionId.length > 0;
+  const [phase, setPhase] = useState<"entering" | "visible" | "exiting" | "done">("entering");
 
   // Detect reduced-motion preference
   useEffect(() => {
@@ -50,67 +40,56 @@ export function SplashScreen() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  const navigate = useCallback(() => {
-    // Don't redirect from public pages — let users see the landing page
-    const publicPaths = ["/", "/features", "/pricing", "/about", "/contact", "/login", "/register"];
-    const currentPath = window.location.pathname;
-    const isPublicPath = publicPaths.some(p => currentPath === p || currentPath.startsWith(p + "/"));
-
-    if (currentPath === "/dashboard" || currentPath.startsWith("/dashboard/")) {
-      return; // already on dashboard, stay
-    }
-
-    // Only redirect if user is NOT on a public page and NOT already on correct page
-    if (!isPublicPath) {
-      const target = isAuthed ? "/dashboard" : "/auth/mobile";
-      if (currentPath !== target) {
-        router.replace(target);
-      }
-    }
-    // If on a public page, just dismiss splash — let the page show
-  }, [router, isAuthed]);
-
-  const finish = useCallback(() => {
-    if (hasFinished.current) return;
-    hasFinished.current = true;
-    setPhase("exiting");
-
-    setTimeout(() => {
-      setPhase("done");
-      setSplashShown(true);
-      navigate();
-    }, EXIT_TRANSITION_MS);
-  }, [navigate, setSplashShown]);
-
   useEffect(() => {
-    // If splash was already shown in a previous visit, redirect immediately
-    if (splashShown) {
-      navigate();
-      return;
-    }
-
-    // Phase 1 — Entering (start invisible, animate in)
-    setPhase("entering");
+    // Phase 1 — animate in
     const raf = requestAnimationFrame(() => {
       setPhase("visible");
     });
 
-    // Phase 2 — Wait minimum duration, then exit
-    const timer = setTimeout(finish, MIN_SPLASH_MS);
+    // Phase 2 — wait 4 seconds, then exit
+    const timer = setTimeout(() => {
+      setPhase("exiting");
+      setTimeout(() => {
+        setPhase("done");
+        onDone();
 
-    // Fail-safe: never block longer than 10 seconds total
-    const failSafe = setTimeout(finish, 10000);
+        // Navigate to appropriate page if needed
+        const publicPaths = ["/", "/features", "/pricing", "/about", "/contact", "/login", "/register"];
+        const currentPath = window.location.pathname;
+        const isPublicPath = publicPaths.some(
+          (p) => currentPath === p || currentPath.startsWith(p + "/")
+        );
+
+        if (
+          currentPath !== "/dashboard" &&
+          !currentPath.startsWith("/dashboard/") &&
+          !isPublicPath
+        ) {
+          const target = isAuthed ? "/dashboard" : "/auth/mobile";
+          if (currentPath !== target) {
+            router.replace(target);
+          }
+        }
+      }, EXIT_TRANSITION_MS);
+    }, MIN_SPLASH_MS);
+
+    // Fail-safe: never block longer than 12s
+    const failSafe = setTimeout(() => {
+      setPhase("exiting");
+      setTimeout(() => {
+        setPhase("done");
+        onDone();
+      }, EXIT_TRANSITION_MS);
+    }, 12000);
 
     return () => {
       clearTimeout(timer);
       clearTimeout(failSafe);
       cancelAnimationFrame(raf);
     };
-    // Run once on mount — splashShown / isAuthed are stable via store
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // After exiting + navigation, render nothing
+  // After exiting, render nothing
   if (phase === "done") return null;
 
   const isExiting = phase === "exiting";
@@ -130,21 +109,16 @@ export function SplashScreen() {
       aria-busy={true}
       dir="rtl"
     >
-      {/* ========================================================
-           Decorative background elements — slow-spinning rings
-           ======================================================== */}
+      {/* Decorative background rings */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        {/* Outer ring */}
         <div
           className="absolute w-[520px] h-[520px] border border-secondary-600/10 rounded-full -top-40 left-1/2 -translate-x-1/2"
           style={{ animation: motion ? "splash-ring-spin 80s linear infinite" : "none" }}
         />
-        {/* Inner ring */}
         <div
           className="absolute w-[360px] h-[360px] border border-secondary-600/8 rounded-full -bottom-24 left-1/2 -translate-x-1/2"
           style={{ animation: motion ? "splash-ring-spin 60s linear infinite reverse" : "none" }}
         />
-        {/* Subtle radial glow */}
         <div
           className="absolute inset-0 opacity-30"
           style={{
@@ -154,17 +128,13 @@ export function SplashScreen() {
         />
       </div>
 
-      {/* ========================================================
-           Main content — Logo, brand, tagline, gold accent
-           ======================================================== */}
+      {/* Main content */}
       <div className="relative flex flex-col items-center gap-6 z-10 px-8">
-        {/* Logo image with scale+fade entrance */}
         <div
           className="relative w-40 h-40 transition-all duration-700 ease-emphasized"
           style={{
             opacity: showAnimated ? 1 : 0,
             transform: showAnimated ? "scale(1)" : "scale(0.85)",
-            transitionDelay: motion ? "0ms" : "0ms",
           }}
         >
           <Image
@@ -177,7 +147,6 @@ export function SplashScreen() {
           />
         </div>
 
-        {/* Brand name "LEGALIR" */}
         <h1
           className={[
             "text-2xl font-bold tracking-[0.15em] text-white text-center",
@@ -192,7 +161,6 @@ export function SplashScreen() {
           LEGALIR
         </h1>
 
-        {/* Gold accent line */}
         <div
           className="h-[2px] rounded-full bg-secondary-600/60"
           style={{
@@ -206,7 +174,6 @@ export function SplashScreen() {
           }}
         />
 
-        {/* Persian tagline */}
         <p
           className={[
             "text-sm text-white/60 text-center font-light leading-relaxed",
@@ -222,9 +189,7 @@ export function SplashScreen() {
         </p>
       </div>
 
-      {/* ========================================================
-           Loading indicator — three sequential dots at bottom
-           ======================================================== */}
+      {/* Loading dots */}
       <div className="absolute bottom-12 flex items-center gap-2 z-10" aria-hidden="true">
         {reducedMotion ? (
           <span className="text-white/40 text-sm">در حال بارگذاری...</span>
@@ -242,7 +207,6 @@ export function SplashScreen() {
           </>
         )}
       </div>
-
     </div>
   );
 }

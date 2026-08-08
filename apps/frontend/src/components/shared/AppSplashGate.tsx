@@ -3,21 +3,22 @@
 // ============================================================
 // LEGALIR — AppSplashGate
 // Shows splash on every full page load/reload (4s duration).
-// Skip only within same SPA navigation session.
+// SplashScreen calls onDone when finished.
 // ============================================================
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { SplashScreen } from "./SplashScreen";
 
-let _sessionSplashShown = false;
-
 export function AppSplashGate({ children }: { children: React.ReactNode }) {
-  const [showSplash] = useState(!_sessionSplashShown);
+  const [splashDone, setSplashDone] = useState(false);
 
-  if (showSplash && !_sessionSplashShown) {
-    return <SplashScreen />;
+  const handleDone = useCallback(() => {
+    setSplashDone(true);
+  }, []);
+
+  if (!splashDone) {
+    return <SplashScreen onDone={handleDone} />;
   }
 
-  _sessionSplashShown = true;
   return <>{children}</>;
 }
