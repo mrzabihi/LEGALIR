@@ -73,6 +73,22 @@ export function useRequestOtp(): UseRequestOtpReturn {
   return { requestOtp, isPending, error };
 }
 
+
+// Intent-to-route mapping
+const INTENT_ROUTE_MAP: Record<string, string> = {
+  chat: "/chat",
+  document: "/documents",
+  contract: "/new",
+  subscribe: "/subscription",
+  support: "/chat",
+};
+
+function resolveIntendedRoute(intendedRoute: string | null): string {
+  if (!intendedRoute) return "/dashboard";
+  if (intendedRoute.startsWith("/")) return intendedRoute;
+  return INTENT_ROUTE_MAP[intendedRoute] ?? "/dashboard";
+}
+
 // ============================================================
 // useVerifyOtp
 // ============================================================
@@ -118,7 +134,7 @@ export function useVerifyOtp(): UseVerifyOtpReturn {
         });
 
         // Determine redirect target
-        const target = intendedRoute ?? "/dashboard";
+        const target = resolveIntendedRoute(intendedRoute);
         setIntendedRoute(null);
 
         router.push(target);
@@ -244,7 +260,7 @@ export function useRegister(): UseRegisterReturn {
           createdAt: Date.now(),
         });
 
-        const target = intendedRoute ?? "/dashboard";
+        const target = resolveIntendedRoute(intendedRoute);
         setIntendedRoute(null);
         router.push(target);
         return true;
@@ -317,7 +333,7 @@ export function usePasswordLogin(): UsePasswordLoginReturn {
           createdAt: Date.now(),
         });
 
-        const target = intendedRoute ?? "/dashboard";
+        const target = resolveIntendedRoute(intendedRoute);
         setIntendedRoute(null);
         router.push(target);
         return true;

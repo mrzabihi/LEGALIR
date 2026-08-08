@@ -218,8 +218,8 @@ function PlanCard({
         {/* CTA */}
         <Link
           href={meta.popular
-            ? `/login?intent=subscribe&plan=${plan.code}`
-            : `/login?intent=subscribe&plan=${plan.code}`}
+            ? `/auth/mobile?intent=subscribe&plan=${plan.code}`
+            : `/auth/mobile?intent=subscribe&plan=${plan.code}`}
           className={[
             "block rounded-large px-6 py-3.5 text-button text-center font-bold transition-all duration-short3",
             "touch-target-min w-full",
