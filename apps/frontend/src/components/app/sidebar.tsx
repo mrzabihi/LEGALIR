@@ -10,6 +10,8 @@ import { getMainNavItems } from "@/lib/routes";
 import type { UserRole } from "@/lib/routes";
 import { useAppShellStore } from "@/lib/stores";
 import {
+  IconHome,
+  IconServices,
   IconDashboard,
   IconAdd,
   IconMemory,
@@ -25,6 +27,8 @@ interface SidebarProps {
 }
 
 const NAV_ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
+  Home: IconHome,
+  Services: IconServices,
   Dashboard: IconDashboard,
   Add: IconAdd,
   Memory: IconMemory,

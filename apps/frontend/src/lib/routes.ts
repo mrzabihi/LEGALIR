@@ -29,14 +29,15 @@ export const routes: RouteDef[] = [
   { path: "/auth/profile", titleFa: "تکمیل اطلاعات", access: "authenticated" },
 
   // App — Workplace (main navigation)
-  { path: "/dashboard", titleFa: "خانه", access: "user", icon: "Dashboard" },
+  { path: "/dashboard", titleFa: "خانه", access: "user", icon: "Home" },
+  { path: "/services", titleFa: "خدمات", access: "user", icon: "Services" },
+  { path: "/profile", titleFa: "پروفایل", access: "user", icon: "Person" },
   { path: "/new", titleFa: "ساخت جدید", access: "user", icon: "Add" },
   { path: "/memory", titleFa: "حافظه", access: "user", icon: "Memory" },
   { path: "/history", titleFa: "تاریخچه", access: "user", icon: "History" },
   { path: "/documents", titleFa: "اسناد", access: "entitled", icon: "Description" },
   { path: "/contracts", titleFa: "قراردادها", access: "entitled", icon: "Article" },
   { path: "/subscription", titleFa: "اشتراک", access: "user", icon: "WorkspacePremium" },
-  { path: "/profile", titleFa: "پروفایل", access: "user", icon: "Person" },
 
   // App — Secondary (not in main nav)
   { path: "/chat", titleFa: "گفت‌وگوی حقوقی", access: "entitled", icon: "Chat", hidden: true },
@@ -107,7 +108,7 @@ export function getMainNavItems(role: UserRole): RouteDef[] {
 export function getBottomNavItems(role: UserRole): RouteDef[] {
   const mainItems = getMainNavItems(role);
   // Priority: dashboard, new, memory, history, documents
-  const priorityOrder = ["/dashboard", "/new", "/memory", "/history", "/documents"];
+  const priorityOrder = ["/dashboard", "/services", "/new", "/profile"];
   const ordered = priorityOrder
     .map((p) => mainItems.find((r) => r.path === p))
     .filter((r): r is RouteDef => r !== undefined);

@@ -473,7 +473,7 @@ function AiAssistantFAB({ onClick, isOpen, unreadCount }: AiAssistantFABProps) {
     <button
       onClick={onClick}
       className={[
-        "fixed bottom-6 end-6 z-40",
+        "fixed end-6 z-40 max-desktop:bottom-[calc(72px+env(safe-area-inset-bottom,0px)+16px)] desktop:bottom-6",
         "w-14 h-14 rounded-full",
         "bg-primary-700 text-secondary-400",
         "shadow-elevation-8 hover:shadow-elevation-16",
