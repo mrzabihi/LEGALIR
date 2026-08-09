@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { planCode?: string };
     const planCode = body.planCode as PlanCode | undefined;
 
-    if (!planCode || !["ultra", "pro", "pro_max"].includes(planCode)) {
+    if (!planCode || !["silver", "gold", "diamond"].includes(planCode)) {
       return NextResponse.json(
         { code: "INVALID_PLAN", message: "کد پلن نامعتبر است", correlationId: crypto.randomUUID(), retryable: false },
         { status: 400 }
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       }, 4000);
     }
 
-    return NextResponse.json(intent, { status: 201 });
+    return NextResponse.json({ data: intent }, { status: 201 });
   } catch {
     return NextResponse.json(
       { code: "INTERNAL_ERROR", message: "خطای داخلی سرور", correlationId: crypto.randomUUID(), retryable: true },

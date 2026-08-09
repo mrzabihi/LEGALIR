@@ -64,7 +64,7 @@ export const updatePreferencesSchema = z.object({
 // --- Subscription ---
 
 export const purchaseSubscriptionSchema = z.object({
-  planCode: z.enum(["ultra", "pro", "pro_max"]),
+  planCode: z.enum(["silver", "gold", "diamond"]),
 });
 
 // --- Conversation ---
@@ -137,7 +137,7 @@ export const paginationSchema = z.object({
 // --- Checkout ---
 
 export const createCheckoutIntentSchema = z.object({
-  planCode: z.enum(["ultra", "pro", "pro_max"]),
+  planCode: z.enum(["silver", "gold", "diamond"]),
 });
 
 // --- API Response Validation ---

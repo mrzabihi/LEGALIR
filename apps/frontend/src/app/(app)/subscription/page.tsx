@@ -38,7 +38,7 @@ const PAYMENT_STATUS_VARIANTS: Record<PaymentStatus, string> = {
   cancelled: "bg-surfaceVariant text-muted",
 };
 
-const PLAN_ORDER: PlanCode[] = ["ultra", "pro", "pro_max"];
+const PLAN_ORDER: PlanCode[] = ["silver", "gold", "diamond"];
 
 // ============================================================
 // Sub-components
@@ -495,7 +495,7 @@ function PlanSelectionCard({
           disabled={isLoading}
           className="w-full"
         >
-          {PLAN_ORDER.indexOf(plan.code) > (plan.code === "ultra" ? 0 : 1)
+          {PLAN_ORDER.indexOf(plan.code) > (plan.code === "silver" ? 0 : 1)
             ? "ارتقا به " + plan.nameFa
             : "انتخاب " + plan.nameFa}
         </Button>

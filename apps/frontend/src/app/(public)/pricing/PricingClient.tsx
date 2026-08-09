@@ -13,21 +13,21 @@ import { useState } from "react";
 // ============================================================
 
 const PLAN_META = {
-  ultra: {
+  silver: {
     gradientFrom: "from-primary-800",
     gradientTo: "to-primary-900",
     borderColor: "border-primary-300",
     badge: null,
     popular: false,
   },
-  pro: {
+  gold: {
     gradientFrom: "from-secondary-600",
     gradientTo: "to-secondary-800",
     borderColor: "border-secondary-400",
     badge: "توصیه شده",
     popular: true,
   },
-  pro_max: {
+  diamond: {
     gradientFrom: "from-primary-700",
     gradientTo: "to-primary-900",
     borderColor: "border-primary-400",
@@ -38,7 +38,7 @@ const PLAN_META = {
 
 function getPlanMeta(code: string): typeof PLAN_META[keyof typeof PLAN_META] {
   const key = code as keyof typeof PLAN_META;
-  return PLAN_META[key] ?? PLAN_META.ultra;
+  return PLAN_META[key] ?? PLAN_META.silver;
 }
 
 // ============================================================
@@ -74,8 +74,8 @@ function getFeatureLimit(plan: Plan, key: string): string {
 }
 
 function getSupportLabel(plan: Plan): string {
-  if (plan.code === "pro_max") return "اختصاصی ۲۴/۷";
-  if (plan.code === "pro") return "تلفنی";
+  if (plan.code === "diamond") return "اختصاصی ۲۴/۷";
+  if (plan.code === "gold") return "تلفنی";
   return "پیامکی";
 }
 
@@ -505,7 +505,7 @@ function FaqSection() {
     },
     {
       q: "آیا پلن رایگان محدودیت دارد؟",
-      a: "پلن رایگان شامل ۵ درخواست روزانه و دسترسی پایه به تمام خدمات LEGALIR است. برای استفاده حرفه‌ای، پلن‌های پرو و الترا پیشنهاد می‌شود.",
+      a: "بدون اشتراک می‌توانید روزانه ۵ پیام رایگان ارسال کنید. برای دسترسی کامل، پلن‌های نقره، طلا یا الماس را خریداری کنید.",
     },
   ];
 
@@ -584,7 +584,7 @@ export function PricingClient() {
             </span>
           </h1>
           <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed mb-8">
-            پلن مناسب خود را انتخاب کنید. شروع با نسخه رایگان و ارتقا در هر زمان
+            پلن مناسب خود را انتخاب کنید. انتخاب پلن مناسب و شروع هوشمند
           </p>
 
           {/* Monthly/Yearly Toggle */}

@@ -77,7 +77,7 @@ describe("checkFeature", () => {
     const result = checkFeature("PRIORITY_PROCESSING", mockActiveEntitlements);
     expect(result.allowed).toBe(false);
     expect(result.entitlement.isEnabled).toBe(false);
-    expect(result.suggestedUpgrade).toBe("pro_max");
+    expect(result.suggestedUpgrade).toBe("diamond");
   });
 
   it("returns not allowed for exhausted numeric feature", () => {
@@ -92,7 +92,7 @@ describe("checkFeature", () => {
     const result = checkFeature("NONEXISTENT_FEATURE", mockActiveEntitlements);
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain("در پلن فعلی شما در دسترس نیست");
-    expect(result.suggestedUpgrade).toBe("pro");
+    expect(result.suggestedUpgrade).toBe("gold");
   });
 });
 
@@ -130,12 +130,12 @@ describe("hasActiveSubscription", () => {
 
 describe("getUpgradePlanForFeature", () => {
   it("suggests pro_max for PRIORITY_PROCESSING", () => {
-    expect(getUpgradePlanForFeature("PRIORITY_PROCESSING")).toBe("pro_max");
+    expect(getUpgradePlanForFeature("PRIORITY_PROCESSING")).toBe("diamond");
   });
 
   it("suggests pro for regular features", () => {
-    expect(getUpgradePlanForFeature("AI_CHAT_MESSAGE")).toBe("pro");
-    expect(getUpgradePlanForFeature("DOCUMENT_ANALYSIS")).toBe("pro");
-    expect(getUpgradePlanForFeature("NONEXISTENT")).toBe("pro");
+    expect(getUpgradePlanForFeature("AI_CHAT_MESSAGE")).toBe("gold");
+    expect(getUpgradePlanForFeature("DOCUMENT_ANALYSIS")).toBe("gold");
+    expect(getUpgradePlanForFeature("NONEXISTENT")).toBe("gold");
   });
 });

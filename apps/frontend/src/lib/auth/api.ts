@@ -8,7 +8,7 @@
 import type { ApiSuccess, OtpChallenge, OtpResult } from "@legalir/types";
 
 // OTP endpoints are handled by MSW (mocked external backend)
-const API_BASE = process.env["NEXT_PUBLIC_API_BASE"] ?? "http://localhost:8000";
+const API_BASE = process.env["NEXT_PUBLIC_API_BASE"] ?? "";
 
 // Password-based auth endpoints use Next.js API routes (real SQLite-backed routes)
 // These are relative URLs served from the same origin, bypassing MSW.

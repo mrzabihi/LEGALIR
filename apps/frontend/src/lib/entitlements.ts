@@ -22,7 +22,7 @@ export interface EntitlementCheckResult {
   /** The underlying entitlement */
   entitlement: Entitlement;
   /** Suggested upgrade plan code */
-  suggestedUpgrade: "pro" | "pro_max" | null;
+  suggestedUpgrade: "gold" | "diamond" | null;
 }
 
 /**
@@ -51,7 +51,7 @@ export function checkFeature(
         isBoolean: true,
         isEnabled: false,
       },
-      suggestedUpgrade: "pro",
+      suggestedUpgrade: "gold",
     };
   }
 
@@ -63,7 +63,7 @@ export function checkFeature(
       usageFraction: null,
       remaining: null,
       entitlement,
-      suggestedUpgrade: "pro_max",
+      suggestedUpgrade: "diamond",
     };
   }
 
@@ -88,7 +88,7 @@ export function checkFeature(
       usageFraction: 1,
       remaining: 0,
       entitlement,
-      suggestedUpgrade: "pro_max",
+      suggestedUpgrade: "diamond",
     };
   }
 
@@ -132,11 +132,11 @@ export function hasActiveSubscription(
  * Get upgrade suggestion for feature visibility — which plan to show
  * as the upgrade target when a feature is locked.
  */
-export function getUpgradePlanForFeature(featureKey: string): "pro" | "pro_max" {
+export function getUpgradePlanForFeature(featureKey: string): "gold" | "diamond" {
   // Features gated to pro_max tier
   const proMaxFeatures = ["PRIORITY_PROCESSING"];
   if (proMaxFeatures.includes(featureKey)) {
-    return "pro_max";
+    return "diamond";
   }
-  return "pro";
+  return "gold";
 }

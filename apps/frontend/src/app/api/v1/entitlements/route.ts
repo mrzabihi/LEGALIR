@@ -6,5 +6,5 @@ import { NextResponse } from "next/server";
 import { fixtureV1EntitlementsResponse } from "@legalir/testing";
 
 export async function GET() {
-  return NextResponse.json(fixtureV1EntitlementsResponse);
+  return NextResponse.json({ data: fixtureV1EntitlementsResponse });
 }

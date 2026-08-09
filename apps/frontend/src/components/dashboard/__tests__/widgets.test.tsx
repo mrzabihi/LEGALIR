@@ -144,6 +144,9 @@ describe("ProfileCompletionCard", () => {
   const incompleteProfile: Profile = {
     userId: "u-1",
     displayName: "مریم",
+    email: null,
+    gender: null,
+    birthDate: null,
     city: "تهران",
     occupation: null,
     completionPercent: 60,
@@ -215,7 +218,7 @@ describe("SubscriptionSummaryCard", () => {
     id: "sub-1",
     userId: "u-1",
     planId: "plan-pro",
-    planCode: "pro",
+    planCode: "gold",
     startAt: "2026-07-01T00:00:00Z",
     endAt: "2026-10-01T00:00:00Z",
     status: "active",

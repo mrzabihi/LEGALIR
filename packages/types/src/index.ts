@@ -62,6 +62,9 @@ export type AccountStatus = "pending" | "active" | "restricted" | "suspended" | 
 export interface Profile {
   userId: string;
   displayName: string | null;
+  email: string | null;
+  gender: "male" | "female" | "other" | null;
+  birthDate: string | null;
   city: string | null;
   occupation: string | null;
   completionPercent: number;
@@ -107,7 +110,7 @@ export interface PlanUsageLimit {
   limit: number;
 }
 
-export type PlanCode = "ultra" | "pro" | "pro_max";
+export type PlanCode = "silver" | "gold" | "diamond";
 
 export interface Subscription {
   id: string;

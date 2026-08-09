@@ -23,7 +23,7 @@ import {
   fixtureRiskReport,
   fixtureContractNda,
   fixturePreferences,
-  fixtureV1SubscriptionPro,
+  fixtureV1SubscriptionGold,
   fixtureV1EntitlementsResponse,
   fixtureV1UsageResponse,
   createCheckoutIntent,
@@ -672,10 +672,10 @@ export const handlers = [
     if (statusParam === "expired") {
       return HttpResponse.json(
         ok({
-          ...fixtureV1SubscriptionPro,
+          ...fixtureV1SubscriptionGold,
           id: "sub-expired-001",
-          planCode: "ultra",
-          planNameFa: "الترا",
+          planCode: "silver",
+          planNameFa: "نقره",
           status: "expired",
           startAt: "2026-06-01T00:00:00Z",
           endAt: "2026-07-01T00:00:00Z",
@@ -689,7 +689,7 @@ export const handlers = [
       return HttpResponse.json(ok(null));
     }
 
-    return HttpResponse.json(ok(fixtureV1SubscriptionPro));
+    return HttpResponse.json(ok(fixtureV1SubscriptionGold));
   }),
 
   // --- GET /api/v1/entitlements ---
@@ -700,7 +700,7 @@ export const handlers = [
     const url = new URL(request.url);
     const planParam = url.searchParams.get("plan");
 
-    if (planParam === "ultra") {
+    if (planParam === "silver") {
       return HttpResponse.json(
         ok({
           entitlements: [
@@ -710,8 +710,8 @@ export const handlers = [
             { featureKey: "ADVANCED_REFERENCE", nameFa: "منابع پیشرفته", limit: null, period: "forever" as const, used: 0, isBoolean: true, isEnabled: false },
             { featureKey: "PRIORITY_PROCESSING", nameFa: "اولویت پردازش", limit: null, period: "forever" as const, used: 0, isBoolean: true, isEnabled: false },
           ],
-          planCode: "ultra" as const,
-          planNameFa: "الترا",
+          planCode: "silver" as const,
+          planNameFa: "نقره",
         })
       );
     }

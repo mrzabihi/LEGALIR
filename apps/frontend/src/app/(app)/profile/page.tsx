@@ -9,22 +9,14 @@
 import { useState, useCallback } from "react";
 import { useMe, useUpdateProfile } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory } from "@/hooks/usePhase11";
-import {
-  fixtureProfileComplete,
-  fixtureProfileUsage,
-  fixtureV1SubscriptionHistory,
-} from "@legalir/testing";
+import { useThemeStore } from "@/stores/theme-store";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
-  IconEdit,
-  IconCheck,
-  IconClose,
-  IconPhone,
-  IconShield,
-  IconSettings,
-  IconSubscription,
+  IconEdit, IconCheck, IconClose, IconPhone,
+  IconSettings, IconSubscription, IconEmail, IconCalendar,
+  IconGender, IconLightMode, IconDarkMode,
 } from "@/lib/icons";
-import type { Profile, V1SubscriptionHistoryItem, V1ProfileUsage } from "@legalir/types";
+import type { V1SubscriptionHistoryItem, V1ProfileUsage, Profile } from "@legalir/types";
 
 // ============================================================
 // Constants
@@ -36,6 +28,13 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   cancelled: "bg-surfaceVariant text-muted",
   unknown: "bg-surfaceVariant text-muted",
 };
+
+const GENDER_OPTIONS = [
+  { value: "", label: "انتخاب نشده" },
+  { value: "male", label: "مرد" },
+  { value: "female", label: "زن" },
+  { value: "other", label: "سایر" },
+] as const;
 
 /**
  * Split the display name into first name (first word) and family name (the rest).
@@ -64,7 +63,6 @@ function getInitial(name: string | null): string {
  */
 function formatMobileForDisplay(mobile: string | undefined): string {
   if (!mobile) return "۰۹-- --- ----";
-  // mobileDisplay is already "09XX XXX XXXX" — ensure Persian digits
   return mobile.replace(/[0-9]/g, (d) =>
     ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"][parseInt(d)] ?? d,
   );
@@ -141,7 +139,6 @@ function buildPieSegments(usage: V1ProfileUsage): PieSegment[] {
 
 /**
  * Compute SVG stroke-dasharray values for a set of pie segments.
- * Returns an array of { offset, dash, color, label } for each segment.
  */
 function computePieArc(segments: PieSegment[], radius: number) {
   const circumference = 2 * Math.PI * radius;
@@ -166,7 +163,7 @@ function computePieArc(segments: PieSegment[], radius: number) {
 }
 
 // ============================================================
-// Inline Editable Field
+// Inline Editable Field (text)
 // ============================================================
 
 function EditableField({
@@ -271,7 +268,197 @@ function EditableField({
 }
 
 // ============================================================
-// Readonly Field (for mobile)
+// Gender Editable Field (select)
+// ============================================================
+
+function GenderEditableField({
+  label,
+  value,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  const displayLabel = GENDER_OPTIONS.find((o) => o.value === value)?.label ?? "انتخاب نشده";
+
+  const handleEdit = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+  }, [value]);
+
+  const handleCancel = useCallback(() => {
+    setEditing(false);
+    setDraft(value);
+  }, [value]);
+
+  const handleSave = useCallback(async () => {
+    if (draft === value || saving) return;
+    setSaving(true);
+    try {
+      await onSave(draft);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }, [draft, value, saving, onSave]);
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-divider group">
+      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
+
+      {editing ? (
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <select
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            className="text-body-2 text-on-surface bg-surfaceVariant rounded-medium px-3 py-1.5 w-full max-w-[200px] border border-divider focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            autoFocus
+            dir="rtl"
+          >
+            {GENDER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleSave}
+            disabled={saving || draft === value}
+            className="p-1 rounded-full text-success hover:bg-success/10 transition-colors disabled:opacity-40"
+            aria-label="ذخیره"
+          >
+            <IconCheck size={18} />
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={saving}
+            className="p-1 rounded-full text-muted hover:bg-surfaceVariant transition-colors"
+            aria-label="لغو"
+          >
+            <IconClose size={18} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <dd className="text-body-2 text-on-surface">
+            {value ? (
+              displayLabel
+            ) : (
+              <span className="text-muted">انتخاب نشده</span>
+            )}
+          </dd>
+          <button
+            onClick={handleEdit}
+            className="p-1 rounded-full text-muted opacity-0 group-hover:opacity-100 hover:text-on-surface hover:bg-surfaceVariant transition-all"
+            aria-label={`ویرایش ${label}`}
+          >
+            <IconEdit size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Date Editable Field
+// ============================================================
+
+function DateEditableField({
+  label,
+  value,
+  placeholder,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  const handleEdit = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+  }, [value]);
+
+  const handleCancel = useCallback(() => {
+    setEditing(false);
+    setDraft(value);
+  }, [value]);
+
+  const handleSave = useCallback(async () => {
+    if (draft === value || saving) return;
+    setSaving(true);
+    try {
+      await onSave(draft);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }, [draft, value, saving, onSave]);
+
+  const displayValue = value ? toPersianDate(value) : "";
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-divider group">
+      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
+
+      {editing ? (
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <input
+            type="date"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            className="text-body-2 text-on-surface bg-surfaceVariant rounded-medium px-3 py-1.5 w-full max-w-[200px] border border-divider focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            autoFocus
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving || draft === value}
+            className="p-1 rounded-full text-success hover:bg-success/10 transition-colors disabled:opacity-40"
+            aria-label="ذخیره"
+          >
+            <IconCheck size={18} />
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={saving}
+            className="p-1 rounded-full text-muted hover:bg-surfaceVariant transition-colors"
+            aria-label="لغو"
+          >
+            <IconClose size={18} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <dd className="text-body-2 text-on-surface">
+            {displayValue || <span className="text-muted">{placeholder}</span>}
+          </dd>
+          <button
+            onClick={handleEdit}
+            className="p-1 rounded-full text-muted opacity-0 group-hover:opacity-100 hover:text-on-surface hover:bg-surfaceVariant transition-all"
+            aria-label={`ویرایش ${label}`}
+          >
+            <IconEdit size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Readonly Field
 // ============================================================
 
 function ReadonlyField({
@@ -390,51 +577,49 @@ export default function ProfilePage() {
   const updateProfile = useUpdateProfile();
   const usage = useProfileUsage();
   const subHistory = useSubscriptionHistory();
+  const { theme, toggleTheme } = useThemeStore();
 
-  // --- Derived data with fixture fallbacks ---
-  const profile: Profile = me.data?.profile ?? fixtureProfileComplete;
-  const mobile = me.data?.user?.mobileDisplay ?? "۰۹۱۲۳۴۵۶۷۸۹";
-  const usageData = usage.data ?? fixtureProfileUsage;
-  const subItems: V1SubscriptionHistoryItem[] =
-    subHistory.data?.items ?? fixtureV1SubscriptionHistory;
+  // --- Derived data (no fixture fallbacks — user requirement) ---
+  const profile: Profile | null = me.data?.profile ?? null;
+  const mobile = me.data?.user?.mobileDisplay;
+  const usageData = usage.data;
+  const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
 
-  const { firstName, familyName } = splitDisplayName(profile.displayName);
+  const { firstName, familyName } = splitDisplayName(profile?.displayName ?? null);
 
-  const handleSave = useCallback(
-    (field: keyof Profile, value: string) => {
-      return updateProfile.mutateAsync(
-        field === "displayName"
-          ? { displayName: value }
-          : { [field]: value } as Partial<Profile>,
-      );
-    },
-    [updateProfile],
-  );
-
-  const handleSaveDisplayName = useCallback(
-    (first: string) => {
-      if (!first && !familyName) return Promise.resolve();
-      return updateProfile.mutateAsync({ displayName: [first, familyName].filter(Boolean).join(" ") || null });
-    },
+  const hSaveDisplayName = useCallback(
+    (first: string) =>
+      updateProfile.mutateAsync({
+        displayName: [first, familyName].filter(Boolean).join(" ") || null,
+      }),
     [updateProfile, familyName],
   );
-
-  const handleSaveFamilyName = useCallback(
-    (last: string) => {
-      if (!firstName && !last) return Promise.resolve();
-      return updateProfile.mutateAsync({ displayName: [firstName, last].filter(Boolean).join(" ") || null });
-    },
+  const hSaveFamilyName = useCallback(
+    (last: string) =>
+      updateProfile.mutateAsync({
+        displayName: [firstName, last].filter(Boolean).join(" ") || null,
+      }),
     [updateProfile, firstName],
   );
-
-  const handleSaveCity = useCallback(
-    (v: string) => handleSave("city", v),
-    [handleSave],
+  const hSaveCity = useCallback(
+    (v: string) => updateProfile.mutateAsync({ city: v || null }),
+    [updateProfile],
   );
-
-  const handleSaveOccupation = useCallback(
-    (v: string) => handleSave("occupation", v),
-    [handleSave],
+  const hSaveOccupation = useCallback(
+    (v: string) => updateProfile.mutateAsync({ occupation: v || null }),
+    [updateProfile],
+  );
+  const hSaveEmail = useCallback(
+    (v: string) => updateProfile.mutateAsync({ email: v || null }),
+    [updateProfile],
+  );
+  const hSaveBirthDate = useCallback(
+    (v: string) => updateProfile.mutateAsync({ birthDate: v || null }),
+    [updateProfile],
+  );
+  const hSaveGender = useCallback(
+    (v: string) => updateProfile.mutateAsync({ gender: (v || null) as Profile["gender"] }),
+    [updateProfile],
   );
 
   return (
@@ -446,15 +631,15 @@ export default function ProfilePage() {
         {/* Avatar */}
         <div className="flex flex-col items-center mb-6">
           <div className="h-20 w-20 rounded-full bg-primary-variant flex items-center justify-center text-white text-h1 mb-3">
-            {getInitial(profile.displayName)}
+            {getInitial(profile?.displayName ?? null)}
           </div>
           <h2 className="text-h3 text-on-surface">
-            {profile.displayName ?? "کاربر LEGALIR"}
+            {profile?.displayName ?? "کاربر LEGALIR"}
           </h2>
           <p className="text-body-2 text-muted mt-1">
-            {profile.city && profile.occupation
+            {profile?.city && profile?.occupation
               ? `${profile.city} — ${profile.occupation}`
-              : profile.city ?? profile.occupation ?? ""}
+              : profile?.city ?? profile?.occupation ?? ""}
           </p>
 
           {/* Profile Completion Bar */}
@@ -462,13 +647,13 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-caption text-muted">تکمیل پروفایل</span>
               <span className="text-caption font-medium text-on-surface">
-                {toPersianNumber(profile.completionPercent)}٪
+                {toPersianNumber(profile?.completionPercent ?? 0)}٪
               </span>
             </div>
             <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${completionColor(profile.completionPercent)}`}
-                style={{ width: `${profile.completionPercent}%` }}
+                className={`h-full rounded-full transition-all duration-500 ${completionColor(profile?.completionPercent ?? 0)}`}
+                style={{ width: `${profile?.completionPercent ?? 0}%` }}
               />
             </div>
           </div>
@@ -480,34 +665,81 @@ export default function ProfilePage() {
             label="نام"
             value={firstName}
             placeholder="نام خود را وارد کنید"
-            onSave={handleSaveDisplayName}
+            onSave={hSaveDisplayName}
           />
           <EditableField
             label="نام خانوادگی"
             value={familyName}
             placeholder="نام خانوادگی خود را وارد کنید"
-            onSave={handleSaveFamilyName}
+            onSave={hSaveFamilyName}
+          />
+          <EditableField
+            label="ایمیل"
+            value={profile?.email ?? ""}
+            placeholder="ایمیل خود را وارد کنید"
+            onSave={hSaveEmail}
+          />
+          <GenderEditableField
+            label="جنسیت"
+            value={profile?.gender ?? ""}
+            onSave={hSaveGender}
+          />
+          <DateEditableField
+            label="تاریخ تولد"
+            value={profile?.birthDate ?? ""}
+            placeholder="تاریخ تولد خود را انتخاب کنید"
+            onSave={hSaveBirthDate}
           />
           <EditableField
             label="شهر"
-            value={profile.city ?? ""}
+            value={profile?.city ?? ""}
             placeholder="شهر محل سکونت"
-            onSave={handleSaveCity}
+            onSave={hSaveCity}
           />
           <EditableField
             label="شغل"
-            value={profile.occupation ?? ""}
+            value={profile?.occupation ?? ""}
             placeholder="شغل خود را وارد کنید"
-            onSave={handleSaveOccupation}
+            onSave={hSaveOccupation}
           />
           <ReadonlyField
             label="شماره موبایل"
             value={formatMobileForDisplay(mobile)}
-            icon={
-              <IconShield size={16} className="text-muted" />
-            }
+            icon={<IconPhone size={16} className="text-muted" />}
           />
         </dl>
+      </section>
+
+      {/* ---- Theme Toggle ---- */}
+      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {theme === "dark" ? (
+              <IconDarkMode size={22} className="text-primary" />
+            ) : (
+              <IconLightMode size={22} className="text-primary" />
+            )}
+            <div>
+              <h3 className="text-body-1 text-on-surface font-medium">تم</h3>
+              <p className="text-caption text-muted">
+                {theme === "dark" ? "حالت تاریک" : "حالت روشن"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+              theme === "dark" ? "bg-primary" : "bg-gray-300"
+            }`}
+            aria-label="تغییر تم"
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                theme === "dark" ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
       </section>
 
       {/* ---- Usage Section ---- */}
@@ -538,8 +770,12 @@ export default function ProfilePage() {
               تلاش مجدد
             </button>
           </div>
-        ) : (
+        ) : usageData ? (
           <UsagePieChart usage={usageData} />
+        ) : (
+          <p className="text-body-2 text-muted text-center py-4">
+            اطلاعات مصرف در دسترس نیست
+          </p>
         )}
       </section>
 
@@ -674,7 +910,7 @@ export default function ProfilePage() {
                     {/* Timeline dot */}
                     <div className="relative z-10 shrink-0">
                       <div className={`h-6 w-6 rounded-full ${dotColor} ring-4 flex items-center justify-center`}>
-                        <div className={`h-2.5 w-2.5 rounded-full bg-white`} />
+                        <div className="h-2.5 w-2.5 rounded-full bg-white" />
                       </div>
                     </div>
 
@@ -684,7 +920,7 @@ export default function ProfilePage() {
                         <span className="text-body-2 text-onSurface font-semibold">
                           {item.planNameFa}
                         </span>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-caption ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES['unknown']}`}>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-caption ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES["unknown"]}`}>
                           {item.statusFa}
                         </span>
                         {idx === 0 && isActive && (

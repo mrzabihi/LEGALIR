@@ -102,6 +102,9 @@ export const fixtureUserPremium: UserSummary = {
 export const fixtureProfileIncomplete: Profile = {
   userId: "u-new-001",
   displayName: null,
+  email: null,
+  gender: null,
+  birthDate: null,
   city: null,
   occupation: null,
   completionPercent: 30,
@@ -111,6 +114,9 @@ export const fixtureProfileIncomplete: Profile = {
 export const fixtureProfileComplete: Profile = {
   userId: "u-pro-001",
   displayName: "مریم محمدی",
+  email: "maryam.mohammadi@example.com",
+  gender: "female",
+  birthDate: "1990-03-15",
   city: "تهران",
   occupation: "کارشناس حقوقی",
   completionPercent: 85,
@@ -136,101 +142,100 @@ export const fixturePreferences: UserPreference = {
 
 export const fixturePlans: Plan[] = [
   {
-    id: "plan-ultra",
-    code: "ultra",
-    nameFa: "الترا",
+    id: "plan-silver",
+    code: "silver",
+    nameFa: "نقره",
     descriptionFa: "مناسب برای استفاده شخصی و آشنایی با خدمات حقوقی",
     durationDays: 30,
-    listPrice: 1_800_000,
-    salePrice: 900_000,
+    listPrice: 5000000,
+    salePrice: 2500000,
     currency: "IRT",
-    dailyRequestLimit: 5,
-    totalTokenLimit: 1_150_000, // =5*30+1000000
+    dailyRequestLimit: 100,
+    totalTokenLimit: 3000000,
     features: [
-      "۵ درخواست روزانه",
-      "۱٬۱۵۰٬۰۰۰ توکن ماهانه",
+      "۱۰۰ درخواست روزانه",
+      "۳٬۰۰۰٬۰۰۰ توکن ماهانه",
       "دسترسی پایه به منابع حقوقی",
       "پشتیبانی پیامکی",
       "مدت ۳۰ روزه",
     ],
     usageLimits: [
-      { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month", limit: 150 },
-      { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month", limit: 3 },
-      { featureKey: "CONTRACT_GENERATION", nameFa: "ایجاد قرارداد", period: "month", limit: 2 },
+      { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month", limit: 3000 },
+      { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month", limit: 5 },
+      { featureKey: "CONTRACT_GENERATION", nameFa: "ایجاد قرارداد", period: "month", limit: 3 },
     ],
   },
   {
-    id: "plan-pro",
-    code: "pro",
-    nameFa: "پرو",
+    id: "plan-gold",
+    code: "gold",
+    nameFa: "طلا",
     descriptionFa: "مناسب برای کسب‌وکارها و نیازهای حقوقی منظم",
     durationDays: 30,
-    listPrice: 4_500_000,
-    salePrice: 2_000_000,
+    listPrice: 7000000,
+    salePrice: 3500000,
     currency: "IRT",
-    dailyRequestLimit: 10,
-    totalTokenLimit: 1_300_000, // =10*30+1000000
+    dailyRequestLimit: 150,
+    totalTokenLimit: 4500000,
     features: [
-      "۱۰ درخواست روزانه",
-      "۱٬۳۰۰٬۰۰۰ توکن ماهانه",
-      "منابع حقوقی پیشرفته",
-      "اولویت پردازش",
+      "۱۵۰ درخواست روزانه",
+      "۴٬۵۰۰٬۰۰۰ توکن ماهانه",
+      "تحلیل اسناد حقوقی",
+      "ایجاد پیش‌نویس قرارداد",
       "پشتیبانی تلفنی",
       "مدت ۳۰ روزه",
     ],
     usageLimits: [
-      { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month", limit: 300 },
-      { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month", limit: 10 },
-      { featureKey: "CONTRACT_GENERATION", nameFa: "ایجاد قرارداد", period: "month", limit: 8 },
-      { featureKey: "ADVANCED_REFERENCE", nameFa: "منابع پیشرفته", period: "forever", limit: 1 },
+      { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month", limit: 4500 },
+      { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month", limit: 15 },
+      { featureKey: "CONTRACT_GENERATION", nameFa: "ایجاد قرارداد", period: "month", limit: 10 },
     ],
   },
   {
-    id: "plan-pro-max",
-    code: "pro_max",
-    nameFa: "پرو مکس",
-    descriptionFa: "مناسب برای استفاده حرفه‌ای و نامحدود",
+    id: "plan-diamond",
+    code: "diamond",
+    nameFa: "الماس",
+    descriptionFa: "مناسب برای وکلا، موسسات حقوقی و استفاده حرفه‌ای",
     durationDays: 30,
-    listPrice: 11_000_000,
-    salePrice: 3_000_000,
+    listPrice: 10000000,
+    salePrice: 4860000,
     currency: "IRT",
-    dailyRequestLimit: 20,
-    totalTokenLimit: 1_600_000, // =20*30+1000000
+    dailyRequestLimit: 300,
+    totalTokenLimit: 9000000,
     features: [
-      "۲۰ درخواست روزانه",
-      "۱٬۶۰۰٬۰۰۰ توکن ماهانه",
-      "تمام قابلیت‌های MVP",
-      "دسترسی زودهنگام به ویژگی‌های جدید",
+      "۳۰۰ درخواست روزانه",
+      "۹٬۰۰۰٬۰۰۰ توکن ماهانه",
+      "خدمات ویژه حقوقی",
+      "تحلیل پیشرفته اسناد",
+      "ایجاد نامحدود قرارداد",
       "پشتیبانی اختصاصی",
+      "مشاوره تخصصی با وکیل",
       "مدت ۳۰ روزه",
     ],
     usageLimits: [
-      { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month", limit: 600 },
-      { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month", limit: 30 },
+      { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month", limit: 9000 },
+      { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month", limit: 50 },
       { featureKey: "CONTRACT_GENERATION", nameFa: "ایجاد قرارداد", period: "month", limit: 30 },
-      { featureKey: "ADVANCED_REFERENCE", nameFa: "منابع پیشرفته", period: "forever", limit: 1 },
-      { featureKey: "PRIORITY_PROCESSING", nameFa: "اولویت پردازش", period: "forever", limit: 1 },
     ],
   },
 ];
 
 // --- Subscription Fixtures ---
 
-export const fixtureSubscriptionUltra: Subscription = {
-  id: "sub-ultra-001",
+export const fixtureSubscriptionSilver: Subscription = {
+  id: "sub-silver-001",
   userId: "u-basic-001",
-  planId: "plan-ultra",
-  planCode: "ultra",
+  planId: "plan-silver",
+  planCode: "silver",
   startAt: "2026-07-01T00:00:00Z",
   endAt: "2026-07-31T00:00:00Z",
   status: "active",
 };
 
-export const fixtureSubscriptionPro: Subscription = {
-  id: "sub-pro-001",
+export const fixtureSubscriptionGold: Subscription = {
+  id: "sub-gold-001",
   userId: "u-pro-001",
-  planId: "plan-pro",
-  planCode: "pro",
+  planId: "plan-gold",
+  planCode: "gold",
   startAt: "2026-07-01T00:00:00Z",
   endAt: "2026-10-01T00:00:00Z",
   status: "active",
@@ -238,12 +243,12 @@ export const fixtureSubscriptionPro: Subscription = {
 
 // --- V1 Subscription Fixtures ---
 
-export const fixtureV1SubscriptionPro: V1Subscription = {
-  id: "sub-pro-001",
+export const fixtureV1SubscriptionGold: V1Subscription = {
+  id: "sub-gold-001",
   userId: "u-pro-001",
-  planId: "plan-pro",
-  planCode: "pro",
-  planNameFa: "پرو",
+  planId: "plan-gold",
+  planCode: "gold",
+  planNameFa: "طلا",
   startAt: "2026-07-01T00:00:00Z",
   endAt: "2026-10-01T00:00:00Z",
   status: "active",
@@ -254,9 +259,9 @@ export const fixtureV1SubscriptionPro: V1Subscription = {
 export const fixtureV1SubscriptionExpired: V1Subscription = {
   id: "sub-expired-001",
   userId: "u-expired-001",
-  planId: "plan-ultra",
-  planCode: "ultra",
-  planNameFa: "الترا",
+  planId: "plan-silver",
+  planCode: "silver",
+  planNameFa: "نقره",
   startAt: "2026-06-01T00:00:00Z",
   endAt: "2026-07-01T00:00:00Z",
   status: "expired",
@@ -279,7 +284,7 @@ export const fixtureEntitlements: Entitlement[] = [
 export const fixtureDashboard: DashboardSummary = {
   user: fixtureUserPro,
   profile: fixtureProfileComplete,
-  subscription: fixtureSubscriptionPro,
+  subscription: fixtureSubscriptionGold,
   entitlements: fixtureEntitlements,
   recentActivity: [
     { id: "conv-001", type: "conversation", title: "مشاوره قرارداد اجاره", status: "active", updatedAt: "2026-07-28T10:30:00Z" },
@@ -642,8 +647,8 @@ export const fixtureV1MemoryItems: V1MemoryItem[] = [
 export const fixtureV1SubscriptionHistory: V1SubscriptionHistoryItem[] = [
   {
     id: "subhist-001",
-    planNameFa: "پرو",
-    planCode: "pro",
+    planNameFa: "طلا",
+    planCode: "gold",
     amount: 2000000,
     currency: "IRT",
     startAt: "2026-07-01T00:00:00Z",
@@ -654,8 +659,8 @@ export const fixtureV1SubscriptionHistory: V1SubscriptionHistoryItem[] = [
   },
   {
     id: "subhist-002",
-    planNameFa: "الترا",
-    planCode: "ultra",
+    planNameFa: "نقره",
+    planCode: "silver",
     amount: 900000,
     currency: "IRT",
     startAt: "2026-05-01T00:00:00Z",
@@ -666,8 +671,8 @@ export const fixtureV1SubscriptionHistory: V1SubscriptionHistoryItem[] = [
   },
   {
     id: "subhist-003",
-    planNameFa: "الترا",
-    planCode: "ultra",
+    planNameFa: "نقره",
+    planCode: "silver",
     amount: 900000,
     currency: "IRT",
     startAt: "2025-12-01T00:00:00Z",
@@ -695,8 +700,8 @@ export const fixtureProfileUsage: V1ProfileUsage = {
 
 export const fixtureV1EntitlementsResponse: V1EntitlementsResponse = {
   entitlements: fixtureEntitlements,
-  planCode: "pro",
-  planNameFa: "پرو",
+  planCode: "gold",
+  planNameFa: "طلا",
 };
 
 // --- V1 Usage Response ---
@@ -1767,9 +1772,9 @@ export const fixtureV1QuestionLists: Record<V1ContractType, V1ContractQuestion[]
 
 export const fixtures = {
   "user-new": { user: fixtureUserNew, profile: fixtureProfileIncomplete, subscription: null },
-  "user-ultra": { user: fixtureUserBasic, subscription: fixtureSubscriptionUltra, planCode: "ultra" as const },
-  "user-pro": { user: fixtureUserPro, profile: fixtureProfileComplete, subscription: fixtureSubscriptionPro, planCode: "pro" as const },
-  "user-premium": { user: fixtureUserPremium, planCode: "pro_max" as const },
+  "user-silver": { user: fixtureUserBasic, subscription: fixtureSubscriptionSilver, planCode: "silver" as const },
+  "user-gold": { user: fixtureUserPro, profile: fixtureProfileComplete, subscription: fixtureSubscriptionGold, planCode: "gold" as const },
+  "user-diamond": { user: fixtureUserPremium, planCode: "diamond" as const },
   "conversation-rent": fixtureConversationRent,
   "conversation-detail": fixtureV1ConversationDetail,
   "document-lease": { document: fixtureDocumentLease, report: fixtureRiskReport },

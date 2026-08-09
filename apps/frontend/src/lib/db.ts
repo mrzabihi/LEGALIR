@@ -388,9 +388,9 @@ const hash = bcrypt.hashSync("123456", 10);
 
   // Seed subscriptions
   const subs: StoredSubscription[] = [
-    { id: "subhist-001", user_id: userId, plan_code: "pro", plan_name_fa: "پرو", amount: 2000000, currency: "IRT", status: "active", status_fa: "فعال", start_at: "2026-07-01T00:00:00Z", end_at: "2026-10-01T00:00:00Z", purchased_at: "2026-07-01T00:00:00Z", auto_renew: 1 },
-    { id: "subhist-002", user_id: userId, plan_code: "ultra", plan_name_fa: "الترا", amount: 900000, currency: "IRT", status: "expired", status_fa: "منقضی", start_at: "2026-05-01T00:00:00Z", end_at: "2026-06-01T00:00:00Z", purchased_at: "2026-05-01T00:00:00Z", auto_renew: 0 },
-    { id: "subhist-003", user_id: userId, plan_code: "ultra", plan_name_fa: "الترا", amount: 900000, currency: "IRT", status: "expired", status_fa: "منقضی", start_at: "2025-12-01T00:00:00Z", end_at: "2026-01-01T00:00:00Z", purchased_at: "2025-12-01T00:00:00Z", auto_renew: 0 },
+    { id: "subhist-001", user_id: userId, plan_code: "gold", plan_name_fa: "طلا", amount: 2000000, currency: "IRT", status: "active", status_fa: "فعال", start_at: "2026-07-01T00:00:00Z", end_at: "2026-10-01T00:00:00Z", purchased_at: "2026-07-01T00:00:00Z", auto_renew: 1 },
+    { id: "subhist-002", user_id: userId, plan_code: "silver", plan_name_fa: "نقره", amount: 900000, currency: "IRT", status: "expired", status_fa: "منقضی", start_at: "2026-05-01T00:00:00Z", end_at: "2026-06-01T00:00:00Z", purchased_at: "2026-05-01T00:00:00Z", auto_renew: 0 },
+    { id: "subhist-003", user_id: userId, plan_code: "silver", plan_name_fa: "نقره", amount: 900000, currency: "IRT", status: "expired", status_fa: "منقضی", start_at: "2025-12-01T00:00:00Z", end_at: "2026-01-01T00:00:00Z", purchased_at: "2025-12-01T00:00:00Z", auto_renew: 0 },
   ];
   writeTable("subscriptions", subs);
 

@@ -3,8 +3,8 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
-import { fixtureV1SubscriptionPro } from "@legalir/testing";
+import { fixtureV1SubscriptionGold } from "@legalir/testing";
 
 export async function GET() {
-  return NextResponse.json(fixtureV1SubscriptionPro);
+  return NextResponse.json({ data: fixtureV1SubscriptionGold });
 }

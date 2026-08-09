@@ -5,7 +5,7 @@ import { http, HttpResponse, delay } from "msw";
 import { server } from "@/mocks/server";
 import {
   fixturePlans,
-  fixtureV1SubscriptionPro,
+  fixtureV1SubscriptionGold,
   fixtureV1EntitlementsResponse,
   fixtureV1UsageResponse,
   createCheckoutIntent,
@@ -38,7 +38,7 @@ function setupAuthHandlers() {
   server.use(
     http.get(`${API_BASE}/api/v1/subscriptions/current`, async () => {
       await delay(50);
-      return HttpResponse.json(ok(fixtureV1SubscriptionPro));
+      return HttpResponse.json(ok(fixtureV1SubscriptionGold));
     }),
     http.get(`${API_BASE}/api/v1/entitlements`, async () => {
       await delay(50);

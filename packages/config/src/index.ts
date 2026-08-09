@@ -87,7 +87,7 @@ export const breakpoints = {
 // --- Subscription Plans ---
 
 export const planConfig = {
-  ultra: {
+  silver: {
     code: "ultra" as const,
     nameFa: "الترا",
     listPrice: 1_800_000,
@@ -103,7 +103,7 @@ export const planConfig = {
       "مدت ۳۰ روزه",
     ],
   },
-  pro: {
+  gold: {
     code: "pro" as const,
     nameFa: "پرو",
     listPrice: 4_500_000,
@@ -120,7 +120,7 @@ export const planConfig = {
       "مدت ۳۰ روزه",
     ],
   },
-  pro_max: {
+  diamond: {
     code: "pro_max" as const,
     nameFa: "پرو مکس",
     listPrice: 11_000_000,

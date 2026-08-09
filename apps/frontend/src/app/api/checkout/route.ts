@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { planCode?: string };
     const planCode = body.planCode as PlanCode | undefined;
 
-    if (!planCode || !["ultra", "pro", "pro_max"].includes(planCode)) {
+    if (!planCode || !["silver", "gold", "diamond"].includes(planCode)) {
       return NextResponse.json(
         {
           code: "INVALID_PLAN",
