@@ -7,15 +7,15 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 import {
   WidgetShell,
-  GreetingHeader,
+  HeroSection,
+  PromoBanner,
   ProfileCompletionCard,
-  SubscriptionSummaryCard,
   QuickActions,
   RecentActivities,
   UsageSummaryCard,
   NotificationsPlaceholder,
 } from "../widgets";
-import type { Profile, Subscription, RecentActivityItem, UsageSummary, Entitlement } from "@legalir/types";
+import type { Profile, RecentActivityItem, UsageSummary, Entitlement } from "@legalir/types";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return <div dir="rtl">{children}</div>;
@@ -103,14 +103,22 @@ describe("WidgetShell", () => {
 });
 
 // ============================================================
-// GreetingHeader
+// HeroSection
 // ============================================================
 
-describe("GreetingHeader", () => {
+describe("HeroSection", () => {
+  const stats = {
+    dailyUsed: 2,
+    dailyTotal: 5,
+    docCount: 3,
+    activeReqCount: 1,
+    daysRemaining: 25,
+  };
+
   it("renders personalized greeting with display name", () => {
     render(
       <TestWrapper>
-        <GreetingHeader displayName="مریم" isLoading={false} />
+        <HeroSection displayName="مریم" isLoading={false} stats={stats} />
       </TestWrapper>
     );
     expect(screen.getByText(/سلام، مریم/)).toBeInTheDocument();
@@ -120,7 +128,7 @@ describe("GreetingHeader", () => {
   it("falls back to generic greeting when no display name", () => {
     render(
       <TestWrapper>
-        <GreetingHeader displayName={null} isLoading={false} />
+        <HeroSection displayName={null} isLoading={false} stats={stats} />
       </TestWrapper>
     );
     expect(screen.getByText(/سلام، کاربر/)).toBeInTheDocument();
@@ -129,10 +137,63 @@ describe("GreetingHeader", () => {
   it("renders skeleton when loading", () => {
     render(
       <TestWrapper>
-        <GreetingHeader displayName="مریم" isLoading={true} />
+        <HeroSection displayName="مریم" isLoading={true} stats={stats} />
       </TestWrapper>
     );
     expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
+  });
+
+  it("shows stat cards with correct values", () => {
+    render(
+      <TestWrapper>
+        <HeroSection displayName="مریم" isLoading={false} stats={stats} />
+      </TestWrapper>
+    );
+    expect(screen.getByText("اسناد")).toBeInTheDocument();
+    expect(screen.getByText("درخواست فعال")).toBeInTheDocument();
+    expect(screen.getByText("روز باقی‌مانده")).toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// PromoBanner
+// ============================================================
+
+describe("PromoBanner", () => {
+  it("shows upgrade CTA for silver plan", () => {
+    render(
+      <TestWrapper>
+        <PromoBanner planCode="silver" daysRemaining={30} />
+      </TestWrapper>
+    );
+    expect(screen.getByText(/ارتقا به اشتراک طلایی/)).toBeInTheDocument();
+  });
+
+  it("shows upgrade CTA for gold plan", () => {
+    render(
+      <TestWrapper>
+        <PromoBanner planCode="gold" daysRemaining={30} />
+      </TestWrapper>
+    );
+    expect(screen.getByText(/ارتقا به اشتراک الماس/)).toBeInTheDocument();
+  });
+
+  it("hides when planCode is not upgradeable", () => {
+    const { container } = render(
+      <TestWrapper>
+        <PromoBanner planCode="diamond" daysRemaining={30} />
+      </TestWrapper>
+    );
+    expect(container.querySelector("section")).not.toBeInTheDocument();
+  });
+
+  it("hides when planCode is null", () => {
+    const { container } = render(
+      <TestWrapper>
+        <PromoBanner planCode={null} daysRemaining={30} />
+      </TestWrapper>
+    );
+    expect(container.querySelector("section")).not.toBeInTheDocument();
   });
 });
 
@@ -164,18 +225,15 @@ describe("ProfileCompletionCard", () => {
         <ProfileCompletionCard profile={incompleteProfile} isLoading={false} />
       </TestWrapper>
     );
-    // The card contains both a label span and a link button with "تکمیل پروفایل"
     expect(screen.getByRole("link", { name: "تکمیل پروفایل" })).toBeInTheDocument();
   });
 
   it("hides card when profile is complete (100%)", () => {
-    const { container: _container } = render(
+    render(
       <TestWrapper>
         <ProfileCompletionCard profile={completeProfile} isLoading={false} />
       </TestWrapper>
     );
-    // The TestWrapper <div dir="rtl"> is always present, so firstChild isn't null
-    // But the card itself should not be rendered
     expect(screen.queryByRole("link", { name: "تکمیل پروفایل" })).not.toBeInTheDocument();
   });
 
@@ -203,53 +261,7 @@ describe("ProfileCompletionCard", () => {
         <ProfileCompletionCard profile={incompleteProfile} isLoading={false} />
       </TestWrapper>
     );
-    // The text is "تکمیل پروفایل 60٪" split between elements
-    // Check the number is there
     expect(screen.getByText((content) => content.includes("60") && content.includes("٪"))).toBeInTheDocument();
-  });
-});
-
-// ============================================================
-// SubscriptionSummaryCard
-// ============================================================
-
-describe("SubscriptionSummaryCard", () => {
-  const activeSubscription: Subscription = {
-    id: "sub-1",
-    userId: "u-1",
-    planId: "plan-pro",
-    planCode: "gold",
-    startAt: "2026-07-01T00:00:00Z",
-    endAt: "2026-10-01T00:00:00Z",
-    status: "active",
-  };
-
-  it("shows subscription details when active", () => {
-    render(
-      <TestWrapper>
-        <SubscriptionSummaryCard subscription={activeSubscription} isLoading={false} />
-      </TestWrapper>
-    );
-    expect(screen.getByText("پرو")).toBeInTheDocument();
-    expect(screen.getByText("فعال")).toBeInTheDocument();
-  });
-
-  it("shows empty state when no subscription", () => {
-    render(
-      <TestWrapper>
-        <SubscriptionSummaryCard subscription={null} isLoading={false} />
-      </TestWrapper>
-    );
-    expect(screen.getByText("شما هنوز اشتراک فعالی ندارید")).toBeInTheDocument();
-  });
-
-  it("shows skeleton when loading", () => {
-    render(
-      <TestWrapper>
-        <SubscriptionSummaryCard subscription={activeSubscription} isLoading={true} />
-      </TestWrapper>
-    );
-    expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 });
 
@@ -258,15 +270,18 @@ describe("SubscriptionSummaryCard", () => {
 // ============================================================
 
 describe("QuickActions", () => {
-  it("renders all 3 quick action cards", () => {
+  it("renders all quick action cards", () => {
     render(
       <TestWrapper>
         <QuickActions />
       </TestWrapper>
     );
-    expect(screen.getByText("مشاوره حقوقی جدید")).toBeInTheDocument();
-    expect(screen.getByText("تحلیل سند")).toBeInTheDocument();
-    expect(screen.getByText("ساخت قرارداد")).toBeInTheDocument();
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
+    expect(screen.getByText("بررسی قرارداد")).toBeInTheDocument();
+    expect(screen.getByText("تنظیم قرارداد")).toBeInTheDocument();
+    expect(screen.getByText("تولید اظهارنامه")).toBeInTheDocument();
+    expect(screen.getByText("تحلیل اسناد")).toBeInTheDocument();
+    expect(screen.getByText("محاسبات حقوقی")).toBeInTheDocument();
   });
 
   it("all actions are links with correct hrefs", () => {
@@ -371,10 +386,8 @@ describe("UsageSummaryCard", () => {
         <UsageSummaryCard usage={usageData} isLoading={false} error={null} />
       </TestWrapper>
     );
-    // used is displayed as raw number (Western), limit is localized (Persian)
-    // e.g. "45 از ۱۰۰" — "45" is Western, "۱۰۰" is Persian
-    expect(screen.getByText((content) => content.includes("45") && content.includes("۱۰۰"))).toBeInTheDocument();
-    expect(screen.getByText((content) => content.includes("28") && content.includes("۳۰"))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes("۴۵") && content.includes("۱۰۰"))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes("۲۸") && content.includes("۳۰"))).toBeInTheDocument();
   });
 
   it("shows days remaining", () => {

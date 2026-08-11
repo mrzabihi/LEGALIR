@@ -1,8 +1,8 @@
 // ============================================================
 // LEGALIR — Dashboard Widgets
-// Partial loading: each widget independently manages its
-// own loading/error/empty states so one failure doesn't
-// break the entire dashboard.
+// Modern UI with gradient hero, stat cards, circular progress,
+// and partial-loading resilience so one failure doesn't break
+// the entire dashboard.
 // ============================================================
 
 "use client";
@@ -16,6 +16,9 @@ import type {
   Entitlement,
   RecentActivityItem,
   UsageSummary,
+  ActiveRequestItem,
+  DashboardRecommendation,
+  RecentDocumentItem,
 } from "@legalir/types";
 
 // ============================================================
@@ -23,51 +26,62 @@ import type {
 // ============================================================
 
 interface WidgetShellProps {
-  title: string;
+  title?: string;
+  titleRight?: ReactNode;
   isLoading: boolean;
   error: Error | null;
   onRetry?: () => void;
   isEmpty: boolean;
   emptyMessage?: string;
-  emptyIcon?: string;
   errorMessage?: string;
   children: ReactNode;
   className?: string;
+  /** Skip the white card wrapper for full-bleed sections */
+  bare?: boolean;
 }
 
 export function WidgetShell({
   title,
+  titleRight,
   isLoading,
   error,
   onRetry,
   isEmpty,
   emptyMessage = "اطلاعاتی یافت نشد",
-  emptyIcon,
   errorMessage = "خطا در دریافت اطلاعات",
   children,
   className = "",
+  bare = false,
 }: WidgetShellProps) {
+  const content = (
+    <>
+      {/* Header */}
+      {title && (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-h3 text-onSurface font-bold">{title}</h3>
+          {titleRight}
+        </div>
+      )}
+
+      {isLoading ? (
+        <WidgetSkeleton />
+      ) : error ? (
+        <WidgetError message={errorMessage} onRetry={onRetry} />
+      ) : isEmpty ? (
+        <WidgetEmpty message={emptyMessage} />
+      ) : (
+        children
+      )}
+    </>
+  );
+
+  if (bare) return <section className={className}>{content}</section>;
+
   return (
     <section
-      className={`rounded-xl bg-white border border-neutral-200 shadow-sm ${className}`}
+      className={`rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 ${className}`}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
-        <h3 className="text-h3 text-primary-900 font-semibold">{title}</h3>
-      </div>
-
-      {/* Content */}
-      <div className="p-5">
-        {isLoading ? (
-          <WidgetSkeleton />
-        ) : error ? (
-          <WidgetError message={errorMessage} onRetry={onRetry} />
-        ) : isEmpty ? (
-          <WidgetEmpty icon={emptyIcon} message={emptyMessage} />
-        ) : (
-          children
-        )}
-      </div>
+      {content}
     </section>
   );
 }
@@ -75,7 +89,7 @@ export function WidgetShell({
 function WidgetSkeleton() {
   return (
     <div className="animate-pulse space-y-3" aria-busy="true">
-      <div className="h-5 w-3/4 rounded-small bg-muted/20" />
+      <div className="h-5 w-3/4 rounded-small bg-muted/15" />
       <div className="h-4 w-full rounded-small bg-muted/10" />
       <div className="h-4 w-2/3 rounded-small bg-muted/10" />
     </div>
@@ -85,12 +99,16 @@ function WidgetSkeleton() {
 function WidgetError({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-2 py-4 text-center" role="alert">
-      <span className="text-2xl">⚠️</span>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-300">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
       <p className="text-body-2 text-muted">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-1 rounded-small bg-primary px-4 py-1.5 text-white text-caption hover:opacity-90 transition-opacity touch-target"
+          className="mt-1 rounded-lg bg-primary px-4 py-1.5 text-white text-caption hover:bg-primary-600 transition-colors touch-target"
         >
           تلاش مجدد
         </button>
@@ -99,45 +117,192 @@ function WidgetError({ message, onRetry }: { message: string; onRetry?: () => vo
   );
 }
 
-function WidgetEmpty({ message }: { icon?: string; message: string }) {
+function WidgetEmpty({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-300" aria-hidden="true">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-250">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <polyline points="14 2 14 8 20 8" />
         <line x1="16" y1="13" x2="8" y2="13" />
         <line x1="16" y1="17" x2="8" y2="17" />
       </svg>
-      <p className="text-body-2 text-neutral-500">{message}</p>
+      <p className="text-body-2 text-neutral-400">{message}</p>
     </div>
   );
 }
 
 // ============================================================
-// GreetingHeader
+// HeroSection — gradient hero with greeting, stats, and input
 // ============================================================
 
-interface GreetingHeaderProps {
+interface HeroSectionProps {
   displayName: string | null;
   isLoading: boolean;
+  stats: {
+    dailyUsed: number;
+    dailyTotal: number;
+    docCount: number;
+    activeReqCount: number;
+    daysRemaining: number;
+  };
 }
 
-export function GreetingHeader({ displayName, isLoading }: GreetingHeaderProps) {
-  return (
-    <div className="mb-8">
-      {isLoading ? (
-        <div className="animate-pulse space-y-3">
-          <div className="h-9 w-56 rounded-lg bg-neutral-100" />
-          <div className="h-5 w-40 rounded-lg bg-neutral-50" />
+export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps) {
+  const name = displayName ?? "کاربر";
+
+  const statCards = [
+    {
+      label: "درخواست امروز",
+      value: `${stats.dailyUsed}/${stats.dailyTotal}`,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ),
+      accent: "from-blue-500/20 to-blue-600/10 text-blue-100",
+    },
+    {
+      label: "اسناد",
+      value: stats.docCount.toLocaleString("fa-IR"),
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      ),
+      accent: "from-emerald-500/20 to-emerald-600/10 text-emerald-100",
+    },
+    {
+      label: "درخواست فعال",
+      value: stats.activeReqCount.toLocaleString("fa-IR"),
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      ),
+      accent: "from-purple-500/20 to-purple-600/10 text-purple-100",
+    },
+    {
+      label: "روز باقی‌مانده",
+      value: stats.daysRemaining.toLocaleString("fa-IR"),
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
+      accent: "from-amber-500/20 to-amber-600/10 text-amber-100",
+    },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 animate-pulse">
+        <div className="h-9 w-56 rounded-lg bg-white/10 mb-3" />
+        <div className="h-5 w-40 rounded-lg bg-white/10 mb-8" />
+        <div className="grid grid-cols-2 tablet:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-20 rounded-xl bg-white/10" />
+          ))}
         </div>
-      ) : (
-        <>
-          <h1 className="text-h2 text-primary-900">
-            سلام، {displayName ?? "کاربر"} <span className="text-secondary-600">&#x202B;👋</span>
-          </h1>
-          <p className="text-body-1 text-neutral-500 mt-1">به محیط کار LEGALIR خوش آمدید</p>
-        </>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative rounded-2xl bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary-400/10 blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-secondary-400/10 blur-3xl" />
+      </div>
+
+      {/* Greeting */}
+      <div className="relative">
+        <h1 className="text-h2 tablet:text-h1 text-white font-bold">
+          سلام، {name}
+          <span className="inline-block ml-2 animate-bounce-gentle">👋</span>
+        </h1>
+        <p className="text-body-1 text-primary-200 mt-1">به محیط کار LEGALIR خوش آمدید</p>
+      </div>
+
+      {/* Stat cards */}
+      <div className="relative grid grid-cols-2 tablet:grid-cols-4 gap-3 mt-6">
+        {statCards.map((stat) => (
+          <div
+            key={stat.label}
+            className={`rounded-xl bg-gradient-to-br ${stat.accent} border border-white/10 backdrop-blur p-4 flex flex-col gap-2`}
+          >
+            <span className="opacity-70">{stat.icon}</span>
+            <div>
+              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stat.value}</p>
+              <p className="text-caption text-primary-200 mt-0.5">{stat.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// PromoBanner — subscription upgrade CTA
+// ============================================================
+
+interface PromoBannerProps {
+  planCode: string | null | undefined;
+  daysRemaining: number;
+}
+
+const PLAN_BANNER_INFO: Record<string, { title: string; desc: string; cta: string; href: string }> = {
+  silver: {
+    title: "ارتقا به اشتراک طلایی",
+    desc: "با ارتقا به طلا، از تحلیل قرارداد و استعلام سوابق بهره‌مند شوید",
+    cta: "ارتقا اشتراک",
+    href: "/pricing",
+  },
+  gold: {
+    title: "ارتقا به اشتراک الماس",
+    desc: "با الماس، دستیار اختصاصی و تنظیم خودکار اظهارنامه دریافت کنید",
+    cta: "ارتقا به الماس",
+    href: "/pricing",
+  },
+};
+
+export function PromoBanner({ planCode, daysRemaining }: PromoBannerProps) {
+  const info = planCode ? PLAN_BANNER_INFO[planCode] : null;
+  if (!info) return null;
+
+  return (
+    <div className="relative rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-amber-200/60 p-5 mb-6 overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-amber-300/20 blur-2xl" />
+      </div>
+      <div className="relative flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 shadow-elevation-1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-body-1 text-onSurface font-semibold">{info.title}</p>
+            <p className="text-caption text-muted mt-0.5">{info.desc}</p>
+          </div>
+        </div>
+        <Link
+          href={info.href}
+          className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-amber-500 text-white px-5 py-2.5 text-button font-semibold hover:bg-amber-600 active:scale-95 transition-all touch-target shadow-elevation-1"
+        >
+          {info.cta}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        </Link>
+      </div>
     </div>
   );
 }
@@ -154,8 +319,8 @@ interface ProfileCompletionCardProps {
 export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionCardProps) {
   if (isLoading) {
     return (
-      <div className="rounded-large bg-surface border border-warning/30 shadow-elevation-1 p-4 mb-6 animate-pulse">
-        <div className="h-5 w-40 rounded-small bg-muted/20" />
+      <div className="rounded-2xl bg-surface border border-warning/30 p-5 mb-6 animate-pulse">
+        <div className="h-5 w-40 rounded bg-muted/15" />
         <div className="mt-2 h-2 w-48 rounded-full bg-muted/10" />
       </div>
     );
@@ -164,27 +329,34 @@ export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionC
   if (!profile || profile.completionPercent >= 100) return null;
 
   return (
-    <div className="rounded-large bg-surface border border-warning/30 shadow-elevation-1 p-4 mb-6">
+    <div className="rounded-2xl bg-surface border border-warning/30 p-5 mb-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
-          <span className="text-body-2 text-onSurface font-medium">
-            تکمیل پروفایل {profile.completionPercent}٪
-          </span>
-          <div className="w-full max-w-xs h-2 bg-background rounded-full mt-2 overflow-hidden">
+          <div className="flex items-center gap-2 mb-2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span className="text-body-1 text-onSurface font-semibold">
+              تکمیل پروفایل {profile.completionPercent}٪
+            </span>
+          </div>
+          <div className="w-full max-w-xs h-2 bg-neutral-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-primary rounded-full transition-all duration-moderate1"
+              className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-moderate1"
               style={{ width: `${profile.completionPercent}%` }}
             />
           </div>
           {profile.completionPercent < 70 && (
-            <p className="text-caption text-muted mt-1">
+            <p className="text-caption text-muted mt-1.5">
               برای استفاده از تمام امکانات، پروفایل خود را تکمیل کنید
             </p>
           )}
         </div>
         <Link
           href="/profile"
-          className="shrink-0 rounded-medium bg-primary text-white px-4 py-2 text-button hover:bg-primary-variant transition-colors touch-target inline-flex items-center"
+          className="shrink-0 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-600 transition-colors touch-target shadow-elevation-1"
         >
           تکمیل پروفایل
         </Link>
@@ -194,81 +366,15 @@ export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionC
 }
 
 // ============================================================
-// SubscriptionSummaryCard
-// ============================================================
-
-interface SubscriptionSummaryCardProps {
-  subscription: Subscription | null | undefined;
-  isLoading: boolean;
-}
-
-const PLAN_LABELS: Record<string, string> = {
-  ultra: "الترا",
-  pro: "پرو",
-  pro_max: "پرو مکس",
-};
-
-export function SubscriptionSummaryCard({ subscription, isLoading }: SubscriptionSummaryCardProps) {
-  return (
-    <WidgetShell
-      title="اشتراک فعلی"
-      isLoading={isLoading}
-      error={null}
-      onRetry={undefined}
-      isEmpty={!subscription}
-      emptyMessage="شما هنوز اشتراک فعالی ندارید"
-      emptyIcon="⭐"
-      className="mb-6"
-    >
-      {subscription && (
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <span className="text-body-1 text-onSurface font-medium">
-              {PLAN_LABELS[subscription.planCode] ?? subscription.planCode}
-            </span>
-            <span className="text-caption text-muted mr-3">
-              تا {new Date(subscription.endAt).toLocaleDateString("fa-IR")}
-            </span>
-            <span
-              className={`mr-3 inline-block rounded-full px-2 py-0.5 text-caption font-medium ${
-                subscription.status === "active"
-                  ? "bg-success/10 text-success"
-                  : subscription.status === "expired"
-                    ? "bg-error/10 text-error"
-                    : "bg-warning/10 text-warning"
-              }`}
-            >
-              {subscription.status === "active"
-                ? "فعال"
-                : subscription.status === "expired"
-                  ? "منقضی"
-                  : subscription.status === "cancelled"
-                    ? "لغوشده"
-                    : "در انتظار"}
-            </span>
-          </div>
-          <Link
-            href="/subscription"
-            className="shrink-0 rounded-medium border border-border text-onSurface px-4 py-2 text-button hover:bg-background transition-colors touch-target"
-          >
-            مدیریت اشتراک
-          </Link>
-        </div>
-      )}
-    </WidgetShell>
-  );
-}
-
-// ============================================================
-// QuickActions
+// QuickActions — service launcher grid
 // ============================================================
 
 interface QuickActionItem {
   href: string;
   title: string;
   desc: string;
-  icon: string;
-  colorClass: string;
+  icon: ReactNode;
+  gradient: string;
 }
 
 const QUICK_ACTIONS: QuickActionItem[] = [
@@ -276,73 +382,98 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     href: "/chat",
     title: "مشاوره حقوقی",
     desc: "سوال خود را بپرسید",
-    icon: "💬",
-    colorClass: "bg-primary",
+    gradient: "from-blue-500 to-blue-600",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
   },
   {
     href: "/documents",
     title: "بررسی قرارداد",
     desc: "تحلیل ریسک و شروط",
-    icon: "🔍",
-    colorClass: "bg-secondary",
+    gradient: "from-emerald-500 to-emerald-600",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+      </svg>
+    ),
   },
   {
     href: "/contracts",
     title: "تنظیم قرارداد",
     desc: "پیش‌نویس هوشمند",
-    icon: "📝",
-    colorClass: "bg-success",
+    gradient: "from-violet-500 to-violet-600",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+      </svg>
+    ),
   },
   {
     href: "/chat?category=formal_letter",
     title: "تولید اظهارنامه",
     desc: "نامه‌نگاری حقوقی",
-    icon: "✉️",
-    colorClass: "bg-warning",
+    gradient: "from-orange-500 to-orange-600",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+      </svg>
+    ),
   },
   {
     href: "/documents",
     title: "تحلیل اسناد",
     desc: "بررسی مستندات",
-    icon: "📋",
-    colorClass: "bg-info",
+    gradient: "from-cyan-500 to-cyan-600",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+    ),
   },
   {
     href: "/chat?category=calculator",
     title: "محاسبات حقوقی",
     desc: "خسارت، ارث، دیه",
-    icon: "🧮",
-    colorClass: "bg-error",
-  },
-  {
-    href: "/chat",
-    title: "پرسش و پاسخ",
-    desc: "استفتا و راهنمایی",
-    icon: "❓",
-    colorClass: "bg-primary-variant",
+    gradient: "from-rose-500 to-rose-600",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="2" width="16" height="20" rx="2" />
+        <line x1="8" y1="6" x2="16" y2="6" />
+        <line x1="8" y1="10" x2="16" y2="10" />
+        <line x1="8" y1="14" x2="12" y2="14" />
+      </svg>
+    ),
   },
 ];
 
 export function QuickActions() {
   return (
-    <section className="mb-8">
-      <h2 className="text-h3 text-onSurface mb-4">دسترسی سریع</h2>
-      <div className="grid grid-cols-1 mobile-l:grid-cols-2 tablet:grid-cols-3 gap-4">
+    <section className="mb-6">
+      <h2 className="text-h3 text-onSurface font-bold mb-4">دسترسی سریع</h2>
+      <div className="grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-6 gap-3">
         {QUICK_ACTIONS.map((action) => (
           <Link
             key={action.href + action.title}
             href={action.href}
-            className="rounded-large bg-surface p-4 shadow-elevation-1 hover:shadow-elevation-4 transition-shadow border border-divider group active:scale-[0.98] touch-target"
+            className="group rounded-2xl bg-surface border border-divider/60 p-4 hover:shadow-elevation-4 hover:border-primary/20 transition-all duration-200 active:scale-[0.97] touch-target flex flex-col items-center text-center gap-3"
           >
-            <div
-              className={`h-10 w-10 rounded-medium ${action.colorClass} mb-3 flex items-center justify-center text-white`}
-            >
+            <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center shadow-elevation-1 group-hover:scale-110 transition-transform duration-200`}>
               {action.icon}
             </div>
-            <h3 className="text-body-1 text-onSurface font-medium group-hover:text-primary transition-colors">
-              {action.title}
-            </h3>
-            <p className="text-body-2 text-muted mt-0.5">{action.desc}</p>
+            <div>
+              <h3 className="text-body-2 text-onSurface font-semibold group-hover:text-primary transition-colors">
+                {action.title}
+              </h3>
+              <p className="text-caption text-muted mt-0.5 hidden tablet:block">{action.desc}</p>
+            </div>
           </Link>
         ))}
       </div>
@@ -351,21 +482,15 @@ export function QuickActions() {
 }
 
 // ============================================================
-// RecentActivities — recent drafts with status badges and quick actions
+// RecentActivities — modern card grid with status badges
 // ============================================================
 
 interface RecentActivitiesProps {
-  items: (RecentActivityItem & { description?: string | null; categoryFa?: string | null } )[] | undefined;
+  items: (RecentActivityItem & { description?: string | null; categoryFa?: string | null })[] | undefined;
   isLoading: boolean;
   error: Error | null;
   onRetry?: () => void;
 }
-
-const ACTIVITY_TYPE_LABELS: Record<string, string> = {
-  conversation: "گفتگو",
-  document: "سند",
-  contract: "قرارداد",
-};
 
 const ACTIVITY_TYPE_ICONS: Record<string, string> = {
   conversation: "💬",
@@ -379,90 +504,71 @@ const ACTIVITY_TYPE_LINKS: Record<string, string> = {
   contract: "/contracts",
 };
 
-/** Map raw status strings to display badge config: { label, colorClass, symbol } */
-function getStatusBadge(status: string): { label: string; colorClass: string; symbol: string } {
+function getStatusBadge(status: string): { label: string; colorClass: string } {
   const s = status.toLowerCase();
-  // Completed / ready / generated / approved / exported
   if (["completed", "ready", "generated", "approved", "exported", "active"].includes(s)) {
-    return { label: "تکمیل شده", colorClass: "bg-success/10 text-success border-success/30", symbol: "✓" };
+    return { label: "تکمیل شده", colorClass: "bg-emerald-50 text-emerald-700 border-emerald-200" };
   }
-  // In progress / processing / analyzing / extracting / under_review / collecting
   if (["processing", "analyzing", "extracting", "in_progress", "under_review", "collecting", "uploaded"].includes(s)) {
-    return { label: "در حال انجام", colorClass: "bg-blue-100 text-blue-700 border-blue-300", symbol: "⟳" };
+    return { label: "در حال انجام", colorClass: "bg-blue-50 text-blue-700 border-blue-200" };
   }
-  // Draft
   if (["draft"].includes(s)) {
-    return { label: "پیش‌نویس", colorClass: "bg-amber-100 text-amber-700 border-amber-300", symbol: "📝" };
+    return { label: "پیش‌نویس", colorClass: "bg-amber-50 text-amber-700 border-amber-200" };
   }
-  // Failed
   if (["failed", "blocked"].includes(s)) {
-    return { label: "ناموفق", colorClass: "bg-error/10 text-error border-error/30", symbol: "✗" };
+    return { label: "ناموفق", colorClass: "bg-red-50 text-red-700 border-red-200" };
   }
-  // Archived
   if (["archived"].includes(s)) {
-    return { label: "بایگانی", colorClass: "bg-surfaceVariant text-muted border-divider", symbol: "📦" };
+    return { label: "بایگانی", colorClass: "bg-neutral-100 text-neutral-600 border-neutral-200" };
   }
-  return { label: s, colorClass: "bg-surfaceVariant text-muted border-divider", symbol: "" };
+  return { label: s, colorClass: "bg-neutral-50 text-neutral-600 border-neutral-200" };
 }
 
 export function RecentActivities({ items, isLoading, error, onRetry }: RecentActivitiesProps) {
   return (
     <WidgetShell
       title="پیش‌نویس‌های اخیر"
+      titleRight={
+        items && items.length > 0 ? (
+          <Link href="/history" className="text-button text-primary hover:underline">
+            مشاهده همه
+          </Link>
+        ) : undefined
+      }
       isLoading={isLoading}
       error={error}
       onRetry={onRetry}
       isEmpty={!items || items.length === 0}
       emptyMessage="هنوز فعالیتی ندارید. از گزینه‌های بالا شروع کنید"
-      emptyIcon="🕐"
-      className="mb-8"
+      className="mb-6"
     >
       {items && (
-        <div className="grid grid-cols-1 mobile-l:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
           {items.map((activity) => {
             const badge = getStatusBadge(activity.status);
             return (
               <Link
                 key={activity.id}
                 href={ACTIVITY_TYPE_LINKS[activity.type] ?? "#"}
-                className="rounded-large bg-surface border border-divider p-4 hover:shadow-elevation-4 hover:border-primary/30 transition-all group active:scale-[0.98] touch-target"
+                className="group flex gap-3 p-3 rounded-xl hover:bg-neutral-50 border border-transparent hover:border-divider transition-all duration-200 active:scale-[0.98] touch-target"
               >
-                {/* Top: icon + title + badge */}
-                <div className="flex items-start gap-3 mb-2">
-                  <span className="text-xl shrink-0 mt-0.5 w-8 h-8 rounded-full bg-surfaceVariant flex items-center justify-center">
-                    {ACTIVITY_TYPE_ICONS[activity.type] ?? "📋"}
-                  </span>
-                  <div className="flex-1 min-w-0">
+                <span className="text-xl shrink-0 w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center group-hover:bg-white transition-colors">
+                  {ACTIVITY_TYPE_ICONS[activity.type] ?? "📋"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
                     <p className="text-body-2 text-onSurface font-medium truncate group-hover:text-primary transition-colors">
                       {activity.title}
                     </p>
-                    <p className="text-caption text-muted">
-                      {ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type}
-                      {activity.categoryFa ? ` — ${activity.categoryFa}` : ""}
-                    </p>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium border ${badge.colorClass}`}>
+                      {badge.label}
+                    </span>
                   </div>
-                  <span
-                    className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium border ${badge.colorClass}`}
-                  >
-                    <span>{badge.symbol}</span>
-                    {badge.label}
-                  </span>
-                </div>
-
-                {/* Description preview */}
-                {activity.description && (
-                  <p className="text-caption text-muted line-clamp-2 mb-2 pr-11">
-                    {activity.description}
-                  </p>
-                )}
-
-                {/* Bottom: date + quick action */}
-                <div className="flex items-center justify-between pr-11">
-                  <span className="text-caption text-muted/70">
+                  {activity.description && (
+                    <p className="text-caption text-muted line-clamp-1 mt-0.5">{activity.description}</p>
+                  )}
+                  <span className="text-caption text-muted/60 mt-1 block">
                     {formatRelativeDate(activity.updatedAt)}
-                  </span>
-                  <span className="text-caption text-primary font-medium group-hover:underline">
-                    مشاهده
                   </span>
                 </div>
               </Link>
@@ -470,20 +576,12 @@ export function RecentActivities({ items, isLoading, error, onRetry }: RecentAct
           })}
         </div>
       )}
-      {items && items.length > 0 && (
-        <Link
-          href="/history"
-          className="mt-4 block text-center text-button text-primary hover:underline py-1"
-        >
-          مشاهده همه فعالیت‌ها
-        </Link>
-      )}
     </WidgetShell>
   );
 }
 
 // ============================================================
-// UsageSummaryCard
+// UsageSummaryCard — circular progress rings
 // ============================================================
 
 interface UsageSummaryCardProps {
@@ -491,6 +589,45 @@ interface UsageSummaryCardProps {
   isLoading: boolean;
   error: Error | null;
   onRetry?: () => void;
+}
+
+function CircularProgress({ pct, size = 56, strokeWidth = 5 }: { pct: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  const isExhausted = pct >= 100;
+  const isNearLimit = pct >= 80;
+
+  const strokeColor = isExhausted
+    ? "stroke-error"
+    : isNearLimit
+      ? "stroke-warning"
+      : "stroke-primary";
+
+  return (
+    <svg width={size} height={size} className="shrink-0 -rotate-90">
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        className="text-neutral-100"
+        strokeWidth={strokeWidth}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        className={`${strokeColor} transition-all duration-moderate1`}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+      />
+    </svg>
+  );
 }
 
 export function UsageSummaryCard({ usage, isLoading, error, onRetry }: UsageSummaryCardProps) {
@@ -502,69 +639,54 @@ export function UsageSummaryCard({ usage, isLoading, error, onRetry }: UsageSumm
       onRetry={onRetry}
       isEmpty={!usage || usage.entitlements.length === 0}
       emptyMessage="اطلاعات مصرف در دسترس نیست"
-      emptyIcon="📊"
-      className="mb-8"
+      className="mb-6"
     >
       {usage && (
-        <div className="space-y-3">
-          {usage.entitlements.map((ent) => (
-            <UsageRow key={ent.featureKey} entitlement={ent} />
-          ))}
-          <div className="pt-2 border-t border-divider/50 flex items-center justify-between">
+        <div className="space-y-4">
+          {usage.entitlements.map((ent) => {
+            if (ent.isBoolean) {
+              return (
+                <div key={ent.featureKey} className="flex items-center justify-between py-1">
+                  <span className="text-body-2 text-onSurface">{ent.nameFa}</span>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-caption font-medium ${
+                    ent.isEnabled ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-muted"
+                  }`}>
+                    {ent.isEnabled ? "فعال" : "غیرفعال"}
+                  </span>
+                </div>
+              );
+            }
+
+            const limit = ent.limit ?? 0;
+            const used = ent.used;
+            const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+            const isExhausted = pct >= 100;
+            const isNearLimit = pct >= 80;
+
+            return (
+              <div key={ent.featureKey} className="flex items-center gap-4">
+                <CircularProgress pct={pct} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-body-2 text-onSurface font-medium">{ent.nameFa}</p>
+                  <p className={`text-caption mt-0.5 ${
+                    isExhausted ? "text-error" : isNearLimit ? "text-warning" : "text-muted"
+                  }`}>
+                    {used.toLocaleString("fa-IR")} از {limit === 0 ? "∞" : limit.toLocaleString("fa-IR")}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="pt-3 border-t border-divider/50 flex items-center justify-between">
             <span className="text-caption text-muted">بازنشانی سهمیه</span>
-            <span className="text-caption text-onSurface">
+            <span className="text-caption text-onSurface font-medium">
               {usage.daysRemaining} روز دیگر
             </span>
           </div>
         </div>
       )}
     </WidgetShell>
-  );
-}
-
-function UsageRow({ entitlement }: { entitlement: Entitlement }) {
-  if (entitlement.isBoolean) {
-    return (
-      <div className="flex items-center justify-between">
-        <span className="text-body-2 text-onSurface">{entitlement.nameFa}</span>
-        <span
-          className={`text-caption font-medium ${
-            entitlement.isEnabled ? "text-success" : "text-muted"
-          }`}
-        >
-          {entitlement.isEnabled ? "فعال" : "غیرفعال"}
-        </span>
-      </div>
-    );
-  }
-
-  const limit = entitlement.limit ?? 0;
-  const used = entitlement.used;
-  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const isNearLimit = pct >= 80;
-  const isExhausted = pct >= 100;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-body-2 text-onSurface">{entitlement.nameFa}</span>
-        <span
-          className={`text-caption font-medium ${
-            isExhausted ? "text-error" : isNearLimit ? "text-warning" : "text-muted"
-          }`}
-        >
-          {used} از {limit === 0 ? "∞" : limit.toLocaleString("fa-IR")}
-        </span>
-      </div>
-      <div className="h-1.5 w-full rounded-full bg-background overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-moderate1 ${
-            isExhausted ? "bg-error" : isNearLimit ? "bg-warning" : "bg-primary"
-          }`}
-          style={{ width: `${Math.max(4, pct)}%` }}
-        />
-      </div>
-    </div>
   );
 }
 
@@ -580,28 +702,11 @@ export function NotificationsPlaceholder() {
       error={null}
       isEmpty={true}
       emptyMessage="اعلان جدیدی ندارید"
-      emptyIcon="🔔"
-      className="mb-8"
+      className="mb-6"
     >
       {null}
     </WidgetShell>
   );
-}
-
-// ============================================================
-// Helpers
-// ============================================================
-
-function formatRelativeDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / 86_400_000);
-
-  if (diffDays === 0) return "امروز";
-  if (diffDays === 1) return "دیروز";
-  if (diffDays < 7) return `${diffDays} روز پیش`;
-  return date.toLocaleDateString("fa-IR");
 }
 
 // ============================================================
@@ -628,10 +733,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || isRouting) return;
-
       setIsRouting(true);
-
-      // Brief "detecting" delay, then route to chat with prefilled query
       const encoded = encodeURIComponent(trimmed);
       router.push(`/chat?q=${encoded}`);
     },
@@ -648,22 +750,20 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        handleSubmit(query);
-      }
+      if (e.key === "Enter") handleSubmit(query);
     },
     [handleSubmit, query],
   );
 
   return (
-    <section className={`mb-8 ${className}`}>
+    <section className={`mb-6 ${className}`}>
       <div className="relative max-w-2xl mx-auto">
-        {/* Input container with glow effect */}
+        {/* Input container */}
         <div
-          className={`relative rounded-large border-2 transition-all duration-medium2 ${
+          className={`relative rounded-2xl border-2 transition-all duration-medium2 bg-surface ${
             isRouting
-              ? "border-primary/40 bg-surface"
-              : "border-divider bg-surface focus-within:border-primary focus-within:shadow-[0_0_24px_-4px_rgba(22,32,51,0.25)]"
+              ? "border-primary/30"
+              : "border-divider focus-within:border-primary/60 focus-within:shadow-[0_4px_24px_-6px_rgba(22,32,51,0.15)]"
           }`}
         >
           <input
@@ -673,30 +773,28 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
             onKeyDown={handleKeyDown}
             placeholder="مسئله حقوقی خود را توضیح دهید..."
             disabled={isRouting}
-            className="w-full h-14 pl-14 pr-6 rounded-large bg-transparent text-body-1 text-onSurface placeholder:text-muted/60 outline-none disabled:opacity-60"
+            className="w-full h-14 pl-14 pr-5 rounded-2xl bg-transparent text-body-1 text-onSurface placeholder:text-muted/50 outline-none disabled:opacity-60"
             aria-label="مسئله حقوقی خود را توضیح دهید"
             dir="rtl"
           />
 
-          {/* Submit button */}
           <button
             type="button"
             onClick={() => handleSubmit(query)}
             disabled={!query.trim() || isRouting}
-            className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-medium bg-primary text-white flex items-center justify-center hover:bg-primary-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+            className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl bg-primary text-white flex items-center justify-center hover:bg-primary-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
             aria-label="ارسال پرسش"
           >
             {isRouting ? (
               <span className="text-xs">...</span>
             ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             )}
           </button>
         </div>
 
-        {/* Routing state indicator */}
         {isRouting && (
           <div className="mt-3 text-center animate-fade-in">
             <span className="inline-flex items-center gap-2 text-caption text-muted">
@@ -706,16 +804,15 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
           </div>
         )}
 
-        {/* Example chips */}
         {!isRouting && (
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <span className="text-caption text-muted/70">برای نمونه:</span>
+            <span className="text-caption text-muted/60">برای نمونه:</span>
             {EXAMPLE_CHIPS.map((chip) => (
               <button
                 key={chip.label}
                 type="button"
                 onClick={() => handleChipClick(chip.query)}
-                className="rounded-full bg-surfaceVariant border border-divider/50 px-3 py-1 text-caption text-onSurface hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors active:scale-[0.97] touch-target"
+                className="rounded-full bg-neutral-100 border border-divider/40 px-3 py-1 text-caption text-onSurface hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors active:scale-[0.97] touch-target"
               >
                 {chip.label}
               </button>
@@ -723,8 +820,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
           </div>
         )}
 
-        {/* Subtitle */}
-        <p className="mt-4 text-center text-caption text-muted/60">
+        <p className="mt-4 text-center text-caption text-muted/50">
           با هوش مصنوعی قانون‌مدار ایران
         </p>
       </div>
@@ -736,140 +832,60 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
 // ActiveRequests — in-progress request status tracker
 // ============================================================
 
-interface ActiveRequestItem {
-  id: string;
-  title: string;
-  type: string;
-  typeFa: string;
-  date: string;
-  progress: number;
-  status: "draft" | "processing" | "needs_info" | "completed";
-  statusFa: string;
-  link: string;
-}
-
 const STATUS_STYLES: Record<ActiveRequestItem["status"], { badge: string; bar: string }> = {
-  draft: { badge: "bg-neutral-100 text-neutral-700", bar: "bg-neutral-300" },
-  processing: { badge: "bg-info/10 text-info", bar: "bg-info" },
-  needs_info: { badge: "bg-warning/10 text-warning", bar: "bg-warning" },
-  completed: { badge: "bg-success/10 text-success", bar: "bg-success" },
+  draft: { badge: "bg-neutral-100 text-neutral-700 border-neutral-200", bar: "bg-neutral-300" },
+  processing: { badge: "bg-blue-50 text-blue-700 border-blue-200", bar: "bg-blue-500" },
+  needs_info: { badge: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-500" },
+  completed: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500" },
 };
 
-// Mock data — replace with API call in production
-const MOCK_ACTIVE_REQUESTS: ActiveRequestItem[] = [
-  {
-    id: "1",
-    title: "بررسی قرارداد اجاره ملک",
-    type: "document",
-    typeFa: "تحلیل سند",
-    date: "2026-08-04T10:30:00Z",
-    progress: 72,
-    status: "processing",
-    statusFa: "در حال پردازش",
-    link: "/documents",
-  },
-  {
-    id: "2",
-    title: "پیش‌نویس قرارداد مشارکت",
-    type: "contract",
-    typeFa: "قرارداد",
-    date: "2026-08-03T14:00:00Z",
-    progress: 30,
-    status: "draft",
-    statusFa: "پیش‌نویس",
-    link: "/contracts",
-  },
-  {
-    id: "3",
-    title: "مشاوره حقوقی در خصوص ارث",
-    type: "conversation",
-    typeFa: "گفتگو",
-    date: "2026-08-05T08:15:00Z",
-    progress: 0,
-    status: "needs_info",
-    statusFa: "نیازمند اطلاعات",
-    link: "/chat",
-  },
-  {
-    id: "4",
-    title: "تحلیل سند وصیت‌نامه",
-    type: "document",
-    typeFa: "تحلیل سند",
-    date: "2026-08-01T09:00:00Z",
-    progress: 100,
-    status: "completed",
-    statusFa: "تکمیل شده",
-    link: "/documents",
-  },
-  {
-    id: "5",
-    title: "تنظیم اظهارنامه رسمی",
-    type: "contract",
-    typeFa: "قرارداد",
-    date: "2026-07-28T11:00:00Z",
-    progress: 95,
-    status: "processing",
-    statusFa: "در حال پردازش",
-    link: "/contracts",
-  },
-];
+interface ActiveRequestsProps {
+  items: ActiveRequestItem[];
+  isLoading: boolean;
+  error: Error | null;
+  onRetry?: () => void;
+}
 
-export function ActiveRequests() {
+export function ActiveRequests({ items, isLoading, error, onRetry }: ActiveRequestsProps) {
   return (
     <WidgetShell
       title="درخواست‌های فعال"
-      isLoading={false}
-      error={null}
-      isEmpty={MOCK_ACTIVE_REQUESTS.length === 0}
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      isEmpty={!items || items.length === 0}
       emptyMessage="درخواست فعالی ندارید"
-      emptyIcon="📊"
-      className="mb-8"
     >
-      <div className="space-y-3">
-        {MOCK_ACTIVE_REQUESTS.map((req) => {
+      <div className="space-y-2">
+        {items.map((req) => {
           const styles = STATUS_STYLES[req.status];
           return (
             <Link
               key={req.id}
               href={req.link}
-              className="flex flex-col gap-2 p-3 rounded-medium hover:bg-background transition-colors border border-divider/30 touch-target"
+              className="flex flex-col gap-2 p-3 rounded-xl hover:bg-neutral-50 transition-colors border border-transparent hover:border-divider active:scale-[0.98] touch-target"
             >
-              {/* Top row: title + badge */}
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-body-2 text-onSurface font-medium truncate">
-                    {req.title}
-                  </p>
+                  <p className="text-body-2 text-onSurface font-medium truncate">{req.title}</p>
                   <span className="text-caption text-muted">{req.typeFa}</span>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-caption font-medium ${styles.badge}`}
-                >
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${styles.badge}`}>
                   {req.statusFa}
                 </span>
               </div>
-
-              {/* Progress bar */}
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-1.5 rounded-full bg-background overflow-hidden">
+                <div className="flex-1 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-moderate1 ${styles.bar}`}
                     style={{ width: `${Math.max(2, req.progress)}%` }}
                   />
                 </div>
-                <span className="text-caption text-muted shrink-0 tabular-nums">
-                  {req.progress}٪
-                </span>
+                <span className="text-caption text-muted shrink-0 tabular-nums">{req.progress}٪</span>
               </div>
-
-              {/* Bottom: date + view link */}
               <div className="flex items-center justify-between">
-                <span className="text-caption text-muted/70">
-                  {formatRelativeDate(req.date)}
-                </span>
-                <span className="text-caption text-primary font-medium hover:underline">
-                  مشاهده
-                </span>
+                <span className="text-caption text-muted/60">{formatRelativeDate(req.date)}</span>
+                <span className="text-caption text-primary font-medium">مشاهده</span>
               </div>
             </Link>
           );
@@ -883,77 +899,38 @@ export function ActiveRequests() {
 // SmartRecommendations — context-aware suggestion cards
 // ============================================================
 
-interface Recommendation {
-  id: string;
-  text: string;
-  icon: string;
-  link: string;
-  linkLabel: string;
-  urgency: "info" | "warning" | "action";
-}
-
-const URGENCY_STYLES: Record<Recommendation["urgency"], { accent: string; bg: string }> = {
-  info: { accent: "border-info/40", bg: "bg-info/5" },
-  warning: { accent: "border-warning/40", bg: "bg-warning/5" },
-  action: { accent: "border-primary/40", bg: "bg-primary/5" },
+const URGENCY_STYLES: Record<DashboardRecommendation["urgency"], { accent: string; bg: string; dot: string }> = {
+  info: { accent: "border-blue-200", bg: "bg-blue-50/50", dot: "bg-blue-500" },
+  warning: { accent: "border-amber-200", bg: "bg-amber-50/50", dot: "bg-amber-500" },
+  action: { accent: "border-primary-200", bg: "bg-primary-50/30", dot: "bg-primary-500" },
 };
 
-// Mock recommendations — replace with API call in production
-const MOCK_RECOMMENDATIONS: Recommendation[] = [
-  {
-    id: "rec-1",
-    text: "قرارداد مشارکت شما هنوز نهایی نشده است. ادامه تنظیم قرارداد را تکمیل کنید.",
-    icon: "📝",
-    link: "/contracts",
-    linkLabel: "ادامه تنظیم",
-    urgency: "action",
-  },
-  {
-    id: "rec-2",
-    text: "بررسی ریسک سند قرارداد اجاره کامل شده است. گزارش تحلیل را مشاهده کنید.",
-    icon: "✅",
-    link: "/documents",
-    linkLabel: "مشاهده گزارش",
-    urgency: "info",
-  },
-  {
-    id: "rec-3",
-    text: "اطلاعات پرونده ناقص است. برای دریافت مشاوره دقیق‌تر، اطلاعات تکمیلی را وارد کنید.",
-    icon: "⚠️",
-    link: "/chat",
-    linkLabel: "تکمیل اطلاعات",
-    urgency: "warning",
-  },
-  {
-    id: "rec-4",
-    text: "درخواست اظهارنامه شما آماده پیش‌نمایش است. می‌توانید آن را بررسی و تأیید کنید.",
-    icon: "✉️",
-    link: "/contracts",
-    linkLabel: "پیش‌نمایش",
-    urgency: "action",
-  },
-];
+interface SmartRecommendationsProps {
+  items: DashboardRecommendation[];
+  isLoading: boolean;
+  error: Error | null;
+  onRetry?: () => void;
+}
 
-export function SmartRecommendations() {
+export function SmartRecommendations({ items, isLoading, error, onRetry }: SmartRecommendationsProps) {
   return (
     <WidgetShell
       title="توصیه‌های هوشمند"
-      isLoading={false}
-      error={null}
-      isEmpty={MOCK_RECOMMENDATIONS.length === 0}
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      isEmpty={!items || items.length === 0}
       emptyMessage="توصیه‌ای برای شما وجود ندارد"
-      emptyIcon="💡"
-      className="mb-8"
     >
-      <div className="space-y-3">
-        {MOCK_RECOMMENDATIONS.map((rec) => {
+      <div className="space-y-2">
+        {items.map((rec) => {
           const styles = URGENCY_STYLES[rec.urgency];
           return (
             <div
               key={rec.id}
-              className={`flex items-start gap-3 p-3 rounded-medium border ${styles.accent} ${styles.bg} transition-colors`}
+              className={`flex items-start gap-3 p-3 rounded-xl border ${styles.accent} ${styles.bg} transition-colors`}
             >
-              <span className="text-xl shrink-0 mt-0.5">{rec.icon}</span>
+              <span className={`h-2 w-2 rounded-full ${styles.dot} mt-2 shrink-0`} aria-hidden="true" />
               <div className="flex-1 min-w-0">
                 <p className="text-body-2 text-onSurface">{rec.text}</p>
                 <Link
@@ -963,6 +940,7 @@ export function SmartRecommendations() {
                   {rec.linkLabel}
                 </Link>
               </div>
+              {rec.icon && <span className="text-lg shrink-0 mt-0.5">{rec.icon}</span>}
             </div>
           );
         })}
@@ -975,107 +953,79 @@ export function SmartRecommendations() {
 // RecentDocuments — quick access to latest uploaded files
 // ============================================================
 
-interface RecentDocumentItem {
-  id: string;
-  name: string;
-  mime: string;
-  uploadedAt: string;
-  status: string;
-  statusFa: string;
+const DOC_STATUS_STYLES: Record<string, string> = {
+  ready: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  processing: "bg-blue-50 text-blue-700 border-blue-200",
+  analyzing: "bg-blue-50 text-blue-700 border-blue-200",
+  failed: "bg-red-50 text-red-700 border-red-200",
+  uploaded: "bg-neutral-100 text-neutral-600 border-neutral-200",
+  extracting: "bg-blue-50 text-blue-700 border-blue-200",
+};
+
+interface RecentDocumentsProps {
+  items: RecentDocumentItem[];
+  isLoading: boolean;
+  error: Error | null;
+  onRetry?: () => void;
 }
 
-const DOC_STATUS_STYLES: Record<string, string> = {
-  ready: "bg-success/10 text-success",
-  processing: "bg-info/10 text-info",
-  analyzing: "bg-info/10 text-info",
-  failed: "bg-error/10 text-error",
-  uploaded: "bg-neutral-100 text-neutral-700",
-  extracting: "bg-info/10 text-info",
-};
-
-// Mock data — replace with API call in production
-const MOCK_RECENT_DOCS: RecentDocumentItem[] = [
-  {
-    id: "doc-1",
-    name: "قرارداد_اجاره_۱۴۰۵.pdf",
-    mime: "application/pdf",
-    uploadedAt: "2026-08-04T10:30:00Z",
-    status: "ready",
-    statusFa: "آماده",
-  },
-  {
-    id: "doc-2",
-    name: "وصیت‌نامه_تنظیمی.docx",
-    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    uploadedAt: "2026-08-03T16:00:00Z",
-    status: "analyzing",
-    statusFa: "در حال تحلیل",
-  },
-  {
-    id: "doc-3",
-    name: "مدارک_مالکیت.pdf",
-    mime: "application/pdf",
-    uploadedAt: "2026-07-30T09:00:00Z",
-    status: "ready",
-    statusFa: "آماده",
-  },
-];
-
-const MIME_ICONS: Record<string, string> = {
-  "application/pdf": "📄",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "📝",
-  "image/png": "🖼️",
-  "image/jpeg": "🖼️",
-  "image/webp": "🖼️",
-};
-
-export function RecentDocuments() {
+export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocumentsProps) {
   return (
     <WidgetShell
       title="اسناد اخیر"
-      isLoading={false}
-      error={null}
-      isEmpty={MOCK_RECENT_DOCS.length === 0}
+      titleRight={
+        items && items.length > 0 ? (
+          <Link href="/documents" className="text-button text-primary hover:underline">
+            مشاهده همه
+          </Link>
+        ) : undefined
+      }
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      isEmpty={!items || items.length === 0}
       emptyMessage="هنوز سندی بارگذاری نکرده‌اید"
-      emptyIcon="📁"
-      className="mb-8"
+      className="mb-6"
     >
-      <div className="space-y-2">
-        {MOCK_RECENT_DOCS.map((doc) => {
+      <div className="space-y-1">
+        {items.map((doc) => {
           const statusStyle = DOC_STATUS_STYLES[doc.status] ?? DOC_STATUS_STYLES["uploaded"];
           return (
             <Link
               key={doc.id}
               href="/documents"
-              className="flex items-center gap-3 p-3 rounded-medium hover:bg-background transition-colors touch-target"
+              className="flex items-center gap-3 p-3 rounded-xl hover:bg-neutral-50 transition-colors touch-target group"
             >
-              <span className="text-xl shrink-0">
-                {MIME_ICONS[doc.mime] ?? "📎"}
+              <span className="text-xl shrink-0 w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center group-hover:bg-white transition-colors">
+                {doc.mime?.includes("pdf") ? "📄" : doc.mime?.includes("image") ? "🖼️" : "📎"}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-body-2 text-onSurface font-medium truncate">
-                  {doc.name}
-                </p>
-                <span className="text-caption text-muted">
-                  {formatRelativeDate(doc.uploadedAt)}
-                </span>
+                <p className="text-body-2 text-onSurface font-medium truncate">{doc.name}</p>
+                <span className="text-caption text-muted">{formatRelativeDate(doc.uploadedAt)}</span>
               </div>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-medium ${statusStyle}`}
-              >
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${statusStyle}`}>
                 {doc.statusFa}
               </span>
             </Link>
           );
         })}
       </div>
-
-      <Link
-        href="/documents"
-        className="mt-3 block text-center text-button text-primary hover:underline py-1"
-      >
-        مشاهده همه اسناد
-      </Link>
     </WidgetShell>
   );
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function formatRelativeDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / 86_400_000);
+
+  if (diffDays === 0) return "امروز";
+  if (diffDays === 1) return "دیروز";
+  if (diffDays < 7) return `${diffDays} روز پیش`;
+  return date.toLocaleDateString("fa-IR");
 }

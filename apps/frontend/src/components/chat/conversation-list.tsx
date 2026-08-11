@@ -44,6 +44,7 @@ interface ConversationListProps {
   conversations: Conversation[];
   isLoading: boolean;
   error: Error | null;
+  onRetry?: () => void;
   onArchive?: (id: string) => void;
   dailyUsed?: number;
   dailyLimit?: number;
@@ -56,6 +57,7 @@ export function ConversationList({
   conversations,
   isLoading,
   error,
+  onRetry,
   onArchive,
   dailyUsed = 3,
   dailyLimit = 10,
@@ -104,6 +106,14 @@ export function ConversationList({
         {error && (
           <div className="p-4 text-center">
             <p className="text-bodySmall text-error mb-2">خطا در بارگذاری گفتگوها</p>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="text-bodySmall text-primary font-medium hover:text-primary-variant transition-colors"
+              >
+                تلاش مجدد
+              </button>
+            )}
           </div>
         )}
 

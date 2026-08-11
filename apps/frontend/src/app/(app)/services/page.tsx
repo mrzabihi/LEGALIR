@@ -1,6 +1,7 @@
 // ============================================================
 // LEGALIR — Services Catalog (Phase 14)
 // Full service catalog with categories, search, and filter
+// Modern UI redesign — gradient cards, accent bars, glass touches
 // ============================================================
 
 "use client";
@@ -186,6 +187,7 @@ interface ServiceItem {
   description: string;
   icon: React.ReactNode;
   category: "consultation" | "contracts" | "documents" | "cases" | "calculations";
+  gradient: string;
   duration: string;
   outputType: string;
   href: string;
@@ -208,10 +210,10 @@ const CATEGORY_SECTIONS: { key: Exclude<ServiceItem["category"], "all">; title: 
   { key: "calculations", title: "دسته محاسبات حقوقی" },
 ];
 
-const OUTPUT_TYPE_STYLES: Record<string, string> = {
-  "متن": "bg-info/10 text-info",
-  "سند PDF": "bg-warning/10 text-warning",
-  "گزارش": "bg-success/10 text-success",
+const OUTPUT_BADGE: Record<string, { bg: string; text: string; border: string }> = {
+  "متن":      { bg: "bg-blue-50",  text: "text-blue-700",  border: "border-blue-200" },
+  "سند PDF":  { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+  "گزارش":    { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
 };
 
 const SERVICES: ServiceItem[] = [
@@ -222,6 +224,7 @@ const SERVICES: ServiceItem[] = [
     description: "سوال حقوقی خود را مطرح کنید و پاسخ مستند با استناد به قوانین دریافت کنید",
     icon: <IconQnA />,
     category: "consultation",
+    gradient: "from-blue-500 to-indigo-500",
     duration: "~۵ دقیقه",
     outputType: "متن",
     href: "/chat",
@@ -232,6 +235,7 @@ const SERVICES: ServiceItem[] = [
     description: "مسئله خود را شرح دهید تا تحلیل اولیه، چارچوب حقوقی و رویه‌های مرتبط ارائه شود",
     icon: <IconAnalysis />,
     category: "consultation",
+    gradient: "from-cyan-500 to-blue-500",
     duration: "~۱۰ دقیقه",
     outputType: "متن",
     href: "/chat",
@@ -242,6 +246,7 @@ const SERVICES: ServiceItem[] = [
     description: "مسیر حقوقی مناسب شامل اقدامات، مستندات لازم و مراجع ذی‌صلاح پیشنهاد می‌شود",
     icon: <IconRoute />,
     category: "consultation",
+    gradient: "from-violet-500 to-purple-500",
     duration: "~۱۰ دقیقه",
     outputType: "گزارش",
     href: "/chat",
@@ -252,6 +257,7 @@ const SERVICES: ServiceItem[] = [
     description: "ریسک‌های بالقوه در موضوع شما شناسایی و راهکار پیشگیری ارائه می‌شود",
     icon: <IconRisk />,
     category: "consultation",
+    gradient: "from-amber-500 to-orange-500",
     duration: "~۱۰ دقیقه",
     outputType: "گزارش",
     href: "/chat",
@@ -264,6 +270,7 @@ const SERVICES: ServiceItem[] = [
     description: "با پاسخ به پرسش‌نامه هوشمند، پیش‌نویس قرارداد شخصی‌سازی‌شده دریافت کنید",
     icon: <IconFileCreate />,
     category: "contracts",
+    gradient: "from-emerald-500 to-teal-500",
     duration: "~۱۵ دقیقه",
     outputType: "سند PDF",
     href: "/contracts",
@@ -274,6 +281,7 @@ const SERVICES: ServiceItem[] = [
     description: "قرارداد خود را بارگذاری کنید تا تحلیل حقوقی، ریسک‌ها و شروط نامتعارف شناسایی شود",
     icon: <IconDocSearch />,
     category: "contracts",
+    gradient: "from-rose-500 to-pink-500",
     duration: "~۱۰ دقیقه",
     outputType: "گزارش",
     href: "/documents",
@@ -284,6 +292,7 @@ const SERVICES: ServiceItem[] = [
     description: "دو نسخه از یک قرارداد را مقایسه و تغییرات، الحاقات و حذفیات را شناسایی کنید",
     icon: <IconCompare />,
     category: "contracts",
+    gradient: "from-sky-500 to-cyan-500",
     duration: "~۵ دقیقه",
     outputType: "گزارش",
     href: "/contracts",
@@ -294,6 +303,7 @@ const SERVICES: ServiceItem[] = [
     description: "تعهدات، ضرب‌الاجل‌ها و شروط کلیدی از متن قرارداد استخراج و دسته‌بندی می‌شود",
     icon: <IconExtract />,
     category: "contracts",
+    gradient: "from-fuchsia-500 to-purple-500",
     duration: "~۵ دقیقه",
     outputType: "گزارش",
     href: "/documents",
@@ -304,6 +314,7 @@ const SERVICES: ServiceItem[] = [
     description: "بندهای پرریسک قرارداد با توضیح علت ریسک و پیشنهاد اصلاح مشخص می‌شود",
     icon: <IconRisk />,
     category: "contracts",
+    gradient: "from-red-500 to-rose-500",
     duration: "~۱۰ دقیقه",
     outputType: "گزارش",
     href: "/documents",
@@ -316,6 +327,7 @@ const SERVICES: ServiceItem[] = [
     description: "اظهارنامه رسمی حقوقی با ذکر مستندات قانونی و خواسته‌های شما تنظیم می‌شود",
     icon: <IconFileCreate />,
     category: "documents",
+    gradient: "from-stone-500 to-neutral-500",
     duration: "~۱۰ دقیقه",
     outputType: "سند PDF",
     href: "/chat?category=formal_letter",
@@ -326,6 +338,7 @@ const SERVICES: ServiceItem[] = [
     description: "لایحه دفاعیه یا حقوقی با استناد به قوانین، رویه قضایی و دکترین حقوقی تنظیم می‌شود",
     icon: <IconFileText />,
     category: "documents",
+    gradient: "from-blue-600 to-indigo-600",
     duration: "~۱۵ دقیقه",
     outputType: "سند PDF",
     href: "/chat",
@@ -336,6 +349,7 @@ const SERVICES: ServiceItem[] = [
     description: "دادخواست حقوقی مطابق با فرمت رسمی دادگستری و ذکر خواسته، دلایل و مستندات",
     icon: <IconFilePlus />,
     category: "documents",
+    gradient: "from-teal-500 to-emerald-500",
     duration: "~۱۵ دقیقه",
     outputType: "سند PDF",
     href: "/chat",
@@ -346,6 +360,7 @@ const SERVICES: ServiceItem[] = [
     description: "متن سند حقوقی خود را بارگذاری کنید تا خلاصه اجرایی و نکات کلیدی استخراج شود",
     icon: <IconSummarize />,
     category: "documents",
+    gradient: "from-orange-500 to-amber-500",
     duration: "~۵ دقیقه",
     outputType: "متن",
     href: "/documents",
@@ -358,6 +373,7 @@ const SERVICES: ServiceItem[] = [
     description: "پرونده جدید با مشخصات، طرفین، موضوع و اسناد مرتبط ایجاد و مدیریت کنید",
     icon: <IconFolderPlus />,
     category: "cases",
+    gradient: "from-green-500 to-emerald-500",
     duration: "~۱۰ دقیقه",
     outputType: "گزارش",
     href: "/documents",
@@ -368,6 +384,7 @@ const SERVICES: ServiceItem[] = [
     description: "کلیه اسناد، مدارک و مستندات پرونده را به صورت طبقه‌بندی شده مدیریت کنید",
     icon: <IconFolder />,
     category: "cases",
+    gradient: "from-lime-500 to-green-500",
     duration: "مداوم",
     outputType: "گزارش",
     href: "/documents",
@@ -378,6 +395,7 @@ const SERVICES: ServiceItem[] = [
     description: "وضعیت جاری پرونده تحلیل و پیش‌بینی روند، نقاط قوت و ضعف ارائه می‌شود",
     icon: <IconAnalytics />,
     category: "cases",
+    gradient: "from-purple-500 to-violet-500",
     duration: "~۱۰ دقیقه",
     outputType: "گزارش",
     href: "/chat",
@@ -388,6 +406,7 @@ const SERVICES: ServiceItem[] = [
     description: "تایم‌لاین زمانی پرونده با ثبت وقایع، جلسات، مهلت‌ها و اقدامات کلیدی",
     icon: <IconTimeline />,
     category: "cases",
+    gradient: "from-cyan-500 to-sky-500",
     duration: "~۵ دقیقه",
     outputType: "گزارش",
     href: "/history",
@@ -400,6 +419,7 @@ const SERVICES: ServiceItem[] = [
     description: "محاسبه خسارت تاخیر تادیه، عدم انجام تعهد، و سایر خسارات قانونی بر اساس نرخ روز",
     icon: <IconCalculator />,
     category: "calculations",
+    gradient: "from-amber-600 to-yellow-500",
     duration: "~۵ دقیقه",
     outputType: "متن",
     href: "/chat?category=calculator",
@@ -410,6 +430,7 @@ const SERVICES: ServiceItem[] = [
     description: "محاسبه هزینه دادرسی، تمبر، و کارشناسی بر اساس نوع دعوی و خواسته",
     icon: <IconMoney />,
     category: "calculations",
+    gradient: "from-rose-500 to-red-500",
     duration: "~۵ دقیقه",
     outputType: "متن",
     href: "/chat?category=calculator",
@@ -420,6 +441,7 @@ const SERVICES: ServiceItem[] = [
     description: "محاسبه میزان دیه بر اساس نوع آسیب، جنسیت، سال وقوع و نرخ مصوب قوه قضاییه",
     icon: <IconMoney />,
     category: "calculations",
+    gradient: "from-indigo-500 to-blue-500",
     duration: "~۵ دقیقه",
     outputType: "متن",
     href: "/chat?category=calculator",
@@ -431,20 +453,23 @@ const SERVICES: ServiceItem[] = [
 // ============================================================
 
 function ServiceCard({ service }: { service: ServiceItem }) {
-  const outputStyle = OUTPUT_TYPE_STYLES[service.outputType] ?? "bg-neutral-100 text-neutral-700";
+  const badge = OUTPUT_BADGE[service.outputType] ?? { bg: "bg-neutral-50", text: "text-neutral-600", border: "border-neutral-200" };
 
   return (
-    <div className="rounded-large bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-2 transition-shadow p-5 flex flex-col gap-4 group">
+    <div className="relative rounded-2xl bg-surface border border-divider/60 shadow-sm hover:shadow-elevation-2 transition-all duration-200 p-5 flex flex-col gap-4 group overflow-hidden">
+      {/* Gradient accent top bar */}
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${service.gradient}`} />
+
       {/* Icon + Title + Description */}
-      <div className="flex items-start gap-3">
-        <div className="h-11 w-11 rounded-medium bg-primary/10 text-primary flex items-center justify-center shrink-0">
+      <div className="flex items-start gap-3 pt-0.5">
+        <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${service.gradient} text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-200`}>
           {service.icon}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-body-1 text-on-surface font-medium group-hover:text-primary transition-colors">
+          <h3 className="text-body-1 text-on-surface font-semibold group-hover:text-primary transition-colors">
             {service.title}
           </h3>
-          <p className="text-caption text-muted mt-1 line-clamp-2">
+          <p className="text-caption text-muted mt-1 line-clamp-2 leading-relaxed">
             {service.description}
           </p>
         </div>
@@ -452,7 +477,7 @@ function ServiceCard({ service }: { service: ServiceItem }) {
 
       {/* Badges */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 text-neutral-600 px-2.5 py-0.5 text-caption font-medium">
+        <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-600 px-2.5 py-0.5 text-caption font-medium">
           <svg
             width="12"
             height="12"
@@ -470,7 +495,7 @@ function ServiceCard({ service }: { service: ServiceItem }) {
           {service.duration}
         </span>
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption font-medium ${outputStyle}`}
+          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-caption font-medium ${badge.bg} ${badge.text} ${badge.border}`}
         >
           <svg
             width="12"
@@ -493,7 +518,7 @@ function ServiceCard({ service }: { service: ServiceItem }) {
       {/* Action */}
       <Link
         href={service.href}
-        className="mt-auto inline-flex items-center justify-center gap-1 rounded-medium bg-primary text-white px-5 py-2 text-button font-medium hover:bg-primary-600 transition-colors active:scale-[0.98] touch-target"
+        className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] touch-target shadow-sm"
       >
         شروع
         <svg
@@ -525,12 +550,9 @@ export default function ServicesPage() {
 
   const filteredServices = useMemo(() => {
     return SERVICES.filter((service) => {
-      // Filter by category
       if (activeFilter !== "all" && service.category !== activeFilter) {
         return false;
       }
-
-      // Filter by search
       if (searchQuery.trim()) {
         const query = searchQuery.trim().toLowerCase();
         return (
@@ -538,12 +560,10 @@ export default function ServicesPage() {
           service.description.toLowerCase().includes(query)
         );
       }
-
       return true;
     });
   }, [activeFilter, searchQuery]);
 
-  // Group filtered services by category
   const groupedServices = useMemo(() => {
     const groups: Record<string, ServiceItem[]> = {};
     for (const section of CATEGORY_SECTIONS) {
@@ -569,7 +589,7 @@ export default function ServicesPage() {
 
       {/* Search Bar */}
       <div className="relative mb-5 max-w-xl">
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+        <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
           <IconSearch size={20} className="text-muted" />
         </div>
         <input
@@ -577,14 +597,14 @@ export default function ServicesPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="جستجو در خدمات..."
-          className="w-full h-12 pr-10 pl-4 rounded-large bg-surface-container border border-divider text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
+          className="w-full h-12 pr-11 pl-12 rounded-xl bg-surface-container border border-divider/60 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
           aria-label="جستجو در خدمات"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => setSearchQuery("")}
-            className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted hover:text-on-surface transition-colors"
+            className="absolute inset-y-0 left-0 flex items-center pl-4 text-muted hover:text-on-surface transition-colors"
             aria-label="پاک کردن جستجو"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -608,10 +628,10 @@ export default function ServicesPage() {
             aria-selected={activeFilter === filter.key}
             onClick={() => setActiveFilter(filter.key)}
             className={[
-              "shrink-0 rounded-full px-4 py-2 text-caption font-medium transition-colors touch-target",
+              "shrink-0 rounded-xl px-4 py-2 text-caption font-medium transition-all touch-target",
               activeFilter === filter.key
-                ? "bg-primary text-white shadow-sm"
-                : "bg-surface text-on-surface hover:bg-surface-hover border border-divider",
+                ? "bg-primary text-white shadow-md shadow-primary/20"
+                : "bg-surface text-on-surface hover:bg-surface-hover border border-divider/60",
             ].join(" ")}
           >
             {filter.label}
@@ -621,12 +641,12 @@ export default function ServicesPage() {
 
       {/* Empty State */}
       {visibleSections.length === 0 && (
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <div className="h-16 w-16 rounded-full bg-surface-container flex items-center justify-center">
-            <IconSearch size={32} className="text-muted/50" />
+        <div className="flex flex-col items-center gap-4 py-20 text-center">
+          <div className="h-20 w-20 rounded-2xl bg-surface-container border border-divider/40 flex items-center justify-center">
+            <IconSearch size={36} className="text-muted/40" />
           </div>
-          <p className="text-body-1 text-muted">خدمتی با این مشخصات یافت نشد</p>
-          <p className="text-body-2 text-muted/70">
+          <p className="text-body-1 text-muted font-medium">خدمتی با این مشخصات یافت نشد</p>
+          <p className="text-body-2 text-muted/60">
             لطفا عبارت جستجو یا دسته‌بندی دیگری را امتحان کنید
           </p>
           <button
@@ -635,7 +655,7 @@ export default function ServicesPage() {
               setSearchQuery("");
               setActiveFilter("all");
             }}
-            className="mt-2 rounded-medium bg-primary text-white px-5 py-2 text-button hover:bg-primary-600 transition-colors touch-target"
+            className="mt-3 rounded-xl bg-gradient-to-r from-primary-700 to-primary-800 text-white px-6 py-2.5 text-button font-medium hover:from-primary-800 hover:to-primary-900 transition-all shadow-md shadow-primary/20 active:scale-[0.98] touch-target"
           >
             نمایش همه خدمات
           </button>
@@ -645,10 +665,10 @@ export default function ServicesPage() {
       {/* Category Sections */}
       {visibleSections.map((section) => (
         <section key={section.key} className="mb-10">
-          {/* Section Header with Gold Accent */}
+          {/* Section Header with gradient accent bar */}
           <div className="flex items-center gap-3 mb-5">
-            <span className="block h-1 w-10 rounded-full bg-primary-800" />
-            <h2 className="text-h3 text-primary-800 font-semibold">{section.title}</h2>
+            <span className="block h-1.5 w-10 rounded-full bg-gradient-to-r from-primary-600 to-primary-800" />
+            <h2 className="text-h3 text-primary-800 font-bold">{section.title}</h2>
           </div>
 
           {/* Service Cards Grid */}
@@ -659,6 +679,36 @@ export default function ServicesPage() {
           </div>
         </section>
       ))}
+
+      {/* Bottom CTA */}
+      <div className="mt-12 mb-4 p-6 rounded-2xl bg-gradient-to-r from-primary-50 to-blue-50 border border-primary/10 text-center">
+        <p className="text-body-1 text-on-surface font-medium mb-1">
+          خدمت مورد نظر خود را پیدا نکردید؟
+        </p>
+        <p className="text-body-2 text-muted mb-4">
+          با مشاور هوش مصنوعی LEGALIR گفتگو کنید تا راهنمایی تخصصی دریافت کنید
+        </p>
+        <Link
+          href="/chat"
+          className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-6 py-2.5 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-sm"
+        >
+          شروع گفتگو
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className="rtl-flip"
+          >
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </div>
     </div>
   );
 }

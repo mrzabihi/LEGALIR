@@ -293,6 +293,26 @@ export const fixtureDashboard: DashboardSummary = {
   ],
   savedSourcesCount: 4,
   activeProcessingCount: 1,
+  dailyTrialsUsed: 0,
+  dailyTrialsTotal: 5,
+  activeRequests: [
+    { id: 'ar-1', title: 'بررسی قرارداد اجاره ملک', type: 'document', typeFa: 'تحلیل سند', date: '2026-08-04T10:30:00Z', progress: 72, status: 'processing', statusFa: 'در حال پردازش', link: '/documents' },
+    { id: 'ar-2', title: 'پیش‌نویس قرارداد مشارکت', type: 'contract', typeFa: 'قرارداد', date: '2026-08-03T14:00:00Z', progress: 30, status: 'draft', statusFa: 'پیش‌نویس', link: '/contracts' },
+    { id: 'ar-3', title: 'مشاوره حقوقی در خصوص ارث', type: 'conversation', typeFa: 'گفتگو', date: '2026-08-05T08:15:00Z', progress: 0, status: 'needs_info', statusFa: 'نیازمند اطلاعات', link: '/chat' },
+    { id: 'ar-4', title: 'تحلیل سند وصیت‌نامه', type: 'document', typeFa: 'تحلیل سند', date: '2026-08-01T09:00:00Z', progress: 100, status: 'completed', statusFa: 'تکمیل شده', link: '/documents' },
+    { id: 'ar-5', title: 'تنظیم اظهارنامه رسمی', type: 'contract', typeFa: 'قرارداد', date: '2026-07-28T11:00:00Z', progress: 95, status: 'processing', statusFa: 'در حال پردازش', link: '/contracts' },
+  ],
+  recommendations: [
+    { id: 'rec-1', text: 'قرارداد مشارکت شما هنوز نهایی نشده است. ادامه تنظیم قرارداد را تکمیل کنید.', icon: '📝', link: '/contracts', linkLabel: 'ادامه تنظیم', urgency: 'action' },
+    { id: 'rec-2', text: 'بررسی ریسک سند قرارداد اجاره کامل شده است. گزارش تحلیل را مشاهده کنید.', icon: '✅', link: '/documents', linkLabel: 'مشاهده گزارش', urgency: 'info' },
+    { id: 'rec-3', text: 'اطلاعات پرونده ناقص است. برای دریافت مشاوره دقیق‌تر، اطلاعات تکمیلی را وارد کنید.', icon: '⚠️', link: '/chat', linkLabel: 'تکمیل اطلاعات', urgency: 'warning' },
+    { id: 'rec-4', text: 'درخواست اظهارنامه شما آماده پیش‌نمایش است. می‌توانید آن را بررسی و تأیید کنید.', icon: '✉️', link: '/contracts', linkLabel: 'پیش‌نمایش', urgency: 'action' },
+  ],
+  recentDocuments: [
+    { id: 'rd-1', name: 'قرارداد_اجاره_۱۴۰۵.pdf', mime: 'application/pdf', uploadedAt: '2026-08-04T10:30:00Z', status: 'ready', statusFa: 'آماده' },
+    { id: 'rd-2', name: 'وصیت‌نامه_تنظیمی.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', uploadedAt: '2026-08-03T16:00:00Z', status: 'analyzing', statusFa: 'در حال تحلیل' },
+    { id: 'rd-3', name: 'مدارک_مالکیت.pdf', mime: 'application/pdf', uploadedAt: '2026-07-30T09:00:00Z', status: 'ready', statusFa: 'آماده' },
+  ],
 };
 
 /** Dashboard for a new user — no activity, no subscription, incomplete profile */
@@ -304,6 +324,11 @@ export const fixtureDashboardEmpty: DashboardSummary = {
   recentActivity: [],
   savedSourcesCount: 0,
   activeProcessingCount: 0,
+  dailyTrialsUsed: 0,
+  dailyTrialsTotal: 5,
+  activeRequests: [],
+  recommendations: [],
+  recentDocuments: [],
 };
 
 // --- Usage Summary Fixture ---
@@ -1768,6 +1793,229 @@ export const fixtureV1QuestionLists: Record<V1ContractType, V1ContractQuestion[]
   investment: [],
 };
 
+// --- Phase 14: Preloaded Demo Conversation — Contract Review ---
+
+export const fixtureConversationContractReview: Conversation & { messages: Message[] } = {
+  id: "conv-contract-review-001",
+  userId: "u-pro-001",
+  title: "بررسی قرارداد پیمانکاری ساختمان",
+  category: "contract",
+  status: "active",
+  riskLevel: "medium",
+  messageCount: 4,
+  createdAt: "2026-08-05T09:00:00Z",
+  updatedAt: "2026-08-05T09:45:00Z",
+  messages: [
+    {
+      id: "msg-cr-001",
+      conversationId: "conv-contract-review-001",
+      role: "user",
+      content:
+        "سلام، من یک قرارداد پیمانکاری ساختمان دارم. پیمانکار حدود ۴۵ روز تأخیر داشته و من می‌خواهم بدانم آیا می‌توانم بابت این تأخیر خسارت مطالبه کنم؟ در قرارداد شرط شده که به ازای هر روز تأخیر، پیمانکار باید ۰٫۱٪ از مبلغ کل قرارداد را به عنوان جریمه پرداخت کند. آیا می‌توانم علاوه بر این مبلغ، خسارت تأخیر تأدیه هم بر اساس نرخ تورم از پیمانکار بخواهم؟",
+      status: "sent",
+      createdAt: "2026-08-05T09:00:00Z",
+    },
+    {
+      id: "msg-cr-002",
+      conversationId: "conv-contract-review-001",
+      role: "assistant",
+      content:
+        "بررسی قرارداد پیمانکاری ساختمان — تحلیل شروط جریمه تأخیر و امکان مطالبه همزمان خسارت قراردادی و قانونی",
+      status: "completed",
+      createdAt: "2026-08-05T09:00:30Z",
+    },
+  ],
+};
+
+export const fixtureContractReviewSections: StructuredResponseSection[] = [
+  {
+    id: "cr-sec-summary",
+    title: "خلاصه",
+    content:
+      "با توجه به ماده ۲۳۰ قانون مدنی، شرط جریمه تأخیر در قرارداد پیمانکاری معتبر است و شما می‌توانید بابت ۴۵ روز تأخیر، معادل ۴٫۵٪ از مبلغ کل قرارداد را به عنوان وجه التزام قراردادی مطالبه کنید. اما بر اساس رأی وحدت رویه شماره ۸۰۵ هیأت عمومی دیوان عالی کشور، امکان مطالبه همزمان وجه التزام قراردادی (ماده ۲۳۰ ق.م) و خسارت تأخیر تأدیه قانونی (ماده ۵۲۲ ق.آ.د.م) وجود ندارد — مگر آنکه ثابت شود شرط قراردادی صرفاً جنبه تأمینی داشته و برای جبران کامل خسارت کافی نیست.",
+    order: 1,
+  },
+  {
+    id: "cr-sec-facts",
+    title: "اطلاعات و فرض‌ها",
+    content:
+      "اطلاعات ارائه‌شده:\n- قرارداد پیمانکاری ساختمان منعقد شده است\n- پیمانکار ۴۵ روز تأخیر در انجام تعهدات داشته است\n- شرط جریمه روزانه ۰٫۱٪ از مبلغ کل در قرارداد درج شده است\n- مبلغ قرارداد و تاریخ شروع/پایان مشخص است\n\nفرض‌ها:\n- قرارداد از نظر شکلی و ماهوی معتبر و لازم‌الاجراست\n- تأخیر ناشی از قوه قاهره (فورس ماژور) نبوده است\n- شرط جریمه به صورت صریح و بدون ابهام در قرارداد ذکر شده است\n- پیمانکار از تأخیر مطلع شده و اخطار کتبی دریافت کرده است",
+    order: 2,
+  },
+  {
+    id: "cr-sec-analysis",
+    title: "تحلیل اولیه",
+    content:
+      "۱. اعتبار شرط جریمه (وجه التزام) — ماده ۲۳۰ قانون مدنی:\n" +
+      "مطابق ماده ۲۳۰ قانون مدنی، شرط پرداخت مبلغ معین در صورت تخلف از تعهد (وجه التزام) معتبر است و دادگاه نمی‌تواند میزان آن را تغییر دهد. شرط ۰٫۱٪ روزانه در قرارداد شما مصداق همین ماده است و قابل مطالبه می‌باشد.\n\n" +
+      "۲. امکان مطالبه خسارت تأخیر تأدیه — ماده ۵۲۲ قانون آیین دادرسی مدنی:\n" +
+      'ماده ۵۲۲ ق.آ.د.م مقرر می‌دارد که در دعاوی راجع به "دِین" از نوع وجه رایج، خسارت تأخیر تأدیه بر اساس شاخص تورم قابل مطالبه است. نکته کلیدی این است که وجه التزام قراردادی (موضوع ماده ۲۳۰ ق.م) از جنس "دِین" نیست، بلکه یک شرط ضمن عقد است.\n\n' +
+      "۳. رأی وحدت رویه شماره ۸۰۵ هیأت عمومی دیوان عالی کشور (مورخ ۱۴۰۰/۰۴/۰۱):\n" +
+      "این رأی وحدت رویه تصریح می‌کند که در مواردی که طرفین در قرارداد شرط وجه التزام (جریمه تخلف) پیش‌بینی کرده‌اند، این شرط جایگزین خسارت تأخیر تأدیه موضوع ماده ۵۲۲ می‌شود و امکان مطالبه همزمان هر دو وجود ندارد — مگر اینکه شرط قراردادی کفایت نکند و این عدم کفایت در دادگاه اثبات شود.",
+    order: 3,
+  },
+  {
+    id: "cr-sec-risks",
+    title: "ریسک‌ها",
+    content:
+      "۱. **ریسک بالا — عدم امکان تجمیع خسارات**: اگر صرفاً به استناد قرارداد اقدام کنید، دادگاه حق مطالبه خسارت تأخیر تأدیه (تورم) را به دلیل وجود شرط وجه التزام از شما سلب خواهد کرد.\n\n" +
+      "۲. **ریسک متوسط — کافی نبودن مبلغ جریمه قراردادی**: ۴٫۵٪ مبلغ قرارداد ممکن است با توجه به نرخ تورم واقعی (که معمولاً بالای ۳۰٪ سالانه است) ناکافی باشد. باید آمادگی اثبات این عدم کفایت را در دادگاه داشته باشید.\n\n" +
+      "۳. **ریسک متوسط — مرور زمان**: دعاوی مرتبط با قراردادهای پیمانکاری مشمول مرور زمان ۱۰ ساله هستند. هر چه زودتر اقدام کنید.\n\n" +
+      "۴. **ریسک پایین — دفاع فورس ماژور توسط پیمانکار**: پیمانکار ممکن است به تحریم‌ها، کمبود مصالح، یا شرایط جوی استناد کند.",
+    order: 4,
+  },
+  {
+    id: "cr-sec-actions",
+    title: "اقدامات پیشنهادی",
+    content:
+      "۱. **ارسال اظهارنامه رسمی**: بلافاصله اظهارنامه‌ای به پیمانکار ارسال و مراتب تأخیر، مبلغ جریمه قراردادی (۴٫۵٪) و مهلت پرداخت را اعلام کنید.\n\n" +
+      "۲. **مستندسازی تأخیر**: گزارش‌های روزانه کارگاه، صورت‌جلسات، مکاتبات انجام‌شده و اخطارهای قبلی را جمع‌آوری و بایگانی کنید.\n\n" +
+      "۳. **محاسبه خسارت واقعی**: با کمک کارشناس رسمی دادگستری، خسارت واقعی ناشی از تأخیر (شامل تورم، هزینه‌های تحمیل‌شده، و عدم بهره‌برداری) را محاسبه و مستند کنید.\n\n" +
+      "۴. **طرح دعوا در دادگاه**: ابتدا دعوای مطالبه وجه التزام قراردادی (ماده ۲۳۰) را مطرح کنید. اگر مبلغ جریمه کفایت نمی‌کند، همزمان دادخواست مطالبه خسارت اضافی بر اساس رأی وحدت رویه ۸۰۵ را با ارائه مستندات کارشناسی تقدیم دهید.\n\n" +
+      "۵. **مشاوره با وکیل متخصص**: با توجه به پیچیدگی موضوع و رأی وحدت رویه ۸۰۵، حتماً با وکیل متخصص دعاوی پیمانکاری مشورت کنید.",
+    order: 5,
+  },
+  {
+    id: "cr-sec-sources",
+    title: "منابع",
+    content: "تحلیل فوق بر اساس منابع حقوقی معتبر زیر انجام شده است. این منابع شامل قوانین موضوعه، آرای وحدت رویه دیوان عالی کشور، و دکترین حقوقی می‌باشد.",
+    order: 6,
+  },
+  {
+    id: "cr-sec-disclaimer",
+    title: "هشدار حقوقی",
+    content:
+      "این تحلیل توسط سامانه هوشمند LEGALIR و بر اساس منابع معتبر حقوقی ایران انجام شده است. با این حال، هر پرونده ویژگی‌های منحصر به فرد خود را دارد و نتیجه نهایی به شرایط خاص قرارداد، ادله طرفین، و تشخیص قاضی رسیدگی‌کننده بستگی دارد. توصیه می‌شود پیش از هر اقدام حقوقی با یک وکیل متخصص مشورت کنید.",
+    order: 7,
+  },
+];
+
+export const fixtureContractReviewReferences: V1Reference[] = [
+  {
+    id: "ref-cr-001",
+    conversationId: "conv-contract-review-001",
+    messageId: "msg-cr-002",
+    sourceId: "src-law-civil-230",
+    locator: "ماده ۲۳۰",
+    quote: "اگر در ضمن معامله شرط شده باشد که در صورت تخلف، متخلف مبلغی به عنوان خسارت بدهد، حاکم نمی‌تواند او را به بیشتر یا کمتر از آنچه که ملزم شده است محکوم نماید",
+    section: "cr-sec-analysis",
+    sourceType: "law",
+    sourceTypeFa: "قانون",
+  },
+  {
+    id: "ref-cr-002",
+    conversationId: "conv-contract-review-001",
+    messageId: "msg-cr-002",
+    sourceId: "src-law-procedure-522",
+    locator: "ماده ۵۲۲",
+    quote: "در دعاویی که موضوع آن دِین و از نوع وجه رایج بوده و با مطالبه داین و تمکن مدیون، مدیون امتناع از پرداخت نموده، دادگاه می‌تواند علاوه بر محکومیت به پرداخت اصل دین، به پرداخت خسارت تأخیر تأدیه بر اساس شاخص رسمی تورم نیز حکم دهد",
+    section: "cr-sec-analysis",
+    sourceType: "law",
+    sourceTypeFa: "قانون",
+  },
+  {
+    id: "ref-cr-003",
+    conversationId: "conv-contract-review-001",
+    messageId: "msg-cr-002",
+    sourceId: "src-unity-decision-805",
+    locator: "رأی وحدت رویه ۸۰۵",
+    quote: "در مواردی که طرفین در قرارداد شرط وجه التزام پیش‌بینی کرده‌اند، این شرط جایگزین خسارت تأخیر تأدیه موضوع ماده ۵۲۲ می‌شود و امکان مطالبه همزمان هر دو وجود ندارد، مگر آنکه ثابت شود شرط قراردادی صرفاً جنبه تأمینی داشته و برای جبران کامل خسارت کافی نیست",
+    section: "cr-sec-analysis",
+    sourceType: "precedent",
+    sourceTypeFa: "رأی یا رویه قضایی",
+  },
+  {
+    id: "ref-cr-004",
+    conversationId: "conv-contract-review-001",
+    messageId: "msg-cr-002",
+    sourceId: "src-unity-decision-805",
+    locator: "رأی وحدت رویه ۸۰۵ — تبصره",
+    quote: "تشخیص کفایت یا عدم کفایت وجه التزام قراردادی برای جبران خسارت، امری ماهوی و در صلاحیت دادگاه رسیدگی‌کننده است که با جلب نظر کارشناس رسمی صورت می‌گیرد",
+    section: "cr-sec-actions",
+    sourceType: "precedent",
+    sourceTypeFa: "رأی یا رویه قضایی",
+  },
+];
+
+export const fixtureContractReviewStructuredMessage: V1StructuredMessage = {
+  id: "msg-cr-002",
+  conversationId: "conv-contract-review-001",
+  role: "assistant",
+  content:
+    "بررسی قرارداد پیمانکاری ساختمان — تحلیل شروط جریمه تأخیر و امکان مطالبه همزمان خسارت قراردادی و قانونی",
+  status: "completed",
+  createdAt: "2026-08-05T09:00:30Z",
+  sections: fixtureContractReviewSections,
+  riskLevel: "medium",
+  references: fixtureContractReviewReferences,
+};
+
+export const fixtureV1ConversationDetailContractReview: V1ConversationDetail = {
+  ...fixtureConversationContractReview,
+  messages: [
+    ...fixtureConversationContractReview.messages,
+    fixtureContractReviewStructuredMessage,
+  ],
+  aiRuns: [
+    createAiRunFixture("conv-contract-review-001", "msg-cr-002", "succeeded"),
+  ],
+  references: fixtureContractReviewReferences,
+};
+
+export const fixtureV1SourceCivil230: V1SourceDetail = {
+  id: "src-law-civil-230",
+  sourceType: "law",
+  sourceTypeFa: "قانون",
+  title: "قانون مدنی جمهوری اسلامی ایران",
+  articleSection: "ماده ۲۳۰",
+  publicationAuthority: "مجلس شورای اسلامی",
+  jurisdiction: "ایران",
+  effectiveDate: "۱۳۰۷-۰۲-۱۸",
+  versionDate: "۱۳۹۵-۰۷-۱۴",
+  excerpt:
+    "ماده ۲۳۰: اگر در ضمن معامله شرط شده باشد که در صورت تخلف، متخلف مبلغی به عنوان خسارت بدهد، حاکم نمی‌تواند او را به بیشتر یا کمتر از آنچه که ملزم شده است محکوم نماید. این شرط که «وجه التزام» یا «شرط کیفری» نامیده می‌شود، جنبه جبران خسارت دارد و با تحقق تخلف، قابل مطالبه است.",
+  url: "https://rc.majlis.ir/fa/law/show/92538",
+  documentIdentifier: "ق.م. مصوب ۱۳۰۷",
+  status: "valid",
+  availability: "available",
+};
+
+export const fixtureV1SourceProcedure522: V1SourceDetail = {
+  id: "src-law-procedure-522",
+  sourceType: "law",
+  sourceTypeFa: "قانون",
+  title: "قانون آیین دادرسی دادگاه‌های عمومی و انقلاب در امور مدنی مصوب ۱۳۷۹",
+  articleSection: "ماده ۵۲۲",
+  publicationAuthority: "مجلس شورای اسلامی",
+  jurisdiction: "ایران",
+  effectiveDate: "۱۳۷۹-۰۷-۰۱",
+  versionDate: null,
+  excerpt:
+    "ماده ۵۲۲: در دعاویی که موضوع آن دِین و از نوع وجه رایج بوده و با مطالبه داین و تمکن مدیون، مدیون امتناع از پرداخت نموده، دادگاه می‌تواند علاوه بر محکومیت به پرداخت اصل دین، به پرداخت خسارت تأخیر تأدیه بر اساس شاخص رسمی تورم که توسط بانک مرکزی جمهوری اسلامی ایران اعلام می‌شود، از تاریخ سررسید تا زمان پرداخت حکم دهد. مبلغ خسارت بر اساس متوسط شاخص تورم در دوره تأخیر محاسبه می‌گردد.",
+  url: "https://rc.majlis.ir/fa/law/show/93235",
+  documentIdentifier: "ق.آ.د.م مصوب ۱۳۷۹",
+  status: "valid",
+  availability: "available",
+};
+
+export const fixtureV1SourceUnity805: V1SourceDetail = {
+  id: "src-unity-decision-805",
+  sourceType: "precedent",
+  sourceTypeFa: "رأی یا رویه قضایی",
+  title: "رأی وحدت رویه شماره ۸۰۵ — هیأت عمومی دیوان عالی کشور",
+  articleSection: "رأی شماره ۸۰۵ مورخ ۱۴۰۰/۰۴/۰۱",
+  publicationAuthority: "هیأت عمومی دیوان عالی کشور",
+  jurisdiction: "ایران",
+  effectiveDate: "۱۴۰۰-۰۴-۰۱",
+  versionDate: null,
+  excerpt:
+    "رأی وحدت رویه شماره ۸۰۵ مورخ ۱۴۰۰/۰۴/۰۱: با عنایت به اینکه شرط وجه التزام (موضوع ماده ۲۳۰ قانون مدنی) به منظور جبران خسارت ناشی از عدم انجام یا تأخیر در انجام تعهد پیش‌بینی می‌شود، در مواردی که طرفین در قرارداد چنین شرطی را درج کرده‌اند، این شرط جایگزین مقررات ماده ۵۲۲ قانون آیین دادرسی دادگاه‌های عمومی و انقلاب در امور مدنی می‌گردد و ذی‌نفع نمی‌تواند علاوه بر وجه التزام، خسارت تأخیر تأدیه نیز مطالبه نماید. با این وصف، چنانچه ثابت شود که مبلغ وجه التزام قراردادی صرفاً جنبه تأمینی داشته و برای جبران کامل خسارت وارده کافی نیست، دادگاه می‌تواند با احراز این امر و با جلب نظر کارشناس رسمی، نسبت به جبران مابقی خسارت وارده نیز رأی مقتضی صادر نماید.",
+  url: "https://divanealee.eadl.ir/UnityDecisions/805",
+  documentIdentifier: "ر.و.ر ۸۰۵ — ۱۴۰۰/۰۴/۰۱",
+  status: "valid",
+  availability: "available",
+};
+
 // --- Scenario Map ---
 
 export const fixtures = {
@@ -1800,6 +2048,15 @@ export const fixtures = {
   "memory-items-v1": fixtureV1MemoryItems,
   "subscription-history": fixtureV1SubscriptionHistory,
   "profile-usage": fixtureProfileUsage,
+  // Phase 14: Preloaded demo conversation
+  "conversation-contract-review": fixtureConversationContractReview,
+  "conversation-contract-review-detail": fixtureV1ConversationDetailContractReview,
+  "contract-review-sections": fixtureContractReviewSections,
+  "contract-review-references": fixtureContractReviewReferences,
+  "contract-review-structured-message": fixtureContractReviewStructuredMessage,
+  "source-civil-230": fixtureV1SourceCivil230,
+  "source-procedure-522": fixtureV1SourceProcedure522,
+  "source-unity-805": fixtureV1SourceUnity805,
 } as const;
 
 export type FixtureName = keyof typeof fixtures;

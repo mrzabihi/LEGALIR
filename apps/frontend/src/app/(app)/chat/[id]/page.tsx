@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   useConversation,
@@ -23,10 +23,11 @@ import type { V1Reference, AiRunStatus } from "@legalir/types";
 export default function ConversationPage() {
   const params = useParams();
   const id = params?.["id"] as string;
+  const router = useRouter();
 
   // Data
   const { data: conversationDetail, isLoading: detailLoading } = useConversation(id);
-  const { data: conversations = [], isLoading: convsLoading } = useConversations();
+  const { data: conversations = [], isLoading: convsLoading, error: convsError, refetch: refetchConvs } = useConversations();
   const { data: references = [] } = useConversationReferences(id);
 
   // Mutations
@@ -44,6 +45,8 @@ export default function ConversationPage() {
   const [scrollToSectionId, setScrollToSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("chat");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [isStarred, setIsStarred] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Close mobile drawer on route change
@@ -188,7 +191,8 @@ export default function ConversationPage() {
         <ConversationList
           conversations={conversations}
           isLoading={convsLoading}
-          error={null}
+          error={convsError as Error | null}
+          onRetry={() => refetchConvs()}
           onArchive={(convId) =>
             archiveMutation.mutate({ id: convId, data: { status: "archived" } })
           }
@@ -222,21 +226,43 @@ export default function ConversationPage() {
 
             {/* Chat Tab */}
             {activeTab === "chat" && (
-              <div className="flex-1 flex flex-col min-h-0">
-                <ConversationWorkspace
-                  conversation={convData}
-                  messages={messages}
-                  isStreaming={isStreaming}
-                  runStatus={runStatus}
-                  onSendMessage={handleSendMessage}
-                  onStopGeneration={handleStopGeneration}
-                  onRetry={handleRetry}
-                  onRename={handleRename}
-                  onCitationClick={handleCitationClick}
-                  scrollToSectionId={scrollToSectionId}
-                  onScrollComplete={() => setScrollToSectionId(null)}
-                  onMobileDrawerToggle={() => setMobileDrawerOpen(true)}
-                />
+              <div className="flex-1 flex flex-col min-h-0 relative">
+                {isMinimized ? (
+                  /* Minimized floating restore button */
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-body-2 text-muted mb-4">گفتگو جمع شده است</p>
+                      <button
+                        onClick={() => setIsMinimized(false)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-6 py-3 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-md"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                        بازکردن گفتگو
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <ConversationWorkspace
+                    conversation={convData}
+                    messages={messages}
+                    isStreaming={isStreaming}
+                    runStatus={runStatus}
+                    onSendMessage={handleSendMessage}
+                    onStopGeneration={handleStopGeneration}
+                    onRetry={handleRetry}
+                    onRename={handleRename}
+                    onCitationClick={handleCitationClick}
+                    scrollToSectionId={scrollToSectionId}
+                    onScrollComplete={() => setScrollToSectionId(null)}
+                    onMobileDrawerToggle={() => setMobileDrawerOpen(true)}
+                    isStarred={isStarred}
+                    onToggleStar={() => setIsStarred((s) => !s)}
+                    onMinimize={() => setIsMinimized(true)}
+                    onClose={() => router.push("/chat")}
+                  />
+                )}
               </div>
             )}
 
@@ -304,7 +330,8 @@ export default function ConversationPage() {
               <ConversationList
                 conversations={conversations}
                 isLoading={convsLoading}
-                error={null}
+                error={convsError as Error | null}
+                onRetry={() => refetchConvs()}
                 onArchive={(convId) =>
                   archiveMutation.mutate({ id: convId, data: { status: "archived" } })
                 }

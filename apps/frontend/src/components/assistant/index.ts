@@ -2,5 +2,5 @@
 // LEGALIR — AI Assistant Barrel Export
 // ============================================================
 
-export { AiAssistant } from "./AiAssistant";
-export type { AiAssistantProps } from "./AiAssistant";
+export { AiAssistant, AiAssistantPanel } from "./AiAssistant";
+export type { AiAssistantProps, AiAssistantPanelProps } from "./AiAssistant";

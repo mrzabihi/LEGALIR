@@ -120,8 +120,7 @@ export function Footer() {
               &#169; {new Date().getFullYear()} LEGALIR. تمام حقوق محفوظ است.
             </p>
             <p className="text-caption text-neutral-500 max-w-md leading-relaxed">
-              این پلتفرم در مرحله توسعه قرار دارد. پاسخ‌های هوش مصنوعی جایگزین
-              مشاوره وکیل نیستند.
+              خدمات تخصصی حقوقی با پشتیبانی هوش مصنوعی و منابع حقوقی معتبر
             </p>
           </div>
         </div>

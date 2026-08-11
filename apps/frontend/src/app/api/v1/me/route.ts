@@ -1,12 +1,55 @@
 import { NextResponse } from 'next/server';
-import { fixtureUserPro, fixtureProfileComplete } from '@legalir/testing';
+import { findSessionById, findUserById, getProfile, getPreferences } from '@/lib/db';
 
-export async function GET() {
+function getUserFromCookie(req: Request): string | null {
+  const cookieHeader = req.headers.get('cookie') ?? '';
+  const match = cookieHeader.match(/legalir-session=([^;]+)/);
+  if (!match || !match[1]) return null;
+  const session = findSessionById(match[1]!);
+  return session?.userId ?? null;
+}
+
+export async function GET(request: Request) {
+  const userId = getUserFromCookie(request);
+  if (!userId) {
+    return NextResponse.json(
+      { code: 'UNAUTHORIZED', message: 'لطفا وارد شوید' },
+      { status: 401 }
+    );
+  }
+
+  const user = findUserById(userId);
+  if (!user) {
+    return NextResponse.json(
+      { code: 'NOT_FOUND', message: 'کاربر یافت نشد' },
+      { status: 404 }
+    );
+  }
+
+  const profile = getProfile(userId);
+  const preferences = getPreferences(userId);
+
   const data = {
-    user: fixtureUserPro,
-    profile: fixtureProfileComplete,
-    preferences: { theme: 'light', locale: 'fa-IR', notifications: { appointments: true, contractExpiry: true, lawyerResponse: false, paymentStatus: true, caseUpdate: true, marketing: false } },
-    role: 'user',
+    user: {
+      id: user.id,
+      mobileE164: `+98${user.mobile.replace(/^0/, '')}`,
+      mobileDisplay: user.mobile.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'['0123456789'.indexOf(d)] ?? d),
+      status: 'active' as const,
+    },
+    profile: {
+      userId: user.id,
+      displayName: profile.displayName ?? user.displayName,
+      email: profile.email,
+      gender: profile.gender,
+      birthDate: profile.birthDate,
+      city: profile.city,
+      occupation: profile.occupation,
+      completionPercent: profile.completionPercent,
+      avatarUrl: profile.avatarUrl,
+    },
+    preferences,
+    role: 'user' as const,
   };
+
   return NextResponse.json({ data });
 }

@@ -72,7 +72,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
     <div className="flex h-dvh overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       {sidebar && (
-        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-neutral-200 bg-neutral-50">
+        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-divider bg-surface">
           {sidebar}
         </aside>
       )}
@@ -95,7 +95,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
               <img
                 src="/legalir-logo.png"
                 alt="LEGALIR"
-                className="h-14 w-auto"
+                className="h-10 w-auto"
               />
               <button
                 onClick={() => setDrawerOpen(false)}
@@ -114,7 +114,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
         {/* Top Bar */}
         {topBar && (
-          <header className="shrink-0 h-16 border-b border-neutral-200 bg-neutral-0 flex items-center px-4 gap-3">
+          <header className="shrink-0 h-14 tablet:h-16 border-b border-divider bg-surface/80 backdrop-blur-lg flex items-center px-3 tablet:px-5 gap-3">
             {topBar}
           </header>
         )}
@@ -126,7 +126,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
 
         {/* Mobile Bottom Navigation */}
         {bottomNav && (
-          <nav className="desktop:hidden shrink-0 border-t border-neutral-100 bg-neutral-0 safe-bottom">
+          <nav className="desktop:hidden shrink-0 border-t border-divider bg-surface/90 backdrop-blur-lg safe-bottom">
             {bottomNav}
           </nav>
         )}

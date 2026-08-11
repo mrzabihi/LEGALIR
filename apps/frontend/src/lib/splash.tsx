@@ -251,8 +251,16 @@ export function SplashKeyframes() {
         50% { transform: scale(1.02); opacity: 0.9; }
       }
       @keyframes splash-dot {
-        0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
-        40% { transform: scale(1); opacity: 1; }
+        0%, 80%, 100% { transform: scale(0.55); opacity: 0.25; }
+        40% { transform: scale(1); opacity: 0.7; }
+      }
+      @keyframes splash-ring-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes splash-float {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-10px) scale(1.04); }
       }
       @keyframes fade-in {
         from { opacity: 0; transform: translateY(8px); }

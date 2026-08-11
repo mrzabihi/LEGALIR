@@ -8,9 +8,9 @@
 
 import { useMe, useDashboardSummary, useUsageSummary } from "@/hooks/useDashboard";
 import {
-  GreetingHeader,
+  HeroSection,
+  PromoBanner,
   ProfileCompletionCard,
-  SubscriptionSummaryCard,
   QuickActions,
   SmartInputBar,
   ActiveRequests,
@@ -23,7 +23,6 @@ import {
 import Link from "next/link";
 
 export default function DashboardPage() {
-  // Each data source is an independent query — one failure won't crash others
   const me = useMe();
   const dashboard = useDashboardSummary();
   const usage = useUsageSummary();
@@ -32,15 +31,24 @@ export default function DashboardPage() {
   const activities = dashboard.data?.recentActivity;
   const hasNoActivity = !dashboard.isLoading && (!activities || activities.length === 0);
 
+  const heroStats = {
+    dailyUsed: dashboard.data?.dailyTrialsUsed ?? 0,
+    dailyTotal: dashboard.data?.dailyTrialsTotal ?? 5,
+    docCount: dashboard.data?.recentDocuments?.length ?? 0,
+    activeReqCount: dashboard.data?.activeRequests?.length ?? 0,
+    daysRemaining: usage.data?.daysRemaining ?? 0,
+  };
+
   return (
     <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
-      {/* Greeting — from /api/v1/me */}
-      <GreetingHeader
+      {/* Hero Section — gradient with stats */}
+      <HeroSection
         displayName={displayName}
         isLoading={me.isLoading}
+        stats={heroStats}
       />
 
-      {/* Smart Input Bar — intelligent routing to services */}
+      {/* Smart Input Bar — below hero */}
       <SmartInputBar />
 
       {/* Profile Completion — from /api/v1/me */}
@@ -49,21 +57,25 @@ export default function DashboardPage() {
         isLoading={me.isLoading}
       />
 
-      {/* Subscription Summary — from /api/v1/dashboard/summary */}
-      <SubscriptionSummaryCard
-        subscription={dashboard.data?.subscription}
-        isLoading={dashboard.isLoading}
+      {/* Promo Banner — upgrade CTA */}
+      <PromoBanner
+        planCode={dashboard.data?.subscription?.planCode}
+        daysRemaining={usage.data?.daysRemaining ?? 0}
       />
 
-      {/* Quick Actions — always shown, no data dependency */}
+      {/* Quick Actions — always shown */}
       <QuickActions />
 
-      {/* Empty state: show big CTA when no activity exists */}
+      {/* Empty state CTA when no activity exists */}
       {hasNoActivity && (
-        <section className="mb-8 rounded-large bg-surface border border-divider p-8 text-center">
+        <section className="mb-6 rounded-2xl bg-surface border border-divider/60 p-8 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-3xl">
-              🚀
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
             </div>
           </div>
           <h2 className="text-h3 text-onSurface mb-3">شروع کنید!</h2>
@@ -73,40 +85,62 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/chat"
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-white text-body-2 font-medium hover:bg-primary-dark transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-5 py-2.5 text-body-2 font-medium hover:bg-primary-600 transition-colors touch-target shadow-elevation-1"
             >
-              💬 مشاوره حقوقی جدید
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              مشاوره حقوقی جدید
             </Link>
             <Link
               href="/documents"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-surfaceVariant transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-xl border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
             >
-              📄 بارگذاری سند
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              بارگذاری سند
             </Link>
             <Link
               href="/contracts"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-surfaceVariant transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-xl border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
             >
-              📝 تنظیم قرارداد جدید
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              تنظیم قرارداد جدید
             </Link>
           </div>
         </section>
       )}
 
-      {/* Dashboard grid: Active Requests + Smart Recommendations side-by-side on desktop */}
-      <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4 mb-8">
-        <div className="tablet:col-span-2 laptop:col-span-1">
-          <ActiveRequests />
-        </div>
-        <div className="tablet:col-span-2 laptop:col-span-1">
-          <SmartRecommendations />
-        </div>
+      {/* Active Requests + Smart Recommendations side-by-side */}
+      <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4 mb-6">
+        <ActiveRequests
+          items={dashboard.data?.activeRequests ?? []}
+          isLoading={dashboard.isLoading}
+          error={dashboard.error as Error | null}
+          onRetry={() => dashboard.refetch()}
+        />
+        <SmartRecommendations
+          items={dashboard.data?.recommendations ?? []}
+          isLoading={dashboard.isLoading}
+          error={dashboard.error as Error | null}
+          onRetry={() => dashboard.refetch()}
+        />
       </div>
 
       {/* Recent Documents */}
-      <RecentDocuments />
+      <RecentDocuments
+        items={dashboard.data?.recentDocuments ?? []}
+        isLoading={dashboard.isLoading}
+        error={dashboard.error as Error | null}
+        onRetry={() => dashboard.refetch()}
+      />
 
-      {/* Recent Activities — from /api/v1/dashboard/summary */}
+      {/* Recent Activities */}
       <RecentActivities
         items={activities}
         isLoading={dashboard.isLoading}
@@ -114,7 +148,7 @@ export default function DashboardPage() {
         onRetry={() => dashboard.refetch()}
       />
 
-      {/* Usage & Entitlement Summary — from /api/v1/usage/summary */}
+      {/* Usage & Entitlement Summary */}
       <UsageSummaryCard
         usage={usage.data}
         isLoading={usage.isLoading}
@@ -122,7 +156,7 @@ export default function DashboardPage() {
         onRetry={() => usage.refetch()}
       />
 
-      {/* Notifications — placeholder for future phase */}
+      {/* Notifications */}
       <NotificationsPlaceholder />
     </div>
   );

@@ -40,7 +40,7 @@ function SourceItem({
   firstLocator,
   onSourceClick,
 }: UniqueSourceInfo & { onSourceClick: (sourceId: string) => void }) {
-  const { data: source, isLoading, error } = useSource(sourceId);
+  const { data: source, isLoading, error, refetch } = useSource(sourceId);
 
   if (isLoading) {
     return (
@@ -67,6 +67,14 @@ function SourceItem({
           <p className="text-bodySmall text-error mt-0.5">
             {error ? "خطا در دریافت اطلاعات منبع" : "منبع یافت نشد"}
           </p>
+          {error && (
+            <button
+              onClick={() => refetch()}
+              className="text-bodySmall text-primary font-medium mt-1 hover:text-primary-variant transition-colors"
+            >
+              تلاش مجدد
+            </button>
+          )}
         </div>
       </div>
     );

@@ -152,6 +152,11 @@ export interface DashboardSummary {
   recentActivity: RecentActivityItem[];
   savedSourcesCount: number;
   activeProcessingCount: number;
+  dailyTrialsUsed: number;
+  dailyTrialsTotal: number;
+  activeRequests: ActiveRequestItem[];
+  recommendations: DashboardRecommendation[];
+  recentDocuments: RecentDocumentItem[];
 }
 
 export interface RecentActivityItem {
@@ -801,6 +806,44 @@ export interface MeResponse {
 
 export type UserRole = "user" | "admin";
 
+
+// --- Dashboard Widgets ---
+
+export interface ActiveRequestItem {
+  id: string;
+  title: string;
+  type: "conversation" | "document" | "contract";
+  typeFa: string;
+  date: string;
+  progress: number;
+  status: "draft" | "processing" | "needs_info" | "completed";
+  statusFa: string;
+  link: string;
+}
+
+export interface DashboardRecommendation {
+  id: string;
+  text: string;
+  icon: string;
+  link: string;
+  linkLabel: string;
+  urgency: "info" | "warning" | "action";
+}
+
+export interface RecentDocumentItem {
+  id: string;
+  name: string;
+  mime: string;
+  uploadedAt: string;
+  status: string;
+  statusFa: string;
+}
+
+export interface DashboardWidgetsData {
+  activeRequests: ActiveRequestItem[];
+  recommendations: DashboardRecommendation[];
+  recentDocuments: RecentDocumentItem[];
+}
 // --- Usage ---
 
 export interface UsageSummary {

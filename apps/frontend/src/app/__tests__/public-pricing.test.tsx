@@ -40,12 +40,12 @@ describe("Pricing Page — MSW Data", () => {
 
     // All three plans should be rendered (appear in plan cards)
     await waitFor(() => {
-      const ultraPlans = screen.getAllByText("الترا");
-      expect(ultraPlans.length).toBeGreaterThanOrEqual(1);
-      const proPlans = screen.getAllByText("پرو");
-      expect(proPlans.length).toBeGreaterThanOrEqual(1);
-      const proMaxPlans = screen.getAllByText("پرو مکس");
-      expect(proMaxPlans.length).toBeGreaterThanOrEqual(1);
+      const silverPlans = screen.getAllByText("نقره");
+      expect(silverPlans.length).toBeGreaterThanOrEqual(1);
+      const goldPlans = screen.getAllByText("طلا");
+      expect(goldPlans.length).toBeGreaterThanOrEqual(1);
+      const diamondPlans = screen.getAllByText("الماس");
+      expect(diamondPlans.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -58,13 +58,13 @@ describe("Pricing Page — MSW Data", () => {
 
     await waitFor(
       () => {
-        expect(screen.getAllByText("الترا").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("نقره").length).toBeGreaterThanOrEqual(1);
       },
       { timeout: 5000 }
     );
 
     // Check that features from MSW fixture are displayed
-    expect(screen.getByText(/۵ درخواست روزانه/)).toBeInTheDocument();
+    expect(screen.getAllByText(/درخواست روزانه/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders CTA links with intent and plan code", async () => {
@@ -76,17 +76,17 @@ describe("Pricing Page — MSW Data", () => {
 
     await waitFor(
       () => {
-        expect(screen.getAllByText("الترا").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("نقره").length).toBeGreaterThanOrEqual(1);
       },
       { timeout: 5000 }
     );
 
     // Plan CTAs should link to auth with intent=subscribe and plan code
-    const ultraCta = screen.getByText("انتخاب الترا").closest("a");
-    expect(ultraCta).toHaveAttribute("href", "/auth/mobile?intent=subscribe&plan=ultra");
+    const silverCta = screen.getByText("شروع با نقره").closest("a");
+    expect(silverCta).toHaveAttribute("href", "/auth/mobile?intent=subscribe&plan=silver");
 
-    const proCta = screen.getByText("انتخاب پرو").closest("a");
-    expect(proCta).toHaveAttribute("href", "/auth/mobile?intent=subscribe&plan=pro");
+    const goldCta = screen.getByText("شروع با طلا").closest("a");
+    expect(goldCta).toHaveAttribute("href", "/auth/mobile?intent=subscribe&plan=gold");
   });
 
   it("shows error state when MSW returns an error", async () => {

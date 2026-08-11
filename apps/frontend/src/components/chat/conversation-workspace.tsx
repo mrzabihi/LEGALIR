@@ -8,11 +8,12 @@ import type {
   StructuredResponseSection,
   AiRunStatus,
 } from "@legalir/types";
-import { IconArrowBack, IconEdit, IconMenu } from "@/lib/icons";
+import { IconArrowBack, IconEdit, IconMenu, IconClose, IconStar } from "@/lib/icons";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { DisclaimerBanner } from "./disclaimer-banner";
 import { EscalationCta } from "./escalation-cta";
+import { useRouter } from "next/navigation";
 
 interface ExtendedMessage extends Message {
   sections?: StructuredResponseSection[];
@@ -33,6 +34,10 @@ interface ConversationWorkspaceProps {
   scrollToSectionId?: string | null;
   onScrollComplete?: () => void;
   onMobileDrawerToggle?: () => void;
+  isStarred?: boolean;
+  onToggleStar?: () => void;
+  onMinimize?: () => void;
+  onClose?: () => void;
 }
 
 export function ConversationWorkspace({
@@ -48,10 +53,15 @@ export function ConversationWorkspace({
   scrollToSectionId,
   onScrollComplete,
   onMobileDrawerToggle,
+  isStarred = false,
+  onToggleStar,
+  onMinimize,
+  onClose,
 }: ConversationWorkspaceProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conversation.title);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Auto-scroll to bottom on new messages
   const lastMessageStatus = messages[messages.length - 1]?.status;
@@ -70,10 +80,18 @@ export function ConversationWorkspace({
     setIsRenaming(false);
   }, [renameValue, conversation.title, onRename]);
 
+  const handleClose = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else {
+      router.push("/chat");
+    }
+  }, [onClose, router]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-divider bg-surface">
+      <header className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-divider bg-surface">
         {/* Mobile: back button */}
         <button
           onClick={() => window.history.back()}
@@ -124,6 +142,45 @@ export function ConversationWorkspace({
             </button>
           </div>
         )}
+
+        {/* Star / bookmark conversation */}
+        {onToggleStar && (
+          <button
+            onClick={onToggleStar}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target shrink-0"
+            aria-label={isStarred ? "حذف از نشان‌ها" : "نشان کردن گفتگو"}
+            title={isStarred ? "حذف نشان" : "نشان کردن"}
+          >
+            <IconStar
+              size={18}
+              className={isStarred ? "text-yellow-500 fill-yellow-500" : "text-muted"}
+            />
+          </button>
+        )}
+
+        {/* Minimize button (desktop only) */}
+        {onMinimize && (
+          <button
+            onClick={onMinimize}
+            className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target shrink-0"
+            aria-label="جمع کردن گفتگو"
+            title="جمع کردن"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted">
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+        )}
+
+        {/* Close / X button (desktop only) */}
+        <button
+          onClick={handleClose}
+          className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-full hover:bg-error/10 hover:text-error transition-colors touch-target shrink-0"
+          aria-label="بستن گفتگو"
+          title="بستن"
+        >
+          <IconClose size={18} className="text-muted" />
+        </button>
       </header>
 
       {/* Messages Area */}
@@ -136,7 +193,7 @@ export function ConversationWorkspace({
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="text-4xl mb-4">⚖️</div>
+            <div className="text-4xl mb-4">&#x2696;&#xFE0F;</div>
             <h3 className="text-h3 text-onSurface mb-2">
               گفتگوی حقوقی خود را شروع کنید
             </h3>

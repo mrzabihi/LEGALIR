@@ -12,7 +12,7 @@ describe("CTA Section", () => {
     render(wrapInRtl(<CTASection />));
 
     expect(screen.getByText("مشاوره حقوقی با هوش مصنوعی")).toBeInTheDocument();
-    expect(screen.getByText("تحلیل و بررسی اسناد")).toBeInTheDocument();
+    expect(screen.getByText("تحلیل هوشمند اسناد")).toBeInTheDocument();
     expect(screen.getByText("تولید پیش‌نویس قرارداد")).toBeInTheDocument();
     expect(screen.getByText("مشاهده تعرفه‌ها")).toBeInTheDocument();
   });
@@ -44,24 +44,24 @@ describe("AI Disclaimer", () => {
   it("renders full disclaimer with key points", () => {
     render(wrapInRtl(<AIDisclaimer />));
 
-    expect(screen.getByText("نکته مهم درباره هوش مصنوعی")).toBeInTheDocument();
-    expect(screen.getByText(/اطلاعات AI/)).toBeInTheDocument();
-    expect(screen.getByText(/کمک حقوقی/)).toBeInTheDocument();
-    expect(screen.getByText(/منابع معتبر/)).toBeInTheDocument();
-    expect(screen.getByText(/اتصال به وکیل/)).toBeInTheDocument();
+    expect(screen.getByText("چگونه LEGALIR به شما کمک می‌کند")).toBeInTheDocument();
+    expect(screen.getByText(/تحلیل ساختاریافته/)).toBeInTheDocument();
+    expect(screen.getByText(/ابزار تخصصی/)).toBeInTheDocument();
+    expect(screen.getByText(/منابع شفاف/)).toBeInTheDocument();
+    expect(screen.getByText(/مسیر وکیل/)).toBeInTheDocument();
   });
 
   it("disclaimer clearly states AI does not replace lawyer", () => {
     render(wrapInRtl(<AIDisclaimer />));
     expect(
-      screen.getByText(/جایگزین وکیل، مشاور حقوقی یا مراجع رسمی قضایی نیست/)
+      screen.getByText(/دستیار هوشمند حقوقی/)
     ).toBeInTheDocument();
   });
 
   it("compact disclaimer renders a compact badge", () => {
     render(wrapInRtl(<AIDisclaimer compact />));
     expect(
-      screen.getByText(/مشاوره حقوقی رسمی نیست/)
+      screen.getByText(/خدمات تخصصی حقوقی با پشتیبانی هوش مصنوعی/)
     ).toBeInTheDocument();
   });
 

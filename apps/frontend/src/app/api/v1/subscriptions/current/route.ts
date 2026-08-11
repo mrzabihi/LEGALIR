@@ -1,10 +1,40 @@
-// ============================================================
-// LEGALIR — GET /api/v1/subscriptions/current
-// ============================================================
-
 import { NextResponse } from "next/server";
-import { fixtureV1SubscriptionGold } from "@legalir/testing";
+import { findSessionById, queryActiveSubscription } from "@/lib/db";
 
-export async function GET() {
-  return NextResponse.json({ data: fixtureV1SubscriptionGold });
+function getUserIdFromCookie(req: Request): string | null {
+  const cookieHeader = req.headers.get('cookie') ?? '';
+  const match = cookieHeader.match(/legalir-session=([^;]+)/);
+  if (!match || !match[1]) return null;
+  const session = findSessionById(match[1]!);
+  return session?.userId ?? null;
+}
+
+export async function GET(request: Request) {
+  const userId = getUserIdFromCookie(request);
+  if (!userId) {
+    return NextResponse.json(
+      { code: 'UNAUTHORIZED', message: 'لطفا وارد شوید' },
+      { status: 401 }
+    );
+  }
+
+  const subscription = queryActiveSubscription(userId);
+  if (!subscription) {
+    return NextResponse.json({ data: null });
+  }
+
+  return NextResponse.json({
+    data: {
+      id: subscription.id,
+      userId,
+      planId: `plan-${subscription.planCode}`,
+      planCode: subscription.planCode,
+      planNameFa: subscription.planNameFa,
+      startAt: subscription.startAt,
+      endAt: subscription.endAt,
+      status: subscription.status,
+      autoRenew: subscription.autoRenew,
+      cancelledAt: null,
+    },
+  });
 }

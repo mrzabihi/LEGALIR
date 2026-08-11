@@ -439,7 +439,7 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
       );
 
       await waitFor(() => {
-        const disclaimers = screen.getAllByText(/این پاسخ توسط هوش مصنوعی تولید شده/);
+        const disclaimers = screen.getAllByText(/تحلیل تخصصی حقوقی/);
         expect(disclaimers.length).toBeGreaterThanOrEqual(1);
       });
     });
@@ -557,7 +557,7 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
 
       await waitFor(() => {
         // Check disclaimer is visible
-        const disclaimers = screen.getAllByText(/جایگزین مشاوره با وکیل/);
+        const disclaimers = screen.getAllByText(/تحلیل تخصصی حقوقی/);
         expect(disclaimers.length).toBeGreaterThan(0);
       });
     });

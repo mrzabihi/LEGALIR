@@ -21,6 +21,8 @@ const PROTECTED_PREFIXES = [
   "/subscription",
   "/profile",
   "/settings",
+  "/services",
+  "/support",
 ];
 
 /** Routes accessible only to unauthenticated users (redirect to dashboard if logged in) */

@@ -32,7 +32,7 @@ interface RiskPanelProps {
 }
 
 export function ContractRiskPanel({ contractId, analysis: initialAnalysis }: RiskPanelProps) {
-  const { data: fetchedAnalysis, isLoading, isError, error } = useContractAnalysis(contractId);
+  const { data: fetchedAnalysis, isLoading, isError, error, refetch } = useContractAnalysis(contractId);
   const analysis = initialAnalysis ?? fetchedAnalysis ?? null;
 
   if (isLoading && !initialAnalysis) {
@@ -51,6 +51,12 @@ export function ContractRiskPanel({ contractId, analysis: initialAnalysis }: Ris
     return (
       <div className="rounded-large bg-surface shadow-elevation-1 border border-divider p-6 text-center" role="alert">
         <p className="text-error mb-2">{(error as Error)?.message ?? "خطا در دریافت تحلیل ریسک"}</p>
+        <button
+          onClick={() => refetch()}
+          className="text-primary text-button font-medium hover:text-primary-variant transition-colors"
+        >
+          تلاش مجدد
+        </button>
       </div>
     );
   }

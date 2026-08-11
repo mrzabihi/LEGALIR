@@ -55,6 +55,12 @@ import {
   fixtureV1MemoryItems,
   fixtureV1SubscriptionHistory,
   fixtureProfileUsage,
+  fixtureConversationContractReview,
+  fixtureV1ConversationDetailContractReview,
+  fixtureContractReviewReferences,
+  fixtureV1SourceCivil230,
+  fixtureV1SourceProcedure522,
+  fixtureV1SourceUnity805,
 } from "@legalir/testing";
 
 // --- Constants ---
@@ -122,7 +128,7 @@ const aiRunStore = new Map<string, { id: string; conversationId: string; message
 // Seed the store with existing conversations from fixtures
 function seedConversations(): void {
   if (conversationStore.size > 0) return;
-  const allConvs = fixtureAllConversations.slice(0, 5);
+  const allConvs = [...fixtureAllConversations.slice(0, 5), fixtureConversationContractReview];
   for (const conv of allConvs) {
     conversationStore.set(conv.id, {
       ...conv,
@@ -865,6 +871,11 @@ export const handlers = [
 
     const id = params["id"] as string;
 
+    // Scenario: preloaded demo conversation — contract review
+    if (id === "conv-contract-review-001") {
+      return HttpResponse.json(ok(fixtureV1ConversationDetailContractReview));
+    }
+
     // Scenario: conv-new returns a fresh conversation
     if (id === "conv-new") {
       return HttpResponse.json(
@@ -1195,6 +1206,11 @@ export const handlers = [
       return HttpResponse.json(ok([]));
     }
 
+    // Return references for the demo contract review conversation
+    if (id === "conv-contract-review-001") {
+      return HttpResponse.json(ok(fixtureContractReviewReferences));
+    }
+
     return HttpResponse.json(ok(fixtureV1References));
   }),
 
@@ -1222,6 +1238,9 @@ export const handlers = [
       "src-regulation-building": fixtureV1SourceRegulation,
       "src-precinct-1402135": fixtureV1SourcePrecedent,
       "src-outdated-001": fixtureV1SourceOutdated,
+      "src-law-civil-230": fixtureV1SourceCivil230,
+      "src-law-procedure-522": fixtureV1SourceProcedure522,
+      "src-unity-decision-805": fixtureV1SourceUnity805,
     };
 
     const source = sourceMap[id];

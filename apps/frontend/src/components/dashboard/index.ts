@@ -1,8 +1,8 @@
 export {
   WidgetShell,
-  GreetingHeader,
+  HeroSection,
+  PromoBanner,
   ProfileCompletionCard,
-  SubscriptionSummaryCard,
   QuickActions,
   RecentActivities,
   UsageSummaryCard,

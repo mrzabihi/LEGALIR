@@ -15,46 +15,6 @@ import {
 } from "@/lib/icons";
 
 // ============================================================
-// CONTEXT-BASED SUGGESTION CHIPS
-// ============================================================
-
-const SUGGESTIONS: Record<PageContext, string[]> = {
-  dashboard: [
-    "چطور یک قرارداد را بررسی کنم؟",
-    "وضعیت پرونده من چیست؟",
-    "یک اظهارنامه جدید می‌خواهم",
-  ],
-  chat: ["تحلیل دقیق‌تر", "ارجاع به وکیل", "ذخیره این گفتگو"],
-  contracts: [
-    "بررسی ریسک قرارداد",
-    "مقایسه نسخه‌ها",
-    "مشکلات رایج قرارداد",
-  ],
-  documents: ["تحلیل این سند", "استخراج بندهای مهم", "خلاصه‌سازی سند"],
-  settings: ["تغییر تنظیمات حساب", "تنظیمات زبان", "حریم خصوصی"],
-  history: ["مشاهده تاریخچه", "فیلتر بر اساس تاریخ", "خروجی تاریخچه"],
-  new: ["ساخت قرارداد جدید", "شروع بررسی سند", "ایجاد پرونده جدید"],
-  subscription: [
-    "ارتقای اشتراک",
-    "مقایسه پلن‌ها",
-    "وضعیت پرداخت من",
-  ],
-  profile: ["ویرایش پروفایل", "تغییر شماره موبایل", "احراز هویت"],
-  memory: ["پاک کردن حافظه", "آموزش دستیار", "ذخیره اطلاعات جدید"],
-};
-
-const DEFAULT_SUGGESTIONS: string[] = [
-  "چطور می‌توانید کمک کنید؟",
-  "چه خدماتی دارید؟",
-  "مشاوره حقوقی می‌خواهم",
-];
-
-function getSuggestions(context?: string): string[] {
-  if (!context) return DEFAULT_SUGGESTIONS;
-  return SUGGESTIONS[context as PageContext] ?? DEFAULT_SUGGESTIONS;
-}
-
-// ============================================================
 // WELCOME MESSAGE PER CONTEXT
 // ============================================================
 
@@ -69,22 +29,12 @@ const CONTEXT_LABELS: Record<string, string> = {
   subscription: "اشتراک",
   profile: "پروفایل",
   memory: "حافظه",
+  support: "پشتیبانی",
 };
 
 function getWelcomeMessage(context?: string): string {
   const pageLabel = context ? CONTEXT_LABELS[context] ?? "صفحه جاری" : "صفحه جاری";
-  return `سلام! 👋 من دستیار هوشمند LEGALIR هستم. شما در بخش **${pageLabel}** قرار دارید. چطور می‌توانم کمک کنم؟`;
-}
-
-// ============================================================
-// QUICK ACTION BUTTONS
-// ============================================================
-
-interface QuickAction {
-  label: string;
-  icon: React.ReactNode;
-  action: () => void;
-  variant?: "primary" | "secondary" | "outline";
+  return `سلام! من دستیار هوشمند LEGALIR هستم. شما در بخش **${pageLabel}** قرار دارید. چطور می‌توانم کمک کنم؟`;
 }
 
 // ============================================================
@@ -115,14 +65,16 @@ function AiSparkleIcon({ size = 24 }: { size?: number }) {
 }
 
 // ============================================================
-// ASSISTANT PANEL COMPONENT
+// ASSISTANT PANEL — Full chat interface
 // ============================================================
 
-interface AiAssistantPanelProps {
+export interface AiAssistantPanelProps {
   pageContext?: string;
+  /** When true, renders as a full page section instead of a slide-in panel */
+  mode?: "panel" | "page";
 }
 
-function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
+export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPanelProps) {
   const { messages, addMessage, closePanel, minimizePanel, isMinimized, restorePanel, starredIds, toggleStar } = useAssistantStore();
   const [inputValue, setInputValue] = useState("");
   const [hasSentMessage, setHasSentMessage] = useState(false);
@@ -130,7 +82,6 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
 
-  const suggestions = getSuggestions(pageContext);
   const welcomeMessage = getWelcomeMessage(pageContext);
 
   // Auto-scroll to bottom when new messages arrive
@@ -157,7 +108,6 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
     setInputValue("");
     setHasSentMessage(true);
 
-    // Simulate assistant response after a short delay
     setTimeout(() => {
       addMessage({
         role: "assistant",
@@ -178,28 +128,12 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
     [handleSend]
   );
 
-  const handleSuggestionClick = useCallback(
-    (suggestion: string) => {
-      addMessage({ role: "user", content: suggestion, context: pageContext });
-      setHasSentMessage(true);
-
-      setTimeout(() => {
-        addMessage({
-          role: "assistant",
-          content:
-            "سوال خوبی پرسیدید! برای تحلیل دقیق‌تر، می‌توانید به صفحه گفت‌وگوی حقوقی مراجعه کنید.",
-          context: pageContext,
-        });
-      }, 1200);
-    },
-    [addMessage, pageContext]
-  );
-
   const handleGoToChat = useCallback(() => {
-    closePanel();
+    if (mode === "panel") closePanel();
     router.push("/chat");
-  }, [closePanel, router]);
+  }, [closePanel, router, mode]);
 
+  // Quick support actions
   const handleQuickAction = useCallback(
     (action: string) => {
       if (action === "help") {
@@ -220,49 +154,33 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
     [addMessage, pageContext]
   );
 
-  const quickActions: QuickAction[] = [
-    {
-      label: "کمک",
-      icon: <IconInfo size={16} />,
-      action: () => handleQuickAction("help"),
-      variant: "outline",
-    },
-    {
-      label: "گزارش مشکل",
-      icon: <IconWarning size={16} />,
-      action: () => handleQuickAction("report"),
-      variant: "outline",
-    },
-    {
-      label: "راهنما",
-      icon: <IconArrowForward size={16} />,
-      action: () => handleQuickAction("help"),
-      variant: "outline",
-    },
-  ];
-
-  if (isMinimized) {
-      return (
-        <div className="flex items-center justify-between px-4 py-2 bg-primary border-b border-divider" dir="rtl">
-          <div className="flex items-center gap-2">
-            <AiSparkleIcon size={16} />
-            <span className="text-caption text-neutral-0">دستیار LEGALIR</span>
-          </div>
-          <button
-            onClick={restorePanel}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors"
-            aria-label="باز کردن دستیار"
-          >
-            <IconArrowForward size={16} style={{ transform: 'rotate(-90deg)' }} />
-          </button>
-        </div>
-      );
-    }
-
+  if (mode === "panel" && isMinimized) {
     return (
-    <div className="flex flex-col h-full bg-surface" dir="rtl">
-      {/* Panel Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-divider bg-primary">
+      <div className="flex items-center justify-between px-4 py-2 bg-primary border-b border-divider" dir="rtl">
+        <div className="flex items-center gap-2">
+          <AiSparkleIcon size={16} />
+          <span className="text-caption text-neutral-0">دستیار LEGALIR</span>
+        </div>
+        <button
+          onClick={restorePanel}
+          className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors"
+          aria-label="باز کردن دستیار"
+        >
+          <IconArrowForward size={16} style={{ transform: 'rotate(-90deg)' }} />
+        </button>
+      </div>
+    );
+  }
+
+  const isPageMode = mode === "page";
+  const containerClasses = isPageMode
+    ? "flex flex-col h-full bg-surface rounded-xl border border-divider shadow-elevation-1 overflow-hidden"
+    : "flex flex-col h-full bg-surface";
+
+  return (
+    <div className={containerClasses} dir="rtl">
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-divider bg-gradient-to-l from-primary to-primary-800">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-secondary-400 flex items-center justify-center">
             <AiSparkleIcon size={18} />
@@ -271,25 +189,29 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
             <h2 className="text-body-2 font-medium text-neutral-0">
               دستیار هوشمند LEGALIR
             </h2>
-            <p className="text-caption text-secondary-200">
-              نسخه آزمایشی
+            <p className="text-caption text-primary-200">
+              دسترسی سریع به راهنمایی و پشتیبانی
             </p>
           </div>
         </div>
-        <button
-          onClick={minimizePanel}
-          className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors touch-target"
-          aria-label="جمع کردن دستیار هوشمند"
-        >
-          <IconMinimize size={20} />
-        </button>
-        <button
-          onClick={closePanel}
-          className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors touch-target"
-          aria-label="بستن دستیار هوشمند"
-        >
-          <IconClose size={20} />
-        </button>
+        {!isPageMode && (
+          <>
+            <button
+              onClick={minimizePanel}
+              className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors touch-target"
+              aria-label="جمع کردن دستیار هوشمند"
+            >
+              <IconMinimize size={20} />
+            </button>
+            <button
+              onClick={closePanel}
+              className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-0 hover:bg-primary-600 transition-colors touch-target"
+              aria-label="بستن دستیار هوشمند"
+            >
+              <IconClose size={20} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Messages Area */}
@@ -309,29 +231,9 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
           </div>
         </div>
 
-        {/* Suggestion Chips (shown when no messages sent yet) */}
-        {!hasSentMessage && messages.length === 0 && (
-          <div className="space-y-2 animate-slide-up-fade" style={{ animationDelay: "100ms" }}>
-            <p className="text-caption text-muted px-1">
-              پیشنهادها:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  className="inline-flex items-center px-3 py-2 rounded-full border border-secondary-300 text-bodySmall text-secondary-700 hover:bg-secondary-50 active:bg-secondary-100 transition-colors touch-target-min"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Messages */}
         {messages.map((msg, index) => {
-            const isStarred = starredIds.includes(msg.id);
+          const isStarred = starredIds.includes(msg.id);
           const isUser = msg.role === "user";
           const isSystem = msg.role === "system";
           const prevMsg = index > 0 ? messages[index - 1] : null;
@@ -409,17 +311,22 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
 
       {/* Quick Actions */}
       <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-t border-divider bg-surfaceVariant">
-        {quickActions.map((qa) => (
-          <button
-            key={qa.label}
-            onClick={qa.action}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-medium border border-outline-variant text-bodySmall text-onSurfaceVariant hover:bg-surface hover:text-onSurface transition-colors touch-target-min"
-            aria-label={qa.label}
-          >
-            {qa.icon}
-            <span className="hidden tablet:inline">{qa.label}</span>
-          </button>
-        ))}
+        <button
+          onClick={() => handleQuickAction("help")}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-medium border border-outline-variant text-bodySmall text-onSurfaceVariant hover:bg-surface hover:text-onSurface transition-colors touch-target-min"
+          aria-label="کمک"
+        >
+          <IconInfo size={16} />
+          <span className="hidden tablet:inline">کمک</span>
+        </button>
+        <button
+          onClick={() => handleQuickAction("report")}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-medium border border-outline-variant text-bodySmall text-onSurfaceVariant hover:bg-surface hover:text-onSurface transition-colors touch-target-min"
+          aria-label="گزارش مشکل"
+        >
+          <IconWarning size={16} />
+          <span className="hidden tablet:inline">گزارش مشکل</span>
+        </button>
       </div>
 
       {/* Message Input */}
@@ -459,76 +366,17 @@ function AiAssistantPanel({ pageContext }: AiAssistantPanelProps) {
 }
 
 // ============================================================
-// FLOATING ACTION BUTTON COMPONENT
-// ============================================================
-
-interface AiAssistantFABProps {
-  onClick: () => void;
-  isOpen: boolean;
-  unreadCount: number;
-}
-
-function AiAssistantFAB({ onClick, isOpen, unreadCount }: AiAssistantFABProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={[
-        "fixed end-6 z-40 max-desktop:bottom-[calc(72px+env(safe-area-inset-bottom,0px)+16px)] desktop:bottom-6",
-        "w-14 h-14 rounded-full",
-        "bg-primary-700 text-secondary-400",
-        "shadow-elevation-8 hover:shadow-elevation-16",
-        "flex items-center justify-center",
-        "hover:bg-primary-800 active:bg-primary-900",
-        "transition-all duration-medium1 ease-emphasized",
-        "touch-target",
-        "focus-visible:outline-2 focus-visible:outline-offset-2",
-        // Subtle pulsing glow when not open
-        !isOpen ? "animate-glow" : "",
-      ].join(" ")}
-      aria-label={isOpen ? "بستن دستیار هوشمند" : "باز کردن دستیار هوشمند"}
-      aria-expanded={isOpen}
-    >
-      {isOpen ? (
-        <IconClose size={24} className="text-secondary-400" />
-      ) : (
-        <AiSparkleIcon size={26} />
-      )}
-
-      {/* Unread badge */}
-      {!isOpen && unreadCount > 0 && (
-        <span className="absolute -top-1 -end-1 min-w-[20px] h-[20px] flex items-center justify-center rounded-full bg-error text-onError text-[11px] font-bold px-1.5 animate-slide-up-fade">
-          {unreadCount > 99 ? "99+" : unreadCount}
-        </span>
-      )}
-
-      <span className="sr-only">
-        دستیار هوشمند LEGALIR{unreadCount > 0 ? ` — ${unreadCount} پیام خوانده‌نشده` : ""}
-      </span>
-    </button>
-  );
-}
-
-// ============================================================
-// MAIN AI ASSISTANT EXPORT
+// MAIN AI ASSISTANT
+// No FAB — used as embedded panel in support page
 // ============================================================
 
 export interface AiAssistantProps {
-  /** Identifies the current page context for contextual suggestions */
   pageContext?: string;
 }
 
 export function AiAssistant({ pageContext }: AiAssistantProps) {
-  const { isOpen, toggleOpen, closePanel, unreadCount } =
-    useAssistantStore();
+  const { isOpen, toggleOpen, closePanel } = useAssistantStore();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [hasOpened, setHasOpened] = useState(false);
-
-  // Track whether the panel has ever been opened (for entrance animation)
-  useEffect(() => {
-    if (isOpen && !hasOpened) {
-      setHasOpened(true);
-    }
-  }, [isOpen, hasOpened]);
 
   // Close on Escape key
   useEffect(() => {
@@ -558,13 +406,6 @@ export function AiAssistant({ pageContext }: AiAssistantProps) {
 
   return (
     <>
-      {/* FAB Button */}
-      <AiAssistantFAB
-        onClick={toggleOpen}
-        isOpen={isOpen}
-        unreadCount={unreadCount}
-      />
-
       {/* Overlay (desktop) — click outside to close */}
       {isOpen && (
         <div
@@ -584,12 +425,9 @@ export function AiAssistant({ pageContext }: AiAssistantProps) {
           "fixed z-50",
           "bg-surface",
           "flex flex-col",
-          // Desktop: slide-in from end (RTL: from left/start)
           "desktop:inset-y-0 desktop:end-0 desktop:w-[380px] desktop:shadow-elevation-16",
           "desktop:border-s desktop:border-divider",
-          // Mobile: bottom sheet
           "max-desktop:inset-x-0 max-desktop:bottom-0 max-desktop:h-[80dvh] max-desktop:rounded-t-large max-desktop:shadow-elevation-24",
-          // Animation classes
           "transition-transform duration-medium1 ease-emphasized",
           isOpen
             ? "desktop:translate-x-0 max-desktop:translate-y-0"

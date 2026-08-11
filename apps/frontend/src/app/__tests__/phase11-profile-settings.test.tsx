@@ -188,7 +188,8 @@ describe("ProfilePage", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText(/۸۵/)).toBeTruthy();
+      const pctElements = screen.getAllByText(/۸۵/);
+      expect(pctElements.length).toBeGreaterThan(0);
     });
   });
 
@@ -197,7 +198,7 @@ describe("ProfilePage", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      const mobileSection = screen.getByText("شماره موبایل");
+      const mobileSection = screen.getByText("موبایل");
       expect(mobileSection).toBeTruthy();
       // Mobile icon should be present
       expect(screen.getByText(/۰۹۱۲/)).toBeTruthy();
@@ -220,9 +221,9 @@ describe("ProfilePage", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getAllByText("پرو").length).toBeGreaterThan(0);
-      // Two rows have "الترا" — use getAllByText
-      expect(screen.getAllByText("الترا").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("طلا").length).toBeGreaterThan(0);
+      // Two rows have "نقره" — use getAllByText
+      expect(screen.getAllByText("نقره").length).toBeGreaterThan(0);
     });
   });
 
@@ -302,7 +303,7 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByText("تاریخچه"));
 
     await waitFor(() => {
-      expect(screen.getAllByText("پرو").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("طلا").length).toBeGreaterThan(0);
     });
   });
 
@@ -340,7 +341,7 @@ describe("SettingsPage", () => {
     render(<SettingsPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText("امنیت")).toBeTruthy();
+      expect(screen.getByText("امنیت حساب")).toBeTruthy();
     });
   });
 

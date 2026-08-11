@@ -28,7 +28,7 @@ export function ContractTypeSelector({
   onSelect,
   onContinue,
 }: TypeSelectorProps) {
-  const { data, isLoading, isError } = useContractTypes();
+  const { data, isLoading, isError, refetch } = useContractTypes();
 
   if (isLoading) {
     return (
@@ -44,7 +44,7 @@ export function ContractTypeSelector({
       <div className="text-center p-6">
         <p className="text-error mb-2">خطا در دریافت انواع قرارداد</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => refetch()}
           className="text-primary text-button"
         >
           تلاش مجدد

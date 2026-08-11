@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePlansV1 } from "@/hooks/useSubscription";
 import { SkeletonCard, ErrorState, EmptyState } from "@legalir/ui";
 import { toPersianNumber, toPersianCurrency } from "@/lib/persian-utils";
-import { IconCheck, IconClose, IconShield, IconArrowBack } from "@/lib/icons";
 import type { Plan } from "@legalir/types";
 import { useState } from "react";
 
@@ -208,7 +207,9 @@ function PlanCard({
                   meta.popular ? "text-secondary" : "text-primary-600",
                 ].join(" ")}
               >
-                <IconCheck size={16} />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
               </span>
               <span className="text-body-2 text-on-surface leading-relaxed">{f}</span>
             </li>
@@ -221,7 +222,7 @@ function PlanCard({
             ? `/auth/mobile?intent=subscribe&plan=${plan.code}`
             : `/auth/mobile?intent=subscribe&plan=${plan.code}`}
           className={[
-            "block rounded-large px-6 py-3.5 text-button text-center font-bold transition-all duration-short3",
+            "block rounded-xl px-6 py-3.5 text-button text-center font-bold transition-all duration-short3",
             "touch-target-min w-full",
             meta.popular
               ? "bg-secondary-600 text-white hover:bg-secondary-700 shadow-elevation-3 hover:shadow-elevation-8 animate-glow"
@@ -263,7 +264,7 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
               key={plan.id}
               className={[
                 "rounded-xl bg-surface border-2 shadow-sm p-5",
-                meta.popular ? "border-secondary-300" : "border-neutral-200",
+                meta.popular ? "border-secondary-300" : "border-divider/60",
               ].join(" ")}
             >
               <div
@@ -300,7 +301,9 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
                       <span className="text-body-2 text-muted">{f.label}</span>
                       <span className="text-body-2 text-on-surface font-medium">
                         {value === null ? (
-                          <IconClose size={16} className="text-error inline" />
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-error inline" aria-hidden="true">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                          </svg>
                         ) : (
                           value
                         )}
@@ -315,7 +318,7 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
       </div>
 
       {/* Tablet/Desktop: Styled matrix table */}
-      <div className="hidden tablet:block overflow-x-auto rounded-2xl border border-neutral-200 shadow-elevation-3">
+      <div className="hidden tablet:block overflow-x-auto rounded-2xl border border-divider/60 shadow-elevation-3">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-primary-800 to-primary-900">
@@ -382,13 +385,17 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
                     <td key={plan.id} className="text-center py-4 px-5">
                       {ul ? (
                         <div className="flex items-center justify-center gap-1.5">
-                          <IconCheck size={18} className="text-success" />
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-success" aria-hidden="true">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                          </svg>
                           <span className="text-body-2 text-on-surface font-medium">
                             {toPersianNumber(ul.limit)}
                           </span>
                         </div>
                       ) : (
-                        <IconClose size={18} className="text-error mx-auto" />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-error mx-auto" aria-hidden="true">
+                          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
                       )}
                     </td>
                   );
@@ -428,7 +435,7 @@ function PricingSkeletons() {
       {[1, 2, 3].map((i) => (
         <div
           key={i}
-          className="rounded-2xl bg-surface p-6 shadow-elevation-2 border border-neutral-200"
+          className="rounded-2xl bg-surface p-6 shadow-elevation-2 border border-divider/60"
         >
           <SkeletonCard lines={5} />
         </div>
@@ -448,7 +455,9 @@ function TrustBar() {
         <div className="grid grid-cols-1 tablet:grid-cols-3 gap-8 text-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
-              <IconShield size={28} className="text-secondary-300" />
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="text-secondary-300" aria-hidden="true">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
+              </svg>
             </div>
             <div>
               <h3 className="text-body-1 font-bold text-white mb-1">پرداخت امن</h3>
@@ -460,7 +469,9 @@ function TrustBar() {
 
           <div className="flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
-              <IconArrowBack size={28} className="text-secondary-300 rtl-flip rotate-180" />
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="text-secondary-300 rtl-flip rotate-180" aria-hidden="true">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+              </svg>
             </div>
             <div>
               <h3 className="text-body-1 font-bold text-white mb-1">بازگشت وجه</h3>
@@ -521,7 +532,7 @@ function FaqSection() {
           {faqs.map((faq, idx) => (
             <details
               key={idx}
-              className="group rounded-xl bg-surface border border-neutral-200 shadow-sm transition-shadow hover:shadow-elevation-2"
+              className="group rounded-xl bg-surface border border-divider/60 shadow-sm transition-shadow hover:shadow-elevation-2"
             >
               <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none">
                 <span className="text-body-1 text-on-surface font-medium">{faq.q}</span>
@@ -676,7 +687,7 @@ export function PricingClient() {
 
       {/* Footnote */}
       {!isLoading && !isError && plans && plans.length > 0 && (
-        <section className="bg-white border-t border-neutral-200 py-8">
+        <section className="bg-white border-t border-divider py-8">
           <div className="mx-auto max-w-6xl px-4 text-center">
             <p className="text-caption text-muted">
               تمام قیمت‌ها به تومان و با احتساب مالیات است. امکان ارتقا یا تمدید در هر زمان وجود دارد.

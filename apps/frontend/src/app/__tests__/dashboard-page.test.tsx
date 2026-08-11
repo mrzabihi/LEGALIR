@@ -1,3 +1,13 @@
+import { vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    prefetch: vi.fn(),
+    replace: vi.fn(),
+  }),
+}));
+
 // ============================================================
 // LEGALIR — Dashboard Page Integration Tests
 // Tests the full Workplace Dashboard with MSW-backed data
@@ -165,16 +175,16 @@ describe("Dashboard Page — Pro User", () => {
   it("renders quick actions section always", () => {
     // Quick actions are static and render immediately
     render(<TestWrapper><DashboardPage /></TestWrapper>);
-    expect(screen.getByText("مشاوره حقوقی جدید")).toBeInTheDocument();
-    expect(screen.getByText("تحلیل سند")).toBeInTheDocument();
-    expect(screen.getByText("ساخت قرارداد")).toBeInTheDocument();
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
+    expect(screen.getAllByText("بررسی قرارداد").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("تنظیم قرارداد")).toBeInTheDocument();
   });
 
-  it("renders subscription summary", async () => {
+  it("renders promo banner for gold plan", async () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
 
     await waitFor(() => {
-      expect(screen.getByText("پرو")).toBeInTheDocument();
+      expect(screen.getByText(/ارتقا به اشتراک الماس/)).toBeInTheDocument();
     });
   });
 
@@ -233,18 +243,19 @@ describe("Dashboard Page — New User (Empty State)", () => {
     });
   });
 
-  it("shows no subscription message", async () => {
+  it("shows empty state CTA for new users", async () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
 
     await waitFor(() => {
-      expect(screen.getByText("شما هنوز اشتراک فعالی ندارید")).toBeInTheDocument();
+      // The empty state CTA section appears when no activities exist
+      expect(screen.getByText("شروع کنید!")).toBeInTheDocument();
     });
   });
 
   it("still shows quick actions for new users", () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
     // Quick actions are static
-    expect(screen.getByText("مشاوره حقوقی جدید")).toBeInTheDocument();
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
   });
 });
 
@@ -259,15 +270,15 @@ describe("Dashboard Page — Partial Loading (Error Resilience)", () => {
   it("still renders dashboard layout even when some endpoints fail", () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
     // Quick actions are static and should always render
-    expect(screen.getByText("مشاوره حقوقی جدید")).toBeInTheDocument();
-    expect(screen.getByText("تحلیل سند")).toBeInTheDocument();
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
+    expect(screen.getAllByText("بررسی قرارداد").length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not crash when some endpoints fail and others succeed", async () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
 
     // Static content always renders regardless of API failures
-    expect(screen.getByText("مشاوره حقوقی جدید")).toBeInTheDocument();
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
 
     // Dashboard summary succeeds (handler returns 200), so recent activities should render
     // This proves one failed widget doesn't break a successful one

@@ -6,7 +6,7 @@ import { IconChat } from "@/lib/icons";
 import Link from "next/link";
 
 export default function ChatListPage() {
-  const { data: conversations = [], isLoading, error } = useConversations();
+  const { data: conversations = [], isLoading, error, refetch } = useConversations();
   const archiveMutation = useUpdateConversation();
 
   return (
@@ -17,6 +17,7 @@ export default function ChatListPage() {
           conversations={conversations}
           isLoading={isLoading}
           error={error as Error | null}
+          onRetry={() => refetch()}
           onArchive={(id) =>
             archiveMutation.mutate({ id, data: { status: "archived" } })
           }
@@ -46,6 +47,7 @@ export default function ChatListPage() {
             conversations={conversations}
             isLoading={isLoading}
             error={error as Error | null}
+            onRetry={() => refetch()}
             onArchive={(id) =>
               archiveMutation.mutate({ id, data: { status: "archived" } })
             }
@@ -73,7 +75,7 @@ export default function ChatListPage() {
             شروع گفتگوی جدید
           </Link>
           <p className="text-bodySmall text-muted mt-4">
-            این پاسخ‌ها جایگزین مشاوره با وکیل نیستند
+            تحلیل تخصصی حقوقی، همراه با منابع و مستندات مرتبط
           </p>
         </div>
       </main>

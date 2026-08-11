@@ -58,6 +58,7 @@
   --color-neutral-50: #F9FAFB;
   --color-neutral-100: #F3F4F6;
   --color-neutral-200: #E5E7EB;
+  --color-neutral-250: #DBDEE3;
   --color-neutral-300: #D1D5DB;
   --color-neutral-400: #9CA3AF;
   --color-neutral-500: #6B7280;
@@ -71,6 +72,7 @@
   --color-background: #F9FAFB;
   --color-on-background: #111827;
   --color-surface: #FFFFFF;
+  --color-surface-container: #F3F4F6;
   --color-surface-variant: #F3F4F6;
   --color-on-surface: #111827;
   --color-on-surface-variant: #4B5563;
@@ -161,6 +163,7 @@
   --color-neutral-50: #111827;
   --color-neutral-100: #1F2937;
   --color-neutral-200: #374151;
+  --color-neutral-250: #3F4A5E;
   --color-neutral-300: #4B5563;
   --color-neutral-400: #6B7280;
   --color-neutral-500: #9CA3AF;
@@ -173,6 +176,7 @@
   --color-background: #0B1220;
   --color-on-background: #F3F4F6;
   --color-surface: #0F172A;
+  --color-surface-container: #1E293B;
   --color-surface-variant: #162033;
   --color-on-surface: #F3F4F6;
   --color-on-surface-variant: #9CA3AF;
@@ -901,14 +905,20 @@ html {
 
 /* -- Ring spin animation (used by splash screen decorative rings) -- */
 @keyframes splash-ring-spin {
-  from { transform: translate(-50%, 0) rotate(0deg); }
-  to { transform: translate(-50%, 0) rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* -- Dot pulse animation (used by splash screen loading dots) -- */
 @keyframes splash-dot {
   0%, 80%, 100% { transform: scale(0.55); opacity: 0.25; }
   40% { transform: scale(1); opacity: 0.7; }
+}
+
+/* -- Float animation (used by splash screen orbiting accents) -- */
+@keyframes splash-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.04); }
 }
 
 /* RTL scrollbar styling */

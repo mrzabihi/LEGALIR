@@ -85,7 +85,7 @@ describe("Public Footer", () => {
   it("contains disclaimer about AI", () => {
     render(wrapInRtl(<Footer />));
     expect(
-      screen.getByText(/پاسخ‌های هوش مصنوعی جایگزین مشاوره وکیل نیستند/)
+      screen.getByText(/خدمات تخصصی حقوقی/)
     ).toBeInTheDocument();
   });
 });

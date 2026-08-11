@@ -1,48 +1,42 @@
-// ============================================================
-// LEGALIR — POST /api/v1/checkout/intents
-// Mock payment: alternates success/failure each call
-// ============================================================
-
 import { NextResponse } from "next/server";
-import type { CheckoutIntent, PlanCode } from "@legalir/types";
+import { findSessionById, createSubscription } from "@/lib/db";
 import { fixturePlans } from "@legalir/testing";
+import type { CheckoutIntent } from "@legalir/types";
 
 declare global {
   var __v1CheckoutIntents: Map<string, CheckoutIntent> | undefined;
-  var __v1CheckoutCallCount: number | undefined;
 }
 
 function getStore(): Map<string, CheckoutIntent> {
-  if (!globalThis.__v1CheckoutIntents) {
-    globalThis.__v1CheckoutIntents = new Map();
-  }
+  if (!globalThis.__v1CheckoutIntents) globalThis.__v1CheckoutIntents = new Map();
   return globalThis.__v1CheckoutIntents;
 }
 
-function getCallCount(): number {
-  if (globalThis.__v1CheckoutCallCount === undefined) {
-    globalThis.__v1CheckoutCallCount = 0;
-  }
-  return globalThis.__v1CheckoutCallCount;
-}
-
-function incrementCallCount(): number {
-  globalThis.__v1CheckoutCallCount = getCallCount() + 1;
-  return globalThis.__v1CheckoutCallCount;
+function getUserIdFromCookie(req: Request): string | null {
+  const cookieHeader = req.headers.get('cookie') ?? '';
+  const match = cookieHeader.match(/legalir-session=([^;]+)/);
+  if (!match || !match[1]) return null;
+  const session = findSessionById(match[1]!);
+  return session?.userId ?? null;
 }
 
 export async function POST(request: Request) {
+  const userId = getUserIdFromCookie(request);
+  if (!userId) {
+    return NextResponse.json(
+      { code: "UNAUTHORIZED", message: "لطفا وارد شوید", correlationId: crypto.randomUUID(), retryable: false },
+      { status: 401 }
+    );
+  }
   try {
     const body = (await request.json()) as { planCode?: string };
-    const planCode = body.planCode as PlanCode | undefined;
-
+    const planCode = body.planCode;
     if (!planCode || !["silver", "gold", "diamond"].includes(planCode)) {
       return NextResponse.json(
         { code: "INVALID_PLAN", message: "کد پلن نامعتبر است", correlationId: crypto.randomUUID(), retryable: false },
         { status: 400 }
       );
     }
-
     const plan = fixturePlans.find((p) => p.code === planCode);
     if (!plan) {
       return NextResponse.json(
@@ -50,47 +44,21 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
-
-    const callNum = incrementCallCount();
-    // Odd calls succeed, even calls fail
-    const willSucceed = callNum % 2 === 1;
-
+    const now = new Date();
+    createSubscription({
+      userId, planCode: plan.code, planNameFa: plan.nameFa,
+      amount: plan.salePrice, status: "active", statusFa: "فعال",
+      startAt: now.toISOString(),
+      endAt: new Date(now.getTime() + plan.durationDays * 86400000).toISOString(),
+    });
     const intent: CheckoutIntent = {
-      id: crypto.randomUUID(),
-      planCode: plan.code,
-      amount: plan.salePrice,
-      currency: "IRT",
-      status: "pending",
-      paymentUrl: willSucceed ? "https://mock-payment.legalir.ir/pay" : null,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-      metadata: {
-        planNameFa: plan.nameFa,
-        durationDays: plan.durationDays,
-        dailyRequests: plan.dailyRequestLimit,
-        totalTokens: plan.totalTokenLimit,
-      },
+      id: crypto.randomUUID(), planCode: plan.code, amount: plan.salePrice, currency: "IRT",
+      status: "paid", paymentUrl: null,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
+      metadata: { planNameFa: plan.nameFa, durationDays: plan.durationDays, dailyRequests: plan.dailyRequestLimit, totalTokens: plan.totalTokenLimit },
     };
-
-    const store = getStore();
-    store.set(intent.id, intent);
-
-    if (willSucceed) {
-      setTimeout(() => {
-        const stored = store.get(intent.id);
-        if (stored?.status === "pending") {
-          store.set(intent.id, { ...stored, status: "paid" });
-        }
-      }, 4000);
-    } else {
-      setTimeout(() => {
-        const stored = store.get(intent.id);
-        if (stored?.status === "pending") {
-          store.set(intent.id, { ...stored, status: "failed" });
-        }
-      }, 4000);
-    }
-
+    getStore().set(intent.id, intent);
     return NextResponse.json({ data: intent }, { status: 201 });
   } catch {
     return NextResponse.json(

@@ -1,7 +1,7 @@
 // ============================================================
 // LEGALIR — Profile Page
-// Avatar, inline-editable profile fields, profile completion,
-// token usage pie chart, subscription history table.
+// Modern UI with gradient avatar, circular completion ring,
+// inline-editable fields, usage stat cards, timeline, payments.
 // ============================================================
 
 "use client";
@@ -11,23 +11,32 @@ import { useMe, useUpdateProfile } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory } from "@/hooks/usePhase11";
 import { useThemeStore } from "@/stores/theme-store";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
-import {
-  IconEdit, IconCheck, IconClose, IconPhone,
-  IconSettings, IconSubscription, IconEmail, IconCalendar,
-  IconGender, IconLightMode, IconDarkMode,
-} from "@/lib/icons";
+import { IconCheck, IconClose, IconPhone } from "@/lib/icons";
 import type { V1SubscriptionHistoryItem, V1ProfileUsage, Profile } from "@legalir/types";
 
 // ============================================================
-// Constants
+// Helpers
 // ============================================================
 
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  active: "bg-success/10 text-success",
-  expired: "bg-error/10 text-error",
-  cancelled: "bg-surfaceVariant text-muted",
-  unknown: "bg-surfaceVariant text-muted",
-};
+function splitDisplayName(name: string | null): { firstName: string; familyName: string } {
+  if (!name) return { firstName: "", familyName: "" };
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return { firstName: "", familyName: "" };
+  if (parts.length === 1) return { firstName: parts[0] ?? "", familyName: "" };
+  return { firstName: parts[0] ?? "", familyName: parts.slice(1).join(" ") };
+}
+
+function getInitial(name: string | null): string {
+  if (!name || name.trim().length === 0) return "ک";
+  return name.trim().charAt(0);
+}
+
+function formatMobile(mobile: string | undefined): string {
+  if (!mobile) return "۰۹-- --- ----";
+  return mobile.replace(/[0-9]/g, (d) =>
+    ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"][parseInt(d)] ?? d,
+  );
+}
 
 const GENDER_OPTIONS = [
   { value: "", label: "انتخاب نشده" },
@@ -36,231 +45,78 @@ const GENDER_OPTIONS = [
   { value: "other", label: "سایر" },
 ] as const;
 
-/**
- * Split the display name into first name (first word) and family name (the rest).
- */
-function splitDisplayName(name: string | null): { firstName: string; familyName: string } {
-  if (!name) return { firstName: "", familyName: "" };
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0) return { firstName: "", familyName: "" };
-  if (parts.length === 1) return { firstName: parts[0] ?? "", familyName: "" };
-  return {
-    firstName: parts[0] ?? "",
-    familyName: parts.slice(1).join(" "),
-  };
-}
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  expired: "bg-amber-50 text-amber-700 border-amber-200",
+  cancelled: "bg-red-50 text-red-700 border-red-200",
+  unknown: "bg-neutral-100 text-neutral-600 border-neutral-200",
+};
 
-/**
- * Get the first Persian letter of a display name for the avatar.
- */
-function getInitial(name: string | null): string {
-  if (!name || name.trim().length === 0) return "ک";
-  return name.trim().charAt(0);
-}
+// ============================================================
+// Circular Progress Ring
+// ============================================================
 
-/**
- * Format a mobile number to 09XX XXX XXXX display format.
- */
-function formatMobileForDisplay(mobile: string | undefined): string {
-  if (!mobile) return "۰۹-- --- ----";
-  return mobile.replace(/[0-9]/g, (d) =>
-    ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"][parseInt(d)] ?? d,
+function CircularRing({ pct, size = 64, strokeWidth = 5, color }: {
+  pct: number; size?: number; strokeWidth?: number; color: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" className="text-neutral-100" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} className="transition-all duration-700" />
+      </svg>
+    </div>
   );
 }
 
-/**
- * Determine the color class for the completion progress bar.
- */
-function completionColor(percent: number): string {
-  if (percent < 50) return "bg-error";
-  if (percent <= 80) return "bg-warning";
-  return "bg-success";
-}
-
-/**
- * Format a token number for compact display (e.g., 850000 -> 850K, 1300000 -> 1.3M).
- */
-function formatCompactTokens(n: number): string {
-  if (n >= 1_000_000) {
-    const v = n / 1_000_000;
-    return `${v % 1 === 0 ? v : v.toFixed(1)}M`;
-  }
-  if (n >= 1_000) {
-    const v = n / 1_000;
-    return `${v % 1 === 0 ? v : v.toFixed(0)}K`;
-  }
-  return String(n);
-}
-
 // ============================================================
-// Pie Chart Calculations
+// Inline Editable Field
 // ============================================================
 
-interface PieSegment {
-  label: string;
-  used: number;
-  total: number;
-  color: string;
-  fullColor: string;
-}
-
-function buildPieSegments(usage: V1ProfileUsage): PieSegment[] {
-  return [
-    {
-      label: "درخواست‌های روزانه",
-      used: usage.dailyRequestsUsed,
-      total: usage.dailyRequestsTotal,
-      color: "#3B82F6",
-      fullColor: "text-blue-500",
-    },
-    {
-      label: "توکن‌ها",
-      used: usage.tokensUsed,
-      total: usage.tokensTotal,
-      color: "#A855F7",
-      fullColor: "text-purple-500",
-    },
-    {
-      label: "تحلیل اسناد",
-      used: usage.documentAnalysesUsed,
-      total: usage.documentAnalysesTotal,
-      color: "#22C55E",
-      fullColor: "text-green-500",
-    },
-    {
-      label: "قراردادها",
-      used: usage.contractsGenerated,
-      total: usage.contractsTotal,
-      color: "#F59E0B",
-      fullColor: "text-amber-500",
-    },
-  ];
-}
-
-/**
- * Compute SVG stroke-dasharray values for a set of pie segments.
- */
-function computePieArc(segments: PieSegment[], radius: number) {
-  const circumference = 2 * Math.PI * radius;
-  const total = segments.reduce((sum, s) => sum + s.total, 0);
-  if (total === 0) return [];
-
-  let cumulativeOffset = 0;
-  return segments.map((seg) => {
-    const fraction = seg.used / total;
-    const dash = fraction * circumference;
-    const result = {
-      offset: cumulativeOffset,
-      dash: dash > 0 ? dash : 0,
-      color: seg.color,
-      label: seg.label,
-      used: seg.used,
-      total: seg.total,
-    };
-    cumulativeOffset += dash;
-    return result;
-  });
-}
-
-// ============================================================
-// Inline Editable Field (text)
-// ============================================================
-
-function EditableField({
-  label,
-  value,
-  placeholder,
-  onSave,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onSave: (v: string) => void;
-  disabled?: boolean;
+function EditableField({ label, value, placeholder, onSave }: {
+  label: string; value: string; placeholder: string; onSave: (v: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
 
-  const handleEdit = useCallback(() => {
-    setDraft(value);
-    setEditing(true);
-  }, [value]);
-
-  const handleCancel = useCallback(() => {
-    setEditing(false);
-    setDraft(value);
-  }, [value]);
+  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
+  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
 
   const handleSave = useCallback(async () => {
     const trimmed = draft.trim();
     if (trimmed === value || saving) return;
     setSaving(true);
-    try {
-      await onSave(trimmed);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
+    try { await onSave(trimmed); setEditing(false); }
+    finally { setSaving(false); }
   }, [draft, value, saving, onSave]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") handleSave();
-      if (e.key === "Escape") handleCancel();
-    },
-    [handleSave, handleCancel],
-  );
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSave();
+    if (e.key === "Escape") handleCancel();
+  }, [handleSave, handleCancel]);
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider group">
+    <div className="flex items-center justify-between py-3.5 border-b border-divider/60 group">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
-
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={saving}
-            placeholder={placeholder}
-            className="text-body-2 text-on-surface bg-surfaceVariant rounded-medium px-3 py-1.5 w-full max-w-[200px] border border-divider focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-            autoFocus
-            dir="rtl"
-          />
-          <button
-            onClick={handleSave}
-            disabled={saving || draft.trim() === value}
-            className="p-1 rounded-full text-success hover:bg-success/10 transition-colors disabled:opacity-40"
-            aria-label="ذخیره"
-          >
-            <IconCheck size={18} />
-          </button>
-          <button
-            onClick={handleCancel}
-            disabled={saving}
-            className="p-1 rounded-full text-muted hover:bg-surfaceVariant transition-colors"
-            aria-label="لغو"
-          >
-            <IconClose size={18} />
-          </button>
+          <input type="text" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={handleKeyDown} disabled={saving} placeholder={placeholder} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl" />
+          <button onClick={handleSave} disabled={saving || draft.trim() === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
+          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
       ) : (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-on-surface">
-            {value || <span className="text-muted">{placeholder}</span>}
-          </dd>
-          {!disabled && (
-            <button
-              onClick={handleEdit}
-              className="p-1 rounded-full text-muted opacity-0 group-hover:opacity-100 hover:text-on-surface hover:bg-surfaceVariant transition-all"
-              aria-label={`ویرایش ${label}`}
-            >
-              <IconEdit size={16} />
-            </button>
-          )}
+          <dd className="text-body-2 text-onSurface">{value || <span className="text-neutral-300">{placeholder}</span>}</dd>
+          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
         </div>
       )}
     </div>
@@ -268,97 +124,37 @@ function EditableField({
 }
 
 // ============================================================
-// Gender Editable Field (select)
+// Gender Select Field
 // ============================================================
 
-function GenderEditableField({
-  label,
-  value,
-  onSave,
-}: {
-  label: string;
-  value: string;
-  onSave: (v: string) => void;
-}) {
+function GenderEditableField({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
-
   const displayLabel = GENDER_OPTIONS.find((o) => o.value === value)?.label ?? "انتخاب نشده";
 
-  const handleEdit = useCallback(() => {
-    setDraft(value);
-    setEditing(true);
-  }, [value]);
-
-  const handleCancel = useCallback(() => {
-    setEditing(false);
-    setDraft(value);
-  }, [value]);
-
-  const handleSave = useCallback(async () => {
-    if (draft === value || saving) return;
-    setSaving(true);
-    try {
-      await onSave(draft);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  }, [draft, value, saving, onSave]);
+  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
+  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
+  const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider group">
+    <div className="flex items-center justify-between py-3.5 border-b border-divider/60 group">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
-
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <select
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={saving}
-            className="text-body-2 text-on-surface bg-surfaceVariant rounded-medium px-3 py-1.5 w-full max-w-[200px] border border-divider focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-            autoFocus
-            dir="rtl"
-          >
-            {GENDER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+          <select value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl">
+            {GENDER_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
-          <button
-            onClick={handleSave}
-            disabled={saving || draft === value}
-            className="p-1 rounded-full text-success hover:bg-success/10 transition-colors disabled:opacity-40"
-            aria-label="ذخیره"
-          >
-            <IconCheck size={18} />
-          </button>
-          <button
-            onClick={handleCancel}
-            disabled={saving}
-            className="p-1 rounded-full text-muted hover:bg-surfaceVariant transition-colors"
-            aria-label="لغو"
-          >
-            <IconClose size={18} />
-          </button>
+          <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
+          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
       ) : (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-on-surface">
-            {value ? (
-              displayLabel
-            ) : (
-              <span className="text-muted">انتخاب نشده</span>
-            )}
-          </dd>
-          <button
-            onClick={handleEdit}
-            className="p-1 rounded-full text-muted opacity-0 group-hover:opacity-100 hover:text-on-surface hover:bg-surfaceVariant transition-all"
-            aria-label={`ویرایش ${label}`}
-          >
-            <IconEdit size={16} />
+          <dd className="text-body-2 text-onSurface">{value ? displayLabel : <span className="text-neutral-300">انتخاب نشده</span>}</dd>
+          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
           </button>
         </div>
       )}
@@ -370,86 +166,35 @@ function GenderEditableField({
 // Date Editable Field
 // ============================================================
 
-function DateEditableField({
-  label,
-  value,
-  placeholder,
-  onSave,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onSave: (v: string) => void;
+function DateEditableField({ label, value, placeholder, onSave }: {
+  label: string; value: string; placeholder: string; onSave: (v: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
 
-  const handleEdit = useCallback(() => {
-    setDraft(value);
-    setEditing(true);
-  }, [value]);
-
-  const handleCancel = useCallback(() => {
-    setEditing(false);
-    setDraft(value);
-  }, [value]);
-
-  const handleSave = useCallback(async () => {
-    if (draft === value || saving) return;
-    setSaving(true);
-    try {
-      await onSave(draft);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  }, [draft, value, saving, onSave]);
+  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
+  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
+  const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
 
   const displayValue = value ? toPersianDate(value) : "";
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider group">
+    <div className="flex items-center justify-between py-3.5 border-b border-divider/60 group">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
-
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <input
-            type="date"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={saving}
-            className="text-body-2 text-on-surface bg-surfaceVariant rounded-medium px-3 py-1.5 w-full max-w-[200px] border border-divider focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-            autoFocus
-          />
-          <button
-            onClick={handleSave}
-            disabled={saving || draft === value}
-            className="p-1 rounded-full text-success hover:bg-success/10 transition-colors disabled:opacity-40"
-            aria-label="ذخیره"
-          >
-            <IconCheck size={18} />
-          </button>
-          <button
-            onClick={handleCancel}
-            disabled={saving}
-            className="p-1 rounded-full text-muted hover:bg-surfaceVariant transition-colors"
-            aria-label="لغو"
-          >
-            <IconClose size={18} />
-          </button>
+          <input type="date" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus />
+          <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
+          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
       ) : (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-on-surface">
-            {displayValue || <span className="text-muted">{placeholder}</span>}
-          </dd>
-          <button
-            onClick={handleEdit}
-            className="p-1 rounded-full text-muted opacity-0 group-hover:opacity-100 hover:text-on-surface hover:bg-surfaceVariant transition-all"
-            aria-label={`ویرایش ${label}`}
-          >
-            <IconEdit size={16} />
+          <dd className="text-body-2 text-onSurface">{displayValue || <span className="text-neutral-300">{placeholder}</span>}</dd>
+          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
           </button>
         </div>
       )}
@@ -458,111 +203,22 @@ function DateEditableField({
 }
 
 // ============================================================
-// Readonly Field
+// Usage Stat Card — usage stat with mini progress ring
 // ============================================================
 
-function ReadonlyField({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon?: React.ReactNode;
+function MyStatCard({ label, used, total, color }: {
+  label: string; used: number; total: number; color: string;
 }) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-divider">
-      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
-      <dd className="flex items-center gap-2 text-body-2 text-on-surface">
-        {icon}
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-// ============================================================
-// SVG Pie Chart Component
-// ============================================================
-
-function UsagePieChart({ usage }: { usage: V1ProfileUsage }) {
-  const segments = buildPieSegments(usage);
-  const radius = 54;
-  const strokeWidth = 16;
-  const viewBoxSize = (radius + strokeWidth) * 2;
-  const cx = viewBoxSize / 2;
-  const cy = viewBoxSize / 2;
-
-  const arcs = computePieArc(segments, radius);
-
-  const totalUsed = segments.reduce((s, seg) => s + seg.used, 0);
-  const totalAll = segments.reduce((s, seg) => s + seg.total, 0);
+  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Pie */}
-      <div className="relative">
-        <svg
-          width={viewBoxSize}
-          height={viewBoxSize}
-          viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
-          aria-label="نمودار مصرف توکن و منابع"
-          role="img"
-          className="transform -rotate-90"
-        >
-          {/* Background track */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={radius}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            className="text-gray-200"
-          />
-          {/* Segments */}
-          {arcs.map((arc, i) => (
-            <circle
-              key={i}
-              cx={cx}
-              cy={cy}
-              r={radius}
-              fill="none"
-              stroke={arc.color}
-              strokeWidth={strokeWidth}
-              strokeDasharray={`${arc.dash} ${2 * Math.PI * radius - arc.dash}`}
-              strokeDashoffset={-arc.offset}
-              strokeLinecap="butt"
-            />
-          ))}
-        </svg>
-        {/* Center count */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-h3 text-on-surface">
-            {toPersianNumber(totalUsed)}
-          </span>
-          <span className="text-caption text-muted">
-            از {toPersianNumber(totalAll)}
-          </span>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 w-full">
-        {segments.map((seg, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span
-              className="inline-block h-3 w-3 rounded-sm shrink-0"
-              style={{ backgroundColor: seg.color }}
-            />
-            <span className="text-body-2 text-on-surface">
-              {seg.label}
-            </span>
-            <span className="text-caption text-muted mr-auto">
-              {formatCompactTokens(seg.used)}/{formatCompactTokens(seg.total)}
-            </span>
-          </div>
-        ))}
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 border border-divider/40">
+      <CircularRing pct={pct} size={48} strokeWidth={5} color={color} />
+      <div className="flex-1 min-w-0">
+        <p className="text-body-2 text-onSurface font-medium">{label}</p>
+        <p className="text-caption text-muted mt-0.5" dir="ltr">
+          {toPersianNumber(used)} / {toPersianNumber(total)}
+        </p>
       </div>
     </div>
   );
@@ -579,367 +235,220 @@ export default function ProfilePage() {
   const subHistory = useSubscriptionHistory();
   const { theme, toggleTheme } = useThemeStore();
 
-  // --- Derived data (no fixture fallbacks — user requirement) ---
-  const profile: Profile | null = me.data?.profile ?? null;
+  const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
   const usageData = usage.data;
   const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
 
   const { firstName, familyName } = splitDisplayName(profile?.displayName ?? null);
+  const completionPct = profile?.completionPercent ?? 0;
 
-  const hSaveDisplayName = useCallback(
-    (first: string) =>
-      updateProfile.mutateAsync({
-        displayName: [first, familyName].filter(Boolean).join(" ") || null,
-      }),
+  const hSaveFirstName = useCallback(
+    (v: string) => updateProfile.mutateAsync({ displayName: [v, familyName].filter(Boolean).join(" ") || null }),
     [updateProfile, familyName],
   );
   const hSaveFamilyName = useCallback(
-    (last: string) =>
-      updateProfile.mutateAsync({
-        displayName: [firstName, last].filter(Boolean).join(" ") || null,
-      }),
+    (v: string) => updateProfile.mutateAsync({ displayName: [firstName, v].filter(Boolean).join(" ") || null }),
     [updateProfile, firstName],
   );
-  const hSaveCity = useCallback(
-    (v: string) => updateProfile.mutateAsync({ city: v || null }),
-    [updateProfile],
-  );
-  const hSaveOccupation = useCallback(
-    (v: string) => updateProfile.mutateAsync({ occupation: v || null }),
-    [updateProfile],
-  );
-  const hSaveEmail = useCallback(
-    (v: string) => updateProfile.mutateAsync({ email: v || null }),
-    [updateProfile],
-  );
-  const hSaveBirthDate = useCallback(
-    (v: string) => updateProfile.mutateAsync({ birthDate: v || null }),
-    [updateProfile],
-  );
-  const hSaveGender = useCallback(
-    (v: string) => updateProfile.mutateAsync({ gender: (v || null) as Profile["gender"] }),
-    [updateProfile],
-  );
+  const hSaveCity = useCallback((v: string) => updateProfile.mutateAsync({ city: v || null }), [updateProfile]);
+  const hSaveOccupation = useCallback((v: string) => updateProfile.mutateAsync({ occupation: v || null }), [updateProfile]);
+  const hSaveEmail = useCallback((v: string) => updateProfile.mutateAsync({ email: v || null }), [updateProfile]);
+  const hSaveBirthDate = useCallback((v: string) => updateProfile.mutateAsync({ birthDate: v || null }), [updateProfile]);
+  const hSaveGender = useCallback((v: string) => updateProfile.mutateAsync({ gender: (v || null) as Profile["gender"] }), [updateProfile]);
 
   return (
     <div className="p-4 tablet:p-6 max-w-2xl mx-auto">
-      <h1 className="text-h2 text-on-surface mb-6">پروفایل</h1>
+      <h1 className="text-h2 text-onSurface font-bold mb-6">پروفایل</h1>
 
-      {/* ---- Profile Card ---- */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-        {/* Avatar */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="h-20 w-20 rounded-full bg-primary-variant flex items-center justify-center text-white text-h1 mb-3">
-            {getInitial(profile?.displayName ?? null)}
-          </div>
-          <h2 className="text-h3 text-on-surface">
-            {profile?.displayName ?? "کاربر LEGALIR"}
-          </h2>
-          <p className="text-body-2 text-muted mt-1">
-            {profile?.city && profile?.occupation
-              ? `${profile.city} — ${profile.occupation}`
-              : profile?.city ?? profile?.occupation ?? ""}
-          </p>
-
-          {/* Profile Completion Bar */}
-          <div className="w-full max-w-xs mt-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-caption text-muted">تکمیل پروفایل</span>
-              <span className="text-caption font-medium text-on-surface">
-                {toPersianNumber(profile?.completionPercent ?? 0)}٪
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${completionColor(profile?.completionPercent ?? 0)}`}
-                style={{ width: `${profile?.completionPercent ?? 0}%` }}
-              />
-            </div>
-          </div>
+      {/* ---- Avatar Card (Gradient) ---- */}
+      <section className="relative rounded-2xl bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 p-6 mb-6 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/5 blur-2xl" />
         </div>
 
-        {/* Editable Fields */}
-        <dl className="space-y-0">
-          <EditableField
-            label="نام"
-            value={firstName}
-            placeholder="نام خود را وارد کنید"
-            onSave={hSaveDisplayName}
-          />
-          <EditableField
-            label="نام خانوادگی"
-            value={familyName}
-            placeholder="نام خانوادگی خود را وارد کنید"
-            onSave={hSaveFamilyName}
-          />
-          <EditableField
-            label="ایمیل"
-            value={profile?.email ?? ""}
-            placeholder="ایمیل خود را وارد کنید"
-            onSave={hSaveEmail}
-          />
-          <GenderEditableField
-            label="جنسیت"
-            value={profile?.gender ?? ""}
-            onSave={hSaveGender}
-          />
-          <DateEditableField
-            label="تاریخ تولد"
-            value={profile?.birthDate ?? ""}
-            placeholder="تاریخ تولد خود را انتخاب کنید"
-            onSave={hSaveBirthDate}
-          />
-          <EditableField
-            label="شهر"
-            value={profile?.city ?? ""}
-            placeholder="شهر محل سکونت"
-            onSave={hSaveCity}
-          />
-          <EditableField
-            label="شغل"
-            value={profile?.occupation ?? ""}
-            placeholder="شغل خود را وارد کنید"
-            onSave={hSaveOccupation}
-          />
-          <ReadonlyField
-            label="شماره موبایل"
-            value={formatMobileForDisplay(mobile)}
-            icon={<IconPhone size={16} className="text-muted" />}
-          />
+        <div className="relative flex flex-col items-center">
+          {/* Avatar + completion ring */}
+          <div className="relative mb-4">
+            <CircularRing pct={completionPct} size={88} strokeWidth={6} color="#10b981" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-[68px] w-[68px] rounded-full bg-white flex items-center justify-center text-h2 text-primary-700 font-bold shadow-elevation-2">
+                {getInitial(profile?.displayName ?? null)}
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-h3 text-white font-bold">{profile?.displayName ?? "کاربر LEGALIR"}</h2>
+          {(profile?.city || profile?.occupation) && (
+            <p className="text-body-2 text-primary-200 mt-1">
+              {[profile.city, profile.occupation].filter(Boolean).join(" — ")}
+            </p>
+          )}
+          <p className="text-caption text-primary-300 mt-2">
+            تکمیل پروفایل {toPersianNumber(completionPct)}٪
+          </p>
+        </div>
+      </section>
+
+      {/* ---- Editable Profile Fields ---- */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <h2 className="text-h3 text-onSurface font-bold mb-2">اطلاعات شخصی</h2>
+        <dl>
+          <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
+          <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
+          <EditableField label="ایمیل" value={profile?.email ?? ""} placeholder="ایمیل خود را وارد کنید" onSave={hSaveEmail} />
+          <GenderEditableField label="جنسیت" value={profile?.gender ?? ""} onSave={hSaveGender} />
+          <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
+          <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
+          <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
+          <div className="flex items-center justify-between py-3.5">
+            <dt className="text-body-2 text-muted shrink-0 w-28">موبایل</dt>
+            <dd className="flex items-center gap-2 text-body-2 text-onSurface" dir="ltr">
+              <IconPhone size={16} className="text-muted" />
+              {formatMobile(mobile)}
+            </dd>
+          </div>
         </dl>
       </section>
 
-      {/* ---- Theme Toggle ---- */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-        <div className="flex items-center justify-between">
+      {/* ---- Settings: Theme Toggle ---- */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <h2 className="text-h3 text-onSurface font-bold mb-3">تنظیمات</h2>
+        <div className="flex items-center justify-between py-1">
           <div className="flex items-center gap-3">
-            {theme === "dark" ? (
-              <IconDarkMode size={22} className="text-primary" />
-            ) : (
-              <IconLightMode size={22} className="text-primary" />
-            )}
+            <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
+              {theme === "dark" ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary-500">
+                  <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              )}
+            </div>
             <div>
-              <h3 className="text-body-1 text-on-surface font-medium">تم</h3>
-              <p className="text-caption text-muted">
-                {theme === "dark" ? "حالت تاریک" : "حالت روشن"}
-              </p>
+              <p className="text-body-1 text-onSurface font-medium">تم</p>
+              <p className="text-caption text-muted">{theme === "dark" ? "حالت تاریک" : "حالت روشن"}</p>
             </div>
           </div>
           <button
             onClick={toggleTheme}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-              theme === "dark" ? "bg-primary" : "bg-gray-300"
-            }`}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 ${theme === "dark" ? "bg-primary-600" : "bg-neutral-300"}`}
             aria-label="تغییر تم"
           >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
-                theme === "dark" ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
+            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${theme === "dark" ? "translate-x-6" : "translate-x-1"}`} />
           </button>
         </div>
       </section>
 
-      {/* ---- Usage Section ---- */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-        <div className="flex items-center gap-2 mb-5">
-          <IconSettings size={20} className="text-primary" />
-          <h2 className="text-h3 text-on-surface">مصرف منابع</h2>
-        </div>
+      {/* ---- Resource Usage ---- */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <h2 className="text-h3 text-onSurface font-bold mb-4">مصرف منابع</h2>
 
         {usage.isLoading ? (
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-[140px] w-[140px] rounded-full bg-surfaceVariant animate-pulse" />
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 w-full">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-5 bg-surfaceVariant rounded animate-pulse" />
-              ))}
-            </div>
+          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map((i) => (<div key={i} className="h-16 rounded-xl bg-neutral-100 animate-pulse" />))}
           </div>
         ) : usage.isError ? (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <p className="text-body-2 text-error">
-              خطا در دریافت اطلاعات مصرف
-            </p>
-            <button
-              onClick={() => usage.refetch()}
-              className="text-body-2 text-primary underline"
-            >
-              تلاش مجدد
-            </button>
+          <div className="text-center py-4">
+            <p className="text-body-2 text-error mb-2">خطا در دریافت اطلاعات مصرف</p>
+            <button onClick={() => usage.refetch()} className="text-button text-primary hover:underline">تلاش مجدد</button>
           </div>
         ) : usageData ? (
-          <UsagePieChart usage={usageData} />
+          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
+            <MyStatCard label="درخواست روزانه" used={usageData.dailyRequestsUsed} total={usageData.dailyRequestsTotal} color="#3b82f6" />
+            <MyStatCard label="توکن‌ها" used={usageData.tokensUsed} total={usageData.tokensTotal} color="#8b5cf6" />
+            <MyStatCard label="تحلیل اسناد" used={usageData.documentAnalysesUsed} total={usageData.documentAnalysesTotal} color="#22c55e" />
+            <MyStatCard label="قراردادها" used={usageData.contractsGenerated} total={usageData.contractsTotal} color="#f59e0b" />
+          </div>
         ) : (
-          <p className="text-body-2 text-muted text-center py-4">
-            اطلاعات مصرف در دسترس نیست
-          </p>
-        )}
-      </section>
-
-      {/* ---- Payment History ---- */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-        <div className="flex items-center gap-2 mb-5">
-          <IconSubscription size={20} className="text-primary" />
-          <h2 className="text-h3 text-on-surface">پرداخت‌ها</h2>
-        </div>
-
-        {subHistory.isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-surfaceVariant rounded animate-pulse" />
-            ))}
-          </div>
-        ) : subHistory.isError ? (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <p className="text-body-2 text-error">
-              خطا در دریافت تاریخچه پرداخت
-            </p>
-            <button
-              onClick={() => subHistory.refetch()}
-              className="text-body-2 text-primary underline"
-            >
-              تلاش مجدد
-            </button>
-          </div>
-        ) : subItems.length === 0 ? (
-          <p className="text-body-2 text-muted text-center py-4">
-            هنوز پرداختی انجام نشده است.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {subItems.map((item) => {
-              const isActive = item.status === "active";
-              const isExpired = item.status === "expired";
-              const statusStyle = isActive
-                ? "bg-success/10 text-success border-success/30"
-                : isExpired
-                  ? "bg-warning/10 text-warning border-warning/30"
-                  : item.status === "cancelled"
-                    ? "bg-error/10 text-error border-error/30"
-                    : "bg-surfaceVariant text-muted border-divider";
-              const statusIcon = isActive ? "✓" : isExpired ? "⏱" : item.status === "cancelled" ? "✗" : "؟";
-
-              return (
-                <div
-                  key={item.id}
-                  className="flex flex-col mobile-l:flex-row mobile-l:items-center gap-3 p-4 rounded-large border border-divider hover:bg-surfaceVariant/30 transition-colors"
-                >
-                  {/* Plan name + status */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-body-1 text-onSurface font-semibold">
-                        {item.planNameFa}
-                      </h3>
-                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium border ${statusStyle}`}>
-                        <span>{statusIcon}</span>
-                        {item.statusFa}
-                      </span>
-                    </div>
-                    <p className="text-caption text-muted">
-                      {toPersianDate(item.purchasedAt)} — {toPersianDate(item.startAt)} تا {toPersianDate(item.endAt)}
-                    </p>
-                  </div>
-                  {/* Amount */}
-                  <div className="shrink-0 text-right">
-                    <p className="text-body-1 text-onSurface font-bold tabular-nums">
-                      {toPersianNumber(item.amount)} تومان
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <p className="text-body-2 text-muted text-center py-4">اطلاعات مصرف در دسترس نیست</p>
         )}
       </section>
 
       {/* ---- Subscription Timeline ---- */}
-      <section className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider">
-        <div className="flex items-center gap-2 mb-5">
-          <IconPhone size={20} className="text-primary" />
-          <h2 className="text-h3 text-on-surface">تاریخچه اشتراک</h2>
-        </div>
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <h2 className="text-h3 text-onSurface font-bold mb-4">تاریخچه اشتراک</h2>
 
         {subHistory.isLoading ? (
           <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
+            {[1, 2].map((i) => (
               <div key={i} className="flex gap-4 animate-pulse">
-                <div className="w-1 bg-surfaceVariant rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-surfaceVariant rounded w-1/3" />
-                  <div className="h-3 bg-surfaceVariant rounded w-2/3" />
-                </div>
+                <div className="w-2 bg-neutral-100 rounded-full" />
+                <div className="flex-1 space-y-2"><div className="h-4 bg-neutral-100 rounded w-1/3" /><div className="h-3 bg-neutral-100 rounded w-2/3" /></div>
               </div>
             ))}
           </div>
         ) : subHistory.isError ? (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <p className="text-body-2 text-error">
-              خطا در دریافت تاریخچه اشتراک
-            </p>
-            <button
-              onClick={() => subHistory.refetch()}
-              className="text-body-2 text-primary underline"
-            >
-              تلاش مجدد
-            </button>
+          <div className="text-center py-4">
+            <p className="text-body-2 text-error mb-2">خطا در دریافت تاریخچه</p>
+            <button onClick={() => subHistory.refetch()} className="text-button text-primary hover:underline">تلاش مجدد</button>
           </div>
         ) : subItems.length === 0 ? (
-          <p className="text-body-2 text-muted text-center py-4">
-            هنوز اشتراکی تهیه نشده است.
-          </p>
+          <p className="text-body-2 text-muted text-center py-4">هنوز اشتراکی تهیه نشده است.</p>
         ) : (
           <div className="relative">
-            {/* Timeline vertical line */}
             <div className="absolute right-[11px] top-2 bottom-2 w-0.5 bg-divider" aria-hidden="true" />
-
-            <div className="space-y-6">
+            <div className="space-y-5">
               {subItems.map((item, idx) => {
                 const isActive = item.status === "active";
-                const isExpired = item.status === "expired";
-                const dotColor = isActive
-                  ? "bg-success ring-success/20"
-                  : isExpired
-                    ? "bg-warning ring-warning/20"
-                    : "bg-muted ring-muted/20";
-
+                const dotColor = isActive ? "bg-emerald-500 ring-emerald-100" : item.status === "expired" ? "bg-amber-500 ring-amber-100" : "bg-neutral-400 ring-neutral-100";
                 return (
                   <div key={item.id} className="flex gap-4 items-start">
-                    {/* Timeline dot */}
                     <div className="relative z-10 shrink-0">
                       <div className={`h-6 w-6 rounded-full ${dotColor} ring-4 flex items-center justify-center`}>
                         <div className="h-2.5 w-2.5 rounded-full bg-white" />
                       </div>
                     </div>
-
-                    {/* Content */}
-                    <div className="flex-1 pb-2">
+                    <div className="flex-1">
                       <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                        <span className="text-body-2 text-onSurface font-semibold">
-                          {item.planNameFa}
-                        </span>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-caption ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES["unknown"]}`}>
+                        <span className="text-body-2 text-onSurface font-semibold">{item.planNameFa}</span>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium border ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES["unknown"]}`}>
                           {item.statusFa}
                         </span>
-                        {idx === 0 && isActive && (
-                          <span className="text-caption text-success font-medium">
-                            (فعلی)
-                          </span>
-                        )}
+                        {idx === 0 && isActive && (<span className="text-caption text-emerald-600 font-medium">(فعلی)</span>)}
                       </div>
-                      <p className="text-caption text-muted mb-1">
-                        {toPersianDate(item.startAt)} تا {toPersianDate(item.endAt)}
-                      </p>
-                      <p className="text-caption text-onSurface font-medium tabular-nums">
-                        {toPersianNumber(item.amount)} تومان
-                      </p>
+                      <p className="text-caption text-muted mb-1">{toPersianDate(item.startAt)} تا {toPersianDate(item.endAt)}</p>
+                      <p className="text-caption text-onSurface font-bold">{toPersianNumber(item.amount)} تومان</p>
                     </div>
                   </div>
                 );
               })}
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* ---- Payment History ---- */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5">
+        <h2 className="text-h3 text-onSurface font-bold mb-4">پرداخت‌ها</h2>
+
+        {subHistory.isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (<div key={i} className="h-16 rounded-xl bg-neutral-100 animate-pulse" />))}
+          </div>
+        ) : subHistory.isError ? (
+          <div className="text-center py-4">
+            <p className="text-body-2 text-error mb-2">خطا در دریافت تاریخچه پرداخت</p>
+            <button onClick={() => subHistory.refetch()} className="text-button text-primary hover:underline">تلاش مجدد</button>
+          </div>
+        ) : subItems.length === 0 ? (
+          <p className="text-body-2 text-muted text-center py-4">هنوز پرداختی انجام نشده است.</p>
+        ) : (
+          <div className="space-y-2">
+            {subItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border border-divider/40 hover:bg-neutral-50 transition-colors gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-body-2 text-onSurface font-semibold">{item.planNameFa}</span>
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium border ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES["unknown"]}`}>{item.statusFa}</span>
+                  </div>
+                  <p className="text-caption text-muted">{toPersianDate(item.purchasedAt)}</p>
+                </div>
+                <span className="text-body-1 text-onSurface font-bold" dir="ltr">{toPersianNumber(item.amount)} تومان</span>
+              </div>
+            ))}
           </div>
         )}
       </section>

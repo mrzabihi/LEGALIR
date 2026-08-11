@@ -197,9 +197,9 @@ describe("HistoryPage", () => {
 
     await waitFor(() => {
       // Multiple items share type labels, use getAllByText
-      expect(screen.getAllByText("گفتگو").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("سند").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("قرارداد").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Conversation").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Document").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Contract").length).toBeGreaterThanOrEqual(1);
     });
   });
 

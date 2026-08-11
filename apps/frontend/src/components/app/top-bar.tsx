@@ -1,12 +1,13 @@
 // ============================================================
 // LEGALIR — Top Bar (Desktop & Mobile Header)
+// Glass-morphism header with animated user menu.
 // ============================================================
 
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme";
 import { useAppShellStore } from "@/lib/stores";
 import { useLogout } from "@/lib/auth/use-auth";
@@ -20,22 +21,25 @@ import {
   IconLogout,
   IconSettings,
   IconSubscription,
+  IconPhone,
 } from "@/lib/icons";
 
 export function TopBar() {
-  const { theme: _theme } = useTheme();
   const toggleDrawer = useAppShellStore((s) => s.toggleDrawer);
   const { data: meData } = useMe();
   const session = useAuthStore((s) => s.session);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // Hide hamburger on conversation pages (workspace has its own nav)
+  const isConversationPage = pathname.startsWith("/chat/") && pathname !== "/chat";
 
   const profile = meData?.profile;
   const displayName = profile?.displayName;
   const mobileFallback = meData?.user?.mobileDisplay ?? session?.mobileDisplay;
   const avatarInitial = (displayName ?? mobileFallback)?.[0] ?? "ک";
 
-  // Close menu on outside click
   const handleClickOutside = useCallback((e: MouseEvent) => {
     if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
       setUserMenuOpen(false);
@@ -51,47 +55,58 @@ export function TopBar() {
 
   return (
     <>
-      {/* Mobile hamburger button (rendered inside AppShell header) */}
-      <button
-        onClick={toggleDrawer}
-        className="desktop:hidden w-12 h-12 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-colors touch-target-min"
-        aria-label="منوی اصلی"
-      >
-        <IconMenu size={22} />
-      </button>
+      {/* Mobile hamburger — hidden on conversation pages (workspace has own nav) */}
+      {!isConversationPage && (
+        <button
+          onClick={toggleDrawer}
+          className="desktop:hidden w-11 h-11 flex items-center justify-center rounded-xl hover:bg-neutral-100 active:scale-95 transition-all duration-200 touch-target-min"
+          aria-label="منوی اصلی"
+        >
+          <IconMenu size={22} className="text-on-surface" />
+        </button>
+      )}
 
-      {/* Logo area — visible when sidebar is hidden */}
-      <Link
-        href="/dashboard"
-        className="desktop:hidden flex items-center shrink-0"
-      >
-        <img
-          src="/legalir-logo.png"
-          alt="LEGALIR"
-          className="h-14 w-auto"
-        />
+      {/* Spacer when no hamburger (conversation pages) */}
+      {isConversationPage && <div className="desktop:hidden w-11 h-11" />}
+
+      {/* Mobile logo */}
+      <Link href="/dashboard" className="desktop:hidden flex items-center shrink-0">
+        <div className="h-9 w-9 rounded-lg bg-primary-700 flex items-center justify-center shadow-elevation-2">
+          <img src="/legalir-logo.png" alt="LEGALIR" className="h-6 w-auto brightness-0 invert" />
+        </div>
       </Link>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
       {/* Theme Toggle */}
       <ThemeToggleButton />
 
+      {/* Quick support button */}
+      <Link
+        href="/support"
+        className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-xl hover:bg-neutral-100 transition-colors touch-target-min"
+        aria-label="پشتیبانی"
+      >
+        <IconPhone size={20} className="text-neutral-500" />
+      </Link>
+
       {/* User Menu */}
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setUserMenuOpen(!userMenuOpen)}
-          className="flex items-center gap-2 rounded-full p-1 hover:bg-neutral-100 transition-colors touch-target"
+          className={[
+            "flex items-center gap-2 rounded-xl p-1.5 pr-2.5 transition-all duration-200 touch-target",
+            userMenuOpen ? "bg-primary-50 ring-2 ring-primary-200" : "hover:bg-neutral-100",
+          ].join(" ")}
           aria-label="منوی کاربری"
           aria-expanded={userMenuOpen}
           aria-haspopup="true"
         >
-          <div className="h-9 w-9 rounded-full bg-primary-700 flex items-center justify-center text-white text-labelSmall font-medium">
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center text-white text-labelSmall font-bold shadow-elevation-1">
             {avatarInitial}
           </div>
-          <span className="hidden tablet:inline text-labelLarge text-neutral-700 truncate max-w-[120px]">
-            {displayName ?? meData?.user?.mobileDisplay ?? session?.mobileDisplay ?? "کاربر"}
+          <span className="hidden tablet:inline text-labelLarge text-on-surface font-medium truncate max-w-[100px]">
+            {displayName ?? mobileFallback ?? "کاربر"}
           </span>
         </button>
 
@@ -101,27 +116,19 @@ export function TopBar() {
   );
 }
 
-// ============================================================
-// ThemeToggleButton
-// ============================================================
-
 function ThemeToggleButton() {
   const { theme, toggleTheme } = useTheme();
 
   return (
     <button
       onClick={toggleTheme}
-      className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-colors touch-target-min"
+      className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-neutral-100 active:scale-95 transition-all duration-200 touch-target-min"
       aria-label={theme === "light" ? "حالت تیره" : "حالت روشن"}
     >
-      {theme === "light" ? <IconDarkMode size={22} /> : <IconLightMode size={22} />}
+      {theme === "light" ? <IconDarkMode size={20} className="text-neutral-600" /> : <IconLightMode size={20} className="text-amber-400" />}
     </button>
   );
 }
-
-// ============================================================
-// UserMenuDropdown
-// ============================================================
 
 function UserMenuDropdown({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -140,66 +147,51 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="absolute top-full end-0 mt-2 w-64 rounded-large bg-neutral-0 border border-neutral-200 shadow-elevation-8 z-50 overflow-hidden animate-fade-in"
+      className="absolute top-full end-0 mt-3 w-64 rounded-2xl bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in origin-top-end"
       role="menu"
     >
-      {/* User Info */}
-      <div className="px-4 py-3 border-b border-neutral-100">
-        <p className="text-labelLarge text-neutral-800 font-medium">
-          {displayName ?? "کاربر LEGALIR"}
-        </p>
-        {mobile && <p className="text-caption text-neutral-500 dir-ltr text-right">{mobile}</p>}
+      {/* User info header */}
+      <div className="px-4 py-3.5 border-b border-divider bg-neutral-50/50">
+        <p className="text-body-2 text-on-surface font-semibold">{displayName ?? "کاربر LEGALIR"}</p>
+        {mobile && <p className="text-caption text-muted dir-ltr text-right mt-0.5">{mobile}</p>}
       </div>
 
-      {/* Menu Items */}
-      <div className="py-1">
-        <button
-          onClick={() => {
-            onClose();
-            router.push("/profile");
-          }}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-neutral-700 hover:bg-neutral-50 transition-colors touch-target-min"
-          role="menuitem"
-        >
-          <IconPerson size={18} />
-          <span>پروفایل</span>
-        </button>
-        <button
-          onClick={() => {
-            onClose();
-            router.push("/subscription");
-          }}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-neutral-700 hover:bg-neutral-50 transition-colors touch-target-min"
-          role="menuitem"
-        >
-          <IconSubscription size={18} />
-          <span>اشتراک</span>
-        </button>
-        <button
-          onClick={() => {
-            onClose();
-            router.push("/settings");
-          }}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-neutral-700 hover:bg-neutral-50 transition-colors touch-target-min"
-          role="menuitem"
-        >
-          <IconSettings size={18} />
-          <span>تنظیمات</span>
-        </button>
+      <div className="py-1.5">
+        <MenuItem icon={<IconPerson size={18} className="text-neutral-400" />} label="پروفایل" onClick={() => { onClose(); router.push("/profile"); }} />
+        <MenuItem icon={<IconSubscription size={18} className="text-neutral-400" />} label="اشتراک" onClick={() => { onClose(); router.push("/subscription"); }} />
+        <MenuItem icon={<IconSettings size={18} className="text-neutral-400" />} label="تنظیمات" onClick={() => { onClose(); router.push("/settings"); }} />
+        <MenuItem icon={<IconPhone size={18} className="text-neutral-400" />} label="پشتیبانی" onClick={() => { onClose(); router.push("/support"); }} />
       </div>
 
-      {/* Logout */}
-      <div className="border-t border-neutral-100 py-1">
-        <button
+      <div className="border-t border-divider py-1.5">
+        <MenuItem
+          icon={<IconLogout size={18} className="text-error" />}
+          label={isLoggingOut ? "در حال خروج..." : "خروج از حساب"}
           onClick={handleLogout}
-          disabled={isLoggingOut}
-          className="flex items-center gap-3 w-full px-4 py-3 text-labelLarge text-error hover:bg-error/[0.04] transition-colors disabled:opacity-50 touch-target-min"
-          role="menuitem"
-        >
-          <IconLogout size={18} />
-          <span>{isLoggingOut ? "در حال خروج..." : "خروج"}</span>
-        </button>
+          danger
+        />
       </div>
     </div>
+  );
+}
+
+function MenuItem({ icon, label, onClick, danger }: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "flex items-center gap-3 w-full px-4 py-3 text-body-2 transition-colors touch-target-min text-start",
+        danger ? "text-error hover:bg-error/5" : "text-on-surface hover:bg-neutral-50",
+      ].join(" ")}
+      role="menuitem"
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }

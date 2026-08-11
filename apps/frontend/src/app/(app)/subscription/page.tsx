@@ -13,7 +13,6 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSubscriptionHistory } from "@/lib/api/v1";
 import { SkeletonCard, Button, ProgressLinear, ConfirmDialog } from "@legalir/ui";
 import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
-import { IconCheck, IconCheckCircle, IconWarning, IconHistory } from "@/lib/icons";
 import type { Plan, PlanCode, PaymentStatus, V1SubscriptionHistoryItem } from "@legalir/types";
 
 // ============================================================
@@ -40,6 +39,18 @@ const PAYMENT_STATUS_VARIANTS: Record<PaymentStatus, string> = {
 
 const PLAN_ORDER: PlanCode[] = ["silver", "gold", "diamond"];
 
+const PLAN_GRADIENTS: Record<PlanCode, string> = {
+  silver: "from-slate-400 to-gray-500",
+  gold: "from-amber-400 to-yellow-500",
+  diamond: "from-blue-400 to-cyan-500",
+};
+
+const PLAN_BG_GRADIENTS: Record<PlanCode, string> = {
+  silver: "from-slate-50 to-gray-50",
+  gold: "from-amber-50 to-yellow-50",
+  diamond: "from-blue-50 to-cyan-50",
+};
+
 // ============================================================
 // Sub-components
 // ============================================================
@@ -48,7 +59,6 @@ function UsageMeter({
   label,
   used,
   limit,
-  featureKey: _featureKey,
 }: {
   label: string;
   used: number;
@@ -57,10 +67,13 @@ function UsageMeter({
 }) {
   if (limit === null) {
     return (
-      <div className="flex items-center justify-between py-2">
+      <div className="flex items-center justify-between py-2.5">
         <span className="text-body-2 text-on-surface">{label}</span>
-        <span className="text-body-2 text-success flex items-center gap-1">
-          <IconCheckCircle size={16} />
+        <span className="text-body-2 text-success flex items-center gap-1.5 font-medium">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <path d="m9 11 3 3L22 4" />
+          </svg>
           نامحدود
         </span>
       </div>
@@ -73,11 +86,11 @@ function UsageMeter({
   const remaining = Math.max(limit - used, 0);
 
   return (
-    <div className="py-2">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-body-2 text-on-surface">{label}</span>
+    <div className="py-2.5">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-body-2 text-on-surface font-medium">{label}</span>
         <span className="text-caption text-muted">
-          <span className={isExhausted ? "text-error" : isNearLimit ? "text-warning" : ""}>
+          <span className={isExhausted ? "text-error font-medium" : isNearLimit ? "text-warning font-medium" : ""}>
             {toPersianNumber(remaining)}
           </span>
           {" / "}
@@ -108,7 +121,7 @@ function CurrentSubscriptionCard({
 }) {
   if (isLoading) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <SkeletonCard lines={3} />
       </div>
     );
@@ -116,7 +129,7 @@ function CurrentSubscriptionCard({
 
   if (isError) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <p className="text-body-2 text-error mb-3">خطا در دریافت وضعیت اشتراک</p>
         <Button variant="text" onClick={onRefresh}>
           تلاش مجدد
@@ -127,9 +140,15 @@ function CurrentSubscriptionCard({
 
   if (!sub) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <div className="flex items-start gap-3">
-          <IconWarning size={24} className="text-warning shrink-0 mt-0.5" />
+          <div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning" aria-hidden="true">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+            </svg>
+          </div>
           <div>
             <h2 className="text-h3 text-on-surface mb-1">بدون اشتراک فعال</h2>
             <p className="text-body-2 text-muted">
@@ -147,28 +166,32 @@ function CurrentSubscriptionCard({
 
   const statusLabel = isActive ? "فعال" : isExpired ? "منقضی شده" : isCancelled ? "لغو شده" : sub.status;
   const statusColor = isActive
-    ? "bg-success/10 text-success"
+    ? "bg-success/10 text-success border-success/20"
     : isExpired
-      ? "bg-error/10 text-error"
-      : "bg-surfaceVariant text-muted";
+      ? "bg-error/10 text-error border-error/20"
+      : "bg-surfaceVariant text-muted border-divider/60";
 
   const daysLeft = Math.max(0, Math.ceil((new Date(sub.endAt).getTime() - Date.now()) / 86_400_000));
+  const planGradient = PLAN_GRADIENTS[sub.planCode] ?? "from-primary-500 to-primary-700";
 
   return (
-    <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
-      <div className="flex flex-col tablet:flex-row tablet:items-center tablet:justify-between gap-4 mb-4">
+    <div className="relative rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6 overflow-hidden">
+      {/* Gradient accent top bar */}
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${planGradient}`} />
+
+      <div className="flex flex-col tablet:flex-row tablet:items-center tablet:justify-between gap-4 mb-4 pt-0.5">
         <div>
           <h2 className="text-h3 text-on-surface mb-1">وضعیت اشتراک</h2>
           <div className="flex items-center gap-3">
-            <span className="text-body-1 text-on-surface font-medium">{sub.planNameFa}</span>
-            <span className={`rounded-full px-3 py-0.5 text-caption font-medium ${statusColor}`}>
+            <span className="text-body-1 text-on-surface font-semibold">{sub.planNameFa}</span>
+            <span className={`rounded-full border px-3 py-0.5 text-caption font-medium ${statusColor}`}>
               {statusLabel}
             </span>
           </div>
         </div>
 
         {isActive && (
-          <div className="text-right">
+          <div className="text-left">
             <div className="text-caption text-muted">
               {daysLeft > 0
                 ? `${toPersianNumber(daysLeft)} روز تا تمدید`
@@ -185,8 +208,11 @@ function CurrentSubscriptionCard({
       <div className="flex items-center gap-2 text-caption text-muted mb-3">
         <span>تمدید خودکار:</span>
         {sub.autoRenew ? (
-          <span className="text-success flex items-center gap-1">
-            <IconCheckCircle size={14} />
+          <span className="text-success flex items-center gap-1 font-medium">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <path d="m9 11 3 3L22 4" />
+            </svg>
             فعال
           </span>
         ) : (
@@ -196,16 +222,24 @@ function CurrentSubscriptionCard({
 
       {/* Expiry warning */}
       {isActive && daysLeft <= 3 && daysLeft > 0 && (
-        <div className="flex items-center gap-2 p-3 rounded-medium bg-warning/5 border border-warning/20 text-caption text-warning mb-3">
-          <IconWarning size={16} className="shrink-0" />
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-warning/5 border border-warning/20 text-caption text-warning mb-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+          </svg>
           اشتراک شما به زودی منقضی می‌شود. لطفاً آن را تمدید کنید.
         </div>
       )}
 
       {/* Expired banner */}
       {(isExpired || isCancelled) && (
-        <div className="flex items-center gap-2 p-3 rounded-medium bg-error/5 border border-error/20 text-caption text-error">
-          <IconWarning size={16} className="shrink-0" />
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-error/5 border border-error/20 text-caption text-error">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+          </svg>
           {isExpired
             ? "اشتراک شما منقضی شده است. برای ادامه استفاده، یکی از پلن‌ها را خریداری کنید."
             : "اشتراک شما لغو شده است. برای فعال‌سازی مجدد، یکی از پلن‌ها را انتخاب کنید."}
@@ -230,7 +264,7 @@ function UsageSummaryCard({
 }) {
   if (isLoading) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <SkeletonCard lines={4} />
       </div>
     );
@@ -238,7 +272,7 @@ function UsageSummaryCard({
 
   if (isError) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <p className="text-body-2 text-error mb-3">خطا در دریافت اطلاعات مصرف</p>
         <Button variant="text" onClick={onRefresh}>
           تلاش مجدد
@@ -252,7 +286,7 @@ function UsageSummaryCard({
 
   if (nonBooleanEnts.length === 0) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <h2 className="text-h3 text-on-surface mb-4">مصرف</h2>
         <p className="text-body-2 text-muted">اطلاعات مصرفی برای نمایش وجود ندارد.</p>
       </div>
@@ -260,11 +294,11 @@ function UsageSummaryCard({
   }
 
   return (
-    <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+    <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-h3 text-on-surface">مصرف</h2>
         {usage && (
-          <span className="text-caption text-muted">
+          <span className="text-caption text-muted bg-surface-container rounded-lg px-3 py-1">
             {toPersianNumber(usage.daysRemaining)} روز تا بازنشانی
           </span>
         )}
@@ -282,17 +316,20 @@ function UsageSummaryCard({
       </div>
       {/* Boolean entitlements */}
       {entList.filter((e) => e.isBoolean).length > 0 && (
-        <div className="mt-4 pt-4 border-t border-divider">
+        <div className="mt-4 pt-4 border-t border-divider/60">
           <h3 className="text-body-2 text-muted mb-2">قابلیت‌های ویژه</h3>
           <div className="space-y-1">
             {entList
               .filter((e) => e.isBoolean)
               .map((ent) => (
-                <div key={ent.featureKey} className="flex items-center justify-between py-1">
+                <div key={ent.featureKey} className="flex items-center justify-between py-1.5">
                   <span className="text-body-2 text-on-surface">{ent.nameFa}</span>
                   {ent.isEnabled ? (
-                    <span className="text-caption text-success flex items-center gap-1">
-                      <IconCheckCircle size={14} />
+                    <span className="text-caption text-success flex items-center gap-1 font-medium">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <path d="m9 11 3 3L22 4" />
+                      </svg>
                       فعال
                     </span>
                   ) : (
@@ -320,7 +357,7 @@ function PaymentHistoryList({
 }) {
   if (isLoading) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <SkeletonCard lines={3} />
       </div>
     );
@@ -328,7 +365,7 @@ function PaymentHistoryList({
 
   if (isError) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <p className="text-body-2 text-error mb-3">خطا در دریافت تاریخچه پرداخت</p>
         <Button variant="text" onClick={onRefresh}>
           تلاش مجدد
@@ -339,9 +376,14 @@ function PaymentHistoryList({
 
   if (!items || items.length === 0) {
     return (
-      <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+      <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
         <div className="flex items-start gap-3">
-          <IconHistory size={24} className="text-muted shrink-0 mt-0.5" />
+          <div className="h-10 w-10 rounded-xl bg-surface-container flex items-center justify-center shrink-0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+          </div>
           <div>
             <h2 className="text-h3 text-on-surface mb-1">تاریخچه پرداخت</h2>
             <p className="text-body-2 text-muted">
@@ -354,17 +396,20 @@ function PaymentHistoryList({
   }
 
   const statusColors: Record<string, string> = {
-    active: "bg-success/10 text-success",
-    expired: "bg-surfaceVariant text-muted",
-    cancelled: "bg-error/10 text-error",
-    unknown: "bg-warning/10 text-warning",
+    active: "bg-success/10 text-success border-success/20",
+    expired: "bg-surfaceVariant text-muted border-divider/60",
+    cancelled: "bg-error/10 text-error border-error/20",
+    unknown: "bg-warning/10 text-warning border-warning/20",
   };
 
   return (
-    <div className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider mb-6">
+    <div className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-h3 text-on-surface flex items-center gap-2">
-          <IconHistory size={22} />
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
           تاریخچه پرداخت
         </h2>
       </div>
@@ -372,7 +417,7 @@ function PaymentHistoryList({
       <div className="overflow-x-auto -mx-6">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-divider">
+            <tr className="border-b border-divider/60">
               <th className="text-right py-3 px-4 text-caption text-muted font-medium">پلن</th>
               <th className="text-right py-3 px-4 text-caption text-muted font-medium">مبلغ</th>
               <th className="text-right py-3 px-4 text-caption text-muted font-medium">تاریخ خرید</th>
@@ -382,7 +427,7 @@ function PaymentHistoryList({
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-b border-divider/60 last:border-0 hover:bg-neutral-50 transition-colors">
+              <tr key={item.id} className="border-b border-divider/40 last:border-0 hover:bg-surface-hover transition-colors">
                 <td className="py-3 px-4 text-body-2 text-on-surface font-medium">
                   {item.planNameFa}
                 </td>
@@ -398,8 +443,8 @@ function PaymentHistoryList({
                 <td className="py-3 px-4">
                   <span
                     className={[
-                      "rounded-full px-2.5 py-0.5 text-caption font-medium inline-block",
-                      statusColors[item.status] ?? "bg-surfaceVariant text-muted",
+                      "rounded-full border px-2.5 py-0.5 text-caption font-medium inline-block",
+                      statusColors[item.status] ?? "bg-surfaceVariant text-muted border-divider/60",
                     ].join(" ")}
                   >
                     {item.statusFa}
@@ -417,7 +462,6 @@ function PaymentHistoryList({
 function PlanSelectionCard({
   plan,
   isCurrent,
-  isLocked,
   onSelect,
   isLoading,
 }: {
@@ -427,18 +471,25 @@ function PlanSelectionCard({
   onSelect: (plan: Plan) => void;
   isLoading: boolean;
 }) {
+  const gradient = PLAN_GRADIENTS[plan.code] ?? "from-primary-500 to-primary-700";
+  const bgGradient = PLAN_BG_GRADIENTS[plan.code] ?? "from-primary-50 to-blue-50";
+
   return (
     <div
       className={[
-        "rounded-large p-6 border flex flex-col transition-shadow",
+        "relative rounded-2xl p-6 border flex flex-col transition-all duration-200 overflow-hidden",
         isCurrent
-          ? "bg-primary/[0.04] border-primary shadow-elevation-1 ring-1 ring-primary/20"
-          : "bg-surface border-divider shadow-elevation-1 hover:shadow-elevation-4",
-        isLocked ? "opacity-60" : "",
+          ? `bg-gradient-to-br ${bgGradient} border-primary/30 shadow-md ring-1 ring-primary/20`
+          : "bg-surface border-divider/60 shadow-sm hover:shadow-elevation-2",
       ].join(" ")}
     >
-      <h3 className="text-h3 text-on-surface mb-1">{plan.nameFa}</h3>
-      <p className="text-body-2 text-muted mb-4">{plan.descriptionFa}</p>
+      {/* Gradient accent top bar */}
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient}`} />
+
+      <div className="pt-0.5">
+        <h3 className="text-h3 text-on-surface mb-1 font-bold">{plan.nameFa}</h3>
+        <p className="text-body-2 text-muted mb-4">{plan.descriptionFa}</p>
+      </div>
 
       {/* Pricing */}
       <div className="mb-4">
@@ -446,7 +497,7 @@ function PlanSelectionCard({
           {toPersianNumber(plan.listPrice)}
         </span>
         <div className="flex items-baseline gap-1 mt-1">
-          <span className="text-h2 text-secondary font-bold">
+          <span className={`text-h2 font-bold bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}>
             {toPersianNumber(plan.salePrice)}
           </span>
           <span className="text-body-2 text-muted">تومان</span>
@@ -455,19 +506,19 @@ function PlanSelectionCard({
       </div>
 
       {/* Usage limits summary */}
-      <div className="mb-4 space-y-1">
+      <div className="mb-4 space-y-1.5 p-3 rounded-xl bg-surface-container/50 border border-divider/30">
         <div className="flex justify-between text-caption">
           <span className="text-muted">درخواست روزانه</span>
-          <span className="text-on-surface">{toPersianNumber(plan.dailyRequestLimit)}</span>
+          <span className="text-on-surface font-medium">{toPersianNumber(plan.dailyRequestLimit)}</span>
         </div>
         <div className="flex justify-between text-caption">
           <span className="text-muted">توکن ماهانه</span>
-          <span className="text-on-surface">{toPersianNumber(plan.totalTokenLimit)}</span>
+          <span className="text-on-surface font-medium">{toPersianNumber(plan.totalTokenLimit)}</span>
         </div>
         {plan.usageLimits.map((ul) => (
           <div key={ul.featureKey} className="flex justify-between text-caption">
             <span className="text-muted">{ul.nameFa}</span>
-            <span className="text-on-surface">{toPersianNumber(ul.limit)}</span>
+            <span className="text-on-surface font-medium">{toPersianNumber(ul.limit)}</span>
           </div>
         ))}
       </div>
@@ -476,7 +527,9 @@ function PlanSelectionCard({
       <ul className="space-y-2 mb-6 flex-1">
         {plan.features.map((f) => (
           <li key={f} className="text-body-2 text-on-surface flex items-start gap-2">
-            <IconCheck size={16} className="text-success mt-0.5 shrink-0" />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-success mt-0.5 shrink-0" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
             <span>{f}</span>
           </li>
         ))}
@@ -484,7 +537,7 @@ function PlanSelectionCard({
 
       {/* Action */}
       {isCurrent ? (
-        <div className="rounded-medium bg-primary/10 text-primary text-center py-3 text-button">
+        <div className={`rounded-xl bg-gradient-to-r ${gradient} text-white text-center py-3 text-button font-medium shadow-sm`}>
           پلن فعلی
         </div>
       ) : (
@@ -493,7 +546,7 @@ function PlanSelectionCard({
           onClick={() => onSelect(plan)}
           loading={isLoading}
           disabled={isLoading}
-          className="w-full"
+          className="w-full rounded-xl"
         >
           {PLAN_ORDER.indexOf(plan.code) > (plan.code === "silver" ? 0 : 1)
             ? "ارتقا به " + plan.nameFa
@@ -505,7 +558,7 @@ function PlanSelectionCard({
 }
 
 // ============================================================
-// ConfirmDialog — Plan selection confirmation
+// ConfirmDialog
 // ============================================================
 
 function PlanConfirmDialog({
@@ -552,17 +605,29 @@ function PaymentStatusBanner({
 }) {
   const label = PAYMENT_STATUS_LABELS[status];
   const variantClass = PAYMENT_STATUS_VARIANTS[status];
+  const isSuccess = status === "paid";
+  const isTerminal = status === "failed" || status === "cancelled";
 
   return (
-    <div className={`rounded-large p-4 mb-6 ${variantClass} border border-divider`}>
+    <div className={`rounded-2xl p-4 mb-6 ${variantClass} border`}>
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-body-2 font-medium">وضعیت پرداخت: {label}</p>
-          {intentId && status !== "idle" && (
-            <p className="text-caption mt-1 opacity-70">شناسه پرداخت: {intentId.slice(0, 8)}...</p>
+        <div className="flex items-center gap-3">
+          {isSuccess && (
+            <div className="h-10 w-10 rounded-xl bg-success/20 flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-success">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
+            </div>
           )}
+          <div>
+            <p className="text-body-2 font-medium">وضعیت پرداخت: {label}</p>
+            {intentId && status !== "idle" && (
+              <p className="text-caption mt-1 opacity-70">شناسه پرداخت: {intentId.slice(0, 8)}...</p>
+            )}
+          </div>
         </div>
-        {(status === "failed" || status === "cancelled") && (
+        {isTerminal && (
           <Button variant="text" onClick={onRetry}>
             تلاش مجدد
           </Button>
@@ -610,7 +675,6 @@ export default function SubscriptionPage() {
   const checkoutMutation = useCheckoutIntent();
   const {
     data: checkoutStatus,
-    isLoading: _pollingLoading,
   } = useCheckoutIntentPoll(checkoutIntentId);
 
   // Payment history
@@ -626,7 +690,6 @@ export default function SubscriptionPage() {
     retry: 1,
   });
 
-  // Determine payment status
   const paymentStatus: PaymentStatus = checkoutStatus?.status ?? "idle";
 
   const handleSelectPlan = (plan: Plan) => {
@@ -653,8 +716,8 @@ export default function SubscriptionPage() {
   const currentPlanCode = subscription?.planCode ?? null;
 
   return (
-    <div className="p-4 tablet:p-6 max-w-4xl mx-auto">
-      <h1 className="text-h2 text-on-surface mb-6">اشتراک</h1>
+    <div className="p-4 tablet:p-6 max-w-4xl mx-auto" dir="rtl">
+      <h1 className="text-h2 text-on-surface mb-6 font-bold">اشتراک</h1>
 
       {/* Payment Status */}
       {paymentStatus !== "idle" && (
@@ -694,12 +757,12 @@ export default function SubscriptionPage() {
       />
 
       {/* Plan Selection */}
-      <h2 className="text-h3 text-on-surface mb-4">پلن‌ها</h2>
+      <h2 className="text-h3 text-on-surface mb-4 font-bold">پلن‌ها</h2>
 
       {plansLoading ? (
         <div className="grid tablet:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-large bg-surface p-6 border border-divider">
+            <div key={i} className="rounded-2xl bg-surface p-6 border border-divider/60">
               <SkeletonCard lines={4} />
             </div>
           ))}
@@ -733,7 +796,7 @@ export default function SubscriptionPage() {
 
       {/* Error state for checkout mutation */}
       {checkoutMutation.isError && (
-        <div className="mt-4 p-3 rounded-medium bg-error/5 border border-error/20 text-caption text-error">
+        <div className="mt-4 p-3 rounded-xl bg-error/5 border border-error/20 text-caption text-error">
           {(checkoutMutation.error as Error)?.message ?? "خطا در ایجاد درخواست پرداخت"}
         </div>
       )}

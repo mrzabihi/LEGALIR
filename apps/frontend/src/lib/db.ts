@@ -108,6 +108,38 @@ interface UsageStatsRow {
   contracts_total: number;
 }
 
+export interface DbProfile {
+  user_id: string;
+  displayName: string | null;
+  city: string | null;
+  occupation: string | null;
+  avatarUrl: string | null;
+  email: string | null;
+  birthDate: string | null;
+  gender: string | null;
+  completionPercent: number;
+}
+
+export interface DbPreferences {
+  user_id: string;
+  theme: string;
+  locale: string;
+  notifications: {
+    appointments: boolean;
+    contractExpiry: boolean;
+    lawyerResponse: boolean;
+    paymentStatus: boolean;
+    caseUpdate: boolean;
+    marketing: boolean;
+  };
+  privacy: {
+    shareUsageData: boolean;
+    allowAiTraining: boolean;
+    storeConversationHistory: boolean;
+    autoMemoryConsent: boolean;
+  };
+}
+
 // ============================================================
 // User operations
 // ============================================================
@@ -185,6 +217,141 @@ export function cleanupExpiredSessions(): void {
 }
 
 // ============================================================
+// Profile operations
+// ============================================================
+
+export function getProfile(userId: string): DbProfile {
+  const profiles = readTable<DbProfile>("profiles");
+  const existing = profiles.find((p) => p.user_id === userId);
+  if (existing) return existing;
+  // Return default empty profile
+  return {
+    user_id: userId,
+    displayName: null,
+    city: null,
+    occupation: null,
+    avatarUrl: null,
+    email: null,
+    birthDate: null,
+    gender: null,
+    completionPercent: 0,
+  };
+}
+
+export function upsertProfile(userId: string, updates: Partial<Omit<DbProfile, "user_id">>): DbProfile {
+  const profiles = readTable<DbProfile>("profiles");
+  const idx = profiles.findIndex((p) => p.user_id === userId);
+  if (idx >= 0) {
+    const existing = profiles[idx]!;
+    // Only apply keys that are explicitly present in updates (including null values),
+    // to avoid overwriting existing data with undefined.
+    const merged = { ...existing };
+    for (const key of Object.keys(updates)) {
+      (merged as Record<string, unknown>)[key] = (updates as Record<string, unknown>)[key];
+    }
+    profiles[idx] = merged;
+  } else {
+    profiles.push({
+      user_id: userId,
+      displayName: updates.displayName ?? null,
+      city: updates.city ?? null,
+      occupation: updates.occupation ?? null,
+      avatarUrl: updates.avatarUrl ?? null,
+      email: updates.email ?? null,
+      birthDate: updates.birthDate ?? null,
+      gender: updates.gender ?? null,
+      completionPercent: updates.completionPercent ?? 0,
+    });
+  }
+  writeTable("profiles", profiles);
+  return idx >= 0 ? profiles[idx]! : profiles[profiles.length - 1]!;
+}
+
+export function updateUserDisplayName(userId: string, displayName: string): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.displayName = displayName;
+  writeTable("users", users);
+  return user;
+}
+
+// ============================================================
+// Preferences operations
+// ============================================================
+
+const DEFAULT_NOTIFICATIONS = {
+  appointments: true,
+  contractExpiry: true,
+  lawyerResponse: true,
+  paymentStatus: true,
+  caseUpdate: true,
+  marketing: false,
+};
+
+const DEFAULT_PRIVACY = {
+  shareUsageData: true,
+  allowAiTraining: false,
+  storeConversationHistory: true,
+  autoMemoryConsent: false,
+};
+
+export function getPreferences(userId: string): DbPreferences {
+  const prefs = readTable<DbPreferences>("preferences");
+  const existing = prefs.find((p) => p.user_id === userId);
+  if (existing) return existing;
+  return {
+    user_id: userId,
+    theme: "light",
+    locale: "fa-IR",
+    notifications: { ...DEFAULT_NOTIFICATIONS },
+    privacy: { ...DEFAULT_PRIVACY },
+  };
+}
+
+export function upsertPreferences(
+  userId: string,
+  updates: Partial<Omit<DbPreferences, "user_id">>
+): DbPreferences {
+  const prefs = readTable<DbPreferences>("preferences");
+  const idx = prefs.findIndex((p) => p.user_id === userId);
+  if (idx >= 0) {
+    prefs[idx] = deepMerge(prefs[idx]!, updates) as DbPreferences;
+  } else {
+    prefs.push({
+      user_id: userId,
+      theme: updates.theme ?? "light",
+      locale: updates.locale ?? "fa-IR",
+      notifications: updates.notifications
+        ? { ...DEFAULT_NOTIFICATIONS, ...updates.notifications }
+        : { ...DEFAULT_NOTIFICATIONS },
+      privacy: updates.privacy
+        ? { ...DEFAULT_PRIVACY, ...updates.privacy }
+        : { ...DEFAULT_PRIVACY },
+    });
+  }
+  writeTable("preferences", prefs);
+  return idx >= 0 ? prefs[idx]! : prefs[prefs.length - 1]!;
+}
+
+function deepMerge<T extends Record<string, unknown>>(base: T, updates: Partial<T>): T {
+  const result: Record<string, unknown> = { ...base };
+  for (const key of Object.keys(updates) as (keyof T)[]) {
+    const val = updates[key];
+    if (val === undefined) continue;
+    if (typeof val === "object" && !Array.isArray(val) && val !== null) {
+      result[key as string] = deepMerge(
+        (result[key as string] as Record<string, unknown>) ?? {},
+        val as Record<string, unknown>
+      );
+    } else {
+      result[key as string] = val;
+    }
+  }
+  return result as T;
+}
+
+// ============================================================
 // Dashboard / Activity queries
 // ============================================================
 
@@ -202,7 +369,7 @@ export function queryRecentActivity(userId: string, limit = 5): ActivityRow[] {
     .slice(0, limit);
 }
 
-function queryActiveSubscription(userId: string) {
+export function queryActiveSubscription(userId: string) {
   const subs = readTable<StoredSubscription>("subscriptions");
   const sub = subs.find((s) => s.user_id === userId && s.status === "active");
   if (!sub) return null;
@@ -403,6 +570,42 @@ const hash = bcrypt.hashSync("123456", 10);
     contracts_generated: 1, contracts_total: 8,
   };
   writeTable("usage_stats", [usage]);
+
+  // Seed profile
+  const profile: DbProfile = {
+    user_id: userId,
+    displayName: "مریم محمدی",
+    city: "تهران",
+    occupation: "وکیل دادگستری",
+    avatarUrl: null,
+    email: null,
+    birthDate: null,
+    gender: null,
+    completionPercent: 85,
+  };
+  writeTable("profiles", [profile]);
+
+  // Seed preferences
+  const preferences: DbPreferences = {
+    user_id: userId,
+    theme: "light",
+    locale: "fa-IR",
+    notifications: {
+      appointments: true,
+      contractExpiry: true,
+      lawyerResponse: true,
+      paymentStatus: true,
+      caseUpdate: true,
+      marketing: false,
+    },
+    privacy: {
+      shareUsageData: true,
+      allowAiTraining: false,
+      storeConversationHistory: true,
+      autoMemoryConsent: false,
+    },
+  };
+  writeTable("preferences", [preferences]);
 
   seeded = true;
 }

@@ -1,18 +1,59 @@
+// ============================================================
+// LEGALIR — App-scoped 404 (inside (app) layout)
+// Modern design consistent with global 404
+// ============================================================
+
 import Link from "next/link";
 
-export default function NotFound() {
+export default function AppNotFound() {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
-      <div className="text-6xl text-muted" aria-hidden="true">۴۰۴</div>
-      <h1 className="text-h2 text-on-surface">صفحه یافت نشد</h1>
-      <p className="text-body-2 text-muted max-w-sm">
-        صفحه‌ای که به دنبال آن هستید وجود ندارد یا حذف شده است.
-      </p>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 p-6 text-center" dir="rtl">
+      {/* Gradient 404 */}
+      <div
+        className="text-[100px] tablet:text-[130px] leading-none font-black select-none bg-gradient-to-br from-primary-500 via-primary-600 to-primary-800 bg-clip-text text-transparent"
+        aria-hidden="true"
+      >
+        ۴۰۴
+      </div>
+
+      {/* Icon */}
+      <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-primary-100 to-blue-100 border border-primary/10 flex items-center justify-center -mt-3 shadow-sm">
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-primary-600"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+          <path d="M8 11a3 3 0 1 0 6 0 3 3 0 1 0-6 0" />
+        </svg>
+      </div>
+
+      <div className="space-y-1.5">
+        <h1 className="text-h3 text-on-surface font-bold">صفحه یافت نشد</h1>
+        <p className="text-body-2 text-muted max-w-sm mx-auto">
+          صفحه‌ای که به دنبال آن هستید وجود ندارد یا حذف شده است
+        </p>
+      </div>
+
       <Link
         href="/dashboard"
-        className="rounded-medium bg-primary px-6 py-3 text-white font-button hover:opacity-90 transition-opacity touch-target mt-2"
+        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-700 to-primary-800 px-6 py-3 text-body-2 text-white font-medium hover:from-primary-800 hover:to-primary-900 transition-all touch-target shadow-md shadow-primary/20 active:scale-[0.98] mt-2"
       >
-        بازگشت به خانه
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+        بازگشت به داشبورد
       </Link>
     </div>
   );

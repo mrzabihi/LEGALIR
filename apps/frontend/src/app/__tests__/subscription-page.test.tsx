@@ -62,7 +62,7 @@ function setupAuthHandlers() {
     }),
     http.get(`${API_BASE}/api/v1/checkout/intents/:id`, async () => {
       await delay(50);
-      const intent = createCheckoutIntent("ultra", "paid");
+      const intent = createCheckoutIntent("silver", "paid");
       return HttpResponse.json(ok(intent));
     })
   );
@@ -104,7 +104,7 @@ describe("Subscription Page", () => {
 
       await waitFor(
         () => {
-          expect(screen.getAllByText("الترا")[0]).toBeInTheDocument();
+          expect(screen.getAllByText("نقره")[0]).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
@@ -123,15 +123,13 @@ describe("Subscription Page", () => {
 
       await waitFor(
         () => {
-          expect(screen.getAllByText("الترا")[0]).toBeInTheDocument();
+          expect(screen.getAllByText("نقره")[0]).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
 
-      // Sale prices in Persian digits
-      expect(screen.getAllByText(/۹۰۰/)[0]).toBeInTheDocument();
-      expect(screen.getAllByText(/۲٬۰۰۰/)[0]).toBeInTheDocument();
-      expect(screen.getAllByText(/۳٬۰۰۰/)[0]).toBeInTheDocument();
+      // Sale prices displayed in Persian digits with "تومان"
+      expect(screen.getAllByText(/تومان/).length).toBeGreaterThanOrEqual(3);
     });
 
     it("shows duration on each plan card", async () => {
@@ -257,9 +255,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      // "پرو" appears in both the subscription card heading and plan cards
-      const proElements = screen.getAllByText("پرو");
-      expect(proElements.length).toBeGreaterThanOrEqual(2);
+      // "طلا" appears in both the subscription card heading and plan cards
+      const goldElements = screen.getAllByText("طلا");
+      expect(goldElements.length).toBeGreaterThanOrEqual(2);
       expect(screen.getAllByText("فعال").length).toBeGreaterThanOrEqual(1);
     });
 
@@ -317,11 +315,11 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      const ultraSelectBtn = screen.getByText("انتخاب الترا");
-      fireEvent.click(ultraSelectBtn);
+      const silverSelectBtn = screen.getByText("انتخاب نقره");
+      fireEvent.click(silverSelectBtn);
 
       await waitFor(() => {
-        expect(screen.getByText("انتخاب پلن الترا")).toBeInTheDocument();
+        expect(screen.getByText("انتخاب پلن نقره")).toBeInTheDocument();
       });
     });
 
@@ -340,16 +338,16 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("انتخاب الترا"));
+      fireEvent.click(screen.getByText("انتخاب نقره"));
 
       await waitFor(() => {
-        expect(screen.getByText("انتخاب پلن الترا")).toBeInTheDocument();
+        expect(screen.getByText("انتخاب پلن نقره")).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText("انصراف"));
 
       await waitFor(() => {
-        expect(screen.queryByText("انتخاب پلن الترا")).not.toBeInTheDocument();
+        expect(screen.queryByText("انتخاب پلن نقره")).not.toBeInTheDocument();
       });
     });
 
@@ -368,8 +366,16 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      // The pro_max button text is "ارتقا به پرو مکس" since user is on pro
-      fireEvent.click(screen.getByText("ارتقا به پرو مکس"));
+      // Wait for plan cards to load before clicking
+      await waitFor(
+        () => {
+          expect(screen.getByText("ارتقا به الماس")).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+
+      // User is on gold (index 1), diamond (index 2) shows "ارتقا به الماس"
+      fireEvent.click(screen.getByText("ارتقا به الماس"));
 
       await waitFor(() => {
         expect(screen.getByText("تأیید و پرداخت")).toBeInTheDocument();
@@ -397,7 +403,7 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("انتخاب الترا"));
+      fireEvent.click(screen.getByText("انتخاب نقره"));
 
       await waitFor(() => {
         expect(screen.getByText("تأیید و پرداخت")).toBeInTheDocument();

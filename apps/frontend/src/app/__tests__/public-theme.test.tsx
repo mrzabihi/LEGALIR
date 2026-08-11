@@ -58,7 +58,7 @@ describe("Responsive Layout Elements", () => {
   it("disclaimer text is present and does not claim guarantee", () => {
     render(wrapInRtl(<Footer />));
     const footerText = document.body.textContent || "";
-    expect(footerText).toContain("پاسخ‌های هوش مصنوعی");
+    expect(footerText).toContain("خدمات تخصصی حقوقی");
     expect(footerText).not.toContain("تضمین نتیجه");
     expect(footerText).not.toContain("صد در صد");
   });
