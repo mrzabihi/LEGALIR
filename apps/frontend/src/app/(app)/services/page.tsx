@@ -709,6 +709,30 @@ export default function ServicesPage() {
           </svg>
         </Link>
       </div>
+
+      {/* Legal Library CTA */}
+      <div className="mt-12 mb-4 p-6 rounded-2xl bg-gradient-to-r from-primary-700 via-primary-800 to-primary-900 text-white text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-geometric-pattern opacity-15" aria-hidden="true" />
+        <div className="relative">
+          <div className="flex justify-center mb-4">
+            <div className="h-14 w-14 rounded-2xl bg-white/15 flex items-center justify-center backdrop-blur">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                <path d="M8 7h6" /><path d="M8 11h8" /><path d="M8 15h5" />
+              </svg>
+            </div>
+          </div>
+          <h2 className="text-h2 mb-2">اسناد و منابع حقوقی</h2>
+          <p className="text-body-1 text-white/70 mb-5 max-w-lg mx-auto leading-relaxed">
+            قوانین، مقررات، راهنماهای کاربردی و آرای مهم حقوقی را مطالعه کنید و دانش حقوقی خود را ارتقا دهید
+          </p>
+          <Link href="/legal-library" className="inline-flex items-center gap-2 rounded-xl bg-white text-primary-800 px-6 py-2.5 text-button font-semibold hover:bg-neutral-100 transition-colors active:scale-[0.98] shadow-lg">
+            مشاهده منابع حقوقی
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

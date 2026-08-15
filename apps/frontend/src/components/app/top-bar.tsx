@@ -7,14 +7,12 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme";
-import { useAppShellStore } from "@/lib/stores";
 import { useLogout } from "@/lib/auth/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMe } from "@/hooks/useDashboard";
 import {
-  IconMenu,
   IconLightMode,
   IconDarkMode,
   IconPerson,
@@ -25,15 +23,10 @@ import {
 } from "@/lib/icons";
 
 export function TopBar() {
-  const toggleDrawer = useAppShellStore((s) => s.toggleDrawer);
   const { data: meData } = useMe();
   const session = useAuthStore((s) => s.session);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
-
-  // Hide hamburger on conversation pages (workspace has its own nav)
-  const isConversationPage = pathname.startsWith("/chat/") && pathname !== "/chat";
 
   const profile = meData?.profile;
   const displayName = profile?.displayName;
@@ -55,20 +48,6 @@ export function TopBar() {
 
   return (
     <>
-      {/* Mobile hamburger — hidden on conversation pages (workspace has own nav) */}
-      {!isConversationPage && (
-        <button
-          onClick={toggleDrawer}
-          className="desktop:hidden w-11 h-11 flex items-center justify-center rounded-xl hover:bg-neutral-100 active:scale-95 transition-all duration-200 touch-target-min"
-          aria-label="منوی اصلی"
-        >
-          <IconMenu size={22} className="text-on-surface" />
-        </button>
-      )}
-
-      {/* Spacer when no hamburger (conversation pages) */}
-      {isConversationPage && <div className="desktop:hidden w-11 h-11" />}
-
       {/* Mobile logo */}
       <Link href="/dashboard" className="desktop:hidden flex items-center shrink-0">
         <div className="h-9 w-9 rounded-lg bg-primary-700 flex items-center justify-center shadow-elevation-2">

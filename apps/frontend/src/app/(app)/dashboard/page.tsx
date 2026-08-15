@@ -66,6 +66,32 @@ export default function DashboardPage() {
       {/* Quick Actions — always shown */}
       <QuickActions />
 
+      {/* Legal Library Banner */}
+      <section className="mb-6 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 p-5 flex items-center gap-4 flex-col tablet:flex-row text-center tablet:text-right">
+        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center shrink-0 shadow-sm">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            <path d="M8 7h8M8 11h6" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-titleMedium text-on-surface font-semibold">کتابخانه حقوقی LEGALIR</h3>
+          <p className="text-caption text-muted mt-0.5">
+            دسترسی رایگان به قوانین، آرای وحدت رویه، راهنماها و منابع آموزشی حقوقی
+          </p>
+        </div>
+        <Link
+          href="/legal-library"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white px-5 py-2.5 text-button font-medium hover:from-amber-700 hover:to-yellow-700 transition-all active:scale-[0.98] shadow-sm touch-target"
+        >
+          مشاهده
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </section>
+
       {/* Empty state CTA when no activity exists */}
       {hasNoActivity && (
         <section className="mb-6 rounded-2xl bg-surface border border-divider/60 p-8 text-center">

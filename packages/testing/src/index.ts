@@ -2064,3 +2064,19 @@ export type FixtureName = keyof typeof fixtures;
 export function loadFixture<T extends FixtureName>(name: T): (typeof fixtures)[T] {
   return fixtures[name];
 }
+
+// ============================================================
+// Legal Library Fixtures
+// ============================================================
+export {
+  fixtureLegalTopics,
+  fixtureLegalSources,
+  fixtureLegalSourceRelations,
+  fixtureBlogPosts,
+  fixtureBlogCategories,
+  fixtureLegalLibraryListItems,
+  fixtureLegalLibraryTopics,
+  fixtureLegalSourceDetails,
+  fixtureBlogListItems,
+  fixtureBlogPostDetails,
+} from "./legal-library-fixtures";

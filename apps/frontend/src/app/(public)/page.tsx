@@ -13,6 +13,9 @@ import {
   IconBalance,
   IconArrowBack,
   IconMemory,
+  IconStar,
+  IconLawBook,
+  IconCategory,
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
@@ -115,6 +118,120 @@ const distinctions = [
   },
 ];
 
+// ================================================================
+// Real Legal Topic Examples (نمونه موضوعات پرکاربرد حقوقی)
+// ================================================================
+const legalTopics = [
+  {
+    icon: "🏠",
+    title: "مالک و مستأجر",
+    description: "قوانین اجاره، تخلیه، تعدیل اجاره‌بها، ودیعه و تعهدات طرفین",
+    keywords: ["اجاره", "تخلیه", "ودیعه", "سرقفلی"],
+  },
+  {
+    icon: "💰",
+    title: "مطالبه وجه و خسارت",
+    description: "چک برگشتی، سفته، خسارت تأخیر تأدیه، وجه‌الالتزام قراردادی",
+    keywords: ["چک", "سفته", "خسارت", "تأخیر تأدیه"],
+  },
+  {
+    icon: "📝",
+    title: "قراردادها و تعهدات",
+    description: "تنظیم، بررسی و تفسیر قراردادهای ملکی، تجاری، پیمانکاری و استخدام",
+    keywords: ["قرارداد", "تعهدات", "فسخ", "وجه‌الالتزام"],
+  },
+  {
+    icon: "👨‍👩‍👧",
+    title: "حقوق خانواده",
+    description: "ازدواج، طلاق، مهریه، نفقه، حضانت، ارث و وصیت",
+    keywords: ["مهریه", "طلاق", "حضانت", "ارث"],
+  },
+  {
+    icon: "🏢",
+    title: "شرکت‌ها و تجارت",
+    description: "ثبت شرکت، اساسنامه، سهام، قراردادهای تجاری، ورشکستگی",
+    keywords: ["شرکت", "تجارت", "سهام", "ورشکستگی"],
+  },
+  {
+    icon: "⚖️",
+    title: "آیین دادرسی و دعاوی",
+    description: "تنظیم دادخواست، اظهارنامه، لایحه دفاعیه و پیگیری پرونده",
+    keywords: ["دادخواست", "اظهارنامه", "لایحه", "دادرسی"],
+  },
+];
+
+// ================================================================
+// Sample Q&A — Real Legal Questions LEGALIR Can Answer
+// ================================================================
+const sampleQuestions = [
+  {
+    question: "اگر مستأجر اجاره را پرداخت نکند، صاحبخانه چه اقداماتی می‌تواند انجام دهد؟",
+    category: "مالک و مستأجر",
+    sourceRef: "ماده ۴۹۴ قانون مدنی",
+    icon: IconChat,
+  },
+  {
+    question: "چک برگشتی دارم — چطور می‌توانم وجه آن را مطالبه کنم؟",
+    category: "مطالبه وجه",
+    sourceRef: "قانون صدور چک",
+    icon: IconChat,
+  },
+  {
+    question: "وجه‌الالتزام در قرارداد چیست و چه زمانی قابل مطالبه است؟",
+    category: "قراردادها",
+    sourceRef: "ماده ۲۳۰ قانون مدنی",
+    icon: IconChat,
+  },
+  {
+    question: "برای درخواست طلاق توافقی چه مدارکی لازم است و چقدر طول می‌کشد؟",
+    category: "خانواده",
+    sourceRef: "قانون حمایت خانواده",
+    icon: IconChat,
+  },
+  {
+    question: "خسارت تأخیر تأدیه چطور محاسبه می‌شود و نرخ آن چقدر است؟",
+    category: "خسارت",
+    sourceRef: "ماده ۵۲۲ آیین دادرسی مدنی",
+    icon: IconChat,
+  },
+  {
+    question: "برای تنظیم یک قرارداد اجاره مطمئن چه نکاتی را باید رعایت کنم؟",
+    category: "قراردادها",
+    sourceRef: "قانون روابط موجر و مستأجر",
+    icon: IconChat,
+  },
+];
+
+// ================================================================
+// Legal Sources — Key References
+// ================================================================
+const keySources = [
+  {
+    title: "قانون مدنی",
+    description: "منبع اصلی حقوق خصوصی ایران — شامل احکام عقود، تعهدات، اموال و مالکیت",
+    articles: "۱۳۳۵ ماده",
+    year: "۱۳۰۷",
+  },
+  {
+    title: "آیین دادرسی مدنی",
+    description: "قواعد شکلی رسیدگی به دعاوی حقوقی در دادگاه‌های عمومی و انقلاب",
+    articles: "۵۲۹ ماده",
+    year: "۱۳۷۹",
+  },
+  {
+    title: "قانون تجارت",
+    description: "مقررات مربوط به شرکت‌های تجاری، اسناد تجاری، ورشکستگی و امور بازرگانی",
+    articles: "۶۰۰ ماده",
+    year: "۱۳۱۱",
+  },
+  {
+    title: "آرای وحدت رویه",
+    description: "تصمیمات هیأت عمومی دیوان عالی کشور برای ایجاد رویه واحد قضایی",
+    articles: "۸۵۰+ رأی",
+    year: "جاری",
+  },
+];
+
 export default function LandingPage() {
   return (
     <div id="main-content">
@@ -156,14 +273,16 @@ export default function LandingPage() {
             className="mb-8 animate-fade-in"
             style={{ animationDelay: "0ms" }}
           >
-            <Image
-              src="/legalir-logo.png"
-              alt="LEGALIR"
-              width={120}
-              height={120}
-              className="mx-auto drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
-              priority
-            />
+            <div className="relative mx-auto w-44 h-44 tablet:w-56 tablet:h-56">
+              <Image
+                src="/legalir-logo.png"
+                alt="LEGALIR"
+                fill
+                sizes="(min-width: 600px) 224px, 176px"
+                className="object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-transform duration-500 hover:scale-105 hover:drop-shadow-[0_12px_32px_rgba(212,175,55,0.25)]"
+                priority
+              />
+            </div>
           </div>
 
           {/* Refined AI disclaimer badge */}
@@ -288,7 +407,121 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          HOW IT WORKS — NEW 3-Step Connected Diagram
+          SAMPLE Q&A — "LEGALIR چه سوالاتی را پاسخ می‌دهد؟"
+          ============================================================ */}
+      <section className="bg-neutral-50 border-y border-divider">
+        <div className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 rounded-full bg-secondary-100/50 border border-secondary-200/30 px-4 py-1.5 text-caption font-medium text-secondary-700 mb-4">
+              <IconStar size={16} className="text-secondary-600" />
+              نمونه پرسش‌های واقعی
+            </div>
+            <h2 className="text-h2 text-primary-800 mb-3">LEGALIR چه سوالاتی را پاسخ می‌دهد؟</h2>
+            <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
+              اینها نمونه‌هایی از پرسش‌های واقعی حقوقی هستند که می‌توانید از LEGALIR بپرسید.
+              هر پاسخ همراه با استناد دقیق به مواد قانونی و آرای قضایی ارائه می‌شود.
+            </p>
+          </div>
+
+          <div className="grid tablet:grid-cols-2 gap-4 max-w-4xl mx-auto">
+            {sampleQuestions.map((item) => (
+              <Link
+                key={item.question}
+                href="/auth/mobile?intent=chat"
+                className="group flex items-start gap-4 rounded-large bg-surface p-5 border border-divider shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 card-lift transition-all duration-300"
+              >
+                <div className="h-10 w-10 rounded-medium bg-primary-50 flex items-center justify-center text-primary-600 shrink-0 group-hover:bg-primary-600 group-hover:text-white transition-all duration-300">
+                  <item.icon size={20} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-body-2 text-on-surface leading-relaxed mb-2 group-hover:text-primary-700 transition-colors">
+                    {item.question}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-caption text-neutral-400 bg-neutral-100 rounded-full px-2 py-0.5">
+                      {item.category}
+                    </span>
+                    <span className="text-caption text-secondary-600 font-medium">
+                      {item.sourceRef}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="text-center mt-10">
+            <Link
+              href="/auth/mobile?intent=chat"
+              className="inline-flex items-center gap-2 rounded-large bg-primary-700 text-white px-8 py-3.5 text-button font-semibold hover:bg-primary-800 transition-all duration-300 shadow-md hover:shadow-elevation-4 active:scale-[0.98] touch-target"
+            >
+              <IconChat size={20} />
+              پرسش خود را مطرح کنید
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================
+          LEGAL TOPICS — "موضوعات پرکاربرد حقوقی"
+          ============================================================ */}
+      <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 rounded-full bg-info-50 border border-info-100 px-4 py-1.5 text-caption font-medium text-info-700 mb-4">
+            <IconCategory size={16} className="text-info-600" />
+            موضوعات حقوقی
+          </div>
+          <h2 className="text-h2 text-primary-800 mb-3">موضوعات پرکاربرد حقوقی</h2>
+          <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
+            LEGALIR در حوزه‌های متنوع حقوقی آموزش دیده است. هر حوزه شامل منابع قانونی،
+            آرای قضایی و تحلیل تخصصی مرتبط می‌باشد.
+          </p>
+        </div>
+
+        <div className="grid tablet:grid-cols-2 desktop:grid-cols-3 gap-5">
+          {legalTopics.map((topic) => (
+            <Link
+              key={topic.title}
+              href="/auth/mobile?intent=chat"
+              className="group rounded-large bg-surface p-6 border border-divider shadow-elevation-1 card-lift card-press relative overflow-hidden transition-all duration-300 hover:border-primary-200"
+            >
+              {/* Decorative gradient accent */}
+              <div
+                className="absolute top-0 end-0 w-24 h-24 rounded-bl-[100%] bg-gradient-to-bl from-secondary-100/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                aria-hidden="true"
+              />
+
+              <div className="flex items-start gap-4 mb-3">
+                <span className="text-[32px] leading-none shrink-0" aria-hidden="true">
+                  {topic.icon}
+                </span>
+                <div>
+                  <h3 className="text-h3 text-primary-800 mb-1.5 group-hover:text-primary-600 transition-colors">
+                    {topic.title}
+                  </h3>
+                  <p className="text-body-2 text-neutral-500 leading-relaxed">
+                    {topic.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {topic.keywords.map((kw) => (
+                  <span
+                    key={kw}
+                    className="text-caption text-neutral-400 bg-neutral-50 border border-neutral-200 rounded-full px-2.5 py-0.5"
+                  >
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ============================================================
+          HOW IT WORKS — 3-Step Connected Diagram
           ============================================================ */}
       <section className="bg-neutral-50 border-y border-divider">
         <div className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
@@ -347,31 +580,78 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          DISTINCTIONS — "شفافیت در خدمات"
+          LEGAL SOURCES — "منابع حقوقی تحت پوشش"
           ============================================================ */}
       <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
         <div className="text-center mb-12">
-          <h2 className="text-h2 text-primary-800 mb-3">شفافیت در خدمات</h2>
-          <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
-            LEGALIR مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را شفاف می‌کند
+          <div className="inline-flex items-center gap-2 rounded-full bg-success-50 border border-success-100 px-4 py-1.5 text-caption font-medium text-success-700 mb-4">
+            <IconLawBook size={16} className="text-success-600" />
+            منابع معتبر حقوقی
+          </div>
+          <h2 className="text-h2 text-primary-800 mb-3">منابع حقوقی تحت پوشش</h2>
+          <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
+            LEGALIR بر پایه قوانین، مقررات و آرای معتبر نظام حقوقی ایران آموزش دیده است.
+            هر پاسخ با ارجاع دقیق به منبع اصلی همراه می‌باشد.
           </p>
         </div>
 
-        <div className="grid tablet:grid-cols-3 gap-6">
-          {distinctions.map((item) => (
+        <div className="grid tablet:grid-cols-2 desktop:grid-cols-4 gap-5">
+          {keySources.map((source) => (
             <div
-              key={item.title}
-              className={`rounded-large bg-surface p-6 border-r-4 ${item.color} border border-divider shadow-elevation-1 card-lift ${item.accentBg}`}
+              key={source.title}
+              className="rounded-large bg-surface p-6 border border-divider shadow-elevation-1 card-lift relative overflow-hidden"
             >
-              <div className={`h-10 w-10 rounded-medium ${item.iconBg} flex items-center justify-center ${item.iconColor} mb-4`}>
-                <item.icon size={22} />
+              {/* Decorative left border */}
+              <div className="absolute inset-y-0 end-0 w-1 bg-gradient-to-b from-secondary-400 to-primary-500 opacity-70" aria-hidden="true" />
+
+              <div className="mb-4">
+                <h3 className="text-h3 text-primary-800 mb-2">{source.title}</h3>
+                <p className="text-body-2 text-neutral-500 leading-relaxed">
+                  {source.description}
+                </p>
               </div>
-              <h3 className="text-h3 text-primary-800 mb-2">{item.title}</h3>
-              <p className="text-body-2 text-neutral-500 leading-relaxed">
-                {item.description}
-              </p>
+
+              <div className="flex items-center gap-3">
+                <span className="text-caption font-medium text-secondary-700 bg-secondary-100 rounded-full px-3 py-1">
+                  {source.articles}
+                </span>
+                <span className="text-caption text-neutral-400">
+                  مصوب {source.year}
+                </span>
+              </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ============================================================
+          DISTINCTIONS — "شفافیت در خدمات"
+          ============================================================ */}
+      <section className="bg-neutral-50 border-y border-divider">
+        <div className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
+          <div className="text-center mb-12">
+            <h2 className="text-h2 text-primary-800 mb-3">شفافیت در خدمات</h2>
+            <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
+              LEGALIR مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را شفاف می‌کند
+            </p>
+          </div>
+
+          <div className="grid tablet:grid-cols-3 gap-6">
+            {distinctions.map((item) => (
+              <div
+                key={item.title}
+                className={`rounded-large bg-surface p-6 border-r-4 ${item.color} border border-divider shadow-elevation-1 card-lift ${item.accentBg}`}
+              >
+                <div className={`h-10 w-10 rounded-medium ${item.iconBg} flex items-center justify-center ${item.iconColor} mb-4`}>
+                  <item.icon size={22} />
+                </div>
+                <h3 className="text-h3 text-primary-800 mb-2">{item.title}</h3>
+                <p className="text-body-2 text-neutral-500 leading-relaxed">
+                  {item.description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

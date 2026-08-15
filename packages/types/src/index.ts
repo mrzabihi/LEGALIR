@@ -783,6 +783,324 @@ export interface FeatureFlags {
   memory: boolean;
   adminHistoryReview: boolean;
   englishLocale: boolean;
+  legalirBlogEnabled: boolean;
+  legalLibraryEnabled: boolean;
+}
+
+// ============================================================
+// Legal Knowledge / Library Domain Types
+// ============================================================
+
+export type LegalContentType =
+  | "LAW_ARTICLE"
+  | "REGULATION"
+  | "UNIFICATION_RULING"
+  | "JUDICIAL_DECISION"
+  | "LEGAL_GUIDE"
+  | "HOW_TO"
+  | "CHECKLIST"
+  | "FAQ"
+  | "LEGAL_TOOL"
+  | "TEMPLATE_GUIDE"
+  | "BLOG_ARTICLE"
+  | "SOURCE";
+
+export type VerificationStatus =
+  | "VERIFIED_OFFICIAL"
+  | "VERIFIED_SECONDARY"
+  | "DEMO_VERIFIED"
+  | "UNVERIFIED"
+  | "OUTDATED"
+  | "SUPERSEDED";
+
+export type LegalReviewStatus =
+  | "NOT_REVIEWED"
+  | "REVIEW_REQUIRED"
+  | "REVIEWED"
+  | "VERIFIED_SOURCE_ONLY";
+
+export interface LegalTopic {
+  id: string;
+  slug: string;
+  titleFa: string;
+  shortDescription: string;
+  description: string;
+  icon: string;
+  coverAsset: string | null;
+  category: LegalCategory;
+  keywords: string[];
+  difficulty: "beginner" | "intermediate" | "advanced";
+  estimatedReadTime: number;
+  featured: boolean;
+  popular: boolean;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LegalSourceExtended {
+  id: string;
+  sourceType: LegalContentType;
+  title: string;
+  shortTitle: string | null;
+  lawName: string | null;
+  articleNumber: string | null;
+  judgmentNumber: string | null;
+  decisionNumber: string | null;
+  authority: string;
+  jurisdiction: string;
+  publicationDate: string | null;
+  effectiveDate: string | null;
+  lastAmendmentDate: string | null;
+  status: string;
+  summary: string;
+  body: string | null;
+  simpleExplanation: string | null;
+  practicalApplication: string | null;
+  keyPoints: string[] | null;
+  examples: string[] | null;
+  sourceUrl: string | null;
+  officialSourceUrl: string | null;
+  sourceProvider: string | null;
+  sourceDomain: string | null;
+  verificationStatus: VerificationStatus;
+  lastVerifiedAt: string | null;
+  externalIdentifier: string | null;
+  version: number;
+  topicSlug: string | null;
+  relatedSourceIds: string[];
+  legalReviewStatus: LegalReviewStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LegalSourceRelation {
+  id: string;
+  sourceId: string;
+  relatedSourceId: string;
+  relationType: SourceRelationType;
+  description: string | null;
+  createdAt: string;
+}
+
+export type SourceRelationType =
+  | "RELATED_TO"
+  | "INTERPRETS"
+  | "REFERENCES"
+  | "SUPPLEMENTS"
+  | "SUPERSEDES"
+  | "APPLIES_TO";
+
+export interface LegalBookmark {
+  id: string;
+  userId: string;
+  sourceId: string;
+  createdAt: string;
+}
+
+export interface BlogPost {
+  id: string;
+  slug: string;
+  titleFa: string;
+  excerpt: string;
+  body: string;
+  coverImage: string | null;
+  author: string;
+  category: string;
+  tags: string[];
+  readingTime: number;
+  publishedAt: string | null;
+  updatedAt: string;
+  status: BlogPostStatus;
+  featured: boolean;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+  relatedTopicSlugs: string[];
+  relatedSourceIds: string[];
+  relatedServiceSlugs: string[];
+  legalReviewStatus: LegalReviewStatus;
+  createdAt: string;
+}
+
+export type BlogPostStatus = "DRAFT" | "LEGAL_REVIEW" | "SCHEDULED" | "PUBLISHED" | "ARCHIVED";
+
+export interface BlogCategory {
+  id: string;
+  slug: string;
+  titleFa: string;
+  description: string | null;
+}
+
+export interface V1LegalLibraryListParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  topic?: string;
+  sourceType?: LegalContentType;
+  sort?: "newest" | "oldest" | "title" | "popular";
+}
+
+export interface V1LegalLibraryListResponse {
+  items: V1LegalLibraryListItem[];
+  pagination: Pagination;
+}
+
+export interface V1LegalLibraryListItem {
+  id: string;
+  title: string;
+  sourceType: LegalContentType;
+  sourceTypeFa: string;
+  topic: string | null;
+  topicSlug: string | null;
+  summary: string;
+  authority: string;
+  verificationStatus: VerificationStatus;
+  publishedDate: string | null;
+  updatedAt: string;
+  readingTime: number;
+  popular: boolean;
+  featured: boolean;
+}
+
+export interface V1LegalSourceDetail {
+  id: string;
+  sourceType: LegalContentType;
+  sourceTypeFa: string;
+  title: string;
+  shortTitle: string | null;
+  lawName: string | null;
+  articleNumber: string | null;
+  judgmentNumber: string | null;
+  authority: string;
+  jurisdiction: string;
+  publicationDate: string | null;
+  effectiveDate: string | null;
+  lastAmendmentDate: string | null;
+  status: string;
+  summary: string;
+  body: string | null;
+  simpleExplanation: string | null;
+  practicalApplication: string | null;
+  keyPoints: string[] | null;
+  examples: string[] | null;
+  sourceUrl: string | null;
+  officialSourceUrl: string | null;
+  sourceProvider: string | null;
+  sourceDomain: string | null;
+  verificationStatus: VerificationStatus;
+  lastVerifiedAt: string | null;
+  version: number;
+  relatedSources: V1RelatedSource[];
+  relatedGuides: V1LegalLibraryListItem[];
+  relatedServices: V1RelatedService[];
+  legalReviewStatus: LegalReviewStatus;
+  isBookmarked: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface V1RelatedSource {
+  id: string;
+  title: string;
+  sourceType: LegalContentType;
+  sourceTypeFa: string;
+  relationType: SourceRelationType;
+  relationTypeFa: string;
+  summary: string;
+}
+
+export interface V1RelatedService {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  cta: string;
+}
+
+export interface V1LegalLibraryTopic {
+  slug: string;
+  titleFa: string;
+  shortDescription: string;
+  icon: string;
+  category: LegalCategory;
+  keywords: string[];
+  difficulty: "beginner" | "intermediate" | "advanced";
+  estimatedReadTime: number;
+  contentCount: number;
+  popular: boolean;
+}
+
+export interface V1LegalSearchParams {
+  q: string;
+  topic?: string;
+  sourceType?: LegalContentType;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface V1LegalSearchResponse {
+  items: V1LegalLibraryListItem[];
+  pagination: Pagination;
+  query: string;
+  normalizedQuery: string;
+}
+
+export interface V1LegalBookmarksResponse {
+  items: V1LegalLibraryListItem[];
+  pagination: Pagination;
+}
+
+export interface V1BlogListParams {
+  page?: number;
+  pageSize?: number;
+  category?: string;
+  tag?: string;
+  sort?: "newest" | "oldest" | "popular";
+}
+
+export interface V1BlogListResponse {
+  items: V1BlogListItem[];
+  pagination: Pagination;
+}
+
+export interface V1BlogListItem {
+  id: string;
+  slug: string;
+  titleFa: string;
+  excerpt: string;
+  coverImage: string | null;
+  author: string;
+  category: string;
+  tags: string[];
+  readingTime: number;
+  publishedAt: string;
+  featured: boolean;
+}
+
+export interface V1BlogPostDetail {
+  id: string;
+  slug: string;
+  titleFa: string;
+  excerpt: string;
+  body: string;
+  coverImage: string | null;
+  author: string;
+  category: string;
+  tags: string[];
+  readingTime: number;
+  publishedAt: string;
+  updatedAt: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+  relatedSources: V1RelatedSource[];
+  relatedGuides: V1LegalLibraryListItem[];
+  relatedServices: V1RelatedService[];
+  previousPost: { slug: string; titleFa: string } | null;
+  nextPost: { slug: string; titleFa: string } | null;
 }
 
 // --- Route Map ---

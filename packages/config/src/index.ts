@@ -41,6 +41,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   memory: pe["NEXT_PUBLIC_FEATURE_MEMORY"] !== "false",
   adminHistoryReview: false,
   englishLocale: pe["NEXT_PUBLIC_FEATURE_ENGLISH_LOCALE"] === "true",
+  legalirBlogEnabled: pe["NEXT_PUBLIC_FEATURE_BLOG_ENABLED"] === "true",
+  legalLibraryEnabled: pe["NEXT_PUBLIC_FEATURE_LEGAL_LIBRARY"] !== "false",
 };
 
 // --- Route Registry ---
@@ -68,6 +70,7 @@ export const routeRegistry: RouteDefinition[] = [
   { path: "/subscription", titleFa: "اشتراک", access: "user", icon: "WorkspacePremium" },
   { path: "/profile", titleFa: "پروفایل", access: "user", icon: "Person" },
   { path: "/settings", titleFa: "تنظیمات", access: "user", icon: "Settings" },
+  { path: "/legal-library", titleFa: "اسناد و منابع حقوقی", access: "user", icon: "LawBook" },
 ];
 
 export const publicRoutes = routeRegistry.filter((r) => r.access === "guest").map((r) => r.path);

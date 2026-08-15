@@ -61,6 +61,12 @@ import {
   fixtureV1SourceCivil230,
   fixtureV1SourceProcedure522,
   fixtureV1SourceUnity805,
+  // Legal Library
+  fixtureLegalLibraryListItems,
+  fixtureLegalLibraryTopics,
+  fixtureLegalSourceDetails,
+  fixtureBlogListItems,
+  fixtureBlogPostDetails,
 } from "@legalir/testing";
 
 // --- Constants ---
@@ -2122,6 +2128,120 @@ export const handlers = [
   http.get(`${API_BASE}/api/v1/profile/usage`, async () => {
     await delay(300);
     return HttpResponse.json(ok(fixtureProfileUsage));
+  }),
+
+  // =========================================
+  // LEGAL LIBRARY — Legal Knowledge Endpoints
+  // =========================================
+
+  // --- GET /api/v1/legal-library ---
+  http.get(`${API_BASE}/api/v1/legal-library`, async ({ request }) => {
+    await delay(400);
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search") ?? "";
+    const topic = url.searchParams.get("topic") ?? "";
+    const sourceType = url.searchParams.get("sourceType") ?? "";
+
+    let items = fixtureLegalLibraryListItems;
+
+    if (search) {
+      const q = search.toLowerCase();
+      items = items.filter((i) => i.title.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q));
+    }
+    if (topic) {
+      items = items.filter((i) => i.topicSlug === topic);
+    }
+    if (sourceType) {
+      items = items.filter((i) => i.sourceType === sourceType);
+    }
+
+    const page = parseInt(url.searchParams.get("page") ?? "1");
+    const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20");
+
+    return HttpResponse.json(
+      ok({ items, pagination: { page, pageSize, total: items.length, totalPages: Math.ceil(items.length / pageSize) } })
+    );
+  }),
+
+  // --- GET /api/v1/legal-library/topics ---
+  http.get(`${API_BASE}/api/v1/legal-library/topics`, async () => {
+    await delay(300);
+    return HttpResponse.json(ok(fixtureLegalLibraryTopics));
+  }),
+
+  // --- GET /api/v1/legal-library/search ---
+  http.get(`${API_BASE}/api/v1/legal-library/search`, async ({ request }) => {
+    await delay(300);
+    const url = new URL(request.url);
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+
+    let items = fixtureLegalLibraryListItems;
+    if (q) {
+      items = items.filter((i) => i.title.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q));
+    }
+
+    const page = parseInt(url.searchParams.get("page") ?? "1");
+    const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20");
+
+    return HttpResponse.json(
+      ok({ items, pagination: { page, pageSize, total: items.length, totalPages: 1 }, query: q, normalizedQuery: q })
+    );
+  }),
+
+  // --- GET /api/v1/legal-library/:id ---
+  http.get(`${API_BASE}/api/v1/legal-library/:id`, async ({ params }) => {
+    await delay(400);
+    const id = params["id"] as string;
+    const source = fixtureLegalSourceDetails[id];
+    if (!source) {
+      return HttpResponse.json(err("NOT_FOUND", "منبع حقوقی یافت نشد", false), { status: 404 });
+    }
+    return HttpResponse.json(ok(source));
+  }),
+
+  // --- POST /api/v1/legal-library/:id/bookmark ---
+  http.post(`${API_BASE}/api/v1/legal-library/:id/bookmark`, async () => {
+    await delay(300);
+    return HttpResponse.json(ok({ bookmarked: true }));
+  }),
+
+  // --- DELETE /api/v1/legal-library/:id/bookmark ---
+  http.delete(`${API_BASE}/api/v1/legal-library/:id/bookmark`, async () => {
+    await delay(300);
+    return HttpResponse.json(ok({ bookmarked: false }));
+  }),
+
+  // --- GET /api/v1/legal-library/bookmarks ---
+  http.get(`${API_BASE}/api/v1/legal-library/bookmarks`, async () => {
+    await delay(300);
+    return HttpResponse.json(ok({ items: fixtureLegalLibraryListItems.slice(0, 3), pagination: { page: 1, pageSize: 20, total: 3, totalPages: 1 } }));
+  }),
+
+  // --- GET /api/v1/blog ---
+  http.get(`${API_BASE}/api/v1/blog`, async ({ request }) => {
+    await delay(400);
+    const url = new URL(request.url);
+    const category = url.searchParams.get("category") ?? "";
+    let items = [...fixtureBlogListItems];
+
+    if (category) {
+      items = items.filter((i) => i.category === category);
+    }
+
+    return HttpResponse.json(
+      ok({ items, pagination: { page: 1, pageSize: 20, total: items.length, totalPages: 1 } })
+    );
+  }),
+
+  // --- GET /api/v1/blog/:slug ---
+  http.get(`${API_BASE}/api/v1/blog/:slug`, async ({ params }) => {
+    await delay(400);
+    const slug = params["slug"] as string;
+    const post = fixtureBlogPostDetails[slug];
+    if (!post) {
+      return HttpResponse.json(err("NOT_FOUND", "مطلب یافت نشد", false), { status: 404 });
+    }
+    return HttpResponse.json(ok(post));
   }),
 
 ];
