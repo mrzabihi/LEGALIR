@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { CTASection } from "@/components/public/CTASection";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
+import { readBlog } from "@/lib/legal-library-db";
+import { toPersianDate, toPersianDigits } from "@/lib/persian-utils";
 import {
   IconChat,
   IconDocument,
@@ -16,6 +18,7 @@ import {
   IconStar,
   IconLawBook,
   IconCategory,
+  IconCalendar,
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
@@ -88,9 +91,9 @@ const howItWorksSteps = [
 const distinctions = [
   {
     icon: IconShield,
-    title: "اطلاعات هوش مصنوعی",
+    title: "مدل زبانی تخصصی حقوقی",
     description:
-      "تمامی خروجی‌های AI با برچسب مشخص ارائه می‌شوند. این اطلاعات برای آگاهی اولیه است و مشاوره حقوقی رسمی محسوب نمی‌شود.",
+      "هسته هوشمند لیگالیر بر پایه منابع حقوقی ساختاریافته، قوانین و آرای قضایی آموزش دیده و تحلیل ساختاریافته ارائه می‌دهد.",
     color: "border-r-warning",
     accentBg: "bg-warning/5",
     iconBg: "bg-warning/10",
@@ -108,9 +111,9 @@ const distinctions = [
   },
   {
     icon: IconSearch,
-    title: "کمک حقوقی، نه جایگزین وکیل",
+    title: "مسیر شفاف به وکیل",
     description:
-      "LEGALIR یک ابزار کمک‌آموزشی است. در موضوعات حساس، ارجاع به وکلای متخصص و تأییدشده توصیه می‌شود.",
+      "در موضوعات حساس، لیگالیر مسیر ارتباط با وکلای متخصص و تأییدشده را فراهم می‌کند تا تصمیم‌گیری حقوقی با اطمینان بیشتری انجام شود.",
     color: "border-r-primary",
     accentBg: "bg-primary/5",
     iconBg: "bg-primary/10",
@@ -232,6 +235,17 @@ const keySources = [
   },
 ];
 
+// ================================================================
+// Blog preview — pulled from the real Legal Library / Blog JSON-DB
+// ================================================================
+const blogPreviewPosts = readBlog()
+  .items.slice()
+  .sort((a, b) => {
+    if (a.featured !== b.featured) return a.featured ? -1 : 1;
+    return (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
+  })
+  .slice(0, 3);
+
 export default function LandingPage() {
   return (
     <div id="main-content">
@@ -302,10 +316,10 @@ export default function LandingPage() {
 
           {/* Subheading */}
           <p
-            className="text-white/70 text-lg leading-relaxed mb-10 max-w-2xl mx-auto"
+            className="text-white/85 text-lg leading-relaxed mb-10 max-w-2xl mx-auto"
           >
-            پلتفرم تخصصی هوش مصنوعی حقوقی، آموزش‌دیده بر قوانین و مقررات ایران —
-            قانون اساسی، مدنی، کیفری، تجارت، خانواده، کار، مالیات و هزاران پرونده واقعی
+            خدمات تخصصی حقوقی با بهره‌گیری از هوش مصنوعی، منابع حقوقی و مدل زبانی
+            تخصصی لیگالیر — تحلیل ساختاریافته پرونده‌ها، قراردادها و مسائل حقوقی
           </p>
 
           {/* CTAs */}
@@ -329,11 +343,11 @@ export default function LandingPage() {
 
           {/* Disclaimer note */}
           <p
-            className="flex items-center justify-center gap-1.5 text-caption text-primary-300/60 scroll-reveal visible"
+            className="flex items-center justify-center gap-1.5 text-caption text-primary-200/80 scroll-reveal visible"
             style={{ transitionDelay: "450ms" }}
           >
-            <IconArrowBack size={14} className="text-warning shrink-0" />
-            LEGALIR جایگزین وکیل نیست — ابزاری کمک‌آموزشی برای آگاهی حقوقی اولیه
+            <IconArrowBack size={14} className="text-secondary-400 shrink-0" />
+            دانش حقوقی، تحلیل هوشمند و منابع مستند؛ یکپارچه در لیگالیر
           </p>
         </div>
       </section>
@@ -621,6 +635,68 @@ export default function LandingPage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ============================================================
+          BLOG PREVIEW — "مجله و آموزش حقوقی لیگالیر"
+          ============================================================ */}
+      <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary-50 border border-secondary-200/50 px-4 py-1.5 text-caption font-medium text-secondary-700 mb-4">
+            <IconLawBook size={16} className="text-secondary-600" />
+            مجله و آموزش حقوقی لیگالیر
+          </div>
+          <h2 className="text-h2 text-primary-800 mb-3">مجله و آموزش حقوقی لیگالیر</h2>
+          <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
+            راهنماهای کاربردی، قوانین، آرای مهم و تحلیل موضوعات حقوقی — بر پایه منابع
+            ساختاریافته حقوقی
+          </p>
+        </div>
+
+        <div className="grid tablet:grid-cols-3 gap-6">
+          {blogPreviewPosts.map((post) => (
+            <Link
+              key={post.id}
+              href={`/blog/${post.slug}`}
+              className="group flex flex-col rounded-large bg-surface border border-divider shadow-elevation-1 card-lift card-press overflow-hidden transition-all duration-300 hover:border-primary-200"
+            >
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-divider">
+                <span className="inline-flex items-center gap-1 text-caption text-secondary-700 bg-secondary-50 border border-secondary-200/60 rounded-full px-2.5 py-0.5">
+                  <IconCategory size={12} />
+                  {post.category}
+                </span>
+                <span className="text-caption text-neutral-400 tabular-nums">
+                  {toPersianDigits(post.readingTime)} دقیقه مطالعه
+                </span>
+              </div>
+
+              <div className="flex flex-col flex-1 p-5">
+                <h3 className="text-h3 text-primary-800 mb-2 group-hover:text-primary-600 transition-colors line-clamp-2 leading-snug">
+                  {post.titleFa}
+                </h3>
+                <p className="text-body-2 text-neutral-500 leading-relaxed mb-4 flex-1 line-clamp-3">
+                  {post.excerpt}
+                </p>
+                <div className="flex items-center gap-2 text-caption text-neutral-400">
+                  <IconCalendar size={14} />
+                  <span>{toPersianDate(post.publishedAt)}</span>
+                  <span className="ms-auto text-primary-700 font-medium group-hover:text-primary-600 transition-colors">
+                    مطالعه مقاله
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div className="text-center mt-10">
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 rounded-large border border-primary-300 text-primary-700 px-8 py-3.5 text-button font-semibold hover:bg-primary-50 hover:border-primary-400 transition-all duration-300 active:scale-[0.98] touch-target"
+          >
+            مشاهده همه مطالب وبلاگ
+          </Link>
         </div>
       </section>
 

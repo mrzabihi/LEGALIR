@@ -117,15 +117,6 @@ const IconFileText = () => (
   </SvgIcon>
 );
 
-const IconHammer = () => (
-  <SvgIcon size={20}>
-    <path d="M15 12l-8.373 8.373a1 1 0 01-1.414 0L3.8 18.96a1 1 0 010-1.414L12.373 9" />
-    <path d="M7 2l10 10" />
-    <path d="M13.535 5.465l3.536-3.536a2 2 0 012.828 0l.172.172a2 2 0 010 2.828l-3.536 3.536" />
-    <path d="M9 8l-3 3" />
-  </SvgIcon>
-);
-
 const IconScale = () => (
   <SvgIcon size={20}>
     <path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" />
@@ -150,13 +141,6 @@ const IconEye = () => (
   </SvgIcon>
 );
 
-const IconTrending = () => (
-  <SvgIcon size={16}>
-    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-    <polyline points="17 6 23 6 23 12" />
-  </SvgIcon>
-);
-
 const IconArrowLeft = () => (
   <SvgIcon size={20}>
     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -167,20 +151,6 @@ const IconSearch = () => (
   <SvgIcon size={20}>
     <circle cx="11" cy="11" r="8" />
     <path d="m21 21-4.35-4.35" />
-  </SvgIcon>
-);
-
-const IconStar = (props?: { className?: string }) => (
-  <SvgIcon size={14} className={props?.className ?? ""}>
-    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-  </SvgIcon>
-);
-
-const IconTool = () => (
-  <SvgIcon size={20}>
-    <path d="M14.7 6.3a1 1 0 000-1.4l-1.4-1.4a1 1 0 00-1.4 0L9.3 6.7a1 1 0 000 1.4l1.4 1.4a1 1 0 001.4 0l2.6-2.6z" />
-    <path d="M6.3 14.7L3.7 17.3a1 1 0 000 1.4l1.4 1.4a1 1 0 001.4 0l2.6-2.6M6.3 14.7l3 3" />
-    <circle cx="10" cy="14" r="8" />
   </SvgIcon>
 );
 
@@ -811,70 +781,12 @@ function PopularCardItem({ item, rank }: { item: PopularCard; rank: number }) {
 }
 
 // ============================================================
-// Loading Skeleton
-// ============================================================
-
-function SectionSkeleton({ title }: { title: string }) {
-  return (
-    <section className="mb-8">
-      {/* Section header skeleton */}
-      <div className="flex items-center gap-3 mb-4">
-        <span className="block h-1.5 w-10 rounded-full skeleton-shimmer" />
-        <span className="h-6 w-40 rounded-md skeleton-shimmer" />
-      </div>
-      {/* Cards skeleton */}
-      <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-3 gap-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-2xl bg-surface border border-divider/40 p-4 space-y-3"
-          >
-            <div className="h-5 w-3/4 rounded-md skeleton-shimmer" />
-            <div className="h-4 w-full rounded-md skeleton-shimmer" />
-            <div className="h-4 w-2/3 rounded-md skeleton-shimmer" />
-            <div className="flex gap-2 pt-2">
-              <div className="h-5 w-14 rounded-lg skeleton-shimmer" />
-              <div className="h-5 w-20 rounded-lg skeleton-shimmer" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SearchSkeleton() {
-  return (
-    <div className="p-4 tablet:p-6 max-w-7xl mx-auto" dir="rtl">
-      {/* Header skeleton */}
-      <div className="mb-6 space-y-2">
-        <div className="h-8 w-48 rounded-md skeleton-shimmer" />
-        <div className="h-4 w-96 rounded-md skeleton-shimmer" />
-      </div>
-      {/* Search bar skeleton */}
-      <div className="h-12 w-full max-w-xl rounded-xl skeleton-shimmer mb-5" />
-      {/* Filter chips skeleton */}
-      <div className="flex gap-2 mb-8">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-9 w-16 rounded-xl skeleton-shimmer" />
-        ))}
-      </div>
-      {/* Section skeletons */}
-      <SectionSkeleton title="موضوعات پرکاربرد" />
-      <SectionSkeleton title="راهنماهای کاربردی" />
-      <SectionSkeleton title="قوانین منتخب" />
-    </div>
-  );
-}
-
-// ============================================================
 // Main Page Component
 // ============================================================
 
 export default function LegalLibraryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<SourceType>("all");
-  const [isLoading, setIsLoading] = useState(false);
 
   // Persian normalization helper
   const matchesSearch = useCallback(
@@ -972,11 +884,6 @@ export default function LegalLibraryPage() {
     filteredPopular.length > 0;
 
   const isSearching = searchQuery.trim().length > 0 && !hasResults;
-
-  // Simulate initial loading state
-  if (isLoading) {
-    return <SearchSkeleton />;
-  }
 
   return (
     <div className="p-4 tablet:p-6 max-w-7xl mx-auto" dir="rtl">

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { PageContext } from "@/stores/assistant-store";
 import { useAssistantStore } from "@/stores/assistant-store";
 import {
   IconClose,
@@ -375,7 +374,7 @@ export interface AiAssistantProps {
 }
 
 export function AiAssistant({ pageContext }: AiAssistantProps) {
-  const { isOpen, toggleOpen, closePanel } = useAssistantStore();
+  const { isOpen, closePanel } = useAssistantStore();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key

@@ -1,29 +1,33 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversation,
   useConversations,
   useSendMessage,
   useUpdateConversation,
   useConversationReferences,
-  useCreateAiRun,
   useCancelAiRun,
 } from "@/hooks/useConversations";
 import { ConversationWorkspace } from "@/components/chat/conversation-workspace";
 import { ConversationList } from "@/components/chat/conversation-list";
+import { ServiceContextCard } from "@/components/chat/service-context-card";
 import { SourceDetailDrawer } from "@/components/chat/source-detail-drawer";
 import { ReferencesTab } from "@/components/chat/references-tab";
 import { SourcesTab } from "@/components/chat/sources-tab";
 import { Tabs } from "@legalir/ui";
 import { IconClose } from "@/lib/icons";
+import { streamChat } from "@/lib/ai/stream-client";
+import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
 import type { V1Reference, AiRunStatus } from "@legalir/types";
 
 export default function ConversationPage() {
   const params = useParams();
   const id = params?.["id"] as string;
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // Data
   const { data: conversationDetail, isLoading: detailLoading } = useConversation(id);
@@ -34,7 +38,6 @@ export default function ConversationPage() {
   const sendMutation = useSendMessage();
   const updateMutation = useUpdateConversation();
   const archiveMutation = useUpdateConversation();
-  const _createRunMutation = useCreateAiRun();
   const cancelRunMutation = useCancelAiRun();
 
   // UI state
@@ -47,7 +50,15 @@ export default function ConversationPage() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isStarred, setIsStarred] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [serviceType, setServiceType] = useState<ServiceType>("legal_consultation");
+  const abortRef = useRef<(() => void) | null>(null);
+
+  // Derive service context from the entry URL (?service= / ?category=).
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setServiceType(serviceTypeFromQuery(window.location.search));
+    }
+  }, [id]);
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -66,8 +77,16 @@ export default function ConversationPage() {
     };
   }, [mobileDrawerOpen]);
 
+  // Abort any in-flight stream on unmount.
+  useEffect(() => {
+    return () => abortRef.current?.();
+  }, []);
+
   // Messages from the detail response
-  const messages = conversationDetail?.messages ?? [];
+  const messages = useMemo(
+    () => conversationDetail?.messages ?? [],
+    [conversationDetail?.messages]
+  );
   const convData = conversationDetail
     ? {
         id: conversationDetail.id,
@@ -86,41 +105,42 @@ export default function ConversationPage() {
     async (content: string) => {
       if (!id || isStreaming) return;
 
-      // Start streaming state
       setIsStreaming(true);
       setRunStatus("queued");
 
-      // Simulate run creation and progression
-      const pollInterval = setInterval(() => {
-        setRunStatus((prev) => {
-          if (prev === "queued") return "retrieving";
-          if (prev === "retrieving") return "generating";
-          if (prev === "generating") return "validating";
-          return prev;
-        });
-      }, 800);
-      pollingRef.current = pollInterval;
+      const finish = (status: AiRunStatus) => {
+        setIsStreaming(false);
+        setRunStatus(status);
+        abortRef.current = null;
+        queryClient.invalidateQueries({ queryKey: ["conversation", id] });
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["conversation-references", id] });
+      };
 
-      try {
-        await sendMutation.mutateAsync({ conversationId: id, content });
-        // Complete
-        clearInterval(pollInterval);
-        setRunStatus("succeeded");
-        setIsStreaming(false);
-      } catch {
-        clearInterval(pollInterval);
-        setRunStatus("failed");
-        setIsStreaming(false);
-      }
+      // Primary path: real SSE streaming through the LEGALIR AI gateway.
+      // Falls back to the existing message endpoint on any failure (§27).
+      abortRef.current = streamChat(
+        { conversationId: id, content, context: { serviceType } },
+        {
+          onStatus: (status) => setRunStatus(status),
+          onDone: () => finish("succeeded"),
+          onError: async () => {
+            try {
+              await sendMutation.mutateAsync({ conversationId: id, content });
+              finish("succeeded");
+            } catch {
+              finish("failed");
+            }
+          },
+        }
+      );
     },
-    [id, isStreaming, sendMutation]
+    [id, isStreaming, serviceType, sendMutation, queryClient]
   );
 
   const handleStopGeneration = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
+    abortRef.current?.();
+    abortRef.current = null;
     if (streamingRunId) {
       cancelRunMutation.mutate(streamingRunId);
     }
@@ -130,36 +150,15 @@ export default function ConversationPage() {
   }, [streamingRunId, cancelRunMutation]);
 
   const handleRetry = useCallback(
-    async (_messageId: string) => {
+    async (messageId: string) => {
       if (!id) return;
-      setIsStreaming(true);
-      setRunStatus("queued");
-
-      const pollInterval = setInterval(() => {
-        setRunStatus((prev) => {
-          if (prev === "queued") return "retrieving";
-          if (prev === "retrieving") return "generating";
-          if (prev === "generating") return "validating";
-          return prev;
-        });
-      }, 800);
-      pollingRef.current = pollInterval;
-
-      try {
-        await sendMutation.mutateAsync({
-          conversationId: id,
-          content: "تلاش مجدد پاسخ",
-        });
-        clearInterval(pollInterval);
-        setRunStatus("succeeded");
-        setIsStreaming(false);
-      } catch {
-        clearInterval(pollInterval);
-        setRunStatus("failed");
-        setIsStreaming(false);
-      }
+      // Re-send the last user message through the streaming path.
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      const content = lastUser?.content ?? "تلاش مجدد پاسخ";
+      void messageId;
+      await handleSendMessage(content);
     },
-    [id, sendMutation]
+    [id, messages, handleSendMessage]
   );
 
   const handleRename = useCallback(
@@ -219,6 +218,11 @@ export default function ConversationPage() {
           </div>
         ) : (
           <>
+            {/* Service context card (§21) */}
+            <div className="shrink-0 px-4 pt-3">
+              <ServiceContextCard serviceType={serviceType} compact />
+            </div>
+
             {/* Tabs */}
             <div className="shrink-0">
               <Tabs tabs={tabs} value={activeTab} onChange={setActiveTab} />

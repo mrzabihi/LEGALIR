@@ -181,10 +181,10 @@ export default function DocumentsPage() {
         <Header onUploadClick={() => setUploadDialogOpen(true)} />
         <EmptyState
           icon={<IconDocument size={64} />}
-          title="سندی بارگذاری نشده"
+          title="هنوز سندی اضافه نکرده‌اید"
           description="قرارداد یا سند حقوقی خود را بارگذاری کنید تا تحلیل ریسک و بررسی بندها را دریافت کنید"
           action={{
-            label: "بارگذاری سند",
+            label: "افزودن سند",
             onClick: () => setUploadDialogOpen(true),
           }}
         />

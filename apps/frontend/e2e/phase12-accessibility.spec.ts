@@ -120,60 +120,34 @@ test.describe("Phase 12 — Accessibility & Responsive", () => {
   });
 
   // =========================================================================
-  // Theme toggle
+  // Landing light-only theme (§3 / §40)
   // =========================================================================
-  test.describe("Theme toggle", () => {
-    test("Theme toggle button exists and changes data-theme", async ({
+  test.describe("Landing light-only theme", () => {
+    test("Landing header has no theme toggle and is forced to light", async ({
       page,
     }) => {
       await page.goto("/");
       await page.waitForSelector("body");
 
-      // Find any theme toggle button (there are two: desktop & mobile)
+      // The public landing header must not render a theme toggle.
       const themeBtn = page.locator(
         'button[aria-label="حالت تیره"], button[aria-label="حالت روشن"]',
       );
-      await expect(themeBtn.first()).toBeVisible();
+      await expect(themeBtn).toHaveCount(0);
 
-      // Read current theme
-      const beforeTheme = await page.locator("html").getAttribute("data-theme");
-      expect(beforeTheme).toBeDefined();
-
-      // Click the first visible theme toggle
-      await themeBtn.first().click();
-
-      // Wait briefly for the DOM update
-      await page.waitForTimeout(200);
-
-      // Verify theme attribute changed
-      const afterTheme = await page.locator("html").getAttribute("data-theme");
-      expect(afterTheme).toBeDefined();
-      expect(afterTheme).not.toBe(beforeTheme);
-
-      // Toggle back and verify it restores
-      await themeBtn.first().click();
-      await page.waitForTimeout(200);
-      const restoredTheme = await page
-        .locator("html")
-        .getAttribute("data-theme");
-      expect(restoredTheme).toBe(beforeTheme);
+      // ForceLightTheme keeps the document locked to light mode.
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     });
 
-    test("Theme toggle on mobile viewport works", async ({ page }) => {
+    test("Landing stays light on mobile viewport", async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 }); // iPhone 14
       await page.goto("/");
       await page.waitForSelector("body");
 
-      const themeBtn = page.locator(
-        'button[aria-label="حالت تیره"], button[aria-label="حالت روشن"]',
-      );
-      await expect(themeBtn.first()).toBeVisible();
-
-      const beforeTheme = await page.locator("html").getAttribute("data-theme");
-      await themeBtn.first().click();
-      await page.waitForTimeout(200);
-      const afterTheme = await page.locator("html").getAttribute("data-theme");
-      expect(afterTheme).not.toBe(beforeTheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+      await expect(
+        page.locator('button[aria-label="حالت تیره"], button[aria-label="حالت روشن"]'),
+      ).toHaveCount(0);
     });
   });
 
@@ -349,24 +323,20 @@ test.describe("Phase 12 — Accessibility & Responsive", () => {
   // Touch targets (min 48px)
   // =========================================================================
   test.describe("Touch targets", () => {
-    test("Header theme toggle button has minimum 48x48px touch target", async ({
+    test("Primary CTA button has minimum 48x48px touch target", async ({
       page,
     }) => {
       await page.goto("/");
       await page.waitForSelector("body");
 
-      const themeBtns = page.locator(
-        'button[aria-label="حالت تیره"], button[aria-label="حالت روشن"]',
-      );
-      const count = await themeBtns.count();
-      expect(count).toBeGreaterThan(0);
+      const ctaBtn = page.getByRole("button", { name: /شروع کنید/i });
+      await expect(ctaBtn).toBeVisible();
 
-      const btn = themeBtns.first();
-      const box = await btn.boundingBox();
+      const box = await ctaBtn.boundingBox();
       expect(box).not.toBeNull();
       // Both width and height should be at least 48px
-      expect(box!.width).toBeGreaterThanOrEqual(48);
-      expect(box!.height).toBeGreaterThanOrEqual(48);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
     });
 
     test("Mobile menu open/close buttons have adequate touch size", async ({

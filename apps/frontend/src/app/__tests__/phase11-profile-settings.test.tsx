@@ -216,24 +216,28 @@ describe("ProfilePage", () => {
     });
   });
 
-  it("renders subscription history table", async () => {
+  it("renders subscription card with plan and manage CTA", async () => {
     setupMe();
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getAllByText("طلا").length).toBeGreaterThan(0);
-      // Two rows have "نقره" — use getAllByText
-      expect(screen.getAllByText("نقره").length).toBeGreaterThan(0);
+      // The Account Hub shows a "اشتراک" card with the current plan + upgrade CTA
+      expect(screen.getByText(/پلن فعلی/)).toBeTruthy();
+      expect(screen.getByText("مدیریت و ارتقا")).toBeTruthy();
     });
   });
 
-  it("shows subscription status badges", async () => {
+  it("shows legal space hub links", async () => {
     setupMe();
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getAllByText("فعال").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("پایان یافته").length).toBeGreaterThan(0);
+      expect(screen.getByText("فضای حقوقی من")).toBeTruthy();
+      expect(screen.getByText("گفت‌وگوهای من")).toBeTruthy();
+      expect(screen.getByText("اسناد من")).toBeTruthy();
+      expect(screen.getByText("قراردادهای من")).toBeTruthy();
+      expect(screen.getByText("تاریخچه")).toBeTruthy();
+      expect(screen.getByText("حافظه")).toBeTruthy();
     });
   });
 
@@ -392,8 +396,8 @@ describe("Phase 11 — Responsive", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      // The profile page outer div has max-w-2xl class
-      const container = document.querySelector(".max-w-2xl");
+      // The Account Hub outer container is max-w-3xl (replaces max-w-2xl)
+      const container = document.querySelector(".max-w-3xl");
       expect(container).toBeTruthy();
     });
   });

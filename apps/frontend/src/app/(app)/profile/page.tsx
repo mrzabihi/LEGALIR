@@ -1,18 +1,43 @@
 // ============================================================
-// LEGALIR — Profile Page
-// Modern UI with gradient avatar, circular completion ring,
-// inline-editable fields, usage stat cards, timeline, payments.
+// LEGALIR — Account Hub (تنظیمات و پروفایل)
+// Polished hub with visual section cards for Profile, Legal
+// Space, Subscription, Connected Services, Settings, Help and
+// the Legal Blog. Replaces the single-purpose profile editor.
 // ============================================================
 
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useMe, useUpdateProfile } from "@/hooks/useDashboard";
-import { useProfileUsage, useSubscriptionHistory } from "@/hooks/usePhase11";
-import { useThemeStore } from "@/stores/theme-store";
+import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
+import { useCurrentSubscription } from "@/hooks/useSubscription";
+import { useDocuments } from "@/hooks/useDocuments";
+import { useContracts } from "@/hooks/useContracts";
+import { useTheme } from "@/lib/theme";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
-import { IconCheck, IconClose, IconPhone } from "@/lib/icons";
-import type { V1SubscriptionHistoryItem, V1ProfileUsage, Profile } from "@legalir/types";
+import {
+  IconChat,
+  IconDocument,
+  IconContract,
+  IconHistory,
+  IconMemory,
+  IconSubscription,
+  IconSettings,
+  IconShield,
+  IconPhone,
+  IconPerson,
+  IconCheck,
+  IconClose,
+  IconLightMode,
+  IconDarkMode,
+  IconArrowBack,
+  IconStar,
+  IconLawBook,
+  IconInfo,
+  IconBalance,
+} from "@/lib/icons";
+import type { Profile, V1SubscriptionHistoryItem } from "@legalir/types";
 
 // ============================================================
 // Helpers
@@ -45,12 +70,9 @@ const GENDER_OPTIONS = [
   { value: "other", label: "سایر" },
 ] as const;
 
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  expired: "bg-amber-50 text-amber-700 border-amber-200",
-  cancelled: "bg-red-50 text-red-700 border-red-200",
-  unknown: "bg-neutral-100 text-neutral-600 border-neutral-200",
-};
+function persianCount(n: number | undefined): string {
+  return toPersianNumber(n ?? 0);
+}
 
 // ============================================================
 // Circular Progress Ring
@@ -66,7 +88,7 @@ function CircularRing({ pct, size = 64, strokeWidth = 5, color }: {
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" className="text-neutral-100" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" className="text-white/20" strokeWidth={strokeWidth} />
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} className="transition-all duration-700" />
       </svg>
     </div>
@@ -101,7 +123,7 @@ function EditableField({ label, value, placeholder, onSave }: {
   }, [handleSave, handleCancel]);
 
   return (
-    <div className="flex items-center justify-between py-3.5 border-b border-divider/60 group">
+    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
@@ -123,10 +145,6 @@ function EditableField({ label, value, placeholder, onSave }: {
   );
 }
 
-// ============================================================
-// Gender Select Field
-// ============================================================
-
 function GenderEditableField({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -138,7 +156,7 @@ function GenderEditableField({ label, value, onSave }: { label: string; value: s
   const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
 
   return (
-    <div className="flex items-center justify-between py-3.5 border-b border-divider/60 group">
+    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
@@ -162,10 +180,6 @@ function GenderEditableField({ label, value, onSave }: { label: string; value: s
   );
 }
 
-// ============================================================
-// Date Editable Field
-// ============================================================
-
 function DateEditableField({ label, value, placeholder, onSave }: {
   label: string; value: string; placeholder: string; onSave: (v: string) => void;
 }) {
@@ -180,7 +194,7 @@ function DateEditableField({ label, value, placeholder, onSave }: {
   const displayValue = value ? toPersianDate(value) : "";
 
   return (
-    <div className="flex items-center justify-between py-3.5 border-b border-divider/60 group">
+    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
@@ -203,42 +217,93 @@ function DateEditableField({ label, value, placeholder, onSave }: {
 }
 
 // ============================================================
-// Usage Stat Card — usage stat with mini progress ring
+// Hub UI primitives
 // ============================================================
 
-function MyStatCard({ label, used, total, color }: {
-  label: string; used: number; total: number; color: string;
+function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-2 text-h3 text-onSurface font-bold mb-4">
+      <span className="text-primary-600">{icon}</span>
+      {children}
+    </h2>
+  );
+}
+
+/** A navigational card linking to an existing feature route. */
+function HubCard({
+  href,
+  icon,
+  iconClass = "bg-primary-50 text-primary-700",
+  title,
+  description,
+  status,
+  statusTone = "neutral",
+}: {
+  href: string;
+  icon: React.ReactNode;
+  iconClass?: string;
+  title: string;
+  description?: string;
+  status?: string;
+  statusTone?: "primary" | "neutral" | "success" | "amber";
 }) {
-  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  const toneClass =
+    statusTone === "primary"
+      ? "bg-primary-50 text-primary-700 border-primary-200"
+      : statusTone === "success"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : statusTone === "amber"
+          ? "bg-amber-50 text-amber-700 border-amber-200"
+          : "bg-neutral-100 text-neutral-600 border-neutral-200";
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 border border-divider/40">
-      <CircularRing pct={pct} size={48} strokeWidth={5} color={color} />
-      <div className="flex-1 min-w-0">
-        <p className="text-body-2 text-onSurface font-medium">{label}</p>
-        <p className="text-caption text-muted mt-0.5" dir="ltr">
-          {toPersianNumber(used)} / {toPersianNumber(total)}
-        </p>
-      </div>
-    </div>
+    <Link
+      href={href}
+      className="group flex items-center gap-4 rounded-xl border border-divider/60 bg-surface p-4 shadow-elevation-1 transition-all duration-200 hover:border-primary-300 hover:shadow-elevation-3"
+    >
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconClass} transition-colors group-hover:bg-primary-100`}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-body-1 text-onSurface font-medium truncate">{title}</span>
+        {description && (
+          <span className="mt-0.5 block text-caption text-muted truncate">{description}</span>
+        )}
+      </span>
+      {status && (
+        <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-caption font-medium ${toneClass}`}>
+          {status}
+        </span>
+      )}
+      <IconArrowBack size={18} rtlFlip className="shrink-0 text-neutral-300 transition-all group-hover:text-primary-500 group-hover:-translate-x-0.5" />
+    </Link>
   );
 }
 
 // ============================================================
-// Profile Page
+// Account Hub Page
 // ============================================================
 
-export default function ProfilePage() {
+export default function AccountHubPage() {
   const me = useMe();
   const updateProfile = useUpdateProfile();
   const usage = useProfileUsage();
   const subHistory = useSubscriptionHistory();
-  const { theme, toggleTheme } = useThemeStore();
+  const currentSub = useCurrentSubscription();
+  const documents = useDocuments({ pageSize: 1 });
+  const contracts = useContracts({ pageSize: 1 });
+  const memories = useMemories();
+  const { theme, toggleTheme } = useTheme();
 
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
   const usageData = usage.data;
   const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
+  const activeSub = currentSub.data ?? null;
+
+  const docCount = documents.data?.pagination?.total ?? documents.data?.items?.length ?? 0;
+  const contractCount = contracts.data?.pagination?.total ?? contracts.data?.items?.length ?? 0;
+  const memoryCount = memories.data?.items?.length ?? 0;
 
   const { firstName, familyName } = splitDisplayName(profile?.displayName ?? null);
   const completionPct = profile?.completionPercent ?? 0;
@@ -257,42 +322,51 @@ export default function ProfilePage() {
   const hSaveBirthDate = useCallback((v: string) => updateProfile.mutateAsync({ birthDate: v || null }), [updateProfile]);
   const hSaveGender = useCallback((v: string) => updateProfile.mutateAsync({ gender: (v || null) as Profile["gender"] }), [updateProfile]);
 
-  return (
-    <div className="p-4 tablet:p-6 max-w-2xl mx-auto">
-      <h1 className="text-h2 text-onSurface font-bold mb-6">پروفایل</h1>
+  const remainingRequests = usageData
+    ? Math.max(0, usageData.dailyRequestsTotal - usageData.dailyRequestsUsed)
+    : 0;
 
-      {/* ---- Avatar Card (Gradient) ---- */}
+  const subLabel = activeSub?.planNameFa ?? "بدون اشتراک";
+
+  return (
+    <div className="p-4 tablet:p-6 max-w-3xl mx-auto" dir="rtl">
+      <h1 className="text-h2 text-onSurface font-bold mb-6">تنظیمات و پروفایل</h1>
+
+      {/* ================================================ */}
+      {/* Hero — identity summary */}
+      {/* ================================================ */}
       <section className="relative rounded-2xl bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 p-6 mb-6 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
           <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/5 blur-2xl" />
         </div>
-
-        <div className="relative flex flex-col items-center">
-          {/* Avatar + completion ring */}
-          <div className="relative mb-4">
-            <CircularRing pct={completionPct} size={88} strokeWidth={6} color="#10b981" />
+        <div className="relative flex items-center gap-5">
+          <div className="relative shrink-0">
+            <CircularRing pct={completionPct} size={84} strokeWidth={6} color="#10b981" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-[68px] w-[68px] rounded-full bg-white flex items-center justify-center text-h2 text-primary-700 font-bold shadow-elevation-2">
+              <div className="h-[66px] w-[66px] rounded-full bg-white flex items-center justify-center text-h2 text-primary-700 font-bold shadow-elevation-2">
                 {getInitial(profile?.displayName ?? null)}
               </div>
             </div>
           </div>
-
-          <h2 className="text-h3 text-white font-bold">{profile?.displayName ?? "کاربر LEGALIR"}</h2>
-          {(profile?.city || profile?.occupation) && (
-            <p className="text-body-2 text-primary-200 mt-1">
-              {[profile.city, profile.occupation].filter(Boolean).join(" — ")}
+          <div className="min-w-0 flex-1">
+            <h2 className="text-h3 text-white font-bold truncate">{profile?.displayName ?? "کاربر LEGALIR"}</h2>
+            {(profile?.city || profile?.occupation) && (
+              <p className="text-body-2 text-primary-200 mt-1 truncate">
+                {[profile.city, profile.occupation].filter(Boolean).join(" — ")}
+              </p>
+            )}
+            <p className="text-caption text-primary-300 mt-1.5">
+              تکمیل پروفایل {toPersianNumber(completionPct)}٪
             </p>
-          )}
-          <p className="text-caption text-primary-300 mt-2">
-            تکمیل پروفایل {toPersianNumber(completionPct)}٪
-          </p>
+          </div>
         </div>
       </section>
 
-      {/* ---- Editable Profile Fields ---- */}
+      {/* ================================================ */}
+      {/* پروفایل من */}
+      {/* ================================================ */}
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <h2 className="text-h3 text-onSurface font-bold mb-2">اطلاعات شخصی</h2>
+        <SectionTitle icon={<IconPerson size={22} />}>پروفایل من</SectionTitle>
         <dl>
           <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
           <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
@@ -301,7 +375,7 @@ export default function ProfilePage() {
           <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
           <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
           <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
-          <div className="flex items-center justify-between py-3.5">
+          <div className="flex items-center justify-between py-3">
             <dt className="text-body-2 text-muted shrink-0 w-28">موبایل</dt>
             <dd className="flex items-center gap-2 text-body-2 text-onSurface" dir="ltr">
               <IconPhone size={16} className="text-muted" />
@@ -311,22 +385,141 @@ export default function ProfilePage() {
         </dl>
       </section>
 
-      {/* ---- Settings: Theme Toggle ---- */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <h2 className="text-h3 text-onSurface font-bold mb-3">تنظیمات</h2>
-        <div className="flex items-center justify-between py-1">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              {theme === "dark" ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary-500">
-                  <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-              )}
+      {/* ================================================ */}
+      {/* وبلاگ حقوقی */}
+      {/* ================================================ */}
+      <section className="mb-6">
+        <Link
+          href="/blog"
+          className="group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-primary-800 to-primary-900 p-6 shadow-elevation-2 transition-all duration-200 hover:shadow-elevation-4"
+        >
+          <div className="absolute inset-0 opacity-10 pointer-events-none" aria-hidden="true">
+            <div className="absolute -top-6 -left-6 w-28 h-28 rounded-full border-2 border-white" />
+            <div className="absolute bottom-2 right-10 w-20 h-20 rounded-full border border-white/60" />
+          </div>
+          <div className="relative flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
+              <IconLawBook size={24} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-h3 text-white font-bold">وبلاگ حقوقی لیگالیر</h3>
+              <p className="text-body-2 text-primary-100/80 mt-1">
+                راهنماها، آموزش‌ها، قوانین و مطالب کاربردی حقوقی
+              </p>
             </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2 text-button text-primary-800 font-medium transition-all group-hover:gap-2.5">
+              مشاهده وبلاگ
+              <IconArrowBack size={16} rtlFlip />
+            </span>
+          </div>
+        </Link>
+      </section>
+
+      {/* ================================================ */}
+      {/* فضای حقوقی من */}
+      {/* ================================================ */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <SectionTitle icon={<IconBalance size={22} />}>فضای حقوقی من</SectionTitle>
+        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
+          <HubCard
+            href="/chat"
+            icon={<IconChat size={22} />}
+            title="گفت‌وگوهای من"
+            description="پرسش و پاسخ حقوقی با هوش مصنوعی"
+          />
+          <HubCard
+            href="/documents"
+            icon={<IconDocument size={22} />}
+            title="اسناد من"
+            description="تحلیل و بررسی اسناد حقوقی"
+            status={`${persianCount(docCount)} سند`}
+            statusTone="primary"
+          />
+          <HubCard
+            href="/contracts"
+            icon={<IconContract size={22} />}
+            title="قراردادهای من"
+            description="ساخت و مدیریت قرارداد"
+            status={`${persianCount(contractCount)} قرارداد`}
+            statusTone="primary"
+          />
+          <HubCard
+            href="/history"
+            icon={<IconHistory size={22} />}
+            title="تاریخچه"
+            description="فعالیت‌ها و موارد اخیر"
+          />
+          <HubCard
+            href="/memory"
+            icon={<IconMemory size={22} />}
+            title="حافظه"
+            description="اطلاعات ذخیره‌شده درباره شما"
+            status={`${persianCount(memoryCount)} مورد ذخیره‌شده`}
+            statusTone="primary"
+          />
+        </div>
+      </section>
+
+      {/* ================================================ */}
+      {/* اشتراک */}
+      {/* ================================================ */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <SectionTitle icon={<IconSubscription size={22} />}>اشتراک</SectionTitle>
+
+        <div className="flex flex-col tablet:flex-row tablet:items-center gap-4 rounded-xl bg-amber-50/60 border border-amber-100 p-4 mb-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-body-1 text-onSurface font-semibold">پلن فعلی: {subLabel}</p>
+            <p className="text-caption text-muted mt-0.5">
+              {activeSub?.endAt ? `اعتبار تا ${toPersianDate(activeSub.endAt)}` : "برای فعال‌سازی اشتراک اقدام کنید"}
+            </p>
+            {usageData && (
+              <p className="text-body-2 text-muted mt-1.5">
+                {toPersianNumber(remainingRequests)} از {toPersianNumber(usageData.dailyRequestsTotal)} درخواست روزانه باقی‌مانده
+              </p>
+            )}
+          </div>
+          <Link
+            href="/subscription"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-medium bg-primary-700 text-white px-5 py-2.5 text-button hover:bg-primary-800 transition-colors touch-target"
+          >
+            مدیریت و ارتقا
+            <IconArrowBack size={16} rtlFlip />
+          </Link>
+        </div>
+
+        {subItems.length > 0 && subItems[0] && (
+          <p className="text-caption text-muted">
+            آخرین پرداخت: {subItems[0].planNameFa} — {toPersianDate(subItems[0].purchasedAt)}
+          </p>
+        )}
+      </section>
+
+      {/* ================================================ */}
+      {/* سرویس‌های متصل */}
+      {/* ================================================ */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <SectionTitle icon={<IconShield size={22} />}>سرویس‌های متصل</SectionTitle>
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
+            <IconCheck size={22} />
+          </span>
+          <p className="text-body-2 text-muted">در حال حاضر سرویس خارجی متصلی وجود ندارد.</p>
+          <p className="text-caption text-muted">اتصال به درگاه‌ها و ابزارهای شخص ثالث به‌زودی.</p>
+        </div>
+      </section>
+
+      {/* ================================================ */}
+      {/* تنظیمات */}
+      {/* ================================================ */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <SectionTitle icon={<IconSettings size={22} />}>تنظیمات</SectionTitle>
+
+        {/* Theme toggle */}
+        <div className="flex items-center justify-between py-3 border-b border-divider/60">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
+              {theme === "dark" ? <IconDarkMode size={20} className="text-amber-500" /> : <IconLightMode size={20} className="text-primary-500" />}
+            </span>
             <div>
               <p className="text-body-1 text-onSurface font-medium">تم</p>
               <p className="text-caption text-muted">{theme === "dark" ? "حالت تاریک" : "حالت روشن"}</p>
@@ -334,123 +527,43 @@ export default function ProfilePage() {
           </div>
           <button
             onClick={toggleTheme}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 ${theme === "dark" ? "bg-primary-600" : "bg-neutral-300"}`}
+            role="switch"
+            aria-checked={theme === "dark"}
             aria-label="تغییر تم"
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${theme === "dark" ? "bg-primary-600" : "bg-neutral-300"}`}
           >
-            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${theme === "dark" ? "translate-x-6" : "translate-x-1"}`} />
+            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${theme === "dark" ? "translate-x-6" : "translate-x-1"}`} />
           </button>
+        </div>
+
+        {/* Settings destinations */}
+        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3 mt-4">
+          <HubCard
+            href="/settings"
+            icon={<IconSettings size={22} />}
+            title="اعلان‌ها و حریم خصوصی"
+            description="مدیریت اعلان‌ها و دسترسی‌ها"
+          />
+          <HubCard
+            href="/settings"
+            icon={<IconShield size={22} />}
+            title="نشست‌ها و امنیت"
+            description="نشست‌های فعال و امنیت حساب"
+          />
         </div>
       </section>
 
-      {/* ---- Resource Usage ---- */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <h2 className="text-h3 text-onSurface font-bold mb-4">مصرف منابع</h2>
-
-        {usage.isLoading ? (
-          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map((i) => (<div key={i} className="h-16 rounded-xl bg-neutral-100 animate-pulse" />))}
-          </div>
-        ) : usage.isError ? (
-          <div className="text-center py-4">
-            <p className="text-body-2 text-error mb-2">خطا در دریافت اطلاعات مصرف</p>
-            <button onClick={() => usage.refetch()} className="text-button text-primary hover:underline">تلاش مجدد</button>
-          </div>
-        ) : usageData ? (
-          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
-            <MyStatCard label="درخواست روزانه" used={usageData.dailyRequestsUsed} total={usageData.dailyRequestsTotal} color="#3b82f6" />
-            <MyStatCard label="توکن‌ها" used={usageData.tokensUsed} total={usageData.tokensTotal} color="#8b5cf6" />
-            <MyStatCard label="تحلیل اسناد" used={usageData.documentAnalysesUsed} total={usageData.documentAnalysesTotal} color="#22c55e" />
-            <MyStatCard label="قراردادها" used={usageData.contractsGenerated} total={usageData.contractsTotal} color="#f59e0b" />
-          </div>
-        ) : (
-          <p className="text-body-2 text-muted text-center py-4">اطلاعات مصرف در دسترس نیست</p>
-        )}
-      </section>
-
-      {/* ---- Subscription Timeline ---- */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <h2 className="text-h3 text-onSurface font-bold mb-4">تاریخچه اشتراک</h2>
-
-        {subHistory.isLoading ? (
-          <div className="space-y-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="flex gap-4 animate-pulse">
-                <div className="w-2 bg-neutral-100 rounded-full" />
-                <div className="flex-1 space-y-2"><div className="h-4 bg-neutral-100 rounded w-1/3" /><div className="h-3 bg-neutral-100 rounded w-2/3" /></div>
-              </div>
-            ))}
-          </div>
-        ) : subHistory.isError ? (
-          <div className="text-center py-4">
-            <p className="text-body-2 text-error mb-2">خطا در دریافت تاریخچه</p>
-            <button onClick={() => subHistory.refetch()} className="text-button text-primary hover:underline">تلاش مجدد</button>
-          </div>
-        ) : subItems.length === 0 ? (
-          <p className="text-body-2 text-muted text-center py-4">هنوز اشتراکی تهیه نشده است.</p>
-        ) : (
-          <div className="relative">
-            <div className="absolute right-[11px] top-2 bottom-2 w-0.5 bg-divider" aria-hidden="true" />
-            <div className="space-y-5">
-              {subItems.map((item, idx) => {
-                const isActive = item.status === "active";
-                const dotColor = isActive ? "bg-emerald-500 ring-emerald-100" : item.status === "expired" ? "bg-amber-500 ring-amber-100" : "bg-neutral-400 ring-neutral-100";
-                return (
-                  <div key={item.id} className="flex gap-4 items-start">
-                    <div className="relative z-10 shrink-0">
-                      <div className={`h-6 w-6 rounded-full ${dotColor} ring-4 flex items-center justify-center`}>
-                        <div className="h-2.5 w-2.5 rounded-full bg-white" />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                        <span className="text-body-2 text-onSurface font-semibold">{item.planNameFa}</span>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium border ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES["unknown"]}`}>
-                          {item.statusFa}
-                        </span>
-                        {idx === 0 && isActive && (<span className="text-caption text-emerald-600 font-medium">(فعلی)</span>)}
-                      </div>
-                      <p className="text-caption text-muted mb-1">{toPersianDate(item.startAt)} تا {toPersianDate(item.endAt)}</p>
-                      <p className="text-caption text-onSurface font-bold">{toPersianNumber(item.amount)} تومان</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ---- Payment History ---- */}
+      {/* ================================================ */}
+      {/* راهنما و محصول */}
+      {/* ================================================ */}
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5">
-        <h2 className="text-h3 text-onSurface font-bold mb-4">پرداخت‌ها</h2>
-
-        {subHistory.isLoading ? (
-          <div className="space-y-3">
-            {[1, 2].map((i) => (<div key={i} className="h-16 rounded-xl bg-neutral-100 animate-pulse" />))}
-          </div>
-        ) : subHistory.isError ? (
-          <div className="text-center py-4">
-            <p className="text-body-2 text-error mb-2">خطا در دریافت تاریخچه پرداخت</p>
-            <button onClick={() => subHistory.refetch()} className="text-button text-primary hover:underline">تلاش مجدد</button>
-          </div>
-        ) : subItems.length === 0 ? (
-          <p className="text-body-2 text-muted text-center py-4">هنوز پرداختی انجام نشده است.</p>
-        ) : (
-          <div className="space-y-2">
-            {subItems.map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border border-divider/40 hover:bg-neutral-50 transition-colors gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-body-2 text-onSurface font-semibold">{item.planNameFa}</span>
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium border ${STATUS_BADGE_STYLES[item.status] ?? STATUS_BADGE_STYLES["unknown"]}`}>{item.statusFa}</span>
-                  </div>
-                  <p className="text-caption text-muted">{toPersianDate(item.purchasedAt)}</p>
-                </div>
-                <span className="text-body-1 text-onSurface font-bold" dir="ltr">{toPersianNumber(item.amount)} تومان</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <SectionTitle icon={<IconInfo size={22} />}>راهنما و محصول</SectionTitle>
+        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
+          <HubCard href="/about" icon={<IconInfo size={22} />} title="درباره لیگالیر" description="آشنایی با پلتفرم و خدمات" />
+          <HubCard href="/support" icon={<IconPhone size={22} />} title="پشتیبانی" description="تماس با تیم پشتیبانی" />
+          <HubCard href="/blog" icon={<IconLawBook size={22} />} title="راهنما و آموزش" description="مقالات و راهنماهای حقوقی" />
+          <HubCard href="/support" icon={<IconStar size={22} />} title="قوانین استفاده" description="شرایط و ضوابط استفاده از خدمات" />
+        </div>
       </section>
     </div>
   );

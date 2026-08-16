@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { Header } from "@/components/public/Header";
 import { Footer } from "@/components/public/Footer";
 
@@ -13,20 +13,16 @@ describe("Theme Switching", () => {
     document.documentElement.setAttribute("data-theme", "light");
   });
 
-  it("header has theme toggle buttons (desktop + mobile)", () => {
+  it("header is light-only (no theme toggle)", () => {
     render(wrapInRtl(<Header />));
-    // There are two theme toggle buttons: one for desktop, one for mobile
-    const themeButtons = screen.getAllByLabelText("حالت تیره");
-    expect(themeButtons.length).toBeGreaterThanOrEqual(1);
+    // Landing is restricted to Light-only per §3/§40 — no theme switch exists.
+    expect(screen.queryByLabelText("حالت تیره")).toBeNull();
+    expect(screen.queryByLabelText("حالت روشن")).toBeNull();
   });
 
-  it("theme toggle is clickable", () => {
+  it("header renders without error in light theme", () => {
     render(wrapInRtl(<Header />));
-    const themeButtons = screen.getAllByLabelText("حالت تیره");
-    expect(themeButtons.length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(themeButtons[0]!);
-    // After click, at least one button should switch to "حالت روشن"
-    expect(screen.getAllByLabelText("حالت روشن").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText("LEGALIR — صفحه اصلی")).toBeInTheDocument();
   });
 });
 

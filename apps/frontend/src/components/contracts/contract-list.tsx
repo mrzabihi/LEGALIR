@@ -99,7 +99,7 @@ export function ContractList() {
           <h3 className="text-h3 text-on-surface mb-2">
             {search || stateFilter || categoryFilter
               ? "قراردادی با این شرایط یافت نشد"
-              : "هنوز قراردادی ندارید"}
+              : "هنوز قراردادی ایجاد نکرده‌اید"}
           </h3>
           <p className="text-body-2 text-muted mb-4">
             {search || stateFilter || categoryFilter
@@ -111,7 +111,7 @@ export function ContractList() {
               href="/contracts/new"
               className="rounded-medium bg-primary text-white px-5 py-3 text-button touch-target inline-block"
             >
-              ایجاد اولین قرارداد
+              ساخت قرارداد
             </Link>
           )}
         </div>

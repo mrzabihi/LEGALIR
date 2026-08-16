@@ -1,13 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useConversations, useUpdateConversation } from "@/hooks/useConversations";
 import { ConversationList } from "@/components/chat/conversation-list";
+import { ServiceContextCard } from "@/components/chat/service-context-card";
+import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
 import { IconChat } from "@/lib/icons";
 import Link from "next/link";
 
 export default function ChatListPage() {
   const { data: conversations = [], isLoading, error, refetch } = useConversations();
   const archiveMutation = useUpdateConversation();
+  const [serviceType, setServiceType] = useState<ServiceType>("legal_consultation");
+
+  // Derive service context from the entry URL (?service= / ?category=).
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setServiceType(serviceTypeFromQuery(window.location.search));
+    }
+  }, []);
 
   return (
     <div className="flex h-full">
@@ -35,7 +46,7 @@ export default function ChatListPage() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-h2 text-on-surface">گفتگوها</h1>
             <Link
-              href="/chat/new"
+              href={`/chat/new?service=${serviceType}`}
               className="rounded-medium bg-primary text-white px-5 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
             >
               گفتگوی جدید
@@ -68,8 +79,11 @@ export default function ChatListPage() {
             یک گفتگو را از لیست انتخاب کنید یا گفتگوی جدیدی شروع کنید. هوش مصنوعی
             LEGALIR تحلیل حقوقی، ریسک‌ها و اقدامات پیشنهادی را ارائه می‌دهد.
           </p>
+          <div className="mb-6">
+            <ServiceContextCard serviceType={serviceType} compact />
+          </div>
           <Link
-            href="/chat/new"
+            href={`/chat/new?service=${serviceType}`}
             className="inline-flex items-center gap-2 rounded-medium bg-primary text-white px-6 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
           >
             شروع گفتگوی جدید

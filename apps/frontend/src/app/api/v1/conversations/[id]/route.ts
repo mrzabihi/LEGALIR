@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { findSessionById } from '@/lib/db';
+import { getMessages } from '@/lib/ai/store';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -52,7 +53,9 @@ export async function GET(
     return NextResponse.json({ code: 'NOT_FOUND', message: 'گفتگو یافت نشد' }, { status: 404 });
   }
 
-  return NextResponse.json({ data: conv });
+  // Hydrate persisted messages from the AI gateway store.
+  const messages = getMessages(id);
+  return NextResponse.json({ data: { ...conv, messages, aiRuns: [], references: [] } });
 }
 
 export async function PATCH(

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { findSessionById } from '@/lib/db';
 import fs from 'node:fs';
 import path from 'node:path';

@@ -9,98 +9,47 @@ import {
   IconSearch,
   IconClose,
 } from "@/lib/icons";
+import { useBlogPosts } from "@/hooks/useDashboard";
+import { toPersianDate } from "@/lib/persian-utils";
+import type { V1BlogListItem } from "@legalir/types";
 
 // ============================================================
-// Mock Blog Post Data
+// Deterministic cover gradients (coverImage is null in fixtures)
 // ============================================================
 
-interface BlogPost {
-  slug: string;
-  title: string;
-  excerpt: string;
-  category: string;
-  author: string;
-  authorTitle: string;
-  readingTime: number; // minutes
-  publishedDate: string; // Jalali date string
-  imageColor: string; // placeholder gradient color
-  featured?: boolean;
+const categoryGradients: Record<string, string> = {
+  قراردادها: "from-primary-700 to-primary-900",
+  "املاک و مستغلات": "from-secondary-600 to-secondary-800",
+  تجارت: "from-primary-600 to-secondary-700",
+  خانواده: "from-primary-800 to-neutral-900",
+};
+
+function gradientFor(category: string): string {
+  return categoryGradients[category] ?? "from-primary-700 to-primary-900";
 }
 
-const categories = [
-  "همه",
-  "قراردادها",
-  "املاک و مستغلات",
-  "خانواده",
-  "تجارت",
-  "حقوق کار",
-] as const;
-
-const blogPosts: BlogPost[] = [
-  {
-    slug: "vajh-eltizam-contracts",
-    title: "وجه التزام در قراردادها: راهنمای جامع حقوقی",
-    excerpt:
-      "وجه التزام یکی از مهم‌ترین شروط قراردادی است که طرفین برای تضمین اجرای تعهدات درج می‌کنند. در این مقاله نحوه تعیین، مطالبه و تعدیل وجه التزام بر اساس قوانین ایران و رویه قضایی را بررسی می‌کنیم.",
-    category: "قراردادها",
-    author: "دکتر مریم حسینی",
-    authorTitle: "وکیل پایه یک دادگستری",
-    readingTime: 12,
-    publishedDate: "۱۵ مرداد ۱۴۰۵",
-    imageColor: "from-primary-700 to-primary-900",
-    featured: true,
-  },
-  {
-    slug: "malk-mustajir-legal-guide",
-    title: "راهنمای حقوقی مالک و مستأجر: آنچه باید بدانید",
-    excerpt:
-      "رابطه مالک و مستأجر از رایج‌ترین و پرچالش‌ترین موضوعات حقوقی در ایران است. در این راهنما، حقوق و تکالیف قانونی طرفین، شرایط فسخ و تخلیه، سرقفلی و حق کسب و پیشه را به زبان ساده توضیح می‌دهیم.",
-    category: "املاک و مستغلات",
-    author: "علی رضایی",
-    authorTitle: "مشاور حقوقی املاک",
-    readingTime: 15,
-    publishedDate: "۱۰ مرداد ۱۴۰۵",
-    imageColor: "from-secondary-600 to-secondary-800",
-  },
-  {
-    slug: "ai-legal-analysis-future",
-    title: "هوش مصنوعی و آینده تحلیل حقوقی در ایران",
-    excerpt:
-      "فناوری هوش مصنوعی به سرعت در حال تغییر شیوه ارائه خدمات حقوقی در جهان است. در این مقاله نقش AI در تحلیل اسناد حقوقی، پیش‌بینی آرای قضایی و دسترسی‌پذیر کردن دانش حقوقی را از منظر نظام حقوقی ایران بررسی می‌کنیم.",
-    category: "تجارت",
-    author: "سارا محمدی",
-    authorTitle: "پژوهشگر حقوق و فناوری",
-    readingTime: 8,
-    publishedDate: "۵ مرداد ۱۴۰۵",
-    imageColor: "from-primary-600 to-secondary-700",
-  },
-  {
-    slug: "divorce-legal-process-guide",
-    title: "روند قانونی طلاق توافقی: مراحل، مدارک و نکات مهم",
-    excerpt:
-      "طلاق توافقی سریع‌ترین و کمدردسرترین روش انحلال نکاح در حقوق ایران است. در این مقاله گام‌به‌گام مراحل طلاق توافقی، مدارک مورد نیاز، حقوق مالی زوجه و حضانت فرزندان را شرح می‌دهیم.",
-    category: "خانواده",
-    author: "دکتر مریم حسینی",
-    authorTitle: "وکیل پایه یک دادگستری",
-    readingTime: 10,
-    publishedDate: "۱ مرداد ۱۴۰۵",
-    imageColor: "from-primary-800 to-neutral-900",
-  },
-];
+function formatDate(iso: string): string {
+  try {
+    return toPersianDate(iso, { dateStyle: "medium" });
+  } catch {
+    return iso;
+  }
+}
 
 // ============================================================
 // Sub-components
 // ============================================================
 
-function BlogCard({ post }: { post: BlogPost }) {
+function BlogCard({ post }: { post: V1BlogListItem }) {
+  const imageColor = gradientFor(post.category);
+
   return (
     <article className="group rounded-xl bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-all duration-medium1 overflow-hidden flex flex-col">
       {/* Cover image placeholder with gradient */}
       <Link href={`/blog/${post.slug}`} className="block">
         <div
-          className={`h-48 bg-gradient-to-br ${post.imageColor} flex items-center justify-center relative overflow-hidden`}
+          className={`h-48 bg-gradient-to-br ${imageColor} flex items-center justify-center relative overflow-hidden`}
         >
-          {/* Abstract decorative shapes */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-4 right-6 w-24 h-24 rounded-full border-2 border-white" />
             <div className="absolute bottom-2 left-8 w-16 h-16 rounded-full border border-white" />
@@ -119,7 +68,6 @@ function BlogCard({ post }: { post: BlogPost }) {
 
       {/* Card content */}
       <div className="flex flex-col flex-1 p-5">
-        {/* Category badge */}
         <div className="flex items-center gap-2 mb-3">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-labelSmall bg-primary-50 text-primary-700 border border-primary-200/60">
             <IconCategory size={12} />
@@ -127,19 +75,16 @@ function BlogCard({ post }: { post: BlogPost }) {
           </span>
         </div>
 
-        {/* Title */}
         <Link href={`/blog/${post.slug}`} className="group/link">
           <h3 className="text-h4 text-primary-800 mb-2 group-hover/link:text-primary-600 transition-colors line-clamp-2 leading-snug">
-            {post.title}
+            {post.titleFa}
           </h3>
         </Link>
 
-        {/* Excerpt */}
         <p className="text-body-2 text-neutral-500 mb-4 flex-1 line-clamp-3 leading-relaxed">
           {post.excerpt}
         </p>
 
-        {/* Meta: author, date, reading time */}
         <div className="flex items-center gap-4 text-caption text-neutral-400 pt-3 border-t border-divider">
           <span className="flex items-center gap-1.5">
             <IconPerson size={14} />
@@ -147,7 +92,7 @@ function BlogCard({ post }: { post: BlogPost }) {
           </span>
           <span className="flex items-center gap-1.5">
             <IconCalendar size={14} />
-            {post.publishedDate}
+            {formatDate(post.publishedAt)}
           </span>
           <span className="ms-auto tabular-nums">
             {post.readingTime} دقیقه مطالعه
@@ -176,17 +121,88 @@ function EmptyState({ query }: { query?: string }) {
   );
 }
 
+function LoadingState() {
+  return (
+    <section className="bg-neutral-50 py-16 min-h-[400px]">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="grid tablet:grid-cols-2 laptop:grid-cols-3 gap-6">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl bg-surface border border-neutral-200 overflow-hidden"
+            >
+              <div className="h-48 skeleton-shimmer" />
+              <div className="p-5 space-y-3">
+                <div className="h-4 w-20 rounded-md skeleton-shimmer" />
+                <div className="h-5 w-3/4 rounded-md skeleton-shimmer" />
+                <div className="h-4 w-full rounded-md skeleton-shimmer" />
+                <div className="h-4 w-2/3 rounded-md skeleton-shimmer" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="h-20 w-20 rounded-full bg-error-50 flex items-center justify-center mb-6">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-error-600" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4M12 16h.01" />
+        </svg>
+      </div>
+      <h3 className="text-h3 text-primary-800 mb-2">خطا در دریافت مطالب</h3>
+      <p className="text-body-2 text-neutral-500 max-w-md leading-relaxed mb-6">
+        در دریافت مقالات وبلاگ مشکلی پیش آمد. لطفاً دوباره تلاش کنید.
+      </p>
+      <button
+        onClick={onRetry}
+        className="rounded-medium bg-primary-700 text-white px-6 py-3 text-button hover:bg-primary-800 transition-colors touch-target"
+      >
+        تلاش مجدد
+      </button>
+    </div>
+  );
+}
+
+function BlogHeader() {
+  return (
+    <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
+      <div className="mx-auto max-w-6xl px-4 text-center">
+        <h1 className="text-h1 text-white mb-4">وبلاگ حقوقی LEGALIR</h1>
+        <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+          مقالات، راهنماها و تحلیل‌های حقوقی به زبان ساده — دانش حقوقی برای همه
+        </p>
+      </div>
+    </section>
+  );
+}
+
 // ============================================================
 // Main Blog Listing Page
 // ============================================================
 
 export default function BlogPage() {
+  const { data, isLoading, error, refetch } = useBlogPosts(1, 50);
   const [activeCategory, setActiveCategory] = useState<string>("همه");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const posts = useMemo(() => data?.items ?? [], [data?.items]);
+
+  // Derive categories from actual content
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    posts.forEach((p) => set.add(p.category));
+    return ["همه", ...Array.from(set)];
+  }, [posts]);
+
   // Filter and search posts
   const filteredPosts = useMemo(() => {
-    let result = [...blogPosts];
+    let result = [...posts];
 
     if (activeCategory !== "همه") {
       result = result.filter((p) => p.category === activeCategory);
@@ -196,43 +212,48 @@ export default function BlogPage() {
       const q = searchQuery.trim();
       result = result.filter(
         (p) =>
-          p.title.includes(q) ||
+          p.titleFa.includes(q) ||
           p.excerpt.includes(q) ||
-          p.category.includes(q)
+          p.category.includes(q) ||
+          p.tags.some((t) => t.includes(q))
       );
     }
 
     return result;
-  }, [activeCategory, searchQuery]);
+  }, [posts, activeCategory, searchQuery]);
 
-  const featuredPost = blogPosts.find((p) => p.featured);
-  const isEmpty = filteredPosts.length === 0;
+  const featuredPost = posts.find((p) => p.featured);
+
+  if (isLoading) {
+    return (
+      <>
+        <BlogHeader />
+        <LoadingState />
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <BlogHeader />
+        <ErrorState onRetry={() => refetch()} />
+      </>
+    );
+  }
 
   return (
     <>
-      {/* ========================================================
-          Page Header - Gradient
-          ======================================================== */}
-      <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
-        <div className="mx-auto max-w-6xl px-4 text-center">
-          <h1 className="text-h1 text-white mb-4">وبلاگ حقوقی LEGALIR</h1>
-          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
-            مقالات، راهنماها و تحلیل‌های حقوقی به زبان ساده — دانش حقوقی برای همه
-          </p>
-        </div>
-      </section>
+      <BlogHeader />
 
-      {/* ========================================================
-          Featured Post Hero
-          ======================================================== */}
+      {/* Featured Post Hero */}
       {featuredPost && activeCategory === "همه" && !searchQuery.trim() && (
         <section className="bg-neutral-50 border-b border-neutral-200">
           <div className="mx-auto max-w-6xl px-4 py-12">
             <div className="rounded-xl overflow-hidden bg-surface border border-neutral-200 shadow-elevation-1 hover:shadow-elevation-4 transition-all duration-medium1">
               <div className="grid tablet:grid-cols-2">
-                {/* Featured image placeholder */}
                 <div
-                  className={`bg-gradient-to-br ${featuredPost.imageColor} flex items-center justify-center min-h-[280px] relative overflow-hidden`}
+                  className={`bg-gradient-to-br ${gradientFor(featuredPost.category)} flex items-center justify-center min-h-[280px] relative overflow-hidden`}
                 >
                   <div className="absolute inset-0 opacity-10">
                     <div className="absolute top-8 right-8 w-32 h-32 rounded-full border-2 border-white" />
@@ -250,7 +271,6 @@ export default function BlogPage() {
                   </div>
                 </div>
 
-                {/* Featured content */}
                 <div className="p-8 flex flex-col justify-center">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-labelSmall bg-secondary-50 text-secondary-700 border border-secondary-200/60 mb-4 w-fit">
                     <IconCategory size={12} />
@@ -261,7 +281,7 @@ export default function BlogPage() {
 
                   <Link href={`/blog/${featuredPost.slug}`}>
                     <h2 className="text-h2 text-primary-800 mb-3 hover:text-primary-600 transition-colors leading-snug">
-                      {featuredPost.title}
+                      {featuredPost.titleFa}
                     </h2>
                   </Link>
 
@@ -276,7 +296,7 @@ export default function BlogPage() {
                     </span>
                     <span className="flex items-center gap-1.5">
                       <IconCalendar size={14} />
-                      {featuredPost.publishedDate}
+                      {formatDate(featuredPost.publishedAt)}
                     </span>
                     <span className="tabular-nums">
                       {featuredPost.readingTime} دقیقه مطالعه
@@ -296,13 +316,10 @@ export default function BlogPage() {
         </section>
       )}
 
-      {/* ========================================================
-          Search & Category Filters
-          ======================================================== */}
+      {/* Search & Category Filters */}
       <section className="bg-white border-b border-neutral-200 sticky top-0 z-20">
         <div className="mx-auto max-w-6xl px-4 py-5">
           <div className="flex flex-col tablet:flex-row tablet:items-center gap-4">
-            {/* Search bar */}
             <div className="relative flex-1 max-w-sm">
               <IconSearch
                 size={18}
@@ -329,7 +346,6 @@ export default function BlogPage() {
               )}
             </div>
 
-            {/* Category chips */}
             <div className="flex flex-wrap items-center gap-2">
               {categories.map((cat) => (
                 <button
@@ -352,12 +368,10 @@ export default function BlogPage() {
         </div>
       </section>
 
-      {/* ========================================================
-          Blog Posts Grid
-          ======================================================== */}
+      {/* Blog Posts Grid */}
       <section className="bg-neutral-50 py-16 min-h-[400px]">
         <div className="mx-auto max-w-6xl px-4">
-          {isEmpty ? (
+          {filteredPosts.length === 0 ? (
             <EmptyState query={searchQuery.trim() || undefined} />
           ) : (
             <>
@@ -391,9 +405,7 @@ export default function BlogPage() {
         </div>
       </section>
 
-      {/* ========================================================
-          Bottom CTA - Newsletter / Subscribe
-          ======================================================== */}
+      {/* Bottom CTA - Newsletter / Subscribe */}
       <section className="bg-white border-t border-neutral-200 py-16">
         <div className="mx-auto max-w-6xl px-4 text-center">
           <h2 className="text-h2 text-primary-800 mb-3">

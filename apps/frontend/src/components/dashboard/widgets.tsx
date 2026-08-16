@@ -12,8 +12,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type {
   Profile,
-  Subscription,
-  Entitlement,
   RecentActivityItem,
   UsageSummary,
   ActiveRequestItem,
@@ -253,7 +251,6 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
 
 interface PromoBannerProps {
   planCode: string | null | undefined;
-  daysRemaining: number;
 }
 
 const PLAN_BANNER_INFO: Record<string, { title: string; desc: string; cta: string; href: string }> = {
@@ -271,7 +268,7 @@ const PLAN_BANNER_INFO: Record<string, { title: string; desc: string; cta: strin
   },
 };
 
-export function PromoBanner({ planCode, daysRemaining }: PromoBannerProps) {
+export function PromoBanner({ planCode }: PromoBannerProps) {
   const info = planCode ? PLAN_BANNER_INFO[planCode] : null;
   if (!info) return null;
 

@@ -163,7 +163,7 @@ describe("PromoBanner", () => {
   it("shows upgrade CTA for silver plan", () => {
     render(
       <TestWrapper>
-        <PromoBanner planCode="silver" daysRemaining={30} />
+        <PromoBanner planCode="silver" />
       </TestWrapper>
     );
     expect(screen.getByText(/ارتقا به اشتراک طلایی/)).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe("PromoBanner", () => {
   it("shows upgrade CTA for gold plan", () => {
     render(
       <TestWrapper>
-        <PromoBanner planCode="gold" daysRemaining={30} />
+        <PromoBanner planCode="gold" />
       </TestWrapper>
     );
     expect(screen.getByText(/ارتقا به اشتراک الماس/)).toBeInTheDocument();
@@ -181,7 +181,7 @@ describe("PromoBanner", () => {
   it("hides when planCode is not upgradeable", () => {
     const { container } = render(
       <TestWrapper>
-        <PromoBanner planCode="diamond" daysRemaining={30} />
+        <PromoBanner planCode="diamond" />
       </TestWrapper>
     );
     expect(container.querySelector("section")).not.toBeInTheDocument();
@@ -190,7 +190,7 @@ describe("PromoBanner", () => {
   it("hides when planCode is null", () => {
     const { container } = render(
       <TestWrapper>
-        <PromoBanner planCode={null} daysRemaining={30} />
+        <PromoBanner planCode={null} />
       </TestWrapper>
     );
     expect(container.querySelector("section")).not.toBeInTheDocument();

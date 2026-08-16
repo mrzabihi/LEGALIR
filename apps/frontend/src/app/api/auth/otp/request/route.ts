@@ -21,7 +21,9 @@ interface OtpChallenge {
 }
 
 const globalKey = Symbol.for('legalir.otp.challenges');
-const challenges = ((globalThis as any)[globalKey] ?? ((globalThis as any)[globalKey] = new Map<string, OtpChallenge>())) as Map<string, OtpChallenge>;
+type OtpChallengeMap = Map<string, OtpChallenge>;
+const globalStore = globalThis as unknown as Record<symbol, OtpChallengeMap>;
+const challenges = globalStore[globalKey] ?? (globalStore[globalKey] = new Map<string, OtpChallenge>());
 
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 5 * 60_000;

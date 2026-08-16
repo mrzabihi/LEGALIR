@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useMe, useDashboardSummary, useUsageSummary } from "@/hooks/useDashboard";
+import { useMe, useDashboardSummary, useUsageSummary, useBlogPosts } from "@/hooks/useDashboard";
 import {
   HeroSection,
   PromoBanner,
@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const me = useMe();
   const dashboard = useDashboardSummary();
   const usage = useUsageSummary();
+  const blog = useBlogPosts(1, 3);
 
   const displayName = me.data?.profile?.displayName ?? null;
   const activities = dashboard.data?.recentActivity;
@@ -60,7 +61,6 @@ export default function DashboardPage() {
       {/* Promo Banner — upgrade CTA */}
       <PromoBanner
         planCode={dashboard.data?.subscription?.planCode}
-        daysRemaining={usage.data?.daysRemaining ?? 0}
       />
 
       {/* Quick Actions — always shown */}
@@ -90,6 +90,57 @@ export default function DashboardPage() {
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </Link>
+      </section>
+
+      {/* Blog / Legal Education */}
+      <section className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-titleMedium text-on-surface font-semibold">مطالب پیشنهادی</h2>
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-1 text-caption text-primary-700 font-medium hover:text-primary-600 transition-colors"
+          >
+            مشاهده وبلاگ
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+
+        {blog.isLoading ? (
+          <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-32 rounded-2xl bg-surface border border-divider/60 skeleton-shimmer" />
+            ))}
+          </div>
+        ) : blog.data?.items && blog.data.items.length > 0 ? (
+          <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
+            {blog.data.items.map((post) => (
+              <Link
+                key={post.id}
+                href={`/blog/${post.slug}`}
+                className="group rounded-2xl bg-surface border border-divider/60 p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+              >
+                <span className="inline-flex items-center gap-1 w-fit text-caption text-secondary-700 bg-secondary-50 border border-secondary-200/60 rounded-full px-2.5 py-0.5 mb-3">
+                  {post.category}
+                </span>
+                <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary-700 transition-colors line-clamp-2 leading-snug">
+                  {post.titleFa}
+                </h3>
+                <p className="text-caption text-muted leading-relaxed line-clamp-2 flex-1">
+                  {post.excerpt}
+                </p>
+                <span className="text-caption text-neutral-400 mt-3 tabular-nums">
+                  {post.readingTime} دقیقه مطالعه
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-surface border border-divider/60 p-6 text-center">
+            <p className="text-body-2 text-muted">هنوز مطلبی در وبلاگ منتشر نشده است.</p>
+          </div>
+        )}
       </section>
 
       {/* Empty state CTA when no activity exists */}

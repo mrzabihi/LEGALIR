@@ -21,7 +21,9 @@ interface OtpChallenge {
 }
 
 const globalKey = Symbol.for('legalir.otp.challenges');
-const challenges = ((globalThis as any)[globalKey] ?? ((globalThis as any)[globalKey] = new Map<string, OtpChallenge>())) as Map<string, OtpChallenge>;
+type OtpChallengeMap = Map<string, OtpChallenge>;
+const globalStore = globalThis as unknown as Record<symbol, OtpChallengeMap>;
+const challenges = globalStore[globalKey] ?? (globalStore[globalKey] = new Map<string, OtpChallenge>());
 
 export async function POST(request: Request) {
   try {

@@ -128,7 +128,7 @@ describe("HistoryPage", () => {
     setupHistoryEmpty();
     render(<HistoryPage />, { wrapper: TestWrapper });
     await waitFor(() => {
-      expect(screen.getByText(/تاریخچه‌ای یافت نشد/)).toBeTruthy();
+      expect(screen.getByText(/تاریخچه شما هنوز خالی است/)).toBeTruthy();
     });
   });
 

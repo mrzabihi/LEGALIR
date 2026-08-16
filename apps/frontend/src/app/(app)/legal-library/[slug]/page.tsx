@@ -510,7 +510,6 @@ function RelatedSourcesGraph({
             const relLabel = RELATIONSHIP_LABELS[relationship.relationshipType];
             const relColor = RELATIONSHIP_COLORS[relationship.relationshipType];
             const typeBadge = sourceTypeBadgeStyles(target.sourceType);
-            const isSourceA = true; // the related source is the connected card
 
             return (
               <div key={idx} className="flex items-center gap-0">
@@ -743,8 +742,6 @@ export default function LegalSourceDetailPage() {
       </div>
     );
   }
-
-  const typeBadgeStyles = sourceTypeBadgeStyles(source.sourceType);
 
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto" dir="rtl">

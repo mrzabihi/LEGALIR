@@ -49,87 +49,6 @@ function pct(used: number, total: number): number {
 }
 
 // ============================================================
-// Mock Data
-// ============================================================
-
-interface MockSession {
-  id: string;
-  device: string;
-  browser: string;
-  location: string;
-  ip: string;
-  lastActive: string;
-  current: boolean;
-}
-
-const MOCK_SESSIONS: MockSession[] = [
-  {
-    id: "s1",
-    device: "MacBook Pro",
-    browser: "Google Chrome 134",
-    location: "تهران، ایران",
-    ip: "5.160.201.92",
-    lastActive: "اکنون",
-    current: true,
-  },
-  {
-    id: "s2",
-    device: "iPhone 16 Pro",
-    browser: "Safari 18",
-    location: "تهران، ایران",
-    ip: "5.211.89.45",
-    lastActive: "۲ ساعت پیش",
-    current: false,
-  },
-  {
-    id: "s3",
-    device: "Windows Desktop",
-    browser: "Microsoft Edge 134",
-    location: "اصفهان، ایران",
-    ip: "46.209.108.17",
-    lastActive: "۱ روز پیش",
-    current: false,
-  },
-];
-
-interface MockLoginHistory {
-  id: string;
-  date: string;
-  time: string;
-  device: string;
-  ip: string;
-  success: boolean;
-}
-
-const MOCK_LOGIN_HISTORY: MockLoginHistory[] = [
-  { id: "l1", date: "۱۴ مرداد ۱۴۰۵", time: "۱۴:۳۲", device: "MacBook Pro — Chrome", ip: "5.160.201.92", success: true },
-  { id: "l2", date: "۱۴ مرداد ۱۴۰۵", time: "۰۹:۱۷", device: "iPhone 16 — Safari", ip: "5.211.89.45", success: true },
-  { id: "l3", date: "۱۳ مرداد ۱۴۰۵", time: "۲۲:۰۵", device: "Windows — Edge", ip: "46.209.108.17", success: false },
-  { id: "l4", date: "۱۳ مرداد ۱۴۰۵", time: "۱۸:۴۴", device: "MacBook Pro — Chrome", ip: "5.160.201.92", success: true },
-  { id: "l5", date: "۱۲ مرداد ۱۴۰۵", time: "۱۱:۲۰", device: "iPhone 16 — Safari", ip: "5.211.89.45", success: true },
-];
-
-interface MockExport {
-  id: string;
-  date: string;
-  status: "ready" | "downloading" | "expired";
-  statusFa: string;
-  fileName: string;
-}
-
-const MOCK_EXPORTS: MockExport[] = [
-  { id: "e1", date: "۱۴ مرداد ۱۴۰۵", status: "ready", statusFa: "آماده", fileName: "legalir-data-14050514.zip" },
-  { id: "e2", date: "۲۰ تیر ۱۴۰۴", status: "expired", statusFa: "منقضی", fileName: "legalir-data-14040420.zip" },
-  { id: "e3", date: "۰۵ خرداد ۱۴۰۴", status: "expired", statusFa: "منقضی", fileName: "legalir-data-14040305.zip" },
-];
-
-const EXPORT_STATUS_CLASS: Record<string, string> = {
-  ready: "bg-success/10 text-success border-success/20",
-  downloading: "bg-info/10 text-info border-info/20",
-  expired: "bg-muted/10 text-muted border-muted/20",
-};
-
-// ============================================================
 // Sub-components
 // ============================================================
 
@@ -988,51 +907,20 @@ export default function SettingsPage() {
           <h3 className="text-body-1 text-on-surface font-medium mb-3">
             نشست‌های فعال
           </h3>
-          <div className="space-y-2">
-            {MOCK_SESSIONS.map((session) => (
-              <div
-                key={session.id}
-                className={`flex flex-col tablet:flex-row tablet:items-center justify-between gap-2 rounded-lg border p-4 ${
-                  session.current
-                    ? "border-primary/30 bg-primary/5"
-                    : "border-divider"
-                }`}
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <IconPerson size={18} className="text-muted" />
-                    <span className="text-body-2 text-on-surface font-medium">
-                      {session.device}
-                      {session.current && (
-                        <span className="mr-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-caption text-primary">
-                          جاری
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-caption text-muted">
-                    <span>{session.browser}</span>
-                    <span>
-                      {session.location} — IP: {session.ip}
-                    </span>
-                    <span>آخرین فعالیت: {session.lastActive}</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={session.current}
-                  className={`inline-flex items-center gap-1.5 self-end tablet:self-auto rounded-full border px-3 py-1.5 text-caption font-medium transition ${
-                    session.current
-                      ? "cursor-not-allowed border-divider text-muted opacity-50"
-                      : "border-error/30 text-error hover:bg-error/5"
-                  }`}
-                  aria-label={`خروج از ${session.device}`}
-                >
-                  <IconLogout size={14} />
-                  خروج
-                </button>
-              </div>
-            ))}
+          <div className="rounded-lg border border-divider bg-surface-hover/40 p-4">
+            <div className="flex items-center gap-2">
+              <IconPerson size={18} className="text-muted" />
+              <span className="text-body-2 text-on-surface font-medium">
+                این دستگاه
+                <span className="mr-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-caption text-primary">
+                  جاری
+                </span>
+              </span>
+            </div>
+            <p className="mt-1 text-caption text-muted">
+              تنها نشست فعال، نشست فعلی شماست. نشست‌های دیگر پس از ورود در
+              دستگاه‌های مختلف اینجا نمایش داده می‌شوند.
+            </p>
           </div>
           <button
             type="button"
@@ -1126,85 +1014,11 @@ export default function SettingsPage() {
           <h3 className="text-body-1 text-on-surface font-medium mb-3">
             تاریخچه ورود
           </h3>
-          {/* Mobile card view */}
-          <div className="tablet:hidden space-y-2">
-            {MOCK_LOGIN_HISTORY.map((entry) => (
-              <div
-                key={entry.id}
-                className="rounded-lg border border-divider bg-surface-hover/50 p-3"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-caption text-on-surface font-medium">
-                    {entry.date} — {entry.time}
-                  </span>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                      entry.success
-                        ? "bg-success/10 text-success border-success/20"
-                        : "bg-error/10 text-error border-error/20"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-1.5 w-1.5 rounded-full ${
-                        entry.success ? "bg-success" : "bg-error"
-                      }`}
-                    />
-                    {entry.success ? "موفق" : "ناموفق"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-x-3 text-caption text-muted">
-                  <span>{entry.device}</span>
-                  <span>IP: {entry.ip}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Desktop table view */}
-          <div className="hidden tablet:block overflow-x-auto">
-            <table className="w-full text-right text-body-2">
-              <thead>
-                <tr className="border-b border-divider text-muted">
-                  <th className="pb-2 pl-3 font-medium">تاریخ و ساعت</th>
-                  <th className="pb-2 pl-3 font-medium">دستگاه</th>
-                  <th className="pb-2 pl-3 font-medium">IP</th>
-                  <th className="pb-2 font-medium">وضعیت</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-divider">
-                {MOCK_LOGIN_HISTORY.map((entry) => (
-                  <tr
-                    key={entry.id}
-                    className="hover:bg-surface-hover/50 transition-colors"
-                  >
-                    <td className="py-2.5 pl-3 text-on-surface">
-                      {entry.date} — {entry.time}
-                    </td>
-                    <td className="py-2.5 pl-3 text-on-surface">
-                      {entry.device}
-                    </td>
-                    <td className="py-2.5 pl-3 text-muted" dir="ltr">
-                      {entry.ip}
-                    </td>
-                    <td className="py-2.5">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium ${
-                          entry.success
-                            ? "bg-success/10 text-success border-success/20"
-                            : "bg-error/10 text-error border-error/20"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-2 w-2 rounded-full ${
-                            entry.success ? "bg-success" : "bg-error"
-                          }`}
-                        />
-                        {entry.success ? "موفق" : "ناموفق"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-lg border border-divider bg-surface-hover/40 p-4 text-center">
+            <p className="text-body-2 text-muted">
+              تاریخچه ورودهای اخیر پس از فعال‌سازی ثبت نشست‌ها اینجا نمایش داده
+              می‌شود.
+            </p>
           </div>
         </div>
       </section>
@@ -1243,98 +1057,7 @@ export default function SettingsPage() {
           <h3 className="text-body-1 text-on-surface font-medium mb-3">
             تاریخچه خروجی‌ها
           </h3>
-          {MOCK_EXPORTS.length === 0 ? (
-            <EmptyState text="تاکنون خروجی داده‌ای درخواست نشده است." />
-          ) : (
-            <>
-              {/* Mobile card view */}
-              <div className="tablet:hidden space-y-2">
-                {MOCK_EXPORTS.map((exp) => (
-                  <div
-                    key={exp.id}
-                    className="rounded-lg border border-divider bg-surface-hover/50 p-3"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-caption text-on-surface font-medium">
-                        {exp.date}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${EXPORT_STATUS_CLASS[exp.status]}`}
-                      >
-                        {exp.statusFa}
-                      </span>
-                    </div>
-                    <p
-                      className="text-caption text-muted truncate mb-2"
-                      dir="ltr"
-                    >
-                      {exp.fileName}
-                    </p>
-                    {exp.status === "ready" && (
-                      <button
-                        type="button"
-                        disabled
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-caption text-primary font-medium opacity-50 cursor-not-allowed transition"
-                      >
-                        <IconDownload size={14} />
-                        دانلود
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Desktop table view */}
-              <div className="hidden tablet:block overflow-x-auto">
-                <table className="w-full text-right text-body-2">
-                  <thead>
-                    <tr className="border-b border-divider text-muted">
-                      <th className="pb-2 pl-3 font-medium">تاریخ درخواست</th>
-                      <th className="pb-2 pl-3 font-medium">نام فایل</th>
-                      <th className="pb-2 pl-3 font-medium">وضعیت</th>
-                      <th className="pb-2 font-medium">عملیات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-divider">
-                    {MOCK_EXPORTS.map((exp) => (
-                      <tr
-                        key={exp.id}
-                        className="hover:bg-surface-hover/50 transition-colors"
-                      >
-                        <td className="py-2.5 pl-3 text-on-surface">
-                          {exp.date}
-                        </td>
-                        <td
-                          className="py-2.5 pl-3 text-on-surface"
-                          dir="ltr"
-                        >
-                          {exp.fileName}
-                        </td>
-                        <td className="py-2.5 pl-3">
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium ${EXPORT_STATUS_CLASS[exp.status]}`}
-                          >
-                            {exp.statusFa}
-                          </span>
-                        </td>
-                        <td className="py-2.5">
-                          {exp.status === "ready" && (
-                            <button
-                              type="button"
-                              disabled
-                              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-caption text-primary font-medium opacity-50 cursor-not-allowed transition"
-                            >
-                              <IconDownload size={14} />
-                              دانلود
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+          <EmptyState text="تاکنون خروجی داده‌ای درخواست نشده است." />
         </div>
 
         {/* Divider */}

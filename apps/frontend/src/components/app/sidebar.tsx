@@ -69,11 +69,9 @@ export function Sidebar({ userRole }: SidebarProps) {
 
   return (
     <div className="flex flex-col h-full bg-surface">
-      {/* Logo Area */}
+      {/* Logo Area — matches Landing presentation: transparent mark + wordmark */}
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="h-11 w-11 rounded-xl bg-primary-700 flex items-center justify-center shadow-elevation-3 shrink-0">
-          <img src="/legalir-logo.png" alt="LEGALIR" className="h-7 w-auto brightness-0 invert" />
-        </div>
+        <img src="/legalir-logo.png" alt="LEGALIR" className="h-12 w-auto shrink-0" />
         <span className="text-h3 text-primary-800 font-bold hidden laptop:inline tracking-tight">
           LEGALIR
         </span>

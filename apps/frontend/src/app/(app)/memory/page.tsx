@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useMemories, useUpdateMemory, useDeleteMemory } from "@/hooks/usePhase11";
 import {
   IconMemory,
@@ -13,6 +14,7 @@ import {
   IconClose,
   IconWarning,
   IconSave,
+  IconChat,
 } from "@/lib/icons";
 import type { V1MemoryItem } from "@legalir/types";
 
@@ -297,13 +299,20 @@ export default function MemoryPage() {
             <IconMemory className="text-muted" size={48} />
           </div>
           <h3 className="text-h3 text-on-surface mb-2">
-            اطلاعاتی ذخیره نشده است
+            هنوز موردی در حافظه ذخیره نشده است
           </h3>
-          <p className="text-body-2 text-muted max-w-md mx-auto">
+          <p className="text-body-2 text-muted max-w-md mx-auto mb-6">
             LEGALIR می‌تواند اطلاعات مهم شما را برای بهبود پاسخ‌های آینده به خاطر
             بسپارد. تمام اطلاعات ذخیره‌شده قابل مشاهده، ویرایش و حذف توسط شما
             هستند.
           </p>
+          <Link
+            href="/chat"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary/90 transition-colors touch-target"
+          >
+            <IconChat size={18} />
+            شروع گفتگو
+          </Link>
         </div>
       )}
 

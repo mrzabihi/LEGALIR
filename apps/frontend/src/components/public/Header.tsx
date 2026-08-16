@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { IconMenu, IconClose, IconLightMode, IconDarkMode } from "@/lib/icons";
-import { useThemeStore } from "@/stores/theme-store";
+import { IconMenu, IconClose } from "@/lib/icons";
 
 interface NavItem {
   href: string;
@@ -15,6 +14,7 @@ const navItems: NavItem[] = [
   { href: "/", label: "صفحه اصلی" },
   { href: "/features", label: "قابلیت‌ها" },
   { href: "/pricing", label: "تعرفه‌ها" },
+  { href: "/blog", label: "وبلاگ حقوقی" },
   { href: "/about", label: "درباره ما" },
   { href: "/contact", label: "تماس با ما" },
 ];
@@ -27,7 +27,6 @@ const ctaItems = [
 
 export function Header() {
   const pathname = usePathname();
-  const { theme, toggleTheme } = useThemeStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [ctaOpen, setCtaOpen] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
@@ -120,16 +119,6 @@ export function Header() {
 
         {/* Desktop Actions */}
         <div className="hidden tablet:flex items-center gap-3">
-          <button
-            onClick={toggleTheme}
-            className="h-10 w-10 rounded-medium flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 transition-colors"
-            aria-label={theme === "light" ? "حالت تیره" : "حالت روشن"}
-          >
-            {theme === "light" ? <IconDarkMode size={20} /> : <IconLightMode size={20} />}
-          </button>
-
-          <div className="h-6 w-px bg-neutral-200" />
-
           <Link
             href="/auth/mobile"
             className="px-4 py-2.5 rounded-medium text-body-2 font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
@@ -178,15 +167,8 @@ export function Header() {
           </div>
         </div>
 
-        {/* Mobile: Theme Toggle + Hamburger */}
+        {/* Mobile: Hamburger */}
         <div className="flex items-center gap-1 tablet:hidden">
-          <button
-            onClick={toggleTheme}
-            className="h-10 w-10 rounded-medium flex items-center justify-center text-neutral-500 hover:text-neutral-800 transition-colors"
-            aria-label={theme === "light" ? "حالت تیره" : "حالت روشن"}
-          >
-            {theme === "light" ? <IconDarkMode size={20} /> : <IconLightMode size={20} />}
-          </button>
           <button
             onClick={() => setMobileOpen(true)}
             className="h-10 w-10 rounded-medium flex items-center justify-center text-neutral-700 hover:bg-neutral-100 transition-colors"

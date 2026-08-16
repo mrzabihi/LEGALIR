@@ -60,6 +60,8 @@ import type {
   V1PreferencesUpdateRequest,
   V1SubscriptionHistoryResponse,
   V1ProfileUsage,
+  V1BlogListResponse,
+  V1BlogPostDetail,
 } from "@legalir/types";
 
 // ============================================================
@@ -440,4 +442,22 @@ export function fetchSubscriptionHistory(
 
 export function fetchProfileUsage(): Promise<V1ProfileUsage> {
   return apiClient.get<V1ProfileUsage>("/api/v1/profile/usage");
+}
+
+// ============================================================
+// Blog (Legal Education)
+// ============================================================
+
+export function fetchBlogPosts(
+  page = 1,
+  pageSize = 4
+): Promise<V1BlogListResponse> {
+  const p = new URLSearchParams();
+  p.set("page", String(page));
+  p.set("pageSize", String(pageSize));
+  return apiClient.get<V1BlogListResponse>(`/api/v1/blog${qs(p)}`);
+}
+
+export function fetchBlogPost(slug: string): Promise<V1BlogPostDetail> {
+  return apiClient.get<V1BlogPostDetail>(`/api/v1/blog/${slug}`);
 }

@@ -40,7 +40,7 @@ describe("Public Header Navigation", () => {
     expect(screen.getByText("مشاهده اشتراک‌ها")).toBeInTheDocument();
   });
 
-  it("has theme toggle button", () => {
+  it("is light-only with no theme toggle (landing restriction)", () => {
     render(wrapInRtl(<Header />));
     const buttons = screen.getAllByRole("button");
     const themeButton = buttons.find(
@@ -48,7 +48,7 @@ describe("Public Header Navigation", () => {
         b.getAttribute("aria-label") === "حالت تیره" ||
         b.getAttribute("aria-label") === "حالت روشن"
     );
-    expect(themeButton).toBeDefined();
+    expect(themeButton).toBeUndefined();
   });
 
   it("has mobile menu toggle button", () => {

@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useHistory } from "@/hooks/usePhase11";
 import { toPersianDate } from "@/lib/persian-utils";
 import {
@@ -111,13 +112,22 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
         <IconHistory size={48} className="text-muted" />
       </div>
       <h3 className="text-h3 text-on-surface mb-2">
-        {hasFilters ? "نتیجه‌ای یافت نشد" : "تاریخچه‌ای یافت نشد"}
+        {hasFilters ? "نتیجه‌ای یافت نشد" : "تاریخچه شما هنوز خالی است"}
       </h3>
-      <p className="text-body-2 text-muted">
+      <p className="text-body-2 text-muted mb-6">
         {hasFilters
           ? "با تغییر فیلترها دوباره جستجو کنید"
           : "با شروع استفاده از LEGALIR، تاریخچه فعالیت‌های شما در اینجا نمایش داده می‌شود"}
       </p>
+      {!hasFilters && (
+        <Link
+          href="/chat"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary-dark transition-colors touch-target"
+        >
+          <IconChat size={18} />
+          شروع گفتگو
+        </Link>
+      )}
     </div>
   );
 }

@@ -96,6 +96,31 @@
   --color-on-info: #FFFFFF;
   --color-info-container: #DBEAFE;
 
+  /* Semantic ramps (Material Design 3) — accessible shades for badges/labels */
+  --color-error-50: #FEF2F2;
+  --color-error-100: #FEE2E2;
+  --color-error-200: #FECACA;
+  --color-error-600: #B42318;
+  --color-error-700: #912018;
+
+  --color-warning-50: #FFFBEB;
+  --color-warning-100: #FEF3C7;
+  --color-warning-200: #FDE68A;
+  --color-warning-600: #B45309;
+  --color-warning-700: #92400E;
+
+  --color-success-50: #ECFDF5;
+  --color-success-100: #D1FAE5;
+  --color-success-200: #A7F3D0;
+  --color-success-600: #1F6F50;
+  --color-success-700: #16623F;
+
+  --color-info-50: #EFF6FF;
+  --color-info-100: #DBEAFE;
+  --color-info-200: #BFDBFE;
+  --color-info-600: #2563EB;
+  --color-info-700: #1D4ED8;
+
   /* Inverse */
   --color-inverse-surface: #1F2937;
   --color-inverse-on-surface: #F9FAFB;

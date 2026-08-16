@@ -31,7 +31,7 @@ export const routes: RouteDef[] = [
   // App — Workplace (main navigation)
   { path: "/dashboard", titleFa: "خانه", access: "user", icon: "Home" },
   { path: "/services", titleFa: "خدمات", access: "user", icon: "Services" },
-  { path: "/profile", titleFa: "پروفایل", access: "user", icon: "Person" },
+  { path: "/profile", titleFa: "تنظیمات", access: "user", icon: "Person" },
   { path: "/support", titleFa: "پشتیبانی", access: "user", icon: "Phone" },
   { path: "/new", titleFa: "ساخت جدید", access: "user", icon: "Add" },
   { path: "/memory", titleFa: "حافظه", access: "user", icon: "Memory" },

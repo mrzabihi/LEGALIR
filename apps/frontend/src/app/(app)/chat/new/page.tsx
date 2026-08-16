@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CategorySelector } from "@/components/chat/category-selector";
+import { ServiceContextCard } from "@/components/chat/service-context-card";
 import { useCreateConversation } from "@/hooks/useConversations";
+import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
 
 export default function NewConversationPage() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [titleError, setTitleError] = useState("");
+  const [serviceType, setServiceType] = useState<ServiceType>("legal_consultation");
+
+  // Derive service context from the entry URL (?service= / ?category=).
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setServiceType(serviceTypeFromQuery(window.location.search));
+    }
+  }, []);
 
   const createMutation = useCreateConversation();
 
@@ -30,11 +40,11 @@ export default function NewConversationPage() {
         title: trimmed,
         category: selectedCategory ?? undefined,
       });
-      router.push(`/chat/${result.id}`);
+      router.push(`/chat/${result.id}?service=${serviceType}`);
     } catch {
       setTitleError("خطا در ایجاد گفتگو");
     }
-  }, [title, selectedCategory, createMutation, router]);
+  }, [title, selectedCategory, createMutation, router, serviceType]);
 
   return (
     <div className="p-4 tablet:p-6 max-w-2xl mx-auto">
@@ -89,6 +99,11 @@ export default function NewConversationPage() {
           selected={selectedCategory}
           onSelect={setSelectedCategory}
         />
+      </div>
+
+      {/* Service context card (§21) */}
+      <div className="mb-6">
+        <ServiceContextCard serviceType={serviceType} compact />
       </div>
 
       {/* Create Button */}

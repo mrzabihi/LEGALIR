@@ -37,12 +37,13 @@ export default function AppNotFound() {
       </div>
 
       <div className="space-y-1.5">
-        <h1 className="text-h3 text-on-surface font-bold">صفحه یافت نشد</h1>
+        <h1 className="text-h3 text-on-surface font-bold">این صفحه پیدا نشد</h1>
         <p className="text-body-2 text-muted max-w-sm mx-auto">
-          صفحه‌ای که به دنبال آن هستید وجود ندارد یا حذف شده است
+          ممکن است آدرس تغییر کرده باشد یا صفحه دیگر در دسترس نباشد
         </p>
       </div>
 
+      <div className="flex items-center gap-3 flex-wrap justify-center mt-2">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-700 to-primary-800 px-6 py-3 text-body-2 text-white font-medium hover:from-primary-800 hover:to-primary-900 transition-all touch-target shadow-md shadow-primary/20 active:scale-[0.98] mt-2"
@@ -53,8 +54,19 @@ export default function AppNotFound() {
           <rect x="3" y="14" width="7" height="7" rx="1" />
           <rect x="14" y="14" width="7" height="7" rx="1" />
         </svg>
-        بازگشت به داشبورد
+        رفتن به داشبورد
       </Link>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-xl bg-surface border border-divider/60 px-6 py-3 text-body-2 text-onSurface font-medium hover:bg-surface-hover hover:border-divider transition-all touch-target shadow-sm"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <path d="M9 22V12h6v10" />
+          </svg>
+          بازگشت به خانه
+        </Link>
+      </div>
     </div>
   );
 }

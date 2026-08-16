@@ -11,6 +11,7 @@ export type { StructuredSection } from "./structured-response";
 export { MessageInput } from "./message-input";
 export { ConversationList } from "./conversation-list";
 export { ConversationWorkspace } from "./conversation-workspace";
+export { ServiceContextCard } from "./service-context-card";
 export { CitationInline } from "./citation-inline";
 export { CitationCopyButton } from "./citation-copy-button";
 export { SourceCard } from "./source-card";

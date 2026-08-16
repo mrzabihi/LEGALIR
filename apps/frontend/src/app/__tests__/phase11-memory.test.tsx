@@ -155,7 +155,7 @@ describe("MemoryPage", () => {
     render(<MemoryPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText(/اطلاعاتی ذخیره نشده است/)).toBeTruthy();
+      expect(screen.getByText(/هنوز موردی در حافظه ذخیره نشده است/)).toBeTruthy();
     });
   });
 

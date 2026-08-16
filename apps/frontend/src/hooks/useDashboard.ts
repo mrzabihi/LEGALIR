@@ -10,6 +10,8 @@ import {
   fetchUsageSummary,
   fetchRecentActivities,
   updateProfile,
+  fetchBlogPosts,
+  fetchBlogPost,
 } from "@/lib/api/v1";
 
 // ============================================================
@@ -80,6 +82,29 @@ export function useRecentActivities(page = 1, pageSize = 5) {
     queryKey: ["activities", "recent", page, pageSize],
     queryFn: () => fetchRecentActivities(page, pageSize),
     staleTime: 60_000, // 1 min
+    retry: 1,
+  });
+}
+
+// ============================================================
+// useBlogPosts — legal education / blog content (dashboard card)
+// ============================================================
+
+export function useBlogPosts(page = 1, pageSize = 4) {
+  return useQuery({
+    queryKey: ["blog", "posts", page, pageSize],
+    queryFn: () => fetchBlogPosts(page, pageSize),
+    staleTime: 5 * 60_000, // 5 min
+    retry: 1,
+  });
+}
+
+export function useBlogPost(slug: string | undefined) {
+  return useQuery({
+    queryKey: ["blog", "post", slug],
+    queryFn: () => fetchBlogPost(slug as string),
+    enabled: Boolean(slug),
+    staleTime: 5 * 60_000, // 5 min
     retry: 1,
   });
 }

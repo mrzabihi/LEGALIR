@@ -50,9 +50,7 @@ export function TopBar() {
     <>
       {/* Mobile logo */}
       <Link href="/dashboard" className="desktop:hidden flex items-center shrink-0">
-        <div className="h-9 w-9 rounded-lg bg-primary-700 flex items-center justify-center shadow-elevation-2">
-          <img src="/legalir-logo.png" alt="LEGALIR" className="h-6 w-auto brightness-0 invert" />
-        </div>
+        <img src="/legalir-logo.png" alt="LEGALIR" className="h-10 w-auto shrink-0" />
       </Link>
 
       <div className="flex-1" />
