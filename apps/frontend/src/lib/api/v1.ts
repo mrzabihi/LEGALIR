@@ -62,6 +62,9 @@ import type {
   V1ProfileUsage,
   V1BlogListResponse,
   V1BlogPostDetail,
+  RewardsSummary,
+  RewardsHistoryResponse,
+  DailyVisitClaimResponse,
 } from "@legalir/types";
 
 // ============================================================
@@ -460,4 +463,26 @@ export function fetchBlogPosts(
 
 export function fetchBlogPost(slug: string): Promise<V1BlogPostDetail> {
   return apiClient.get<V1BlogPostDetail>(`/api/v1/blog/${slug}`);
+}
+
+// ============================================================
+// Rewards & Loyalty
+// ============================================================
+
+export function fetchRewardsSummary(): Promise<RewardsSummary> {
+  return apiClient.get<RewardsSummary>("/api/v1/rewards/summary");
+}
+
+export function fetchRewardsHistory(
+  page = 1,
+  pageSize = 20
+): Promise<RewardsHistoryResponse> {
+  const p = new URLSearchParams();
+  p.set("page", String(page));
+  p.set("pageSize", String(pageSize));
+  return apiClient.get<RewardsHistoryResponse>(`/api/v1/rewards/history${qs(p)}`);
+}
+
+export function claimDailyVisitReward(): Promise<DailyVisitClaimResponse> {
+  return apiClient.post<DailyVisitClaimResponse>("/api/v1/rewards/daily-visit/claim", {});
 }

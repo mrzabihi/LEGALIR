@@ -323,39 +323,55 @@ export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionC
     );
   }
 
+  // 100% — onboarding complete; the card disappears entirely.
   if (!profile || profile.completionPercent >= 100) return null;
+
+  const pct = profile.completionPercent;
+
+  // 50% — Basic Profile done; invite the user to complete the Extended profile.
+  const atBasicComplete = pct >= 50 && pct < 51;
+
+  const title = atBasicComplete ? "اطلاعات پایه تکمیل شد" : "پروفایل خود را تکمیل کنید";
+  const supporting = atBasicComplete
+    ? "برای تکمیل پروفایل حقوقی و دریافت تجربه شخصی‌سازی‌شده، مرحله دوم را تکمیل کنید."
+    : "برای استفاده از تمام امکانات، پروفایل خود را تکمیل کنید";
+  const cta = atBasicComplete ? "ادامه تکمیل پروفایل" : "تکمیل پروفایل";
 
   return (
     <div className="rounded-2xl bg-surface border border-warning/30 p-5 mb-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning" aria-hidden="true">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
             <span className="text-body-1 text-onSurface font-semibold">
-              تکمیل پروفایل {profile.completionPercent}٪
+              {title}
+              <span className="text-muted font-normal"> · {pct}٪</span>
             </span>
           </div>
-          <div className="w-full max-w-xs h-2 bg-neutral-100 rounded-full overflow-hidden">
+          <div
+            className="w-full max-w-xs h-2 bg-neutral-100 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="درصد تکمیل پروفایل"
+          >
             <div
               className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-moderate1"
-              style={{ width: `${profile.completionPercent}%` }}
+              style={{ width: `${pct}%` }}
             />
           </div>
-          {profile.completionPercent < 70 && (
-            <p className="text-caption text-muted mt-1.5">
-              برای استفاده از تمام امکانات، پروفایل خود را تکمیل کنید
-            </p>
-          )}
+          <p className="text-caption text-muted mt-1.5">{supporting}</p>
         </div>
         <Link
           href="/profile"
           className="shrink-0 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-600 transition-colors touch-target shadow-elevation-1"
         >
-          تکمیل پروفایل
+          {cta}
         </Link>
       </div>
     </div>

@@ -109,6 +109,10 @@ export const fixtureProfileIncomplete: Profile = {
   occupation: null,
   completionPercent: 30,
   avatarUrl: null,
+  userType: null,
+  province: null,
+  legalInterests: null,
+  primaryUseCase: null,
 };
 
 export const fixtureProfileComplete: Profile = {
@@ -121,6 +125,10 @@ export const fixtureProfileComplete: Profile = {
   occupation: "کارشناس حقوقی",
   completionPercent: 85,
   avatarUrl: null,
+  userType: "کسب‌وکار / سازمان",
+  province: "تهران",
+  legalInterests: ["قراردادها", "املاک"],
+  primaryUseCase: "مشاوره حقوقی",
 };
 
 // --- Preference Fixtures ---

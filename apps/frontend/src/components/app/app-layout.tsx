@@ -14,6 +14,7 @@ import { TopBar } from "./top-bar";
 import { BottomNav } from "./bottom-nav";
 import type { UserRole } from "@/lib/routes";
 import { OfflineBanner } from "@/components/shared";
+import { DailyVisitToast } from "@/components/rewards/daily-visit-toast";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -41,6 +42,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <AppShell sidebar={sidebar} topBar={topBar} bottomNav={bottomNav}>
         {children}
       </AppShell>
+      <DailyVisitToast />
     </>
   );
 }

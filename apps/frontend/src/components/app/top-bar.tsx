@@ -12,6 +12,8 @@ import { useTheme } from "@/lib/theme";
 import { useLogout } from "@/lib/auth/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMe } from "@/hooks/useDashboard";
+import { useRewardsSummary } from "@/hooks/useRewards";
+import { toPersianNumber } from "@/lib/persian-utils";
 import {
   IconLightMode,
   IconDarkMode,
@@ -20,10 +22,12 @@ import {
   IconSettings,
   IconSubscription,
   IconPhone,
+  IconCoin,
 } from "@/lib/icons";
 
 export function TopBar() {
   const { data: meData } = useMe();
+  const { data: rewards } = useRewardsSummary();
   const session = useAuthStore((s) => s.session);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -32,6 +36,7 @@ export function TopBar() {
   const displayName = profile?.displayName;
   const mobileFallback = meData?.user?.mobileDisplay ?? session?.mobileDisplay;
   const avatarInitial = (displayName ?? mobileFallback)?.[0] ?? "ک";
+  const balance = rewards?.balance ?? 0;
 
   const handleClickOutside = useCallback((e: MouseEvent) => {
     if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -65,6 +70,22 @@ export function TopBar() {
         aria-label="پشتیبانی"
       >
         <IconPhone size={20} className="text-neutral-500" />
+      </Link>
+
+      {/* Points card — beside Avatar */}
+      <Link
+        href="/points"
+        className="flex items-center gap-1.5 rounded-xl bg-secondary-50 dark:bg-secondary-500/10 border border-secondary-200/60 dark:border-secondary-500/20 px-2.5 py-1.5 transition-colors hover:bg-secondary-100 dark:hover:bg-secondary-500/20 touch-target-min"
+        aria-label={`امتیاز من: ${toPersianNumber(balance)} امتیاز`}
+        title="امتیازهای من"
+      >
+        <IconCoin size={16} className="text-secondary-600 dark:text-secondary-400" />
+        <span className="hidden tablet:inline text-labelSmall text-secondary-700 dark:text-secondary-300 font-semibold tabular-nums">
+          {toPersianNumber(balance)}
+        </span>
+        <span className="tablet:hidden text-caption text-secondary-700 dark:text-secondary-300 font-semibold tabular-nums">
+          {toPersianNumber(balance)}
+        </span>
       </Link>
 
       {/* User Menu */}

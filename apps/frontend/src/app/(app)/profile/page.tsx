@@ -70,6 +70,40 @@ const GENDER_OPTIONS = [
   { value: "other", label: "سایر" },
 ] as const;
 
+const USER_TYPE_OPTIONS = [
+  { value: "", label: "انتخاب نشده" },
+  { value: "personal", label: "شخصی" },
+  { value: "business", label: "کسب‌وکار / سازمان" },
+] as const;
+
+const LEGAL_INTEREST_OPTIONS = [
+  "قراردادها",
+  "املاک",
+  "خانواده",
+  "تجارت",
+  "مطالبات",
+  "کار",
+  "سایر",
+] as const;
+
+const PRIMARY_USE_CASE_OPTIONS = [
+  { value: "", label: "انتخاب نشده" },
+  { value: "consultation", label: "مشاوره حقوقی" },
+  { value: "contract_review", label: "بررسی قرارداد" },
+  { value: "contract_drafting", label: "ساخت قرارداد" },
+  { value: "document_analysis", label: "تحلیل سند" },
+  { value: "legal_education", label: "آموزش حقوقی" },
+  { value: "legal_management", label: "مدیریت امور حقوقی" },
+] as const;
+
+const IRAN_PROVINCES = [
+  "تهران", "البرز", "اصفهان", "فارس", "خراسان رضوی", "خوزستان", "آذربایجان شرقی",
+  "آذربایجان غربی", "گیلان", "مازندران", "کرمان", "یزد", "قم", "قزوین", "زنجان",
+  "همدان", "کردستان", "کرمانشاه", "لرستان", "مرکزی", "سمنان", "گلستان", "اردبیل",
+  "بوشهر", "هرمزگان", "چهارمحال و بختیاری", "کهگیلویه و بویراحمد", "ایلام",
+  "خراسان شمالی", "خراسان جنوبی", "سیستان و بلوچستان",
+] as const;
+
 function persianCount(n: number | undefined): string {
   return toPersianNumber(n ?? 0);
 }
@@ -217,6 +251,99 @@ function DateEditableField({ label, value, placeholder, onSave }: {
 }
 
 // ============================================================
+// Select-based editable field (extended profile)
+// ============================================================
+
+function SelectEditableField({ label, value, placeholder, options, onSave }: {
+  label: string;
+  value: string;
+  placeholder: string;
+  options: readonly { value: string; label: string }[];
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const displayLabel = options.find((o) => o.value === value)?.label ?? "";
+
+  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
+  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
+  const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
+      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
+      {editing ? (
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <select value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[220px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl">
+            {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+          <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
+          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <dd className="text-body-2 text-onSurface">{value ? displayLabel : <span className="text-neutral-300">{placeholder}</span>}</dd>
+          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Multi-select chips (legalInterests)
+// ============================================================
+
+function MultiSelectField({ label, value, options, onSave }: {
+  label: string;
+  value: string[];
+  options: readonly string[];
+  onSave: (v: string[]) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const toggle = useCallback(async (opt: string) => {
+    if (saving) return;
+    const next = value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt];
+    setSaving(true);
+    try { await onSave(next); } finally { setSaving(false); }
+  }, [value, saving, onSave]);
+
+  return (
+    <div className="py-3 border-b border-divider/60 last:border-b-0">
+      <dt className="text-body-2 text-muted mb-2">{label}</dt>
+      <dd className="flex flex-wrap gap-2">
+        {options.map((opt) => {
+          const active = value.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              disabled={saving}
+              aria-pressed={active}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption font-medium transition-colors touch-target ${
+                active
+                  ? "bg-primary-50 text-primary-700 border-primary-300 dark:bg-primary-500/10 dark:text-primary-400 dark:border-primary-500/20"
+                  : "bg-surface text-muted border-divider hover:border-primary/40 hover:text-primary"
+              }`}
+            >
+              {active && <IconCheck size={14} />}
+              {opt}
+            </button>
+          );
+        })}
+      </dd>
+    </div>
+  );
+}
+
+// ============================================================
 // Hub UI primitives
 // ============================================================
 
@@ -321,6 +448,13 @@ export default function AccountHubPage() {
   const hSaveEmail = useCallback((v: string) => updateProfile.mutateAsync({ email: v || null }), [updateProfile]);
   const hSaveBirthDate = useCallback((v: string) => updateProfile.mutateAsync({ birthDate: v || null }), [updateProfile]);
   const hSaveGender = useCallback((v: string) => updateProfile.mutateAsync({ gender: (v || null) as Profile["gender"] }), [updateProfile]);
+  const hSaveUserType = useCallback((v: string) => updateProfile.mutateAsync({ userType: v || null }), [updateProfile]);
+  const hSaveProvince = useCallback((v: string) => updateProfile.mutateAsync({ province: v || null }), [updateProfile]);
+  const hSavePrimaryUseCase = useCallback((v: string) => updateProfile.mutateAsync({ primaryUseCase: v || null }), [updateProfile]);
+  const hSaveLegalInterests = useCallback(
+    (v: string[]) => updateProfile.mutateAsync({ legalInterests: v.length > 0 ? v : null }),
+    [updateProfile],
+  );
 
   const remainingRequests = usageData
     ? Math.max(0, usageData.dailyRequestsTotal - usageData.dailyRequestsUsed)
@@ -382,6 +516,47 @@ export default function AccountHubPage() {
               {formatMobile(mobile)}
             </dd>
           </div>
+        </dl>
+      </section>
+
+      {/* ================================================ */}
+      {/* پروفایل حقوقی من — Extended Profile (50%) */}
+      {/* ================================================ */}
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <SectionTitle icon={<IconBalance size={22} />}>پروفایل حقوقی من</SectionTitle>
+        </div>
+        <p className="text-caption text-muted -mt-3 mb-4">
+          با تکمیل این بخش، پروفایل شما به ۱۰۰٪ می‌رسد و ۱۰۰۰ امتیاز دریافت می‌کنید.
+        </p>
+        <dl>
+          <SelectEditableField
+            label="نوع کاربر"
+            value={profile?.userType ?? ""}
+            placeholder="انتخاب کنید"
+            options={USER_TYPE_OPTIONS}
+            onSave={hSaveUserType}
+          />
+          <SelectEditableField
+            label="استان"
+            value={profile?.province ?? ""}
+            placeholder="انتخاب کنید"
+            options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
+            onSave={hSaveProvince}
+          />
+          <MultiSelectField
+            label="حوزه‌های حقوقی مورد نیاز"
+            value={profile?.legalInterests ?? []}
+            options={LEGAL_INTEREST_OPTIONS}
+            onSave={hSaveLegalInterests}
+          />
+          <SelectEditableField
+            label="هدف اصلی استفاده"
+            value={profile?.primaryUseCase ?? ""}
+            placeholder="انتخاب کنید"
+            options={PRIMARY_USE_CASE_OPTIONS}
+            onSave={hSavePrimaryUseCase}
+          />
         </dl>
       </section>
 

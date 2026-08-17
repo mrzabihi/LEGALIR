@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findSessionById, createSubscription } from "@/lib/db";
+import { findSessionById, createSubscription, claimPurchaseReward } from "@/lib/db";
 import { fixturePlans } from "@legalir/testing";
 import type { CheckoutIntent } from "@legalir/types";
 
@@ -45,12 +45,16 @@ export async function POST(request: Request) {
       );
     }
     const now = new Date();
-    createSubscription({
+    const subscription = createSubscription({
       userId, planCode: plan.code, planNameFa: plan.nameFa,
       amount: plan.salePrice, status: "active", statusFa: "فعال",
       startAt: now.toISOString(),
       endAt: new Date(now.getTime() + plan.durationDays * 86400000).toISOString(),
     });
+    // Award purchase reward only after a confirmed successful purchase.
+    // Idempotent by subscription id (`purchase:${id}`), so a duplicate
+    // checkout can never award the same points twice.
+    claimPurchaseReward(userId, plan.code, subscription.id);
     const intent: CheckoutIntent = {
       id: crypto.randomUUID(), planCode: plan.code, amount: plan.salePrice, currency: "IRT",
       status: "paid", paymentUrl: null,

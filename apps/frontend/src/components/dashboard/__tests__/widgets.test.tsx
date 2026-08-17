@@ -212,6 +212,10 @@ describe("ProfileCompletionCard", () => {
     occupation: null,
     completionPercent: 60,
     avatarUrl: null,
+    userType: null,
+    province: null,
+    legalInterests: null,
+    primaryUseCase: null,
   };
 
   const completeProfile: Profile = {

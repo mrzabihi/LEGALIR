@@ -179,7 +179,9 @@ describe("ProfilePage", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText("تهران")).toBeTruthy();
+      // "تهران" can appear for both city and province; assert at least one.
+      expect(screen.getAllByText("تهران").length).toBeGreaterThan(0);
+      expect(screen.getByText("کارشناس حقوقی")).toBeTruthy();
     });
   });
 

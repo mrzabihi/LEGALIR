@@ -6,6 +6,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
+import { computeProfileCompletion } from "./profile-completion";
+import {
+  getRewardRule,
+  tehranDateString,
+  purchaseEventForPlan,
+  type RewardEventType,
+} from "./rewards";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -117,6 +124,12 @@ export interface DbProfile {
   email: string | null;
   birthDate: string | null;
   gender: string | null;
+  // Extended profile ("پروفایل حقوقی من")
+  userType: string | null;
+  province: string | null;
+  legalInterests: string[] | null;
+  primaryUseCase: string | null;
+  // Cached overall completion (authoritative: recomputed on every read)
   completionPercent: number;
 }
 
@@ -138,6 +151,19 @@ export interface DbPreferences {
     storeConversationHistory: boolean;
     autoMemoryConsent: boolean;
   };
+}
+
+export interface RewardLedgerEntry {
+  id: string;
+  user_id: string;
+  event_type: RewardEventType;
+  points_delta: number;
+  source_type: string;
+  source_id: string;
+  idempotency_key: string;
+  description: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
 // ============================================================
@@ -223,9 +249,9 @@ export function cleanupExpiredSessions(): void {
 export function getProfile(userId: string): DbProfile {
   const profiles = readTable<DbProfile>("profiles");
   const existing = profiles.find((p) => p.user_id === userId);
-  if (existing) return existing;
+  if (existing) return recomputeProfile(existing);
   // Return default empty profile
-  return {
+  return recomputeProfile({
     user_id: userId,
     displayName: null,
     city: null,
@@ -234,7 +260,19 @@ export function getProfile(userId: string): DbProfile {
     email: null,
     birthDate: null,
     gender: null,
+    userType: null,
+    province: null,
+    legalInterests: null,
+    primaryUseCase: null,
     completionPercent: 0,
+  });
+}
+
+/** Recompute `completionPercent` from the authoritative domain rules. */
+function recomputeProfile(profile: DbProfile): DbProfile {
+  return {
+    ...profile,
+    completionPercent: computeProfileCompletion(profile).rounded,
   };
 }
 
@@ -249,22 +287,31 @@ export function upsertProfile(userId: string, updates: Partial<Omit<DbProfile, "
     for (const key of Object.keys(updates)) {
       (merged as Record<string, unknown>)[key] = (updates as Record<string, unknown>)[key];
     }
-    profiles[idx] = merged;
-  } else {
-    profiles.push({
-      user_id: userId,
-      displayName: updates.displayName ?? null,
-      city: updates.city ?? null,
-      occupation: updates.occupation ?? null,
-      avatarUrl: updates.avatarUrl ?? null,
-      email: updates.email ?? null,
-      birthDate: updates.birthDate ?? null,
-      gender: updates.gender ?? null,
-      completionPercent: updates.completionPercent ?? 0,
-    });
+    const recomputed = recomputeProfile(merged);
+    profiles[idx] = recomputed;
+    writeTable("profiles", profiles);
+    return recomputed;
   }
+
+  const created: DbProfile = {
+    user_id: userId,
+    displayName: updates.displayName ?? null,
+    city: updates.city ?? null,
+    occupation: updates.occupation ?? null,
+    avatarUrl: updates.avatarUrl ?? null,
+    email: updates.email ?? null,
+    birthDate: updates.birthDate ?? null,
+    gender: updates.gender ?? null,
+    userType: updates.userType ?? null,
+    province: updates.province ?? null,
+    legalInterests: updates.legalInterests ?? null,
+    primaryUseCase: updates.primaryUseCase ?? null,
+    completionPercent: updates.completionPercent ?? 0,
+  };
+  const recomputed = recomputeProfile(created);
+  profiles.push(recomputed);
   writeTable("profiles", profiles);
-  return idx >= 0 ? profiles[idx]! : profiles[profiles.length - 1]!;
+  return recomputed;
 }
 
 export function updateUserDisplayName(userId: string, displayName: string): DbUser | undefined {
@@ -512,6 +559,132 @@ export function queryHistory(params: QueryHistoryParams) {
 }
 
 // ============================================================
+// Rewards Ledger
+// ============================================================
+// The ledger is authoritative: balance = SUM(points_delta).
+// Idempotency is enforced by unique keys (idempotency_key, and per-event
+// uniqueness). Rewards are only created when a rule is enabled.
+
+export function readRewardLedger(userId: string): RewardLedgerEntry[] {
+  return readTable<RewardLedgerEntry>("reward_ledger")
+    .filter((e) => e.user_id === userId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function getRewardBalance(userId: string): number {
+  return readTable<RewardLedgerEntry>("reward_ledger")
+    .filter((e) => e.user_id === userId)
+    .reduce((sum, e) => sum + e.points_delta, 0);
+}
+
+/** True if a ledger entry with this idempotency key already exists. */
+function ledgerHasIdempotencyKey(key: string): boolean {
+  return readTable<RewardLedgerEntry>("reward_ledger").some((e) => e.idempotency_key === key);
+}
+
+function ledgerHasUnique(eventType: RewardEventType, userId: string, uniqueKey?: string): boolean {
+  const rows = readTable<RewardLedgerEntry>("reward_ledger").filter((e) => e.user_id === userId && e.event_type === eventType);
+  if (uniqueKey) return rows.some((e) => (e.metadata as Record<string, unknown>)["uniqueKey"] === uniqueKey);
+  return rows.length > 0;
+}
+
+export interface GrantRewardResult {
+  awarded: boolean;
+  points: number;
+  entry?: RewardLedgerEntry;
+  reason?: "disabled" | "duplicate";
+}
+
+/**
+ * Grant a reward atomically (single writer per process; the JSON store is
+ * read-modify-write within this function). Idempotent via idempotency_key and
+ * per-event uniqueness keys.
+ */
+export function grantReward(params: {
+  userId: string;
+  eventType: RewardEventType;
+  idempotencyKey: string;
+  sourceType: string;
+  sourceId: string;
+  description: string;
+  metadata?: Record<string, unknown>;
+  /** For once_per_day / once_per_purchase uniqueness (e.g. date string). */
+  uniqueKey?: string;
+}): GrantRewardResult {
+  const rule = getRewardRule(params.eventType);
+  if (!rule || !rule.enabled) {
+    return { awarded: false, points: 0, reason: "disabled" };
+  }
+
+  // Idempotency: same purchase/profile event must never double-award.
+  if (ledgerHasIdempotencyKey(params.idempotencyKey)) {
+    return { awarded: false, points: 0, reason: "duplicate" };
+  }
+  if (ledgerHasUnique(params.eventType, params.userId, params.uniqueKey)) {
+    return { awarded: false, points: 0, reason: "duplicate" };
+  }
+
+  const entry: RewardLedgerEntry = {
+    id: crypto.randomUUID(),
+    user_id: params.userId,
+    event_type: params.eventType,
+    points_delta: rule.points,
+    source_type: params.sourceType,
+    source_id: params.sourceId,
+    idempotency_key: params.idempotencyKey,
+    description: params.description,
+    metadata: params.metadata ?? {},
+    created_at: new Date().toISOString(),
+  };
+
+  const rows = readTable<RewardLedgerEntry>("reward_ledger");
+  rows.push(entry);
+  writeTable("reward_ledger", rows);
+
+  return { awarded: true, points: rule.points, entry };
+}
+
+/** Claim the once-per-day DAILY_VISIT reward (Asia/Tehran day). */
+export function claimDailyVisitReward(userId: string): GrantRewardResult {
+  const day = tehranDateString();
+  return grantReward({
+    userId,
+    eventType: "DAILY_VISIT",
+    idempotencyKey: `daily-visit:${userId}:${day}`,
+    sourceType: "system",
+    sourceId: "daily-visit",
+    description: "امتیاز حضور روزانه",
+    uniqueKey: day,
+  });
+}
+
+/** Award the once-per-account PROFILE_COMPLETED reward (1000 points). */
+export function claimProfileCompletedReward(userId: string): GrantRewardResult {
+  return grantReward({
+    userId,
+    eventType: "PROFILE_COMPLETED",
+    idempotencyKey: `profile-completed:${userId}`,
+    sourceType: "profile",
+    sourceId: userId,
+    description: "امتیاز تکمیل پروفایل",
+  });
+}
+
+/** Award a subscription purchase reward (idempotent by purchase/subscription id). */
+export function claimPurchaseReward(userId: string, planCode: string, purchaseId: string): GrantRewardResult {
+  const eventType = purchaseEventForPlan(planCode);
+  if (!eventType) return { awarded: false, points: 0, reason: "disabled" };
+  return grantReward({
+    userId,
+    eventType,
+    idempotencyKey: `purchase:${purchaseId}`,
+    sourceType: "subscription",
+    sourceId: purchaseId,
+    description: `امتیاز خرید اشتراک ${planCode}`,
+  });
+}
+
+// ============================================================
 // Dev seed
 // ============================================================
 
@@ -561,6 +734,24 @@ const hash = bcrypt.hashSync("123456", 10);
   ];
   writeTable("subscriptions", subs);
 
+  // Seed reward ledger — coherent with the seeded gold subscription above
+  // (balance = SUM(points_delta) = 1000, matching one GOLD_PURCHASE event).
+  const rewardLedger: RewardLedgerEntry[] = [
+    {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      event_type: "SUBSCRIPTION_GOLD_PURCHASED",
+      points_delta: 1000,
+      source_type: "subscription",
+      source_id: "subhist-001",
+      idempotency_key: "purchase:subhist-001",
+      description: "امتیاز خرید اشتراک gold",
+      metadata: {},
+      created_at: "2026-07-01T00:00:00Z",
+    },
+  ];
+  writeTable("reward_ledger", rewardLedger);
+
   // Seed usage stats
   const usage: UsageStatsRow = {
     user_id: userId,
@@ -571,7 +762,8 @@ const hash = bcrypt.hashSync("123456", 10);
   };
   writeTable("usage_stats", [usage]);
 
-  // Seed profile
+  // Seed profile — completionPercent is recomputed on read; store 0 as a
+  // placeholder (getProfile recomputes authoritatively).
   const profile: DbProfile = {
     user_id: userId,
     displayName: "مریم محمدی",
@@ -581,7 +773,11 @@ const hash = bcrypt.hashSync("123456", 10);
     email: null,
     birthDate: null,
     gender: null,
-    completionPercent: 85,
+    userType: null,
+    province: null,
+    legalInterests: null,
+    primaryUseCase: null,
+    completionPercent: 0,
   };
   writeTable("profiles", [profile]);
 

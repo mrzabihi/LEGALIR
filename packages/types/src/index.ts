@@ -69,6 +69,11 @@ export interface Profile {
   occupation: string | null;
   completionPercent: number;
   avatarUrl: string | null;
+  // Extended profile ("پروفایل حقوقی من")
+  userType: string | null;
+  province: string | null;
+  legalInterests: string[] | null;
+  primaryUseCase: string | null;
 }
 
 export interface UserPreference {
@@ -1177,6 +1182,55 @@ export interface UsageSummary {
 export interface RecentActivitiesResponse {
   items: RecentActivityItem[];
   pagination: Pagination;
+}
+
+// --- Rewards & Loyalty ---
+
+export type RewardEventType =
+  | "PROFILE_COMPLETED"
+  | "DAILY_VISIT"
+  | "REFERRAL_COMPLETED"
+  | "SUBSCRIPTION_SILVER_PURCHASED"
+  | "SUBSCRIPTION_GOLD_PURCHASED"
+  | "SUBSCRIPTION_DIAMOND_PURCHASED";
+
+export interface RewardRuleInfo {
+  eventType: RewardEventType;
+  points: number;
+  frequency: "once_per_account" | "once_per_day" | "once_per_purchase";
+  enabled: boolean;
+  labelFa: string;
+  descriptionFa: string;
+}
+
+export interface RewardLedgerItem {
+  id: string;
+  eventType: RewardEventType;
+  pointsDelta: number;
+  sourceType: string;
+  sourceId: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface RewardsSummary {
+  balance: number;
+  today: {
+    visitRewardClaimed: boolean;
+    pointsAwarded: number;
+  };
+  rules: RewardRuleInfo[];
+}
+
+export interface RewardsHistoryResponse {
+  items: RewardLedgerItem[];
+  pagination: Pagination;
+}
+
+export interface DailyVisitClaimResponse {
+  awarded: boolean;
+  points: number;
+  balance: number;
 }
 
 // --- Phase 7: Chat Workspace Types ---

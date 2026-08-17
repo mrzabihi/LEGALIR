@@ -43,6 +43,9 @@ export function useUpdateProfile() {
         const me = old as Record<string, unknown>;
         return { ...me, profile: updated };
       });
+      // Invalidate the dashboard summary so the completion card reflects the
+      // new value immediately (no stale 25%).
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "summary"] });
     },
   });
 }

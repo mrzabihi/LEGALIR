@@ -236,6 +236,15 @@ export const IconStar = createIcon("Star", (
   <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
 ));
 
+export const IconCoin = createIcon("Coin", (
+  <>
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M9 9.5c0-.8.7-1.5 1.6-1.5h2.3c.9 0 1.6.7 1.6 1.6 0 .9-.7 1.4-1.4 1.8l-2.2.9c-.7.3-1.4.9-1.4 1.8 0 .9.7 1.6 1.6 1.6h2.3c.9 0 1.6-.7 1.6-1.5" />
+    <line x1="12" y1="6.5" x2="12" y2="8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <line x1="12" y1="16" x2="12" y2="17.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </>
+));
+
 export const IconSend = createIcon(
   "Send",
   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />,
