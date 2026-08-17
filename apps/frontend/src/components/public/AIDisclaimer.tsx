@@ -7,8 +7,8 @@ interface AIDisclaimerProps {
 export function AIDisclaimer({ compact = false }: AIDisclaimerProps) {
   if (compact) {
     return (
-      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/5 border border-primary/15 text-caption text-onSurface">
-        <IconShield size={14} className="text-primary shrink-0" />
+      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-caption text-white">
+        <IconShield size={14} className="text-white shrink-0" />
         <span>خدمات تخصصی حقوقی با پشتیبانی هوش مصنوعی و منابع حقوقی</span>
       </div>
     );
