@@ -13,6 +13,7 @@ import {
   purchaseEventForPlan,
   type RewardEventType,
 } from "./rewards";
+import { seedDemoContent, DEMO_USER_MOBILE } from "./demo-seed";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -809,4 +810,6 @@ const hash = bcrypt.hashSync("123456", 10);
 // Auto-seed on first import in dev
 if (process.env.NODE_ENV === "development") {
   seedDevData();
+  const demoUser = findUserByMobile(DEMO_USER_MOBILE);
+  if (demoUser) seedDemoContent(demoUser.id);
 }

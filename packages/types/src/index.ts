@@ -560,6 +560,29 @@ export interface V1ContractVersionDetail {
   createdAt: string;
 }
 
+export type V1ContractAttachmentKind =
+  | "law"
+  | "precedent"
+  | "directive"
+  | "regulation"
+  | "other";
+
+export interface V1ContractAttachmentSection {
+  id: string;
+  title: string;
+  content: string;
+}
+
+export interface V1ContractAttachment {
+  id: string;
+  fileName: string;
+  title: string;
+  kind: V1ContractAttachmentKind;
+  kindFa: string;
+  uploadedAt: string;
+  sections: V1ContractAttachmentSection[];
+}
+
 export interface V1ContractDetail {
   id: string;
   userId: string;
@@ -572,6 +595,7 @@ export interface V1ContractDetail {
   currentVersionNumber: number;
   versions: V1ContractVersionDetail[];
   analysis: V1ContractRiskAnalysis | null;
+  attachments: V1ContractAttachment[];
   createdAt: string;
   updatedAt: string;
   disclaimer: string;

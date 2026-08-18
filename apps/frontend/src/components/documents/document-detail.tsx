@@ -314,7 +314,8 @@ export function DocumentDetail({
     );
   }
 
-  const { id: _id, name, status, mime, jobs, report, extractedText } = document;
+  const { id, name, status, mime, jobs, report, extractedText, previewUrl } = document;
+  const downloadUrl = `/api/v1/documents/${id}/download`;
 
   return (
     <div className="flex flex-col gap-6" dir="rtl">
@@ -358,14 +359,17 @@ export function DocumentDetail({
             </Button>
           )}
 
-          {/* Download button (disabled placeholder) */}
+          {/* Download button */}
           <Button
             variant="outlined"
             size="small"
-            disabled
+            disabled={!previewUrl}
             className="touch-target"
-            aria-label="دانلود سند - به زودی"
+            aria-label={previewUrl ? "دانلود سند" : "دانلود سند در دسترس نیست"}
             startIcon={<IconDownload size={16} />}
+            onClick={() => {
+              window.location.href = downloadUrl;
+            }}
           >
             دانلود
           </Button>
@@ -449,7 +453,7 @@ export function DocumentDetail({
       {/* ============================================================
           Preview placeholder
           ============================================================ */}
-      <PreviewPlaceholder documentName={name} mime={mime} />
+      <PreviewPlaceholder documentName={name} mime={mime} previewUrl={previewUrl} downloadUrl={downloadUrl} />
 
       {/* ============================================================
           Delete confirmation dialog

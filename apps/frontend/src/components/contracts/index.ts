@@ -10,3 +10,4 @@ export { ContractVersionHistory } from "./version-history";
 export { ContractVersionCompare } from "./version-compare";
 export { ContractActions } from "./contract-actions";
 export { ContractDetailView } from "./contract-detail";
+export { ContractAttachments } from "./contract-attachments";

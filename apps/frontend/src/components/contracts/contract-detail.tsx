@@ -12,8 +12,9 @@ import { ContractRiskPanel } from "./risk-panel";
 import { ContractVersionHistory } from "./version-history";
 import { ContractVersionCompare } from "./version-compare";
 import { ContractActions } from "./contract-actions";
+import { ContractAttachments } from "./contract-attachments";
 
-type DetailTab = "preview" | "risk" | "versions";
+type DetailTab = "preview" | "risk" | "versions" | "attachments";
 
 interface ContractDetailProps {
   contract: V1ContractDetailType;
@@ -61,6 +62,7 @@ export function ContractDetailView({ contract }: ContractDetailProps) {
     { id: "preview", label: "پیش‌نمایش" },
     { id: "risk", label: "تحلیل ریسک" },
     { id: "versions", label: "تاریخچه نسخه‌ها" },
+    { id: "attachments", label: "اسناد ضمیمه" },
   ];
 
   return (
@@ -165,6 +167,10 @@ export function ContractDetailView({ contract }: ContractDetailProps) {
               compareMode={compareMode}
             />
           </div>
+        )}
+
+        {activeTab === "attachments" && (
+          <ContractAttachments attachments={contract.attachments} />
         )}
       </div>
     </div>

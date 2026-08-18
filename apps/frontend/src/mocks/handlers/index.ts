@@ -46,6 +46,11 @@ import {
   fixtureV1QuestionLists,
   fixtureV1ContractListItems,
   fixtureV1ContractDetail,
+  fixtureV1ContractAttachmentsNda,
+  fixtureV1ContractDetailEmployment,
+  fixtureV1ContractDetailPartnership,
+  fixtureV1ContractDetailSaas,
+  fixtureV1ContractDetailContracting,
   fixtureV1ContractRiskAnalysis,
   fixtureV1GenerateResponse,
   fixtureV1ContractVersion1,
@@ -1738,9 +1743,22 @@ export const handlers = [
             createdAt: "2026-07-28T09:00:00Z",
           }],
           analysis: null,
+          attachments: fixtureV1ContractAttachmentsNda,
           disclaimer: "این متن به صورت خودکار توسط هوش مصنوعی LEGALIR تولید شده...",
         })
       );
+    }
+    if (id === "cnt-emp-001") {
+      return HttpResponse.json(ok(fixtureV1ContractDetailEmployment));
+    }
+    if (id === "cnt-partner-001") {
+      return HttpResponse.json(ok(fixtureV1ContractDetailPartnership));
+    }
+    if (id === "cnt-saas-001") {
+      return HttpResponse.json(ok(fixtureV1ContractDetailSaas));
+    }
+    if (id === "cnt-archived-001") {
+      return HttpResponse.json(ok(fixtureV1ContractDetailContracting));
     }
 
     return HttpResponse.json(err("NOT_FOUND", "قرارداد یافت نشد", false), { status: 404 });
@@ -1820,6 +1838,28 @@ export const handlers = [
 
     if (id === "cnt-lease-001") {
       return HttpResponse.json(ok(fixtureV1ContractRiskAnalysis));
+    }
+
+    // Clean, low-risk analysis for the remaining sample contracts.
+    if (id.startsWith("cnt-")) {
+      return HttpResponse.json(
+        ok({
+          contractId: id,
+          overallRisk: "low" as const,
+          findings: [],
+          protectiveSuggestions: [
+            {
+              id: `ps-${id}-1`,
+              title: "بند حل اختلاف",
+              content:
+                "در صورت بروز اختلاف، طرفین ابتدا به مذاکره و سپس به داوری مراجعه خواهند نمود.",
+              isProtective: true,
+              importance: "recommended" as const,
+            },
+          ],
+          generatedAt: new Date().toISOString(),
+        })
+      );
     }
 
     return HttpResponse.json(err("NOT_FOUND", "قرارداد یافت نشد", false), { status: 404 });

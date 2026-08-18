@@ -56,6 +56,7 @@ import type {
   V1ContractGenerateResponse,
   V1ContractCategory,
   V1ContractState,
+  V1ContractAttachment,
   // Phase 11
   V1HistoryItem,
   V1HistoryListResponse,
@@ -1737,6 +1738,118 @@ export const fixtureV1ContractListResponse: V1ContractListResponse = {
   pagination: { page: 1, pageSize: 20, total: 6, totalPages: 1 },
 };
 
+// Contract Attachment Fixtures (sample attached documents with legal sections)
+
+export const fixtureV1ContractAttachmentsLease: V1ContractAttachment[] = [
+  {
+    id: "att-lease-law-001",
+    fileName: "قانون-روابط-موجر-و-مستاجر-1356.pdf",
+    title: "قانون روابط موجر و مستأجر مصوب ۱۳۵۶",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-07-30T10:10:00Z",
+    sections: [
+      {
+        id: "s-lease-law-1",
+        title: "ماده ۱ — شمول قانون",
+        content:
+          "این قانون ناظر به کلیه قراردادهای اجاره‌ای است که پس از لازم‌الاجرا شدن آن منعقد می‌گردد و روابط موجر و مستأجر را از حیث مدت، اجاره‌بها و شرایط تخلیه تنظیم می‌نماید.",
+      },
+      {
+        id: "s-lease-law-2",
+        title: "ماده ۲ — مدت اجاره",
+        content:
+          "مدت اجاره حسب توافق طرفین تعیین می‌شود. در صورت عدم تعیین مدت، قرارداد اجاره حسب عرف محل و نوع مورد اجاره تفسیر می‌گردد.",
+      },
+      {
+        id: "s-lease-law-3",
+        title: "ماده ۳ — اجاره‌بها",
+        content:
+          "اجاره‌بها می‌بایست در مواعد مقرر پرداخت گردد. عدم پرداخت اجاره‌بها در موعد مقرر، حق مراجعه قانونی موجر را ایجاد می‌نماید.",
+      },
+    ],
+  },
+  {
+    id: "att-lease-dir-001",
+    fileName: "بخشنامه-تعدیل-اجاره-1403.pdf",
+    title: "بخشنامه تعدیل اجاره‌بها (شورای عالی مسکن)",
+    kind: "directive",
+    kindFa: "بخشنامه",
+    uploadedAt: "2026-07-30T10:12:00Z",
+    sections: [
+      {
+        id: "s-lease-dir-1",
+        title: "بند ۱ — سقف افزایش سالانه",
+        content:
+          "افزایش اجاره‌بها در تمدید قراردادهای مسکونی نباید از سقف تعیین‌شده سالانه تجاوز نماید؛ تعیین سقف بر اساس نرخ تورم و شرایط بازار مسکن صورت می‌پذیرد.",
+      },
+      {
+        id: "s-lease-dir-2",
+        title: "بند ۲ — مستندات قرارداد",
+        content:
+          "قراردادهای اجاره می‌بایست در سامانه ملی املاک و مستغلات ثبت گردیده و کد رهگیری دریافت نمایند تا مشمول حمایت‌های این بخشنامه قرار گیرند.",
+      },
+    ],
+  },
+  {
+    id: "att-lease-prec-001",
+    fileName: "رای-وحدت-رویه-814-اجاره.pdf",
+    title: "رأی وحدت رویه شماره ۸۱۴ هیأت عمومی دیوان عالی کشور",
+    kind: "precedent",
+    kindFa: "رأی وحدت رویه",
+    uploadedAt: "2026-07-30T10:15:00Z",
+    sections: [
+      {
+        id: "s-lease-prec-1",
+        title: "موضوع رأی",
+        content:
+          "در خصوص اعتبار شرط فسخ یک‌ماهه مستأجر و آثار آن بر لزوم پرداخت اجاره‌بهای مدت باقی‌مانده، هیأت عمومی دیوان عالی کشور مقرر داشت...",
+      },
+    ],
+  },
+];
+
+export const fixtureV1ContractAttachmentsNda: V1ContractAttachment[] = [
+  {
+    id: "att-nda-law-001",
+    fileName: "قانون-تجارت-الکترونیکی-1382.pdf",
+    title: "قانون تجارت الکترونیکی مصوب ۱۳۸۲",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-07-28T09:10:00Z",
+    sections: [
+      {
+        id: "s-nda-law-1",
+        title: "ماده ۶۴ — حفاظت از داده‌ها",
+        content:
+          "تأمین‌کنندگان و دریافت‌کنندگان خدمات الکترونیکی مکلف به حفظ محرمانگی اطلاعات و داده‌های شخصی کاربران می‌باشند و افشای آن جز در موارد قانونی ممنوع است.",
+      },
+      {
+        id: "s-nda-law-2",
+        title: "ماده ۶۵ — مسئولیت",
+        content:
+          "هر شخصی که اطلاعات محرمانه را بدون مجوز قانونی افشا نماید، حسب مورد مسئولیت مدنی و کیفری خواهد داشت.",
+      },
+    ],
+  },
+  {
+    id: "att-nda-reg-001",
+    fileName: "آیین‌نامه-حفاظت-از-اسرار-تجاری.pdf",
+    title: "آیین‌نامه حفاظت از اسرار تجاری",
+    kind: "regulation",
+    kindFa: "آیین‌نامه",
+    uploadedAt: "2026-07-28T09:20:00Z",
+    sections: [
+      {
+        id: "s-nda-reg-1",
+        title: "ماده ۱ — تعریف اسرار تجاری",
+        content:
+          "اسرار تجاری عبارت است از هرگونه اطلاعاتی که دارای ارزش اقتصادی بوده، نزد عموم شناخته‌شده نباشد و دارنده آن اقدامات معقولی برای حفظ محرمانگی به عمل آورده باشد.",
+      },
+    ],
+  },
+];
+
 // Contract Detail Fixture
 
 export const fixtureV1ContractDetail: V1ContractDetail = {
@@ -1751,9 +1864,274 @@ export const fixtureV1ContractDetail: V1ContractDetail = {
   currentVersionNumber: 2,
   versions: [fixtureV1ContractVersion1, fixtureV1ContractVersion2],
   analysis: fixtureV1ContractRiskAnalysis,
+  attachments: fixtureV1ContractAttachmentsLease,
   createdAt: "2026-07-30T10:00:00Z",
   updatedAt: "2026-07-30T11:00:00Z",
   disclaimer: "این متن به صورت خودکار توسط هوش مصنوعی LEGALIR تولید شده و صرفاً یک پیش‌نویس است. این متن نباید به عنوان سند قانونی نهایی تلقی شود. پیش از استفاده، حتماً آن را توسط یک وکیل متخصص بررسی و تأیید کنید. LEGALIR هیچ مسئولیتی در قبال استفاده از این پیش‌نویس بدون بررسی حقوقی ندارد.",
+};
+
+// --- Sample Attachments for the remaining contract types ---
+
+export const fixtureV1ContractAttachmentsEmployment: V1ContractAttachment[] = [
+  {
+    id: "att-emp-law-001",
+    fileName: "قانون-کار-مصوب-1369.pdf",
+    title: "قانون کار جمهوری اسلامی ایران",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-07-31T08:10:00Z",
+    sections: [
+      {
+        id: "s-emp-law-1",
+        title: "ماده ۷ — قرارداد کار",
+        content:
+          "قرارداد کار عبارت است از قرارداد کتبی یا شفاهی که به موجب آن کارگر در قبال دریافت حقالسعی، کاری را برای مدت موقت یا غیرموقت برای کارفرما انجام می‌دهد.",
+      },
+      {
+        id: "s-emp-law-2",
+        title: "ماده ۲۴ — خاتمه قرارداد",
+        content:
+          "در صورت فسخ قرارداد کار، کارفرما مکلف به پرداخت کلیه حقوق و مزایای قانونی کارگر تا تاریخ خاتمه قرارداد می‌باشد.",
+      },
+    ],
+  },
+  {
+    id: "att-emp-dir-001",
+    fileName: "آیین‌نامه-ساعات-کار-و-اضافه‌کاری.pdf",
+    title: "آیین‌نامه ساعات کار و اضافه‌کاری",
+    kind: "regulation",
+    kindFa: "آیین‌نامه",
+    uploadedAt: "2026-07-31T08:15:00Z",
+    sections: [
+      {
+        id: "s-emp-dir-1",
+        title: "ماده ۱ — ساعات کار",
+        content:
+          "ساعات کار کارگران نباید از سقف مقرر در قانون کار تجاوز نماید و اضافه‌کاری مستلزم توافق و پرداخت فوق‌العاده مربوطه است.",
+      },
+    ],
+  },
+];
+
+export const fixtureV1ContractAttachmentsPartnership: V1ContractAttachment[] = [
+  {
+    id: "att-partner-law-001",
+    fileName: "قانون-مدنی-عقد-شرکت.pdf",
+    title: "قانون مدنی — باب شرکت (مواد ۵۷۱ تا ۶۰۶)",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-07-15T10:05:00Z",
+    sections: [
+      {
+        id: "s-partner-law-1",
+        title: "ماده ۵۷۱ — تعریف شرکت",
+        content:
+          "شرکت عبارت است از اجتماع حقوق مالکین متعدد در شیء واحد به نحو اشاعه.",
+      },
+      {
+        id: "s-partner-law-2",
+        title: "ماده ۵۷۵ — تقسیم سود و زیان",
+        content:
+          "سود و زیان به نسبت حصه شرکا تقسیم می‌گردد مگر اینکه ترتیب دیگری در قرارداد شرط شده باشد.",
+      },
+    ],
+  },
+  {
+    id: "att-partner-law-002",
+    fileName: "قانون-تجارت-شرکت‌های-تجاری.pdf",
+    title: "قانون تجارت — شرکت‌های تجاری",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-07-15T10:10:00Z",
+    sections: [
+      {
+        id: "s-partner-law-2-1",
+        title: "ماده ۲۰ — انواع شرکت‌های تجاری",
+        content:
+          "شرکت‌های تجاری بر هفت قسم است: سهامی عام، سهامی خاص، با مسئولیت محدود، تضامنی، مختلط، نسبی، تعاونی.",
+      },
+    ],
+  },
+];
+
+export const fixtureV1ContractAttachmentsSaas: V1ContractAttachment[] = [
+  {
+    id: "att-saas-law-001",
+    fileName: "قانون-تجارت-الکترونیکی-1382.pdf",
+    title: "قانون تجارت الکترونیکی مصوب ۱۳۸۲",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-07-31T10:05:00Z",
+    sections: [
+      {
+        id: "s-saas-law-1",
+        title: "ماده ۳۳ — قراردادهای الکترونیکی",
+        content:
+          "قراردادهای الکترونیکی در حکم قراردادهای عادی بوده و دارای همان آثار حقوقی می‌باشند.",
+      },
+      {
+        id: "s-saas-law-2",
+        title: "ماده ۶۴ — حفاظت از داده‌ها",
+        content:
+          "ارائه‌دهندگان خدمات الکترونیکی مکلف به حفظ محرمانگی اطلاعات کاربران می‌باشند.",
+      },
+    ],
+  },
+];
+
+export const fixtureV1ContractAttachmentsContracting: V1ContractAttachment[] = [
+  {
+    id: "att-ctr-law-001",
+    fileName: "شرایط-عمومی-پیمان.pdf",
+    title: "شرایط عمومی پیمان",
+    kind: "regulation",
+    kindFa: "آیین‌نامه",
+    uploadedAt: "2026-06-01T10:05:00Z",
+    sections: [
+      {
+        id: "s-ctr-law-1",
+        title: "ماده ۲ — تعهدات پیمانکار",
+        content:
+          "پیمانکار متعهد است عملیات موضوع پیمان را مطابق نقشه‌ها، مشخصات فنی و برنامه زمان‌بندی انجام و تحویل دهد.",
+      },
+      {
+        id: "s-ctr-law-2",
+        title: "ماده ۴۸ — صورت‌وضعیت",
+        content:
+          "صورت‌وضعیت‌های موقت و قطعی بر اساس پیشرفت کار تنظیم و پس از تأیید دستگاه نظارت پرداخت می‌گردد.",
+      },
+    ],
+  },
+  {
+    id: "att-ctr-law-002",
+    fileName: "قانون-برگزاری-مناقصات.pdf",
+    title: "قانون برگزاری مناقصات",
+    kind: "law",
+    kindFa: "قانون",
+    uploadedAt: "2026-06-01T10:10:00Z",
+    sections: [
+      {
+        id: "s-ctr-law-2-1",
+        title: "ماده ۱ — شمول قانون",
+        content:
+          "این قانون ناظر بر معاملات دستگاه‌های اجرایی از طریق برگزاری مناقصه می‌باشد.",
+      },
+    ],
+  },
+];
+
+export const fixtureV1ContractDetailEmployment: V1ContractDetail = {
+  id: "cnt-emp-001",
+  userId: "u-pro-001",
+  title: "قرارداد استخدام مدیر فنی",
+  type: "employment",
+  typeFa: "استخدام",
+  category: "business",
+  state: "draft",
+  currentVersionId: null,
+  currentVersionNumber: 0,
+  versions: [],
+  analysis: null,
+  attachments: fixtureV1ContractAttachmentsEmployment,
+  createdAt: "2026-07-31T08:00:00Z",
+  updatedAt: "2026-07-31T08:30:00Z",
+  disclaimer: "این متن به صورت خودکار توسط هوش مصنوعی LEGALIR تولید شده و صرفاً یک پیش‌نویس است.",
+};
+
+export const fixtureV1ContractDetailPartnership: V1ContractDetail = {
+  id: "cnt-partner-001",
+  userId: "u-pro-001",
+  title: "قرارداد مشارکت تجاری",
+  type: "partnership",
+  typeFa: "شراکت",
+  category: "personal",
+  state: "approved",
+  currentVersionId: "ver-partner-003",
+  currentVersionNumber: 3,
+  versions: [
+    {
+      id: "ver-partner-003",
+      contractId: "cnt-partner-001",
+      versionNumber: 3,
+      answers: {
+        party1_name: "حسین کریمی",
+        party2_name: "رضا نادری",
+        capital_share_1: "۶۰",
+        capital_share_2: "۴۰",
+        business_purpose: "تأسیس و راه‌اندازی فروشگاه آنلاین",
+      },
+      content: `قرارداد مشارکت مدنی\n\nاین قرارداد بین آقای حسین کریمی (شریک اول) و آقای رضا نادری (شریک دوم) به شرح زیر منعقد می‌گردد.\n\nماده ۱ - موضوع مشارکت: تأسیس و راه‌اندازی فروشگاه آنلاین.\n\nماده ۲ - سهم الشرکه: شریک اول ۶۰ درصد و شریک دوم ۴۰ درصد.\n\nماده ۳ - تقسیم سود و زیان: به نسبت سهم‌الشرکه.`,
+      clauses: [
+        { id: "cl-p-001", title: "ماده ۱ - موضوع مشارکت", content: "تأسیس و راه‌اندازی فروشگاه آنلاین...", isProtective: false, importance: "essential" },
+        { id: "cl-p-002", title: "ماده ۲ - سهم‌الشرکه", content: "شریک اول ۶۰ درصد و شریک دوم ۴۰ درصد...", isProtective: true, importance: "essential" },
+        { id: "cl-p-003", title: "ماده ۳ - تقسیم سود و زیان", content: "به نسبت سهم‌الشرکه...", isProtective: true, importance: "recommended" },
+      ],
+      state: "approved",
+      createdAt: "2026-07-25T16:00:00Z",
+    },
+  ],
+  analysis: null,
+  attachments: fixtureV1ContractAttachmentsPartnership,
+  createdAt: "2026-07-15T10:00:00Z",
+  updatedAt: "2026-07-25T16:00:00Z",
+  disclaimer: "این متن به صورت خودکار توسط هوش مصنوعی LEGALIR تولید شده و صرفاً یک پیش‌نویس است.",
+};
+
+export const fixtureV1ContractDetailSaas: V1ContractDetail = {
+  id: "cnt-saas-001",
+  userId: "u-pro-001",
+  title: "قرارداد اشتراک نرم‌افزار",
+  type: "saas",
+  typeFa: "SaaS",
+  category: "business",
+  state: "draft",
+  currentVersionId: null,
+  currentVersionNumber: 0,
+  versions: [],
+  analysis: null,
+  attachments: fixtureV1ContractAttachmentsSaas,
+  createdAt: "2026-07-31T10:00:00Z",
+  updatedAt: "2026-07-31T10:00:00Z",
+  disclaimer: "این متن به صورت خودکار توسط هوش مصنوعی LEGALIR تولید شده و صرفاً یک پیش‌نویس است.",
+};
+
+export const fixtureV1ContractDetailContracting: V1ContractDetail = {
+  id: "cnt-archived-001",
+  userId: "u-pro-001",
+  title: "قرارداد قدیمی پیمانکاری",
+  type: "contracting",
+  typeFa: "پیمانکاری",
+  category: "business",
+  state: "archived",
+  currentVersionId: "ver-ctr-001",
+  currentVersionNumber: 1,
+  versions: [
+    {
+      id: "ver-ctr-001",
+      contractId: "cnt-archived-001",
+      versionNumber: 1,
+      answers: {
+        employer: "سازمان توسعه شهری",
+        contractor: "شرکت عمران پارس",
+        project_name: "احداث ساختمان اداری",
+        contract_amount: "۲۵۰۰۰۰۰۰۰۰۰",
+        duration_months: "۱۸",
+      },
+      content: `قرارداد پیمانکاری\n\nاین قرارداد بین سازمان توسعه شهری (کارفرما) و شرکت عمران پارس (پیمانکار) منعقد می‌گردد.\n\nماده ۱ - موضوع پیمان: احداث ساختمان اداری.\n\nماده ۲ - مبلغ پیمان: ۲۵,۰۰۰,۰۰۰,۰۰۰ ریال.\n\nماده ۳ - مدت اجرا: ۱۸ ماه شمسی.`,
+      clauses: [
+        { id: "cl-c-001", title: "ماده ۱ - موضوع پیمان", content: "احداث ساختمان اداری...", isProtective: false, importance: "essential" },
+        { id: "cl-c-002", title: "ماده ۲ - مبلغ پیمان", content: "۲۵,۰۰۰,۰۰۰,۰۰۰ ریال...", isProtective: true, importance: "essential" },
+        { id: "cl-c-003", title: "ماده ۳ - مدت اجرا", content: "۱۸ ماه شمسی...", isProtective: false, importance: "essential" },
+      ],
+      state: "archived",
+      createdAt: "2026-06-01T10:00:00Z",
+    },
+  ],
+  analysis: null,
+  attachments: fixtureV1ContractAttachmentsContracting,
+  createdAt: "2026-06-01T10:00:00Z",
+  updatedAt: "2026-07-01T10:00:00Z",
+  disclaimer: "این متن به صورت خودکار توسط هوش مصنوعی LEGALIR تولید شده و صرفاً یک پیش‌نویس است.",
 };
 
 // Contract Draft Fixture
