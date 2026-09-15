@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findSessionById, upsertProfile, updateUserDisplayName, getProfile, claimProfileCompletedReward } from '@/lib/db';
+import { findSessionById, upsertProfile, updateUserDisplayName, getProfile, claimProfileCompletedReward, recordActivity } from '@/lib/db';
 
 function getUserFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -44,6 +44,21 @@ export async function PATCH(request: Request) {
   // Idempotent — the ledger key `profile-completed:${userId}` prevents double-award.
   if (profile.completionPercent >= 100) {
     claimProfileCompletedReward(userId);
+  }
+
+  const changedFields = Object.keys(updates);
+  if (changedFields.length > 0) {
+    recordActivity({
+      userId,
+      type: "document",
+      title: "به‌روزرسانی پروفایل",
+      status: "ready",
+      statusFa: "ذخیره شد",
+      description: `تغییر ${changedFields.length} فیلد پروفایل`,
+      category: null,
+      categoryFa: null,
+      sourceId: `profile:${userId}`,
+    });
   }
 
   return NextResponse.json({ data: getProfile(userId) });

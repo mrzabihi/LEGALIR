@@ -148,52 +148,27 @@ interface HeroSectionProps {
 export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps) {
   const name = displayName ?? "کاربر";
 
-  const statCards = [
-    {
-      label: "درخواست امروز",
-      value: `${stats.dailyUsed}/${stats.dailyTotal}`,
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      ),
-      accent: "from-blue-500/20 to-blue-600/10 text-blue-100",
-    },
-    {
-      label: "اسناد",
-      value: stats.docCount.toLocaleString("fa-IR"),
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-        </svg>
-      ),
-      accent: "from-emerald-500/20 to-emerald-600/10 text-emerald-100",
-    },
-    {
-      label: "درخواست فعال",
-      value: stats.activeReqCount.toLocaleString("fa-IR"),
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-        </svg>
-      ),
-      accent: "from-purple-500/20 to-purple-600/10 text-purple-100",
-    },
-    {
-      label: "روز باقی‌مانده",
-      value: stats.daysRemaining.toLocaleString("fa-IR"),
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
-        </svg>
-      ),
-      accent: "from-amber-500/20 to-amber-600/10 text-amber-100",
-    },
-  ];
+  // Pie-chart geometry for the days-remaining card: remaining days sweep
+  // clockwise from the top, elapsed days fill the rest.
+  const daysTotal = 30;
+  const daysLeft = Math.max(0, Math.min(daysTotal, stats.daysRemaining));
+  const daysElapsed = daysTotal - daysLeft;
+  const sweep = (daysLeft / daysTotal) * 360;
+  const pieDash = `${sweep} ${360 - sweep}`;
+  const pieRotate = 90; // start at 12 o'clock
+
+  // 30-day strip: elapsed days red, remaining days green.
+  const dayCells = Array.from({ length: daysTotal }, (_, i) => i < daysElapsed);
+
+  // Donut geometry for the daily-requests card: the remaining allowance
+  // sweeps clockwise from the top; consumed requests fill the rest.
+  const dailyTotal = Math.max(0, stats.dailyTotal);
+  const dailyUsed = Math.min(Math.max(0, stats.dailyUsed), dailyTotal);
+  const dailyRemaining = Math.max(0, dailyTotal - dailyUsed);
+  const dailySweep = dailyTotal > 0 ? (dailyRemaining / dailyTotal) * 360 : 0;
+  const dailyDash = `${dailySweep} ${360 - dailySweep}`;
+  const dailyExhausted = dailyTotal > 0 && dailyRemaining === 0;
+  const dailyLow = !dailyExhausted && dailyTotal > 0 && dailyRemaining / dailyTotal <= 0.25;
 
   if (isLoading) {
     return (
@@ -228,18 +203,138 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
 
       {/* Stat cards */}
       <div className="relative grid grid-cols-2 tablet:grid-cols-4 gap-3 mt-6">
-        {statCards.map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl bg-gradient-to-br ${stat.accent} border border-white/10 backdrop-blur p-4 flex flex-col gap-2`}
-          >
-            <span className="opacity-70">{stat.icon}</span>
-            <div>
-              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stat.value}</p>
-              <p className="text-caption text-primary-200 mt-0.5">{stat.label}</p>
+        {/* درخواست امروز — donut: consumed vs remaining */}
+        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-blue-300/30">
+          {/* soft glow that intensifies on hover */}
+          <span
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-blue-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            aria-hidden="true"
+          />
+          <div className="relative flex items-center gap-3">
+            <div
+              className="relative w-11 h-11 shrink-0"
+              role="img"
+              aria-label={`${dailyUsed.toLocaleString("fa-IR")} درخواست مصرف‌شده از ${dailyTotal.toLocaleString("fa-IR")}؛ ${dailyRemaining.toLocaleString("fa-IR")} باقی‌مانده`}
+            >
+              <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                <defs>
+                  <linearGradient id="dailyQuotaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#93c5fd" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+                {/* track = consumed portion */}
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                {/* remaining allowance sweeps from 12 o'clock */}
+                <circle
+                  cx="18" cy="18" r="15.915" fill="none"
+                  stroke={dailyExhausted ? "#f87171" : dailyLow ? "#fbbf24" : "url(#dailyQuotaGrad)"}
+                  strokeWidth="4" strokeLinecap="round"
+                  strokeDasharray={dailyDash}
+                  className="transition-all duration-700 ease-emphasized"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
+                {dailyRemaining.toLocaleString("fa-IR")}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">
+                {dailyUsed}/{dailyTotal}
+              </p>
+              <p className="text-caption text-primary-200 mt-0.5">درخواست امروز</p>
             </div>
           </div>
-        ))}
+          {/* legend: consumed vs remaining */}
+          <div className="relative flex items-center gap-3 text-[10px] text-primary-200/90">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-300" aria-hidden="true" />
+              {dailyRemaining.toLocaleString("fa-IR")} مانده
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-white/25" aria-hidden="true" />
+              {dailyUsed.toLocaleString("fa-IR")} مصرف
+            </span>
+          </div>
+        </div>
+
+        {/* اسناد — gradient icon ring + count badge */}
+        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-emerald-300/30">
+          {/* soft glow that intensifies on hover */}
+          <span
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-emerald-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            aria-hidden="true"
+          />
+          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-400/20 text-emerald-200 ring-1 ring-inset ring-emerald-300/20 transition-transform duration-300 group-hover:scale-105">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-emerald-400 text-emerald-950 text-[10px] font-bold tabular-nums ring-2 ring-emerald-500/20">
+              {stats.docCount.toLocaleString("fa-IR")}
+            </span>
+          </span>
+          <div className="relative">
+            <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.docCount.toLocaleString("fa-IR")}</p>
+            <p className="text-caption text-primary-200 mt-0.5">اسناد</p>
+          </div>
+        </div>
+
+        {/* درخواست فعال — blinking light-sweep effect */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 text-purple-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2">
+          <span className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+            <span className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-light-sweep" />
+          </span>
+          <span className="relative flex items-center gap-1.5 opacity-90">
+            <span className="w-2 h-2 rounded-full bg-purple-300 animate-status-blink" aria-hidden="true" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+          </span>
+          <div className="relative">
+            <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.activeReqCount.toLocaleString("fa-IR")}</p>
+            <p className="text-caption text-primary-200 mt-0.5">درخواست فعال</p>
+          </div>
+        </div>
+
+        {/* روز باقی‌مانده — pie chart + 30-day strip */}
+        <div className="rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <div className="relative w-11 h-11 shrink-0" role="img" aria-label={`${daysLeft} روز باقی‌مانده از ${daysTotal} روز`}>
+              <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                <circle
+                  cx="18" cy="18" r="15.915" fill="none"
+                  stroke="currentColor" strokeWidth="4" strokeLinecap="round"
+                  strokeDasharray={pieDash}
+                  transform={`rotate(${pieRotate} 18 18)`}
+                  className="text-amber-300 transition-all duration-700 ease-emphasized"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
+                {daysLeft.toLocaleString("fa-IR")}
+              </span>
+            </div>
+            <div>
+              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.daysRemaining.toLocaleString("fa-IR")}</p>
+              <p className="text-caption text-primary-200 mt-0.5">روز باقی‌مانده</p>
+            </div>
+          </div>
+          {/* 30-day strip: elapsed red, remaining green */}
+          <div className="grid grid-cols-10 gap-1 mt-1" aria-hidden="true">
+            {dayCells.map((elapsed, i) => (
+              <span
+                key={i}
+                className={[
+                  "h-1.5 rounded-full transition-colors duration-300",
+                  elapsed ? "bg-red-400/70" : "bg-emerald-400/70",
+                ].join(" ")}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -509,12 +604,16 @@ const ACTIVITY_TYPE_ICONS: Record<string, string> = {
   conversation: "💬",
   document: "📄",
   contract: "📝",
+  subscription: "💳",
+  case: "⚖️",
 };
 
 const ACTIVITY_TYPE_LINKS: Record<string, string> = {
   conversation: "/chat",
   document: "/documents",
   contract: "/contracts",
+  subscription: "/subscription",
+  case: "/cases",
 };
 
 function getStatusBadge(status: string): { label: string; colorClass: string } {
@@ -696,6 +795,61 @@ export function UsageSummaryCard({ usage, isLoading, error, onRetry }: UsageSumm
             <span className="text-caption text-onSurface font-medium">
               {usage.daysRemaining} روز دیگر
             </span>
+          </div>
+        </div>
+      )}
+    </WidgetShell>
+  );
+}
+
+// ============================================================
+// SubscriptionOverview — subscription plan + days-remaining ring
+// ============================================================
+
+interface SubscriptionOverviewProps {
+  subscription: {
+    planCode: string;
+    planNameFa: string;
+    endAt: string;
+    daysRemaining: number;
+  } | null | undefined;
+  isLoading: boolean;
+  error: Error | null;
+  onRetry?: () => void;
+}
+
+export function SubscriptionOverview({ subscription, isLoading, error, onRetry }: SubscriptionOverviewProps) {
+  const days = subscription?.daysRemaining ?? 0;
+  const total = 30;
+  const pct = Math.min(100, Math.round((days / total) * 100));
+
+  return (
+    <WidgetShell
+      title="اشتراک شما"
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      isEmpty={!subscription}
+      emptyMessage="اشتراک فعالی ندارید"
+      className="mb-6"
+    >
+      {subscription && (
+        <div className="flex items-center gap-4">
+          <div className="relative shrink-0">
+            <CircularProgress pct={pct} size={64} />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-body-2 text-onSurface font-semibold tabular-nums" dir="ltr">
+                {days.toLocaleString("fa-IR")}
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-body-1 text-onSurface font-semibold">
+              {subscription.planNameFa}
+            </p>
+            <p className="text-caption text-muted mt-0.5">
+              {days} روز تا پایان دوره اشتراک
+            </p>
           </div>
         </div>
       )}

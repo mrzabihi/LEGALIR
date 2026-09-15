@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useMemories, useUpdateMemory, useDeleteMemory } from "@/hooks/usePhase11";
+import { useMemories, useUpdateMemory, useDeleteMemory, useUpdatePreferences } from "@/hooks/usePhase11";
 import {
   IconMemory,
   IconPerson,
@@ -73,6 +73,7 @@ export default function MemoryPage() {
   const { data, isLoading, isError, error, refetch } = useMemories();
   const updateMemory = useUpdateMemory();
   const deleteMemory = useDeleteMemory();
+  const updatePrefs = useUpdatePreferences();
 
   // --- Local State ---
   const [memoryEnabled, setMemoryEnabled] = useState(true);
@@ -95,8 +96,13 @@ export default function MemoryPage() {
   function handleToggleMemory() {
     const next = !effectiveMemoryEnabled;
     setMemoryEnabled(next);
-    // In a real implementation, this would call a PATCH on the global memory toggle
-    // For now we manage it locally with a visual state
+    // Persist the global memory toggle so it survives reloads. Memory is
+    // gated by the same privacy preference that controls conversation
+    // history storage (see GET /api/v1/memories → memoryEnabled).
+    updatePrefs.mutate(
+      { privacy: { storeConversationHistory: next } } as Record<string, unknown>,
+      { onError: () => setMemoryEnabled(!next) }
+    );
   }
 
   function handleStartEdit(item: V1MemoryItem) {

@@ -8,7 +8,8 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { useHistory } from "@/hooks/usePhase11";
+import { useHistory, useArchiveHistoryItem } from "@/hooks/usePhase11";
+import { useDeleteConversation } from "@/hooks/useConversations";
 import { toPersianDate } from "@/lib/persian-utils";
 import {
   IconHistory,
@@ -22,6 +23,8 @@ import {
   IconCheck,
   IconWarning,
   IconShield,
+  IconDelete,
+  IconSubscription,
 } from "@/lib/icons";
 import type { V1HistoryItem } from "@legalir/types";
 
@@ -44,6 +47,8 @@ const TYPE_OPTIONS: { key: string; label: string }[] = [
   { key: "conversation", label: "Conversation" },
   { key: "document", label: "Document" },
   { key: "contract", label: "Contract" },
+  { key: "subscription", label: "Subscription" },
+  { key: "case", label: "Case" },
 ];
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
@@ -457,49 +462,163 @@ function ContractCard({ item, isArchived }: { item: V1HistoryItem; isArchived: b
   );
 }
 
+/** Case card — shows case title, status, and category */
+function CaseCard({ item, isArchived }: { item: V1HistoryItem; isArchived: boolean }) {
+  const statusCfg = getStatusConfig(item.status);
+
+  return (
+    <div
+      className={`rounded-large border p-4 transition-all hover:shadow-elevation-4 group ${
+        isArchived ? "opacity-60 bg-surfaceVariant/30" : "bg-surface border-divider"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Type icon */}
+        <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
+          <IconShield size={20} className="text-sky-600" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <h3 className={`text-body-1 font-semibold text-onSurface ${isArchived ? "line-through" : ""}`}>
+              {item.title}
+            </h3>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}>
+              <span>{statusCfg.symbol}</span>
+              {item.statusFa}
+            </span>
+          </div>
+
+          {/* Description */}
+          {item.description && (
+            <p className="text-body-2 text-muted line-clamp-2 mb-2">
+              {item.description}
+            </p>
+          )}
+
+          {/* Bottom: category + date */}
+          <div className="flex items-center gap-3 text-labelSmall text-muted">
+            {item.categoryFa && (
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500/60" />
+                {item.categoryFa}
+              </span>
+            )}
+            <span>{toPersianDate(item.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Subscription card — shows purchased plan, status, and activation date */
+function SubscriptionCard({ item, isArchived }: { item: V1HistoryItem; isArchived: boolean }) {
+  const statusCfg = getStatusConfig(item.status);
+
+  return (
+    <div
+      className={`rounded-large border p-4 transition-all hover:shadow-elevation-4 group ${
+        isArchived ? "opacity-60 bg-surfaceVariant/30" : "bg-surface border-divider"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Type icon */}
+        <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+          <IconSubscription size={20} className="text-violet-600" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <h3 className={`text-body-1 font-semibold text-onSurface ${isArchived ? "line-through" : ""}`}>
+              {item.title}
+            </h3>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}>
+              <span>{statusCfg.symbol}</span>
+              {item.statusFa}
+            </span>
+          </div>
+
+          {/* Description */}
+          {item.description && (
+            <p className="text-body-2 text-muted line-clamp-2 mb-2">
+              {item.description}
+            </p>
+          )}
+
+          {/* Bottom: date */}
+          <div className="flex items-center gap-3 text-labelSmall text-muted">
+            <span>{toPersianDate(item.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HistoryItemCard({
   item,
   isArchived,
   onToggleArchive,
+  onDelete,
 }: {
   item: V1HistoryItem;
   isArchived: boolean;
   onToggleArchive: (item: V1HistoryItem) => void;
+  onDelete: (item: V1HistoryItem) => void;
 }) {
   // Render type-specific card on larger screens
   const CardComponent =
     item.type === "conversation" ? ConversationCard :
     item.type === "document" ? DocumentCard :
     item.type === "contract" ? ContractCard :
+    item.type === "subscription" ? SubscriptionCard :
+    item.type === "case" ? CaseCard :
     ConversationCard;
 
   return (
     <div className="relative group/item">
       <CardComponent item={item} isArchived={isArchived} />
 
-      {/* Archive toggle button — positioned absolutely */}
-      <button
-        onClick={() => onToggleArchive(item)}
-        className={[
-          "absolute top-3 end-3 opacity-0 group-hover/item:opacity-100 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-labelSmall font-medium transition-all touch-target",
-          isArchived
-            ? "bg-primary/10 text-primary hover:bg-primary/20"
-            : "bg-white/90 text-muted hover:bg-white shadow-sm border border-border",
-        ].join(" ")}
-        aria-label={isArchived ? "خروج از بایگانی" : "بایگانی"}
-      >
-        {isArchived ? (
-          <>
-            <IconCheck size={14} />
-            خروج از بایگانی
-          </>
-        ) : (
-          <>
-            <IconArchive size={14} />
-            بایگانی
-          </>
+      {/* Action buttons — positioned absolutely */}
+      <div className="absolute top-3 end-3 flex items-center gap-1.5 opacity-0 group-hover/item:opacity-100 transition-all">
+        <button
+          onClick={() => onToggleArchive(item)}
+          className={[
+            "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-labelSmall font-medium transition-all touch-target",
+            isArchived
+              ? "bg-primary/10 text-primary hover:bg-primary/20"
+              : "bg-white/90 text-muted hover:bg-white shadow-sm border border-border",
+          ].join(" ")}
+          aria-label={isArchived ? "خروج از بایگانی" : "بایگانی"}
+        >
+          {isArchived ? (
+            <>
+              <IconCheck size={14} />
+              خروج از بایگانی
+            </>
+          ) : (
+            <>
+              <IconArchive size={14} />
+              بایگانی
+            </>
+          )}
+        </button>
+
+        {/* Delete — only for conversations (chats the user can remove) */}
+        {item.type === "conversation" && (
+          <button
+            onClick={() => onDelete(item)}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-labelSmall font-medium bg-white/90 text-error hover:bg-error/10 shadow-sm border border-error/30 transition-all touch-target"
+            aria-label="حذف گفتگو"
+          >
+            <IconDelete size={14} />
+            حذف
+          </button>
         )}
-      </button>
+      </div>
     </div>
   );
 }
@@ -518,6 +637,10 @@ export default function HistoryPage() {
   const [adminReviewPurpose, setAdminReviewPurpose] = useState<string>("");
   const [adminReviewActive, setAdminReviewActive] = useState<boolean>(false);
   const [archivedItems, setArchivedItems] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<V1HistoryItem | null>(null);
+
+  const deleteConversation = useDeleteConversation();
+  const archiveItem = useArchiveHistoryItem();
 
   // isAdmin — default false; set to true for super admin access in staging/prod
   const [isAdmin] = useState<boolean>(false);
@@ -546,17 +669,47 @@ export default function HistoryPage() {
   } = useHistory(historyParams);
 
   // --- Handlers ---
-  const handleToggleArchive = useCallback((item: V1HistoryItem) => {
-    setArchivedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(item.id)) {
-        next.delete(item.id);
-      } else {
-        next.add(item.id);
-      }
-      return next;
-    });
+  const handleToggleArchive = useCallback(
+    (item: V1HistoryItem) => {
+      const nextArchived = !archivedItems.has(item.id);
+      // Optimistic local toggle for instant feedback.
+      setArchivedItems((prev) => {
+        const next = new Set(prev);
+        if (nextArchived) next.add(item.id);
+        else next.delete(item.id);
+        return next;
+      });
+      // Persist server-side so the state survives reloads.
+      archiveItem.mutate(
+        { id: item.id, archived: nextArchived },
+        {
+          onError: () => {
+            setArchivedItems((prev) => {
+              const next = new Set(prev);
+              if (nextArchived) next.delete(item.id);
+              else next.add(item.id);
+              return next;
+            });
+          },
+        }
+      );
+    },
+    [archivedItems, archiveItem]
+  );
+
+  const handleRequestDelete = useCallback((item: V1HistoryItem) => {
+    setDeleteTarget(item);
   }, []);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    deleteConversation.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        setDeleteTarget(null);
+        refetch();
+      },
+    });
+  }, [deleteTarget, deleteConversation, refetch]);
 
   const handleOpenAdminModal = useCallback(() => {
     setAdminReviewPurpose("");
@@ -741,8 +894,59 @@ export default function HistoryPage() {
               item={item}
               isArchived={archivedItems.has(item.id)}
               onToggleArchive={handleToggleArchive}
+              onDelete={handleRequestDelete}
             />
           ))}
+        </div>
+      )}
+
+      {/* Delete Conversation Confirmation */}
+      {deleteTarget !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="تأیید حذف گفتگو"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteTarget(null);
+          }}
+        >
+          <div className="w-full max-w-sm rounded-large bg-surface p-6 shadow-elevation-8 border border-divider">
+            <h3 className="text-h3 text-on-surface mb-3">حذف گفتگو</h3>
+            <p className="text-body-2 text-muted mb-6">
+              آیا از حذف گفتگوی
+              <span className="text-on-surface font-medium"> «{deleteTarget.title}» </span>
+              اطمینان دارید؟ این گفتگو دیگر در تاریخچه نمایش داده نخواهد شد.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteConversation.isPending}
+                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-muted/10 transition-colors touch-target"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleteConversation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2 text-white text-body-2 font-medium hover:bg-error/90 disabled:opacity-50 transition-colors touch-target"
+              >
+                {deleteConversation.isPending ? (
+                  <>
+                    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    در حال حذف...
+                  </>
+                ) : (
+                  <>
+                    <IconDelete size={14} />
+                    حذف
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

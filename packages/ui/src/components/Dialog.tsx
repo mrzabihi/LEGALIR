@@ -103,7 +103,7 @@ export function Dialog({
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-scrim animate-fade-in"
+        className="absolute inset-0 bg-scrim backdrop-blur-[2px] animate-fade-in"
         onClick={persistent ? undefined : onClose}
         aria-hidden="true"
       />
@@ -116,7 +116,7 @@ export function Dialog({
         aria-labelledby={title ? "dialog-title" : undefined}
         aria-describedby={description ? "dialog-description" : undefined}
         className={[
-          "relative w-full bg-surface rounded-large shadow-elevation-24",
+          "relative w-full bg-surface rounded-large shadow-elevation-24 ring-1 ring-black/5",
           maxWidthClasses[maxWidth],
           "animate-dialog-enter",
           "max-h-[85vh] sm:max-h-[85vh]",  // 90dvh on mobile for bottom sheet feel
@@ -131,12 +131,12 @@ export function Dialog({
         {(title || description) && (
           <div className="px-6 pt-6 pb-2">
             {title && (
-              <h2 id="dialog-title" className="text-headlineSmall text-onSurface">
+              <h2 id="dialog-title" className="text-headlineSmall text-on-surface">
                 {title}
               </h2>
             )}
             {description && (
-              <p id="dialog-description" className="mt-1 text-bodyMedium text-onSurfaceVariant">
+              <p id="dialog-description" className="mt-1 text-bodyMedium text-on-surface-variant">
                 {description}
               </p>
             )}

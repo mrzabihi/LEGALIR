@@ -1,33 +1,11 @@
 import { NextResponse } from 'next/server';
-import { findSessionById } from '@/lib/db';
-import { getMessages } from '@/lib/ai/store';
-import fs from 'node:fs';
-import path from 'node:path';
-
-const DATA_DIR = path.resolve(process.cwd(), '.data');
-
-interface StoredConversation {
-  id: string;
-  userId: string;
-  title: string;
-  category: string | null;
-  status: string;
-  riskLevel: string | null;
-  messageCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-function readConversations(): StoredConversation[] {
-  const file = path.join(DATA_DIR, 'conversations.json');
-  if (!fs.existsSync(file)) return [];
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return []; }
-}
-
-function writeConversations(data: StoredConversation[]): void {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(path.join(DATA_DIR, 'conversations.json'), JSON.stringify(data, null, 2), 'utf-8');
-}
+import {
+  findSessionById,
+  readConversations,
+  writeConversations,
+  removeActivity,
+} from '@/lib/db';
+import { getMessages, deleteMessages } from '@/lib/ai/store';
 
 function getUser(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -85,4 +63,29 @@ export async function PATCH(
   writeConversations(all);
 
   return NextResponse.json({ data: all[idx] });
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const userId = getUser(request);
+  if (!userId) {
+    return NextResponse.json({ code: 'UNAUTHORIZED', message: 'لطفا وارد شوید' }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const all = readConversations();
+  const idx = all.findIndex(c => c.id === id && c.userId === userId);
+  if (idx === -1) {
+    return NextResponse.json({ code: 'NOT_FOUND', message: 'گفتگو یافت نشد' }, { status: 404 });
+  }
+
+  // Remove the conversation, its persisted messages, and its history row.
+  all.splice(idx, 1);
+  writeConversations(all);
+  deleteMessages(id);
+  removeActivity(userId, id);
+
+  return NextResponse.json({ data: { deleted: true as const } });
 }

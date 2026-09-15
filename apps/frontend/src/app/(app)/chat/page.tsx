@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useConversations, useUpdateConversation } from "@/hooks/useConversations";
+import { useDailyQuota } from "@/hooks/useDashboard";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ServiceContextCard } from "@/components/chat/service-context-card";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
@@ -11,6 +12,7 @@ import Link from "next/link";
 export default function ChatListPage() {
   const { data: conversations = [], isLoading, error, refetch } = useConversations();
   const archiveMutation = useUpdateConversation();
+  const { data: quota } = useDailyQuota();
   const [serviceType, setServiceType] = useState<ServiceType>("legal_consultation");
 
   // Derive service context from the entry URL (?service= / ?category=).
@@ -32,11 +34,10 @@ export default function ChatListPage() {
           onArchive={(id) =>
             archiveMutation.mutate({ id, data: { status: "archived" } })
           }
-          dailyUsed={3}
-          dailyLimit={10}
-          subscriptionUsed={127}
-          subscriptionLimit={300}
-          daysRemaining={23}
+          dailyUsed={quota?.used ?? 0}
+          dailyLimit={quota?.total ?? 10}
+          subscriptionUsed={quota?.used}
+          subscriptionLimit={quota?.total}
         />
       </aside>
 

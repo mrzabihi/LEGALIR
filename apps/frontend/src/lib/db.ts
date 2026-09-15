@@ -13,7 +13,7 @@ import {
   purchaseEventForPlan,
   type RewardEventType,
 } from "./rewards";
-import { seedDemoContent, DEMO_USER_MOBILE } from "./demo-seed";
+import { seedDemoContent, seedLawContent, seedDemoCases, DEMO_USER_MOBILE } from "./demo-seed";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -23,7 +23,7 @@ function ensureDir() {
   }
 }
 
-function readTable<T>(name: string): T[] {
+export function readTable<T>(name: string): T[] {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
   if (!fs.existsSync(file)) return [];
@@ -34,7 +34,7 @@ function readTable<T>(name: string): T[] {
   }
 }
 
-function writeTable<T>(name: string, data: T[]): void {
+export function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
@@ -63,7 +63,7 @@ export interface DbSession {
 export interface ActivityRow {
   id: string;
   user_id: string;
-  type: "conversation" | "document" | "contract";
+  type: "conversation" | "document" | "contract" | "subscription" | "case";
   title: string;
   status: string;
   status_fa: string;
@@ -114,6 +114,8 @@ interface UsageStatsRow {
   document_analyses_total: number;
   contracts_generated: number;
   contracts_total: number;
+  /** Tehran calendar day (YYYY-MM-DD) the daily counter belongs to. */
+  usage_day?: string;
 }
 
 export interface DbProfile {
@@ -138,6 +140,9 @@ export interface DbPreferences {
   user_id: string;
   theme: string;
   locale: string;
+  /** Whether the profile-completion incentive prompt should be shown.
+   *  Defaults to true; a user can explicitly suppress it (persistent preference). */
+  showProfileCompletionPrompt: boolean;
   notifications: {
     appointments: boolean;
     contractExpiry: boolean;
@@ -352,6 +357,7 @@ export function getPreferences(userId: string): DbPreferences {
     user_id: userId,
     theme: "light",
     locale: "fa-IR",
+    showProfileCompletionPrompt: true,
     notifications: { ...DEFAULT_NOTIFICATIONS },
     privacy: { ...DEFAULT_PRIVACY },
   };
@@ -370,6 +376,7 @@ export function upsertPreferences(
       user_id: userId,
       theme: updates.theme ?? "light",
       locale: updates.locale ?? "fa-IR",
+      showProfileCompletionPrompt: updates.showProfileCompletionPrompt ?? true,
       notifications: updates.notifications
         ? { ...DEFAULT_NOTIFICATIONS, ...updates.notifications }
         : { ...DEFAULT_NOTIFICATIONS },
@@ -459,6 +466,145 @@ export function queryProfileUsage(userId: string) {
     documentAnalysesTotal: row.document_analyses_total,
     contractsGenerated: row.contracts_generated,
     contractsTotal: row.contracts_total,
+  };
+}
+
+// ============================================================
+// Daily request quota
+// ============================================================
+// The daily allowance is derived from the user's ACTIVE plan (not a
+// hard-coded 300). Usage resets at Tehran midnight. Every real action
+// (chat message, upload, analysis, contract generation) consumes one
+// unit from the day's allowance.
+
+/** Free-tier allowance when the user has no active subscription. */
+export const FREE_DAILY_REQUESTS = 10;
+
+/** Daily allowance per plan code (mirrors fixturePlans.dailyRequestLimit). */
+const PLAN_DAILY_REQUESTS: Record<string, number> = {
+  silver: 100,
+  gold: 150,
+  diamond: 300,
+};
+
+/** The daily request allowance for the user's current plan. */
+export function dailyRequestAllowance(userId: string): number {
+  const sub = queryActiveSubscription(userId);
+  if (!sub) return FREE_DAILY_REQUESTS;
+  return PLAN_DAILY_REQUESTS[sub.planCode] ?? FREE_DAILY_REQUESTS;
+}
+
+/** True when the user has a subscription row that has already ended. */
+export function hasExpiredSubscription(userId: string): boolean {
+  const subs = readTable<StoredSubscription>("subscriptions").filter(
+    (s) => s.user_id === userId
+  );
+  if (subs.length === 0) return false;
+  const now = Date.now();
+  const hasActive = subs.some(
+    (s) => s.status === "active" && new Date(s.end_at).getTime() > now
+  );
+  if (hasActive) return false;
+  // Had at least one subscription, none currently active → expired.
+  return subs.some((s) => new Date(s.end_at).getTime() <= now);
+}
+
+export interface DailyQuota {
+  used: number;
+  total: number;
+  remaining: number;
+  /** ISO timestamp of the next reset (Tehran midnight), from the server clock. */
+  resetAt: string;
+  /** True when the day's allowance is fully consumed. */
+  exhausted: boolean;
+  /** True when the user's subscription has lapsed. */
+  subscriptionExpired: boolean;
+}
+
+/** Next Tehran-midnight boundary as an ISO string (server clock). */
+export function nextTehranMidnight(now: Date = new Date()): string {
+  // Tehran is UTC+03:30 (no DST since 2022).
+  const tehranMs = now.getTime() + 3.5 * 3600_000;
+  const dayMs = 24 * 3600_000;
+  const nextMidnightTehran = Math.floor(tehranMs / dayMs) * dayMs + dayMs;
+  return new Date(nextMidnightTehran - 3.5 * 3600_000).toISOString();
+}
+
+/**
+ * Read the user's daily quota, resetting the counter when the stored
+ * `usage_day` differs from the current Tehran day.
+ */
+export function queryDailyQuota(userId: string): DailyQuota {
+  const rows = readTable<UsageStatsRow>("usage_stats");
+  const idx = rows.findIndex((r) => r.user_id === userId);
+  const today = tehranDateString();
+  const total = dailyRequestAllowance(userId);
+
+  let used = 0;
+  if (idx !== -1) {
+    const row = rows[idx]!;
+    if (row.usage_day !== today) {
+      row.daily_requests_used = 0;
+      row.usage_day = today;
+      writeTable("usage_stats", rows);
+    }
+    used = row.daily_requests_used;
+  }
+
+  const remaining = Math.max(0, total - used);
+  return {
+    used,
+    total,
+    remaining,
+    resetAt: nextTehranMidnight(),
+    exhausted: remaining <= 0,
+    subscriptionExpired: hasExpiredSubscription(userId),
+  };
+}
+
+/**
+ * Consume one unit of the day's allowance. Returns the updated quota.
+ * Resets first if the Tehran day has rolled over.
+ */
+export function consumeDailyRequest(userId: string): DailyQuota {
+  const rows = readTable<UsageStatsRow>("usage_stats");
+  const today = tehranDateString();
+  const total = dailyRequestAllowance(userId);
+  let idx = rows.findIndex((r) => r.user_id === userId);
+
+  if (idx === -1) {
+    rows.push({
+      user_id: userId,
+      daily_requests_used: 0,
+      daily_requests_total: total,
+      tokens_used: 0,
+      tokens_total: 1300000,
+      document_analyses_used: 0,
+      document_analyses_total: 10,
+      contracts_generated: 0,
+      contracts_total: 8,
+      usage_day: today,
+    });
+    idx = rows.length - 1;
+  }
+
+  const row = rows[idx]!;
+  if (row.usage_day !== today) {
+    row.daily_requests_used = 0;
+    row.usage_day = today;
+  }
+  row.daily_requests_total = total;
+  row.daily_requests_used += 1;
+  writeTable("usage_stats", rows);
+
+  const remaining = Math.max(0, total - row.daily_requests_used);
+  return {
+    used: row.daily_requests_used,
+    total,
+    remaining,
+    resetAt: nextTehranMidnight(),
+    exhausted: remaining <= 0,
+    subscriptionExpired: hasExpiredSubscription(userId),
   };
 }
 
@@ -557,6 +703,127 @@ export function queryHistory(params: QueryHistoryParams) {
   const paged = items.slice((page - 1) * pageSize, page * pageSize);
 
   return { items: paged, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
+}
+
+// ============================================================
+// Activity recording (write path)
+// ============================================================
+// Every real user action is appended here so the history section is a
+// complete, durable log. Rows are keyed by a stable `sourceId` so that
+// repeated updates to the same entity (e.g. a contract regenerated twice)
+// update the existing row instead of creating duplicates.
+
+export interface RecordActivityInput {
+  userId: string;
+  type: ActivityRow["type"];
+  title: string;
+  status: string;
+  statusFa: string;
+  description?: string | null;
+  category?: string | null;
+  categoryFa?: string | null;
+  /** Stable id of the underlying entity; used to upsert instead of duplicate. */
+  sourceId?: string;
+}
+
+export function recordActivity(input: RecordActivityInput): ActivityRow {
+  const rows = readTable<ActivityRow>("activities");
+  const now = new Date().toISOString();
+
+  const existing = input.sourceId
+    ? rows.find((r) => r.id === input.sourceId && r.user_id === input.userId)
+    : undefined;
+
+  if (existing) {
+    existing.title = input.title;
+    existing.status = input.status;
+    existing.status_fa = input.statusFa;
+    existing.description = input.description ?? existing.description;
+    existing.category = input.category ?? existing.category;
+    existing.category_fa = input.categoryFa ?? existing.category_fa;
+    existing.updated_at = now;
+    existing.archived = 0;
+    writeTable("activities", rows);
+    return existing;
+  }
+
+  const row: ActivityRow = {
+    id: input.sourceId ?? crypto.randomUUID(),
+    user_id: input.userId,
+    type: input.type,
+    title: input.title,
+    status: input.status,
+    status_fa: input.statusFa,
+    description: input.description ?? null,
+    category: input.category ?? null,
+    category_fa: input.categoryFa ?? null,
+    created_at: now,
+    updated_at: now,
+    archived: 0,
+  };
+  rows.push(row);
+  writeTable("activities", rows);
+  return row;
+}
+
+/** Remove an activity row (used when the underlying entity is deleted). */
+export function removeActivity(userId: string, sourceId: string): void {
+  const rows = readTable<ActivityRow>("activities");
+  const next = rows.filter((r) => !(r.id === sourceId && r.user_id === userId));
+  if (next.length !== rows.length) writeTable("activities", next);
+}
+
+/** Toggle the archived flag on an activity row. Returns the updated row. */
+export function archiveActivity(
+  userId: string,
+  sourceId: string,
+  archived: boolean
+): ActivityRow | null {
+  const rows = readTable<ActivityRow>("activities");
+  const row = rows.find((r) => r.id === sourceId && r.user_id === userId);
+  if (!row) return null;
+  row.archived = archived ? 1 : 0;
+  row.updated_at = new Date().toISOString();
+  writeTable("activities", rows);
+  return row;
+}
+
+// ============================================================
+// Conversations (shared read/write for the history + chat routes)
+// ============================================================
+
+export interface StoredConversation {
+  id: string;
+  userId: string;
+  title: string;
+  category: string | null;
+  status: string;
+  riskLevel: string | null;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function readConversations(): StoredConversation[] {
+  return readTable<StoredConversation>("conversations");
+}
+
+export function writeConversations(data: StoredConversation[]): void {
+  writeTable("conversations", data);
+}
+
+/**
+ * Mark a conversation as just-active: bumps `updatedAt` and increments
+ * `messageCount`. Called on every chat turn so the history list reflects
+ * real activity ordering.
+ */
+export function touchConversation(userId: string, conversationId: string): void {
+  const all = readConversations();
+  const conv = all.find((c) => c.id === conversationId && c.userId === userId);
+  if (!conv) return;
+  conv.updatedAt = new Date().toISOString();
+  conv.messageCount = (conv.messageCount ?? 0) + 1;
+  writeConversations(all);
 }
 
 // ============================================================
@@ -760,6 +1027,7 @@ const hash = bcrypt.hashSync("123456", 10);
     tokens_used: 850000, tokens_total: 1300000,
     document_analyses_used: 3, document_analyses_total: 10,
     contracts_generated: 1, contracts_total: 8,
+    usage_day: tehranDateString(),
   };
   writeTable("usage_stats", [usage]);
 
@@ -787,6 +1055,7 @@ const hash = bcrypt.hashSync("123456", 10);
     user_id: userId,
     theme: "light",
     locale: "fa-IR",
+    showProfileCompletionPrompt: true,
     notifications: {
       appointments: true,
       contractExpiry: true,
@@ -811,5 +1080,9 @@ const hash = bcrypt.hashSync("123456", 10);
 if (process.env.NODE_ENV === "development") {
   seedDevData();
   const demoUser = findUserByMobile(DEMO_USER_MOBILE);
-  if (demoUser) seedDemoContent(demoUser.id);
+  if (demoUser) {
+    seedDemoContent(demoUser.id);
+    seedLawContent(demoUser.id);
+    seedDemoCases(demoUser.id);
+  }
 }

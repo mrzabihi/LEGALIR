@@ -6,7 +6,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchHistory,
+  archiveHistoryItem,
   fetchMemories,
+  createMemory,
   updateMemory,
   deleteMemory,
   fetchPreferences,
@@ -37,6 +39,21 @@ export function useHistory(params: {
 }
 
 // ============================================================
+// useArchiveHistoryItem — persist the archived flag
+// ============================================================
+
+export function useArchiveHistoryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      archiveHistoryItem(id, archived),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+    },
+  });
+}
+
+// ============================================================
 // useMemories
 // ============================================================
 
@@ -46,6 +63,25 @@ export function useMemories() {
     queryFn: fetchMemories,
     staleTime: 60_000,
     retry: 1,
+  });
+}
+
+// ============================================================
+// useCreateMemory
+// ============================================================
+
+export function useCreateMemory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: {
+      key: string;
+      value: string;
+      category?: "profile" | "preference" | "legal_context";
+    }) => createMemory(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["memories"] });
+    },
   });
 }
 

@@ -79,6 +79,14 @@ export function appendMessage(conversationId: string, message: StoredMessage): v
   writeMessagesTable(table);
 }
 
+/** Remove all persisted messages for a conversation (used on delete). */
+export function deleteMessages(conversationId: string): void {
+  const table = readMessagesTable();
+  if (!(conversationId in table)) return;
+  delete table[conversationId];
+  writeMessagesTable(table);
+}
+
 // ============================================================
 // Usage accounting (§26 — real AI requests count against usage)
 // ============================================================

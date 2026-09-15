@@ -3,8 +3,7 @@
 import React, { useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useAppShellStore } from "./stores";
-import { useThemeStore } from "@/stores/theme-store";
-import { IconLightMode, IconDarkMode, IconClose } from "./icons";
+import { IconClose } from "./icons";
 
 // ============================================================
 // AppShell — responsive layout container
@@ -120,15 +119,15 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
         )}
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto" id="main-content">
+        <main className="flex-1 overflow-auto pb-24 desktop:pb-0" id="main-content">
           {children}
         </main>
 
-        {/* Mobile Bottom Navigation */}
+        {/* Mobile Bottom Navigation (floating pill, fixed-positioned) */}
         {bottomNav && (
-          <nav className="desktop:hidden shrink-0 border-t border-divider bg-surface/90 backdrop-blur-lg safe-bottom">
+          <div className="desktop:hidden shrink-0 h-0 pointer-events-none">
             {bottomNav}
-          </nav>
+          </div>
         )}
       </div>
     </div>
@@ -173,7 +172,7 @@ export function BottomNav({ items, activeKey }: BottomNavProps) {
             <span className="relative">
               {item.icon}
               {item.badge !== undefined && (
-                <span className="absolute -top-1.5 -end-2 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-error text-onError text-[10px] px-1">
+                <span className="absolute -top-1.5 -end-2 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-error text-[var(--color-on-error)] text-[10px] px-1">
                   {item.badge}
                 </span>
               )}
@@ -183,23 +182,5 @@ export function BottomNav({ items, activeKey }: BottomNavProps) {
         );
       })}
     </div>
-  );
-}
-
-// ============================================================
-// ThemeToggle — switches between light and dark
-// ============================================================
-
-export function ThemeToggle() {
-  const { theme, toggleTheme } = useThemeStore();
-
-  return (
-    <button
-      onClick={toggleTheme}
-      className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors"
-      aria-label={theme === "light" ? "حالت تیره" : "حالت روشن"}
-    >
-      {theme === "light" ? <IconDarkMode size={20} /> : <IconLightMode size={20} />}
-    </button>
   );
 }

@@ -6,8 +6,8 @@
 "use client";
 
 import type { V1DocumentListItem } from "@legalir/types";
-import { Card, ProgressLinear } from "@legalir/ui";
-import { IconDocument, IconFile } from "@/lib/icons";
+import { ProgressLinear } from "@legalir/ui";
+import { IconDocument, IconFile, IconChevronRight } from "@/lib/icons";
 import { StatusBadge } from "./status-badge";
 
 // ============================================================
@@ -80,25 +80,15 @@ export function DocumentCard({ document, onClick }: DocumentCardProps) {
   const processing = isProcessing(status);
 
   return (
-    <Card
-      variant="elevated"
-      padding="medium"
-      interactive
+    <button
+      type="button"
       onClick={onClick}
-      onKeyDown={(e: React.KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      tabIndex={0}
-      role="button"
+      className="group flex w-full flex-col gap-3 rounded-xl border border-divider/60 bg-surface p-4 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
       aria-label={`سند ${name}`}
-      className="flex flex-col gap-3"
     >
       {/* Top row: icon + name + status */}
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 shrink-0 rounded-medium bg-gray-100 flex items-center justify-center text-muted">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-primary-50 text-primary-700">
           <DocIcon size={22} />
         </div>
         <div className="flex-1 min-w-0">
@@ -120,6 +110,10 @@ export function DocumentCard({ document, onClick }: DocumentCardProps) {
             )}
           </div>
         </div>
+        <IconChevronRight
+          size={18}
+          className="shrink-0 text-muted transition-transform duration-short3 group-hover:-translate-x-0.5"
+        />
       </div>
 
       {/* Meta row: size, date, findings */}
@@ -150,6 +144,6 @@ export function DocumentCard({ document, onClick }: DocumentCardProps) {
           />
         </div>
       )}
-    </Card>
+    </button>
   );
 }

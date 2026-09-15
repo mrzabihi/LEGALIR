@@ -7,7 +7,7 @@
 // ============================================================
 
 import { env } from "@legalir/config";
-import type { StructuredResponseSection, V1Reference } from "@legalir/types";
+import type { StructuredResponseSection, V1Reference, V1DailyQuota } from "@legalir/types";
 
 export interface StreamRequestContext {
   serviceType?: string;
@@ -40,11 +40,21 @@ export type StreamStatus =
   | "succeeded"
   | "failed";
 
+export interface WorkflowEvent {
+  phase: string;
+  domain: string | null;
+  intent: string | null;
+  phaseChanged: boolean;
+  pendingQuestions: string[];
+  suggestCaseCreation: boolean;
+}
+
 export interface StreamCallbacks {
   onStatus?: (status: StreamStatus) => void;
   onChunk?: (chunk: StreamChunk) => void;
   onDone?: (done: StreamDone) => void;
-  onError?: (error: { code: string; message: string; retryable: boolean }) => void;
+  onError?: (error: { code: string; message: string; retryable: boolean; quota?: V1DailyQuota }) => void;
+  onWorkflow?: (event: WorkflowEvent) => void;
 }
 
 interface SseEvent {
@@ -58,6 +68,12 @@ interface SseEvent {
   code?: string;
   message?: string;
   retryable?: boolean;
+  phase?: string;
+  domain?: string | null;
+  intent?: string | null;
+  phaseChanged?: boolean;
+  pendingQuestions?: string[];
+  suggestCaseCreation?: boolean;
 }
 
 function basePath(): string {
@@ -103,6 +119,21 @@ export function streamChat(
     }
 
     if (!response.ok) {
+      // Quota exhaustion (429) carries a structured body with the live
+      // quota so the UI can show the countdown-to-midnight modal.
+      if (response.status === 429) {
+        let quota: V1DailyQuota | undefined;
+        let message = "سهمیه درخواست امروز شما به پایان رسیده است.";
+        try {
+          const body = (await response.json()) as { message?: string; quota?: V1DailyQuota };
+          quota = body.quota;
+          if (body.message) message = body.message;
+        } catch {
+          /* keep defaults */
+        }
+        callbacks.onError?.({ code: "QUOTA_EXHAUSTED", message, retryable: false, quota });
+        return;
+      }
       callbacks.onError?.({
         code: `HTTP_${response.status}`,
         message: "در حال حاضر اتصال به سرویس هوشمند امکان‌پذیر نیست.",
@@ -167,6 +198,16 @@ export function streamChat(
                 code: event.code ?? "UNKNOWN",
                 message: event.message ?? "خطای نامشخص",
                 retryable: event.retryable ?? true,
+              });
+              break;
+            case "workflow":
+              callbacks.onWorkflow?.({
+                phase: event.phase ?? "DISCOVERY",
+                domain: event.domain ?? null,
+                intent: event.intent ?? null,
+                phaseChanged: event.phaseChanged ?? false,
+                pendingQuestions: event.pendingQuestions ?? [],
+                suggestCaseCreation: event.suggestCaseCreation ?? false,
               });
               break;
           }

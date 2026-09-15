@@ -4,8 +4,8 @@ import { Providers } from "@/lib/providers";
 
 export const metadata: Metadata = {
   title: {
-    default: "LEGALIR | دستیار هوشمند حقوقی",
-    template: "%s | LEGALIR",
+    default: "لیگالیر | دستیار هوشمند حقوقی ایران",
+    template: "%s | لیگالیر",
   },
   description: "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
   manifest: "/manifest.json",
@@ -37,27 +37,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fa-IR" dir="rtl" suppressHydrationWarning>
-      <head>
-        {/* Theme flash prevention — inline script runs before paint */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('legalir-theme');
-                  if (!theme) {
-                    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                  }
-                  document.documentElement.setAttribute('data-theme', theme);
-                } catch(e) {
-                  document.documentElement.setAttribute('data-theme', 'light');
-                }
-              })();
-            `,
-          }}
-        />
-      </head>
-      <body className="min-h-screen bg-background text-on-surface antialiased">
+      <head />
+      <body className="min-h-screen bg-background text-on-surface antialiased" suppressHydrationWarning>
         <a
           href="#main-content"
           className="skip-to-main"

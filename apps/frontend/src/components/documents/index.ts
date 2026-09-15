@@ -14,3 +14,6 @@ export { PreviewPlaceholder } from "./preview-placeholder";
 export { DeleteConfirmDialog } from "./delete-confirm-dialog";
 export { DocumentDetail } from "./document-detail";
 export { DocumentList } from "./document-list";
+export { ProcessingPipeline } from "./processing-pipeline";
+export type { PipelineStage } from "./processing-pipeline";
+export { DocumentChatPanel } from "./document-chat-panel";

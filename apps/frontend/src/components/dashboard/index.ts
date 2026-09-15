@@ -6,6 +6,7 @@ export {
   QuickActions,
   RecentActivities,
   UsageSummaryCard,
+  SubscriptionOverview,
   NotificationsPlaceholder,
   SmartInputBar,
   ActiveRequests,

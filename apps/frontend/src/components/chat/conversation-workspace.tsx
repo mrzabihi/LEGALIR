@@ -13,6 +13,9 @@ import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { DisclaimerBanner } from "./disclaimer-banner";
 import { EscalationCta } from "./escalation-cta";
+import { WorkflowProgress } from "./workflow-progress";
+import type { WorkflowProgressProps } from "./workflow-progress";
+import type { WorkflowEvent } from "@/lib/ai/stream-client";
 import { useRouter } from "next/navigation";
 
 interface ExtendedMessage extends Message {
@@ -38,6 +41,8 @@ interface ConversationWorkspaceProps {
   onToggleStar?: () => void;
   onMinimize?: () => void;
   onClose?: () => void;
+  workflow?: WorkflowEvent | null;
+  onCreateCase?: () => void;
 }
 
 export function ConversationWorkspace({
@@ -57,6 +62,8 @@ export function ConversationWorkspace({
   onToggleStar,
   onMinimize,
   onClose,
+  workflow,
+  onCreateCase,
 }: ConversationWorkspaceProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conversation.title);
@@ -191,6 +198,21 @@ export function ConversationWorkspace({
         aria-live="polite"
         aria-atomic="false"
       >
+        {/* Workflow progress indicator */}
+        {workflow && (
+          <div className="mb-4">
+            <WorkflowProgress
+              phase={workflow.phase as WorkflowProgressProps["phase"]}
+              domain={workflow.domain}
+              intent={workflow.intent}
+              phaseChanged={workflow.phaseChanged}
+              pendingQuestions={workflow.pendingQuestions}
+              suggestCaseCreation={workflow.suggestCaseCreation}
+              onCreateCase={onCreateCase}
+            />
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="text-4xl mb-4">&#x2696;&#xFE0F;</div>

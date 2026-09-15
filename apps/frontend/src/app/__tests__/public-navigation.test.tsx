@@ -68,7 +68,7 @@ describe("Public Footer", () => {
   it("renders platform links", () => {
     render(wrapInRtl(<Footer />));
     expect(screen.getByText("قابلیت‌ها")).toBeInTheDocument();
-    expect(screen.getByText("درباره LEGALIR")).toBeInTheDocument();
+    expect(screen.getByText("درباره لیگالیر")).toBeInTheDocument();
   });
 
   it("renders legal links", () => {
@@ -79,7 +79,7 @@ describe("Public Footer", () => {
 
   it("renders tagline", () => {
     render(wrapInRtl(<Footer />));
-    expect(screen.getByText(/پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران/)).toBeInTheDocument();
+    expect(screen.getByText(/سویه یک برند مستقل/)).toBeInTheDocument();
   });
 
   it("contains disclaimer about AI", () => {

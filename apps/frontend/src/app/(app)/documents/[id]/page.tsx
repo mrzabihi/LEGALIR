@@ -12,7 +12,7 @@ import {
   useRetryDocument,
   useDeleteDocument,
 } from "@/hooks/useDocuments";
-import { DocumentDetail } from "@/components/documents";
+import { DocumentChatPanel, PreviewPlaceholder } from "@/components/documents";
 import { Button, Skeleton, ErrorState, ConfirmDialog, ProgressLinear } from "@legalir/ui";
 import { IconArrowBack, IconDelete, IconRefresh } from "@/lib/icons";
 import type { V1DocumentDetail } from "@legalir/types";
@@ -179,16 +179,25 @@ export default function DocumentDetailPage() {
         </div>
       )}
 
-      {/* Document detail content */}
-      <DocumentDetail
-        document={document}
-        isLoading={false}
-        isError={false}
-        onRetry={handleRetry}
-        onDelete={handleDeleteConfirm}
-        isDeleting={deleteMutation.isPending}
-        onBack={handleBack}
+      {/* Document preview — moved to the top */}
+      <PreviewPlaceholder
+        documentName={document.name}
+        mime={document.mime}
+        previewUrl={document.previewUrl}
+        downloadUrl={`/api/v1/documents/${document.id}/download`}
       />
+
+      {/* Merged chat + analysis — LegalIR comments on the uploaded file.
+          The analysis report is rendered as the opening assistant message. */}
+      {document.status === "ready" && (
+        <div className="mt-6">
+          <DocumentChatPanel
+            documentId={document.id}
+            documentName={document.name}
+            report={document.report}
+          />
+        </div>
+      )}
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog

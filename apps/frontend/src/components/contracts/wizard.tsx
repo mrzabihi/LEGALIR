@@ -39,6 +39,7 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialized = useRef(false);
+  const draftInitiated = useRef(false);
 
   const questions = questionsData?.questions ?? [];
   const totalSteps = Math.max(...questions.map((q) => q.step), 1) || 1;
@@ -82,9 +83,11 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
     [doAutoSave]
   );
 
-  // Initialize draft on first load
+  // Initialize draft on first load (guarded so it fires at most once per mount,
+  // avoiding a repeated createDraft.mutate loop on every re-render).
   useEffect(() => {
-    if (questions.length > 0 && !draftData) {
+    if (questions.length > 0 && !draftData && !draftInitiated.current) {
+      draftInitiated.current = true;
       createDraft.mutate(typeId);
     }
   }, [typeId, questions.length, draftData, createDraft]);
@@ -141,12 +144,14 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
         title,
       });
 
-      // Update contract with answers
+      // Persist answers to the draft, then generate (draft holds answers until
+      // generation completes), and finally clean up the draft.
       await saveDraft.mutateAsync({ typeId, currentStep, answers });
-      await deleteDraft.mutateAsync(typeId);
 
       // Generate contract
       await generateContract.mutateAsync(created.id);
+
+      await deleteDraft.mutateAsync(typeId);
 
       // Navigate to contract detail
       router.push(`/contracts/${created.id}`);

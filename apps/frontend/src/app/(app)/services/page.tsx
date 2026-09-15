@@ -9,6 +9,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { IconSearch } from "@/lib/icons";
+import { LAW_SERVICE_EXAMPLES, getLawById, type LawServiceExample } from "@/lib/law-catalog";
 
 // ============================================================
 // Inline SVG Icon Components
@@ -191,6 +192,8 @@ interface ServiceItem {
   duration: string;
   outputType: string;
   href: string;
+  /** Optional law source ids that document this service (rendered as chips). */
+  lawRefs?: string[];
 }
 
 const CATEGORY_FILTERS = [
@@ -449,6 +452,41 @@ const SERVICES: ServiceItem[] = [
 ];
 
 // ============================================================
+// Documented law-backed services (16 official law files)
+// ============================================================
+// Maps the law-catalog service examples into ServiceItem with a stable
+// icon + gradient per category, plus lawRefs for the «مستندات» chips.
+
+const LAW_CATEGORY_STYLE: Record<
+  LawServiceExample["category"],
+  { gradient: string; icon: React.ReactNode }
+> = {
+  consultation: { gradient: "from-blue-500 to-indigo-500", icon: <IconAnalysis /> },
+  contracts: { gradient: "from-emerald-500 to-teal-500", icon: <IconFileCreate /> },
+  documents: { gradient: "from-stone-500 to-neutral-500", icon: <IconFileText /> },
+  cases: { gradient: "from-purple-500 to-violet-500", icon: <IconFolder /> },
+  calculations: { gradient: "from-amber-600 to-yellow-500", icon: <IconCalculator /> },
+};
+
+const LAW_SERVICES: ServiceItem[] = LAW_SERVICE_EXAMPLES.map((s) => {
+  const style = LAW_CATEGORY_STYLE[s.category];
+  return {
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    icon: style.icon,
+    category: s.category,
+    gradient: style.gradient,
+    duration: s.duration,
+    outputType: s.outputType,
+    href: s.href,
+    lawRefs: s.lawRefs,
+  };
+});
+
+const ALL_SERVICES: ServiceItem[] = [...SERVICES, ...LAW_SERVICES];
+
+// ============================================================
 // Service Card Component
 // ============================================================
 
@@ -515,6 +553,34 @@ function ServiceCard({ service }: { service: ServiceItem }) {
         </span>
       </div>
 
+      {/* Documented law references (مستندات) */}
+      {service.lawRefs && service.lawRefs.length > 0 && (
+        <div className="pt-3 border-t border-divider/60">
+          <p className="text-caption text-muted mb-2 flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            مستندات
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {service.lawRefs.map((refId) => {
+              const law = getLawById(refId);
+              if (!law) return null;
+              return (
+                <span
+                  key={refId}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/5 border border-primary/15 text-primary-700 px-2.5 py-0.5 text-caption"
+                  title={law.title}
+                >
+                  {law.articleSection}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Action */}
       <Link
         href={service.href}
@@ -549,7 +615,7 @@ export default function ServicesPage() {
   const [activeFilter, setActiveFilter] = useState<string>("all");
 
   const filteredServices = useMemo(() => {
-    return SERVICES.filter((service) => {
+    return ALL_SERVICES.filter((service) => {
       if (activeFilter !== "all" && service.category !== activeFilter) {
         return false;
       }

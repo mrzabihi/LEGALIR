@@ -11,6 +11,7 @@ import {
   createConversation,
   fetchConversation,
   updateConversation,
+  deleteConversation,
   sendMessage,
   createAiRun,
   fetchAiRun,
@@ -70,6 +71,21 @@ export function useUpdateConversation() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["conversations"] });
       qc.invalidateQueries({ queryKey: ["conversation", variables.id] });
+    },
+  });
+}
+
+// --- Delete Conversation ---
+
+export function useDeleteConversation() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteConversation(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["conversation", id] });
+      qc.invalidateQueries({ queryKey: ["history"] });
     },
   });
 }

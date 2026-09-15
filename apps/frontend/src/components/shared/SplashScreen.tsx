@@ -81,7 +81,7 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
         isExiting ? "animate-fade-out pointer-events-none" : "",
       ].join(" ")}
       role="progressbar"
-      aria-label="در حال بارگذاری LEGALIR"
+      aria-label="در حال بارگذاری لیگالیر"
       aria-busy={true}
       dir="rtl"
     >
@@ -166,7 +166,7 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
 
       {/* Main content */}
       <div className="relative flex flex-col items-center gap-7 z-10 px-6">
-        {/* Logo — approximately 2X previous size (was 160px → now 200-340px) */}
+        {/* Logo — minimal float + glow pulse */}
         <div
           className="relative"
           style={{
@@ -174,16 +174,17 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
             height: "clamp(200px, 38vw, 340px)",
             opacity: showAnimated ? 1 : 0,
             transform: showAnimated ? "scale(1)" : "scale(0.92)",
+            animation: motion ? "splash-logo-float 3s ease-in-out infinite" : "none",
             transition: motion
               ? "opacity 800ms cubic-bezier(0.4, 0, 0.2, 1), transform 800ms cubic-bezier(0.4, 0, 0.2, 1)"
               : "none",
           }}
         >
           <Image
-            src="/legalir-logo.png"
-            alt="LEGALIR"
+            src="/legalir-logo-bronze.png"
+            alt="لیگالیر"
             fill
-            className="object-contain"
+            className="object-contain drop-shadow-[0_0_32px_rgba(212,175,55,0.25)]"
             priority
             sizes="(max-width: 600px) 200px, (max-width: 1024px) 280px, 340px"
           />
@@ -202,7 +203,7 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
             transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         >
-          LEGALIR
+          لیگالیر
         </h1>
 
         {/* Divider */}

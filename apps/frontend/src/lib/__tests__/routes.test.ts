@@ -21,7 +21,6 @@ describe("Route definitions", () => {
     const paths = routes.filter((r) => !r.hidden && r.icon).map((r) => r.path);
     expect(paths).toContain("/dashboard");
     expect(paths).toContain("/new");
-    expect(paths).toContain("/memory");
     expect(paths).toContain("/history");
     expect(paths).toContain("/documents");
     expect(paths).toContain("/contracts");
@@ -34,8 +33,6 @@ describe("Route definitions", () => {
     expect(dashboard?.titleFa).toBe("خانه");
     const newRoute = routes.find((r) => r.path === "/new");
     expect(newRoute?.titleFa).toBe("ساخت جدید");
-    const memory = routes.find((r) => r.path === "/memory");
-    expect(memory?.titleFa).toBe("حافظه");
     const history = routes.find((r) => r.path === "/history");
     expect(history?.titleFa).toBe("تاریخچه");
     const docs = routes.find((r) => r.path === "/documents");

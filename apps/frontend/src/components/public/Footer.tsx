@@ -14,7 +14,7 @@ const footerLinks = {
     title: "پلتفرم",
     items: [
       { href: "/features", label: "قابلیت‌ها" },
-      { href: "/about", label: "درباره LEGALIR" },
+      { href: "/about", label: "درباره لیگالیر" },
       { href: "/contact", label: "تماس با ما" },
     ],
   },
@@ -41,20 +41,18 @@ export function Footer() {
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5 mb-12">
             {/* About Column — spans 2 on large screens */}
             <div className="sm:col-span-2 lg:col-span-2">
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-2.5 mb-4">
                 <img
                   src="/legalir-logo.png"
                   alt="LEGALIR"
-                  className="h-14 w-auto"
+                  className="h-12 w-auto"
                 />
-                <span className="text-h3 font-bold text-primary">
-                  LEGALIR
+                <span className="text-h3 font-extrabold text-primary translate-y-[1px]">
+                  لیگالیر
                 </span>
               </div>
-              <p className="text-body-2 text-neutral-600 leading-relaxed max-w-sm">
-                پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران. با استفاده از هوش
-                مصنوعی، تحلیل اولیه حقوقی، بررسی اسناد و تولید پیش‌نویس قرارداد
-                ارائه می‌دهد.
+              <p className="text-body-2 text-neutral-600 leading-relaxed max-w-sm text-justify">
+                سویه یک برند مستقل و شخصی است که توسط جمعی از متخصصان و افراد حقیقی شکل گرفته و با تمرکز بر هوش مصنوعی، تجربه‌های آموزشی کاربردی، دقیق و حرفه‌ای برای کاربران عمومی، متخصصان و مدیران طراحی می‌کند.
               </p>
               <p className="text-caption text-neutral-500 mt-3">
                 نسخه ۰.۱.۰ — مرحله توسعه
@@ -89,7 +87,7 @@ export function Footer() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex-1">
                   <h3 className="text-button font-semibold text-on-surface mb-1">
-                    خبرنامه LEGALIR
+                    خبرنامه لیگالیر
                   </h3>
                   <p className="text-body-2 text-neutral-600">
                     برای اطلاع از به‌روزرسانی‌ها، امکانات جدید و آخرین اخبار
@@ -117,7 +115,7 @@ export function Footer() {
           {/* Bottom Bar */}
           <div className="border-t border-neutral-200 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-start">
             <p className="text-caption text-neutral-600">
-              &#169; {new Date().getFullYear()} LEGALIR. تمام حقوق محفوظ است.
+              &#169; {new Date().getFullYear()} لیگالیر. تمام حقوق محفوظ است.
             </p>
             <p className="text-caption text-neutral-500 max-w-md leading-relaxed">
               خدمات تخصصی حقوقی با پشتیبانی هوش مصنوعی و منابع حقوقی معتبر

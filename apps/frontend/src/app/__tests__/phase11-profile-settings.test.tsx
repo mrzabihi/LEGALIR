@@ -239,7 +239,7 @@ describe("ProfilePage", () => {
       expect(screen.getByText("اسناد من")).toBeTruthy();
       expect(screen.getByText("قراردادهای من")).toBeTruthy();
       expect(screen.getByText("تاریخچه")).toBeTruthy();
-      expect(screen.getByText("حافظه")).toBeTruthy();
+      expect(screen.getByText("حافظه و دانش")).toBeTruthy();
     });
   });
 
@@ -288,13 +288,13 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("shows usage progress bar", async () => {
+  it("shows the daily-quota donut chart", async () => {
     setupMe();
     render(<SettingsPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      const bars = screen.getAllByRole("progressbar", { name: /مصرف درخواست روزانه/ });
-      expect(bars.length).toBeGreaterThan(0);
+      const donut = screen.getByRole("img", { name: /درخواست مصرف‌شده/ });
+      expect(donut).toBeTruthy();
     });
   });
 
@@ -310,17 +310,6 @@ describe("SettingsPage", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText("طلا").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("has light/dark theme toggle", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      // Default theme is light, label says "حالت روشن"; button aria-label also matches
-      const matches = screen.getAllByText(/حالت روشن|حالت تاریک/);
-      expect(matches.length).toBeGreaterThan(0);
     });
   });
 

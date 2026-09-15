@@ -56,7 +56,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Footer */}
         <p className="text-center text-caption text-neutral-400 mt-8">
-          سامانه جامع حقوقی LEGALIR
+          سامانه جامع حقوقی لیگالیر
         </p>
       </div>
     </div>

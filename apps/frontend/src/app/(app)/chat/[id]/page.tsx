@@ -11,6 +11,8 @@ import {
   useConversationReferences,
   useCancelAiRun,
 } from "@/hooks/useConversations";
+import { useDailyQuota } from "@/hooks/useDashboard";
+import { QuotaExhaustedModal } from "@/features/quota-exhausted";
 import { ConversationWorkspace } from "@/components/chat/conversation-workspace";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ServiceContextCard } from "@/components/chat/service-context-card";
@@ -20,8 +22,11 @@ import { SourcesTab } from "@/components/chat/sources-tab";
 import { Tabs } from "@legalir/ui";
 import { IconClose } from "@/lib/icons";
 import { streamChat } from "@/lib/ai/stream-client";
+import type { WorkflowEvent } from "@/lib/ai/stream-client";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
-import type { V1Reference, AiRunStatus } from "@legalir/types";
+import { WorkflowProgress } from "@/components/chat/workflow-progress";
+import type { WorkflowPhase } from "@/components/chat/workflow-progress";
+import type { V1Reference, AiRunStatus, V1DailyQuota } from "@legalir/types";
 
 export default function ConversationPage() {
   const params = useParams();
@@ -33,6 +38,7 @@ export default function ConversationPage() {
   const { data: conversationDetail, isLoading: detailLoading } = useConversation(id);
   const { data: conversations = [], isLoading: convsLoading, error: convsError, refetch: refetchConvs } = useConversations();
   const { data: references = [] } = useConversationReferences(id);
+  const { data: quota } = useDailyQuota();
 
   // Mutations
   const sendMutation = useSendMessage();
@@ -51,7 +57,12 @@ export default function ConversationPage() {
   const [isStarred, setIsStarred] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [serviceType, setServiceType] = useState<ServiceType>("legal_consultation");
+  const [quotaModalOpen, setQuotaModalOpen] = useState(false);
+  const [exhaustedQuota, setExhaustedQuota] = useState<V1DailyQuota | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
+
+  // Workflow state from SSE events
+  const [workflow, setWorkflow] = useState<WorkflowEvent | null>(null);
 
   // Derive service context from the entry URL (?service= / ?category=).
   useEffect(() => {
@@ -115,6 +126,8 @@ export default function ConversationPage() {
         queryClient.invalidateQueries({ queryKey: ["conversation", id] });
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         queryClient.invalidateQueries({ queryKey: ["conversation-references", id] });
+        // A message consumes one unit of the day's allowance.
+        queryClient.invalidateQueries({ queryKey: ["quota", "daily"] });
       };
 
       // Primary path: real SSE streaming through the LEGALIR AI gateway.
@@ -124,7 +137,16 @@ export default function ConversationPage() {
         {
           onStatus: (status) => setRunStatus(status),
           onDone: () => finish("succeeded"),
-          onError: async () => {
+          onWorkflow: (evt) => setWorkflow(evt),
+          onError: async (err) => {
+            // Quota exhausted — show the countdown/upgrade modal instead of
+            // falling back to the non-streaming endpoint (which would also 429).
+            if (err.code === "QUOTA_EXHAUSTED") {
+              setExhaustedQuota(err.quota ?? null);
+              setQuotaModalOpen(true);
+              finish("failed");
+              return;
+            }
             try {
               await sendMutation.mutateAsync({ conversationId: id, content });
               finish("succeeded");
@@ -185,6 +207,13 @@ export default function ConversationPage() {
 
   return (
     <div className="flex h-full">
+      {/* Quota exhausted — countdown + upgrade CTA */}
+      <QuotaExhaustedModal
+        open={quotaModalOpen}
+        onClose={() => setQuotaModalOpen(false)}
+        quota={exhaustedQuota}
+      />
+
       {/* Desktop: Conversation List Sidebar */}
       <aside className="hidden tablet:flex flex-col w-[320px] shrink-0 border-e border-divider bg-surface h-full">
         <ConversationList
@@ -195,11 +224,10 @@ export default function ConversationPage() {
           onArchive={(convId) =>
             archiveMutation.mutate({ id: convId, data: { status: "archived" } })
           }
-          dailyUsed={3}
-          dailyLimit={10}
-          subscriptionUsed={127}
-          subscriptionLimit={300}
-          daysRemaining={23}
+          dailyUsed={quota?.used ?? 0}
+          dailyLimit={quota?.total ?? 10}
+          subscriptionUsed={quota?.used}
+          subscriptionLimit={quota?.total}
         />
       </aside>
 
@@ -265,6 +293,8 @@ export default function ConversationPage() {
                     onToggleStar={() => setIsStarred((s) => !s)}
                     onMinimize={() => setIsMinimized(true)}
                     onClose={() => router.push("/chat")}
+                    workflow={workflow}
+                    onCreateCase={() => router.push("/cases?create=true")}
                   />
                 )}
               </div>
@@ -339,11 +369,10 @@ export default function ConversationPage() {
                 onArchive={(convId) =>
                   archiveMutation.mutate({ id: convId, data: { status: "archived" } })
                 }
-                dailyUsed={3}
-                dailyLimit={10}
-                subscriptionUsed={127}
-                subscriptionLimit={300}
-                daysRemaining={23}
+                dailyUsed={quota?.used ?? 0}
+                dailyLimit={quota?.total ?? 10}
+                subscriptionUsed={quota?.used}
+                subscriptionLimit={quota?.total}
               />
             </div>
           </aside>

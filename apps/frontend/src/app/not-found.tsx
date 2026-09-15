@@ -70,7 +70,7 @@ export default function NotFound() {
 
       {/* Footer */}
       <p className="text-caption text-muted/60 mt-10">
-        LEGALIR — دستیار هوشمند حقوقی ایران
+        لیگالیر — دستیار هوشمند حقوقی ایران
       </p>
     </div>
   );

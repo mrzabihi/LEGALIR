@@ -1,19 +1,32 @@
-import { NextResponse } from "next/server";
-import { findSessionById, findUserById, getProfile, queryRecentActivity, queryProfileUsage, queryActiveSubscription } from "@/lib/db";
+// ============================================================
+// LEGALIR — GET /api/v1/dashboard/summary (real metrics)
+// ============================================================
+// Backs the Workplace Dashboard operational overview with real
+// numbers computed from the JSON DB, replacing the previous
+// hard-coded placeholders. Requests-today uses the Asia/Tehran
+// business day; days-remaining derives from the active subscription.
+// ============================================================
 
-function getUserIdFromCookie(req: Request): string | null {
-  const cookieHeader = req.headers.get('cookie') ?? '';
-  const match = cookieHeader.match(/legalir-session=([^;]+)/);
-  if (!match || !match[1]) return null;
-  const session = findSessionById(match[1]!);
-  return session?.userId ?? null;
-}
+import { NextResponse } from "next/server";
+import { getUserIdFromRequest } from "@/lib/api/server-auth";
+import {
+  findUserById,
+  getProfile,
+  queryRecentActivity,
+  queryProfileUsage,
+  queryActiveSubscription,
+  queryDailyQuota,
+} from "@/lib/db";
+import {
+  computeDashboardMetrics,
+  subscriptionDaysRemaining,
+} from "@/lib/dashboard-metrics";
 
 export async function GET(request: Request) {
-  const userId = getUserIdFromCookie(request);
+  const userId = getUserIdFromRequest(request);
   if (!userId) {
     return NextResponse.json(
-      { code: 'UNAUTHORIZED', message: 'لطفا وارد شوید' },
+      { code: "UNAUTHORIZED", message: "لطفا وارد شوید" },
       { status: 401 }
     );
   }
@@ -23,6 +36,9 @@ export async function GET(request: Request) {
   const subscription = queryActiveSubscription(userId);
   const usage = queryProfileUsage(userId);
   const recentActivity = queryRecentActivity(userId, 5);
+  const metrics = computeDashboardMetrics(userId);
+  const daysRemaining = subscriptionDaysRemaining(userId);
+  const quota = queryDailyQuota(userId);
 
   const entitlements = [
     { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", limit: usage.dailyRequestsTotal, period: "month", used: usage.dailyRequestsUsed, isBoolean: false, isEnabled: true },
@@ -60,13 +76,31 @@ export async function GET(request: Request) {
       status: a.status,
       updatedAt: a.updated_at,
     })),
-    savedSourcesCount: 0,
-    activeProcessingCount: 0,
-    dailyTrialsUsed: 0,
-    dailyTrialsTotal: 5,
-    activeRequests: [],
-    recommendations: [],
-    recentDocuments: [],
+    // --- Real operational overview (replaces the mock placeholders) ---
+    savedSourcesCount: metrics.savedSourcesCount,
+    activeProcessingCount: metrics.activeProcessingCount,
+    // Backward-compatible hero card fields: "درخواست امروز" now reflects
+    // activities that were updated within the current Asia/Tehran day.
+    dailyTrialsUsed: quota.used,
+    dailyTrialsTotal: quota.total,
+    quota,
+    activeRequests: metrics.activeRequests,
+    recommendations: metrics.recommendations,
+    recentDocuments: metrics.recentDocuments,
+    // Explicit real metrics (new fields).
+    requestsToday: metrics.requestsToday,
+    documentsCount: metrics.documentsCount,
+    contractsCount: metrics.contractsCount,
+    memoriesCount: metrics.memoriesCount,
+    daysRemaining,
+    subscriptionUsage: subscription
+      ? {
+          planCode: subscription.planCode,
+          planNameFa: subscription.planNameFa,
+          endAt: subscription.endAt,
+          daysRemaining: daysRemaining ?? 0,
+        }
+      : null,
   };
 
   return NextResponse.json({ data });

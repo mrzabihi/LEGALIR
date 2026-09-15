@@ -23,6 +23,8 @@ const config: Config = {
           DEFAULT: "var(--color-primary)",
           variant: "var(--color-primary-variant)",
           container: "var(--color-primary-container)",
+          on: "var(--color-on-primary)",
+          "on-container": "var(--color-on-primary-container)",
         },
         secondary: {
           50: "var(--color-secondary-50)",
@@ -69,6 +71,7 @@ const config: Config = {
           600: "var(--color-error-600)",
           700: "var(--color-error-700)",
           container: "var(--color-error-container)",
+          on: "var(--color-on-error)",
         },
         warning: {
           DEFAULT: "var(--color-warning)",
@@ -78,6 +81,7 @@ const config: Config = {
           600: "var(--color-warning-600)",
           700: "var(--color-warning-700)",
           container: "var(--color-warning-container)",
+          on: "var(--color-on-warning)",
         },
         success: {
           DEFAULT: "var(--color-success)",
@@ -87,6 +91,7 @@ const config: Config = {
           600: "var(--color-success-600)",
           700: "var(--color-success-700)",
           container: "var(--color-success-container)",
+          on: "var(--color-on-success)",
         },
         info: {
           DEFAULT: "var(--color-info)",
@@ -96,6 +101,7 @@ const config: Config = {
           600: "var(--color-info-600)",
           700: "var(--color-info-700)",
           container: "var(--color-info-container)",
+          on: "var(--color-on-info)",
         },
         border: "var(--color-border)",
         divider: "var(--color-divider)",
@@ -140,6 +146,8 @@ const config: Config = {
         "elevation-3": "0 1px 3px rgba(0,0,0,0.18), 0 4px 8px rgba(0,0,0,0.10)",
         "elevation-4": "0 4px 6px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.08)",
         "elevation-8": "0 8px 16px rgba(0,0,0,0.14), 0 4px 8px rgba(0,0,0,0.08)",
+        "elevation-16": "0 10px 10px rgba(0,0,0,0.20), 0 24px 38px rgba(0,0,0,0.06)",
+        "elevation-24": "0 12px 12px rgba(0,0,0,0.24), 0 32px 48px rgba(0,0,0,0.06)",
       },
       keyframes: {
         "slide-in-right": {
@@ -182,6 +190,16 @@ const config: Config = {
           "0%": { transform: "translateX(100%)" },
           "100%": { transform: "translateX(0)" },
         },
+        "heading-shine": {
+          "0%": { backgroundPosition: "200% center", opacity: "0", transform: "translateY(16px)" },
+          "30%": { opacity: "1", transform: "translateY(0)" },
+          "60%": { backgroundPosition: "-100% center" },
+          "100%": { backgroundPosition: "-100% center", opacity: "1", transform: "translateY(0)" },
+        },
+        "hover-shimmer": {
+          "0%": { backgroundPosition: "-200% center" },
+          "100%": { backgroundPosition: "200% center" },
+        },
       },
       animation: {
         "slide-in-right": "slide-in-right 0.3s ease-out",
@@ -194,6 +212,8 @@ const config: Config = {
         "skeleton-pulse": "skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "slide-up-fade": "slide-up-fade 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)",
         "drawer-slide-in": "drawer-slide-in 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)",
+        "heading-shine": "heading-shine 1.5s cubic-bezier(0.4, 0.0, 0.2, 1) both",
+        "hover-shimmer": "hover-shimmer 1.2s ease-in-out infinite",
       },
       screens: {
         "mobile-s": "320px",

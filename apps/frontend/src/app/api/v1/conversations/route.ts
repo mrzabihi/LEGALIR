@@ -1,32 +1,11 @@
 import { NextResponse } from 'next/server';
-import { findSessionById } from '@/lib/db';
-import fs from 'node:fs';
-import path from 'node:path';
-
-const DATA_DIR = path.resolve(process.cwd(), '.data');
-
-interface StoredConversation {
-  id: string;
-  userId: string;
-  title: string;
-  category: string | null;
-  status: string;
-  riskLevel: string | null;
-  messageCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-function readConversations(): StoredConversation[] {
-  const file = path.join(DATA_DIR, 'conversations.json');
-  if (!fs.existsSync(file)) return [];
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return []; }
-}
-
-function writeConversations(data: StoredConversation[]): void {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(path.join(DATA_DIR, 'conversations.json'), JSON.stringify(data, null, 2), 'utf-8');
-}
+import {
+  findSessionById,
+  readConversations,
+  writeConversations,
+  recordActivity,
+  type StoredConversation,
+} from '@/lib/db';
 
 function getUser(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -85,6 +64,19 @@ export async function POST(request: Request) {
   const all = readConversations();
   all.push(conv);
   writeConversations(all);
+
+  // Record the new conversation in the durable activity log.
+  recordActivity({
+    userId,
+    type: "conversation",
+    title: conv.title,
+    status: "active",
+    statusFa: "فعال",
+    description: null,
+    category: conv.category,
+    categoryFa: null,
+    sourceId: conv.id,
+  });
 
   return NextResponse.json({ data: conv, meta: { requestId: crypto.randomUUID() } }, { status: 201 });
 }

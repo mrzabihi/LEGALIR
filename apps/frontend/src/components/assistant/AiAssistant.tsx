@@ -33,7 +33,7 @@ const CONTEXT_LABELS: Record<string, string> = {
 
 function getWelcomeMessage(context?: string): string {
   const pageLabel = context ? CONTEXT_LABELS[context] ?? "صفحه جاری" : "صفحه جاری";
-  return `سلام! من دستیار هوشمند LEGALIR هستم. شما در بخش **${pageLabel}** قرار دارید. چطور می‌توانم کمک کنم؟`;
+  return `سلام! من دستیار هوشمند لیگالیر هستم. شما در بخش **${pageLabel}** قرار دارید. چطور می‌توانم کمک کنم؟`;
 }
 
 // ============================================================
@@ -158,7 +158,7 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
       <div className="flex items-center justify-between px-4 py-2 bg-primary border-b border-divider" dir="rtl">
         <div className="flex items-center gap-2">
           <AiSparkleIcon size={16} />
-          <span className="text-caption text-neutral-0">دستیار LEGALIR</span>
+          <span className="text-caption text-neutral-0">دستیار لیگالیر</span>
         </div>
         <button
           onClick={restorePanel}
@@ -186,7 +186,7 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
           </div>
           <div>
             <h2 className="text-body-2 font-medium text-neutral-0">
-              دستیار هوشمند LEGALIR
+              دستیار هوشمند لیگالیر
             </h2>
             <p className="text-caption text-primary-200">
               دسترسی سریع به راهنمایی و پشتیبانی
@@ -419,7 +419,7 @@ export function AiAssistant({ pageContext }: AiAssistantProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="دستیار هوشمند LEGALIR"
+        aria-label="دستیار هوشمند لیگالیر"
         className={[
           "fixed z-50",
           "bg-surface",

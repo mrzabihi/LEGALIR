@@ -33,11 +33,12 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const { theme, locale, notifications, privacy } = body as {
+  const { theme, locale, notifications, privacy, showProfileCompletionPrompt } = body as {
     theme?: string;
     locale?: string;
     notifications?: Partial<DbPreferences['notifications']>;
     privacy?: Partial<DbPreferences['privacy']>;
+    showProfileCompletionPrompt?: boolean;
   };
 
   const updates: Record<string, unknown> = {};
@@ -45,6 +46,7 @@ export async function PATCH(request: Request) {
   if (locale !== undefined) updates['locale'] = locale;
   if (notifications !== undefined) updates['notifications'] = notifications;
   if (privacy !== undefined) updates['privacy'] = privacy;
+  if (showProfileCompletionPrompt !== undefined) updates['showProfileCompletionPrompt'] = showProfileCompletionPrompt;
 
   const preferences = upsertPreferences(userId, updates as Partial<Omit<DbPreferences, 'user_id'>>);
   return NextResponse.json({ data: preferences });

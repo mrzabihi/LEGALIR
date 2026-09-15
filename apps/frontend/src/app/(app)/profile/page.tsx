@@ -9,13 +9,13 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { useMe, useUpdateProfile } from "@/hooks/useDashboard";
+import { useMe, useUpdateProfile, useDailyQuota } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
 import { useCurrentSubscription } from "@/hooks/useSubscription";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useContracts } from "@/hooks/useContracts";
-import { useTheme } from "@/lib/theme";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
+import { JalaliDatePicker, formatJalaliLong } from "@/components/shared/JalaliDatePicker";
 import {
   IconChat,
   IconDocument,
@@ -29,8 +29,6 @@ import {
   IconPerson,
   IconCheck,
   IconClose,
-  IconLightMode,
-  IconDarkMode,
   IconArrowBack,
   IconStar,
   IconLawBook,
@@ -225,14 +223,17 @@ function DateEditableField({ label, value, placeholder, onSave }: {
   const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
   const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
 
-  const displayValue = value ? toPersianDate(value) : "";
+  const parsed = value ? /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value.trim()) : null;
+  const displayValue = parsed
+    ? formatJalaliLong(parseInt(parsed[1]!, 10), parseInt(parsed[2]!, 10), parseInt(parsed[3]!, 10))
+    : "";
 
   return (
     <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <input type="date" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus />
+          <JalaliDatePicker value={draft} onChange={setDraft} disabled={saving} />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -415,12 +416,12 @@ export default function AccountHubPage() {
   const me = useMe();
   const updateProfile = useUpdateProfile();
   const usage = useProfileUsage();
+  const quota = useDailyQuota();
   const subHistory = useSubscriptionHistory();
   const currentSub = useCurrentSubscription();
   const documents = useDocuments({ pageSize: 1 });
   const contracts = useContracts({ pageSize: 1 });
   const memories = useMemories();
-  const { theme, toggleTheme } = useTheme();
 
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
@@ -456,9 +457,14 @@ export default function AccountHubPage() {
     [updateProfile],
   );
 
-  const remainingRequests = usageData
-    ? Math.max(0, usageData.dailyRequestsTotal - usageData.dailyRequestsUsed)
-    : 0;
+  // Live daily quota (plan-derived) takes precedence over the stored usage row.
+  const dailyUsed = quota.data?.used ?? usageData?.dailyRequestsUsed ?? 0;
+  const dailyTotal = quota.data?.total ?? usageData?.dailyRequestsTotal ?? 0;
+  const dailyRemaining = Math.max(0, dailyTotal - dailyUsed);
+  const dailySweep = dailyTotal > 0 ? (dailyRemaining / dailyTotal) * 360 : 0;
+  const dailyDash = `${dailySweep} ${360 - dailySweep}`;
+  const dailyExhausted = dailyTotal > 0 && dailyRemaining === 0;
+  const dailyLow = !dailyExhausted && dailyTotal > 0 && dailyRemaining / dailyTotal <= 0.25;
 
   const subLabel = activeSub?.planNameFa ?? "بدون اشتراک";
 
@@ -625,10 +631,10 @@ export default function AccountHubPage() {
             description="فعالیت‌ها و موارد اخیر"
           />
           <HubCard
-            href="/memory"
+            href="/settings"
             icon={<IconMemory size={22} />}
-            title="حافظه"
-            description="اطلاعات ذخیره‌شده درباره شما"
+            title="حافظه و دانش"
+            description="دانشی که هوش مصنوعی با آن به‌روزرسانی می‌شود"
             status={`${persianCount(memoryCount)} مورد ذخیره‌شده`}
             statusTone="primary"
           />
@@ -647,11 +653,6 @@ export default function AccountHubPage() {
             <p className="text-caption text-muted mt-0.5">
               {activeSub?.endAt ? `اعتبار تا ${toPersianDate(activeSub.endAt)}` : "برای فعال‌سازی اشتراک اقدام کنید"}
             </p>
-            {usageData && (
-              <p className="text-body-2 text-muted mt-1.5">
-                {toPersianNumber(remainingRequests)} از {toPersianNumber(usageData.dailyRequestsTotal)} درخواست روزانه باقی‌مانده
-              </p>
-            )}
           </div>
           <Link
             href="/subscription"
@@ -660,6 +661,60 @@ export default function AccountHubPage() {
             مدیریت و ارتقا
             <IconArrowBack size={16} rtlFlip />
           </Link>
+        </div>
+
+        {/* درخواست امروز — donut: consumed vs remaining (matches dashboard) */}
+        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border border-white/10 backdrop-blur p-4 transition-colors duration-300 hover:border-blue-300/30">
+          <span
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-blue-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            aria-hidden="true"
+          />
+          <div className="relative flex items-center gap-3">
+            <div
+              className="relative w-11 h-11 shrink-0"
+              role="img"
+              aria-label={`${toPersianNumber(dailyUsed)} درخواست مصرف‌شده از ${toPersianNumber(dailyTotal)}؛ ${toPersianNumber(dailyRemaining)} باقی‌مانده`}
+            >
+              <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                <defs>
+                  <linearGradient id="profileQuotaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#93c5fd" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+                {/* track = consumed portion */}
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                {/* remaining allowance sweeps from 12 o'clock */}
+                <circle
+                  cx="18" cy="18" r="15.915" fill="none"
+                  stroke={dailyExhausted ? "#f87171" : dailyLow ? "#fbbf24" : "url(#profileQuotaGrad)"}
+                  strokeWidth="4" strokeLinecap="round"
+                  strokeDasharray={dailyDash}
+                  className="transition-all duration-700 ease-emphasized"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
+                {toPersianNumber(dailyRemaining)}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">
+                {toPersianNumber(dailyUsed)}/{toPersianNumber(dailyTotal)}
+              </p>
+              <p className="text-caption text-primary-200 mt-0.5">درخواست امروز</p>
+            </div>
+          </div>
+          {/* legend: consumed vs remaining */}
+          <div className="relative mt-2 flex items-center gap-3 text-[10px] text-primary-200/90">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-300" aria-hidden="true" />
+              {toPersianNumber(dailyRemaining)} مانده
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-white/25" aria-hidden="true" />
+              {toPersianNumber(dailyUsed)} مصرف
+            </span>
+          </div>
         </div>
 
         {subItems.length > 0 && subItems[0] && (
@@ -688,28 +743,6 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconSettings size={22} />}>تنظیمات</SectionTitle>
-
-        {/* Theme toggle */}
-        <div className="flex items-center justify-between py-3 border-b border-divider/60">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
-              {theme === "dark" ? <IconDarkMode size={20} className="text-amber-500" /> : <IconLightMode size={20} className="text-primary-500" />}
-            </span>
-            <div>
-              <p className="text-body-1 text-onSurface font-medium">تم</p>
-              <p className="text-caption text-muted">{theme === "dark" ? "حالت تاریک" : "حالت روشن"}</p>
-            </div>
-          </div>
-          <button
-            onClick={toggleTheme}
-            role="switch"
-            aria-checked={theme === "dark"}
-            aria-label="تغییر تم"
-            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${theme === "dark" ? "bg-primary-600" : "bg-neutral-300"}`}
-          >
-            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${theme === "dark" ? "translate-x-6" : "translate-x-1"}`} />
-          </button>
-        </div>
 
         {/* Settings destinations */}
         <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3 mt-4">

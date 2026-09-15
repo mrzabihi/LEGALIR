@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { getDemoDocument, deleteDemoDocument } from "@/lib/demo-seed";
+import { removeActivity } from "@/lib/db";
 
 export async function GET(
   request: Request,
@@ -53,6 +54,8 @@ export async function DELETE(
       { status: 404 }
     );
   }
+
+  removeActivity(userId, id);
 
   return NextResponse.json({ data: { deleted: true as const } });
 }

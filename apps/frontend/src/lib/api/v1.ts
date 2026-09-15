@@ -60,6 +60,7 @@ import type {
   V1PreferencesUpdateRequest,
   V1SubscriptionHistoryResponse,
   V1ProfileUsage,
+  V1DailyQuota,
   V1BlogListResponse,
   V1BlogPostDetail,
   RewardsSummary,
@@ -180,6 +181,12 @@ export function updateConversation(
   data: { title?: string; status?: ConversationStatus }
 ): Promise<Conversation> {
   return apiClient.patch<Conversation>(`/api/v1/conversations/${id}`, data);
+}
+
+export function deleteConversation(
+  id: string
+): Promise<V1DocumentDeleteResponse> {
+  return apiClient.delete<V1DocumentDeleteResponse>(`/api/v1/conversations/${id}`);
 }
 
 export function sendMessage(
@@ -390,12 +397,31 @@ export function fetchHistory(
   return apiClient.get<V1HistoryListResponse>(`/api/v1/history${qs(p)}`);
 }
 
+/** Toggle the archived flag on a history item (persisted server-side). */
+export function archiveHistoryItem(
+  id: string,
+  archived: boolean
+): Promise<{ id: string; archived: boolean }> {
+  return apiClient.patch<{ id: string; archived: boolean }>("/api/v1/history", {
+    id,
+    archived,
+  });
+}
+
 // ============================================================
 // Memories (Phase 11)
 // ============================================================
 
 export function fetchMemories(): Promise<V1MemoryListResponse> {
   return apiClient.get<V1MemoryListResponse>("/api/v1/memories");
+}
+
+export function createMemory(data: {
+  key: string;
+  value: string;
+  category?: "profile" | "preference" | "legal_context";
+}): Promise<V1MemoryItem> {
+  return apiClient.post<V1MemoryItem>("/api/v1/memories", data);
 }
 
 export function updateMemory(
@@ -445,6 +471,10 @@ export function fetchSubscriptionHistory(
 
 export function fetchProfileUsage(): Promise<V1ProfileUsage> {
   return apiClient.get<V1ProfileUsage>("/api/v1/profile/usage");
+}
+
+export function fetchDailyQuota(): Promise<V1DailyQuota> {
+  return apiClient.get<V1DailyQuota>("/api/v1/quota");
 }
 
 // ============================================================

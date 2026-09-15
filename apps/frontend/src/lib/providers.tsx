@@ -6,8 +6,6 @@ import { ThemeProvider } from "@/lib/theme";
 import { ErrorBoundary } from "@/lib/error-boundary";
 import { LocaleProvider } from "@legalir/i18n";
 import { SnackbarProvider } from "@legalir/ui";
-import { SplashKeyframes } from "@/lib/splash";
-import { AppSplashGate } from "@/components/shared/AppSplashGate";
 import { installConsoleGuard } from "@/lib/console-guard";
 
 // Install console guard early
@@ -45,8 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <LocaleProvider locale="fa-IR">
           <ThemeProvider>
             <SnackbarProvider>
-              <SplashKeyframes />
-              <AppSplashGate>{children}</AppSplashGate>
+              {children}
             </SnackbarProvider>
           </ThemeProvider>
         </LocaleProvider>

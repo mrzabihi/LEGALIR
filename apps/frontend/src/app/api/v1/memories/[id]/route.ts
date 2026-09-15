@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { updateDemoMemory, deleteDemoMemory } from "@/lib/demo-seed";
+import { recordActivity, removeActivity } from "@/lib/db";
 import type { V1MemoryUpdateRequest } from "@legalir/types";
 
 export async function PATCH(
@@ -32,6 +33,18 @@ export async function PATCH(
     );
   }
 
+  recordActivity({
+    userId,
+    type: "document",
+    title: `دانش: ${updated.key}`,
+    status: "ready",
+    statusFa: "به‌روزرسانی شد",
+    description: updated.value.slice(0, 160),
+    category: null,
+    categoryFa: null,
+    sourceId: updated.id,
+  });
+
   return NextResponse.json({ data: updated });
 }
 
@@ -55,6 +68,8 @@ export async function DELETE(
       { status: 404 }
     );
   }
+
+  removeActivity(userId, id);
 
   return NextResponse.json({ data: { deleted: true as const } });
 }

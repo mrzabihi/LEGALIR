@@ -87,21 +87,18 @@ export function Header() {
         {/* Logo */}
         <Link
           href="/"
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0"
+          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity shrink-0"
           aria-label="LEGALIR — صفحه اصلی"
         >
           <img
             src="/legalir-logo.png"
             alt="LEGALIR"
-            className="h-16 w-auto"
+            className="h-14 w-auto"
           />
-          <span className="text-h3 text-primary-800 font-bold hidden mobile-l:inline">
-            LEGALIR
-          </span>
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden tablet:flex items-center gap-1" aria-label="ناوبری اصلی">
+        <nav className="hidden laptop:flex items-center gap-1" aria-label="ناوبری اصلی">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -118,7 +115,7 @@ export function Header() {
         </nav>
 
         {/* Desktop Actions */}
-        <div className="hidden tablet:flex items-center gap-3">
+        <div className="hidden laptop:flex items-center gap-3">
           <Link
             href="/auth/mobile"
             className="px-4 py-2.5 rounded-medium text-body-2 font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
@@ -168,7 +165,7 @@ export function Header() {
         </div>
 
         {/* Mobile: Hamburger */}
-        <div className="flex items-center gap-1 tablet:hidden">
+        <div className="flex items-center gap-1 laptop:hidden">
           <button
             onClick={() => setMobileOpen(true)}
             className="h-10 w-10 rounded-medium flex items-center justify-center text-neutral-700 hover:bg-neutral-100 transition-colors"
@@ -182,7 +179,7 @@ export function Header() {
 
       {/* Mobile Nav Drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 tablet:hidden" role="dialog" aria-modal="true" aria-label="منوی موبایل">
+        <div className="fixed inset-0 z-50 laptop:hidden" role="dialog" aria-modal="true" aria-label="منوی موبایل">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}

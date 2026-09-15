@@ -262,6 +262,10 @@ export function SplashKeyframes() {
         0%, 100% { transform: translateY(0) scale(1); }
         50% { transform: translateY(-10px) scale(1.04); }
       }
+      @keyframes splash-logo-float {
+        0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 24px rgba(212,175,55,0.15)); }
+        50% { transform: translateY(-6px) scale(1.03); filter: drop-shadow(0 0 40px rgba(212,175,55,0.35)); }
+      }
       @keyframes fade-in {
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }

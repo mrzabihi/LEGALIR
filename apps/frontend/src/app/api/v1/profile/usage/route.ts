@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findSessionById, queryProfileUsage } from "@/lib/db";
+import { findSessionById, queryProfileUsage, queryDailyQuota } from "@/lib/db";
 
 function getUserFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -18,6 +18,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const data = queryProfileUsage(userId);
-  return NextResponse.json({ data });
+  const usage = queryProfileUsage(userId);
+  const quota = queryDailyQuota(userId);
+  // The plan-derived allowance is authoritative for the daily counter.
+  const data = { ...usage, dailyRequestsTotal: quota.total, dailyRequestsUsed: quota.used };
+  return NextResponse.json({ data, quota });
 }

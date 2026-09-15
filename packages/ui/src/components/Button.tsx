@@ -16,12 +16,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   filled:
-    "bg-primary text-onPrimary hover:state-hover focus-visible:state-focus active:state-pressed",
+    "bg-primary text-[var(--color-on-primary)] hover:state-hover focus-visible:state-focus active:state-pressed",
   outlined:
     "border border-outline text-primary hover:bg-primary/[0.08] focus-visible:bg-primary/[0.12] active:bg-primary/[0.12]",
   text: "text-primary hover:bg-primary/[0.08] focus-visible:bg-primary/[0.12] active:bg-primary/[0.12]",
   tonal:
-    "bg-primaryContainer text-onPrimaryContainer hover:state-hover focus-visible:state-focus active:state-pressed",
+    "bg-primaryContainer text-[var(--color-on-primary-container)] hover:state-hover focus-visible:state-focus active:state-pressed",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

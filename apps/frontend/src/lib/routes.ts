@@ -34,7 +34,6 @@ export const routes: RouteDef[] = [
   { path: "/profile", titleFa: "تنظیمات", access: "user", icon: "Person" },
   { path: "/support", titleFa: "پشتیبانی", access: "user", icon: "Phone" },
   { path: "/new", titleFa: "ساخت جدید", access: "user", icon: "Add" },
-  { path: "/memory", titleFa: "حافظه", access: "user", icon: "Memory" },
   { path: "/history", titleFa: "تاریخچه", access: "user", icon: "History" },
   { path: "/documents", titleFa: "اسناد", access: "entitled", icon: "Description" },
   { path: "/contracts", titleFa: "قراردادها", access: "entitled", icon: "Article" },

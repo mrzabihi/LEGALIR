@@ -2092,6 +2092,7 @@ export const handlers = [
       ok({
         theme: "light" as const,
         locale: "fa-IR" as const,
+        showProfileCompletionPrompt: true,
         notifications: {
           appointments: true,
           contractExpiry: true,
@@ -2117,6 +2118,7 @@ export const handlers = [
     const current = {
       theme: "light" as const,
       locale: "fa-IR" as const,
+      showProfileCompletionPrompt: true,
       notifications: {
         appointments: true,
         contractExpiry: true,

@@ -69,11 +69,11 @@ export function Sidebar({ userRole }: SidebarProps) {
 
   return (
     <div className="flex flex-col h-full bg-surface">
-      {/* Logo Area — matches Landing presentation: transparent mark + wordmark */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <img src="/legalir-logo.png" alt="LEGALIR" className="h-12 w-auto shrink-0" />
-        <span className="text-h3 text-primary-800 font-bold hidden laptop:inline tracking-tight">
-          LEGALIR
+      {/* Logo Area — cohesive brand lockup with optical alignment */}
+      <div className="flex items-center gap-2.5 px-5 py-5">
+        <img src="/legalir-logo.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
+        <span className="text-h3 text-primary-800 font-extrabold hidden laptop:inline tracking-tight translate-y-[7px]">
+          لیگالیر
         </span>
       </div>
 

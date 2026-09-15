@@ -18,8 +18,13 @@ import {
   RecentDocuments,
   RecentActivities,
   UsageSummaryCard,
+  SubscriptionOverview,
   NotificationsPlaceholder,
 } from "@/components/dashboard";
+import {
+  useProfileCompletionPrompt,
+  ProfileCompletionPromptModal,
+} from "@/features/profile-completion-prompt";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -28,20 +33,26 @@ export default function DashboardPage() {
   const usage = useUsageSummary();
   const blog = useBlogPosts(1, 3);
 
+  // Profile Completion Incentive — evaluates eligibility after data loads.
+  const promptController = useProfileCompletionPrompt();
+
   const displayName = me.data?.profile?.displayName ?? null;
   const activities = dashboard.data?.recentActivity;
   const hasNoActivity = !dashboard.isLoading && (!activities || activities.length === 0);
 
   const heroStats = {
     dailyUsed: dashboard.data?.dailyTrialsUsed ?? 0,
-    dailyTotal: dashboard.data?.dailyTrialsTotal ?? 5,
-    docCount: dashboard.data?.recentDocuments?.length ?? 0,
+    dailyTotal: dashboard.data?.dailyTrialsTotal ?? 10,
+    docCount: dashboard.data?.documentsCount ?? 0,
     activeReqCount: dashboard.data?.activeRequests?.length ?? 0,
-    daysRemaining: usage.data?.daysRemaining ?? 0,
+    daysRemaining: dashboard.data?.daysRemaining ?? usage.data?.daysRemaining ?? 0,
   };
 
   return (
     <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
+      {/* Profile Completion Incentive — non-blocking modal when eligible */}
+      <ProfileCompletionPromptModal controller={promptController} />
+
       {/* Hero Section — gradient with stats */}
       <HeroSection
         displayName={displayName}
@@ -226,12 +237,20 @@ export default function DashboardPage() {
       />
 
       {/* Usage & Entitlement Summary */}
-      <UsageSummaryCard
-        usage={usage.data}
-        isLoading={usage.isLoading}
-        error={usage.error as Error | null}
-        onRetry={() => usage.refetch()}
-      />
+      <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4">
+        <UsageSummaryCard
+          usage={usage.data}
+          isLoading={usage.isLoading}
+          error={usage.error as Error | null}
+          onRetry={() => usage.refetch()}
+        />
+        <SubscriptionOverview
+          subscription={dashboard.data?.subscriptionUsage}
+          isLoading={dashboard.isLoading}
+          error={dashboard.error as Error | null}
+          onRetry={() => dashboard.refetch()}
+        />
+      </div>
 
       {/* Notifications */}
       <NotificationsPlaceholder />

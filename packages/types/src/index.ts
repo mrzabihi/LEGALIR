@@ -162,11 +162,23 @@ export interface DashboardSummary {
   activeRequests: ActiveRequestItem[];
   recommendations: DashboardRecommendation[];
   recentDocuments: RecentDocumentItem[];
+  // Real operational metrics (added for the DB-backed dashboard overview).
+  requestsToday?: number;
+  documentsCount?: number;
+  contractsCount?: number;
+  memoriesCount?: number;
+  daysRemaining?: number | null;
+  subscriptionUsage?: {
+    planCode: PlanCode;
+    planNameFa: string;
+    endAt: string;
+    daysRemaining: number;
+  } | null;
 }
 
 export interface RecentActivityItem {
   id: string;
-  type: "conversation" | "document" | "contract";
+  type: "conversation" | "document" | "contract" | "subscription" | "case";
   title: string;
   status: string;
   updatedAt: string;
@@ -701,7 +713,7 @@ export interface V1HistoryListParams {
 export interface V1HistoryItem {
   id: string;
   userId: string;
-  type: "conversation" | "document" | "contract";
+  type: "conversation" | "document" | "contract" | "subscription" | "case";
   title: string;
   category: HistoryCategory | null;
   categoryFa: string | null;
@@ -752,6 +764,9 @@ export interface V1MemoryUpdateRequest {
 export interface V1UserPreferences {
   theme: "light" | "dark";
   locale: "fa-IR" | "en";
+  /** Whether the profile-completion incentive prompt should be shown.
+   *  Defaults to true; a user can explicitly suppress it (persistent preference). */
+  showProfileCompletionPrompt: boolean;
   notifications: NotificationFlags;
   privacy: V1PrivacySettings;
 }
@@ -766,6 +781,7 @@ export interface V1PrivacySettings {
 export interface V1PreferencesUpdateRequest {
   theme?: "light" | "dark";
   locale?: "fa-IR" | "en";
+  showProfileCompletionPrompt?: boolean;
   notifications?: Partial<NotificationFlags>;
   privacy?: Partial<V1PrivacySettings>;
 }
@@ -801,6 +817,17 @@ export interface V1ProfileUsage {
   documentAnalysesTotal: number;
   contractsGenerated: number;
   contractsTotal: number;
+}
+
+/** Live daily-request quota derived from the user's active plan. */
+export interface V1DailyQuota {
+  used: number;
+  total: number;
+  remaining: number;
+  /** ISO timestamp of the next reset (Tehran midnight), from the server clock. */
+  resetAt: string;
+  exhausted: boolean;
+  subscriptionExpired: boolean;
 }
 
 // --- Feature Flags ---
@@ -1130,6 +1157,201 @@ export interface V1BlogPostDetail {
   relatedServices: V1RelatedService[];
   previousPost: { slug: string; titleFa: string } | null;
   nextPost: { slug: string; titleFa: string } | null;
+}
+
+// --- Case Management ---
+
+export type CaseStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "UNDER_REVIEW"
+  | "WAITING_DOCUMENTS"
+  | "LAWYER_ASSIGNED"
+  | "CLOSED"
+  | "ARCHIVED";
+
+export const CASE_STATUS_FA: Record<CaseStatus, string> = {
+  DRAFT: "پیش‌نویس",
+  ACTIVE: "فعال",
+  UNDER_REVIEW: "در حال بررسی",
+  WAITING_DOCUMENTS: "منتظر مدارک",
+  LAWYER_ASSIGNED: "وکیل تعیین شده",
+  CLOSED: "بسته شده",
+  ARCHIVED: "بایگانی",
+};
+
+export type CaseCategory =
+  | "family"
+  | "contract"
+  | "property"
+  | "employment"
+  | "business"
+  | "criminal"
+  | "financial"
+  | "tax"
+  | "other";
+
+export const CASE_CATEGORY_FA: Record<CaseCategory, string> = {
+  family: "خانواده",
+  contract: "قرارداد",
+  property: "ملکی",
+  employment: "کار",
+  business: "تجارت",
+  criminal: "کیفری",
+  financial: "مالی",
+  tax: "مالیات",
+  other: "سایر",
+};
+
+export type CasePriority = "low" | "medium" | "high" | "urgent";
+
+export const CASE_PRIORITY_FA: Record<CasePriority, string> = {
+  low: "کم",
+  medium: "متوسط",
+  high: "بالا",
+  urgent: "فوری",
+};
+
+export interface Case {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  category: CaseCategory;
+  status: CaseStatus;
+  priority: CasePriority;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseListItem {
+  id: string;
+  title: string;
+  category: CaseCategory;
+  status: CaseStatus;
+  priority: CasePriority;
+  documentCount: number;
+  contractCount: number;
+  taskCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CaseTimelineEventType =
+  | "case_created"
+  | "document_uploaded"
+  | "ai_analysis_completed"
+  | "contract_generated"
+  | "lawyer_contacted"
+  | "task_completed"
+  | "status_changed"
+  | "note_added";
+
+export const CASE_TIMELINE_EVENT_FA: Record<CaseTimelineEventType, string> = {
+  case_created: "پرونده ایجاد شد",
+  document_uploaded: "سند بارگذاری شد",
+  ai_analysis_completed: "تحلیل هوش مصنوعی تکمیل شد",
+  contract_generated: "قرارداد تولید شد",
+  lawyer_contacted: "تماس با وکیل",
+  task_completed: "وظیفه تکمیل شد",
+  status_changed: "تغییر وضعیت",
+  note_added: "یادداشت اضافه شد",
+};
+
+export interface CaseTimelineEvent {
+  id: string;
+  caseId: string;
+  eventType: CaseTimelineEventType;
+  title: string;
+  description: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export type CaseTaskStatus = "todo" | "in_progress" | "done";
+
+export const CASE_TASK_STATUS_FA: Record<CaseTaskStatus, string> = {
+  todo: "انجام نشده",
+  in_progress: "در حال انجام",
+  done: "انجام شده",
+};
+
+export interface CaseTask {
+  id: string;
+  caseId: string;
+  title: string;
+  description: string;
+  status: CaseTaskStatus;
+  priority: CasePriority;
+  dueDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Case API Contracts ---
+
+export interface CaseCreateRequest {
+  title: string;
+  description: string;
+  category: CaseCategory;
+  priority?: CasePriority;
+}
+
+export interface CaseUpdateRequest {
+  title?: string;
+  description?: string;
+  category?: CaseCategory;
+  status?: CaseStatus;
+  priority?: CasePriority;
+}
+
+export interface CaseListParams {
+  status?: CaseStatus;
+  category?: CaseCategory;
+  priority?: CasePriority;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CaseListResponse {
+  items: CaseListItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface CaseDetailResponse {
+  case: Case;
+  documents: { id: string; name: string; status: string; createdAt: string }[];
+  contracts: { id: string; title: string; status: string; createdAt: string }[];
+  timeline: CaseTimelineEvent[];
+  tasks: CaseTask[];
+}
+
+export interface CaseTimelineEventCreateRequest {
+  eventType: CaseTimelineEventType;
+  title: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CaseTaskCreateRequest {
+  title: string;
+  description?: string;
+  priority?: CasePriority;
+  dueDate?: string;
+}
+
+export interface CaseTaskUpdateRequest {
+  title?: string;
+  description?: string;
+  status?: CaseTaskStatus;
+  priority?: CasePriority;
+  dueDate?: string | null;
 }
 
 // --- Route Map ---
@@ -1482,5 +1704,16 @@ export type ApiEndpoints = {
   };
   profileUsage: {
     get: { input: void; output: V1ProfileUsage };
+  };
+  cases: {
+    list: { input: CaseListParams; output: CaseListResponse };
+    create: { input: CaseCreateRequest; output: Case };
+    getById: { input: { id: string }; output: CaseDetailResponse };
+    update: { input: { id: string } & CaseUpdateRequest; output: Case };
+    getTimeline: { input: { id: string }; output: CaseTimelineEvent[] };
+    addTimelineEvent: { input: { id: string } & CaseTimelineEventCreateRequest; output: CaseTimelineEvent };
+    getTasks: { input: { id: string }; output: CaseTask[] };
+    createTask: { input: { id: string } & CaseTaskCreateRequest; output: CaseTask };
+    updateTask: { input: { id: string; taskId: string } & CaseTaskUpdateRequest; output: CaseTask };
   };
 };

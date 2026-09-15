@@ -7,8 +7,9 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
-import { listDemoContracts } from "@/lib/demo-seed";
-import type { V1ContractListItem } from "@legalir/types";
+import { listDemoContracts, createDemoContract } from "@/lib/demo-seed";
+import { recordActivity } from "@/lib/db";
+import type { V1ContractListItem, V1ContractType } from "@legalir/types";
 
 function toListItem(c: ReturnType<typeof listDemoContracts>[number]): V1ContractListItem {
   return {
@@ -71,4 +72,47 @@ export async function GET(request: Request) {
       pagination: { page, pageSize, total, totalPages },
     },
   });
+}
+
+export async function POST(request: Request) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return NextResponse.json(
+      { code: "UNAUTHORIZED", message: "لطفا وارد شوید" },
+      { status: 401 }
+    );
+  }
+
+  let body: { typeId?: V1ContractType; title?: string };
+  try {
+    body = (await request.json()) as { typeId?: V1ContractType; title?: string };
+  } catch {
+    return NextResponse.json(
+      { code: "VALIDATION_ERROR", message: "اطلاعات ناقص است" },
+      { status: 400 }
+    );
+  }
+
+  if (!body.typeId || !body.title || !body.title.trim()) {
+    return NextResponse.json(
+      { code: "VALIDATION_ERROR", message: "نوع قرارداد و عنوان الزامی است" },
+      { status: 400 }
+    );
+  }
+
+  const created = createDemoContract(userId, body.typeId, body.title.trim());
+
+  recordActivity({
+    userId,
+    type: "contract",
+    title: created.title,
+    status: created.state,
+    statusFa: "پیش‌نویس",
+    description: `ایجاد ${created.typeFa}`,
+    category: created.category,
+    categoryFa: null,
+    sourceId: created.id,
+  });
+
+  return NextResponse.json({ data: created }, { status: 201 });
 }

@@ -22,7 +22,7 @@ import {
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
-  title: "LEGALIR | دستیار هوشمند حقوقی ایران",
+  title: "لیگالیر | دستیار هوشمند حقوقی ایران",
   description:
     "دستیار هوشمند حقوقی ایران — پلتفرم تخصصی تحلیل حقوقی با هوش مصنوعی، آموزش‌دیده بر نظام حقوقی ایران شامل قانون اساسی، مدنی، کیفری، تجارت، خانواده، کار، مالیات و هزاران پرونده واقعی",
   alternates: { canonical: "/" },
@@ -77,7 +77,7 @@ const howItWorksSteps = [
     icon: IconMemory,
     title: "تحلیل تخصصی هوش مصنوعی",
     description:
-      "هسته تخصصی LEGALIR با استناد به قوانین، آرای وحدت رویه و بخشنامه‌های معتبر، موضوع شما را تحلیل می‌کند",
+      "هسته تخصصی لیگالیر با استناد به قوانین، آرای وحدت رویه و بخشنامه‌های معتبر، موضوع شما را تحلیل می‌کند",
   },
   {
     number: "۰۳",
@@ -164,7 +164,7 @@ const legalTopics = [
 ];
 
 // ================================================================
-// Sample Q&A — Real Legal Questions LEGALIR Can Answer
+// Sample Q&A — Real Legal Questions لیگالیر Can Answer
 // ================================================================
 const sampleQuestions = [
   {
@@ -252,12 +252,12 @@ export default function LandingPage() {
       {/* ============================================================
           HERO — Dramatic Navy Gradient with Geometric Pattern
           ============================================================ */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700">
+      <section className="relative overflow-hidden bg-gradient-to-b from-primary-700 via-primary-600 to-primary-500">
         {/* Geometric dot-grid pattern overlay */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-40"
+          className="absolute inset-0 pointer-events-none opacity-50"
           style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)`,
+            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.10) 1px, transparent 0)`,
             backgroundSize: "40px 40px",
           }}
           aria-hidden="true"
@@ -265,18 +265,18 @@ export default function LandingPage() {
 
         {/* Top-right gold glow */}
         <div
-          className="absolute -top-20 -end-20 w-96 h-96 rounded-full opacity-20"
+          className="absolute -top-20 -end-20 w-96 h-96 rounded-full opacity-25"
           style={{
-            background: "radial-gradient(circle, rgba(212,175,55,0.4), transparent 70%)",
+            background: "radial-gradient(circle, rgba(212,175,55,0.55), transparent 70%)",
           }}
           aria-hidden="true"
         />
 
         {/* Bottom-left subtle glow */}
         <div
-          className="absolute -bottom-40 -start-20 w-[500px] h-[500px] rounded-full opacity-10"
+          className="absolute -bottom-40 -start-20 w-[500px] h-[500px] rounded-full opacity-15"
           style={{
-            background: "radial-gradient(circle, rgba(255,255,255,0.5), transparent 70%)",
+            background: "radial-gradient(circle, rgba(255,255,255,0.6), transparent 70%)",
           }}
           aria-hidden="true"
         />
@@ -287,13 +287,13 @@ export default function LandingPage() {
             className="mb-8 animate-fade-in"
             style={{ animationDelay: "0ms" }}
           >
-            <div className="relative mx-auto w-44 h-44 tablet:w-56 tablet:h-56">
+            <div className="relative mx-auto w-48 h-48 tablet:w-64 tablet:h-64">
               <Image
-                src="/legalir-logo.png"
+                src="/legalir-logo-bronze.png"
                 alt="LEGALIR"
                 fill
-                sizes="(min-width: 600px) 224px, 176px"
-                className="object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-transform duration-500 hover:scale-105 hover:drop-shadow-[0_12px_32px_rgba(212,175,55,0.25)]"
+                sizes="(min-width: 600px) 256px, 192px"
+                className="object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.30)] transition-transform duration-500 hover:scale-105 hover:drop-shadow-[0_8px_32px_rgba(212,175,55,0.45)]"
                 priority
               />
             </div>
@@ -309,9 +309,9 @@ export default function LandingPage() {
 
           {/* Main heading */}
           <h1
-            className="text-[40px] tablet:text-[60px] font-extrabold text-white leading-[1.1] mb-6 tracking-tight"
+            className="text-[36px] tablet:text-[56px] font-extrabold leading-tight mb-6 tracking-tight animate-heading-shine bg-gradient-to-r from-white via-secondary-200 to-white bg-[length:200%_100%] bg-clip-text text-transparent hover:animate-hover-shimmer cursor-default select-none"
           >
-            دستیار هوشمند<br />حقوقی ایران
+            دستیار هوشمند حقوقی ایران
           </h1>
 
           {/* Subheading */}
@@ -343,7 +343,7 @@ export default function LandingPage() {
 
           {/* Disclaimer note */}
           <p
-            className="flex items-center justify-center gap-1.5 text-caption text-primary-200/80 scroll-reveal visible"
+            className="flex items-center justify-center gap-1.5 text-caption text-secondary-400 scroll-reveal visible"
             style={{ transitionDelay: "450ms" }}
           >
             <IconArrowBack size={14} className="text-secondary-400 shrink-0" />
@@ -375,11 +375,11 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          SERVICES — "خدمات هوشمند LEGALIR"
+          SERVICES — "خدمات هوشمند لیگالیر"
           ============================================================ */}
       <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
         <div className="text-center mb-12">
-          <h2 className="text-h2 text-primary-800 mb-3">خدمات هوشمند LEGALIR</h2>
+          <h2 className="text-h2 text-primary-800 mb-3">خدمات هوشمند لیگالیر</h2>
           <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
             سه سرویس تخصصی مبتنی بر هوش مصنوعی حقوقی — آموزش‌دیده بر نظام حقوقی ایران
           </p>
@@ -421,7 +421,7 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          SAMPLE Q&A — "LEGALIR چه سوالاتی را پاسخ می‌دهد؟"
+          SAMPLE Q&A — "لیگالیر چه سوالاتی را پاسخ می‌دهد؟"
           ============================================================ */}
       <section className="bg-neutral-50 border-y border-divider">
         <div className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
@@ -430,9 +430,9 @@ export default function LandingPage() {
               <IconStar size={16} className="text-secondary-600" />
               نمونه پرسش‌های واقعی
             </div>
-            <h2 className="text-h2 text-primary-800 mb-3">LEGALIR چه سوالاتی را پاسخ می‌دهد؟</h2>
+            <h2 className="text-h2 text-primary-800 mb-3">لیگالیر چه سوالاتی را پاسخ می‌دهد؟</h2>
             <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
-              اینها نمونه‌هایی از پرسش‌های واقعی حقوقی هستند که می‌توانید از LEGALIR بپرسید.
+              اینها نمونه‌هایی از پرسش‌های واقعی حقوقی هستند که می‌توانید از لیگالیر بپرسید.
               هر پاسخ همراه با استناد دقیق به مواد قانونی و آرای قضایی ارائه می‌شود.
             </p>
           </div>
@@ -487,7 +487,7 @@ export default function LandingPage() {
           </div>
           <h2 className="text-h2 text-primary-800 mb-3">موضوعات پرکاربرد حقوقی</h2>
           <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
-            LEGALIR در حوزه‌های متنوع حقوقی آموزش دیده است. هر حوزه شامل منابع قانونی،
+            لیگالیر در حوزه‌های متنوع حقوقی آموزش دیده است. هر حوزه شامل منابع قانونی،
             آرای قضایی و تحلیل تخصصی مرتبط می‌باشد.
           </p>
         </div>
@@ -540,7 +540,7 @@ export default function LandingPage() {
       <section className="bg-neutral-50 border-y border-divider">
         <div className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
           <div className="text-center mb-14">
-            <h2 className="text-h2 text-primary-800 mb-3">LEGALIR چطور کار می‌کند؟</h2>
+            <h2 className="text-h2 text-primary-800 mb-3">لیگالیر چطور کار می‌کند؟</h2>
             <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
               سه گام ساده برای دریافت تحلیل حقوقی — از طرح موضوع تا دریافت راهنمایی تخصصی
             </p>
@@ -604,7 +604,7 @@ export default function LandingPage() {
           </div>
           <h2 className="text-h2 text-primary-800 mb-3">منابع حقوقی تحت پوشش</h2>
           <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
-            LEGALIR بر پایه قوانین، مقررات و آرای معتبر نظام حقوقی ایران آموزش دیده است.
+            لیگالیر بر پایه قوانین، مقررات و آرای معتبر نظام حقوقی ایران آموزش دیده است.
             هر پاسخ با ارجاع دقیق به منبع اصلی همراه می‌باشد.
           </p>
         </div>
@@ -708,7 +708,7 @@ export default function LandingPage() {
           <div className="text-center mb-12">
             <h2 className="text-h2 text-primary-800 mb-3">شفافیت در خدمات</h2>
             <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
-              LEGALIR مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را شفاف می‌کند
+              لیگالیر مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را شفاف می‌کند
             </p>
           </div>
 

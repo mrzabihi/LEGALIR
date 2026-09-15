@@ -12,6 +12,7 @@ import {
   updateProfile,
   fetchBlogPosts,
   fetchBlogPost,
+  fetchDailyQuota,
 } from "@/lib/api/v1";
 
 // ============================================================
@@ -59,6 +60,19 @@ export function useDashboardSummary() {
     queryKey: ["dashboard", "summary"],
     queryFn: fetchDashboardSummary,
     staleTime: 60_000, // 1 min
+    retry: 1,
+  });
+}
+
+// ============================================================
+// useDailyQuota — live daily-request allowance (plan-derived)
+// ============================================================
+
+export function useDailyQuota() {
+  return useQuery({
+    queryKey: ["quota", "daily"],
+    queryFn: fetchDailyQuota,
+    staleTime: 30_000, // 30s — quota changes as the user acts
     retry: 1,
   });
 }

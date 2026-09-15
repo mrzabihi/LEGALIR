@@ -14,13 +14,20 @@
 //   { type: "chunk", text: string, index: number }
 //   { type: "done", messageId, sections, references }
 //   { type: "error", code, message, retryable }
+//   { type: "workflow", phase, domain, intent, phaseChanged, pendingQuestions, suggestCaseCreation }
 // ============================================================
 
-import { findSessionById } from "@/lib/db";
+import { findSessionById, consumeDailyRequest, queryDailyQuota, touchConversation } from "@/lib/db";
 import { createAiProvider, readAiProviderConfig } from "@/lib/ai/provider";
-import { retrieveGroundedSources } from "@/lib/ai/grounding";
-import { appendMessage, getMessages, incrementDailyRequest } from "@/lib/ai/store";
-import { getServiceContext, categoryToServiceType } from "@/lib/ai/service-context";
+import { retrieveGroundedSources, retrieveDocumentContext } from "@/lib/ai/grounding";
+import { appendMessage, getMessages } from "@/lib/ai/store";
+import {
+  processWorkflowTurn,
+  getWorkflowState,
+  setWorkflowState,
+  createInitialWorkflowState,
+} from "@/lib/ai/workflow";
+import type { WorkflowState } from "@/lib/ai/workflow";
 import type { StructuredResponseSection, V1Reference } from "@legalir/types";
 
 export const runtime = "nodejs";
@@ -59,24 +66,6 @@ function getUser(req: Request): string | null {
 function sse(data: unknown): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
-}
-
-function buildSystemPrompt(serviceType: string, contextBlock: string): string {
-  const ctx = getServiceContext(serviceType);
-
-  const parts = [
-    "تو «دستیار تخصصی حقوقی لیگالیر» هستی؛ یک دستیار حقوقی فارسی‌زبان برای نظام حقوقی ایران.",
-    `خدمت جاری: «${ctx.label}» — ${ctx.description}.`,
-    "پاسخ را به زبان فارسی، رسمی، ساختاریافته و قابل استناد ارائه بده و در صورت امکان از عناوین «خلاصه»، «تحلیل اولیه»، «ریسک‌ها» و «اقدامات پیشنهادی» استفاده کن.",
-    "فقط به قوانین، آرای وحدت رویه و منابع معتبری که در ادامه در اختیارت قرار می‌گیرد استناد کن. اگر منبع معتبری برای یک ادعا نداری، به‌صراحت بگو که برای آن مورد، استناد قطعی در دسترس نیست و از ذکر شماره ماده یا رأی ساختگی خودداری کن.",
-    "این یک مشاوره رسمی یا نظر قطعی قضایی نیست؛ در پایان، کاربر را در موارد مهم به مشاوره با وکیل متخصص ارجاع بده.",
-  ];
-
-  if (contextBlock) {
-    parts.push(contextBlock);
-  }
-
-  return parts.join("\n\n");
 }
 
 function markdownToSections(md: string): StructuredResponseSection[] {
@@ -123,10 +112,6 @@ async function streamAssistant(
   userId: string,
   body: StreamRequestBody
 ): Promise<void> {
-  const serviceType = categoryToServiceType(
-    body.context?.serviceType ?? body.context?.category
-  );
-
   // Persist the user message first (§22 — no message loss).
   const userMessageId = crypto.randomUUID();
   appendMessage(body.conversationId, {
@@ -138,15 +123,46 @@ async function streamAssistant(
     createdAt: new Date().toISOString(),
   });
 
-  // Count the request against usage (§26).
-  incrementDailyRequest(userId);
+  // Count the request against the day's plan-derived allowance (§26).
+  consumeDailyRequest(userId);
+
+  // Bump the conversation so it surfaces at the top of the history list.
+  touchConversation(userId, body.conversationId);
 
   const provider = createAiProvider();
 
   // Grounding (§24) — retrieve relevant verified legal sources.
   const grounding = retrieveGroundedSources(body.content, 3);
 
-  const system = buildSystemPrompt(serviceType, grounding.contextBlock);
+  // Document grounding — when the chat is scoped to one of the user's
+  // documents (e.g. a rental contract), inject its text + findings so the
+  // AI can answer about that exact document.
+  const docContext = retrieveDocumentContext(userId, body.context?.documentId);
+
+  // Workflow engine — load state, process turn, get phase-specific prompt.
+  const workflowState: WorkflowState =
+    getWorkflowState(body.conversationId) ?? createInitialWorkflowState();
+
+  const turn = processWorkflowTurn(workflowState, body.content, grounding.contextBlock);
+  setWorkflowState(body.conversationId, turn.state);
+
+  // Emit workflow metadata so the frontend can show phase/progress.
+  emit({
+    type: "workflow",
+    phase: turn.state.phase,
+    domain: turn.state.domain,
+    intent: turn.state.intent,
+    phaseChanged: turn.phaseChanged,
+    pendingQuestions: turn.state.pendingQuestions,
+    suggestCaseCreation: turn.suggestCaseCreation,
+  });
+
+  // Compose the system prompt: workflow prompt + legal grounding + document context.
+  const system = [
+    turn.systemPrompt,
+    grounding.contextBlock ? `\n\n${grounding.contextBlock}` : "",
+    docContext ? `\n\n${docContext.contextBlock}` : "",
+  ].join("");
 
   // Build conversation history (the just-added user msg is passed
   // explicitly as the final turn, so exclude it from history).
@@ -222,6 +238,19 @@ export async function POST(request: Request) {
     return new Response(
       JSON.stringify({ code: "VALIDATION_ERROR", message: "متن پیام الزامی است" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // Enforce the day's allowance before doing any work.
+  const quota = queryDailyQuota(userId);
+  if (quota.exhausted) {
+    return new Response(
+      JSON.stringify({
+        code: "QUOTA_EXHAUSTED",
+        message: "سهمیه درخواست امروز شما به پایان رسیده است.",
+        quota,
+      }),
+      { status: 429, headers: { "Content-Type": "application/json" } }
     );
   }
 

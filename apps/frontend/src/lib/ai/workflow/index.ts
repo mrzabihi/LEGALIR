@@ -1,0 +1,17 @@
+export {
+  type WorkflowPhase,
+  type WorkflowState,
+  type IntentResult,
+  type PhaseTransition,
+  type WorkflowTurnResult,
+  createInitialWorkflowState,
+  detectIntent,
+  generateMissingInfoQuestions,
+  determineNextPhase,
+  extractFacts,
+  buildWorkflowSystemPrompt,
+  processWorkflowTurn,
+  getWorkflowState,
+  setWorkflowState,
+  clearWorkflowState,
+} from "./engine";

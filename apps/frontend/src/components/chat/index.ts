@@ -18,3 +18,5 @@ export { SourceCard } from "./source-card";
 export { SourceDetailDrawer } from "./source-detail-drawer";
 export { ReferencesTab } from "./references-tab";
 export { SourcesTab } from "./sources-tab";
+export { WorkflowProgress } from "./workflow-progress";
+export type { WorkflowPhase, WorkflowProgressProps } from "./workflow-progress";

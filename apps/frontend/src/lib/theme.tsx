@@ -12,27 +12,14 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getInitialTheme(): Theme {
-  if (typeof document !== "undefined") {
-    const attr = document.documentElement.getAttribute("data-theme");
-    if (attr === "dark") return "dark";
-  }
-  return "light";
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
-  const [mounted, setMounted] = useState(false);
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     const stored = localStorage.getItem("legalir-theme") as Theme | null;
-    if (stored === "light" || stored === "dark") {
-      setThemeState(stored);
-    } else {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setThemeState(prefersDark ? "dark" : "light");
-    }
-    setMounted(true);
+    const resolved: Theme = stored === "light" || stored === "dark" ? stored : "light";
+    setThemeState(resolved);
+    document.documentElement.setAttribute("data-theme", resolved);
   }, []);
 
   const applyTheme = useCallback((t: Theme) => {
@@ -47,10 +34,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme: applyTheme }}>
-      {/* SuppressHydrationWarning: children may render before client theme resolves */}
-      <div style={mounted ? undefined : { visibility: "hidden" }} suppressHydrationWarning>
-        {children}
-      </div>
+      {children}
     </ThemeContext.Provider>
   );
 }

@@ -8,15 +8,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTheme } from "@/lib/theme";
 import { useLogout } from "@/lib/auth/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMe } from "@/hooks/useDashboard";
 import { useRewardsSummary } from "@/hooks/useRewards";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
-  IconLightMode,
-  IconDarkMode,
   IconPerson,
   IconLogout,
   IconSettings,
@@ -59,9 +56,6 @@ export function TopBar() {
       </Link>
 
       <div className="flex-1" />
-
-      {/* Theme Toggle */}
-      <ThemeToggleButton />
 
       {/* Quick support button */}
       <Link
@@ -114,20 +108,6 @@ export function TopBar() {
   );
 }
 
-function ThemeToggleButton() {
-  const { theme, toggleTheme } = useTheme();
-
-  return (
-    <button
-      onClick={toggleTheme}
-      className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-neutral-100 active:scale-95 transition-all duration-200 touch-target-min"
-      aria-label={theme === "light" ? "حالت تیره" : "حالت روشن"}
-    >
-      {theme === "light" ? <IconDarkMode size={20} className="text-neutral-600" /> : <IconLightMode size={20} className="text-amber-400" />}
-    </button>
-  );
-}
-
 function UserMenuDropdown({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { data: meData } = useMe();
@@ -150,7 +130,7 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
     >
       {/* User info header */}
       <div className="px-4 py-3.5 border-b border-divider bg-neutral-50/50">
-        <p className="text-body-2 text-on-surface font-semibold">{displayName ?? "کاربر LEGALIR"}</p>
+        <p className="text-body-2 text-on-surface font-semibold">{displayName ?? "کاربر لیگالیر"}</p>
         {mobile && <p className="text-caption text-muted dir-ltr text-right mt-0.5">{mobile}</p>}
       </div>
 

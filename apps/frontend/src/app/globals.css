@@ -791,6 +791,24 @@ html {
   animation: glow-pulse 3s ease-in-out infinite;
 }
 
+/* Light sweep across a card (active-requests blink effect) */
+@keyframes light-sweep {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
+}
+.animate-light-sweep {
+  animation: light-sweep 2.4s ease-in-out infinite;
+}
+
+/* Soft status dot blink */
+@keyframes status-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.animate-status-blink {
+  animation: status-blink 1.6s ease-in-out infinite;
+}
+
 /* Card hover lift effect */
 .card-lift {
   transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1),

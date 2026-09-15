@@ -2,6 +2,15 @@
 // LEGALIR — Testing Utilities & Fixtures
 // ============================================================
 
+function generateId(): string {
+  // crypto.randomUUID() is unavailable in non-secure browser contexts.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 import type {
   UserSummary,
   Profile,
@@ -756,7 +765,7 @@ export const fixtureV1UsageResponse: V1UsageResponse = {
 export function createCheckoutIntent(planCode: string, status: PaymentStatus = "idle"): CheckoutIntent {
   const plan = fixturePlans.find((p) => p.code === planCode) ?? fixturePlans[0]!;
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     planCode: plan.code,
     amount: plan.salePrice,
     currency: "IRT",
@@ -1003,7 +1012,7 @@ export function createAiRunFixture(
   status: AiRun["status"] = "succeeded"
 ): AiRun {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     conversationId,
     messageId,
     modelRef: "legalir-v1.0",

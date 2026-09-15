@@ -52,11 +52,11 @@ export function ContractFilterBar({
 
       {/* Filters Row */}
       <div className="flex flex-col tablet:flex-row gap-2">
-        {/* State Filter */}
-        <div className="flex flex-wrap gap-1">
+        {/* State Filter — equal-width chips in a single row */}
+        <div className="flex flex-1 gap-1">
           <button
             onClick={() => onStateFilterChange(undefined)}
-            className={`rounded-small px-3 py-1.5 text-caption transition-colors touch-target ${
+            className={`flex-1 min-w-0 rounded-small px-2 py-1.5 text-caption text-center transition-colors touch-target ${
               !stateFilter
                 ? "bg-primary text-white"
                 : "bg-surface-container text-muted hover:bg-surface-container-high"
@@ -68,7 +68,7 @@ export function ContractFilterBar({
             <button
               key={s}
               onClick={() => onStateFilterChange(s)}
-              className={`rounded-small px-3 py-1.5 text-caption transition-colors touch-target ${
+              className={`flex-1 min-w-0 rounded-small px-2 py-1.5 text-caption text-center transition-colors touch-target ${
                 stateFilter === s
                   ? "bg-primary text-white"
                   : "bg-surface-container text-muted hover:bg-surface-container-high"

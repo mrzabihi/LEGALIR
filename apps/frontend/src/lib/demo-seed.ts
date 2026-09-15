@@ -20,12 +20,20 @@ import type {
   V1ContractClause,
   V1ContractRiskAnalysis,
   V1MemoryItem,
+  V1ContractDraft,
+  V1ContractGenerateResponse,
+  V1ContractType,
 } from "@legalir/types";
+import {
+  LAW_SEED_VERSION,
+  buildLawDocuments,
+  buildLawMemories,
+} from "./law-catalog";
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
 export const DEMO_USER_MOBILE = "09120000003";
-export const DEMO_SEED_VERSION = "legalir-demo-v3";
+export const DEMO_SEED_VERSION = "legalir-demo-v4";
 
 // ============================================================
 // JSON-DB primitives (self-contained to avoid a circular import
@@ -107,6 +115,7 @@ const DOC_NDA = "doc-nda-001";
 const DOC_BOARD = "doc-board-001";
 const DOC_LICENSE = "doc-license-001";
 const DOC_CHECK = "doc-check-001";
+const DOC_RENT = "doc-rent-001";
 
 const demoDocuments = (userId: string): V1DocumentDetail[] => [
   {
@@ -351,6 +360,73 @@ const demoDocuments = (userId: string): V1DocumentDetail[] => [
     report: null,
     extractedText: null,
     previewUrl: null,
+  },
+  {
+    id: DOC_RENT,
+    userId,
+    name: "قرارداد-اجاره-مسکونی.pdf",
+    mime: "application/pdf",
+    sizeBytes: 148_000,
+    status: "ready",
+    storageKey: "demo-documents/قرارداد-اجاره-مسکونی.pdf",
+    createdAt: "2026-08-20T10:00:00Z",
+    updatedAt: "2026-08-20T11:10:00Z",
+    jobs: completedJobs(DOC_RENT),
+    report: {
+      documentId: DOC_RENT,
+      summary: "در این قرارداد اجاره مسکونی ۴ مورد نیازمند توجه شناسایی شد؛ شامل ۱ مورد با ریسک بالا و ۲ مورد متوسط.",
+      findings: [
+        {
+          id: "find-rent-1",
+          documentId: DOC_RENT,
+          title: "مبلغ ودیعه و اجاره بدون سقف افزایش",
+          severity: "high",
+          locator: "ماده ۳، صفحه ۱",
+          reason: "مبلغ ودیعه ۵۰۰ میلیون ریال و اجاره ماهانه ۸۵ میلیون ریال تعیین شده اما سقف افزایش سالانه اجاره مطابق نرخ تورم و ماده ۴ قانون روابط موجر و مستأجر ۱۳۷۶ قید نشده است.",
+          recommendation: "سقف افزایش سالانه اجاره را به نرخ تورم اعلامی بانک مرکزی یا سقف قانونی پیوند دهید.",
+          citation: null,
+          confidence: 0.88,
+        },
+        {
+          id: "find-rent-2",
+          documentId: DOC_RENT,
+          title: "شرط فسخ یک‌طرفه به نفع موجر",
+          severity: "high",
+          locator: "ماده ۸، صفحه ۲",
+          reason: "به موجر حق فسخ یک‌طرفه بدون دلیل موجه و بدون مهلت اخطار داده شده که خلاف اصل لزوم قراردادها و حقوق مستأجر است.",
+          recommendation: "شرایط فسخ را به موارد قانونی (عدم پرداخت اجاره، تخریب ملک) محدود و مهلت اخطار تعیین کنید.",
+          citation: null,
+          confidence: 0.9,
+        },
+        {
+          id: "find-rent-3",
+          documentId: DOC_RENT,
+          title: "مسئولیت تعمیرات مبهم",
+          severity: "medium",
+          locator: "ماده ۶، صفحه ۱",
+          reason: "تقسیم مسئولیت تعمیرات جزئی و اساسی بین موجر و مستأجر مشخص نشده و به «توافق طرفین» ارجاع داده شده است.",
+          recommendation: "تعمیرات اساسی (سازه، تأسیسات) بر عهده موجر و تعمیرات جزئی بر عهده مستأجر قید شود.",
+          citation: null,
+          confidence: 0.82,
+        },
+        {
+          id: "find-rent-4",
+          documentId: DOC_RENT,
+          title: "عدم ذکر مهلت تخلیه و تحویل ملک",
+          severity: "medium",
+          locator: "ماده ۹، صفحه ۲",
+          reason: "مهلت تخلیه پس از پایان مدت و نحوه تحویل ملک (بازدید، صورت‌جلسه) مشخص نشده است.",
+          recommendation: "مهلت تخلیه، شرط بازدید پایانی و تنظیم صورت‌جلسه تحویل را صریحاً درج کنید.",
+          citation: null,
+          confidence: 0.79,
+        },
+      ],
+      generatedAt: "2026-08-20T11:10:00Z",
+      confidence: 0.85,
+    },
+    extractedText:
+      "قرارداد اجاره مسکونی\nاین قرارداد فی‌مابین آقای حسین کاظمی (موجر) و خانم زهرا محمدی (مستأجر) منعقد می‌گردد. ماده ۱ موضوع اجاره: یک واحد آپارتمان مسکونی به مساحت ۹۵ متر مربع واقع در تهران، خیابان ولیعصر، پلاک ۱۲۴، واحد ۳. ماده ۲ مدت اجاره: یک سال شمسی از ۱۴۰۵/۰۶/۰۱ تا ۱۴۰۶/۰۵/۳۱. ماده ۳ مبلغ اجاره: ودیعه ۵۰۰/۰۰۰/۰۰۰ ریال و اجاره ماهانه ۸۵/۰۰۰/۰۰۰ ریال که در ابتدای هر ماه پرداخت می‌شود. ماده ۴ نحوه پرداخت: از طریق واریز به حساب بانکی موجر. ماده ۵ استفاده از ملک: صرفاً برای سکونت. ماده ۶ تعمیرات: تعمیرات جزئی بر عهده مستأجر و تعمیرات اساسی بر عهده موجر، مگر توافق طرفین. ماده ۷ بیمه: ملک توسط موجر بیمه می‌شود. ماده ۸ فسخ: موجر حق فسخ یک‌طرفه قرارداد را در صورت تخلف مستأجر دارد. ماده ۹ تخلیه: پس از پایان مدت، مستأجر موظف به تخلیه ملک است.",
+    previewUrl: "/demo-documents/قرارداد-اجاره-مسکونی.pdf",
   },
 ];
 
@@ -900,6 +976,169 @@ function seedDemoIdentity(userId: string): void {
   writeTable("subscriptions", [...others, ...demoSubs]);
 }
 
+// ============================================================
+// Demo Cases (3 cases with timeline + tasks)
+// ============================================================
+
+import type { DbCase, DbCaseTimelineEvent, DbCaseTask } from "./case-db";
+
+function demoCases(userId: string): { cases: DbCase[]; timeline: DbCaseTimelineEvent[]; tasks: DbCaseTask[] } {
+  const case1Id = "case-demo-001";
+  const case2Id = "case-demo-002";
+  const case3Id = "case-demo-003";
+
+  const cases: DbCase[] = [
+    {
+      id: case1Id,
+      user_id: userId,
+      title: "اختلاف با پیمانکار شبکه درباره تأخیر در رفع اشکال",
+      description: "پیمانکار شبکه (شرکت داده‌گستر) در رفع اشکال زیرساخت شبکه تأخیر داشته و طبق بند SLA قرارداد باید جریمه پرداخت کند. نیاز به بررسی قرارداد و ارسال اخطار قانونی داریم.",
+      category: "contract",
+      status: "ACTIVE",
+      priority: "high",
+      created_at: "2026-08-05T10:00:00Z",
+      updated_at: "2026-08-20T10:00:00Z",
+    },
+    {
+      id: case2Id,
+      user_id: userId,
+      title: "بررسی قرارداد استخدام مدیر فنی جدید",
+      description: "قرارداد استخدام آقای سعید مرادی به عنوان کارشناس ارشد شبکه تنظیم شده و نیاز به بررسی حقوقی از نظر بیمه تأمین اجتماعی، دوره آزمایشی و شرط عدم رقابت دارد.",
+      category: "employment",
+      status: "UNDER_REVIEW",
+      priority: "medium",
+      created_at: "2026-08-02T08:30:00Z",
+      updated_at: "2026-08-15T14:00:00Z",
+    },
+    {
+      id: case3Id,
+      user_id: userId,
+      title: "مشاوره مالیاتی شرکت رهام پارس",
+      description: "بررسی وضعیت مالیاتی شرکت برای سال ۱۴۰۵، محاسبه مالیات بر درآمد و بررسی معافیت‌های مالیاتی قابل اعمال برای شرکت‌های فنی و مهندسی.",
+      category: "tax",
+      status: "DRAFT",
+      priority: "low",
+      created_at: "2026-08-18T09:00:00Z",
+      updated_at: "2026-08-18T09:00:00Z",
+    },
+  ];
+
+  const timeline: DbCaseTimelineEvent[] = [
+    {
+      id: "tl-001-1", case_id: case1Id, event_type: "case_created",
+      title: "ایجاد پرونده", description: "پرونده اختلاف با پیمانکار شبکه ایجاد شد",
+      metadata: {}, created_at: "2026-08-05T10:00:00Z",
+    },
+    {
+      id: "tl-001-2", case_id: case1Id, event_type: "document_uploaded",
+      title: "بارگذاری قرارداد پیمانکاری", description: "قرارداد پیمانکاری خدمات فنی و پشتیبانی شبکه بارگذاری و تحلیل شد",
+      metadata: { documentId: "doc-ctr-001" }, created_at: "2026-08-05T11:00:00Z",
+    },
+    {
+      id: "tl-001-3", case_id: case1Id, event_type: "ai_analysis_completed",
+      title: "تحلیل هوش مصنوعی تکمیل شد", description: "تحلیل قرارداد نشان داد بند SLA و جریمه تأخیر به نفع کارفرما قابل استناد است",
+      metadata: { confidence: 0.85 }, created_at: "2026-08-06T09:00:00Z",
+    },
+    {
+      id: "tl-001-4", case_id: case1Id, event_type: "note_added",
+      title: "یادداشت جلسه با پیمانکار", description: "جلسه با نماینده پیمانکار برگزار شد. پیمانکار علت تأخیر را مشکل تأمین قطعه اعلام کرد و درخواست مهلت ۱۰ روزه داد.",
+      metadata: {}, created_at: "2026-08-12T14:00:00Z",
+    },
+    {
+      id: "tl-002-1", case_id: case2Id, event_type: "case_created",
+      title: "ایجاد پرونده", description: "پرونده بررسی قرارداد استخدام ایجاد شد",
+      metadata: {}, created_at: "2026-08-02T08:30:00Z",
+    },
+    {
+      id: "tl-002-2", case_id: case2Id, event_type: "document_uploaded",
+      title: "بارگذاری پیش‌نویس قرارداد", description: "پیش‌نویس قرارداد استخدام مدیر فنی بارگذاری شد",
+      metadata: { documentId: "doc-emp-001" }, created_at: "2026-08-02T09:00:00Z",
+    },
+    {
+      id: "tl-002-3", case_id: case2Id, event_type: "ai_analysis_completed",
+      title: "تحلیل قرارداد تکمیل شد", description: "۵ مورد نیازمند توجه شناسایی شد: ۱ مورد بحرانی (حق بیمه)، ۲ مورد با ریسک بالا",
+      metadata: { confidence: 0.84, findingsCount: 5 }, created_at: "2026-08-02T09:15:00Z",
+    },
+    {
+      id: "tl-003-1", case_id: case3Id, event_type: "case_created",
+      title: "ایجاد پرونده", description: "پرونده مشاوره مالیاتی ایجاد شد",
+      metadata: {}, created_at: "2026-08-18T09:00:00Z",
+    },
+  ];
+
+  const tasks: DbCaseTask[] = [
+    {
+      id: "task-001-1", case_id: case1Id, title: "ارسال اخطار کتبی به پیمانکار",
+      description: "اخطار رسمی با استناد به بند SLA و جریمه تأخیر قرارداد تنظیم و ارسال شود",
+      status: "done", priority: "high", due_date: "2026-08-10T00:00:00Z",
+      created_at: "2026-08-05T10:30:00Z", updated_at: "2026-08-09T16:00:00Z",
+    },
+    {
+      id: "task-001-2", case_id: case1Id, title: "محاسبه جریمه تأخیر",
+      description: "مبلغ جریمه بر اساس بند قرارداد (یک‌دهم درصد به ازای هر روز) محاسبه شود",
+      status: "in_progress", priority: "high", due_date: "2026-08-22T00:00:00Z",
+      created_at: "2026-08-10T09:00:00Z", updated_at: "2026-08-20T10:00:00Z",
+    },
+    {
+      id: "task-001-3", case_id: case1Id, title: "بررسی گزینه‌های قانونی جایگزین",
+      description: "در صورت عدم همکاری پیمانکار، گزینه‌های داوری و طرح دعوی بررسی شود",
+      status: "todo", priority: "medium", due_date: "2026-08-30T00:00:00Z",
+      created_at: "2026-08-15T11:00:00Z", updated_at: "2026-08-15T11:00:00Z",
+    },
+    {
+      id: "task-002-1", case_id: case2Id, title: "اصلاح بند بیمه تأمین اجتماعی",
+      description: "سهم دقیق حق بیمه (کارگر ۷٪، کارفرما ۲۰٪، دولت ۳٪) و مهلت واریز در قرارداد درج شود",
+      status: "done", priority: "high", due_date: "2026-08-05T00:00:00Z",
+      created_at: "2026-08-02T09:30:00Z", updated_at: "2026-08-04T15:00:00Z",
+    },
+    {
+      id: "task-002-2", case_id: case2Id, title: "تعیین شاخص‌های ارزیابی دوره آزمایشی",
+      description: "معیارهای عینی سنجش عملکرد در دوره ۳ ماهه آزمایشی تعریف و به قرارداد اضافه شود",
+      status: "in_progress", priority: "medium", due_date: "2026-08-25T00:00:00Z",
+      created_at: "2026-08-05T10:00:00Z", updated_at: "2026-08-15T14:00:00Z",
+    },
+    {
+      id: "task-002-3", case_id: case2Id, title: "محدودسازی شرط عدم رقابت",
+      description: "دامنه عدم رقابت به فعالیت‌های مشخص و رقبای مستقیم محدود و جبران مالی پیش‌بینی شود",
+      status: "todo", priority: "medium", due_date: "2026-09-01T00:00:00Z",
+      created_at: "2026-08-05T10:00:00Z", updated_at: "2026-08-05T10:00:00Z",
+    },
+    {
+      id: "task-003-1", case_id: case3Id, title: "جمع‌آوری اسناد مالی سال ۱۴۰۴",
+      description: "اظهارنامه مالیاتی، ترازنامه، سود و زیان و اسناد هزینه‌های قابل قبول مالیاتی",
+      status: "todo", priority: "medium", due_date: "2026-09-15T00:00:00Z",
+      created_at: "2026-08-18T09:00:00Z", updated_at: "2026-08-18T09:00:00Z",
+    },
+    {
+      id: "task-003-2", case_id: case3Id, title: "بررسی معافیت‌های مالیاتی شرکت‌های فنی",
+      description: "ماده ۱۳۲ قانون مالیات‌های مستقیم و معافیت‌های مناطق کمتر توسعه‌یافته بررسی شود",
+      status: "todo", priority: "low", due_date: "2026-09-30T00:00:00Z",
+      created_at: "2026-08-18T09:00:00Z", updated_at: "2026-08-18T09:00:00Z",
+    },
+  ];
+
+  return { cases, timeline, tasks };
+}
+
+export function seedDemoCases(userId: string): void {
+  const { cases, timeline, tasks } = demoCases(userId);
+
+  const existingCases = readTable<DbCase>("cases");
+  const existingIds = new Set(existingCases.map((c) => c.id));
+  const newCases = cases.filter((c) => !existingIds.has(c.id));
+  if (newCases.length > 0) writeTable("cases", [...existingCases, ...newCases]);
+
+  const existingTimeline = readTable<DbCaseTimelineEvent>("case_timeline");
+  const existingTlIds = new Set(existingTimeline.map((e) => e.id));
+  const newTimeline = timeline.filter((e) => !existingTlIds.has(e.id));
+  if (newTimeline.length > 0) writeTable("case_timeline", [...existingTimeline, ...newTimeline]);
+
+  const existingTasks = readTable<DbCaseTask>("case_tasks");
+  const existingTaskIds = new Set(existingTasks.map((t) => t.id));
+  const newTasks = tasks.filter((t) => !existingTaskIds.has(t.id));
+  if (newTasks.length > 0) writeTable("case_tasks", [...existingTasks, ...newTasks]);
+}
+
 export function seedDemoContent(userId: string): void {
   const meta = getDemoMeta();
   if (meta && meta.version === DEMO_SEED_VERSION && meta.userId === userId) return;
@@ -932,6 +1171,52 @@ export function seedDemoContent(userId: string): void {
 }
 
 // ============================================================
+// Law content seed (16 official law files) — append-only & idempotent
+// ============================================================
+
+interface LawMeta {
+  version: string;
+  userId: string;
+  seededAt: string;
+}
+
+function getLawMeta(): LawMeta | undefined {
+  return readTable<LawMeta>("law_meta")[0];
+}
+
+/**
+ * Seed the 16 official law files as اسناد rows and حافظه legal_context
+ * items. Append-only: never clobbers existing (user) rows, and guarded by
+ * `law_meta` version so re-running the dev server never duplicates.
+ */
+export function seedLawContent(userId: string): void {
+  const meta = getLawMeta();
+  if (meta && meta.version === LAW_SEED_VERSION && meta.userId === userId) return;
+
+  // Documents: append law documents not already present (by id).
+  const lawDocs = buildLawDocuments(userId);
+  const existingDocs = readTable<V1DocumentDetail>("documents");
+  const docIds = new Set(existingDocs.map((d) => d.id));
+  const newDocs = lawDocs.filter((d) => !docIds.has(d.id));
+  if (newDocs.length > 0) {
+    writeTable<V1DocumentDetail>("documents", [...existingDocs, ...newDocs]);
+  }
+
+  // Memories: append law memories not already present (by id).
+  const lawMems = buildLawMemories(userId);
+  const existingMems = readTable<V1MemoryItem>("memories");
+  const memIds = new Set(existingMems.map((m) => m.id));
+  const newMems = lawMems.filter((m) => !memIds.has(m.id));
+  if (newMems.length > 0) {
+    writeTable<V1MemoryItem>("memories", [...existingMems, ...newMems]);
+  }
+
+  writeTable<LawMeta>("law_meta", [
+    { version: LAW_SEED_VERSION, userId, seededAt: new Date().toISOString() },
+  ]);
+}
+
+// ============================================================
 // Query layer (used by the API routes)
 // ============================================================
 
@@ -952,6 +1237,54 @@ export function deleteDemoDocument(userId: string, id: string): boolean {
   rows.splice(idx, 1);
   writeTable("documents", rows);
   return true;
+}
+
+/**
+ * Create a new document row in the JSON DB (upload flow). The document starts
+ * in the "processing" state with an empty job list; the analysis pipeline is
+ * simulated by the frontend. Returns the created V1DocumentDetail.
+ */
+export function createDemoDocument(
+  userId: string,
+  input: { name: string; mime: string; sizeBytes: number }
+): V1DocumentDetail {
+  const rows = readTable<V1DocumentDetail>("documents");
+  const now = new Date().toISOString();
+  const doc: V1DocumentDetail = {
+    id: `doc-${crypto.randomUUID()}`,
+    userId,
+    name: input.name,
+    mime: input.mime,
+    sizeBytes: input.sizeBytes,
+    status: "processing",
+    storageKey: null,
+    createdAt: now,
+    updatedAt: now,
+    jobs: [],
+    report: null,
+    extractedText: null,
+    previewUrl: null,
+  };
+  rows.push(doc);
+  writeTable("documents", rows);
+  return doc;
+}
+
+/**
+ * Update a document's status (e.g. processing → ready after upload completes).
+ * Returns the updated row, or undefined if the document is not found.
+ */
+export function updateDemoDocumentStatus(
+  userId: string,
+  id: string,
+  status: V1DocumentDetail["status"]
+): V1DocumentDetail | undefined {
+  const rows = readTable<V1DocumentDetail>("documents");
+  const idx = rows.findIndex((d) => d.id === id && d.userId === userId);
+  if (idx === -1) return undefined;
+  rows[idx] = { ...rows[idx]!, status, updatedAt: new Date().toISOString() };
+  writeTable("documents", rows);
+  return rows[idx];
 }
 
 export function listDemoContracts(userId: string) {
@@ -988,10 +1321,270 @@ export function deleteDemoMemory(userId: string, id: string): boolean {
   return true;
 }
 
+export function createDemoMemory(
+  userId: string,
+  input: { key: string; value: string; category?: V1MemoryItem["category"] }
+): V1MemoryItem {
+  const now = new Date().toISOString();
+  const category = input.category ?? "legal_context";
+  const categoryFa =
+    category === "profile"
+      ? "اطلاعات کاربر"
+      : category === "preference"
+        ? "تنظیمات برگزیده"
+        : "اطلاعات حقوقی";
+  const item: V1MemoryItem = {
+    id: crypto.randomUUID(),
+    userId,
+    key: input.key.trim(),
+    value: input.value.trim(),
+    category,
+    categoryFa,
+    sensitivity: category === "legal_context" ? "normal" : "normal",
+    sensitivityFa: "عادی",
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+    consentGiven: true,
+    consentDate: now,
+  };
+  const rows = readTable<V1MemoryItem>("memories");
+  rows.push(item);
+  writeTable("memories", rows);
+  return item;
+}
+
 export function listDemoRelationships(userId: string, sourceType?: string, sourceId?: string): DemoRelationship[] {
   let rows = readTable<DemoRelationship>("relationships").filter((r) => r.userId === userId);
   if (sourceType && sourceId) {
     rows = rows.filter((r) => r.sourceType === sourceType && r.sourceId === sourceId);
   }
   return rows;
+}
+
+// ============================================================
+// Contract create / update / generate (mutates .data/contracts.json)
+// ============================================================
+// These back the "قرارداد جدید" wizard so a user-created contract is
+// persisted and appears in the list/detail, then "generated" into a
+// version + content (a deterministic template, not a real LLM call).
+
+export interface CreateDemoContractResult {
+  id: string;
+  typeId: V1ContractType;
+  title: string;
+  typeFa: string;
+  category: "personal" | "business";
+  state: "collecting";
+  createdAt: string;
+}
+
+export function createDemoContract(
+  userId: string,
+  typeId: V1ContractType,
+  title: string
+): CreateDemoContractResult {
+  const typeFa =
+    typeId === "lease" ? "اجاره"
+    : typeId === "sale_purchase" ? "خرید و فروش"
+    : typeId === "loan" ? "قرض"
+    : typeId === "partnership" ? "شراکت"
+    : typeId === "nda" ? "NDA"
+    : typeId === "employment" ? "استخدام"
+    : typeId === "saas" ? "SaaS"
+    : typeId === "contracting" ? "پیمانکاری"
+    : "سرمایه‌گذاری";
+  const category: "personal" | "business" =
+    typeId === "lease" || typeId === "sale_purchase" || typeId === "loan" || typeId === "partnership"
+      ? "personal"
+      : "business";
+
+  const id = `cnt-${typeId}-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+
+  const contract: V1ContractDetail = {
+    id,
+    userId,
+    title,
+    type: typeId,
+    typeFa,
+    category,
+    state: "collecting",
+    currentVersionId: null,
+    currentVersionNumber: 0,
+    versions: [],
+    analysis: null,
+    attachments: [],
+    createdAt: now,
+    updatedAt: now,
+    disclaimer: DISCLAIMER,
+  };
+
+  const rows = readTable<V1ContractDetail>("contracts");
+  rows.push(contract);
+  writeTable("contracts", rows);
+
+  return { id, typeId, title, typeFa, category, state: "collecting", createdAt: now };
+}
+
+export function updateDemoContract(
+  userId: string,
+  id: string,
+  updates: { title?: string; state?: V1ContractDetail["state"]; answers?: Record<string, string> }
+): V1ContractDetail | undefined {
+  const rows = readTable<V1ContractDetail>("contracts");
+  const idx = rows.findIndex((c) => c.id === id && c.userId === userId);
+  if (idx === -1) return undefined;
+
+  const existing = rows[idx]!;
+  const merged: V1ContractDetail = {
+    ...existing,
+    ...(updates.title !== undefined ? { title: updates.title } : {}),
+    ...(updates.state !== undefined ? { state: updates.state } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // If answers were provided, attach them to the latest version (or create v1).
+  if (updates.answers && merged.versions.length > 0) {
+    const last = merged.versions[merged.versions.length - 1]!;
+    last.answers = { ...last.answers, ...updates.answers };
+    merged.updatedAt = new Date().toISOString();
+  }
+
+  rows[idx] = merged;
+  writeTable("contracts", rows);
+  return merged;
+}
+
+/** Build a deterministic draft contract from the wizard answers. */
+function buildGeneratedContent(title: string, typeFa: string, answers: Record<string, string>): string {
+  const lines: string[] = [`${title}`, "", "ماده ۱ - طرفین قرارداد"];
+  const partyKeys = Object.keys(answers).filter((k) => k.includes("name") || k.includes("party") || k.includes("employer") || k.includes("employee"));
+  if (partyKeys.length > 0) {
+    lines.push(partyKeys.map((k) => `${answers[k]}`).join(" و ") + " طرفین این قرارداد می‌باشند.");
+  } else {
+    lines.push("طرفین این قرارداد به شرح ذیل معرفی می‌شوند.");
+  }
+  lines.push("", "ماده ۲ - موضوع قرارداد");
+  lines.push(`موضوع این قرارداد، ${typeFa} بر اساس توافقات فی‌مابین طرفین است.`);
+  lines.push("", "ماده ۳ - شرایط و تعهدات");
+  const other = Object.entries(answers).filter(([k]) => !partyKeys.includes(k));
+  if (other.length > 0) {
+    for (const [k, v] of other) lines.push(`- ${k}: ${v}`);
+  } else {
+    lines.push("- شرایط و تعهدات طرفین مطابق توافقات صورت‌گرفته اجرا می‌گردد.");
+  }
+  lines.push("", "ماده ۴ - حل اختلاف");
+  lines.push("در صورت بروز اختلاف، طرفین ابتدا به مذاکره و در صورت عدم حصول نتیجه به مرجع صالح قضایی مراجعه خواهند نمود.");
+  return lines.join("\n");
+}
+
+export function generateDemoContract(
+  userId: string,
+  id: string
+): V1ContractGenerateResponse | undefined {
+  const rows = readTable<V1ContractDetail>("contracts");
+  const idx = rows.findIndex((c) => c.id === id && c.userId === userId);
+  if (idx === -1) return undefined;
+
+  const existing = rows[idx]!;
+  const now = new Date().toISOString();
+  const versionNumber = existing.versions.length + 1;
+
+  // Prefer the answers captured on the contract's latest version; fall back
+  // to the wizard draft (which holds the answers until generation completes).
+  let answers = existing.versions[existing.versions.length - 1]?.answers ?? {};
+  if (Object.keys(answers).length === 0) {
+    const draft = getDemoContractDraft(userId, existing.type);
+    if (draft) answers = draft.answers;
+  }
+
+  const content = buildGeneratedContent(existing.title, existing.typeFa, answers);
+
+  const version: V1ContractVersionDetail = {
+    id: `${id}-ver-${versionNumber}`,
+    contractId: id,
+    versionNumber,
+    answers,
+    content,
+    clauses: [
+      { id: `${id}-cl-1`, title: "ماده ۱ - طرفین قرارداد", content: "مشخصات طرفین قرارداد.", isProtective: false, importance: "essential" },
+      { id: `${id}-cl-2`, title: "ماده ۲ - موضوع قرارداد", content: `موضوع قرارداد ${existing.typeFa} است.`, isProtective: false, importance: "essential" },
+      { id: `${id}-cl-3`, title: "ماده ۴ - حل اختلاف", content: "ارجاع اختلاف به مذاکره و سپس مرجع صالح.", isProtective: true, importance: "recommended" },
+    ],
+    state: "generated",
+    createdAt: now,
+  };
+
+  const merged: V1ContractDetail = {
+    ...existing,
+    state: "generated",
+    currentVersionId: version.id,
+    currentVersionNumber: versionNumber,
+    versions: [...existing.versions, version],
+    updatedAt: now,
+  };
+
+  rows[idx] = merged;
+  writeTable("contracts", rows);
+
+  return {
+    id,
+    state: "generated",
+    currentVersionId: version.id,
+    versionNumber,
+    content,
+    clauses: version.clauses,
+  };
+}
+
+// ============================================================
+// Contract drafts (mutates .data/contract-drafts.json)
+// ============================================================
+
+export function getDemoContractDraft(userId: string, typeId: string): V1ContractDraft | null {
+  const rows = readTable<(V1ContractDraft & { userId: string })>("contract-drafts");
+  const existing = rows.find((d) => d.userId === userId && d.typeId === typeId);
+  if (!existing) return null;
+  const { userId: _u, ...draft } = existing;
+  return draft;
+}
+
+export function saveDemoContractDraft(
+  userId: string,
+  typeId: string,
+  currentStep: number,
+  answers: Record<string, string>
+): V1ContractDraft {
+  const rows = readTable<(V1ContractDraft & { userId: string })>("contract-drafts");
+  const idx = rows.findIndex((d) => d.userId === userId && d.typeId === typeId);
+  const now = new Date().toISOString();
+
+  const draft: V1ContractDraft & { userId: string } = {
+    id: `draft-${typeId}`,
+    userId,
+    contractId: null,
+    typeId: typeId as V1ContractType,
+    currentStep,
+    answers,
+    savedAt: now,
+    createdAt: idx >= 0 ? rows[idx]!.createdAt : now,
+    updatedAt: now,
+  };
+
+  if (idx >= 0) rows[idx] = draft;
+  else rows.push(draft);
+  writeTable("contract-drafts", rows);
+
+  const { userId: _u, ...out } = draft;
+  return out;
+}
+
+export function deleteDemoContractDraft(userId: string, typeId: string): boolean {
+  let rows = readTable<(V1ContractDraft & { userId: string })>("contract-drafts");
+  const before = rows.length;
+  rows = rows.filter((d) => !(d.userId === userId && d.typeId === typeId));
+  if (rows.length === before) return false;
+  writeTable("contract-drafts", rows);
+  return true;
 }

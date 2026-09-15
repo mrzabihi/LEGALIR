@@ -17,6 +17,9 @@ import type {
   VerificationStatus,
 } from "@legalir/types";
 import { readLegalLibrary } from "@/lib/legal-library-db";
+import { LAW_SOURCES } from "@/lib/law-catalog";
+import { retrieveCorpus } from "@/lib/legal-corpus";
+import { getDemoDocument } from "@/lib/demo-seed";
 
 // Map Legal Library content types to the Phase-8 reference source types.
 const SOURCE_TYPE_MAP: Partial<Record<LegalContentType, SourceType>> = {
@@ -128,6 +131,30 @@ export function retrieveGroundedSources(
     .sort((a, b) => b.score - a.score)
     .slice(0, maxSources);
 
+  // --- Official law catalog matches (16 files) ---
+  // Each law contributes its own source/reference with a real article
+  // locator and verbatim-ish quote, so the chat «مستندات»/«ارجاعات»
+  // tabs surface the matching provision directly.
+  const lawMatches = LAW_SOURCES.map((def) => {
+    const haystack = [
+      def.title,
+      def.summary,
+      def.articleSection,
+      def.excerpt,
+      def.keywords.join(" "),
+    ]
+      .join(" ")
+      .toLowerCase();
+    let score = 0;
+    for (const token of tokens) {
+      if (haystack.includes(token.toLowerCase())) score += 3;
+    }
+    return { def, score };
+  })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxSources);
+
   const sources: GroundedSource[] = scored.map(({ item, detail }) => ({
     id: item.id,
     title: item.title,
@@ -164,5 +191,126 @@ export function retrieveGroundedSources(
     };
   });
 
+  // Merge law matches into the returned sources/references. Laws are
+  // appended after library sources; the gateway keeps the order.
+  for (const { def } of lawMatches) {
+    sources.push({
+      id: def.id,
+      title: def.title,
+      sourceType: def.sourceType,
+      sourceTypeFa: def.sourceTypeFa,
+      authority: def.publicationAuthority,
+      summary: def.summary,
+      excerpt: def.excerpt,
+      verificationStatus: "VERIFIED_OFFICIAL",
+    });
+    references.push({
+      id: crypto.randomUUID(),
+      conversationId: "",
+      messageId: "",
+      sourceId: def.id,
+      locator: def.articleSection,
+      quote: def.excerpt.slice(0, 160),
+      section: "منابع مرتبط",
+      sourceType: def.sourceType,
+      sourceTypeFa: def.sourceTypeFa,
+    });
+  }
+
+  // --- Local legal knowledge corpus (ingested .data/legal-corpus.json) ---
+  // The corpus is the actually-indexed artifact of the 16 official law
+  // files (SHA-256 fingerprinted, chunked, inverted-indexed). Hits that
+  // map to an already-surfaced catalog law (via lawId) are skipped; hits
+  // for files with no catalog entry (e.g. the .docx variants) surface as
+  // their own citable source so the ingested corpus is never dropped.
+  const existingIds = new Set(sources.map((s) => s.id));
+  for (const hit of retrieveCorpus(query, maxSources)) {
+    const sourceId = hit.source.lawId ?? hit.source.id;
+    if (existingIds.has(sourceId)) continue;
+    existingIds.add(sourceId);
+
+    const sourceType = SOURCE_TYPE_MAP[hit.source.sourceType] ?? "law";
+    const excerpt = hit.excerpt || hit.source.excerpt || null;
+
+    sources.push({
+      id: sourceId,
+      title: hit.source.title,
+      sourceType,
+      sourceTypeFa: hit.source.sourceTypeFa,
+      authority: hit.source.authority,
+      summary: hit.source.summary,
+      excerpt,
+      verificationStatus: hit.source.verificationStatus,
+    });
+    references.push({
+      id: crypto.randomUUID(),
+      conversationId: "",
+      messageId: "",
+      sourceId,
+      locator: hit.locator ?? hit.source.articleSection ?? "",
+      quote: (excerpt ?? hit.source.summary).slice(0, 160),
+      section: "منابع مرتبط",
+      sourceType,
+      sourceTypeFa: hit.source.sourceTypeFa,
+    });
+  }
+
   return { sources, contextBlock, references };
+}
+
+// ============================================================
+// Document grounding — chat about a specific uploaded document
+// ============================================================
+// When the user opens a chat scoped to one of their documents
+// (e.g. a rental contract), inject the document's extracted text
+// and risk findings into the system prompt so the AI can answer
+// questions about that exact document. Returns an empty block if
+// the document is missing or not ready.
+// ============================================================
+
+export interface DocumentContext {
+  /** Persian label for the document type, e.g. "قرارداد اجاره". */
+  kindLabel: string;
+  /** The document's extracted text (may be truncated). */
+  text: string;
+  /** Risk findings formatted for the prompt. */
+  findingsBlock: string;
+  /** Full context block injected into the system prompt. */
+  contextBlock: string;
+}
+
+export function retrieveDocumentContext(
+  userId: string,
+  documentId: string | undefined
+): DocumentContext | null {
+  if (!documentId) return null;
+  const doc = getDemoDocument(userId, documentId);
+  if (!doc || doc.status !== "ready") return null;
+
+  const text = (doc.extractedText ?? "").trim();
+  const findings = doc.report?.findings ?? [];
+
+  const findingsBlock = findings.length
+    ? [
+        "ریسک‌های شناسایی‌شده در این سند:",
+        ...findings.map(
+          (f, i) =>
+            `${i + 1}. [${f.severity}] ${f.title} (${f.locator})\n   دلیل: ${f.reason}\n   پیشنهاد: ${f.recommendation}`
+        ),
+      ].join("\n\n")
+    : "ریسک خاصی در تحلیل اولیه شناسایی نشده است.";
+
+  const contextBlock = [
+    `سند کاربر: «${doc.name}»`,
+    text ? `متن استخراج‌شده از سند:\n${text.slice(0, 4000)}` : "متن استخراج‌شده‌ای برای این سند موجود نیست.",
+    findingsBlock,
+    "هنگام پاسخ، صرفاً بر اساس محتوای همین سند و قوانین مرتبط پاسخ دهید. اگر اطلاعاتی در سند نیست، نگویید که هست.",
+  ].join("\n\n");
+
+  return {
+    kindLabel: doc.name,
+    text,
+    findingsBlock,
+    contextBlock,
+  };
 }
