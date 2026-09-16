@@ -1,8 +1,8 @@
 // ============================================================
 // LEGALIR — Account Hub (تنظیمات و پروفایل)
-// Polished hub with visual section cards for Profile, Legal
-// Space, Subscription, Connected Services, Settings, Help and
-// the Legal Blog. Replaces the single-purpose profile editor.
+// Profile Summary (identity at a glance) + Profile Details (all
+// editable fields), plus the legal-space, subscription, settings
+// and help hubs. Mobile and account type are read-only identity.
 // ============================================================
 
 "use client";
@@ -12,10 +12,12 @@ import Link from "next/link";
 import { useMe, useUpdateProfile, useDailyQuota } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
 import { useCurrentSubscription } from "@/hooks/useSubscription";
+import { useConvertToLegal } from "@/hooks/useAccount";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useContracts } from "@/hooks/useContracts";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { JalaliDatePicker, formatJalaliLong } from "@/components/shared/JalaliDatePicker";
+import { Breadcrumb } from "@/components/shared/Breadcrumb";
 import {
   IconChat,
   IconDocument,
@@ -34,6 +36,7 @@ import {
   IconLawBook,
   IconInfo,
   IconBalance,
+  IconChevronDown,
 } from "@/lib/icons";
 import type { Profile, V1SubscriptionHistoryItem } from "@legalir/types";
 
@@ -345,6 +348,69 @@ function MultiSelectField({ label, value, options, onSave }: {
 }
 
 // ============================================================
+// Account-type conversion confirmation
+// ============================================================
+// Converting to a legal account is effectively irreversible, so it
+// requires an explicit confirmation before the request is sent.
+
+function ConvertToLegalDialog({
+  open,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  pending: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="convert-legal-title"
+    >
+      <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-elevation-4" dir="rtl">
+        <h2 id="convert-legal-title" className="text-h3 text-onSurface font-bold mb-2">
+          تبدیل حساب به حقوقی
+        </h2>
+        <p className="text-body-2 text-muted mb-4">
+          بعد از تبدیل حساب به نوع حقوقی، امکان بازگشت به حساب شخصی از طریق پنل وجود ندارد.
+          آیا مطمئن هستید؟
+        </p>
+        {error && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-caption text-red-700">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+            className="rounded-medium border border-divider px-4 py-2 text-button text-onSurface hover:bg-neutral-50 transition-colors disabled:opacity-50"
+          >
+            انصراف
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={pending}
+            className="rounded-medium bg-primary-700 px-4 py-2 text-button text-white hover:bg-primary-800 transition-colors disabled:opacity-50"
+          >
+            {pending ? "در حال تبدیل…" : "تبدیل به حساب حقوقی"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // Hub UI primitives
 // ============================================================
 
@@ -415,6 +481,7 @@ function HubCard({
 export default function AccountHubPage() {
   const me = useMe();
   const updateProfile = useUpdateProfile();
+  const convertToLegal = useConvertToLegal();
   const usage = useProfileUsage();
   const quota = useDailyQuota();
   const subHistory = useSubscriptionHistory();
@@ -423,8 +490,14 @@ export default function AccountHubPage() {
   const contracts = useContracts({ pageSize: 1 });
   const memories = useMemories();
 
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
+  const accountType = me.data?.user?.accountType ?? "individual";
+  const accountTypeLocked = me.data?.user?.accountTypeLocked ?? accountType === "legal";
   const usageData = usage.data;
   const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
   const activeSub = currentSub.data ?? null;
@@ -457,6 +530,18 @@ export default function AccountHubPage() {
     [updateProfile],
   );
 
+  const handleConvertToLegal = useCallback(async () => {
+    setConvertError(null);
+    try {
+      await convertToLegal.mutateAsync();
+      setConvertOpen(false);
+    } catch (err) {
+      setConvertError(
+        err instanceof Error ? err.message : "تبدیل حساب انجام نشد. دوباره تلاش کنید.",
+      );
+    }
+  }, [convertToLegal]);
+
   // Live daily quota (plan-derived) takes precedence over the stored usage row.
   const dailyUsed = quota.data?.used ?? usageData?.dailyRequestsUsed ?? 0;
   const dailyTotal = quota.data?.total ?? usageData?.dailyRequestsTotal ?? 0;
@@ -470,10 +555,11 @@ export default function AccountHubPage() {
 
   return (
     <div className="p-4 tablet:p-6 max-w-3xl mx-auto" dir="rtl">
-      <h1 className="text-h2 text-onSurface font-bold mb-6">تنظیمات و پروفایل</h1>
+      <Breadcrumb items={[{ label: "داشبورد", href: "/dashboard" }, { label: "پروفایل" }]} />
+      <h1 className="text-h2 text-onSurface font-bold mb-6">پروفایل</h1>
 
       {/* ================================================ */}
-      {/* Hero — identity summary */}
+      {/* Profile Summary — identity at a glance */}
       {/* ================================================ */}
       <section className="relative rounded-2xl bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 p-6 mb-6 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -490,81 +576,147 @@ export default function AccountHubPage() {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-h3 text-white font-bold truncate">{profile?.displayName ?? "کاربر LEGALIR"}</h2>
-            {(profile?.city || profile?.occupation) && (
-              <p className="text-body-2 text-primary-200 mt-1 truncate">
-                {[profile.city, profile.occupation].filter(Boolean).join(" — ")}
-              </p>
-            )}
-            <p className="text-caption text-primary-300 mt-1.5">
-              تکمیل پروفایل {toPersianNumber(completionPct)}٪
+            <p className="text-body-2 text-primary-200 mt-1 flex items-center gap-1.5" dir="ltr">
+              <IconPhone size={15} className="text-primary-300" />
+              {formatMobile(mobile)}
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-caption text-white">
+                <IconBalance size={14} />
+                {accountType === "legal" ? "شخص حقوقی" : "شخص حقیقی"}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption ${
+                  completionPct >= 100
+                    ? "bg-emerald-400/20 text-emerald-100"
+                    : "bg-amber-400/20 text-amber-100"
+                }`}
+              >
+                {completionPct >= 100 ? "پروفایل تکمیل است" : `تکمیل پروفایل ${toPersianNumber(completionPct)}٪`}
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ================================================ */}
-      {/* پروفایل من */}
+      {/* Account identity — mobile & account type (read-only) */}
       {/* ================================================ */}
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <SectionTitle icon={<IconPerson size={22} />}>پروفایل من</SectionTitle>
+        <SectionTitle icon={<IconShield size={22} />}>هویت حساب</SectionTitle>
         <dl>
-          <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
-          <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
-          <EditableField label="ایمیل" value={profile?.email ?? ""} placeholder="ایمیل خود را وارد کنید" onSave={hSaveEmail} />
-          <GenderEditableField label="جنسیت" value={profile?.gender ?? ""} onSave={hSaveGender} />
-          <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
-          <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
-          <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
+          <div className="flex items-center justify-between py-3 border-b border-divider/60">
+            <dt className="text-body-2 text-muted shrink-0 w-28">شماره موبایل</dt>
+            <dd className="flex flex-col items-end gap-0.5 text-body-2 text-onSurface" dir="ltr">
+              <span className="flex items-center gap-2">
+                <IconPhone size={16} className="text-muted" />
+                {formatMobile(mobile)}
+              </span>
+              <span className="text-caption text-muted" dir="rtl">
+                این شماره هنگام ثبت‌نام حساب ثبت شده و قابل تغییر نیست.
+              </span>
+            </dd>
+          </div>
           <div className="flex items-center justify-between py-3">
-            <dt className="text-body-2 text-muted shrink-0 w-28">موبایل</dt>
-            <dd className="flex items-center gap-2 text-body-2 text-onSurface" dir="ltr">
-              <IconPhone size={16} className="text-muted" />
-              {formatMobile(mobile)}
+            <dt className="text-body-2 text-muted shrink-0 w-28">نوع حساب</dt>
+            <dd className="flex flex-col items-end gap-1 text-body-2 text-onSurface">
+              <span>{accountType === "legal" ? "شخص حقوقی" : "شخص حقیقی"}</span>
+              {accountTypeLocked ? (
+                <span className="text-caption text-muted">
+                  حساب حقوقی است و امکان بازگشت به حساب شخصی وجود ندارد.
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setConvertError(null); setConvertOpen(true); }}
+                  className="rounded-medium border border-primary-300 px-3 py-1.5 text-caption text-primary-700 hover:bg-primary-50 transition-colors"
+                >
+                  تبدیل به حساب حقوقی
+                </button>
+              )}
             </dd>
           </div>
         </dl>
       </section>
 
       {/* ================================================ */}
-      {/* پروفایل حقوقی من — Extended Profile (50%) */}
+      {/* Profile Details — all editable fields */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <SectionTitle icon={<IconBalance size={22} />}>پروفایل حقوقی من</SectionTitle>
-        </div>
-        <p className="text-caption text-muted -mt-3 mb-4">
-          با تکمیل این بخش، پروفایل شما به ۱۰۰٪ می‌رسد و ۱۰۰۰ امتیاز دریافت می‌کنید.
-        </p>
-        <dl>
-          <SelectEditableField
-            label="نوع کاربر"
-            value={profile?.userType ?? ""}
-            placeholder="انتخاب کنید"
-            options={USER_TYPE_OPTIONS}
-            onSave={hSaveUserType}
-          />
-          <SelectEditableField
-            label="استان"
-            value={profile?.province ?? ""}
-            placeholder="انتخاب کنید"
-            options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
-            onSave={hSaveProvince}
-          />
-          <MultiSelectField
-            label="حوزه‌های حقوقی مورد نیاز"
-            value={profile?.legalInterests ?? []}
-            options={LEGAL_INTEREST_OPTIONS}
-            onSave={hSaveLegalInterests}
-          />
-          <SelectEditableField
-            label="هدف اصلی استفاده"
-            value={profile?.primaryUseCase ?? ""}
-            placeholder="انتخاب کنید"
-            options={PRIMARY_USE_CASE_OPTIONS}
-            onSave={hSavePrimaryUseCase}
-          />
-        </dl>
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 mb-6 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          aria-expanded={detailsOpen}
+          aria-controls="profile-details"
+          className="flex w-full items-center justify-between gap-3 p-5 text-start transition-colors hover:bg-neutral-50"
+        >
+          <span className="flex items-center gap-2 text-h3 text-onSurface font-bold">
+            <span className="text-primary-600"><IconPerson size={22} /></span>
+            جزئیات پروفایل
+          </span>
+          <span className="flex items-center gap-2 text-caption text-muted">
+            {completionPct >= 100 ? "تکمیل شده" : `${toPersianNumber(completionPct)}٪`}
+            <IconChevronDown size={18} className={`transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+
+        {detailsOpen && (
+          <div id="profile-details" className="border-t border-divider/60 p-5 pt-0">
+            <h3 className="text-body-1 text-onSurface font-semibold mt-4 mb-1">اطلاعات پایه</h3>
+            <dl>
+              <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
+              <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
+              <EditableField label="ایمیل" value={profile?.email ?? ""} placeholder="ایمیل خود را وارد کنید" onSave={hSaveEmail} />
+              <GenderEditableField label="جنسیت" value={profile?.gender ?? ""} onSave={hSaveGender} />
+              <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
+              <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
+              <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
+            </dl>
+
+            <h3 className="text-body-1 text-onSurface font-semibold mt-6 mb-1">پروفایل حقوقی من</h3>
+            <p className="text-caption text-muted mb-2">
+              با تکمیل این بخش، پروفایل شما به ۱۰۰٪ می‌رسد و ۱۰۰۰ امتیاز دریافت می‌کنید.
+            </p>
+            <dl>
+              <SelectEditableField
+                label="نوع کاربر"
+                value={profile?.userType ?? ""}
+                placeholder="انتخاب کنید"
+                options={USER_TYPE_OPTIONS}
+                onSave={hSaveUserType}
+              />
+              <SelectEditableField
+                label="استان"
+                value={profile?.province ?? ""}
+                placeholder="انتخاب کنید"
+                options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
+                onSave={hSaveProvince}
+              />
+              <MultiSelectField
+                label="حوزه‌های حقوقی مورد نیاز"
+                value={profile?.legalInterests ?? []}
+                options={LEGAL_INTEREST_OPTIONS}
+                onSave={hSaveLegalInterests}
+              />
+              <SelectEditableField
+                label="هدف اصلی استفاده"
+                value={profile?.primaryUseCase ?? ""}
+                placeholder="انتخاب کنید"
+                options={PRIMARY_USE_CASE_OPTIONS}
+                onSave={hSavePrimaryUseCase}
+              />
+            </dl>
+          </div>
+        )}
       </section>
+
+      <ConvertToLegalDialog
+        open={convertOpen}
+        pending={convertToLegal.isPending}
+        error={convertError}
+        onCancel={() => setConvertOpen(false)}
+        onConfirm={handleConvertToLegal}
+      />
 
       {/* ================================================ */}
       {/* وبلاگ حقوقی */}
@@ -747,13 +899,19 @@ export default function AccountHubPage() {
         {/* Settings destinations */}
         <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3 mt-4">
           <HubCard
-            href="/settings"
+            href="/settings/notifications"
             icon={<IconSettings size={22} />}
-            title="اعلان‌ها و حریم خصوصی"
-            description="مدیریت اعلان‌ها و دسترسی‌ها"
+            title="اعلان‌ها"
+            description="مدیریت اعلان‌ها و اطلاع‌رسانی‌ها"
           />
           <HubCard
-            href="/settings"
+            href="/settings/privacy"
+            icon={<IconShield size={22} />}
+            title="حریم خصوصی"
+            description="مدیریت دسترسی‌ها و داده‌ها"
+          />
+          <HubCard
+            href="/settings/security"
             icon={<IconShield size={22} />}
             title="نشست‌ها و امنیت"
             description="نشست‌های فعال و امنیت حساب"
@@ -770,7 +928,7 @@ export default function AccountHubPage() {
           <HubCard href="/about" icon={<IconInfo size={22} />} title="درباره لیگالیر" description="آشنایی با پلتفرم و خدمات" />
           <HubCard href="/support" icon={<IconPhone size={22} />} title="پشتیبانی" description="تماس با تیم پشتیبانی" />
           <HubCard href="/blog" icon={<IconLawBook size={22} />} title="راهنما و آموزش" description="مقالات و راهنماهای حقوقی" />
-          <HubCard href="/support" icon={<IconStar size={22} />} title="قوانین استفاده" description="شرایط و ضوابط استفاده از خدمات" />
+          <HubCard href="/terms" icon={<IconStar size={22} />} title="قوانین استفاده" description="شرایط و ضوابط استفاده از خدمات" />
         </div>
       </section>
     </div>

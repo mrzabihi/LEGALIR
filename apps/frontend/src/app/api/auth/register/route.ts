@@ -13,6 +13,7 @@ import {
   createSession,
   cleanupExpiredSessions,
 } from "@/lib/db";
+import { clientIpFromHeaders } from "@/lib/user-agent";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -95,7 +96,10 @@ export async function POST(request: Request) {
     });
 
     // --- Create session ---
-    const session = createSession(user.id);
+    const session = createSession(user.id, {
+      userAgent: request.headers.get("user-agent"),
+      ip: clientIpFromHeaders(request.headers),
+    });
 
     // --- Build response ---
     const userResponse = {

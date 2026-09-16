@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { findUserByMobile, createUser, createSession, cleanupExpiredSessions } from '@/lib/db';
+import { clientIpFromHeaders } from '@/lib/user-agent';
 
 const OTP_CODE = '405405';
 const MAX_ATTEMPTS = 5;
@@ -88,7 +89,10 @@ export async function POST(request: Request) {
       isNewUser = true;
     }
 
-    const session = createSession(user.id);
+    const session = createSession(user.id, {
+      userAgent: request.headers.get('user-agent'),
+      ip: clientIpFromHeaders(request.headers),
+    });
 
     const response = NextResponse.json({
       data: {

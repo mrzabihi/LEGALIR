@@ -70,6 +70,10 @@ export function useInitiateUpload() {
     mutationFn: (data: V1DocumentUploadRequest) => initiateUpload(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["documents", "list"] });
+      // Energy is deducted server-side on upload — refresh the balance badge
+      // and the points-account aggregates.
+      qc.invalidateQueries({ queryKey: ["rewards", "summary"] });
+      qc.invalidateQueries({ queryKey: ["points", "account"] });
     },
   });
 }

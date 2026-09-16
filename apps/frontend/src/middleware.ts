@@ -29,7 +29,7 @@ const PROTECTED_PREFIXES = [
 const GUEST_ONLY_PREFIXES = ["/auth/mobile", "/auth/verify", "/login", "/register"];
 
 /** Public routes accessible by anyone */
-const PUBLIC_PREFIXES = ["/", "/pricing", "/features", "/about", "/contact", "/health", "/design-system"];
+const PUBLIC_PREFIXES = ["/", "/pricing", "/features", "/about", "/contact", "/terms", "/privacy-policy", "/blog", "/health", "/design-system"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

@@ -12,7 +12,10 @@ export type RewardEventType =
   | "REFERRAL_COMPLETED"
   | "SUBSCRIPTION_SILVER_PURCHASED"
   | "SUBSCRIPTION_GOLD_PURCHASED"
-  | "SUBSCRIPTION_DIAMOND_PURCHASED";
+  | "SUBSCRIPTION_DIAMOND_PURCHASED"
+  // Spend event — carries a negative points_delta. Deliberately NOT part of
+  // REWARD_RULES, so it never shows up in the "ways to earn" list.
+  | "REQUEST_CONSUMED";
 
 export type RewardFrequency = "once_per_account" | "once_per_day" | "once_per_purchase";
 
@@ -76,6 +79,37 @@ export const REWARD_RULES: readonly RewardRule[] = [
     descriptionFa: "امتیاز خرید موفق اشتراک الماس",
   },
 ];
+
+// ============================================================
+// Energy — the spend side of the ledger
+// ============================================================
+// Every processed request costs the user energy, regardless of which
+// action triggered it (chat turn, document upload, contract generation).
+// The cost lives here so the backend stays the single source of truth.
+
+/** Energy deducted from the balance for each processed request. */
+export const ENERGY_COST_PER_REQUEST = 200;
+
+export interface EnergyRule {
+  eventType: RewardEventType;
+  /** Negative — this is a spend, not an award. */
+  points: number;
+  labelFa: string;
+  descriptionFa: string;
+}
+
+export const ENERGY_RULES: readonly EnergyRule[] = [
+  {
+    eventType: "REQUEST_CONSUMED",
+    points: -ENERGY_COST_PER_REQUEST,
+    labelFa: "مصرف درخواست",
+    descriptionFa: "کسر انرژی به ازای هر درخواست پردازش‌شده",
+  },
+];
+
+export function getEnergyRule(eventType: RewardEventType): EnergyRule | undefined {
+  return ENERGY_RULES.find((r) => r.eventType === eventType);
+}
 
 export function getRewardRule(eventType: RewardEventType): RewardRule | undefined {
   return REWARD_RULES.find((r) => r.eventType === eventType);

@@ -174,9 +174,13 @@ describe("ProfilePage", () => {
     });
   });
 
-  it("renders city and occupation", async () => {
+  it("renders city and occupation inside the collapsible details", async () => {
     setupMe();
     render(<ProfilePage />, { wrapper: TestWrapper });
+
+    // Details are collapsed by default — open them first.
+    const toggle = await screen.findByRole("button", { name: /جزئیات پروفایل/ });
+    fireEvent.click(toggle);
 
     await waitFor(() => {
       // "تهران" can appear for both city and province; assert at least one.
@@ -195,15 +199,18 @@ describe("ProfilePage", () => {
     });
   });
 
-  it("renders mobile number as read-only", async () => {
+  it("renders mobile number as read-only in the account identity section", async () => {
     setupMe();
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      const mobileSection = screen.getByText("موبایل");
-      expect(mobileSection).toBeTruthy();
-      // Mobile icon should be present
-      expect(screen.getByText(/۰۹۱۲/)).toBeTruthy();
+      // The identity section labels the mobile and explains it is immutable.
+      expect(screen.getByText("شماره موبایل")).toBeTruthy();
+      expect(
+        screen.getByText("این شماره هنگام ثبت‌نام حساب ثبت شده و قابل تغییر نیست.")
+      ).toBeTruthy();
+      // Mobile icon should be present (summary + identity section)
+      expect(screen.getAllByText(/۰۹۱۲/).length).toBeGreaterThan(0);
     });
   });
 
@@ -259,120 +266,57 @@ describe("ProfilePage", () => {
 // Settings Page Tests
 // ============================================================
 
-describe("SettingsPage", () => {
+describe("SettingsPage (hub)", () => {
   it("renders the page title", async () => {
     setupMe();
     render(<SettingsPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText("تنظیمات")).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "تنظیمات" })).toBeTruthy();
     });
   });
 
-  it("renders two tabs: usage and history", async () => {
+  it("routes to every dedicated sub-page instead of editing inline", async () => {
+    setupMe();
+    render(<SettingsPage />, { wrapper: TestWrapper });
+
+    const expected = [
+      "/settings/notifications",
+      "/settings/privacy",
+      "/settings/security",
+      "/settings/usage",
+      "/settings/memory",
+      "/settings/data",
+      "/settings/account",
+    ];
+
+    await waitFor(() => {
+      for (const href of expected) {
+        expect(document.querySelector(`a[href="${href}"]`)).toBeTruthy();
+      }
+    });
+  });
+
+  it("does not render any inline setting controls (navigation-only hub)", async () => {
     setupMe();
     render(<SettingsPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText("مصرف")).toBeTruthy();
-      expect(screen.getByText("تاریخچه")).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "تنظیمات" })).toBeTruthy();
     });
+
+    // The hub owns no data source, so it must not render toggles or tabs.
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+    expect(screen.queryByText("مصرف")).toBeNull();
   });
 
-  it("shows usage metrics in tab 1", async () => {
+  it("marks the account-closure card as dangerous", async () => {
     setupMe();
     render(<SettingsPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText(/درخواست باقی‌مانده/)).toBeTruthy();
-    });
-  });
-
-  it("shows the daily-quota donut chart", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      const donut = screen.getByRole("img", { name: /درخواست مصرف‌شده/ });
-      expect(donut).toBeTruthy();
-    });
-  });
-
-  it("shows subscription history in tab 2 when clicked", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText("تاریخچه")).toBeTruthy();
-    });
-
-    fireEvent.click(screen.getByText("تاریخچه"));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("طلا").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("has privacy settings section", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText("حریم خصوصی")).toBeTruthy();
-    });
-  });
-
-  it("has notification settings section", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText("اعلان‌ها")).toBeTruthy();
-    });
-  });
-
-  it("has session management placeholder", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText("امنیت حساب")).toBeTruthy();
-    });
-  });
-
-  it("has data export placeholder", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      // "خروجی" appears in both heading "خروجی داده" and description text
-      const matches = screen.getAllByText(/خروجی/);
-      expect(matches.length).toBeGreaterThan(0);
-    });
-  });
-
-  it("has account closure placeholder with danger style", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      // Both h2 and button have "حذف حساب" text
-      const elements = screen.getAllByText(/حذف حساب/);
-      expect(elements.length).toBeGreaterThan(0);
-      // The section has error styling
-      const heading = screen.getByRole("heading", { name: /حذف حساب/ });
-      expect(heading).toBeTruthy();
-    });
-  });
-
-  it("shows notification toggles", async () => {
-    setupMe();
-    render(<SettingsPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      // Should have multiple toggle switches for notification preferences
-      const switches = screen.getAllByRole("switch");
-      expect(switches.length).toBeGreaterThan(3);
+      const link = document.querySelector('a[href="/settings/account"]');
+      expect(link?.className).toContain("border-error/40");
     });
   });
 });
@@ -393,13 +337,14 @@ describe("Phase 11 — Responsive", () => {
     });
   });
 
-  it("settings page has stacked layout on mobile-size container", async () => {
+  it("settings hub renders its card list on a mobile-size container", async () => {
     setupMe();
     render(<SettingsPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      const sections = document.querySelectorAll("section");
-      expect(sections.length).toBeGreaterThan(1);
+      // The hub is a vertical card list — one link per sub-page.
+      const links = document.querySelectorAll('a[href^="/settings/"]');
+      expect(links.length).toBeGreaterThan(1);
     });
   });
 });

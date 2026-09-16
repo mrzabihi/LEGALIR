@@ -17,7 +17,7 @@
 //   { type: "workflow", phase, domain, intent, phaseChanged, pendingQuestions, suggestCaseCreation }
 // ============================================================
 
-import { findSessionById, consumeDailyRequest, queryDailyQuota, touchConversation } from "@/lib/db";
+import { findSessionById, consumeDailyRequest, queryDailyQuota, touchConversation, spendEnergy } from "@/lib/db";
 import { createAiProvider, readAiProviderConfig } from "@/lib/ai/provider";
 import { retrieveGroundedSources, retrieveDocumentContext } from "@/lib/ai/grounding";
 import { appendMessage, getMessages } from "@/lib/ai/store";
@@ -125,6 +125,15 @@ async function streamAssistant(
 
   // Count the request against the day's plan-derived allowance (§26).
   consumeDailyRequest(userId);
+
+  // Deduct the per-request energy cost. Keyed by the user message id so a
+  // retried stream can never be charged twice.
+  spendEnergy({
+    userId,
+    sourceType: "chat",
+    sourceId: userMessageId,
+    description: "کسر انرژی بابت درخواست گفتگو",
+  });
 
   // Bump the conversation so it surfaces at the top of the history list.
   touchConversation(userId, body.conversationId);

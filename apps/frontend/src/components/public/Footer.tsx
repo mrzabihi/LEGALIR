@@ -21,8 +21,8 @@ const footerLinks = {
   legal: {
     title: "حقوقی",
     items: [
-      { href: "/about#disclaimer", label: "سلب مسئولیت" },
-      { href: "/about#privacy", label: "حریم خصوصی" },
+      { href: "/terms", label: "قوانین استفاده" },
+      { href: "/privacy-policy", label: "حریم خصوصی" },
       { href: "/contact", label: "پشتیبانی" },
     ],
   },

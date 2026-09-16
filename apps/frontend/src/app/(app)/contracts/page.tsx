@@ -4,10 +4,14 @@
 
 import { Suspense } from "react";
 import { ContractList } from "@/components/contracts";
+import { PageContextHeader } from "@/components/shared";
 
 export default function ContractsPage() {
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto" dir="rtl">
+      <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
+        <PageContextHeader />
+      </Suspense>
       <Suspense
         fallback={
           <div className="space-y-3" aria-label="در حال بارگذاری">

@@ -41,12 +41,12 @@ export const SERVICE_CONTEXTS: Record<ServiceType, ServiceContext> = {
   },
   legal_notice: {
     serviceType: "legal_notice",
-    label: "تنظیم اظهارنامه",
+    label: "تولید اظهارنامه",
     description: "تنظیم اظهارنامه رسمی با ذکر مستندات قانونی",
   },
   document_analysis: {
     serviceType: "document_analysis",
-    label: "تحلیل سند",
+    label: "تحلیل اسناد",
     description: "بررسی هوشمند اسناد حقوقی همراه با ارجاعات",
   },
   legal_calculation: {
@@ -110,5 +110,9 @@ export function serviceTypeFromQuery(search: string | null | undefined): Service
   if (!search) return "legal_consultation";
   const params = new URLSearchParams(search);
   const service = params.get("service") ?? params.get("category");
+  if (!service) return "legal_consultation";
+  // Canonical `?service=` values are already ServiceType ids.
+  if (service in SERVICE_CONTEXTS) return service as ServiceType;
+  // Legacy `?category=` aliases map through the table above.
   return categoryToServiceType(service);
 }

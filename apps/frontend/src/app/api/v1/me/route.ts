@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findSessionById, findUserById, getProfile, getPreferences } from '@/lib/db';
+import { findSessionById, findUserById, getProfile, getPreferences, getAccountType } from '@/lib/db';
 
 function getUserFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
 
   const profile = getProfile(userId);
   const preferences = getPreferences(userId);
+  const accountType = getAccountType(userId);
 
   const data = {
     user: {
@@ -35,6 +36,9 @@ export async function GET(request: Request) {
       mobileE164: `+98${user.mobile.replace(/^0/, '')}`,
       mobileDisplay: user.mobile.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'['0123456789'.indexOf(d)] ?? d),
       status: 'active' as const,
+      accountType,
+      // Once legal, the account type can never change again.
+      accountTypeLocked: accountType === 'legal',
     },
     profile: {
       userId: user.id,

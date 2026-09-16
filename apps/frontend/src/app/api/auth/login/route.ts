@@ -13,6 +13,7 @@ import {
   createSession,
   cleanupExpiredSessions,
 } from "@/lib/db";
+import { clientIpFromHeaders } from "@/lib/user-agent";
 
 export async function POST(request: Request) {
   try {
@@ -90,7 +91,10 @@ export async function POST(request: Request) {
     }
 
     // --- Create session ---
-    const session = createSession(foundUser.id);
+    const session = createSession(foundUser.id, {
+      userAgent: request.headers.get("user-agent"),
+      ip: clientIpFromHeaders(request.headers),
+    });
 
     // --- Build response ---
     const userResponse = {

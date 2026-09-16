@@ -32,14 +32,8 @@ export function ContractList() {
 
   return (
     <div className="space-y-4" dir="rtl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-h2 text-on-surface">قراردادها</h1>
-          <p className="text-body-2 text-muted">
-            قراردادهای هوشمند خود را ایجاد و مدیریت کنید
-          </p>
-        </div>
+      {/* Action bar — page title lives in PageContextHeader */}
+      <div className="flex items-center justify-end">
         <Link
           href="/contracts/new"
           className="rounded-medium bg-primary text-white px-5 py-3 text-button hover:bg-primary-dark transition-colors touch-target inline-flex items-center gap-2"

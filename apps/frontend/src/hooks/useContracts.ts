@@ -126,6 +126,10 @@ export function useGenerateContract() {
       queryClient.invalidateQueries({ queryKey: ["contracts", "detail", id] });
       queryClient.invalidateQueries({ queryKey: ["contracts", "versions", id] });
       queryClient.invalidateQueries({ queryKey: ["contracts", "list"] });
+      // Energy is deducted server-side on generation — refresh the balance
+      // badge and the points-account aggregates.
+      queryClient.invalidateQueries({ queryKey: ["rewards", "summary"] });
+      queryClient.invalidateQueries({ queryKey: ["points", "account"] });
     },
   });
 }

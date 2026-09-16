@@ -4,10 +4,11 @@
 
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useDocuments } from "@/hooks/useDocuments";
 import { DocumentList } from "@/components/documents";
+import { PageContextHeader } from "@/components/shared";
 import { Button, SkeletonCard, EmptyState, ErrorState } from "@legalir/ui";
 import { IconAdd, IconDocument } from "@/lib/icons";
 import type { V1DocumentListParams, V1DocumentFilter } from "@legalir/types";
@@ -112,13 +113,10 @@ export default function DocumentsPage() {
 
 function Header({ onUploadClick }: { onUploadClick: () => void }) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <h1 className="text-h2 text-on-surface">اسناد</h1>
-        <p className="text-body-2 text-muted mt-1">
-          اسناد حقوقی خود را بارگذاری و تحلیل کنید
-        </p>
-      </div>
+    <div className="flex items-start justify-between gap-4 mb-6">
+      <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
+        <PageContextHeader className="mb-0" />
+      </Suspense>
       <Button
         variant="filled"
         size="large"

@@ -20,6 +20,9 @@ export const routes: RouteDef[] = [
   { path: "/features", titleFa: "قابلیت‌ها", access: "guest", icon: "Star" },
   { path: "/about", titleFa: "درباره LEGALIR", access: "guest", icon: "Info" },
   { path: "/contact", titleFa: "تماس با ما", access: "guest", icon: "Phone" },
+  { path: "/terms", titleFa: "قوانین استفاده", access: "guest", icon: "Article" },
+  { path: "/privacy-policy", titleFa: "حریم خصوصی", access: "guest", icon: "Shield" },
+  { path: "/blog", titleFa: "بلاگ", access: "guest", icon: "Article" },
   { path: "/login", titleFa: "ورود", access: "guest" },
   { path: "/register", titleFa: "ثبت‌نام", access: "guest" },
 

@@ -13,3 +13,4 @@ export {
   SmartRecommendations,
   RecentDocuments,
 } from "./widgets";
+export { PointsSummaryCard } from "./points-summary-card";

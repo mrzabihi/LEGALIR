@@ -66,6 +66,12 @@ import type {
   RewardsSummary,
   RewardsHistoryResponse,
   DailyVisitClaimResponse,
+  PointsAccount,
+  PointsTransactionsResponse,
+  ConvertToLegalResponse,
+  NotificationSettings,
+  PrivacySettings,
+  SessionsResponse,
 } from "@legalir/types";
 
 // ============================================================
@@ -515,4 +521,74 @@ export function fetchRewardsHistory(
 
 export function claimDailyVisitReward(): Promise<DailyVisitClaimResponse> {
   return apiClient.post<DailyVisitClaimResponse>("/api/v1/rewards/daily-visit/claim", {});
+}
+
+// ============================================================
+// Points Account (ledger aggregates)
+// ============================================================
+
+export function fetchPointsAccount(): Promise<PointsAccount> {
+  return apiClient.get<PointsAccount>("/api/v1/points");
+}
+
+export function fetchPointsTransactions(
+  page = 1,
+  pageSize = 20
+): Promise<PointsTransactionsResponse> {
+  const p = new URLSearchParams();
+  p.set("page", String(page));
+  p.set("pageSize", String(pageSize));
+  return apiClient.get<PointsTransactionsResponse>(`/api/v1/points/transactions${qs(p)}`);
+}
+
+// ============================================================
+// Account type
+// ============================================================
+
+export function convertToLegal(): Promise<ConvertToLegalResponse> {
+  return apiClient.post<ConvertToLegalResponse>("/api/v1/profile/convert-to-legal", {});
+}
+
+// ============================================================
+// Settings — notifications, privacy, sessions
+// ============================================================
+
+export function fetchNotificationSettings(): Promise<NotificationSettings> {
+  return apiClient.get<NotificationSettings>("/api/v1/settings/notifications");
+}
+
+export function updateNotificationSettings(
+  updates: Partial<NotificationSettings>
+): Promise<NotificationSettings> {
+  return apiClient.patch<NotificationSettings>("/api/v1/settings/notifications", updates);
+}
+
+export function fetchPrivacySettings(): Promise<PrivacySettings> {
+  return apiClient.get<PrivacySettings>("/api/v1/settings/privacy");
+}
+
+export function updatePrivacySettings(
+  updates: Partial<PrivacySettings>
+): Promise<PrivacySettings> {
+  return apiClient.patch<PrivacySettings>("/api/v1/settings/privacy", updates);
+}
+
+export function fetchSessions(): Promise<SessionsResponse> {
+  return apiClient.get<SessionsResponse>("/api/v1/settings/sessions");
+}
+
+export function revokeSession(id: string): Promise<{ revoked: boolean }> {
+  return apiClient.delete<{ revoked: boolean }>(`/api/v1/settings/sessions/${id}`);
+}
+
+export function revokeOtherSessions(): Promise<{ revoked: number }> {
+  return apiClient.delete<{ revoked: number }>("/api/v1/settings/sessions");
+}
+
+// ============================================================
+// Account deletion
+// ============================================================
+
+export function deleteAccount(): Promise<{ deleted: boolean }> {
+  return apiClient.delete<{ deleted: boolean }>("/api/v1/account");
 }

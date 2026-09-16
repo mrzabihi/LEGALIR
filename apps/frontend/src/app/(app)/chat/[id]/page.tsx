@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversation,
@@ -24,6 +24,7 @@ import { IconClose } from "@/lib/icons";
 import { streamChat } from "@/lib/ai/stream-client";
 import type { WorkflowEvent } from "@/lib/ai/stream-client";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
+import { PageContextHeader } from "@/components/shared";
 import { WorkflowProgress } from "@/components/chat/workflow-progress";
 import type { WorkflowPhase } from "@/components/chat/workflow-progress";
 import type { V1Reference, AiRunStatus, V1DailyQuota } from "@legalir/types";
@@ -128,6 +129,9 @@ export default function ConversationPage() {
         queryClient.invalidateQueries({ queryKey: ["conversation-references", id] });
         // A message consumes one unit of the day's allowance.
         queryClient.invalidateQueries({ queryKey: ["quota", "daily"] });
+        // …and 200 energy — refresh the top-bar balance badge instantly.
+        queryClient.invalidateQueries({ queryKey: ["rewards", "summary"] });
+        queryClient.invalidateQueries({ queryKey: ["points", "account"] });
       };
 
       // Primary path: real SSE streaming through the LEGALIR AI gateway.
@@ -206,7 +210,7 @@ export default function ConversationPage() {
   ];
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col h-full">
       {/* Quota exhausted — countdown + upgrade CTA */}
       <QuotaExhaustedModal
         open={quotaModalOpen}
@@ -214,6 +218,14 @@ export default function ConversationPage() {
         quota={exhaustedQuota}
       />
 
+      {/* Contextual header — service resolved from the URL */}
+      <div className="px-4 tablet:px-6 pt-4 shrink-0">
+        <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
+          <PageContextHeader className="mb-0" />
+        </Suspense>
+      </div>
+
+      <div className="flex flex-1 min-h-0">
       {/* Desktop: Conversation List Sidebar */}
       <aside className="hidden tablet:flex flex-col w-[320px] shrink-0 border-e border-divider bg-surface h-full">
         <ConversationList
@@ -378,6 +390,7 @@ export default function ConversationPage() {
           </aside>
         </div>
       )}
+      </div>
     </div>
   );
 }

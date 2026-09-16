@@ -73,7 +73,7 @@ describe("Public Footer", () => {
 
   it("renders legal links", () => {
     render(wrapInRtl(<Footer />));
-    expect(screen.getByText("سلب مسئولیت")).toBeInTheDocument();
+    expect(screen.getByText("قوانین استفاده")).toBeInTheDocument();
     expect(screen.getByText("حریم خصوصی")).toBeInTheDocument();
   });
 

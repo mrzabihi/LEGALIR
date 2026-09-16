@@ -42,6 +42,7 @@ vi.mock("next/navigation", () => ({
   }),
   useParams: () => ({ id: "conv-rent-001" }),
   usePathname: () => "/chat/conv-rent-001",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { vi } from "vitest";

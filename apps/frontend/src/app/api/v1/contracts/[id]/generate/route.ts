@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { generateDemoContract, getDemoContract } from "@/lib/demo-seed";
-import { recordActivity, consumeDailyRequest, queryDailyQuota } from "@/lib/db";
+import { recordActivity, consumeDailyRequest, queryDailyQuota, spendEnergy } from "@/lib/db";
 
 export async function POST(
   request: Request,
@@ -46,6 +46,14 @@ export async function POST(
   }
 
   consumeDailyRequest(userId);
+
+  // Deduct the per-request energy cost (idempotent per contract).
+  spendEnergy({
+    userId,
+    sourceType: "contract",
+    sourceId: id,
+    description: "کسر انرژی بابت تولید قرارداد",
+  });
 
   const contract = getDemoContract(userId, id);
   recordActivity({

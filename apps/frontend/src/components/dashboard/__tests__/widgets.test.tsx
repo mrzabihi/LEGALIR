@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import {
   WidgetShell,
@@ -15,10 +16,18 @@ import {
   UsageSummaryCard,
   NotificationsPlaceholder,
 } from "../widgets";
+import { PointsSummaryCard } from "../points-summary-card";
 import type { Profile, RecentActivityItem, UsageSummary, Entitlement } from "@legalir/types";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <div dir="rtl">{children}</div>;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
+  });
+  return (
+    <QueryClientProvider client={queryClient}>
+      <div dir="rtl">{children}</div>
+    </QueryClientProvider>
+  );
 }
 
 // ============================================================
@@ -152,6 +161,47 @@ describe("HeroSection", () => {
     expect(screen.getByText("اسناد")).toBeInTheDocument();
     expect(screen.getByText("درخواست فعال")).toBeInTheDocument();
     expect(screen.getByText("روز باقی‌مانده")).toBeInTheDocument();
+  });
+
+  it("renders the points card as the first stat card (RTL right-most)", () => {
+    render(
+      <TestWrapper>
+        <HeroSection displayName="مریم" isLoading={false} stats={stats} />
+      </TestWrapper>
+    );
+    const pointsCard = screen.getByRole("link", { name: /امتیاز من/ });
+    expect(pointsCard).toHaveAttribute("href", "/points");
+
+    // DOM order drives RTL visual order — the points card must come first.
+    const grid = pointsCard.parentElement!;
+    const firstCard = grid.firstElementChild;
+    expect(firstCard).toBe(pointsCard);
+  });
+});
+
+// ============================================================
+// PointsSummaryCard — shares the header's rewards source of truth
+// ============================================================
+
+describe("PointsSummaryCard", () => {
+  it("links to /points and exposes an accessible label", () => {
+    render(
+      <TestWrapper>
+        <PointsSummaryCard />
+      </TestWrapper>
+    );
+    const link = screen.getByRole("link", { name: /امتیاز من/ });
+    expect(link).toHaveAttribute("href", "/points");
+  });
+
+  it("never renders a fake zero while loading", () => {
+    render(
+      <TestWrapper>
+        <PointsSummaryCard />
+      </TestWrapper>
+    );
+    // Loading → skeleton, not "۰".
+    expect(screen.queryByText("۰")).not.toBeInTheDocument();
   });
 });
 
@@ -297,9 +347,10 @@ describe("QuickActions", () => {
     const links = screen.getAllByRole("link");
     expect(links.length).toBeGreaterThanOrEqual(3);
     const hrefs = links.map((l) => l.getAttribute("href"));
-    expect(hrefs).toContain("/chat");
-    expect(hrefs).toContain("/documents");
-    expect(hrefs).toContain("/contracts");
+    // Every action deep-links with its service context in the URL.
+    expect(hrefs).toContain("/chat?service=legal_consultation");
+    expect(hrefs).toContain("/documents?service=contract_review");
+    expect(hrefs).toContain("/contracts?service=contract_drafting");
   });
 });
 

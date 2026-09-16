@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { createDemoDocument } from "@/lib/demo-seed";
-import { recordActivity, consumeDailyRequest, queryDailyQuota } from "@/lib/db";
+import { recordActivity, consumeDailyRequest, queryDailyQuota, spendEnergy } from "@/lib/db";
 import { SUPPORTED_DOCUMENT_MIMES, MAX_DOCUMENT_SIZE_BYTES } from "@legalir/types";
 
 export async function POST(request: Request) {
@@ -71,6 +71,14 @@ export async function POST(request: Request) {
 
   const doc = createDemoDocument(userId, { name, mime, sizeBytes });
   consumeDailyRequest(userId);
+
+  // Deduct the per-request energy cost (idempotent per document).
+  spendEnergy({
+    userId,
+    sourceType: "document",
+    sourceId: doc.id,
+    description: "کسر انرژی بابت بارگذاری سند",
+  });
 
   // Record the upload in the durable activity log.
   recordActivity({

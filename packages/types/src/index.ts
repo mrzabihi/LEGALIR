@@ -53,9 +53,19 @@ export interface UserSummary {
   mobileE164: string;
   mobileDisplay: string;
   status: AccountStatus;
+  /** Absent on legacy payloads — treat as "individual". */
+  accountType?: AccountType;
+  /** True once the account is `legal` — the type can no longer change. */
+  accountTypeLocked?: boolean;
 }
 
 export type AccountStatus = "pending" | "active" | "restricted" | "suspended" | "closed";
+
+/**
+ * The legal nature of the account holder.
+ * `individual` (شخص حقیقی) → `legal` (شخص حقوقی) is a one-way transition.
+ */
+export type AccountType = "individual" | "legal";
 
 // --- Profile ---
 
@@ -74,6 +84,19 @@ export interface Profile {
   province: string | null;
   legalInterests: string[] | null;
   primaryUseCase: string | null;
+}
+
+/** Account-level identity that is not part of the editable profile. */
+export interface AccountIdentity {
+  mobileDisplay: string;
+  accountType: AccountType;
+  /** True once the account is `legal` — the type can no longer change. */
+  accountTypeLocked: boolean;
+}
+
+export interface ConvertToLegalResponse {
+  accountType: AccountType;
+  accountTypeLocked: boolean;
 }
 
 export interface UserPreference {
@@ -1438,7 +1461,9 @@ export type RewardEventType =
   | "REFERRAL_COMPLETED"
   | "SUBSCRIPTION_SILVER_PURCHASED"
   | "SUBSCRIPTION_GOLD_PURCHASED"
-  | "SUBSCRIPTION_DIAMOND_PURCHASED";
+  | "SUBSCRIPTION_DIAMOND_PURCHASED"
+  // Spend event — carries a negative pointsDelta. Not an earnable rule.
+  | "REQUEST_CONSUMED";
 
 export interface RewardRuleInfo {
   eventType: RewardEventType;
@@ -1477,6 +1502,55 @@ export interface DailyVisitClaimResponse {
   awarded: boolean;
   points: number;
   balance: number;
+}
+
+// --- Points Account (ledger aggregates) ---
+
+export interface PointsAccount {
+  balance: number;
+  lifetimeEarned: number;
+  lifetimeSpent: number;
+  transactionCount: number;
+}
+
+export interface PointsTransactionsResponse {
+  items: RewardLedgerItem[];
+  pagination: Pagination;
+}
+
+// --- Settings: Notifications & Privacy ---
+
+export interface NotificationSettings {
+  appointments: boolean;
+  contractExpiry: boolean;
+  lawyerResponse: boolean;
+  paymentStatus: boolean;
+  caseUpdate: boolean;
+  marketing: boolean;
+}
+
+export interface PrivacySettings {
+  shareUsageData: boolean;
+  allowAiTraining: boolean;
+  storeConversationHistory: boolean;
+  autoMemoryConsent: boolean;
+}
+
+// --- Settings: Sessions & Security ---
+
+export interface SessionInfo {
+  id: string;
+  device: string;
+  browser: string;
+  ip: string | null;
+  lastActiveAt: string;
+  createdAt: string;
+  /** True for the session making the current request. */
+  current: boolean;
+}
+
+export interface SessionsResponse {
+  items: SessionInfo[];
 }
 
 // --- Phase 7: Chat Workspace Types ---

@@ -390,7 +390,7 @@ export default function RegisterPage() {
                 شرایط استفاده
               </Link>{" "}
               و{" "}
-              <Link href="/privacy" className="text-primary-700 underline underline-offset-2 hover:text-primary-800 transition-colors">
+              <Link href="/privacy-policy" className="text-primary-700 underline underline-offset-2 hover:text-primary-800 transition-colors">
                 حریم خصوصی
               </Link>{" "}
               را می‌پذیرم
