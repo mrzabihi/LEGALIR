@@ -34,6 +34,8 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
 # Database
 .data/
@@ -41,3 +43,9 @@ coverage/
 # Misc
 *.pem
 .turbo
+
+# Local scratch / reference material (not part of the app)
+_write-cases.js
+_pixel.png
+_shot.png
+iran legal/
