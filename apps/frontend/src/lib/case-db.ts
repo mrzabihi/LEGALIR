@@ -13,12 +13,29 @@ function ensureDir() {
   }
 }
 
+// Tables are re-read on every call, so cache the parse keyed by
+// mtime+size. All writes go through `writeTable`, which primes the
+// entry — a write can never leave a stale parse behind.
+const tableCache = new Map<string, { mtimeMs: number; size: number; data: unknown[] }>();
+
 function readTable<T>(name: string): T[] {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
-  if (!fs.existsSync(file)) return [];
+  let stat: fs.Stats;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    stat = fs.statSync(file);
+  } catch {
+    tableCache.delete(name);
+    return [];
+  }
+  const cached = tableCache.get(name);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.data as T[];
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+    return data;
   } catch {
     return [];
   }
@@ -28,6 +45,12 @@ function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+  try {
+    const stat = fs.statSync(file);
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+  } catch {
+    tableCache.delete(name);
+  }
 }
 
 export interface DbCase {

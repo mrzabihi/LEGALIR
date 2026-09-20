@@ -96,7 +96,9 @@ function todayJalali(): { jy: number; jm: number; jd: number } {
 function jalaliMonthLength(jy: number, jm: number): number {
   if (jm <= 6) return 31;
   if (jm <= 11) return 30;
-  return jalCal(jy).leap === 1 ? 30 : 29;
+  // In the jalaali-js algorithm `leap === 0` marks a leap year, so
+  // Esfand has 30 days then and 29 otherwise.
+  return jalCal(jy).leap === 0 ? 30 : 29;
 }
 
 /** Parse "YYYY-MM-DD" Jalali string → {jy,jm,jd} or null. */

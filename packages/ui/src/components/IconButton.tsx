@@ -12,10 +12,10 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 
 const variantClasses: Record<IconButtonVariant, string> = {
   standard:
-    "text-onSurfaceVariant hover:bg-onSurface/[0.08] focus-visible:bg-onSurface/[0.12] active:bg-onSurface/[0.12]",
-  filled: "bg-primary text-onPrimary hover:state-hover focus-visible:state-focus active:state-pressed",
+    "text-on-surface-variant hover:state-hover focus-visible:state-focus active:state-pressed",
+  filled: "bg-primary text-primary-on hover:state-hover focus-visible:state-focus active:state-pressed",
   tonal:
-    "bg-primaryContainer text-onPrimaryContainer hover:state-hover focus-visible:state-focus active:state-pressed",
+    "bg-primary-container text-primary-on-container hover:state-hover focus-visible:state-focus active:state-pressed",
 };
 
 const sizeClasses = {

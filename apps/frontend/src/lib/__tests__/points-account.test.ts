@@ -10,8 +10,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type * as dbModule from "../db";
+import type { RewardLedgerEntry, DbUser } from "../db";
 
-type Db = typeof import("../db");
+type Db = typeof dbModule;
 
 let db: Db;
 let tmpDir: string;
@@ -39,7 +41,7 @@ function makeUser(mobile: string) {
 
 /** Top up a balance with an arbitrary delta (test-only ledger write). */
 function topUp(userId: string, delta: number, key: string) {
-  const rows = db.readTable<import("../db").RewardLedgerEntry>("reward_ledger");
+  const rows = db.readTable<RewardLedgerEntry>("reward_ledger");
   rows.push({
     id: crypto.randomUUID(),
     user_id: userId,
@@ -199,7 +201,7 @@ describe("account type transition", () => {
   });
 
   it("treats legacy rows without the field as individual", () => {
-    const users = db.readTable<import("../db").DbUser>("users");
+    const users = db.readTable<DbUser>("users");
     users.push({
       id: "legacy-user",
       mobile: "09120000112",

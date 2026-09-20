@@ -2474,4 +2474,5 @@ export {
   fixtureLegalSourceDetails,
   fixtureBlogListItems,
   fixtureBlogPostDetails,
+  fixtureNotifications,
 } from "./legal-library-fixtures";

@@ -42,6 +42,14 @@ export interface LegalService {
   href: string;
   /** Tailwind gradient classes for the dashboard card chip. */
   gradient: string;
+  /**
+   * Single brand accent for this service, as a raw CSS colour.
+   * Consumed by the Quick Access cards, which tint their icon container,
+   * arrow affordance and watermark illustration from this one value —
+   * never from a second hue. Kept out of the Tailwind palette because
+   * these are per-service brand colours, not themeable semantic roles.
+   */
+  accent: string;
   /** Semantic icon from the shared icon library. */
   icon: ServiceIcon;
 }
@@ -59,6 +67,7 @@ interface ServiceSeed {
   subtitle: string;
   route: string;
   gradient: string;
+  accent: string;
   icon: ServiceIcon;
 }
 
@@ -66,37 +75,42 @@ interface ServiceSeed {
 const SEEDS: ServiceSeed[] = [
   {
     id: "legal_consultation",
-    subtitle: "سوال خود را بپرسید",
+    subtitle: "سؤال خود را بپرسید",
     route: "/chat",
     gradient: "from-blue-500 to-blue-600",
+    accent: "#6844C7",
     icon: IconChat,
   },
   {
     id: "contract_review",
-    subtitle: "تحلیل ریسک و شروط",
+    subtitle: "تحلیل ریسک و شرایط قرارداد",
     route: "/documents",
     gradient: "from-emerald-500 to-emerald-600",
+    accent: "#32B183",
     icon: IconFileSearch,
   },
   {
     id: "contract_drafting",
-    subtitle: "پیش‌نویس هوشمند",
+    subtitle: "پیش‌نویس هوشمند قراردادها",
     route: "/contracts",
     gradient: "from-violet-500 to-violet-600",
+    accent: "#3097D8",
     icon: IconFilePen,
   },
   {
     id: "legal_notice",
-    subtitle: "نامه‌نگاری حقوقی",
+    subtitle: "نامه‌نگاری حقوقی حرفه‌ای",
     route: "/chat",
     gradient: "from-orange-500 to-orange-600",
+    accent: "#D89A13",
     icon: IconFileText,
   },
   {
     id: "document_analysis",
-    subtitle: "بررسی مستندات",
+    subtitle: "بررسی و تحلیل مستندات حقوقی",
     route: "/documents",
     gradient: "from-cyan-500 to-cyan-600",
+    accent: "#2F5FD0",
     icon: IconFiles,
   },
   {
@@ -104,6 +118,7 @@ const SEEDS: ServiceSeed[] = [
     subtitle: "خسارت، ارث، دیه",
     route: "/chat",
     gradient: "from-rose-500 to-rose-600",
+    accent: "#B6251E",
     icon: IconCalculator,
   },
 ];
@@ -118,6 +133,7 @@ export const LEGAL_SERVICES: LegalService[] = SEEDS.map((seed) => {
     route: seed.route,
     href: serviceHref(seed.id, seed.route),
     gradient: seed.gradient,
+    accent: seed.accent,
     icon: seed.icon,
   };
 });

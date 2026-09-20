@@ -204,10 +204,10 @@ describe("Dashboard Page — Pro User", () => {
     });
   });
 
-  it("renders notifications placeholder", () => {
+  it("does not render an announcement card on the dashboard", () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
-    // Notifications placeholder renders immediately (no async data)
-    expect(screen.getByText("اعلان جدیدی ندارید")).toBeInTheDocument();
+    // Notifications moved to the Notification Center behind the header bell.
+    expect(screen.queryByText("اعلان جدیدی ندارید")).not.toBeInTheDocument();
   });
 });
 
@@ -239,7 +239,7 @@ describe("Dashboard Page — New User (Empty State)", () => {
     render(<TestWrapper><DashboardPage /></TestWrapper>);
 
     await waitFor(() => {
-      expect(screen.getByText(/هنوز فعالیتی ندارید/)).toBeInTheDocument();
+      expect(screen.getByText(/هنوز پیش‌نویسی ندارید/)).toBeInTheDocument();
     });
   });
 

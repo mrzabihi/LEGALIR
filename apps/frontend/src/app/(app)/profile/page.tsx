@@ -11,7 +11,7 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useMe, useUpdateProfile, useDailyQuota } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
-import { useCurrentSubscription } from "@/hooks/useSubscription";
+import { SubscriptionStatusDetails } from "@/components/subscription/subscription-status";
 import { useConvertToLegal } from "@/hooks/useAccount";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useContracts } from "@/hooks/useContracts";
@@ -485,7 +485,6 @@ export default function AccountHubPage() {
   const usage = useProfileUsage();
   const quota = useDailyQuota();
   const subHistory = useSubscriptionHistory();
-  const currentSub = useCurrentSubscription();
   const documents = useDocuments({ pageSize: 1 });
   const contracts = useContracts({ pageSize: 1 });
   const memories = useMemories();
@@ -500,7 +499,6 @@ export default function AccountHubPage() {
   const accountTypeLocked = me.data?.user?.accountTypeLocked ?? accountType === "legal";
   const usageData = usage.data;
   const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
-  const activeSub = currentSub.data ?? null;
 
   const docCount = documents.data?.pagination?.total ?? documents.data?.items?.length ?? 0;
   const contractCount = contracts.data?.pagination?.total ?? contracts.data?.items?.length ?? 0;
@@ -551,7 +549,7 @@ export default function AccountHubPage() {
   const dailyExhausted = dailyTotal > 0 && dailyRemaining === 0;
   const dailyLow = !dailyExhausted && dailyTotal > 0 && dailyRemaining / dailyTotal <= 0.25;
 
-  const subLabel = activeSub?.planNameFa ?? "بدون اشتراک";
+  const lastPayment = subItems[0] ?? null;
 
   return (
     <div className="p-4 tablet:p-6 max-w-3xl mx-auto" dir="rtl">
@@ -799,29 +797,12 @@ export default function AccountHubPage() {
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconSubscription size={22} />}>اشتراک</SectionTitle>
 
-        <div className="flex flex-col tablet:flex-row tablet:items-center gap-4 rounded-xl bg-amber-50/60 border border-amber-100 p-4 mb-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-body-1 text-onSurface font-semibold">پلن فعلی: {subLabel}</p>
-            <p className="text-caption text-muted mt-0.5">
-              {activeSub?.endAt ? `اعتبار تا ${toPersianDate(activeSub.endAt)}` : "برای فعال‌سازی اشتراک اقدام کنید"}
-            </p>
-          </div>
-          <Link
-            href="/subscription"
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-medium bg-primary-700 text-white px-5 py-2.5 text-button hover:bg-primary-800 transition-colors touch-target"
-          >
-            مدیریت و ارتقا
-            <IconArrowBack size={16} rtlFlip />
-          </Link>
-        </div>
+        {/* Canonical status — same source as the header chip and sidebar badge */}
+        <SubscriptionStatusDetails className="mb-4" />
 
         {/* درخواست امروز — donut: consumed vs remaining (matches dashboard) */}
-        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border border-white/10 backdrop-blur p-4 transition-colors duration-300 hover:border-blue-300/30">
-          <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-blue-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
-            aria-hidden="true"
-          />
-          <div className="relative flex items-center gap-3">
+        <div className="rounded-xl bg-info-50 border border-info-100 p-4 dark:bg-info-container dark:border-divider">
+          <div className="flex items-center gap-3">
             <div
               className="relative w-11 h-11 shrink-0"
               role="img"
@@ -830,48 +811,48 @@ export default function AccountHubPage() {
               <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
                 <defs>
                   <linearGradient id="profileQuotaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="100%" stopColor="#3b82f6" />
+                    <stop offset="0%" stopColor="#60A5FA" />
+                    <stop offset="100%" stopColor="#2563EB" />
                   </linearGradient>
                 </defs>
                 {/* track = consumed portion */}
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--color-info-100)" strokeWidth="4" />
                 {/* remaining allowance sweeps from 12 o'clock */}
                 <circle
                   cx="18" cy="18" r="15.915" fill="none"
-                  stroke={dailyExhausted ? "#f87171" : dailyLow ? "#fbbf24" : "url(#profileQuotaGrad)"}
+                  stroke={dailyExhausted ? "var(--color-error)" : dailyLow ? "var(--color-warning)" : "url(#profileQuotaGrad)"}
                   strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={dailyDash}
                   className="transition-all duration-700 ease-emphasized"
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
+              <span className="absolute inset-0 flex items-center justify-center text-labelSmall font-bold text-info-700 tabular-nums dark:text-info">
                 {toPersianNumber(dailyRemaining)}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">
+              <p className="text-h3 text-info-700 font-bold tabular-nums dark:text-info" dir="ltr">
                 {toPersianNumber(dailyUsed)}/{toPersianNumber(dailyTotal)}
               </p>
-              <p className="text-caption text-primary-200 mt-0.5">درخواست امروز</p>
+              <p className="text-caption text-info-700 mt-0.5 dark:text-info">درخواست امروز</p>
             </div>
           </div>
           {/* legend: consumed vs remaining */}
-          <div className="relative mt-2 flex items-center gap-3 text-[10px] text-primary-200/90">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-300" aria-hidden="true" />
+          <div className="mt-3 flex items-center gap-3 text-caption text-info-700 dark:text-info">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-info-600 dark:bg-info" aria-hidden="true" />
               {toPersianNumber(dailyRemaining)} مانده
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-white/25" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-info-200" aria-hidden="true" />
               {toPersianNumber(dailyUsed)} مصرف
             </span>
           </div>
         </div>
 
-        {subItems.length > 0 && subItems[0] && (
+        {lastPayment && (
           <p className="text-caption text-muted">
-            آخرین پرداخت: {subItems[0].planNameFa} — {toPersianDate(subItems[0].purchasedAt)}
+            آخرین پرداخت: {lastPayment.planNameFa} — {toPersianDate(lastPayment.purchasedAt)}
           </p>
         )}
       </section>

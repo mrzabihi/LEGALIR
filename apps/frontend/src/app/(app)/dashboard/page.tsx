@@ -18,8 +18,6 @@ import {
   RecentDocuments,
   RecentActivities,
   UsageSummaryCard,
-  SubscriptionOverview,
-  NotificationsPlaceholder,
 } from "@/components/dashboard";
 import {
   useProfileCompletionPrompt,
@@ -54,32 +52,17 @@ export default function DashboardPage() {
       {/* Profile Completion Incentive — non-blocking modal when eligible */}
       <ProfileCompletionPromptModal controller={promptController} />
 
-      {/* Hero Section — gradient with stats */}
+      {/* ── 1) OVERVIEW ─────────────────────────────────────── */}
       <HeroSection
         displayName={displayName}
         isLoading={me.isLoading}
         stats={heroStats}
       />
 
-      {/* Smart Input Bar — below hero */}
       <SmartInputBar />
 
-      {/* Profile Completion — from /api/v1/me */}
-      <ProfileCompletionCard
-        profile={me.data?.profile}
-        isLoading={me.isLoading}
-      />
-
-      {/* Promo Banner — upgrade CTA */}
-      <PromoBanner
-        planCode={dashboard.data?.subscription?.planCode}
-      />
-
-      {/* Quick Actions — always shown */}
-      <QuickActions />
-
-      {/* Legal Library Banner */}
-      <section className="mb-6 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 p-5 flex items-center gap-4 flex-col tablet:flex-row text-center tablet:text-right">
+      {/* Legal Library Banner — directly under the AI tagline */}
+      <section className="mb-6 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-[color-mix(in_srgb,var(--color-warning-200)_60%,transparent)] p-5 flex items-center gap-4 flex-col tablet:flex-row text-center tablet:text-right">
         <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center shrink-0 shadow-sm">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -104,6 +87,61 @@ export default function DashboardPage() {
         </Link>
       </section>
 
+      {/* Profile Completion — from /api/v1/me */}
+      <ProfileCompletionCard
+        profile={me.data?.profile}
+        isLoading={me.isLoading}
+      />
+
+      {/* ── 2) ACTIONS ──────────────────────────────────────── */}
+      <QuickActions />
+
+      {/* Promo Banner — upgrade CTA */}
+      <PromoBanner
+        planCode={dashboard.data?.subscription?.planCode}
+      />
+
+      {/* ── 3) ONGOING WORK ─────────────────────────────────── */}
+      {/* Three cards share one equal-height row on desktop; each card owns its
+          own header (icon + title + subtitle + «مشاهده همه»). */}
+      <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 items-stretch gap-4 mb-6">
+        <RecentActivities
+          items={activities}
+          isLoading={dashboard.isLoading}
+          error={dashboard.error as Error | null}
+          onRetry={() => dashboard.refetch()}
+        />
+        <ActiveRequests
+          items={dashboard.data?.activeRequests ?? []}
+          isLoading={dashboard.isLoading}
+          error={dashboard.error as Error | null}
+          onRetry={() => dashboard.refetch()}
+        />
+        <SmartRecommendations
+          items={dashboard.data?.recommendations ?? []}
+          isLoading={dashboard.isLoading}
+          error={dashboard.error as Error | null}
+          onRetry={() => dashboard.refetch()}
+        />
+      </div>
+
+      {/* ── 4) USAGE & SUBSCRIPTION ─────────────────────────── */}
+      {/* The card carries its own header (title + subtitle + «جزئیات بیشتر»). */}
+      <UsageSummaryCard
+        usage={usage.data}
+        isLoading={usage.isLoading}
+        error={usage.error as Error | null}
+        onRetry={() => usage.refetch()}
+      />
+
+      {/* ── 5) SECONDARY ────────────────────────────────────── */}
+      <RecentDocuments
+        items={dashboard.data?.recentDocuments ?? []}
+        isLoading={dashboard.isLoading}
+        error={dashboard.error as Error | null}
+        onRetry={() => dashboard.refetch()}
+      />
+
       {/* Blog / Legal Education */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -122,7 +160,7 @@ export default function DashboardPage() {
         {blog.isLoading ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-32 rounded-2xl bg-surface border border-divider/60 skeleton-shimmer" />
+              <div key={i} className="h-32 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
             ))}
           </div>
         ) : blog.data?.items && blog.data.items.length > 0 ? (
@@ -131,9 +169,9 @@ export default function DashboardPage() {
               <Link
                 key={post.id}
                 href={`/blog/${post.slug}`}
-                className="group rounded-2xl bg-surface border border-divider/60 p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+                className="group rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
               >
-                <span className="inline-flex items-center gap-1 w-fit text-caption text-secondary-700 bg-secondary-50 border border-secondary-200/60 rounded-full px-2.5 py-0.5 mb-3">
+                <span className="inline-flex items-center gap-1 w-fit text-caption text-secondary-700 bg-secondary-50 border border-[color-mix(in_srgb,var(--color-secondary-200)_60%,transparent)] rounded-full px-2.5 py-0.5 mb-3">
                   {post.category}
                 </span>
                 <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary-700 transition-colors line-clamp-2 leading-snug">
@@ -149,7 +187,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl bg-surface border border-divider/60 p-6 text-center">
+          <div className="rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-6 text-center">
             <p className="text-body-2 text-muted">هنوز مطلبی در وبلاگ منتشر نشده است.</p>
           </div>
         )}
@@ -157,7 +195,7 @@ export default function DashboardPage() {
 
       {/* Empty state CTA when no activity exists */}
       {hasNoActivity && (
-        <section className="mb-6 rounded-2xl bg-surface border border-divider/60 p-8 text-center">
+        <section className="mb-6 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-8 text-center">
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -205,56 +243,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Active Requests + Smart Recommendations side-by-side */}
-      <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4 mb-6">
-        <ActiveRequests
-          items={dashboard.data?.activeRequests ?? []}
-          isLoading={dashboard.isLoading}
-          error={dashboard.error as Error | null}
-          onRetry={() => dashboard.refetch()}
-        />
-        <SmartRecommendations
-          items={dashboard.data?.recommendations ?? []}
-          isLoading={dashboard.isLoading}
-          error={dashboard.error as Error | null}
-          onRetry={() => dashboard.refetch()}
-        />
-      </div>
-
-      {/* Recent Documents */}
-      <RecentDocuments
-        items={dashboard.data?.recentDocuments ?? []}
-        isLoading={dashboard.isLoading}
-        error={dashboard.error as Error | null}
-        onRetry={() => dashboard.refetch()}
-      />
-
-      {/* Recent Activities */}
-      <RecentActivities
-        items={activities}
-        isLoading={dashboard.isLoading}
-        error={dashboard.error as Error | null}
-        onRetry={() => dashboard.refetch()}
-      />
-
-      {/* Usage & Entitlement Summary */}
-      <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4">
-        <UsageSummaryCard
-          usage={usage.data}
-          isLoading={usage.isLoading}
-          error={usage.error as Error | null}
-          onRetry={() => usage.refetch()}
-        />
-        <SubscriptionOverview
-          subscription={dashboard.data?.subscriptionUsage}
-          isLoading={dashboard.isLoading}
-          error={dashboard.error as Error | null}
-          onRetry={() => dashboard.refetch()}
-        />
-      </div>
-
-      {/* Notifications */}
-      <NotificationsPlaceholder />
     </div>
   );
 }

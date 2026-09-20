@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA, CASE_TASK_STATUS_FA } from "@legalir/types";
-import type { CaseStatus, CaseCategory, CasePriority, CaseTaskStatus, CaseDetailResponse, CaseTask, CaseTimelineEvent } from "@legalir/types";
+import type { CaseStatus, CasePriority, CaseTaskStatus, CaseDetailResponse, CaseTask, CaseTimelineEvent } from "@legalir/types";
 import { IconChevronRight, IconAdd, IconBalance, IconRefresh } from "@/lib/icons";
 
 const STATUS_COLORS: Record<CaseStatus, string> = {

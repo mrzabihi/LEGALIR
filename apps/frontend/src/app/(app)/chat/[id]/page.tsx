@@ -25,8 +25,6 @@ import { streamChat } from "@/lib/ai/stream-client";
 import type { WorkflowEvent } from "@/lib/ai/stream-client";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
 import { PageContextHeader } from "@/components/shared";
-import { WorkflowProgress } from "@/components/chat/workflow-progress";
-import type { WorkflowPhase } from "@/components/chat/workflow-progress";
 import type { V1Reference, AiRunStatus, V1DailyQuota } from "@legalir/types";
 
 export default function ConversationPage() {

@@ -10,7 +10,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useClaimDailyVisit } from "@/hooks/useRewards";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { tehranDateString } from "@/lib/rewards";
 import { IconCoin } from "@/lib/icons";
+
+/**
+ * Remembers the Tehran business day of the last successful claim so a
+ * hard reload does not re-hit the endpoint. The server stays the real
+ * guard (the claim is idempotent per day); this only spares the network
+ * round-trip that used to be the slowest call on every page load.
+ */
+const CLAIMED_DAY_KEY = "legalir-daily-visit-claimed";
 
 export function DailyVisitToast() {
   const claim = useClaimDailyVisit();
@@ -21,10 +30,23 @@ export function DailyVisitToast() {
     if (fired.current) return;
     fired.current = true;
 
+    const today = tehranDateString();
+    try {
+      if (window.localStorage.getItem(CLAIMED_DAY_KEY) === today) return;
+    } catch {
+      // Storage unavailable (private mode) — fall through and let the
+      // server's idempotency handle it.
+    }
+
     // Idempotent: awarded=true only the first successful claim of the day.
     claim
       .mutateAsync()
       .then((res) => {
+        try {
+          window.localStorage.setItem(CLAIMED_DAY_KEY, today);
+        } catch {
+          // Non-fatal: the server still guards against a double award.
+        }
         if (res.awarded) {
           setMessage(`+${toPersianNumber(res.points)} امتیاز — امتیاز حضور امروز به حساب شما اضافه شد.`);
         }

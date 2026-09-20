@@ -10,8 +10,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type * as dbModule from "../db";
+import type { RewardLedgerEntry } from "../db";
 
-type Db = typeof import("../db");
+type Db = typeof dbModule;
 
 let db: Db;
 let tmpDir: string;
@@ -33,7 +35,7 @@ function grant(userId: string, points: number, key: string) {
   // DAILY_VISIT is fixed at +100; top up the remainder directly for the test.
   const delta = points - 100;
   if (delta !== 0) {
-    const rows = db.readTable<import("../db").RewardLedgerEntry>("reward_ledger");
+    const rows = db.readTable<RewardLedgerEntry>("reward_ledger");
     rows.push({
       id: crypto.randomUUID(),
       user_id: userId,

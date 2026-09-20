@@ -49,3 +49,14 @@ _write-cases.js
 _pixel.png
 _shot.png
 iran legal/
+.tmp-qa/
+/Contract smaple/
+/Documents/
+
+# Root-level logo source files (duplicates of apps/frontend/public/*)
+/legalir-logo.png
+/dashboard logo legalir.png
+/dashboard logo legalir dark mode.png
+/LEGALIR FARSI TYPE LOGO.png
+/LEGALIR FARSI TYPE LOGO LIGHT SLIDE BAR.png
+/222dfc49-1d89-424f-9847-ea4b488f4aad.png

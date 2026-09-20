@@ -1291,3 +1291,42 @@ export const fixtureBlogPostDetails: Record<string, V1BlogPostDetail> = {
     nextPost: null,
   },
 };
+
+// ============================================================
+// Notification Center fixtures
+// ============================================================
+
+import type { NotificationItem } from "@legalir/types";
+
+export const fixtureNotifications: NotificationItem[] = [
+  {
+    id: "points:r-1",
+    category: "points",
+    tone: "success",
+    title: "امتیاز دریافت کردید",
+    message: "تکمیل پروفایل",
+    createdAt: "2026-09-18T09:00:00Z",
+    read: false,
+    pointsDelta: 100,
+  },
+  {
+    id: "activity:a-1",
+    category: "personal",
+    tone: "neutral",
+    title: "مشاوره حقوقی",
+    message: "درخواست شما در حال بررسی است",
+    createdAt: "2026-09-17T09:00:00Z",
+    read: false,
+    href: "/chat",
+  },
+  {
+    id: "ann:legal-library-launch",
+    category: "public",
+    tone: "neutral",
+    title: "کتابخانه حقوقی راه‌اندازی شد",
+    message: "دسترسی رایگان به قوانین و آرای وحدت رویه",
+    createdAt: "2026-09-16T09:00:00Z",
+    read: true,
+    href: "/legal-library",
+  },
+];

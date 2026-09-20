@@ -14,11 +14,25 @@ import type {
   Profile,
   RecentActivityItem,
   UsageSummary,
+  Entitlement,
   ActiveRequestItem,
   DashboardRecommendation,
   RecentDocumentItem,
 } from "@legalir/types";
-import { LEGAL_SERVICES } from "@/lib/services";
+import { toPersianNumber } from "@/lib/persian-utils";
+import {
+  IconChevronRight,
+  IconChat,
+  IconDocument,
+  IconContract,
+  IconDatabase,
+  IconBolt,
+  IconCalendar,
+  IconShield,
+  IconHistory,
+  IconRefresh,
+  IconStar,
+} from "@/lib/icons";
 import { PointsSummaryCard } from "./points-summary-card";
 
 // ============================================================
@@ -58,7 +72,7 @@ export function WidgetShell({
       {/* Header */}
       {title && (
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-h3 text-onSurface font-bold">{title}</h3>
+          <h3 className="text-h3 text-on-surface font-bold">{title}</h3>
           {titleRight}
         </div>
       )}
@@ -79,9 +93,140 @@ export function WidgetShell({
 
   return (
     <section
-      className={`rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 ${className}`}
+      className={`rounded-large bg-surface-container-low border border-[color:var(--color-outline-variant)] shadow-elevation-1 p-5 ${className}`}
     >
       {content}
+    </section>
+  );
+}
+
+// ============================================================
+// DashboardSection — consistent section grouping with a heading
+// ============================================================
+
+interface DashboardSectionProps {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}
+
+export function DashboardSection({ title, subtitle, action, children, className = "" }: DashboardSectionProps) {
+  return (
+    <section className={`mb-6 ${className}`} aria-label={title}>
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <h2 className="text-h3 text-on-surface font-bold">{title}</h2>
+          {subtitle && <p className="text-caption text-on-surface-variant mt-0.5">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// ============================================================
+// StatusChip — one shared status pill for every dashboard widget
+// ============================================================
+
+export type StatusTone = "success" | "info" | "warning" | "error" | "neutral";
+
+const STATUS_TONE_CLASS: Record<StatusTone, string> = {
+  success: "bg-success-50 text-success-700 border-success-200",
+  info: "bg-info-50 text-info-700 border-info-200",
+  warning: "bg-warning-50 text-warning-700 border-warning-200",
+  error: "bg-error-50 text-error-700 border-error-200",
+  neutral: "bg-surface-container-high text-on-surface-variant border-outline-variant",
+};
+
+export function StatusChip({ label, tone = "neutral" }: { label: string; tone?: StatusTone }) {
+  return (
+    <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${STATUS_TONE_CLASS[tone]}`}>
+      {label}
+    </span>
+  );
+}
+
+/** Lightweight "مشاهده همه" action used in widget headers. */
+function ViewAllLink({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="group inline-flex items-center gap-0.5 text-caption text-primary font-medium hover:underline touch-target"
+    >
+      مشاهده همه
+      <IconChevronRight size={14} className="transition-transform duration-short4 ease-standard group-hover:-translate-x-0.5" />
+    </Link>
+  );
+}
+
+// ============================================================
+// DashboardCard — the shared shell for the three "ongoing work" cards
+// ============================================================
+// One header architecture for all three (icon · title · subtitle ·
+// «مشاهده همه») so no card reads heavier than its neighbours, and one
+// height contract: `h-full flex flex-col` with a `flex-1` body, so the
+// three cards in a row always end at the same baseline.
+
+interface DashboardCardProps {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  /** Where «مشاهده همه» points. Omit to hide the action. */
+  viewAllHref?: string;
+  isLoading: boolean;
+  error: Error | null;
+  onRetry?: () => void;
+  isEmpty: boolean;
+  emptyMessage: string;
+  children: ReactNode;
+}
+
+function DashboardCard({
+  icon,
+  title,
+  subtitle,
+  viewAllHref,
+  isLoading,
+  error,
+  onRetry,
+  isEmpty,
+  emptyMessage,
+  children,
+}: DashboardCardProps) {
+  return (
+    <section
+      className="h-full flex flex-col rounded-large bg-surface-container-low border border-[color:var(--color-outline-variant)] shadow-elevation-1 p-5"
+      aria-label={title}
+    >
+      {/* Header — identical padding, title size, icon container and action slot */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-medium bg-surface-container-high text-on-surface-variant">
+            {icon}
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-titleMedium text-on-surface font-semibold truncate">{title}</h3>
+            <p className="text-caption text-muted mt-0.5 truncate">{subtitle}</p>
+          </div>
+        </div>
+        {viewAllHref && <ViewAllLink href={viewAllHref} />}
+      </div>
+
+      {/* Body — flex-1 so the card fills the row height without stretching content */}
+      <div className="flex-1 min-h-0">
+        {isLoading ? (
+          <WidgetSkeleton />
+        ) : error ? (
+          <WidgetError message="خطا در دریافت اطلاعات" onRetry={onRetry} />
+        ) : isEmpty ? (
+          <WidgetEmpty message={emptyMessage} />
+        ) : (
+          children
+        )}
+      </div>
     </section>
   );
 }
@@ -89,9 +234,9 @@ export function WidgetShell({
 function WidgetSkeleton() {
   return (
     <div className="animate-pulse space-y-3" aria-busy="true">
-      <div className="h-5 w-3/4 rounded-small bg-muted/15" />
-      <div className="h-4 w-full rounded-small bg-muted/10" />
-      <div className="h-4 w-2/3 rounded-small bg-muted/10" />
+      <div className="h-5 w-3/4 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_15%,transparent)]" />
+      <div className="h-4 w-full rounded-small bg-[color-mix(in_srgb,var(--color-muted)_10%,transparent)]" />
+      <div className="h-4 w-2/3 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_10%,transparent)]" />
     </div>
   );
 }
@@ -99,16 +244,16 @@ function WidgetSkeleton() {
 function WidgetError({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-2 py-4 text-center" role="alert">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-300">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-error">
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="8" x2="12" y2="12" />
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
-      <p className="text-body-2 text-muted">{message}</p>
+      <p className="text-body-2 text-on-surface-variant">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-1 rounded-lg bg-primary px-4 py-1.5 text-white text-caption hover:bg-primary-600 transition-colors touch-target"
+          className="mt-1 rounded-full bg-primary px-4 py-1.5 text-primary-on text-caption hover:state-hover transition-colors duration-short3 ease-standard touch-target"
         >
           تلاش مجدد
         </button>
@@ -120,13 +265,13 @@ function WidgetError({ message, onRetry }: { message: string; onRetry?: () => vo
 function WidgetEmpty({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-250">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_40%,transparent)]">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <polyline points="14 2 14 8 20 8" />
         <line x1="16" y1="13" x2="8" y2="13" />
         <line x1="16" y1="17" x2="8" y2="17" />
       </svg>
-      <p className="text-body-2 text-neutral-400">{message}</p>
+      <p className="text-body-2 text-on-surface-variant">{message}</p>
     </div>
   );
 }
@@ -174,12 +319,12 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 animate-pulse">
-        <div className="h-9 w-56 rounded-lg bg-white/10 mb-3" />
-        <div className="h-5 w-40 rounded-lg bg-white/10 mb-8" />
+      <div className="rounded-large bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 animate-pulse">
+        <div className="h-9 w-56 rounded-medium bg-white/10 mb-3" />
+        <div className="h-5 w-40 rounded-medium bg-white/10 mb-8" />
         <div className="grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-20 rounded-xl bg-white/10" />
+            <div key={i} className="h-20 rounded-medium bg-white/10" />
           ))}
         </div>
       </div>
@@ -187,11 +332,11 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
   }
 
   return (
-    <div className="relative rounded-2xl bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 overflow-hidden">
+    <div className="relative rounded-large bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary-400/10 blur-3xl" />
-        <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-secondary-400/10 blur-3xl" />
+        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-[rgba(96,165,250,0.10)] blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[rgba(176,141,87,0.12)] blur-3xl" />
       </div>
 
       {/* Greeting */}
@@ -210,10 +355,10 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
         <PointsSummaryCard />
 
         {/* درخواست امروز — donut: consumed vs remaining */}
-        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-blue-300/30">
+        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.10))] text-info-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(147,197,253,0.30)]">
           {/* soft glow that intensifies on hover */}
           <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-blue-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(96,165,250,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
             aria-hidden="true"
           />
           <div className="relative flex items-center gap-3">
@@ -237,7 +382,7 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
                   stroke={dailyExhausted ? "#f87171" : dailyLow ? "#fbbf24" : "url(#dailyQuotaGrad)"}
                   strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={dailyDash}
-                  className="transition-all duration-700 ease-emphasized"
+                  className="transition-all duration-long4 ease-emphasized"
                 />
               </svg>
               <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
@@ -252,9 +397,9 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
             </div>
           </div>
           {/* legend: consumed vs remaining */}
-          <div className="relative flex items-center gap-3 text-[10px] text-primary-200/90">
+          <div className="relative flex items-center gap-3 text-[10px] text-[color:color-mix(in_srgb,var(--color-primary-200)_90%,transparent)]">
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-300" aria-hidden="true" />
+              <span className="w-2 h-2 rounded-full bg-info-300" aria-hidden="true" />
               {dailyRemaining.toLocaleString("fa-IR")} مانده
             </span>
             <span className="inline-flex items-center gap-1">
@@ -265,20 +410,20 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
         </div>
 
         {/* اسناد — gradient icon ring + count badge */}
-        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-emerald-300/30">
+        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(34,197,94,0.22),rgba(22,163,74,0.10))] text-success-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(134,239,172,0.30)]">
           {/* soft glow that intensifies on hover */}
           <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-emerald-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(74,222,128,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
             aria-hidden="true"
           />
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-400/20 text-emerald-200 ring-1 ring-inset ring-emerald-300/20 transition-transform duration-300 group-hover:scale-105">
+          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-[rgba(74,222,128,0.20)] text-success-200 ring-1 ring-inset ring-[rgba(134,239,172,0.20)] transition-transform duration-short4 ease-standard group-hover:scale-105">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-emerald-400 text-emerald-950 text-[10px] font-bold tabular-nums ring-2 ring-emerald-500/20">
+            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-success-400 text-success-900 text-[10px] font-bold tabular-nums ring-2 ring-[color-mix(in_srgb,var(--color-success-500)_20%,transparent)]">
               {stats.docCount.toLocaleString("fa-IR")}
             </span>
           </span>
@@ -289,17 +434,17 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
         </div>
 
         {/* درخواست فعال — blinking light-sweep effect */}
-        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 text-purple-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-purple-300/30">
+        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.10))] text-info-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(147,197,253,0.30)]">
           <span className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
             <span className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-light-sweep" />
           </span>
           {/* soft glow that intensifies on hover */}
           <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-purple-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(96,165,250,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
             aria-hidden="true"
           />
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg bg-purple-400/20 text-purple-200 ring-1 ring-inset ring-purple-300/20 transition-transform duration-300 group-hover:scale-105">
-            <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-purple-300 animate-status-blink" aria-hidden="true" />
+          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-[rgba(96,165,250,0.20)] text-info-200 ring-1 ring-inset ring-[rgba(147,197,253,0.20)] transition-transform duration-short4 ease-standard group-hover:scale-105">
+            <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-info-300 animate-status-blink" aria-hidden="true" />
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
@@ -311,10 +456,10 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
         </div>
 
         {/* روز باقی‌مانده — pie chart + 30-day strip */}
-        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-amber-300/30">
+        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(245,158,11,0.22),rgba(217,119,6,0.10))] text-warning-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(252,211,77,0.30)]">
           {/* soft glow that intensifies on hover */}
           <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-amber-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(251,191,36,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
             aria-hidden="true"
           />
           <div className="relative flex items-center gap-3">
@@ -332,7 +477,7 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
                   stroke="url(#daysLeftGrad)" strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={pieDash}
                   transform={`rotate(${pieRotate} 18 18)`}
-                  className="transition-all duration-700 ease-emphasized"
+                  className="transition-all duration-long4 ease-emphasized"
                 />
               </svg>
               <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
@@ -350,8 +495,10 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
               <span
                 key={i}
                 className={[
-                  "h-1.5 rounded-full transition-colors duration-300",
-                  elapsed ? "bg-red-400/70" : "bg-emerald-400/70",
+                  "h-1.5 rounded-full transition-colors duration-short4 ease-standard",
+                  elapsed
+                    ? "bg-[color-mix(in_srgb,var(--color-error-400)_70%,transparent)]"
+                    : "bg-[color-mix(in_srgb,var(--color-success-400)_70%,transparent)]",
                 ].join(" ")}
               />
             ))}
@@ -390,25 +537,25 @@ export function PromoBanner({ planCode }: PromoBannerProps) {
   if (!info) return null;
 
   return (
-    <div className="relative rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-amber-200/60 p-5 mb-6 overflow-hidden">
+    <div className="relative rounded-large bg-gradient-to-r from-warning-50 via-warning-100 to-warning-50 border border-warning-200 p-5 mb-6 overflow-hidden">
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-amber-300/20 blur-2xl" />
+        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[rgba(252,211,77,0.20)] blur-2xl" />
       </div>
       <div className="relative flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 shadow-elevation-1">
+          <div className="h-10 w-10 rounded-medium bg-warning-500 flex items-center justify-center shrink-0 shadow-elevation-1">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
           </div>
           <div>
-            <p className="text-body-1 text-onSurface font-semibold">{info.title}</p>
-            <p className="text-caption text-muted mt-0.5">{info.desc}</p>
+            <p className="text-body-1 text-on-surface font-semibold">{info.title}</p>
+            <p className="text-caption text-on-surface-variant mt-0.5">{info.desc}</p>
           </div>
         </div>
         <Link
           href={info.href}
-          className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-amber-500 text-white px-5 py-2.5 text-button font-semibold hover:bg-amber-600 active:scale-95 transition-all touch-target shadow-elevation-1"
+          className="shrink-0 inline-flex items-center gap-2 rounded-full bg-warning-500 text-white px-5 py-2.5 text-button font-semibold hover:bg-warning-600 active:scale-95 transition-all duration-short4 ease-standard touch-target shadow-elevation-1"
         >
           {info.cta}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -433,9 +580,9 @@ interface ProfileCompletionCardProps {
 export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionCardProps) {
   if (isLoading) {
     return (
-      <div className="rounded-2xl bg-surface border border-warning/30 p-5 mb-6 animate-pulse">
-        <div className="h-5 w-40 rounded bg-muted/15" />
-        <div className="mt-2 h-2 w-48 rounded-full bg-muted/10" />
+      <div className="rounded-large bg-surface-container-low border border-[color-mix(in_srgb,var(--color-warning)_30%,transparent)] p-5 mb-6 animate-pulse">
+        <div className="h-5 w-40 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_15%,transparent)]" />
+        <div className="mt-2 h-2 w-48 rounded-full bg-[color-mix(in_srgb,var(--color-muted)_10%,transparent)]" />
       </div>
     );
   }
@@ -455,7 +602,7 @@ export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionC
   const cta = atBasicComplete ? "ادامه تکمیل پروفایل" : "تکمیل پروفایل";
 
   return (
-    <div className="rounded-2xl bg-surface border border-warning/30 p-5 mb-6">
+    <div className="rounded-large bg-surface-container-low border border-[color-mix(in_srgb,var(--color-warning)_30%,transparent)] p-5 mb-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
@@ -464,13 +611,13 @@ export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionC
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-            <span className="text-body-1 text-onSurface font-semibold">
+            <span className="text-body-1 text-on-surface font-semibold">
               {title}
-              <span className="text-muted font-normal"> · {pct}٪</span>
+              <span className="text-on-surface-variant font-normal"> · {pct}٪</span>
             </span>
           </div>
           <div
-            className="w-full max-w-xs h-2 bg-neutral-100 rounded-full overflow-hidden"
+            className="w-full max-w-xs h-2 bg-surface-container-high rounded-full overflow-hidden"
             role="progressbar"
             aria-valuenow={pct}
             aria-valuemin={0}
@@ -482,50 +629,16 @@ export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionC
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="text-caption text-muted mt-1.5">{supporting}</p>
+          <p className="text-caption text-on-surface-variant mt-1.5">{supporting}</p>
         </div>
         <Link
           href="/profile"
-          className="shrink-0 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-600 transition-colors touch-target shadow-elevation-1"
+          className="shrink-0 rounded-full bg-primary text-primary-on px-5 py-2.5 text-button font-medium hover:state-hover transition-colors duration-short3 ease-standard touch-target shadow-elevation-1"
         >
           {cta}
         </Link>
       </div>
     </div>
-  );
-}
-
-// ============================================================
-// QuickActions — service launcher grid
-// ============================================================
-
-export function QuickActions() {
-  return (
-    <section className="mb-6">
-      <h2 className="text-h3 text-onSurface font-bold mb-4">دسترسی سریع</h2>
-      <div className="grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-6 gap-3">
-        {LEGAL_SERVICES.map((service) => {
-          const Icon = service.icon;
-          return (
-            <Link
-              key={service.id}
-              href={service.href}
-              className="group rounded-2xl bg-surface border border-divider/60 p-4 hover:shadow-elevation-4 hover:border-primary/20 transition-all duration-200 active:scale-[0.97] touch-target flex flex-col items-center text-center gap-3"
-            >
-              <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${service.gradient} flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-110 transition-transform duration-200`}>
-                <Icon size={22} />
-              </div>
-              <div>
-                <h3 className="text-body-2 text-onSurface font-semibold group-hover:text-primary transition-colors">
-                  {service.title}
-                </h3>
-                <p className="text-caption text-muted mt-0.5 hidden tablet:block">{service.subtitle}</p>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
@@ -559,82 +672,82 @@ const ACTIVITY_TYPE_LINKS: Record<string, string> = {
 function getStatusBadge(status: string): { label: string; colorClass: string } {
   const s = status.toLowerCase();
   if (["completed", "ready", "generated", "approved", "exported", "active"].includes(s)) {
-    return { label: "تکمیل شده", colorClass: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    return { label: "تکمیل شده", colorClass: "bg-success-50 text-success-700 border-success-200" };
   }
   if (["processing", "analyzing", "extracting", "in_progress", "under_review", "collecting", "uploaded"].includes(s)) {
-    return { label: "در حال انجام", colorClass: "bg-blue-50 text-blue-700 border-blue-200" };
+    return { label: "در حال انجام", colorClass: "bg-info-50 text-info-700 border-info-200" };
   }
   if (["draft"].includes(s)) {
-    return { label: "پیش‌نویس", colorClass: "bg-amber-50 text-amber-700 border-amber-200" };
+    return { label: "پیش‌نویس", colorClass: "bg-warning-50 text-warning-700 border-warning-200" };
   }
   if (["failed", "blocked"].includes(s)) {
-    return { label: "ناموفق", colorClass: "bg-red-50 text-red-700 border-red-200" };
+    return { label: "ناموفق", colorClass: "bg-error-50 text-error-700 border-error-200" };
   }
   if (["archived"].includes(s)) {
-    return { label: "بایگانی", colorClass: "bg-neutral-100 text-neutral-600 border-neutral-200" };
+    return { label: "بایگانی", colorClass: "bg-surface-container-high text-on-surface-variant border-outline-variant" };
   }
-  return { label: s, colorClass: "bg-neutral-50 text-neutral-600 border-neutral-200" };
+  return { label: s, colorClass: "bg-surface-container text-on-surface-variant border-outline-variant" };
 }
 
+/** Max rows shown per card — keeps the three cards visually balanced. */
+const CARD_ITEM_LIMIT = 3;
+
 export function RecentActivities({ items, isLoading, error, onRetry }: RecentActivitiesProps) {
+  const visible = items?.slice(0, CARD_ITEM_LIMIT);
+
   return (
-    <WidgetShell
+    <DashboardCard
+      icon={<IconHistory size={18} />}
       title="پیش‌نویس‌های اخیر"
-      titleRight={
-        items && items.length > 0 ? (
-          <Link href="/history" className="text-button text-primary hover:underline">
-            مشاهده همه
-          </Link>
-        ) : undefined
-      }
+      subtitle="آخرین پیش‌نویس‌های ذخیره‌شده شما"
+      viewAllHref={items && items.length > 0 ? "/history" : undefined}
       isLoading={isLoading}
       error={error}
       onRetry={onRetry}
-      isEmpty={!items || items.length === 0}
-      emptyMessage="هنوز فعالیتی ندارید. از گزینه‌های بالا شروع کنید"
-      className="mb-6"
+      isEmpty={!visible || visible.length === 0}
+      emptyMessage="هنوز پیش‌نویسی ندارید"
     >
-      {items && (
-        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
-          {items.map((activity) => {
-            const badge = getStatusBadge(activity.status);
-            return (
-              <Link
-                key={activity.id}
-                href={ACTIVITY_TYPE_LINKS[activity.type] ?? "#"}
-                className="group flex gap-3 p-3 rounded-xl hover:bg-neutral-50 border border-transparent hover:border-divider transition-all duration-200 active:scale-[0.98] touch-target"
-              >
-                <span className="text-xl shrink-0 w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center group-hover:bg-white transition-colors">
-                  {ACTIVITY_TYPE_ICONS[activity.type] ?? "📋"}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-body-2 text-onSurface font-medium truncate group-hover:text-primary transition-colors">
-                      {activity.title}
-                    </p>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium border ${badge.colorClass}`}>
-                      {badge.label}
-                    </span>
-                  </div>
-                  {activity.description && (
-                    <p className="text-caption text-muted line-clamp-1 mt-0.5">{activity.description}</p>
-                  )}
-                  <span className="text-caption text-muted/60 mt-1 block">
-                    {formatRelativeDate(activity.updatedAt)}
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </WidgetShell>
+      <div className="divide-y divide-[color:var(--color-outline-variant)]">
+        {visible?.map((activity) => {
+          const badge = getStatusBadge(activity.status);
+          return (
+            <Link
+              key={activity.id}
+              href={ACTIVITY_TYPE_LINKS[activity.type] ?? "#"}
+              className="group flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0 transition-colors active:scale-[0.99] touch-target"
+            >
+              <span className="text-base shrink-0 w-8 h-8 rounded-medium bg-surface-container-high flex items-center justify-center group-hover:bg-surface-container-highest transition-colors">
+                {ACTIVITY_TYPE_ICONS[activity.type] ?? "📋"}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-body-2 text-on-surface font-medium truncate group-hover:text-primary transition-colors">
+                  {activity.title}
+                </p>
+                <p className="text-caption text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_70%,transparent)] truncate">
+                  {formatRelativeDate(activity.updatedAt)}
+                </p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium border ${badge.colorClass}`}>
+                {badge.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </DashboardCard>
   );
 }
 
 // ============================================================
-// UsageSummaryCard — circular progress rings
+// UsageSummaryCard — compact MD3 usage & quota panel
 // ============================================================
+// Layout (desktop): header row (title + subtitle · «جزئیات بیشتر») →
+// one row of 3 equal usage mini-cards → one row of 3 status cells split
+// by hairline separators. Mobile collapses both rows into stacked
+// compact rows and moves the action to a full-width button.
+//
+// Every value is derived from the SAME `UsageSummary` the API already
+// returns — no quota maths, thresholds or business rules live here.
 
 interface UsageSummaryCardProps {
   usage: UsageSummary | undefined;
@@ -643,176 +756,239 @@ interface UsageSummaryCardProps {
   onRetry?: () => void;
 }
 
-function CircularProgress({ pct, size = 56, strokeWidth = 5 }: { pct: number; size?: number; strokeWidth?: number }) {
+/** Per-feature accent. Blue · green · violet, muted and theme-aware. */
+interface UsageAccent {
+  /** Icon container background */
+  bg: string;
+  /** Icon + emphasis text colour */
+  fg: string;
+  /** Progress-ring stroke colour */
+  stroke: string;
+}
+
+const ACCENT_BLUE: UsageAccent = { bg: "bg-info-50", fg: "text-info-600", stroke: "stroke-info-500" };
+const ACCENT_GREEN: UsageAccent = { bg: "bg-success-50", fg: "text-success-600", stroke: "stroke-success-500" };
+const ACCENT_VIOLET: UsageAccent = {
+  bg: "bg-[var(--color-violet-50)]",
+  fg: "text-[var(--color-violet-600)]",
+  stroke: "stroke-[var(--color-violet-500)]",
+};
+
+const USAGE_ACCENT: Record<string, UsageAccent> = {
+  AI_CHAT_MESSAGE: ACCENT_BLUE,
+  DOCUMENT_ANALYSIS: ACCENT_GREEN,
+  CONTRACT_GENERATION: ACCENT_VIOLET,
+};
+
+const USAGE_ICON: Record<string, typeof IconDocument> = {
+  AI_CHAT_MESSAGE: IconChat,
+  DOCUMENT_ANALYSIS: IconDocument,
+  CONTRACT_GENERATION: IconContract,
+};
+
+const STATUS_ICON: Record<string, typeof IconDocument> = {
+  ADVANCED_REFERENCE: IconDatabase,
+  PRIORITY_PROCESSING: IconBolt,
+};
+
+/** Hairline separator between status cells — vertical on tablet, horizontal on mobile. */
+const STATUS_CELL =
+  "flex items-center gap-2.5 p-3.5 border-b border-[color:var(--color-outline-variant)] last:border-b-0 tablet:border-b-0 tablet:border-e tablet:last:border-e-0";
+
+/**
+ * Compact circular usage indicator. `pct` is the already-computed
+ * used/total percentage; `unlimited` renders ∞ instead of a number.
+ * Sized 44px on mobile, 48px from tablet up.
+ */
+function UsageRing({
+  pct,
+  unlimited = false,
+  accent,
+  label,
+}: {
+  pct: number;
+  unlimited?: boolean;
+  accent: UsageAccent;
+  label: string;
+}) {
+  const size = 48;
+  const strokeWidth = 4.5;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (pct / 100) * circumference;
-  const isExhausted = pct >= 100;
-  const isNearLimit = pct >= 80;
-
-  const strokeColor = isExhausted
-    ? "stroke-error"
-    : isNearLimit
-      ? "stroke-warning"
-      : "stroke-primary";
+  const clamped = Math.max(0, Math.min(100, pct));
+  const offset = circumference - (clamped / 100) * circumference;
 
   return (
-    <svg width={size} height={size} className="shrink-0 -rotate-90">
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="currentColor"
-        className="text-neutral-100"
-        strokeWidth={strokeWidth}
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        className={`${strokeColor} transition-all duration-moderate1`}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-      />
-    </svg>
+    <span
+      className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center tablet:h-12 tablet:w-12"
+      role="img"
+      aria-label={label}
+    >
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90" aria-hidden="true">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          className="text-surface-container-high"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          className={`${accent.stroke} transition-all duration-moderate1`}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-on-surface-variant tabular-nums">
+        {unlimited ? "∞" : `${toPersianNumber(clamped)}٪`}
+      </span>
+    </span>
+  );
+}
+
+/** One usage mini-card: accent icon · title · used/total · remaining · ring. */
+function UsageMiniCard({ ent }: { ent: Entitlement }) {
+  const accent = USAGE_ACCENT[ent.featureKey] ?? ACCENT_BLUE;
+  const Icon = USAGE_ICON[ent.featureKey] ?? IconDocument;
+
+  const limit = ent.limit ?? 0;
+  const unlimited = limit <= 0;
+  const used = ent.used;
+  const remaining = unlimited ? null : Math.max(0, limit - used);
+  const pct = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100));
+
+  const ringLabel = unlimited
+    ? `${ent.nameFa}: مصرف نامحدود`
+    : `${ent.nameFa}: ${toPersianNumber(used)} از ${toPersianNumber(limit)} مصرف شده`;
+
+  return (
+    <div className="flex items-center gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3.5 transition-colors duration-short4 hover:bg-surface-container-high">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-medium ${accent.bg} ${accent.fg}`}>
+        <Icon size={18} />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-body-2 text-on-surface font-medium truncate">{ent.nameFa}</p>
+        <p className="text-body-2 text-on-surface font-semibold tabular-nums mt-0.5">
+          {toPersianNumber(used)} از {unlimited ? "∞" : toPersianNumber(limit)}
+        </p>
+        <p className="text-caption text-muted tabular-nums">
+          {remaining === null ? "نامحدود" : `${toPersianNumber(remaining)} باقی‌مانده`}
+        </p>
+      </div>
+
+      <UsageRing pct={pct} unlimited={unlimited} accent={accent} label={ringLabel} />
+    </div>
+  );
+}
+
+/** One boolean-feature status cell: icon · label · فعال/غیرفعال chip. */
+function UsageStatusCell({ ent }: { ent: Entitlement }) {
+  const Icon = STATUS_ICON[ent.featureKey] ?? IconShield;
+
+  return (
+    <div className={STATUS_CELL}>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-medium bg-surface-container-high text-on-surface-variant">
+        <Icon size={16} />
+      </span>
+      <span className="text-body-2 text-on-surface-variant min-w-0 truncate">{ent.nameFa}</span>
+      <span
+        className={`ms-auto shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-labelSmall font-medium transition-colors duration-short4 ${
+          ent.isEnabled
+            ? "bg-success-50 text-success-700 border-success-200"
+            : "bg-surface-container-high text-on-surface-variant border-[color:var(--color-outline-variant)]"
+        }`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${ent.isEnabled ? "bg-success" : "bg-muted"}`} aria-hidden="true" />
+        {ent.isEnabled ? "فعال" : "غیرفعال"}
+      </span>
+    </div>
+  );
+}
+
+/** Quota-reset cell: calendar · label · «N روز دیگر». */
+function UsageResetCell({ daysRemaining }: { daysRemaining: number }) {
+  return (
+    <div className={STATUS_CELL}>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-medium bg-info-50 text-info-600">
+        <IconCalendar size={16} />
+      </span>
+      <span className="text-body-2 text-on-surface-variant min-w-0 truncate">بازنشانی سهمیه</span>
+      <span className="ms-auto shrink-0 text-body-2 text-info-600 font-medium tabular-nums">
+        {toPersianNumber(daysRemaining)} روز دیگر
+      </span>
+    </div>
   );
 }
 
 export function UsageSummaryCard({ usage, isLoading, error, onRetry }: UsageSummaryCardProps) {
+  const isEmpty = !usage || usage.entitlements.length === 0;
+  const numeric = usage?.entitlements.filter((e) => !e.isBoolean) ?? [];
+  const boolean = usage?.entitlements.filter((e) => e.isBoolean) ?? [];
+
   return (
-    <WidgetShell
-      title="مصرف و سهمیه"
-      isLoading={isLoading}
-      error={error}
-      onRetry={onRetry}
-      isEmpty={!usage || usage.entitlements.length === 0}
-      emptyMessage="اطلاعات مصرف در دسترس نیست"
-      className="mb-6"
+    <section
+      className="mb-6 rounded-large bg-surface-container-low border border-[color:var(--color-outline-variant)] shadow-elevation-1 p-5"
+      aria-label="مصرف و سهمیه"
     >
-      {usage && (
-        <div className="space-y-4">
-          {usage.entitlements.map((ent) => {
-            if (ent.isBoolean) {
-              return (
-                <div key={ent.featureKey} className="flex items-center justify-between py-1">
-                  <span className="text-body-2 text-onSurface">{ent.nameFa}</span>
-                  <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-caption font-medium ${
-                    ent.isEnabled ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-muted"
-                  }`}>
-                    {ent.isEnabled ? "فعال" : "غیرفعال"}
-                  </span>
-                </div>
-              );
-            }
-
-            const limit = ent.limit ?? 0;
-            const used = ent.used;
-            const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-            const isExhausted = pct >= 100;
-            const isNearLimit = pct >= 80;
-
-            return (
-              <div key={ent.featureKey} className="flex items-center gap-4">
-                <CircularProgress pct={pct} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-body-2 text-onSurface font-medium">{ent.nameFa}</p>
-                  <p className={`text-caption mt-0.5 ${
-                    isExhausted ? "text-error" : isNearLimit ? "text-warning" : "text-muted"
-                  }`}>
-                    {used.toLocaleString("fa-IR")} از {limit === 0 ? "∞" : limit.toLocaleString("fa-IR")}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="pt-3 border-t border-divider/50 flex items-center justify-between">
-            <span className="text-caption text-muted">بازنشانی سهمیه</span>
-            <span className="text-caption text-onSurface font-medium">
-              {usage.daysRemaining} روز دیگر
-            </span>
-          </div>
+      {/* Header — title + subtitle, action on the opposite side */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <h3 className="text-titleMedium text-on-surface font-semibold">مصرف و سهمیه</h3>
+          <p className="text-caption text-muted mt-0.5">وضعیت استفاده از امکانات و منابع شما</p>
         </div>
-      )}
-    </WidgetShell>
-  );
-}
+        <Link
+          href="/settings/usage"
+          className="hidden tablet:inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] px-3.5 py-1.5 text-caption text-on-surface-variant font-medium hover:bg-surface-container-high hover:text-on-surface transition-colors duration-short4 touch-target-min"
+        >
+          جزئیات بیشتر
+          <IconChevronRight size={14} rtlFlip />
+        </Link>
+      </div>
 
-// ============================================================
-// SubscriptionOverview — subscription plan + days-remaining ring
-// ============================================================
-
-interface SubscriptionOverviewProps {
-  subscription: {
-    planCode: string;
-    planNameFa: string;
-    endAt: string;
-    daysRemaining: number;
-  } | null | undefined;
-  isLoading: boolean;
-  error: Error | null;
-  onRetry?: () => void;
-}
-
-export function SubscriptionOverview({ subscription, isLoading, error, onRetry }: SubscriptionOverviewProps) {
-  const days = subscription?.daysRemaining ?? 0;
-  const total = 30;
-  const pct = Math.min(100, Math.round((days / total) * 100));
-
-  return (
-    <WidgetShell
-      title="اشتراک شما"
-      isLoading={isLoading}
-      error={error}
-      onRetry={onRetry}
-      isEmpty={!subscription}
-      emptyMessage="اشتراک فعالی ندارید"
-      className="mb-6"
-    >
-      {subscription && (
-        <div className="flex items-center gap-4">
-          <div className="relative shrink-0">
-            <CircularProgress pct={pct} size={64} />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-body-2 text-onSurface font-semibold tabular-nums" dir="ltr">
-                {days.toLocaleString("fa-IR")}
-              </span>
+      {isLoading ? (
+        <WidgetSkeleton />
+      ) : error ? (
+        <WidgetError message="خطا در دریافت اطلاعات" onRetry={onRetry} />
+      ) : isEmpty ? (
+        <WidgetEmpty message="اطلاعات مصرف در دسترس نیست" />
+      ) : (
+        usage && (
+          <div className="space-y-3">
+            {/* Row 1 — usage mini-cards */}
+            <div className="grid grid-cols-1 tablet:grid-cols-3 gap-3">
+              {numeric.map((ent) => (
+                <UsageMiniCard key={ent.featureKey} ent={ent} />
+              ))}
             </div>
+
+            {/* Row 2 — status cells split by hairline separators */}
+            <div className="grid grid-cols-1 tablet:grid-cols-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface overflow-hidden">
+              {boolean.map((ent) => (
+                <UsageStatusCell key={ent.featureKey} ent={ent} />
+              ))}
+              <UsageResetCell daysRemaining={usage.daysRemaining} />
+            </div>
+
+            {/* Mobile action — full width */}
+            <Link
+              href="/settings/usage"
+              className="tablet:hidden flex w-full items-center justify-center gap-1 rounded-medium border border-[color:var(--color-outline-variant)] px-4 py-2.5 text-body-2 text-on-surface-variant font-medium hover:bg-surface-container-high transition-colors duration-short4 touch-target"
+            >
+              جزئیات بیشتر
+              <IconChevronRight size={16} rtlFlip />
+            </Link>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-body-1 text-onSurface font-semibold">
-              {subscription.planNameFa}
-            </p>
-            <p className="text-caption text-muted mt-0.5">
-              {days} روز تا پایان دوره اشتراک
-            </p>
-          </div>
-        </div>
+        )
       )}
-    </WidgetShell>
-  );
-}
-
-// ============================================================
-// NotificationsPlaceholder
-// ============================================================
-
-export function NotificationsPlaceholder() {
-  return (
-    <WidgetShell
-      title="اعلان‌ها"
-      isLoading={false}
-      error={null}
-      isEmpty={true}
-      emptyMessage="اعلان جدیدی ندارید"
-      className="mb-6"
-    >
-      {null}
-    </WidgetShell>
+    </section>
   );
 }
 
@@ -867,10 +1043,10 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
       <div className="relative max-w-2xl mx-auto">
         {/* Input container */}
         <div
-          className={`relative rounded-2xl border-2 transition-all duration-medium2 bg-surface ${
+          className={`relative rounded-large border-2 transition-all duration-medium2 bg-surface-container-lowest ${
             isRouting
-              ? "border-primary/30"
-              : "border-divider focus-within:border-primary/60 focus-within:shadow-[0_4px_24px_-6px_rgba(22,32,51,0.15)]"
+              ? "border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)]"
+              : "border-outline-variant focus-within:border-[color-mix(in_srgb,var(--color-primary)_60%,transparent)] focus-within:shadow-elevation-4"
           }`}
         >
           <input
@@ -880,7 +1056,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
             onKeyDown={handleKeyDown}
             placeholder="مسئله حقوقی خود را توضیح دهید..."
             disabled={isRouting}
-            className="w-full h-14 pl-14 pr-5 rounded-2xl bg-transparent text-body-1 text-onSurface placeholder:text-muted/50 outline-none disabled:opacity-60"
+            className="w-full h-14 pl-14 pr-5 rounded-large bg-transparent text-body-1 text-on-surface placeholder:text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_50%,transparent)] outline-none disabled:opacity-60"
             aria-label="مسئله حقوقی خود را توضیح دهید"
             dir="rtl"
           />
@@ -889,7 +1065,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
             type="button"
             onClick={() => handleSubmit(query)}
             disabled={!query.trim() || isRouting}
-            className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl bg-primary text-white flex items-center justify-center hover:bg-primary-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+            className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-primary text-primary-on flex items-center justify-center hover:state-hover transition-colors duration-short3 ease-standard disabled:opacity-40 disabled:cursor-not-allowed touch-target"
             aria-label="ارسال پرسش"
           >
             {isRouting ? (
@@ -904,7 +1080,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
 
         {isRouting && (
           <div className="mt-3 text-center animate-fade-in">
-            <span className="inline-flex items-center gap-2 text-caption text-muted">
+            <span className="inline-flex items-center gap-2 text-caption text-on-surface-variant">
               <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
               در حال تشخیص...
             </span>
@@ -913,13 +1089,13 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
 
         {!isRouting && (
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <span className="text-caption text-muted/60">برای نمونه:</span>
+            <span className="text-caption text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_60%,transparent)]">برای نمونه:</span>
             {EXAMPLE_CHIPS.map((chip) => (
               <button
                 key={chip.label}
                 type="button"
                 onClick={() => handleChipClick(chip.query)}
-                className="rounded-full bg-neutral-100 border border-divider/40 px-3 py-1 text-caption text-onSurface hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors active:scale-[0.97] touch-target"
+                className="rounded-full bg-surface-container-high border border-[color:var(--color-outline-variant)] px-3 py-1 text-caption text-on-surface hover:bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] hover:text-primary transition-colors active:scale-[0.97] touch-target"
               >
                 {chip.label}
               </button>
@@ -927,7 +1103,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
           </div>
         )}
 
-        <p className="mt-4 text-center text-caption text-muted/50">
+        <p className="mt-4 text-center text-caption text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_50%,transparent)]">
           با هوش مصنوعی قانون‌مدار ایران
         </p>
       </div>
@@ -939,11 +1115,11 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
 // ActiveRequests — in-progress request status tracker
 // ============================================================
 
-const STATUS_STYLES: Record<ActiveRequestItem["status"], { badge: string; bar: string }> = {
-  draft: { badge: "bg-neutral-100 text-neutral-700 border-neutral-200", bar: "bg-neutral-300" },
-  processing: { badge: "bg-blue-50 text-blue-700 border-blue-200", bar: "bg-blue-500" },
-  needs_info: { badge: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-500" },
-  completed: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500" },
+const STATUS_STYLES: Record<ActiveRequestItem["status"], { badge: string; bar: string; dot: string }> = {
+  draft: { badge: "bg-surface-container-high text-on-surface-variant border-outline-variant", bar: "bg-outline", dot: "bg-outline" },
+  processing: { badge: "bg-info-50 text-info-700 border-info-200", bar: "bg-info-500", dot: "bg-info-500" },
+  needs_info: { badge: "bg-warning-50 text-warning-700 border-warning-200", bar: "bg-warning-500", dot: "bg-warning-500" },
+  completed: { badge: "bg-success-50 text-success-700 border-success-200", bar: "bg-success-500", dot: "bg-success-500" },
 };
 
 interface ActiveRequestsProps {
@@ -954,51 +1130,58 @@ interface ActiveRequestsProps {
 }
 
 export function ActiveRequests({ items, isLoading, error, onRetry }: ActiveRequestsProps) {
+  const visible = items?.slice(0, CARD_ITEM_LIMIT);
+
   return (
-    <WidgetShell
+    <DashboardCard
+      icon={<IconRefresh size={18} />}
       title="درخواست‌های فعال"
+      subtitle="درخواست‌های در حال پردازش شما"
+      viewAllHref={items && items.length > 0 ? "/history" : undefined}
       isLoading={isLoading}
       error={error}
       onRetry={onRetry}
-      isEmpty={!items || items.length === 0}
+      isEmpty={!visible || visible.length === 0}
       emptyMessage="درخواست فعالی ندارید"
     >
-      <div className="space-y-2">
-        {items.map((req) => {
+      <div className="divide-y divide-[color:var(--color-outline-variant)]">
+        {visible?.map((req) => {
           const styles = STATUS_STYLES[req.status];
           return (
             <Link
               key={req.id}
               href={req.link}
-              className="flex flex-col gap-2 p-3 rounded-xl hover:bg-neutral-50 transition-colors border border-transparent hover:border-divider active:scale-[0.98] touch-target"
+              className="group flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 transition-colors active:scale-[0.99] touch-target"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-body-2 text-onSurface font-medium truncate">{req.title}</p>
-                  <span className="text-caption text-muted">{req.typeFa}</span>
+              <span className={`h-2 w-2 rounded-full shrink-0 ${styles.dot}`} aria-hidden="true" />
+
+              <div className="min-w-0 flex-1">
+                <p className="text-body-2 text-on-surface font-medium truncate group-hover:text-primary transition-colors">
+                  {req.title}
+                </p>
+                {/* Meta + compact progress bar (real progress only) */}
+                <div className="flex items-center gap-1.5 text-caption text-on-surface-variant min-w-0 whitespace-nowrap">
+                  <span className="truncate min-w-0">{req.typeFa}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="shrink-0">{formatRelativeDate(req.date)}</span>
+                  <div className="flex-1 min-w-[24px] h-1 rounded-full bg-surface-container-high overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-moderate1 ${styles.bar}`}
+                      style={{ width: `${Math.max(2, req.progress)}%` }}
+                    />
+                  </div>
+                  <span className="shrink-0 tabular-nums">{req.progress}٪</span>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${styles.badge}`}>
-                  {req.statusFa}
-                </span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-moderate1 ${styles.bar}`}
-                    style={{ width: `${Math.max(2, req.progress)}%` }}
-                  />
-                </div>
-                <span className="text-caption text-muted shrink-0 tabular-nums">{req.progress}٪</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted/60">{formatRelativeDate(req.date)}</span>
-                <span className="text-caption text-primary font-medium">مشاهده</span>
-              </div>
+
+              <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium border ${styles.badge}`}>
+                {req.statusFa}
+              </span>
             </Link>
           );
         })}
       </div>
-    </WidgetShell>
+    </DashboardCard>
   );
 }
 
@@ -1006,11 +1189,100 @@ export function ActiveRequests({ items, isLoading, error, onRetry }: ActiveReque
 // SmartRecommendations — context-aware suggestion cards
 // ============================================================
 
-const URGENCY_STYLES: Record<DashboardRecommendation["urgency"], { accent: string; bg: string; dot: string }> = {
-  info: { accent: "border-blue-200", bg: "bg-blue-50/50", dot: "bg-blue-500" },
-  warning: { accent: "border-amber-200", bg: "bg-amber-50/50", dot: "bg-amber-500" },
-  action: { accent: "border-primary-200", bg: "bg-primary-50/30", dot: "bg-primary-500" },
+const URGENCY_STYLES: Record<
+  DashboardRecommendation["urgency"],
+  { accent: string; bg: string; dot: string; chip: string; chipLabel: string }
+> = {
+  info: {
+    accent: "border-info-200",
+    bg: "bg-info-50",
+    dot: "bg-info-500",
+    chip: "bg-info-100 text-info-800 border-info-200",
+    chipLabel: "پیشنهاد",
+  },
+  warning: {
+    accent: "border-warning-200",
+    bg: "bg-warning-50",
+    dot: "bg-warning-500",
+    chip: "bg-warning-100 text-warning-800 border-warning-200",
+    chipLabel: "نیازمند بررسی",
+  },
+  action: {
+    accent: "border-primary-200",
+    bg: "bg-primary-50",
+    dot: "bg-primary-500",
+    chip: "bg-primary-100 text-primary-800 border-primary-200",
+    chipLabel: "اقدام لازم",
+  },
 };
+
+const SOURCE_KIND_FA: Record<NonNullable<DashboardRecommendation["source"]>["kind"], string> = {
+  law: "منبع قانونی",
+  document: "سند شما",
+  contract: "قرارداد شما",
+};
+
+/**
+ * SmartRecommendationCard — a single grounded recommendation.
+ * Renders the reasoning (`detail`) and, when present, the provenance
+ * (`source`) so the user can see exactly which law/article or which of
+ * their own artifacts produced the suggestion.
+ */
+export function SmartRecommendationCard({ rec }: { rec: DashboardRecommendation }) {
+  const styles = URGENCY_STYLES[rec.urgency];
+  const src = rec.source;
+
+  return (
+    <article
+      className={`group relative flex flex-col gap-1.5 p-3 rounded-medium border ${styles.accent} ${styles.bg} transition-colors duration-short4 ease-standard hover:border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)]`}
+    >
+      <div className="flex items-start gap-2.5">
+        <span className={`h-2 w-2 rounded-full ${styles.dot} mt-1.5 shrink-0`} aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-body-2 text-on-surface font-medium leading-snug line-clamp-2">{rec.text}</p>
+            <span
+              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles.chip}`}
+            >
+              {styles.chipLabel}
+            </span>
+          </div>
+          {rec.detail && (
+            <p className="text-caption text-on-surface-variant mt-0.5 leading-snug line-clamp-1">{rec.detail}</p>
+          )}
+        </div>
+        {rec.icon && (
+          <span className="text-base shrink-0 mt-0.5" aria-hidden="true">
+            {rec.icon}
+          </span>
+        )}
+      </div>
+
+      {/* Provenance — the real source behind the recommendation (only when present) */}
+      {src && (
+        <div className="ms-4.5 flex items-center gap-1.5 text-[10px] text-on-surface-variant min-w-0">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          <span className="font-medium shrink-0">{SOURCE_KIND_FA[src.kind]}</span>
+          <span className="truncate">{src.title}</span>
+          {src.locator && <span className="text-primary-700 shrink-0">· {src.locator}</span>}
+        </div>
+      )}
+
+      <Link
+        href={rec.link}
+        className="ms-4.5 mt-auto inline-flex w-fit items-center gap-1 text-caption text-primary font-medium hover:underline"
+      >
+        {rec.linkLabel}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+      </Link>
+    </article>
+  );
+}
 
 interface SmartRecommendationsProps {
   items: DashboardRecommendation[];
@@ -1020,39 +1292,25 @@ interface SmartRecommendationsProps {
 }
 
 export function SmartRecommendations({ items, isLoading, error, onRetry }: SmartRecommendationsProps) {
+  const visible = items?.slice(0, CARD_ITEM_LIMIT);
+
   return (
-    <WidgetShell
+    <DashboardCard
+      icon={<IconStar size={18} />}
       title="توصیه‌های هوشمند"
+      subtitle="پیشنهادهای مرتبط با فعالیت‌ها و اسناد شما"
       isLoading={isLoading}
       error={error}
       onRetry={onRetry}
-      isEmpty={!items || items.length === 0}
+      isEmpty={!visible || visible.length === 0}
       emptyMessage="توصیه‌ای برای شما وجود ندارد"
     >
-      <div className="space-y-2">
-        {items.map((rec) => {
-          const styles = URGENCY_STYLES[rec.urgency];
-          return (
-            <div
-              key={rec.id}
-              className={`flex items-start gap-3 p-3 rounded-xl border ${styles.accent} ${styles.bg} transition-colors`}
-            >
-              <span className={`h-2 w-2 rounded-full ${styles.dot} mt-2 shrink-0`} aria-hidden="true" />
-              <div className="flex-1 min-w-0">
-                <p className="text-body-2 text-onSurface">{rec.text}</p>
-                <Link
-                  href={rec.link}
-                  className="inline-block mt-1.5 text-caption text-primary font-medium hover:underline"
-                >
-                  {rec.linkLabel}
-                </Link>
-              </div>
-              {rec.icon && <span className="text-lg shrink-0 mt-0.5">{rec.icon}</span>}
-            </div>
-          );
-        })}
+      <div className="flex flex-col gap-2.5">
+        {visible?.map((rec) => (
+          <SmartRecommendationCard key={rec.id} rec={rec} />
+        ))}
       </div>
-    </WidgetShell>
+    </DashboardCard>
   );
 }
 
@@ -1061,12 +1319,12 @@ export function SmartRecommendations({ items, isLoading, error, onRetry }: Smart
 // ============================================================
 
 const DOC_STATUS_STYLES: Record<string, string> = {
-  ready: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  processing: "bg-blue-50 text-blue-700 border-blue-200",
-  analyzing: "bg-blue-50 text-blue-700 border-blue-200",
-  failed: "bg-red-50 text-red-700 border-red-200",
-  uploaded: "bg-neutral-100 text-neutral-600 border-neutral-200",
-  extracting: "bg-blue-50 text-blue-700 border-blue-200",
+  ready: "bg-success-50 text-success-700 border-success-200",
+  processing: "bg-info-50 text-info-700 border-info-200",
+  analyzing: "bg-info-50 text-info-700 border-info-200",
+  failed: "bg-error-50 text-error-700 border-error-200",
+  uploaded: "bg-surface-container-high text-on-surface-variant border-outline-variant",
+  extracting: "bg-info-50 text-info-700 border-info-200",
 };
 
 interface RecentDocumentsProps {
@@ -1101,14 +1359,14 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
             <Link
               key={doc.id}
               href="/documents"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-neutral-50 transition-colors touch-target group"
+              className="flex items-center gap-3 p-3 rounded-medium hover:bg-surface-container-high transition-colors touch-target group"
             >
-              <span className="text-xl shrink-0 w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center group-hover:bg-white transition-colors">
+              <span className="text-xl shrink-0 w-10 h-10 rounded-medium bg-surface-container-high flex items-center justify-center group-hover:bg-surface-container-highest transition-colors">
                 {doc.mime?.includes("pdf") ? "📄" : doc.mime?.includes("image") ? "🖼️" : "📎"}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-body-2 text-onSurface font-medium truncate">{doc.name}</p>
-                <span className="text-caption text-muted">{formatRelativeDate(doc.uploadedAt)}</span>
+                <p className="text-body-2 text-on-surface font-medium truncate">{doc.name}</p>
+                <span className="text-caption text-on-surface-variant">{formatRelativeDate(doc.uploadedAt)}</span>
               </div>
               <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${statusStyle}`}>
                 {doc.statusFa}

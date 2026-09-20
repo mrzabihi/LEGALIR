@@ -49,7 +49,7 @@ const DOMAIN_LABELS: Record<string, string> = {
 export function WorkflowProgress({
   phase,
   domain,
-  intent,
+  intent: _intent,
   phaseChanged,
   pendingQuestions,
   suggestCaseCreation,

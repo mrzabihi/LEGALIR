@@ -1,5 +1,27 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Build a full 50–900 shade map that points at a semantic ramp's CSS vars.
+ * Lets legacy raw-hue classes (`bg-amber-50`, `text-blue-700`) resolve to the
+ * themeable semantic tokens instead of Tailwind's static palette.
+ *
+ * `offset` shifts the whole ramp so sibling hues (e.g. `blue` vs `indigo`)
+ * stay visually distinct — important for two-tone decorative gradients.
+ */
+function semanticAlias(
+  role: "error" | "warning" | "success" | "info",
+  offset = 0
+) {
+  const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+  return Object.fromEntries(
+    shades.map((s) => {
+      const idx = shades.indexOf(s);
+      const shifted = shades[Math.min(shades.length - 1, Math.max(0, idx + offset))];
+      return [s, `var(--color-${role}-${shifted})`];
+    })
+  ) as Record<(typeof shades)[number], string>;
+}
+
 const config: Config = {
   content: [
     "./src/**/*.{ts,tsx}",
@@ -40,6 +62,15 @@ const config: Config = {
           DEFAULT: "var(--color-secondary)",
           light: "var(--color-secondary-light)",
           variant: "var(--color-secondary-variant)",
+          container: "var(--color-secondary-container)",
+          on: "var(--color-on-secondary)",
+          "on-container": "var(--color-on-secondary-container)",
+        },
+        tertiary: {
+          DEFAULT: "var(--color-tertiary)",
+          container: "var(--color-tertiary-container)",
+          on: "var(--color-on-tertiary)",
+          "on-container": "var(--color-on-tertiary-container)",
         },
         neutral: {
           0: "var(--color-neutral-0)",
@@ -57,7 +88,17 @@ const config: Config = {
           950: "var(--color-neutral-950)",
         },
         background: "var(--color-background)",
-        surface: "var(--color-surface)",
+        surface: {
+          DEFAULT: "var(--color-surface)",
+          dim: "var(--color-surface-dim)",
+          bright: "var(--color-surface-bright)",
+          variant: "var(--color-surface-variant)",
+          container: "var(--color-surface-container)",
+          "container-lowest": "var(--color-surface-container-lowest)",
+          "container-low": "var(--color-surface-container-low)",
+          "container-high": "var(--color-surface-container-high)",
+          "container-highest": "var(--color-surface-container-highest)",
+        },
         "surface-container": "var(--color-surface-container)",
         surfaceVariant: "var(--color-surface-variant)",
         "on-surface": "var(--color-on-surface)",
@@ -68,44 +109,119 @@ const config: Config = {
           50: "var(--color-error-50)",
           100: "var(--color-error-100)",
           200: "var(--color-error-200)",
+          300: "var(--color-error-300)",
+          400: "var(--color-error-400)",
+          500: "var(--color-error-500)",
           600: "var(--color-error-600)",
           700: "var(--color-error-700)",
+          800: "var(--color-error-800)",
+          900: "var(--color-error-900)",
           container: "var(--color-error-container)",
           on: "var(--color-on-error)",
+          "on-container": "var(--color-on-error-container)",
         },
         warning: {
           DEFAULT: "var(--color-warning)",
           50: "var(--color-warning-50)",
           100: "var(--color-warning-100)",
           200: "var(--color-warning-200)",
+          300: "var(--color-warning-300)",
+          400: "var(--color-warning-400)",
+          500: "var(--color-warning-500)",
           600: "var(--color-warning-600)",
           700: "var(--color-warning-700)",
+          800: "var(--color-warning-800)",
+          900: "var(--color-warning-900)",
           container: "var(--color-warning-container)",
           on: "var(--color-on-warning)",
+          "on-container": "var(--color-on-warning-container)",
         },
         success: {
           DEFAULT: "var(--color-success)",
           50: "var(--color-success-50)",
           100: "var(--color-success-100)",
           200: "var(--color-success-200)",
+          300: "var(--color-success-300)",
+          400: "var(--color-success-400)",
+          500: "var(--color-success-500)",
           600: "var(--color-success-600)",
           700: "var(--color-success-700)",
+          800: "var(--color-success-800)",
+          900: "var(--color-success-900)",
           container: "var(--color-success-container)",
           on: "var(--color-on-success)",
+          "on-container": "var(--color-on-success-container)",
         },
         info: {
           DEFAULT: "var(--color-info)",
           50: "var(--color-info-50)",
           100: "var(--color-info-100)",
           200: "var(--color-info-200)",
+          300: "var(--color-info-300)",
+          400: "var(--color-info-400)",
+          500: "var(--color-info-500)",
           600: "var(--color-info-600)",
           700: "var(--color-info-700)",
+          800: "var(--color-info-800)",
+          900: "var(--color-info-900)",
           container: "var(--color-info-container)",
           on: "var(--color-on-info)",
+          "on-container": "var(--color-on-info-container)",
+        },
+        // Hue aliases → semantic roles. Legacy markup used raw Tailwind hues
+        // (amber/blue/emerald/red/green); these map them onto the themeable
+        // semantic ramps so dark mode works without touching every file.
+        amber: semanticAlias("warning"),
+        yellow: semanticAlias("warning", 1),
+        orange: semanticAlias("warning", -1),
+        blue: semanticAlias("info"),
+        sky: semanticAlias("info", 1),
+        cyan: semanticAlias("info", 2),
+        indigo: semanticAlias("info", -1),
+        purple: semanticAlias("info", -2),
+        violet: semanticAlias("info", -3),
+        fuchsia: semanticAlias("info", -4),
+        emerald: semanticAlias("success"),
+        green: semanticAlias("success", 1),
+        teal: semanticAlias("success", -1),
+        lime: semanticAlias("success", 2),
+        red: semanticAlias("error"),
+        rose: semanticAlias("error", 1),
+        pink: semanticAlias("error", 2),
+        // Warm Smoked Glass navigation material — shared by the desktop
+        // sidebar and the mobile bottom navigation (see globals.css).
+        glass: {
+          surface: "var(--warm-glass-surface)",
+          "surface-strong": "var(--warm-glass-surface-strong)",
+          border: "var(--warm-glass-border)",
+          ivory: "var(--warm-glass-ivory)",
+          "ivory-muted": "var(--warm-glass-ivory-muted)",
+          state: "var(--warm-glass-state-layer)",
+          "state-strong": "var(--warm-glass-state-layer-strong)",
         },
         border: "var(--color-border)",
         divider: "var(--color-divider)",
         outline: "var(--color-outline)",
+        // MD3 outline-variant role — used by card/divider borders across the
+        // dashboard and assistant surfaces. Was defined in globals.css but
+        // never mapped here, so `border-outline-variant` emitted no CSS.
+        outlineVariant: "var(--color-outline-variant)",
+        "outline-variant": "var(--color-outline-variant)",
+        // camelCase aliases — the @legalir/ui design-system components use
+        // MD3 role names in camelCase (e.g. `text-onSurfaceVariant`).
+        onSurface: "var(--color-on-surface)",
+        onSurfaceVariant: "var(--color-on-surface-variant)",
+        onPrimary: "var(--color-on-primary)",
+        onPrimaryContainer: "var(--color-on-primary-container)",
+        primaryContainer: "var(--color-primary-container)",
+        secondaryContainer: "var(--color-secondary-container)",
+        onSecondaryContainer: "var(--color-on-secondary-container)",
+        onError: "var(--color-on-error)",
+        onErrorContainer: "var(--color-on-error-container)",
+        onWarning: "var(--color-on-warning)",
+        onSuccess: "var(--color-on-success)",
+        onInfo: "var(--color-on-info)",
+        onBackground: "var(--color-on-background)",
       },
       fontFamily: {
         sans: ["Vazir", "Vazirmatn", '"Noto Sans Arabic"', "Tahoma", "sans-serif"],
@@ -128,9 +244,12 @@ const config: Config = {
         titleMedium: ["16px", { lineHeight: "26px", fontWeight: "600" }],
       },
       borderRadius: {
+        xs: "var(--shape-xs)",
         small: "var(--shape-small)",
         medium: "var(--shape-medium)",
         large: "var(--shape-large)",
+        xlarge: "var(--shape-xlarge)",
+        full: "var(--shape-full)",
       },
       spacing: {
         "1u": "4px",
@@ -224,20 +343,27 @@ const config: Config = {
         wide: "1440px",
       },
       transitionDuration: {
-        short2: "150ms",
-        short3: "200ms",
-        short4: "250ms",
-        medium1: "300ms",
+        short1: "var(--motion-duration-short1)",
+        short2: "var(--motion-duration-short2)",
+        short3: "var(--motion-duration-short3)",
+        short4: "var(--motion-duration-short4)",
+        medium1: "var(--motion-duration-medium1)",
+        medium2: "var(--motion-duration-medium2)",
+        medium3: "var(--motion-duration-medium3)",
+        medium4: "var(--motion-duration-medium4)",
+        long1: "var(--motion-duration-long1)",
+        long2: "var(--motion-duration-long2)",
+        long3: "var(--motion-duration-long3)",
+        long4: "var(--motion-duration-long4)",
         moderate1: "400ms",
-        medium2: "400ms",
-        long1: "500ms",
-        long2: "600ms",
       },
       transitionTimingFunction: {
-        standard: "cubic-bezier(0.2, 0, 0, 1)",
-        "standard-decelerate": "cubic-bezier(0, 0, 0, 1)",
-        "standard-accelerate": "cubic-bezier(0.3, 0, 1, 1)",
-        emphasized: "cubic-bezier(0.2, 0, 0.2, 1)",
+        standard: "var(--motion-easing-standard)",
+        "standard-decelerate": "var(--motion-easing-standard-decelerate)",
+        "standard-accelerate": "var(--motion-easing-standard-accelerate)",
+        emphasized: "var(--motion-easing-emphasized)",
+        "emphasized-decelerate": "var(--motion-easing-emphasized-decelerate)",
+        "emphasized-accelerate": "var(--motion-easing-emphasized-accelerate)",
       },
     },
   },

@@ -31,6 +31,7 @@ import type {
   V1DocumentListResponse,
   V1DocumentListParams,
   V1DocumentDetail,
+  V1DocumentPreview,
   V1DocumentUploadRequest,
   V1DocumentUploadResponse,
   V1DocumentStatusResponse,
@@ -70,6 +71,7 @@ import type {
   PointsTransactionsResponse,
   ConvertToLegalResponse,
   NotificationSettings,
+  NotificationsResponse,
   PrivacySettings,
   SessionsResponse,
 } from "@legalir/types";
@@ -272,12 +274,23 @@ export function fetchDocumentDetail(id: string): Promise<V1DocumentDetail> {
   return apiClient.get<V1DocumentDetail>(`/api/v1/documents/${id}`);
 }
 
+export function fetchDocumentPreview(id: string): Promise<V1DocumentPreview> {
+  return apiClient.get<V1DocumentPreview>(`/api/v1/documents/${id}/preview`);
+}
+
 export function initiateUpload(data: V1DocumentUploadRequest): Promise<V1DocumentUploadResponse> {
   return apiClient.post<V1DocumentUploadResponse>("/api/v1/documents/uploads", data);
 }
 
-export function completeUpload(id: string): Promise<V1DocumentListItem> {
-  return apiClient.post<V1DocumentListItem>(`/api/v1/documents/uploads/${id}/complete`, {});
+/**
+ * Complete an upload by sending the file's bytes. The server stores them
+ * so the preview/file/download routes can serve the document afterwards —
+ * sending only metadata would leave the row without any bytes to preview.
+ */
+export function completeUpload(id: string, file: File): Promise<V1DocumentListItem> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return apiClient.postForm<V1DocumentListItem>(`/api/v1/documents/uploads/${id}/complete`, form);
 }
 
 export function fetchDocumentStatus(id: string): Promise<V1DocumentStatusResponse> {
@@ -539,6 +552,25 @@ export function fetchPointsTransactions(
   p.set("page", String(page));
   p.set("pageSize", String(pageSize));
   return apiClient.get<PointsTransactionsResponse>(`/api/v1/points/transactions${qs(p)}`);
+}
+
+// ============================================================
+// Notification Center
+// ============================================================
+
+export function fetchNotifications(): Promise<NotificationsResponse> {
+  return apiClient.get<NotificationsResponse>("/api/v1/notifications");
+}
+
+export function markNotificationRead(id: string): Promise<NotificationsResponse> {
+  return apiClient.post<NotificationsResponse>(
+    `/api/v1/notifications/${encodeURIComponent(id)}/read`,
+    {}
+  );
+}
+
+export function markAllNotificationsRead(): Promise<NotificationsResponse> {
+  return apiClient.post<NotificationsResponse>("/api/v1/notifications/read-all", {});
 }
 
 // ============================================================

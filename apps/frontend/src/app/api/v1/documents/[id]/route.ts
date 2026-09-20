@@ -7,8 +7,13 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
-import { getDemoDocument, deleteDemoDocument } from "@/lib/demo-seed";
+import {
+  getDemoDocument,
+  deleteDemoDocument,
+  deleteDemoRelationshipsFor,
+} from "@/lib/demo-seed";
 import { removeActivity } from "@/lib/db";
+import { deleteDocumentFile, documentFileReference } from "@/lib/document-storage";
 
 export async function GET(
   request: Request,
@@ -47,6 +52,17 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  // Resolve the stored file reference before the row is removed, so the
+  // bytes can be unlinked too — otherwise the file would be orphaned.
+  const doc = getDemoDocument(userId, id);
+  if (!doc) {
+    return NextResponse.json(
+      { code: "NOT_FOUND", message: "سند یافت نشد" },
+      { status: 404 }
+    );
+  }
+
   const ok = deleteDemoDocument(userId, id);
   if (!ok) {
     return NextResponse.json(
@@ -55,7 +71,11 @@ export async function DELETE(
     );
   }
 
+  // Clean up every resource the document owned: the mirrored activity
+  // row, the relationship edges, and the bytes on disk.
   removeActivity(userId, id);
+  deleteDemoRelationshipsFor(userId, id);
+  deleteDocumentFile(documentFileReference(doc));
 
   return NextResponse.json({ data: { deleted: true as const } });
 }

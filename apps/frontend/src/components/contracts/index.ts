@@ -1,7 +1,9 @@
 export { ContractStateBadge } from "./state-badge";
 export { ContractCard } from "./contract-card";
+export { PropertyContractCard } from "./property-contract-card";
 export { ContractFilterBar } from "./filter-bar";
 export { ContractList } from "./contract-list";
+export { ContractTypeGrid } from "./type-grid";
 export { ContractTypeSelector } from "./type-selector";
 export { ContractWizard } from "./wizard";
 export { ContractPreview } from "./contract-preview";

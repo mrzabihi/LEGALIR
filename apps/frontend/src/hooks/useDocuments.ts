@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchDocuments,
   fetchDocumentDetail,
+  fetchDocumentPreview,
   initiateUpload,
   completeUpload,
   fetchDocumentStatus,
@@ -36,6 +37,17 @@ export function useDocumentDetail(id: string | undefined) {
     queryFn: () => fetchDocumentDetail(id!),
     enabled: !!id,
     staleTime: 30_000,
+  });
+}
+
+// --- Document Preview ---
+
+export function useDocumentPreview(id: string | undefined) {
+  return useQuery({
+    queryKey: ["documents", "preview", id],
+    queryFn: () => fetchDocumentPreview(id!),
+    enabled: !!id,
+    staleTime: 60_000,
   });
 }
 
@@ -83,9 +95,12 @@ export function useInitiateUpload() {
 export function useCompleteUpload() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => completeUpload(id),
-    onSuccess: () => {
+    mutationFn: ({ id, file }: { id: string; file: File }) => completeUpload(id, file),
+    onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ["documents", "list"] });
+      // The bytes now exist, so the preview descriptor flips from
+      // "unavailable" to a real file URL.
+      qc.invalidateQueries({ queryKey: ["documents", "preview", id] });
     },
   });
 }
@@ -110,8 +125,16 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteDocument(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      // Drop the deleted document's own cache entries so nothing can
+      // re-render stale data, then refresh the list and the activity
+      // history (the row is mirrored there too).
+      qc.removeQueries({ queryKey: ["documents", "detail", id] });
+      qc.removeQueries({ queryKey: ["documents", "status", id] });
+      qc.removeQueries({ queryKey: ["documents", "analysis", id] });
+      qc.removeQueries({ queryKey: ["documents", "preview", id] });
       qc.invalidateQueries({ queryKey: ["documents", "list"] });
+      qc.invalidateQueries({ queryKey: ["history"] });
     },
   });
 }

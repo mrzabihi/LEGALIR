@@ -178,6 +178,23 @@ export const IconSubscription = createIcon("Subscription", (
   <path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" />
 ));
 
+// --- Plan-tier icons (silver · gold · diamond) ---
+
+/** Silver — a single four-point sparkle. */
+export const IconPlanSilver = createIcon("PlanSilver", (
+  <path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z" />
+));
+
+/** Gold — a five-point star. */
+export const IconPlanGold = createIcon("PlanGold", (
+  <path d="M12 2l2.9 6.26L21.5 9.3l-4.75 4.4 1.15 6.6L12 17.2l-5.9 3.1 1.15-6.6L2.5 9.3l6.6-1.04z" />
+));
+
+/** Diamond — a faceted gem. */
+export const IconPlanDiamond = createIcon("PlanDiamond", (
+  <path d="M12 2L3 9l9 13 9-13-9-7zm0 2.5L17.6 9H6.4L12 4.5zM6.9 11h10.2L12 19.2 6.9 11z" />
+));
+
 export const IconPhone = createIcon("Phone", (
   <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
 ));
@@ -230,6 +247,39 @@ export const IconExpandMore = createIcon("ExpandMore", (
 
 export const IconMinimize = createIcon("Minimize", (
   <path d="M6 19h12v2H6v-2z" />
+));
+
+export const IconZoomIn = createIcon("ZoomIn", (
+  <>
+    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+    <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z" />
+  </>
+));
+
+export const IconZoomOut = createIcon("ZoomOut", (
+  <>
+    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+    <path d="M7 9h5v1H7z" />
+  </>
+));
+
+export const IconFitWidth = createIcon("FitWidth", (
+  <>
+    <path d="M4 6h2v12H4zM18 6h2v12h-2z" />
+    <path d="M10 8l-4 4 4 4v-3h4v3l4-4-4-4v3h-4z" />
+  </>
+));
+
+export const IconChevronLeft = createIcon("ChevronLeft", (
+  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+));
+
+export const IconChevronRightSmall = createIcon("ChevronRightSmall", (
+  <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
+));
+
+export const IconOpenInNew = createIcon("OpenInNew", (
+  <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
 ));
 
 export const IconStar = createIcon("Star", (
@@ -298,6 +348,21 @@ export const IconFiles = createIcon("Files", (
 ));
 
 /** Calculator keypad — legal calculations. */
+/** Stacked cylinders — advanced resources / data sources. */
+export const IconDatabase = createIcon("Database", (
+  <path d="M12 2C7.58 2 4 3.34 4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5c0-1.66-3.58-3-8-3zm0 2c3.87 0 6 .99 6 1s-2.13 1-6 1-6-.99-6-1 2.13-1 6-1zm6 15c0 .01-2.13 1-6 1s-6-.99-6-1v-2.23c1.5.72 3.66 1.23 6 1.23s4.5-.51 6-1.23V19zm0-4.5c0 .01-2.13 1-6 1s-6-.99-6-1v-2.23c1.5.72 3.66 1.23 6 1.23s4.5-.51 6-1.23v2.23zm0-4.5c0 .01-2.13 1-6 1s-6-.99-6-1V7.77c1.5.72 3.66 1.23 6 1.23s4.5-.51 6-1.23V10z" />
+));
+
+/** Lightning bolt — priority / fast processing. */
+export const IconBolt = createIcon("Bolt", (
+  <path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z" />
+));
+
+/** Bell — notifications / notification center. */
+export const IconBell = createIcon("Bell", (
+  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+));
+
 export const IconCalculator = createIcon("Calculator", (
   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-2h2v2zm0-4H7v-2h2v2zm0-4H7V7h2v2zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z" />
 ));

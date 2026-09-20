@@ -15,6 +15,8 @@ import {
   type RewardEventType,
 } from "./rewards";
 import { seedDemoContent, seedLawContent, seedDemoCases, DEMO_USER_MOBILE } from "./demo-seed";
+import { seedPropertyContracts } from "./contracts/seed";
+import type { NotificationItem } from "@legalir/types";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -24,12 +26,35 @@ function ensureDir() {
   }
 }
 
+// ------------------------------------------------------------
+// Read cache
+// ------------------------------------------------------------
+// Tables used to be re-read and re-parsed from disk on every call —
+// the session table alone is >100KB, and a single page load touches
+// several tables, so this dominated request latency. All writes go
+// through `writeTable` in this process, so an mtime+size check is
+// enough to trust the cached parse; `writeTable` primes the entry so
+// a write can never leave a stale parse behind.
+const tableCache = new Map<string, { mtimeMs: number; size: number; data: unknown[] }>();
+
 export function readTable<T>(name: string): T[] {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
-  if (!fs.existsSync(file)) return [];
+  let stat: fs.Stats;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    stat = fs.statSync(file);
+  } catch {
+    tableCache.delete(name);
+    return [];
+  }
+  const cached = tableCache.get(name);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.data as T[];
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+    return data;
   } catch {
     return [];
   }
@@ -39,6 +64,12 @@ export function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+  try {
+    const stat = fs.statSync(file);
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+  } catch {
+    tableCache.delete(name);
+  }
 }
 
 // ============================================================
@@ -1157,6 +1188,180 @@ export function spendEnergy(params: {
 }
 
 // ============================================================
+// Notification Center
+// ============================================================
+// The feed is DERIVED, not stored. Every item comes from a real system
+// event that already exists elsewhere in the database:
+//
+//   reward_ledger  → category "points"    (the points history, normalized)
+//   activities     → category "personal"  (the user's own work events)
+//   catalog below  → category "public"    (LEGALIR-wide announcements)
+//
+// Only the read receipts are persisted, keyed by the item's stable id.
+// This keeps a single source of truth per event and guarantees the unread
+// count can never drift from the feed it describes.
+
+export interface NotificationReadRow {
+  user_id: string;
+  notification_id: string;
+  read_at: string;
+}
+
+/**
+ * Product announcements. These are editorial content shipped with the
+ * build — not user data — so they live here as a static catalog rather
+ * than in a table. `id` is stable and must never be reused.
+ */
+interface AnnouncementDef {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  href?: string;
+  actionLabel?: string;
+}
+
+const ANNOUNCEMENTS: AnnouncementDef[] = [
+  {
+    id: "ann:legal-library-launch",
+    title: "کتابخانه حقوقی LEGALIR منتشر شد",
+    message: "دسترسی رایگان به قوانین، آرای وحدت رویه و راهنماهای حقوقی.",
+    createdAt: "2026-09-10T08:00:00.000Z",
+    href: "/legal-library",
+    actionLabel: "مشاهده کتابخانه",
+  },
+  {
+    id: "ann:legal-calculators",
+    title: "محاسبه‌گرهای حقوقی در دسترس است",
+    message: "دیه، مهریه، هزینه دادرسی، عیدی و سنوات را سریع محاسبه کنید.",
+    createdAt: "2026-09-05T08:00:00.000Z",
+    href: "/calculators",
+    actionLabel: "ورود به محاسبه‌گرها",
+  },
+];
+
+/** Map a reward event to a human label when the ledger description is thin. */
+const REWARD_EVENT_FA: Record<string, string> = {
+  PROFILE_COMPLETED: "تکمیل پروفایل",
+  DAILY_VISIT: "ورود روزانه",
+  REFERRAL_COMPLETED: "دعوت از دوستان",
+  SUBSCRIPTION_SILVER_PURCHASED: "خرید اشتراک نقره‌ای",
+  SUBSCRIPTION_GOLD_PURCHASED: "خرید اشتراک طلایی",
+  SUBSCRIPTION_DIAMOND_PURCHASED: "خرید اشتراک الماسی",
+  REQUEST_CONSUMED: "استفاده از سرویس",
+};
+
+/** Where an activity type deep-links to. Mirrors the dashboard widget map. */
+const ACTIVITY_HREF: Record<ActivityRow["type"], string> = {
+  conversation: "/chat",
+  document: "/documents",
+  contract: "/contracts",
+  subscription: "/subscription",
+  case: "/cases",
+};
+
+function readNotificationReads(userId: string): NotificationReadRow[] {
+  return readTable<NotificationReadRow>("notification_reads").filter(
+    (r) => r.user_id === userId
+  );
+}
+
+/**
+ * Build the canonical notification feed for a user, newest first.
+ * Pure derivation — calling this twice yields identical ids, so read
+ * receipts stay valid across requests.
+ */
+export function deriveNotifications(userId: string): NotificationItem[] {
+  const readIds = new Set(readNotificationReads(userId).map((r) => r.notification_id));
+  const items: NotificationItem[] = [];
+
+  // --- Points events (the existing ledger, normalized) ---
+  for (const entry of readRewardLedger(userId)) {
+    const positive = entry.points_delta >= 0;
+    items.push({
+      id: `points:${entry.id}`,
+      category: "points",
+      tone: positive ? "success" : "warning",
+      title: entry.description || REWARD_EVENT_FA[entry.event_type] || "تغییر امتیاز",
+      message: REWARD_EVENT_FA[entry.event_type],
+      createdAt: entry.created_at,
+      read: readIds.has(`points:${entry.id}`),
+      href: "/points",
+      actionLabel: "مشاهده امتیازها",
+      pointsDelta: entry.points_delta,
+    });
+  }
+
+  // --- Personal events (the user's own activities) ---
+  for (const activity of readTable<ActivityRow>("activities")) {
+    if (activity.user_id !== userId || activity.archived) continue;
+    const id = `activity:${activity.id}`;
+    items.push({
+      id,
+      category: "personal",
+      tone: activity.status === "failed" ? "error" : "neutral",
+      title: activity.title,
+      message: activity.status_fa || activity.description || undefined,
+      createdAt: activity.updated_at,
+      read: readIds.has(id),
+      href: ACTIVITY_HREF[activity.type],
+    });
+  }
+
+  // --- Public announcements (static catalog) ---
+  for (const ann of ANNOUNCEMENTS) {
+    items.push({
+      id: ann.id,
+      category: "public",
+      tone: "neutral",
+      title: ann.title,
+      message: ann.message,
+      createdAt: ann.createdAt,
+      read: readIds.has(ann.id),
+      href: ann.href,
+      actionLabel: ann.actionLabel,
+    });
+  }
+
+  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function getUnreadNotificationCount(userId: string): number {
+  return deriveNotifications(userId).filter((n) => !n.read).length;
+}
+
+/** Mark one notification read. Idempotent — re-reading never duplicates. */
+export function markNotificationRead(userId: string, notificationId: string): void {
+  const rows = readTable<NotificationReadRow>("notification_reads");
+  if (rows.some((r) => r.user_id === userId && r.notification_id === notificationId)) {
+    return;
+  }
+  rows.push({
+    user_id: userId,
+    notification_id: notificationId,
+    read_at: new Date().toISOString(),
+  });
+  writeTable("notification_reads", rows);
+}
+
+/** Mark every currently-derived notification read. Returns how many changed. */
+export function markAllNotificationsRead(userId: string): number {
+  const rows = readTable<NotificationReadRow>("notification_reads");
+  const existing = new Set(
+    rows.filter((r) => r.user_id === userId).map((r) => r.notification_id)
+  );
+  const now = new Date().toISOString();
+  let changed = 0;
+  for (const item of deriveNotifications(userId)) {
+    if (existing.has(item.id)) continue;
+    rows.push({ user_id: userId, notification_id: item.id, read_at: now });
+    changed += 1;
+  }
+  if (changed > 0) writeTable("notification_reads", rows);
+  return changed;
+}
+
+// ============================================================
 // Dev seed
 // ============================================================
 
@@ -1289,5 +1494,6 @@ if (process.env.NODE_ENV === "development") {
     seedDemoContent(demoUser.id);
     seedLawContent(demoUser.id);
     seedDemoCases(demoUser.id);
+    seedPropertyContracts(demoUser.id);
   }
 }

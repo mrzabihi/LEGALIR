@@ -46,6 +46,16 @@ describe("LEGAL_SERVICES registry", () => {
     }
   });
 
+  it("gives every service exactly one brand accent", () => {
+    for (const service of LEGAL_SERVICES) {
+      expect(service.accent).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    }
+    // Accents must be distinct — the Quick Access row relies on one hue
+    // per card to differentiate services without extra chrome.
+    const accents = LEGAL_SERVICES.map((s) => s.accent);
+    expect(new Set(accents).size).toBe(accents.length);
+  });
+
   it("uses unique ids and hrefs", () => {
     const ids = LEGAL_SERVICES.map((s) => s.id);
     const hrefs = LEGAL_SERVICES.map((s) => s.href);

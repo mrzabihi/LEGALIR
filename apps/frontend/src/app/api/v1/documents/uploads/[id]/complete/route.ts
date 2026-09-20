@@ -7,8 +7,11 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
-import { updateDemoDocumentStatus, listDemoDocuments } from "@/lib/demo-seed";
+import { updateDemoDocumentStatus, getDemoDocument, setDemoDocumentStorageKey } from "@/lib/demo-seed";
+import type { listDemoDocuments } from "@/lib/demo-seed";
+import { saveDocumentFile } from "@/lib/document-storage";
 import { recordActivity } from "@/lib/db";
+import { MAX_DOCUMENT_SIZE_BYTES } from "@legalir/types";
 import type { RiskLevel, V1DocumentListItem } from "@legalir/types";
 
 function overallRisk(severities: RiskLevel[]): RiskLevel {
@@ -46,6 +49,39 @@ export async function POST(
   }
 
   const { id } = await params;
+
+  // The pending row must exist and belong to this user before we accept
+  // any bytes for it.
+  const pending = getDemoDocument(userId, id);
+  if (!pending) {
+    return NextResponse.json(
+      { code: "NOT_FOUND", message: "سند یافت نشد" },
+      { status: 404 }
+    );
+  }
+
+  // Persist the uploaded bytes so the preview/file/download routes can
+  // serve them. Without this the row keeps `storageKey: null` and every
+  // preview reports "file unavailable".
+  const form = await request.formData().catch(() => null);
+  const file = form?.get("file");
+  if (!(file instanceof File)) {
+    return NextResponse.json(
+      { code: "INVALID_BODY", message: "فایل ارسال نشده است" },
+      { status: 400 }
+    );
+  }
+  if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+    return NextResponse.json(
+      { code: "FILE_TOO_LARGE", message: "حجم فایل بیش از حد مجاز است", retryable: false },
+      { status: 400 }
+    );
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const storageKey = saveDocumentFile(id, pending.name, bytes);
+  setDemoDocumentStorageKey(userId, id, storageKey);
+
   // Mark the pending document as ready (analysis simulated client-side).
   const doc = updateDemoDocumentStatus(userId, id, "ready");
   if (!doc) {

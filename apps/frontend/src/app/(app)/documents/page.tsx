@@ -6,12 +6,20 @@
 
 import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { useDocuments } from "@/hooks/useDocuments";
-import { DocumentList } from "@/components/documents";
+import { useDocuments, useDeleteDocument } from "@/hooks/useDocuments";
+// Import the module directly rather than through the `@/components/documents`
+// barrel: the barrel re-exports every document component (viewers, pdfjs
+// wrappers, chat panel, …), so a barrel import dragged ~550 KB of unrelated
+// modules — including pdfjs-dist — into this list route's client bundle.
+import { DocumentList } from "@/components/documents/document-list";
 import { PageContextHeader } from "@/components/shared";
-import { Button, SkeletonCard, EmptyState, ErrorState } from "@legalir/ui";
+import { Button, ConfirmDialog, SkeletonCard, EmptyState, ErrorState, snackbar } from "@legalir/ui";
 import { IconAdd, IconDocument } from "@/lib/icons";
-import type { V1DocumentListParams, V1DocumentFilter } from "@legalir/types";
+import type {
+  V1DocumentListParams,
+  V1DocumentFilter,
+  V1DocumentListItem,
+} from "@legalir/types";
 
 export default function DocumentsPage() {
   const router = useRouter();
@@ -20,6 +28,28 @@ export default function DocumentsPage() {
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState<V1DocumentFilter>("all");
   const [sort, setSort] = React.useState<"newest" | "oldest" | "name">("newest");
+
+  // --- Delete state ---
+  const [pendingDelete, setPendingDelete] = React.useState<V1DocumentListItem | null>(null);
+  const deleteDocument = useDeleteDocument();
+
+  const handleConfirmDelete = () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    deleteDocument.mutate(target.id, {
+      onSuccess: () => {
+        setPendingDelete(null);
+        snackbar.show({ message: "سند با موفقیت حذف شد.", variant: "success" });
+      },
+      onError: (err) => {
+        // Keep the document in the list and surface the failure.
+        snackbar.show({
+          message: err instanceof Error ? err.message : "حذف سند با خطا مواجه شد.",
+          variant: "error",
+        });
+      },
+    });
+  };
 
   // --- Queries ---
   const listParams: V1DocumentListParams = {
@@ -102,6 +132,23 @@ export default function DocumentsPage() {
         onSortChange={(val) => setSort(val as "newest" | "oldest" | "name")}
         onDocumentClick={handleDocumentClick}
         onRetry={() => refetch()}
+        onDelete={setPendingDelete}
+      />
+
+      {/* Delete confirmation. Nothing is deleted until the user
+          explicitly confirms; cancel closes with no side effects. */}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => {
+          if (!deleteDocument.isPending) setPendingDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="حذف سند؟"
+        description="آیا از حذف این سند مطمئن هستید؟ پس از حذف، دیگر به این سند دسترسی نخواهید داشت."
+        confirmLabel="حذف سند"
+        cancelLabel="انصراف"
+        destructive
+        loading={deleteDocument.isPending}
       />
     </div>
   );

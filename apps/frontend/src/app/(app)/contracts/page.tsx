@@ -3,7 +3,10 @@
 // ============================================================
 
 import { Suspense } from "react";
-import { ContractList } from "@/components/contracts";
+// Direct module import — the `@/components/contracts` barrel re-exports the
+// whole contract component set (wizard, preview, version compare, …), which
+// would pull unrelated modules into this list route's client bundle.
+import { ContractList } from "@/components/contracts/contract-list";
 import { PageContextHeader } from "@/components/shared";
 
 export default function ContractsPage() {

@@ -40,6 +40,7 @@ export const routes: RouteDef[] = [
   { path: "/history", titleFa: "تاریخچه", access: "user", icon: "History" },
   { path: "/documents", titleFa: "اسناد", access: "entitled", icon: "Description" },
   { path: "/contracts", titleFa: "قراردادها", access: "entitled", icon: "Article" },
+  { path: "/calculators", titleFa: "محاسبه‌گرها", access: "user", icon: "Calculator" },
   { path: "/subscription", titleFa: "اشتراک", access: "user", icon: "WorkspacePremium" },
 
   // App — Secondary (not in main nav)

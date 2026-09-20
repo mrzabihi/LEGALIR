@@ -83,27 +83,14 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-neutral-200 shadow-sm" role="banner">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        {/* Logo */}
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity shrink-0"
-          aria-label="LEGALIR — صفحه اصلی"
-        >
-          <img
-            src="/legalir-logo.png"
-            alt="LEGALIR"
-            className="h-14 w-auto"
-          />
-        </Link>
-
-        {/* Desktop Nav */}
-        <nav className="hidden laptop:flex items-center gap-1" aria-label="ناوبری اصلی">
+      <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        {/* Desktop Nav — start side */}
+        <nav className="hidden laptop:flex items-center gap-0.5" aria-label="ناوبری اصلی">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`px-4 py-2.5 rounded-medium text-body-2 font-medium transition-all duration-200 ${
+              className={`px-2 py-2.5 rounded-medium text-body-2 font-medium transition-all duration-200 ${
                 isActive(item.href)
                   ? "bg-primary-50 text-primary-700"
                   : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50"
@@ -163,6 +150,9 @@ export function Header() {
             </div>
           </div>
         </div>
+
+        {/* Mobile spacer — keeps the hamburger pinned to the end */}
+        <div className="laptop:hidden flex-1" aria-hidden="true" />
 
         {/* Mobile: Hamburger */}
         <div className="flex items-center gap-1 laptop:hidden">

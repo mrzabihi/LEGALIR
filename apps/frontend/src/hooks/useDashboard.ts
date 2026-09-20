@@ -47,6 +47,17 @@ export function useUpdateProfile() {
       // Invalidate the dashboard summary so the completion card reflects the
       // new value immediately (no stale 25%).
       queryClient.invalidateQueries({ queryKey: ["dashboard", "summary"] });
+
+      // Reaching 100% completion grants the once-per-account PROFILE_COMPLETED
+      // reward server-side (see app/api/v1/me/profile/route.ts). The PATCH
+      // response only carries the Profile, so the new balance is unknown here —
+      // refetch the rewards/points families so the header badge, dashboard card
+      // and /points page update without a manual refresh. The ledger key is
+      // idempotent, so this is safe to fire on every profile save.
+      queryClient.invalidateQueries({ queryKey: ["rewards", "summary"] });
+      queryClient.invalidateQueries({ queryKey: ["points", "account"] });
+      queryClient.invalidateQueries({ queryKey: ["rewards", "history"] });
+      queryClient.invalidateQueries({ queryKey: ["points", "transactions"] });
     },
   });
 }

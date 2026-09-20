@@ -18,6 +18,7 @@ import {
   IconMemory,
   IconFile,
   IconWarning,
+  IconSubscription,
   IconChevronRight,
 } from "@/lib/icons";
 
@@ -30,6 +31,12 @@ interface HubCard {
 }
 
 const CARDS: HubCard[] = [
+  {
+    href: "/settings/subscription",
+    title: "اشتراک",
+    description: "پلن فعلی، وضعیت، تاریخ پایان و مزایای اشتراک شما.",
+    icon: <IconSubscription size={22} />,
+  },
   {
     href: "/settings/notifications",
     title: "اعلان‌ها",

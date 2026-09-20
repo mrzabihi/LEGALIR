@@ -11,11 +11,10 @@ import {
   HeroSection,
   PromoBanner,
   ProfileCompletionCard,
-  QuickActions,
   RecentActivities,
   UsageSummaryCard,
-  NotificationsPlaceholder,
 } from "../widgets";
+import { QuickActions } from "../quick-access";
 import { PointsSummaryCard } from "../points-summary-card";
 import type { Profile, RecentActivityItem, UsageSummary, Entitlement } from "@legalir/types";
 
@@ -324,33 +323,89 @@ describe("ProfileCompletionCard", () => {
 // ============================================================
 
 describe("QuickActions", () => {
-  it("renders all quick action cards", () => {
+  it("renders the six primary service cards", () => {
     render(
       <TestWrapper>
         <QuickActions />
       </TestWrapper>
     );
-    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
-    expect(screen.getByText("بررسی قرارداد")).toBeInTheDocument();
-    expect(screen.getByText("تنظیم قرارداد")).toBeInTheDocument();
-    expect(screen.getByText("تولید اظهارنامه")).toBeInTheDocument();
+    expect(screen.getByText("محاسبه‌گر حقوقی")).toBeInTheDocument();
     expect(screen.getByText("تحلیل اسناد")).toBeInTheDocument();
-    expect(screen.getByText("محاسبات حقوقی")).toBeInTheDocument();
+    expect(screen.getByText("تولید اظهارنامه")).toBeInTheDocument();
+    expect(screen.getByText("تنظیم قرارداد")).toBeInTheDocument();
+    expect(screen.getByText("بررسی قرارداد")).toBeInTheDocument();
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
   });
 
-  it("all actions are links with correct hrefs", () => {
+  it("does not duplicate the calculator as a registry card", () => {
     render(
       <TestWrapper>
         <QuickActions />
       </TestWrapper>
     );
-    const links = screen.getAllByRole("link");
-    expect(links.length).toBeGreaterThanOrEqual(3);
-    const hrefs = links.map((l) => l.getAttribute("href"));
-    // Every action deep-links with its service context in the URL.
+    // `legal_calculation` is covered by the calculator launcher, so the
+    // registry title «محاسبات حقوقی» must not appear a second time.
+    expect(screen.queryByText("محاسبات حقوقی")).not.toBeInTheDocument();
+  });
+
+  it("renders the section header with a link to all services", () => {
+    render(
+      <TestWrapper>
+        <QuickActions />
+      </TestWrapper>
+    );
+    expect(screen.getByText("دسترسی سریع")).toBeInTheDocument();
+    expect(screen.getByText("خدمات محبوب لیگالیر در یک نگاه")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /همه خدمات/ })).toHaveAttribute("href", "/services");
+  });
+
+  it("deep-links every card with its service context in the URL", () => {
+    render(
+      <TestWrapper>
+        <QuickActions />
+      </TestWrapper>
+    );
+    const hrefs = screen.getAllByRole("link").map((l) => l.getAttribute("href"));
     expect(hrefs).toContain("/chat?service=legal_consultation");
     expect(hrefs).toContain("/documents?service=contract_review");
     expect(hrefs).toContain("/contracts?service=contract_drafting");
+    expect(hrefs).toContain("/documents?service=document_analysis");
+    expect(hrefs).toContain("/chat?service=legal_notice");
+  });
+
+  it("features the legal calculator launcher linking to the hub", () => {
+    render(
+      <TestWrapper>
+        <QuickActions />
+      </TestWrapper>
+    );
+    const launcher = screen.getByRole("link", { name: "ورود به محاسبه‌گرهای حقوقی" });
+    expect(launcher).toHaveAttribute("href", "/calculators");
+    // Every card is equal — the calculator must not span extra columns.
+    expect(launcher.className).not.toContain("col-span-2");
+  });
+
+  it("keeps the calculator description to a short example list", () => {
+    render(
+      <TestWrapper>
+        <QuickActions />
+      </TestWrapper>
+    );
+    // The card advertises examples only — the hub owns the full directory.
+    expect(screen.getByText("دیه، مهریه و هزینه‌های حقوقی")).toBeInTheDocument();
+  });
+
+  it("gives every card a single accent and a watermark illustration", () => {
+    render(
+      <TestWrapper>
+        <QuickActions />
+      </TestWrapper>
+    );
+    const launcher = screen.getByRole("link", { name: "ورود به محاسبه‌گرهای حقوقی" });
+    // One accent drives the icon, arrow and illustration.
+    expect(launcher.getAttribute("style")).toContain("--qa-accent");
+    // The watermark is decorative and must stay out of the a11y tree.
+    expect(launcher.querySelector('[aria-hidden="true"]')).toBeInTheDocument();
   });
 });
 
@@ -382,7 +437,23 @@ describe("RecentActivities", () => {
         <RecentActivities items={[]} isLoading={false} error={null} />
       </TestWrapper>
     );
-    expect(screen.getByText(/هنوز فعالیتی ندارید/)).toBeInTheDocument();
+    expect(screen.getByText(/هنوز پیش‌نویسی ندارید/)).toBeInTheDocument();
+  });
+
+  it("caps the list at three items to keep the row balanced", () => {
+    const many: RecentActivityItem[] = [
+      ...items,
+      { id: "a-4", type: "document", title: "سند چهارم", status: "ready", updatedAt: "2026-07-26T10:00:00Z" },
+      { id: "a-5", type: "contract", title: "قرارداد پنجم", status: "generated", updatedAt: "2026-07-25T10:00:00Z" },
+    ];
+    render(
+      <TestWrapper>
+        <RecentActivities items={many} isLoading={false} error={null} />
+      </TestWrapper>
+    );
+    expect(screen.getByText("مشاوره حقوقی")).toBeInTheDocument();
+    expect(screen.queryByText("سند چهارم")).not.toBeInTheDocument();
+    expect(screen.queryByText("قرارداد پنجم")).not.toBeInTheDocument();
   });
 
   it("shows error state with retry", () => {
@@ -451,7 +522,7 @@ describe("UsageSummaryCard", () => {
         <UsageSummaryCard usage={usageData} isLoading={false} error={null} />
       </TestWrapper>
     );
-    expect(screen.getByText((content) => content.includes("23") && content.includes("روز دیگر"))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes("۲۳") && content.includes("روز دیگر"))).toBeInTheDocument();
   });
 
   it("shows empty state when no usage data", () => {
@@ -465,16 +536,8 @@ describe("UsageSummaryCard", () => {
 });
 
 // ============================================================
-// NotificationsPlaceholder
+// Notifications moved to the Notification Center
 // ============================================================
-
-describe("NotificationsPlaceholder", () => {
-  it("renders empty notification state", () => {
-    render(
-      <TestWrapper>
-        <NotificationsPlaceholder />
-      </TestWrapper>
-    );
-    expect(screen.getByText("اعلان جدیدی ندارید")).toBeInTheDocument();
-  });
-});
+// The dashboard no longer renders an announcement card — the feed now
+// lives behind the header bell and at /notifications. See
+// src/components/notifications/__tests__ for the center's own tests.

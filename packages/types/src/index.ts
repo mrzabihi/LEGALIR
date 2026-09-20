@@ -403,6 +403,33 @@ export interface V1DocumentStatusResponse {
   errorCode: string | null;
 }
 
+// ============================================================
+// Document Preview (Phase 9 — real preview system)
+// ============================================================
+
+/** The preview capability resolved for a stored file. */
+export type DocumentPreviewKind = "pdf" | "image" | "unsupported";
+
+/**
+ * Auth-gated preview descriptor for a document. `fileUrl` is a same-origin
+ * API route that re-checks ownership on every request — never a raw storage
+ * URL — so a user can never preview another user's private file by editing
+ * the document id in the address bar.
+ */
+export interface V1DocumentPreview {
+  documentId: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  kind: DocumentPreviewKind;
+  /** Same-origin, auth-gated inline file endpoint. Null when unavailable. */
+  fileUrl: string | null;
+  /** Same-origin, auth-gated attachment endpoint. */
+  downloadUrl: string;
+  /** True when the stored bytes exist and are readable. */
+  available: boolean;
+}
+
 export interface V1DocumentAnalysisResponse {
   report: RiskReport;
   extractedText: string | null;
@@ -1413,6 +1440,26 @@ export interface ActiveRequestItem {
   link: string;
 }
 
+/**
+ * Provenance for a smart recommendation. Every recommendation that is
+ * grounded in a real artifact (a law file from «iran legal», one of the
+ * user's documents, or one of their contracts) carries this so the UI can
+ * show *why* the suggestion was made instead of an unsourced AI tip.
+ */
+export interface RecommendationSource {
+  /** Human-readable source title (e.g. «قانون کار جمهوری اسلامی ایران»). */
+  title: string;
+  /** Article / principle / clause locator (e.g. «ماده ۷ قانون کار»). */
+  locator?: string | null;
+  /** Issuing authority (e.g. «مجلس شورای اسلامی»). */
+  authority?: string | null;
+  /** Original file name inside the «iran legal» corpus, when applicable. */
+  fileName?: string | null;
+  /** Name of the user's own artifact that triggered the recommendation. */
+  documentName?: string | null;
+  kind: "law" | "document" | "contract";
+}
+
 export interface DashboardRecommendation {
   id: string;
   text: string;
@@ -1420,6 +1467,10 @@ export interface DashboardRecommendation {
   link: string;
   linkLabel: string;
   urgency: "info" | "warning" | "action";
+  /** Optional supporting sentence explaining the reasoning. */
+  detail?: string | null;
+  /** Optional provenance — present whenever the rec is grounded in a real source. */
+  source?: RecommendationSource | null;
 }
 
 export interface RecentDocumentItem {
@@ -1516,6 +1567,41 @@ export interface PointsAccount {
 export interface PointsTransactionsResponse {
   items: RewardLedgerItem[];
   pagination: Pagination;
+}
+
+// --- Notification Center ---
+// A single canonical feed. Items are DERIVED from real system events
+// (reward ledger, user activities, product announcements) — never stored
+// as a duplicate list. Read state is the only persisted part, keyed by
+// the item's stable id.
+
+/** Which tab an item belongs to. `points` items also appear in `all`. */
+export type NotificationCategory = "public" | "personal" | "points";
+
+/** Semantic tone — drives the icon container colour, not the whole row. */
+export type NotificationTone = "neutral" | "success" | "warning" | "error";
+
+export interface NotificationItem {
+  /** Stable, deterministic id (e.g. `points:<ledgerId>`). */
+  id: string;
+  category: NotificationCategory;
+  tone: NotificationTone;
+  title: string;
+  /** Optional one-line supporting text. */
+  message?: string;
+  createdAt: string;
+  read: boolean;
+  /** Optional in-app destination. */
+  href?: string;
+  /** Optional CTA label paired with `href`. */
+  actionLabel?: string;
+  /** Signed points delta — present only on `points` items. */
+  pointsDelta?: number;
+}
+
+export interface NotificationsResponse {
+  items: NotificationItem[];
+  unreadCount: number;
 }
 
 // --- Settings: Notifications & Privacy ---
@@ -1791,3 +1877,128 @@ export type ApiEndpoints = {
     updateTask: { input: { id: string; taskId: string } & CaseTaskUpdateRequest; output: CaseTask };
   };
 };
+
+// ============================================================
+// Legal Calculators Domain Types (محاسبه‌گرهای حقوقی)
+// ============================================================
+// Deterministic, versioned legal/judicial/employment calculators.
+// Every rate dataset carries full provenance so a result can always
+// be traced back to the instrument that produced it.
+
+/** Currency unit. Rial is the base unit; Toman = Rial / 10. */
+export type MoneyUnit = "IRR" | "IRT";
+
+/** Which family a calculator belongs to (drives grouping in the UI). */
+export type CalculatorCategory = "judicial" | "employment" | "family" | "civil";
+
+/** How confident we are that the dataset reflects current law. */
+export type CalculatorConfidence = "high" | "medium" | "low";
+
+/**
+ * Provenance for a rate dataset. Every field is required except the
+ * optional URL — a dataset without a traceable authority must not ship.
+ */
+export interface CalculatorSource {
+  /** Human title of the instrument, e.g. «قانون آیین دادرسی دادگاه‌های عمومی و انقلاب». */
+  sourceTitle: string;
+  /** Issuing body, e.g. «قوه قضائیه» / «مجلس شورای اسلامی». */
+  sourceAuthority: string;
+  /** Official URL when one exists; null for print-only instruments. */
+  sourceUrl: string | null;
+  /** Gregorian publication date (YYYY-MM-DD) of the instrument. */
+  publicationDate: string;
+  /** Gregorian date the rates take effect (YYYY-MM-DD). */
+  effectiveFrom: string;
+  /** Gregorian date the rates stop applying; null = still in force. */
+  effectiveTo: string | null;
+  /** Jurisdiction the rates apply in. */
+  jurisdiction: string;
+  /** The calendar year the rates are stated for (e.g. 1404). */
+  calculationYear: number;
+  /** Dataset version — bump whenever any rate changes. */
+  version: string;
+  /** Gregorian date a human last verified the rates against the source. */
+  verifiedAt: string;
+  /** Free-form caveats shown to the user alongside the result. */
+  notes: string | null;
+}
+
+/** A single input field a calculator exposes. */
+export interface CalculatorField {
+  key: string;
+  labelFa: string;
+  /** `money` values are entered in `unit`; `number`/`percent` are plain. */
+  type: "money" | "number" | "percent" | "select" | "boolean";
+  unit?: MoneyUnit;
+  required: boolean;
+  /** Pre-filled value; money fields are expressed in `unit`. */
+  defaultValue?: number | string | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  /** Options for `select` fields. */
+  options?: { value: string; labelFa: string }[];
+  helpFa?: string;
+}
+
+/** One line of a calculation breakdown, shown to the user. */
+export interface CalculationStep {
+  labelFa: string;
+  /** Pre-formatted Persian value (already unit-labelled). */
+  valueFa: string;
+  /** Optional formula/derivation note. */
+  noteFa?: string;
+}
+
+/** The result of running a calculator. */
+export interface CalculationResult {
+  /** Primary output, pre-formatted for display. */
+  headlineFa: string;
+  /** Raw numeric primary output in `unit`. */
+  headlineValue: number;
+  unit: MoneyUnit;
+  /** Ordered breakdown lines. */
+  steps: CalculationStep[];
+  /** Non-fatal warnings (e.g. value clamped to a statutory ceiling). */
+  warningsFa: string[];
+  /** Provenance of the dataset actually used. */
+  source: CalculatorSource;
+}
+
+/** A calculator definition (metadata + engine binding). */
+export interface CalculatorDef {
+  id: string;
+  slug: string;
+  titleFa: string;
+  subtitleFa: string;
+  descriptionFa: string;
+  category: CalculatorCategory;
+  /** Emoji or icon key rendered in the catalog. */
+  icon: string;
+  /** Tailwind gradient classes for the catalog card. */
+  gradient: string;
+  /** Governing instrument, e.g. «ماده ۵۰۵ قانون آیین دادرسی مدنی». */
+  legalBasisFa: string;
+  /** Ids of the rate datasets this calculator reads. */
+  datasetIds: string[];
+  fields: CalculatorField[];
+  confidence: CalculatorConfidence;
+  /** True when the calculator is fully implemented and shippable. */
+  available: boolean;
+}
+
+/** A versioned rate dataset with provenance. */
+export interface RateDataset {
+  id: string;
+  titleFa: string;
+  /** The calendar year these rates are stated for. */
+  calculationYear: number;
+  source: CalculatorSource;
+  /** Arbitrary structured rates — shape is owned by the consuming calculator. */
+  rates: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Property Contract Builder (domain-based contract engine)
+// ---------------------------------------------------------------------------
+export * from "./property-contract";

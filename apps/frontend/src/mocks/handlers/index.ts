@@ -8,6 +8,7 @@
 
 import { http, HttpResponse, delay } from "msw";
 import type { ApiSuccess, ApiError, OtpChallenge, OtpResult } from "@legalir/types";
+import { detectPreviewKind } from "@/lib/document-preview";
 import {
   fixtureUserPro,
   fixtureUserNew,
@@ -72,6 +73,7 @@ import {
   fixtureLegalSourceDetails,
   fixtureBlogListItems,
   fixtureBlogPostDetails,
+  fixtureNotifications,
 } from "@legalir/testing";
 
 // --- Constants ---
@@ -1556,6 +1558,43 @@ export const handlers = [
     return HttpResponse.json(ok(detail));
   }),
 
+  // --- GET /api/v1/documents/:id/preview ---
+  // Mirrors the real route: resolves the preview kind from MIME +
+  // extension and returns auth-gated same-origin file URLs.
+  http.get(`${API_BASE}/api/v1/documents/:id/preview`, async ({ params }) => {
+    await delay(200);
+    const id = params["id"] as string;
+
+    const previewMap: Record<string, { name: string; mime: string; sizeBytes: number }> = {
+      "doc-lease-001": { name: fixtureDocumentDetail.name, mime: "application/pdf", sizeBytes: fixtureDocumentDetail.sizeBytes },
+      "doc-contract-001": { name: "قرارداد-پیمانکاری-ساختمان.pdf", mime: "application/pdf", sizeBytes: 820_000 },
+      "doc-nda-001": { name: "توافقنامه-محرمانگی-شرکتی.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", sizeBytes: 245_000 },
+      "doc-failed-001": { name: fixtureDocumentDetailFailed.name, mime: "application/pdf", sizeBytes: fixtureDocumentDetailFailed.sizeBytes },
+      "doc-employment-002": { name: "قرارداد-استخدام-شرکت-فنی.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", sizeBytes: 520_000 },
+    };
+
+    const meta = previewMap[id];
+    if (!meta) {
+      return HttpResponse.json(err("NOT_FOUND", "سند یافت نشد", false), { status: 404 });
+    }
+
+    const kind = detectPreviewKind(meta.mime, meta.name);
+    const available = kind !== "unsupported";
+
+    return HttpResponse.json(
+      ok({
+        documentId: id,
+        name: meta.name,
+        mime: meta.mime,
+        sizeBytes: meta.sizeBytes,
+        kind,
+        fileUrl: available ? `/api/v1/documents/${id}/file` : null,
+        downloadUrl: `/api/v1/documents/${id}/download`,
+        available,
+      })
+    );
+  }),
+
   // --- POST /api/v1/documents/:id/retry ---
   http.post(`${API_BASE}/api/v1/documents/:id/retry`, async ({ params, request }) => {
     await delay(1000);
@@ -2284,6 +2323,35 @@ export const handlers = [
       return HttpResponse.json(err("NOT_FOUND", "مطلب یافت نشد", false), { status: 404 });
     }
     return HttpResponse.json(ok(post));
+  }),
+
+  // =========================================
+  // NOTIFICATION CENTER
+  // =========================================
+
+  http.get(`${API_BASE}/api/v1/notifications`, async () => {
+    await delay(200);
+    const items = fixtureNotifications;
+    return HttpResponse.json(
+      ok({ items, unreadCount: items.filter((n) => !n.read).length })
+    );
+  }),
+
+  http.post(`${API_BASE}/api/v1/notifications/read-all`, async () => {
+    await delay(200);
+    const items = fixtureNotifications.map((n) => ({ ...n, read: true }));
+    return HttpResponse.json(ok({ items, unreadCount: 0 }));
+  }),
+
+  http.post(`${API_BASE}/api/v1/notifications/:id/read`, async ({ params }) => {
+    await delay(200);
+    const id = decodeURIComponent(params["id"] as string);
+    const items = fixtureNotifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n
+    );
+    return HttpResponse.json(
+      ok({ items, unreadCount: items.filter((n) => !n.read).length })
+    );
   }),
 
 ];

@@ -47,20 +47,20 @@ export function PointsSummaryCard() {
     <Link
       href="/points"
       aria-label={ariaLabel}
-      className="group relative col-span-2 tablet:col-span-1 overflow-hidden rounded-xl bg-gradient-to-br from-secondary-500/25 to-secondary-600/10 text-secondary-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-secondary-300/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-300/70"
+      className="group relative col-span-2 tablet:col-span-1 overflow-hidden rounded-xl bg-[linear-gradient(135deg,rgba(176,141,87,0.28),rgba(163,124,60,0.10))] text-secondary-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-300 hover:border-[rgba(213,190,151,0.40)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(213,190,151,0.70)]"
     >
       {/* soft glow that intensifies on hover */}
       <span
-        className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-secondary-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
+        className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(195,165,116,0.20)] blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
         aria-hidden="true"
       />
 
       {/* Title row */}
       <div className="relative flex items-center gap-2">
-        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-400/20 text-secondary-200 ring-1 ring-inset ring-secondary-300/20 transition-transform duration-300 group-hover:scale-105">
+        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[rgba(195,165,116,0.20)] text-secondary-200 ring-1 ring-inset ring-[rgba(213,190,151,0.20)] transition-transform duration-300 group-hover:scale-105">
           <IconCoin size={18} />
         </span>
-        <span className="text-caption text-secondary-100/90 font-medium">امتیاز من</span>
+        <span className="text-caption text-[color:color-mix(in_srgb,var(--color-secondary-100)_90%,transparent)] font-medium">امتیاز من</span>
       </div>
 
       {/* Balance — the card's primary value */}
@@ -74,7 +74,7 @@ export function PointsSummaryCard() {
             {toPersianNumber(balance ?? 0)}
           </p>
         )}
-        <p className="text-caption text-secondary-100/70 mt-0.5">امتیاز</p>
+        <p className="text-caption text-[color:color-mix(in_srgb,var(--color-secondary-100)_70%,transparent)] mt-0.5">امتیاز</p>
       </div>
 
       {/* Mini consumption chart — real ledger data, decorative */}
@@ -86,7 +86,11 @@ export function PointsSummaryCard() {
             return (
               <span
                 key={b.id}
-                className={`flex-1 rounded-sm ${b.pointsDelta >= 0 ? "bg-emerald-400/80" : "bg-red-400/80"}`}
+                className={`flex-1 rounded-sm ${
+                  b.pointsDelta >= 0
+                    ? "bg-[color-mix(in_srgb,var(--color-success-400)_80%,transparent)]"
+                    : "bg-[color-mix(in_srgb,var(--color-error-400)_80%,transparent)]"
+                }`}
                 style={{ height: `${h}%` }}
               />
             );
@@ -96,7 +100,7 @@ export function PointsSummaryCard() {
 
       {/* Last change */}
       <div className="relative flex items-center justify-between gap-2 pt-1 border-t border-white/10">
-        <span className="text-[10px] text-secondary-100/70">آخرین تغییر</span>
+        <span className="text-[10px] text-[color:color-mix(in_srgb,var(--color-secondary-100)_70%,transparent)]">آخرین تغییر</span>
         {history.isLoading ? (
           <span className="block h-3 w-10 rounded bg-white/15 animate-pulse" aria-hidden="true" />
         ) : last ? (
@@ -108,7 +112,7 @@ export function PointsSummaryCard() {
             {toPersianNumber(last.pointsDelta)}
           </span>
         ) : (
-          <span className="text-caption text-secondary-100/50">—</span>
+          <span className="text-caption text-[color:color-mix(in_srgb,var(--color-secondary-100)_50%,transparent)]">—</span>
         )}
       </div>
     </Link>

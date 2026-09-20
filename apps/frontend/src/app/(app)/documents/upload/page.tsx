@@ -8,7 +8,12 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useInitiateUpload, useCompleteUpload, useDocuments } from "@/hooks/useDocuments";
-import { UploadZone, StatusBadge, ProcessingPipeline } from "@/components/documents";
+// Direct module imports — the `@/components/documents` barrel re-exports the
+// whole document component set (including pdfjs-backed viewers), which would
+// pull unrelated modules into this route's client bundle.
+import { UploadZone } from "@/components/documents/upload-zone";
+import { StatusBadge } from "@/components/documents/status-badge";
+import { ProcessingPipeline } from "@/components/documents/processing-pipeline";
 import type { PipelineStage } from "@/components/documents/processing-pipeline";
 import { Button, EmptyState, ErrorState } from "@legalir/ui";
 import {
@@ -98,7 +103,7 @@ export default function DocumentUploadPage() {
               });
             }, 350);
 
-            completeUpload.mutate(uploadData.id, {
+            completeUpload.mutate({ id: uploadData.id, file }, {
               onSuccess: (doc) => {
                 clearInterval(interval);
                 setProgress(100);

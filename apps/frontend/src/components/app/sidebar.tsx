@@ -13,6 +13,7 @@ import type { UserRole } from "@/lib/routes";
 import { useAppShellStore } from "@/lib/stores";
 import { useMe } from "@/hooks/useDashboard";
 import { useAuthStore } from "@/stores/auth-store";
+import { SubscriptionStatusBadge } from "@/components/subscription/subscription-status";
 import {
   IconHome,
   IconServices,
@@ -26,6 +27,8 @@ import {
   IconPerson,
   IconPhone,
   IconSettings,
+  IconCalculator,
+  IconChevronRight,
 } from "@/lib/icons";
 
 interface SidebarProps {
@@ -44,13 +47,14 @@ const NAV_ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
   WorkspacePremium: IconSubscription,
   Person: IconPerson,
   Phone: IconPhone,
+  Calculator: IconCalculator,
 };
 
 function NavIcon({ icon, isActive }: { icon?: string; isActive: boolean }) {
   const Component = icon ? NAV_ICON_MAP[icon] : null;
-  if (!Component) return <span className="w-5 h-5 flex items-center justify-center text-muted">•</span>;
+  if (!Component) return <span className="w-5 h-5 flex items-center justify-center text-glass-ivory-muted">•</span>;
   return (
-    <span className={isActive ? "text-primary-600" : "text-neutral-400 group-hover:text-neutral-600 transition-colors duration-200"}>
+    <span className={isActive ? "text-glass-ivory" : "text-glass-ivory-muted group-hover:text-glass-ivory transition-colors duration-short4 ease-standard"}>
       <Component size={20} />
     </span>
   );
@@ -58,7 +62,13 @@ function NavIcon({ icon, isActive }: { icon?: string; isActive: boolean }) {
 
 export function Sidebar({ userRole }: SidebarProps) {
   const pathname = usePathname();
-  const navItems = getMainNavItems(userRole);
+  // Settings, Support & Subscription live in the footer, not the main nav list.
+  const navItems = getMainNavItems(userRole).filter(
+    (item) =>
+      item.path !== "/profile" &&
+      item.path !== "/support" &&
+      item.path !== "/subscription"
+  );
   const setDrawerOpen = useAppShellStore((s) => s.setDrawerOpen);
   const { data: meData } = useMe();
   const session = useAuthStore((s) => s.session);
@@ -68,16 +78,13 @@ export function Sidebar({ userRole }: SidebarProps) {
   const avatarInitial = (displayName ?? "ک")[0]!;
 
   return (
-    <div className="flex flex-col h-full bg-surface">
+    <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
       {/* Logo Area — cohesive brand lockup with optical alignment */}
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <img src="/legalir-logo.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
-        <span className="text-h3 text-primary-800 font-extrabold hidden laptop:inline tracking-tight translate-y-[7px]">
-          لیگالیر
-        </span>
+      <div className="flex items-center px-5 py-5">
+        <img src="/legalir-logo-dashboard.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
       </div>
 
-      <div className="mx-4 border-b border-divider" />
+      <div className="mx-4 border-b border-glass-border" />
 
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5 scrollbar-hide" aria-label="ناوبری اصلی">
@@ -91,16 +98,16 @@ export function Sidebar({ userRole }: SidebarProps) {
               onClick={() => setDrawerOpen(false)}
               className={[
                 "group flex items-center gap-3 px-4 py-3 rounded-xl text-body-2",
-                "transition-all duration-200 ease-standard",
+                "transition-all duration-short4 ease-standard",
                 "min-h-[48px] select-none relative overflow-hidden",
                 isActive
-                  ? "bg-primary-50/80 text-primary-700 font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800",
+                  ? "bg-glass-state-strong text-glass-ivory font-semibold"
+                  : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
               ].join(" ")}
               aria-current={isActive ? "page" : undefined}
             >
               {isActive && (
-                <span className="absolute end-0 top-3 bottom-3 w-0.5 rounded-full bg-primary-600" aria-hidden="true" />
+                <span className="absolute end-0 top-3 bottom-3 w-0.5 rounded-full bg-secondary-400" aria-hidden="true" />
               )}
               <NavIcon icon={item.icon} isActive={isActive} />
               <span className="truncate">{item.titleFa}</span>
@@ -109,29 +116,68 @@ export function Sidebar({ userRole }: SidebarProps) {
         })}
       </nav>
 
-      {/* Footer: Subscription + Profile */}
-      <div className="px-3 py-3 border-t border-divider space-y-1">
-        <Link
-          href="/subscription"
-          className="group flex items-center gap-3 px-4 py-3 rounded-xl text-body-2 text-neutral-600 hover:bg-amber-50 hover:text-secondary-700 transition-all duration-200 min-h-[48px]"
-        >
-          <span className="text-secondary-500 group-hover:text-secondary-600 transition-colors">
-            <IconSubscription size={20} />
-          </span>
-          <span>اشتراک</span>
-        </Link>
+      {/* Footer: Profile + Subscription cards (side by side) */}
+      <div className="px-3 py-3 border-t border-glass-border">
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href="/profile"
+            className={[
+              "group flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
+              "transition-all duration-short4 ease-standard",
+              pathname === "/profile"
+                ? "bg-glass-state-strong text-glass-ivory"
+                : "bg-[var(--sidebar-profile-bg)] text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+            ].join(" ")}
+            aria-current={pathname === "/profile" ? "page" : undefined}
+          >
+            <span className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 ring-1 ring-[rgba(255,249,240,0.35)] flex items-center justify-center text-white text-labelSmall font-bold shrink-0">
+              {avatarInitial}
+            </span>
+            <span className="text-caption font-medium truncate max-w-full">تنظیمات</span>
+          </Link>
 
+          <Link
+            href="/subscription"
+            className={[
+              "group flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
+              "transition-all duration-short4 ease-standard",
+              pathname === "/subscription"
+                ? "bg-glass-state-strong text-glass-ivory"
+                : "bg-[var(--sidebar-profile-bg)] text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+            ].join(" ")}
+            aria-current={pathname === "/subscription" ? "page" : undefined}
+          >
+            <span className="text-secondary-300 group-hover:text-secondary-200 transition-colors duration-short4">
+              <IconSubscription size={22} />
+            </span>
+            <span className="flex items-center gap-1.5 min-w-0 max-w-full">
+              <span className="text-caption font-medium truncate">اشتراک</span>
+              <SubscriptionStatusBadge className="shrink-0" />
+            </span>
+          </Link>
+        </div>
+
+        {/* Support — prominent full-width CTA so it's easy to spot & tap */}
         <Link
-          href="/profile"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-neutral-50 transition-all duration-200 min-h-[48px]"
+          href="/support"
+          onClick={() => setDrawerOpen(false)}
+          className={[
+            "group mt-2 flex items-center gap-3 rounded-xl px-3.5 py-3 min-h-[52px]",
+            "transition-all duration-short4 ease-standard active:scale-[0.98]",
+            pathname === "/support"
+              ? "bg-glass-state-strong text-glass-ivory ring-1 ring-secondary-400/40"
+              : "bg-[color-mix(in_srgb,var(--color-secondary)_16%,transparent)] text-glass-ivory hover:bg-[color-mix(in_srgb,var(--color-secondary)_26%,transparent)]",
+          ].join(" ")}
+          aria-current={pathname === "/support" ? "page" : undefined}
         >
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center text-white text-labelSmall font-bold shadow-elevation-2 shrink-0">
-            {avatarInitial}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-body-2 text-on-surface font-medium truncate">{displayName}</p>
-            <p className="text-caption text-muted truncate">مشاهده پروفایل</p>
-          </div>
+          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-secondary-400 to-secondary-600 flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
+            <IconPhone size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body-2 font-semibold truncate">پشتیبانی</span>
+            <span className="block text-caption text-glass-ivory-muted truncate">پاسخگوی سوالات شما هستیم</span>
+          </span>
+          <IconChevronRight size={18} className="shrink-0 text-glass-ivory-muted group-hover:text-glass-ivory transition-colors duration-short4" />
         </Link>
       </div>
     </div>
@@ -141,7 +187,10 @@ export function Sidebar({ userRole }: SidebarProps) {
 /** Mobile drawer version */
 export function SidebarMobile({ userRole }: SidebarProps) {
   const pathname = usePathname();
-  const navItems = getMainNavItems(userRole);
+  // Settings & Support live in the footer, not the main nav list.
+  const navItems = getMainNavItems(userRole).filter(
+    (item) => item.path !== "/profile" && item.path !== "/support"
+  );
   const setDrawerOpen = useAppShellStore((s) => s.setDrawerOpen);
   const { data: meData } = useMe();
   const session = useAuthStore((s) => s.session);
@@ -151,7 +200,7 @@ export function SidebarMobile({ userRole }: SidebarProps) {
   const avatarInitial = (displayName ?? "ک")[0]!;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)]">
       {/* User header in drawer */}
       <div className="px-4 py-4 border-b border-divider">
         <div className="flex items-center gap-3">
@@ -189,22 +238,64 @@ export function SidebarMobile({ userRole }: SidebarProps) {
         })}
       </nav>
 
-      <div className="px-2 py-3 border-t border-divider space-y-0.5">
+      <div className="px-2 py-3 border-t border-divider">
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href="/settings"
+            onClick={() => setDrawerOpen(false)}
+            className={[
+              "flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
+              "text-labelLarge transition-colors touch-target",
+              pathname === "/settings"
+                ? "bg-primary-50 text-primary-700 font-semibold"
+                : "text-neutral-600 hover:bg-neutral-100",
+            ].join(" ")}
+            aria-current={pathname === "/settings" ? "page" : undefined}
+          >
+            <IconSettings size={22} className="text-neutral-400" />
+            <span className="truncate max-w-full">تنظیمات</span>
+          </Link>
+          <Link
+            href="/subscription"
+            onClick={() => setDrawerOpen(false)}
+            className={[
+              "flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
+              "text-labelLarge transition-colors touch-target",
+              pathname === "/subscription"
+                ? "bg-primary-50 text-primary-700 font-semibold"
+                : "text-secondary-700 hover:bg-amber-50",
+            ].join(" ")}
+            aria-current={pathname === "/subscription" ? "page" : undefined}
+          >
+            <IconSubscription size={22} className="text-secondary-500" />
+            <span className="flex items-center gap-1.5 min-w-0 max-w-full">
+              <span className="truncate">اشتراک</span>
+              <SubscriptionStatusBadge className="shrink-0" />
+            </span>
+          </Link>
+        </div>
+
+        {/* Support — prominent full-width CTA so it's easy to spot & tap */}
         <Link
-          href="/settings"
+          href="/support"
           onClick={() => setDrawerOpen(false)}
-          className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-labelLarge text-neutral-600 hover:bg-neutral-100 transition-colors touch-target"
+          className={[
+            "group mt-2 flex items-center gap-3 rounded-xl px-3.5 py-3 min-h-[52px]",
+            "transition-all duration-short4 ease-standard active:scale-[0.98] touch-target",
+            pathname === "/support"
+              ? "bg-primary-50 text-primary-700 ring-1 ring-primary-200"
+              : "bg-secondary-50 text-secondary-800 hover:bg-secondary-100",
+          ].join(" ")}
+          aria-current={pathname === "/support" ? "page" : undefined}
         >
-          <IconSettings size={20} className="text-neutral-400" />
-          <span>تنظیمات</span>
-        </Link>
-        <Link
-          href="/subscription"
-          onClick={() => setDrawerOpen(false)}
-          className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-labelLarge text-secondary-700 hover:bg-amber-50 transition-colors touch-target"
-        >
-          <IconSubscription size={20} className="text-secondary-500" />
-          <span>اشتراک</span>
+          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-secondary-400 to-secondary-600 flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
+            <IconPhone size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body-2 font-semibold truncate">پشتیبانی</span>
+            <span className="block text-caption text-secondary-700/70 truncate">پاسخگوی سوالات شما هستیم</span>
+          </span>
+          <IconChevronRight size={18} className="shrink-0 text-secondary-500 group-hover:text-secondary-700 transition-colors duration-short4" />
         </Link>
       </div>
     </div>

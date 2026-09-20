@@ -78,6 +78,42 @@ async function request<T>(
     fetchOptions.body = JSON.stringify(body);
   }
 
+  return send<T>(url, fetchOptions);
+}
+
+/**
+ * Send a `FormData` body. The browser must set the multipart boundary
+ * itself, so `Content-Type` is deliberately omitted here — setting it
+ * manually would strip the boundary and the server could not parse the
+ * parts.
+ */
+async function requestForm<T>(
+  path: string,
+  form: FormData,
+  options: RequestOptions = {}
+): Promise<T> {
+  const url = `${getApiBase()}${path}`;
+  const correlationId = options.correlationId ?? generateCorrelationId();
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    [CORRELATION_HEADER]: correlationId,
+  };
+
+  if (requiresIdempotencyKey("POST", path) && !options.skipIdempotency) {
+    headers[IDEMPOTENCY_HEADER] = generateIdempotencyKey();
+  }
+
+  return send<T>(url, {
+    method: "POST",
+    headers,
+    body: form,
+    credentials: "include",
+    signal: options.signal,
+  });
+}
+
+async function send<T>(url: string, fetchOptions: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, fetchOptions);
@@ -112,6 +148,15 @@ export const apiClient = {
 
   post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return request<T>("POST", path, body, options);
+  },
+
+  /** POST a multipart body (file uploads). */
+  postForm<T>(path: string, form: FormData, options?: RequestOptions): Promise<T> {
+    return requestForm<T>(path, form, options);
+  },
+
+  put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return request<T>("PUT", path, body, options);
   },
 
   patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
