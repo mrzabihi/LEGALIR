@@ -25,8 +25,6 @@ interface Track {
   cta: string;
   ariaLabel: string;
   event: SignupEvent;
-  /** Small optional label shown beside the title. */
-  badge?: string;
   /** The primary path — filled CTA and a subtle surface tint. */
   primary?: boolean;
   icon: React.ReactNode;
@@ -40,7 +38,6 @@ const TRACKS: Track[] = [
     cta: "ایجاد حساب شخصی",
     ariaLabel: "ایجاد حساب شخصی — شخص حقیقی",
     event: "signup_personal_selected",
-    badge: "برای کاربران شخصی",
     primary: true,
     icon: (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -130,14 +127,9 @@ export default function RegisterTypePage() {
               {track.icon}
             </span>
 
-            {/* Title (+ optional badge) */}
+            {/* Title */}
             <span className="flex flex-wrap items-center justify-center gap-2 mb-2">
               <span className="text-h3 text-neutral-900">{track.title}</span>
-              {track.badge && (
-                <span className="rounded-full bg-primary-700/10 text-primary-700 text-caption px-2.5 py-0.5">
-                  {track.badge}
-                </span>
-              )}
             </span>
 
             {/* Description — full card width, natural wrapping */}

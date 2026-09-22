@@ -120,6 +120,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         startIcon={resolvedStart}
         endIcon={resolvedEnd}
         endAdornment={endAdornment}
+        inputDir={inputDir}
         className={className}
       >
         {prefix && (

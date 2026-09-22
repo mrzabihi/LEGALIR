@@ -81,6 +81,7 @@ export function OutlinedFieldShell({
   endAdornment,
   labelInset,
   forceFloat = false,
+  inputDir,
   className = "",
   children,
 }: {
@@ -96,6 +97,14 @@ export function OutlinedFieldShell({
   endIcon?: React.ReactNode;
   /** Interactive trailing slot (e.g. password toggle) — not aria-hidden. */
   endAdornment?: React.ReactNode;
+  /**
+   * Force the *content* (leading adornment + input) into LTR. Use for
+   * value types that read left-to-right — phone numbers, emails — so
+   * the leading adornment sits on the left, ahead of the digits,
+   * instead of being stranded on the opposite side of an RTL shell.
+   * The label and notch keep their natural page direction (RTL).
+   */
+  inputDir?: "ltr" | "rtl";
   /**
    * Override the inline-start inset (px) of the label + notch. Use
    * when a leading adornment is wider than a standard 24px icon.
@@ -114,13 +123,20 @@ export function OutlinedFieldShell({
     ? "border-error group-focus-within/field:border-error"
     : "border-outline group-focus-within/field:border-primary";
 
-  const inset = labelInset ?? (startIcon ? ICON_INSET : DEFAULT_INSET);
+  // The label + notch always follow the page direction (RTL), so they only
+  // need to clear a leading icon when that icon sits on the same side — i.e.
+  // when the content is NOT forced LTR.
+  const inset = labelInset ?? (startIcon && !inputDir ? ICON_INSET : DEFAULT_INSET);
   const isStretch = align === "stretch";
 
   return (
     <div
       className={[
         "group/field relative flex gap-2 rounded-small",
+        // LTR content in an RTL page: reverse the flex order so the leading
+        // adornment still lands on the left while the label + notch keep
+        // their natural RTL (right) anchor.
+        inputDir === "ltr" ? "flex-row-reverse" : "",
         isStretch ? "items-stretch" : "items-center",
         isStretch ? "" : fieldSizeClasses[size],
         disabled ? "opacity-[0.38] pointer-events-none" : "",
@@ -165,12 +181,24 @@ export function OutlinedFieldShell({
       )}
 
       {startIcon && (
-        <span className="ms-3 shrink-0 text-onSurfaceVariant" aria-hidden="true">
+        <span
+          dir={inputDir}
+          className={[
+            "shrink-0 text-onSurfaceVariant",
+            // `ms-3` resolves to margin-right in RTL, so once the row is
+            // reversed for LTR content the adornment ends up flush against
+            // the border — add a physical left inset to match the label.
+            inputDir === "ltr" ? "me-3 ms-3" : "ms-3",
+          ].join(" ")}
+          aria-hidden="true"
+        >
           {startIcon}
         </span>
       )}
 
-      <div className="relative flex min-w-0 flex-1 items-center">{children}</div>
+      <div dir={inputDir} className="relative flex min-w-0 flex-1 items-center">
+        {children}
+      </div>
 
       {endAdornment && <span className="me-1 shrink-0">{endAdornment}</span>}
       {endIcon && (
