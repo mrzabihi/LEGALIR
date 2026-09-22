@@ -12,6 +12,7 @@
 
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
+import { TextField, Select, Checkbox } from "@legalir/ui";
 import {
   getCalculator,
   runCalculator,
@@ -192,44 +193,29 @@ function FieldControl({
 
   if (field.type === "boolean") {
     return (
-      <label
-        htmlFor={id}
-        className="flex items-center justify-between gap-3 cursor-pointer"
-      >
+      <div className="flex items-center justify-between gap-3">
         <span className="text-body-2 text-on-surface">{field.labelFa}</span>
-        <input
+        <Checkbox
           id={id}
-          type="checkbox"
           checked={value === true}
           onChange={(e) => onChange(e.target.checked)}
-          className="h-5 w-5 rounded accent-[color:var(--color-primary)]"
+          aria-label={field.labelFa}
         />
-      </label>
+      </div>
     );
   }
 
   if (field.type === "select") {
     return (
-      <div>
-        <label htmlFor={id} className="block text-body-2 text-on-surface mb-1.5">
-          {field.labelFa}
-        </label>
-        <select
-          id={id}
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full h-11 rounded-medium bg-surface border border-[color:var(--color-outline-variant)] px-3 text-body-2 text-on-surface focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] focus:border-primary transition-all"
-        >
-          {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.labelFa}
-            </option>
-          ))}
-        </select>
-        {field.helpFa && (
-          <p className="text-caption text-on-surface-variant mt-1">{field.helpFa}</p>
-        )}
-      </div>
+      <Select
+        id={id}
+        label={field.labelFa}
+        value={String(value ?? "")}
+        onChange={(e) => onChange(e.target.value)}
+        fullWidth
+        supportingText={field.helpFa}
+        options={(field.options ?? []).map((o) => ({ value: o.value, label: o.labelFa }))}
+      />
     );
   }
 
@@ -244,33 +230,21 @@ function FieldControl({
         : undefined;
 
   return (
-    <div>
-      <label htmlFor={id} className="block text-body-2 text-on-surface mb-1.5">
-        {field.labelFa}
-        {field.required && <span className="text-error ms-1" aria-hidden="true">*</span>}
-      </label>
-      <div className="relative">
-        <input
-          id={id}
-          type="text"
-          inputMode="decimal"
-          value={value === undefined ? "" : String(value)}
-          onChange={(e) => onChange(e.target.value)}
-          min={field.min}
-          max={field.max}
-          step={field.step}
-          className={`w-full h-11 rounded-medium bg-surface border border-[color:var(--color-outline-variant)] px-3 text-body-2 text-on-surface focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] focus:border-primary transition-all ${suffix ? "pe-14" : ""}`}
-        />
-        {suffix && (
-          <span className="absolute inset-y-0 end-3 flex items-center text-caption text-on-surface-variant pointer-events-none">
-            {suffix}
-          </span>
-        )}
-      </div>
-      {field.helpFa && (
-        <p className="text-caption text-on-surface-variant mt-1">{field.helpFa}</p>
-      )}
-    </div>
+    <TextField
+      id={id}
+      type="text"
+      inputMode="decimal"
+      label={field.labelFa}
+      required={field.required}
+      value={value === undefined ? "" : String(value)}
+      onChange={(e) => onChange(e.target.value)}
+      min={field.min}
+      max={field.max}
+      step={field.step}
+      suffix={suffix}
+      fullWidth
+      supportingText={field.helpFa}
+    />
   );
 }
 

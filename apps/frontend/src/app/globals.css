@@ -529,10 +529,29 @@ html:not([data-theme]) {
 }
 
 /* --- Focus Visible --- */
-:focus-visible {
+/* MD3 outlined fields (.group\/field) render their own focus state on
+   the fieldset border; excluding them here prevents a second ring. */
+:not(:where(.group\/field *)):focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: var(--shape-small);
+}
+
+/* --- MD3 field autofill --- */
+/* Chrome paints its own background/colour on autofilled inputs, which
+   breaks the outlined look. Keep the field transparent and inherit the
+   theme text colour; the floating label is driven by `:autofill` in
+   field-shell.tsx so it stays lifted. */
+.group\/field input:-webkit-autofill,
+.group\/field input:-webkit-autofill:hover,
+.group\/field input:-webkit-autofill:focus,
+.group\/field textarea:-webkit-autofill,
+.group\/field select:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-on-surface);
+  -webkit-box-shadow: 0 0 0 1000px transparent inset;
+  box-shadow: 0 0 0 1000px transparent inset;
+  transition: background-color 9999s ease-in-out 0s;
+  caret-color: var(--color-on-surface);
 }
 
 /* --- Reduced Motion --- */
@@ -909,6 +928,51 @@ body.dialog-open {
   }
 }
 
+/* Blog article print styles
+   The article is meant to be printable: the reading column survives,
+   the chrome around it does not. The dark hero is flattened to a light
+   surface so it does not burn a page of toner, and the wide visual
+   sections are allowed to use the full page width. */
+@media print {
+  /* Chrome that only makes sense on screen. */
+  .article-hero {
+    background: white !important;
+    color: black !important;
+  }
+  .article-hero h1,
+  .article-hero p,
+  .article-hero span,
+  .article-hero a,
+  .article-hero dt,
+  .article-hero dd {
+    color: black !important;
+  }
+  .article-hero [aria-hidden="true"] {
+    display: none !important;
+  }
+  .article-hero dl > div {
+    border-color: #ccc !important;
+    background: white !important;
+  }
+
+  /* The reading column keeps its measure; wide sections fill the page. */
+  article#main-content {
+    max-width: none !important;
+  }
+  article#main-content .max-w-\[1440px\],
+  article#main-content .max-w-\[1120px\],
+  article#main-content .max-w-\[780px\] {
+    max-width: none !important;
+  }
+
+  /* Cards and callouts should not split across pages. */
+  article#main-content figure,
+  article#main-content aside,
+  article#main-content section {
+    break-inside: avoid;
+  }
+}
+
 /* Gesture-friendly touch targets for buttons inside cards */
 @media (max-width: 599px) {
   .card-action-expanded button,
@@ -919,12 +983,16 @@ body.dialog-open {
   }
 }
 
-/* Keyboard navigation: visible focus — unified Navy indicator */
+/* Keyboard navigation: visible focus — unified Navy indicator.
+   MD3 outlined fields (.group\/field) draw their own focus state on
+   the fieldset border, so they are excluded here — otherwise the
+   global ring paints a second, offset outline around the input and
+   the field looks double-bordered. */
 button:focus-visible,
 a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
+input:not(:where(.group\/field *)):focus-visible,
+select:not(:where(.group\/field *)):focus-visible,
+textarea:not(:where(.group\/field *)):focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--color-primary) !important;
   outline-offset: 2px !important;
@@ -1036,6 +1104,25 @@ html {
 
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+/* Attach-file paperclip — a slow, restrained wiggle that draws the eye to
+   the attach affordance without being distracting. The final keyframe is
+   the resting pose so reduced-motion users see a plain, upright clip. */
+@keyframes attach-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-12deg); }
+  75%      { transform: rotate(12deg); }
+}
+.animate-attach-wiggle {
+  animation: attach-wiggle 2.6s ease-in-out infinite;
+  transform-origin: 50% 20%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-attach-wiggle {
+    animation: none;
+    transform: none;
+  }
 }
 
 /* Subtle glow pulse for CTA buttons */
@@ -1429,8 +1516,10 @@ html {
   border-radius: 3px;
 }
 
-/* Focus visible ring for keyboard navigation */
-*:focus-visible {
+/* Focus visible ring for keyboard navigation.
+   MD3 outlined fields manage their own focus state on the fieldset
+   border, so they are excluded to avoid a second, offset ring. */
+*:not(:where(.group\/field *)):focus-visible {
   outline: 2px solid var(--color-primary-500);
   outline-offset: 2px;
   border-radius: 4px;

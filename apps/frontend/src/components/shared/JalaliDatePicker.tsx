@@ -10,6 +10,7 @@
 
 import React, { useMemo, useState, useCallback } from "react";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { Select } from "@legalir/ui";
 
 // ---------------------------------------------------------------------------
 // Jalali <-> Gregorian conversion (jalaali-js algorithm)
@@ -175,50 +176,47 @@ export function JalaliDatePicker({ value, onChange, disabled = false, className 
     onChange(next);
   }, [year, month, effectiveDay, onChange]);
 
-  const selectClass =
-    "text-body-2 text-on-surface rounded-lg px-2 py-1.5 border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all disabled:opacity-50";
-
   return (
     <div className={`flex flex-col gap-2 ${className}`} dir="rtl">
       <div className="flex items-center gap-1.5">
         {/* Day */}
-        <select
-          value={effectiveDay}
-          onChange={(e) => setDay(parseInt(e.target.value, 10))}
-          disabled={disabled}
-          aria-label="روز"
-          className={`${selectClass} w-[68px]`}
-        >
-          {days.map((d) => (
-            <option key={d} value={d}>{toPersianNumber(d)}</option>
-          ))}
-        </select>
+        <div className="w-[68px]">
+          <Select
+            value={String(effectiveDay)}
+            onChange={(e) => setDay(parseInt(e.target.value, 10))}
+            disabled={disabled}
+            aria-label="روز"
+            selectSize="small"
+            fullWidth
+            options={days.map((d) => ({ value: String(d), label: toPersianNumber(d) }))}
+          />
+        </div>
 
         {/* Month */}
-        <select
-          value={month}
-          onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-          disabled={disabled}
-          aria-label="ماه"
-          className={`${selectClass} flex-1 min-w-[96px]`}
-        >
-          {JALALI_MONTHS.map((name, i) => (
-            <option key={name} value={i + 1}>{name}</option>
-          ))}
-        </select>
+        <div className="flex-1 min-w-[96px]">
+          <Select
+            value={String(month)}
+            onChange={(e) => setMonth(parseInt(e.target.value, 10))}
+            disabled={disabled}
+            aria-label="ماه"
+            selectSize="small"
+            fullWidth
+            options={JALALI_MONTHS.map((name, i) => ({ value: String(i + 1), label: name }))}
+          />
+        </div>
 
         {/* Year */}
-        <select
-          value={year}
-          onChange={(e) => setYear(parseInt(e.target.value, 10))}
-          disabled={disabled}
-          aria-label="سال"
-          className={`${selectClass} w-[84px]`}
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>{toPersianNumber(y)}</option>
-          ))}
-        </select>
+        <div className="w-[84px]">
+          <Select
+            value={String(year)}
+            onChange={(e) => setYear(parseInt(e.target.value, 10))}
+            disabled={disabled}
+            aria-label="سال"
+            selectSize="small"
+            fullWidth
+            options={years.map((y) => ({ value: String(y), label: toPersianNumber(y) }))}
+          />
+        </div>
 
         <button
           type="button"
