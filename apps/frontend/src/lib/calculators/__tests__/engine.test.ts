@@ -78,7 +78,7 @@ describe("calculator engine — coerceInput", () => {
 });
 
 describe("calculator engine — registry", () => {
-  it("registers all eight V1 calculators in catalog order", () => {
+  it("registers all V1 calculators in catalog order", () => {
     const slugs = listCalculators().map((c) => c.def.slug);
     expect(slugs).toEqual([
       "court-fee",
@@ -89,6 +89,8 @@ describe("calculator engine — registry", () => {
       "severance",
       "leave-buyback",
       "salary",
+      "inheritance",
+      "regional-property-value",
     ]);
   });
 

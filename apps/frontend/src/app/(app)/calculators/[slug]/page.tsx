@@ -12,7 +12,7 @@
 
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
-import { TextField, Select, Checkbox } from "@legalir/ui";
+import { TextField, Select, Checkbox, MoneyField } from "@legalir/ui";
 import {
   getCalculator,
   runCalculator,
@@ -24,6 +24,7 @@ import {
 import type {
   CalculationResult,
   CalculatorField,
+  FieldVisibility,
 } from "@legalir/types";
 
 interface PageProps {
@@ -43,6 +44,48 @@ function initialInput(fields: CalculatorField[]): CalculatorInput {
     if (f.defaultValue !== undefined) out[f.key] = f.defaultValue;
   }
   return out;
+}
+
+/** True when a single visibility clause holds for the current input. */
+function clauseHolds(
+  clause: FieldVisibility,
+  input: CalculatorInput
+): boolean {
+  const v = input[clause.key];
+  if (clause.equals !== undefined && v !== clause.equals) return false;
+  if (clause.in !== undefined && !clause.in.includes(v as never)) return false;
+  if (clause.gt !== undefined && !(typeof v === "number" && v > clause.gt)) {
+    return false;
+  }
+  if (clause.lt !== undefined && !(typeof v === "number" && v < clause.lt)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Progressive disclosure: a field is visible only while EVERY clause
+ * holds (logical AND). Fields without `visibleWhen` are always shown.
+ */
+function isVisible(field: CalculatorField, input: CalculatorInput): boolean {
+  if (!field.visibleWhen || field.visibleWhen.length === 0) return true;
+  return field.visibleWhen.every((c) => clauseHolds(c, input));
+}
+
+/** Group fields by `groupFa`, preserving declaration order. */
+function groupFields(
+  fields: CalculatorField[]
+): { groupFa?: string; fields: CalculatorField[] }[] {
+  const groups: { groupFa?: string; fields: CalculatorField[] }[] = [];
+  for (const f of fields) {
+    const last = groups[groups.length - 1];
+    if (last && last.groupFa === f.groupFa) {
+      last.fields.push(f);
+    } else {
+      groups.push({ groupFa: f.groupFa, fields: [f] });
+    }
+  }
+  return groups;
 }
 
 export default function CalculatorDetailPage({ params }: PageProps) {
@@ -84,7 +127,7 @@ function CalculatorWorkspace({ slug }: { slug: string }) {
     }
   }, [slug, input]);
 
-  const setField = (key: string, value: number | string | boolean) => {
+  const setField = (key: string, value: number | string | boolean | undefined) => {
     setInput((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -139,15 +182,33 @@ function CalculatorWorkspace({ slug }: { slug: string }) {
           aria-label="ورودی‌های محاسبه"
         >
           <h2 className="text-h3 text-on-surface font-bold mb-4">اطلاعات ورودی</h2>
-          <div className="space-y-4">
-            {def.fields.map((field) => (
-              <FieldControl
-                key={field.key}
-                field={field}
-                value={input[field.key]}
-                onChange={(v) => setField(field.key, v)}
-              />
-            ))}
+          <div className="space-y-6">
+            {groupFields(def.fields).map((group, gi) => {
+              const visible = group.fields.filter((f) => isVisible(f, input));
+              if (visible.length === 0) return null;
+              return (
+                <fieldset key={group.groupFa ?? `g${gi}`} className="space-y-4">
+                  {group.groupFa && (
+                    <legend className="text-body-2 text-primary font-semibold mb-1">
+                      {group.groupFa}
+                    </legend>
+                  )}
+                  {visible.map((field) => (
+                    <FieldControl
+                      key={field.key}
+                      field={field}
+                      value={input[field.key]}
+                      parentValue={
+                        field.optionFilter
+                          ? input[field.optionFilter.parentKey]
+                          : undefined
+                      }
+                      onChange={(v) => setField(field.key, v)}
+                    />
+                  ))}
+                </fieldset>
+              );
+            })}
           </div>
         </section>
 
@@ -183,11 +244,14 @@ function CalculatorWorkspace({ slug }: { slug: string }) {
 function FieldControl({
   field,
   value,
+  parentValue,
   onChange,
 }: {
   field: CalculatorField;
   value: number | string | boolean | undefined;
-  onChange: (v: number | string | boolean) => void;
+  /** Current value of the field's `optionFilter.parentKey`, if any. */
+  parentValue?: number | string | boolean;
+  onChange: (v: number | string | boolean | undefined) => void;
 }) {
   const id = `field-${field.key}`;
 
@@ -206,6 +270,14 @@ function FieldControl({
   }
 
   if (field.type === "select") {
+    // Cascading selects: when `optionFilter` is present, show only the
+    // options the current parent value permits.
+    const allowed = field.optionFilter
+      ? field.optionFilter.allowed[String(parentValue ?? "")]
+      : undefined;
+    const options = (field.options ?? []).filter(
+      (o) => !allowed || allowed.includes(o.value)
+    );
     return (
       <Select
         id={id}
@@ -214,21 +286,46 @@ function FieldControl({
         onChange={(e) => onChange(e.target.value)}
         fullWidth
         supportingText={field.helpFa}
-        options={(field.options ?? []).map((o) => ({ value: o.value, label: o.labelFa }))}
+        options={options.map((o) => ({ value: o.value, label: o.labelFa }))}
       />
     );
   }
 
-  // money | number | percent
-  const suffix =
-    field.type === "money"
-      ? field.unit === "IRT"
-        ? "تومان"
-        : "ریال"
-      : field.type === "percent"
-        ? "٪"
-        : undefined;
+  if (field.type === "text") {
+    return (
+      <TextField
+        id={id}
+        type="text"
+        label={field.labelFa}
+        required={field.required}
+        value={value === undefined ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value)}
+        fullWidth
+        supportingText={field.helpFa}
+      />
+    );
+  }
 
+  // Money gets the shared formatting field: live grouping, the unit
+  // suffix and the «… تومان» words line, all driven by `field.unit`.
+  if (field.type === "money") {
+    return (
+      <MoneyField
+        id={id}
+        label={field.labelFa}
+        required={field.required}
+        value={typeof value === "number" ? value : null}
+        onChange={(v) => onChange(v ?? undefined)}
+        unit={field.unit ?? "IRT"}
+        min={field.min}
+        max={field.max}
+        fullWidth
+        supportingText={field.helpFa}
+      />
+    );
+  }
+
+  // number | percent
   return (
     <TextField
       id={id}
@@ -241,7 +338,7 @@ function FieldControl({
       min={field.min}
       max={field.max}
       step={field.step}
-      suffix={suffix}
+      suffix={field.type === "percent" ? "٪" : undefined}
       fullWidth
       supportingText={field.helpFa}
     />
@@ -253,6 +350,31 @@ function FieldControl({
 // ============================================================
 
 function ResultView({ result }: { result: CalculationResult }) {
+  // A combination the engine will not guess at: show the honest message
+  // instead of a number, and skip the headline entirely.
+  if (result.unsupportedFa) {
+    return (
+      <div className="space-y-5">
+        <div className="rounded-large bg-warning-50 border border-warning-200 p-5">
+          <p className="text-body-1 text-warning-800 font-semibold mb-1 flex items-center gap-2">
+            <span aria-hidden="true">🧭</span>
+            نیازمند بررسی تخصصی
+          </p>
+          <p className="text-body-2 text-warning-700 leading-relaxed">
+            {result.unsupportedFa}
+          </p>
+        </div>
+        {result.explanationFa && (
+          <ExplanationBlock text={result.explanationFa} />
+        )}
+        {result.legalNotesFa && result.legalNotesFa.length > 0 && (
+          <LegalNotesBlock notes={result.legalNotesFa} />
+        )}
+        <ProvenanceBlock source={result.source} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Headline */}
@@ -307,46 +429,158 @@ function ResultView({ result }: { result: CalculationResult }) {
         </div>
       )}
 
+      {/* Tables — one row per line item (e.g. per heir) */}
+      {result.tables?.map((table, ti) => (
+        <div key={ti}>
+          <h3 className="text-body-1 text-on-surface font-semibold mb-2">
+            {table.titleFa}
+          </h3>
+          <div className="overflow-x-auto rounded-medium border border-[color:var(--color-outline-variant)]">
+            <table className="w-full text-caption border-collapse">
+              <thead>
+                <tr className="bg-surface-container-high">
+                  {table.columnsFa.map((c, ci) => (
+                    <th
+                      key={ci}
+                      scope="col"
+                      className="px-3 py-2 text-on-surface-variant font-medium text-right whitespace-nowrap"
+                    >
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map((row, ri) => (
+                  <tr
+                    key={ri}
+                    className={
+                      row.emphasis
+                        ? "bg-[color-mix(in_srgb,var(--color-primary)_8%,transparent)]"
+                        : "odd:bg-surface"
+                    }
+                  >
+                    {row.cells.map((cell, ci) => (
+                      <td
+                        key={ci}
+                        className="px-3 py-2 text-on-surface tabular-nums whitespace-nowrap border-t border-[color:var(--color-outline-variant)]"
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+              {table.footerFa && (
+                <tfoot>
+                  <tr className="bg-surface-container-high font-semibold">
+                    {table.footerFa.map((cell, ci) => (
+                      <td
+                        key={ci}
+                        className="px-3 py-2 text-on-surface tabular-nums whitespace-nowrap border-t border-[color:var(--color-outline-variant)]"
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      ))}
+
+      {/* Sections — grouped label/value rows (e.g. عرصه / اعیان) */}
+      {result.sections?.map((section, si) => (
+        <div key={si}>
+          <h3 className="text-body-1 text-on-surface font-semibold mb-2">
+            {section.titleFa}
+          </h3>
+          <dl className="rounded-medium bg-surface border border-[color:var(--color-outline-variant)] divide-y divide-[color:var(--color-outline-variant)]">
+            {section.rows.map((row, ri) => (
+              <div
+                key={ri}
+                className="flex items-start justify-between gap-3 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <dt className="text-body-2 text-on-surface">{row.labelFa}</dt>
+                  {row.noteFa && (
+                    <p className="text-caption text-on-surface-variant mt-0.5">
+                      {row.noteFa}
+                    </p>
+                  )}
+                </div>
+                <dd className="shrink-0 text-body-2 text-on-surface font-medium tabular-nums">
+                  {row.valueFa}
+                </dd>
+              </div>
+            ))}
+            {section.totalFa && (
+              <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-container-high">
+                <dt className="text-body-2 text-on-surface font-semibold">جمع</dt>
+                <dd className="text-body-2 text-on-surface font-bold tabular-nums">
+                  {section.totalFa}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      ))}
+
+      {/* نحوه محاسبه */}
+      {result.explanationFa && <ExplanationBlock text={result.explanationFa} />}
+
+      {/* مبنای قانونی — collapsible */}
+      {result.legalNotesFa && result.legalNotesFa.length > 0 && (
+        <LegalNotesBlock notes={result.legalNotesFa} />
+      )}
+
       {/* Provenance */}
-      <div className="rounded-medium bg-surface border border-[color:var(--color-outline-variant)] p-4">
-        <h3 className="text-caption text-on-surface-variant font-medium mb-2 flex items-center gap-1.5">
-          <span aria-hidden="true">📖</span>
-          منبع و اعتبار داده‌ها
-        </h3>
-        <dl className="space-y-1.5 text-caption">
-          <ProvenanceRow label="سند" value={result.source.sourceTitle} />
-          <ProvenanceRow label="مرجع" value={result.source.sourceAuthority} />
+      <ProvenanceBlock source={result.source} />
+    </div>
+  );
+}
+
+function ProvenanceBlock({ source }: { source: CalculationResult["source"] }) {
+  return (
+    <div className="rounded-medium bg-surface border border-[color:var(--color-outline-variant)] p-4">
+      <h3 className="text-caption text-on-surface-variant font-medium mb-2 flex items-center gap-1.5">
+        <span aria-hidden="true">📖</span>
+        منبع و اعتبار داده‌ها
+      </h3>
+      <dl className="space-y-1.5 text-caption">
+        <ProvenanceRow label="سند" value={source.sourceTitle} />
+        <ProvenanceRow label="مرجع" value={source.sourceAuthority} />
           <ProvenanceRow
             label="سال محاسبه"
-            value={String(result.source.calculationYear)}
+            value={String(source.calculationYear)}
           />
-          <ProvenanceRow label="نسخه" value={result.source.version} />
+        <ProvenanceRow label="نسخه" value={source.version} />
           <ProvenanceRow
             label="تاریخ بازبینی"
-            value={result.source.verifiedAt}
+            value={source.verifiedAt}
           />
-          {result.source.sourceUrl && (
+        {source.sourceUrl && (
             <div className="flex gap-2">
               <dt className="shrink-0 text-on-surface-variant">پیوند:</dt>
               <dd className="min-w-0">
                 <a
-                  href={result.source.sourceUrl}
+                  href={source.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline break-all"
                 >
-                  {result.source.sourceUrl}
+                  {source.sourceUrl}
                 </a>
               </dd>
             </div>
           )}
         </dl>
-        {result.source.notes && (
+      {source.notes && (
           <p className="text-caption text-on-surface-variant mt-3 pt-3 border-t border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] leading-relaxed">
-            {result.source.notes}
-          </p>
-        )}
-      </div>
+          {source.notes}
+        </p>
+      )}
     </div>
   );
 }
@@ -357,6 +591,41 @@ function ProvenanceRow({ label, value }: { label: string; value: string }) {
       <dt className="shrink-0 text-on-surface-variant">{label}:</dt>
       <dd className="min-w-0 text-on-surface">{value}</dd>
     </div>
+  );
+}
+
+function ExplanationBlock({ text }: { text: string }) {
+  return (
+    <div className="rounded-medium bg-surface border border-[color:var(--color-outline-variant)] p-4">
+      <h3 className="text-body-2 text-on-surface font-semibold mb-2 flex items-center gap-1.5">
+        <span aria-hidden="true">🧮</span>
+        نحوه محاسبه
+      </h3>
+      <p className="text-caption text-on-surface-variant leading-relaxed">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function LegalNotesBlock({ notes }: { notes: string[] }) {
+  return (
+    <details className="rounded-medium bg-surface border border-[color:var(--color-outline-variant)] p-4 group">
+      <summary className="text-body-2 text-on-surface font-semibold cursor-pointer flex items-center gap-1.5 list-none">
+        <span aria-hidden="true">📖</span>
+        مبنای قانونی
+        <span className="text-caption text-on-surface-variant group-open:hidden">
+          (نمایش)
+        </span>
+      </summary>
+      <ul className="mt-3 space-y-1.5" role="list">
+        {notes.map((n, i) => (
+          <li key={i} className="text-caption text-on-surface-variant">
+            {n}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

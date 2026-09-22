@@ -18,6 +18,8 @@ import { bonusCalculator } from "./calculators/bonus";
 import { severanceCalculator } from "./calculators/severance";
 import { leaveBuybackCalculator } from "./calculators/leave-buyback";
 import { salaryCalculator } from "./calculators/salary";
+import { inheritanceCalculator } from "./calculators/inheritance";
+import { regionalPropertyValueCalculator } from "./calculators/regional-property-value";
 
 // Registration order drives catalog order.
 const ALL = [
@@ -29,6 +31,8 @@ const ALL = [
   severanceCalculator,
   leaveBuybackCalculator,
   salaryCalculator,
+  inheritanceCalculator,
+  regionalPropertyValueCalculator,
 ];
 
 for (const calc of ALL) registerCalculator(calc);
@@ -92,6 +96,8 @@ export { bonusCalculator } from "./calculators/bonus";
 export { severanceCalculator } from "./calculators/severance";
 export { leaveBuybackCalculator } from "./calculators/leave-buyback";
 export { salaryCalculator } from "./calculators/salary";
+export { inheritanceCalculator } from "./calculators/inheritance";
+export { regionalPropertyValueCalculator } from "./calculators/regional-property-value";
 
 // ---- Catalog metadata (UI-facing) ----
 export const CALCULATOR_CATEGORY_FA: Record<string, string> = {

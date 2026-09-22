@@ -2204,12 +2204,33 @@ export interface CalculatorSource {
   notes: string | null;
 }
 
+/**
+ * Declarative visibility predicate for progressive disclosure. A field
+ * is shown only while every clause matches the current input. Kept
+ * serializable (no functions) so a field list can ship as plain data.
+ */
+export interface FieldVisibility {
+  /** The field whose current value is tested. */
+  key: string;
+  /** Show only when the value equals this. */
+  equals?: string | number | boolean;
+  /** Show only when the value is one of these. */
+  in?: (string | number | boolean)[];
+  /** Show only when the numeric value is greater than this. */
+  gt?: number;
+  /** Show only when the numeric value is less than this. */
+  lt?: number;
+}
+
 /** A single input field a calculator exposes. */
 export interface CalculatorField {
   key: string;
   labelFa: string;
-  /** `money` values are entered in `unit`; `number`/`percent` are plain. */
-  type: "money" | "number" | "percent" | "select" | "boolean";
+  /**
+   * `money` values are entered in `unit`; `number`/`percent` are plain;
+   * `text` is free-form (e.g. report metadata) and never affects math.
+   */
+  type: "money" | "number" | "percent" | "select" | "boolean" | "text";
   unit?: MoneyUnit;
   required: boolean;
   /** Pre-filled value; money fields are expressed in `unit`. */
@@ -2219,7 +2240,23 @@ export interface CalculatorField {
   step?: number;
   /** Options for `select` fields. */
   options?: { value: string; labelFa: string }[];
+  /**
+   * Cascading selects. When present, the field renders only the option
+   * values listed under the current value of `parentKey`. The full
+   * `options` list stays declared so the engine can still validate any
+   * value the parent allows.
+   */
+  optionFilter?: { parentKey: string; allowed: Record<string, string[]> };
   helpFa?: string;
+  /**
+   * Progressive disclosure. When present, the field renders only while
+   * EVERY clause holds (logical AND). Hidden fields are still coerced
+   * by the engine (with their defaults), so `compute` always sees a
+   * complete input object.
+   */
+  visibleWhen?: FieldVisibility[];
+  /** Groups fields under a heading in the form (e.g. «طبقه اول وراث»). */
+  groupFa?: string;
 }
 
 /** One line of a calculation breakdown, shown to the user. */
@@ -2229,6 +2266,25 @@ export interface CalculationStep {
   valueFa: string;
   /** Optional formula/derivation note. */
   noteFa?: string;
+}
+
+/** A tabular breakdown (e.g. one row per heir). */
+export interface CalculationTable {
+  titleFa: string;
+  /** Column headers, in display order. */
+  columnsFa: string[];
+  /** One row per line item; `cells` must match `columnsFa` in length. */
+  rows: { cells: string[]; emphasis?: boolean }[];
+  /** Optional totals row, rendered distinctly. */
+  footerFa?: string[];
+}
+
+/** A titled group of label/value rows (e.g. «مشخصات زمین (عرصه)»). */
+export interface CalculationSection {
+  titleFa: string;
+  rows: { labelFa: string; valueFa: string; noteFa?: string }[];
+  /** Optional subtotal shown at the foot of the section. */
+  totalFa?: string;
 }
 
 /** The result of running a calculator. */
@@ -2244,6 +2300,19 @@ export interface CalculationResult {
   warningsFa: string[];
   /** Provenance of the dataset actually used. */
   source: CalculatorSource;
+  /** Optional tabular breakdowns (e.g. per-heir shares). */
+  tables?: CalculationTable[];
+  /** Optional grouped breakdowns (e.g. عرصه / اعیان). */
+  sections?: CalculationSection[];
+  /** Plain-Persian «نحوه محاسبه» narrative. */
+  explanationFa?: string;
+  /** «مبنای قانونی» — article references, shown collapsed. */
+  legalNotesFa?: string[];
+  /**
+   * Set when the input combination is legally valid but not reliably
+   * modelled by this engine. The UI shows this instead of a number.
+   */
+  unsupportedFa?: string;
 }
 
 /** A calculator definition (metadata + engine binding). */

@@ -16,6 +16,7 @@
 // Pure data module — no I/O, importable from server and client.
 
 import type { RateDataset } from "@legalir/types";
+import { DATASET_REGIONAL_PROPERTY_1404 } from "./regional-property/locations";
 
 // ============================================================
 // Shared authority strings (kept as consts so they never drift)
@@ -271,6 +272,38 @@ export const DATASET_PAYROLL_TAX_1404: RateDataset = {
 };
 
 // ============================================================
+// 7) سهم‌الارث — inheritance shares (قانون مدنی، مواد ۸۶۲–۹۵۰)
+// ============================================================
+// Inheritance shares are fixed statutory fractions (فرض) and
+// structural rules (طبقات، حجب، رد), not annual rates. This dataset
+// therefore carries no numeric rates — it exists so the calculator's
+// provenance block can cite the instrument and its review date, and
+// so the integrity checks in `datasets.test.ts` can verify the
+// citation. Any amendment to the Civil Code must be reflected here.
+
+export const DATASET_INHERITANCE_1404: RateDataset = {
+  id: "inheritance-1404",
+  titleFa: "قواعد سهم‌الارث — قانون مدنی (بازبینی ۱۴۰۴)",
+  calculationYear: 1404,
+  source: {
+    sourceTitle:
+      "قانون مدنی جمهوری اسلامی ایران، باب دوم (در ارث)، مواد ۸۶۲ تا ۹۵۰",
+    sourceAuthority: AUTHORITY_PARLIAMENT,
+    sourceUrl: null,
+    publicationDate: "1307-02-18",
+    effectiveFrom: "1404-01-01",
+    effectiveTo: null,
+    jurisdiction: JURISDICTION_IR,
+    calculationYear: 1404,
+    version: "inheritance-1404.1",
+    verifiedAt: "2026-09-22",
+    notes:
+      "سهم‌الارث بر پایه فرض‌های ثابت قانون مدنی محاسبه می‌شود و نرخ سالانه ندارد. این محاسبه‌گر طبقه اول (پدر، مادر، اولاد و اولاد اولاد) و زوج و زوجه را با اطمینان پوشش می‌دهد؛ ترکیب‌های پیچیده‌تر (اجداد، رد در حضور مادر، اختلاط عمو و دایی) به‌عنوان «نیازمند بررسی تخصصی» بازگردانده می‌شوند.",
+  },
+  rates: {},
+};
+
+// ============================================================
 // Registry
 // ============================================================
 
@@ -281,6 +314,8 @@ export const RATE_DATASETS: RateDataset[] = [
   DATASET_LABOR_1404,
   DATASET_DOWRY_INDEX_1404,
   DATASET_PAYROLL_TAX_1404,
+  DATASET_INHERITANCE_1404,
+  DATASET_REGIONAL_PROPERTY_1404,
 ];
 
 /** Look up a dataset by id. Returns undefined for unknown ids. */
