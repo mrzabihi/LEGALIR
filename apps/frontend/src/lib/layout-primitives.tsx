@@ -4,6 +4,7 @@ import React, { useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useAppShellStore } from "./stores";
 import { IconClose } from "./icons";
+import { NavProgress } from "@/components/app/nav-progress";
 
 // ============================================================
 // AppShell — responsive layout container
@@ -69,9 +70,11 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
+      <NavProgress />
+
       {/* Desktop Sidebar */}
       {sidebar && (
-        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-divider bg-surface">
+        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-glass-border bg-glass-surface-strong [background-image:var(--sidebar-gradient)]">
           {sidebar}
         </aside>
       )}
@@ -85,20 +88,21 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
             aria-hidden="true"
           />
           <aside
-            className="absolute top-0 bottom-0 end-0 w-[85vw] max-w-[320px] bg-neutral-50 shadow-elevation-16 animate-slide-in-end flex flex-col"
+            id="mobile-nav-drawer"
+            className="absolute top-0 bottom-0 start-0 w-[85vw] max-w-[320px] bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl shadow-elevation-16 animate-slide-in-end flex flex-col"
             role="dialog"
             aria-modal="true"
             aria-label="منوی موبایل"
           >
-            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+            <div className="flex items-center justify-between p-4 border-b border-glass-border">
               <img
-                src="/legalir-logo.png"
+                src="/legalir-logo-dashboard.png"
                 alt="LEGALIR"
                 className="h-10 w-auto"
               />
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
+                className="w-10 h-10 flex items-center justify-center rounded-full text-glass-ivory hover:bg-glass-state transition-colors touch-target"
                 aria-label="بستن منو"
               >
                 <IconClose size={20} />
@@ -113,7 +117,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
         {/* Top Bar */}
         {topBar && (
-          <header className="shrink-0 h-14 tablet:h-16 border-b border-divider bg-surface/80 backdrop-blur-lg flex items-center px-3 tablet:px-5 gap-3">
+          <header className="relative z-30 shrink-0 h-14 tablet:h-16 border-b border-divider bg-surface/80 backdrop-blur-lg flex items-center px-3 tablet:px-5 gap-3">
             {topBar}
           </header>
         )}

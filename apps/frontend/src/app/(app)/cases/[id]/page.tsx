@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { TextField, Checkbox } from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA, CASE_TASK_STATUS_FA } from "@legalir/types";
-import type { CaseStatus, CaseCategory, CasePriority, CaseTaskStatus, CaseDetailResponse, CaseTask, CaseTimelineEvent } from "@legalir/types";
+import type { CaseStatus, CasePriority, CaseTaskStatus, CaseDetailResponse, CaseTask, CaseTimelineEvent } from "@legalir/types";
 import { IconChevronRight, IconAdd, IconBalance, IconRefresh } from "@/lib/icons";
 
 const STATUS_COLORS: Record<CaseStatus, string> = {
@@ -81,7 +82,7 @@ function TaskCard({ task }: { task: CaseTask }) {
   return (
     <div className={`flex items-center gap-3 p-3 py-4 rounded-xl border border-divider/60 ${task.status === "done" ? "opacity-60" : ""}`}>
       {task.status !== "done" ? (
-        <input type="checkbox" defaultChecked={false} className="h-5 w-5 rounded border-divider accent-primary cursor-pointer" />
+        <Checkbox aria-label={task.title} />
       ) : (
         <span className="h-5 w-5 flex items-center justify-center text-green-600">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -115,6 +116,16 @@ export default function CaseDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [error, setError] = useState("");
 
+  // Documents tab
+  const [availableDocs, setAvailableDocs] = useState<{ id: string; name: string }[]>([]);
+  const [showAttach, setShowAttach] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Deadlines tab
+  const [showDeadlineForm, setShowDeadlineForm] = useState(false);
+  const [deadlineTitle, setDeadlineTitle] = useState("");
+  const [deadlineDueAt, setDeadlineDueAt] = useState("");
+
   const fetchCase = useCallback(() => {
     setLoading(true);
     setError("");
@@ -130,11 +141,93 @@ export default function CaseDetailPage() {
 
   useEffect(() => { fetchCase(); }, [fetchCase]);
 
+  // --- Documents ---
+
+  const loadAvailableDocs = useCallback(() => {
+    fetch("/api/v1/documents?pageSize=100")
+      .then((r) => r.json())
+      .then((j) => setAvailableDocs(j.data?.items ?? []))
+      .catch(() => setAvailableDocs([]));
+  }, []);
+
+  const attachDocument = useCallback(
+    (documentId: string) => {
+      setBusy(true);
+      fetch(`/api/v1/cases/${id}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId }),
+      })
+        .then((r) => r.json())
+        .then((j) => {
+          if (j.data) {
+            setShowAttach(false);
+            fetchCase();
+          }
+        })
+        .finally(() => setBusy(false));
+    },
+    [id, fetchCase]
+  );
+
+  const detachDocument = useCallback(
+    (documentId: string) => {
+      setBusy(true);
+      fetch(`/api/v1/cases/${id}/documents?documentId=${encodeURIComponent(documentId)}`, {
+        method: "DELETE",
+      })
+        .then(() => fetchCase())
+        .finally(() => setBusy(false));
+    },
+    [id, fetchCase]
+  );
+
+  // --- Deadlines ---
+
+  const addDeadline = useCallback(() => {
+    if (!deadlineTitle.trim() || !deadlineDueAt) return;
+    setBusy(true);
+    fetch(`/api/v1/cases/${id}/deadlines`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: deadlineTitle.trim(),
+        dueAt: new Date(deadlineDueAt).toISOString(),
+        source: "user",
+      }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.data) {
+          setDeadlineTitle("");
+          setDeadlineDueAt("");
+          setShowDeadlineForm(false);
+          fetchCase();
+        }
+      })
+      .finally(() => setBusy(false));
+  }, [id, deadlineTitle, deadlineDueAt, fetchCase]);
+
+  const toggleDeadline = useCallback(
+    (deadlineId: string, completed: boolean) => {
+      setBusy(true);
+      fetch(`/api/v1/cases/${id}/deadlines`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deadlineId, completed }),
+      })
+        .then(() => fetchCase())
+        .finally(() => setBusy(false));
+    },
+    [id, fetchCase]
+  );
+
   const tabs = [
     { key: "overview", label: "نمای کلی" },
     { key: "timeline", label: "تایم‌لاین" },
     { key: "tasks", label: "وظایف" },
     { key: "documents", label: "اسناد" },
+    { key: "deadlines", label: "مهلت‌ها" },
     { key: "contracts", label: "قراردادها" },
   ];
 
@@ -290,33 +383,217 @@ export default function CaseDetailPage() {
       )}
 
       {activeTab === "documents" && (
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <div className="h-16 w-16 rounded-2xl bg-surface-container border border-divider/40 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted/40">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+        <div className="space-y-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-titleMedium text-on-surface font-semibold">
+              اسناد {data.documents.length > 0 ? `(${data.documents.length})` : ""}
+            </h3>
+            <button
+              onClick={() => {
+                setShowAttach((v) => !v);
+                if (!showAttach) loadAvailableDocs();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] touch-target"
+            >
+              <IconAdd size={16} />
+              افزودن سند
+            </button>
           </div>
-          <p className="text-body-1 text-muted font-medium">در حال حاضر نمایش داده نمی‌شود</p>
-          <p className="text-body-2 text-muted/60">اسناد مرتبط با پرونده را می‌توانید بارگذاری کنید</p>
-          <Link href="/documents" className="mt-3 rounded-xl border border-divider px-5 py-2.5 text-body-2 font-medium hover:bg-neutral-50 transition-colors">
-            رفتن به بارگذاری سند
-          </Link>
+
+          {showAttach && (
+            <div className="rounded-2xl border border-divider/60 bg-surface p-4">
+              <p className="text-body-2 text-on-surface font-medium mb-3">انتخاب سند از اسناد شما</p>
+              {availableDocs.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-body-2 text-muted">سندی برای افزودن موجود نیست.</p>
+                  <Link href="/documents/upload" className="mt-2 inline-block text-caption text-primary font-medium">
+                    بارگذاری سند جدید
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {availableDocs
+                    .filter((d) => !data.documents.some((cd) => cd.id === d.id))
+                    .map((d) => (
+                      <button
+                        key={d.id}
+                        disabled={busy}
+                        onClick={() => attachDocument(d.id)}
+                        className="w-full flex items-center justify-between gap-3 rounded-xl border border-divider/60 px-3 py-2.5 text-right hover:border-primary/40 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+                      >
+                        <span className="truncate text-body-2 text-on-surface">{d.name}</span>
+                        <span className="shrink-0 text-caption text-primary font-medium">افزودن</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {data.documents.length > 0 ? (
+            <div className="space-y-3">
+              {data.documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-divider/60 bg-surface p-4"
+                >
+                  <Link href={`/documents/${doc.id}`} className="min-w-0 flex-1">
+                    <p className="truncate text-body-1 font-semibold text-on-surface">{doc.name}</p>
+                    <p className="mt-1 text-caption text-muted tabular-nums">
+                      {new Date(doc.linkedAt).toLocaleDateString("fa-IR")}
+                    </p>
+                  </Link>
+                  <button
+                    disabled={busy}
+                    onClick={() => detachDocument(doc.id)}
+                    className="shrink-0 rounded-lg border border-divider px-3 py-1.5 text-caption text-muted hover:text-error hover:border-error/40 transition-colors disabled:opacity-50"
+                  >
+                    حذف
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-20 text-center">
+              <div className="h-16 w-16 rounded-2xl bg-surface-container border border-divider/40 flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted/40">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
+              <p className="text-body-1 text-muted font-medium">هیچ سندی به این پرونده پیوست نشده است</p>
+              <p className="text-body-2 text-muted/60">اسناد مرتبط با پرونده را اینجا اضافه کنید</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "deadlines" && (
+        <div className="space-y-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-titleMedium text-on-surface font-semibold">
+              مهلت‌ها {data.deadlines.length > 0 ? `(${data.deadlines.length})` : ""}
+            </h3>
+            <button
+              onClick={() => setShowDeadlineForm((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] touch-target"
+            >
+              <IconAdd size={16} />
+              مهلت جدید
+            </button>
+          </div>
+
+          {showDeadlineForm && (
+            <div className="rounded-2xl border border-divider/60 bg-surface p-4 space-y-3">
+              <TextField
+                label="عنوان مهلت"
+                value={deadlineTitle}
+                onChange={(e) => setDeadlineTitle(e.target.value)}
+                placeholder="مثلاً: مهلت اعتراض به رأی"
+                fullWidth
+              />
+              <TextField
+                type="date"
+                label="تاریخ مهلت"
+                value={deadlineDueAt}
+                onChange={(e) => setDeadlineDueAt(e.target.value)}
+                fullWidth
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={busy || !deadlineTitle.trim() || !deadlineDueAt}
+                  onClick={addDeadline}
+                  className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                >
+                  ثبت مهلت
+                </button>
+                <button
+                  onClick={() => setShowDeadlineForm(false)}
+                  className="rounded-xl border border-divider px-4 py-2 text-caption text-muted hover:text-on-surface transition-colors"
+                >
+                  انصراف
+                </button>
+              </div>
+            </div>
+          )}
+
+          {data.deadlines.length > 0 ? (
+            <div className="space-y-3">
+              {data.deadlines.map((dl) => (
+                <div
+                  key={dl.id}
+                  className={`flex items-center gap-3 rounded-2xl border border-divider/60 bg-surface p-4 ${dl.completed ? "opacity-60" : ""}`}
+                >
+                  <Checkbox
+                    checked={dl.completed}
+                    disabled={busy}
+                    onChange={(e) => toggleDeadline(dl.id, e.target.checked)}
+                    aria-label={dl.title}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-body-1 text-on-surface ${dl.completed ? "line-through text-muted" : ""}`}>
+                      {dl.title}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <span className="text-caption text-muted tabular-nums">
+                        {new Date(dl.dueAt).toLocaleDateString("fa-IR")}
+                      </span>
+                      {dl.needsConfirmation && (
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-caption text-amber-700">
+                          نیازمند تأیید
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-20 text-center">
+              <p className="text-body-1 text-muted font-medium">هیچ مهلتی ثبت نشده است</p>
+              <p className="text-body-2 text-muted/60">مهلت‌های قانونی پرونده را اینجا ثبت و پیگیری کنید</p>
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === "contracts" && (
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <div className="h-16 w-16 rounded-2xl bg-surface-container border border-divider/40 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted/40">
-              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-            </svg>
-          </div>
-          <p className="text-body-1 text-muted font-medium">در حال حاضر قابل مشاهده نیست</p>
-          <p className="text-body-2 text-muted/60">قراردادهای مرتبط با پرونده در این بخش نمایش داده می‌شوند</p>
-          <Link href="/contracts" className="mt-3 rounded-xl border border-divider px-5 py-2.5 text-body-2 font-medium hover:bg-neutral-50 transition-colors">
-            رفتن به قراردادها
-          </Link>
+        <div>
+          {data.contracts.length > 0 ? (
+            <div className="space-y-3">
+              {data.contracts.map((ct) => (
+                <Link
+                  key={ct.id}
+                  href={`/contracts/${ct.id}`}
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-divider/60 bg-surface p-4 transition-all hover:border-primary/40 hover:shadow-elevation-1"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-body-1 font-semibold text-on-surface">{ct.title}</p>
+                    <p className="mt-1 text-caption text-muted">
+                      {ct.typeFa} · {ct.referenceCode}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-caption text-primary-700">
+                    {ct.progress}٪
+                  </span>
+                  <IconChevronRight size={18} className="shrink-0 text-muted" />
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-20 text-center">
+              <div className="h-16 w-16 rounded-2xl bg-surface-container border border-divider/40 flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted/40">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+                </svg>
+              </div>
+              <p className="text-body-1 text-muted font-medium">قراردادی به این پرونده پیوست نشده است</p>
+              <p className="text-body-2 text-muted/60">قراردادهای مرتبط با پرونده در این بخش نمایش داده می‌شوند</p>
+              <Link href="/contracts" className="mt-3 rounded-xl border border-divider px-5 py-2.5 text-body-2 font-medium hover:bg-neutral-50 transition-colors">
+                رفتن به قراردادها
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

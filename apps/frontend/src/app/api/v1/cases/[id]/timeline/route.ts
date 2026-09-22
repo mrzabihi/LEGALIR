@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { getCaseById, getCaseTimeline, addCaseTimelineEvent } from "@/lib/case-db";
 import type { CaseTimelineEventCreateRequest } from "@legalir/types";

@@ -147,8 +147,8 @@ describe("retrieveCorpus — inverted-index retrieval", () => {
 
     const hits = retrieveCorpus("حقوق ورودی گمرک", 3);
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[0].source.title).toContain("گمرک");
-    expect(hits[0].locator).toBeTruthy();
+    expect(hits[0]!.source.title).toContain("گمرک");
+    expect(hits[0]!.locator).toBeTruthy();
   });
 
   it("returns no hits for a query with no token overlap", () => {

@@ -9,6 +9,8 @@ import {
   fetchCurrentSubscription,
   fetchEntitlements,
   fetchUsage,
+  fetchSubscriptionUsage,
+  fetchSubscriptionUsageHistory,
   createCheckoutIntent,
   getCheckoutIntent,
 } from "@/lib/api/v1";
@@ -61,6 +63,31 @@ export function useUsage() {
     queryKey: ["v1", "usage"],
     queryFn: fetchUsage,
     staleTime: 60_000, // 1 min — usage changes frequently
+    retry: 1,
+  });
+}
+
+// ============================================================
+// useSubscriptionUsage — the live usage engine summary
+// ============================================================
+// Today's subscription credit (resets at Tehran midnight), the
+// period-scoped service quotas and the persistent reward-points balance.
+// The dashboard and the pricing page both read this same source.
+
+export function useSubscriptionUsage() {
+  return useQuery({
+    queryKey: ["v1", "subscription", "usage"],
+    queryFn: fetchSubscriptionUsage,
+    staleTime: 30_000, // 30s — credit changes as the user acts
+    retry: 1,
+  });
+}
+
+export function useSubscriptionUsageHistory(page = 1, pageSize = 20) {
+  return useQuery({
+    queryKey: ["v1", "subscription", "usage", "history", page, pageSize],
+    queryFn: () => fetchSubscriptionUsageHistory(page, pageSize),
+    staleTime: 60_000,
     retry: 1,
   });
 }

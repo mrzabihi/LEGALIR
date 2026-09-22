@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findSessionById, createSubscription, claimPurchaseReward, recordActivity } from "@/lib/db";
-import { fixturePlans } from "@legalir/testing";
+import { getPlanByCode, snapshotFor } from "@/lib/usage/plans";
 import type { CheckoutIntent } from "@legalir/types";
 
 declare global {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const plan = fixturePlans.find((p) => p.code === planCode);
+    const plan = getPlanByCode(planCode);
     if (!plan) {
       return NextResponse.json(
         { code: "PLAN_NOT_FOUND", message: "پلن مورد نظر یافت نشد", correlationId: crypto.randomUUID(), retryable: false },
@@ -49,7 +49,11 @@ export async function POST(request: Request) {
       userId, planCode: plan.code, planNameFa: plan.nameFa,
       amount: plan.salePrice, status: "active", statusFa: "فعال",
       startAt: now.toISOString(),
+      // Duration is started_at + duration_days (31), not "end of month".
       endAt: new Date(now.getTime() + plan.durationDays * 86400000).toISOString(),
+      // Freeze the entitlements so a later admin edit cannot change this
+      // subscription's terms mid-period.
+      planSnapshot: snapshotFor(plan),
     });
     // Award purchase reward only after a confirmed successful purchase.
     // Idempotent by subscription id (`purchase:${id}`), so a duplicate
@@ -71,7 +75,7 @@ export async function POST(request: Request) {
       status: "paid", paymentUrl: null,
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
-      metadata: { planNameFa: plan.nameFa, durationDays: plan.durationDays, dailyRequests: plan.dailyRequestLimit, totalTokens: plan.totalTokenLimit },
+      metadata: { planNameFa: plan.nameFa, durationDays: plan.durationDays, dailyRequests: plan.dailyRequestLimit, totalTokens: plan.tokenLimit },
     };
     getStore().set(intent.id, intent);
     return NextResponse.json({ data: intent }, { status: 201 });

@@ -44,12 +44,30 @@ function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// mtime+size keyed cache. These tables are read on nearly every API
+// request (conversation-messages.json alone is ~240 KB), and re-parsing
+// the whole file per call dominated request latency. The stat is cheap;
+// a hit skips the read + JSON.parse entirely.
+const tableCache = new Map<string, { mtimeMs: number; size: number; data: unknown[] }>();
+
 function readTable<T>(name: string): T[] {
   ensureDir();
   const file = path.join(DATA_DIR, `${name}.json`);
-  if (!fs.existsSync(file)) return [];
+  let stat: fs.Stats;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    stat = fs.statSync(file);
+  } catch {
+    tableCache.delete(name);
+    return [];
+  }
+  const cached = tableCache.get(name);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.data as T[];
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+    return data;
   } catch {
     return [];
   }
@@ -57,7 +75,14 @@ function readTable<T>(name: string): T[] {
 
 function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
-  fs.writeFileSync(path.join(DATA_DIR, `${name}.json`), JSON.stringify(data, null, 2), "utf-8");
+  const file = path.join(DATA_DIR, `${name}.json`);
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+  try {
+    const stat = fs.statSync(file);
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+  } catch {
+    tableCache.delete(name);
+  }
 }
 
 // ============================================================
@@ -1271,6 +1296,24 @@ export function createDemoDocument(
 }
 
 /**
+ * Record where an uploaded document's bytes were stored. Called by the
+ * upload-complete route once the file has been written to disk, so the
+ * preview/file/download routes can resolve it.
+ */
+export function setDemoDocumentStorageKey(
+  userId: string,
+  id: string,
+  storageKey: string
+): V1DocumentDetail | undefined {
+  const rows = readTable<V1DocumentDetail>("documents");
+  const idx = rows.findIndex((d) => d.id === id && d.userId === userId);
+  if (idx === -1) return undefined;
+  rows[idx] = { ...rows[idx]!, storageKey, updatedAt: new Date().toISOString() };
+  writeTable("documents", rows);
+  return rows[idx];
+}
+
+/**
  * Update a document's status (e.g. processing → ready after upload completes).
  * Returns the updated row, or undefined if the document is not found.
  */
@@ -1360,6 +1403,26 @@ export function listDemoRelationships(userId: string, sourceType?: string, sourc
     rows = rows.filter((r) => r.sourceType === sourceType && r.sourceId === sourceId);
   }
   return rows;
+}
+
+/**
+ * Remove every relationship row that references a resource, in either
+ * direction (as source or target). Called when a document or contract is
+ * deleted so no dangling edges are left behind. Scoped to the owner.
+ */
+export function deleteDemoRelationshipsFor(userId: string, resourceId: string): void {
+  const rows = readTable<DemoRelationship>("relationships");
+  const next = rows.filter(
+    (r) =>
+      !(
+        r.userId === userId &&
+        (((r.sourceType === "document" || r.sourceType === "contract") &&
+          r.sourceId === resourceId) ||
+          ((r.targetType === "document" || r.targetType === "contract") &&
+            r.targetId === resourceId))
+      )
+  );
+  if (next.length !== rows.length) writeTable("relationships", next);
 }
 
 // ============================================================

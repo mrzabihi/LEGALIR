@@ -28,9 +28,11 @@ import type {
   V1SourceDetail,
   V1SourceVersion,
   V1DocumentCitations,
+  KnowledgeInventoryResponse,
   V1DocumentListResponse,
   V1DocumentListParams,
   V1DocumentDetail,
+  V1DocumentPreview,
   V1DocumentUploadRequest,
   V1DocumentUploadResponse,
   V1DocumentStatusResponse,
@@ -38,6 +40,7 @@ import type {
   V1DocumentRetryResponse,
   V1DocumentDeleteResponse,
   V1DocumentListItem,
+  V1RecentDocumentsResponse,
   V1ContractTypeListResponse,
   V1ContractQuestionListResponse,
   V1ContractType,
@@ -61,11 +64,39 @@ import type {
   V1SubscriptionHistoryResponse,
   V1ProfileUsage,
   V1DailyQuota,
+  SubscriptionUsageSummary,
+  DailyCreditView,
+  UsageHistoryResponse,
   V1BlogListResponse,
   V1BlogPostDetail,
   RewardsSummary,
   RewardsHistoryResponse,
   DailyVisitClaimResponse,
+  PointsAccount,
+  PointsTransactionsResponse,
+  ConvertToLegalResponse,
+  AccountType,
+  PlatformAccountType,
+  NotificationSettings,
+  NotificationsResponse,
+  PrivacySettings,
+  SessionsResponse,
+  LawyerListResponse,
+  LawyerListFilters,
+  LawyerDetail,
+  MatchCriteria,
+  MatchResult,
+  IntakeSchema,
+  IntakeDraft,
+  LegalRequest,
+  LegalRequestEvent,
+  LegalRequestState,
+  LawyerWorkspace,
+  OnboardingState,
+  Organization,
+  OrganizationAuthorizedSignatory,
+  LawyerOnboardingState,
+  LawyerOnboardingInput,
 } from "@legalir/types";
 
 // ============================================================
@@ -139,6 +170,48 @@ export function fetchEntitlements(): Promise<V1EntitlementsResponse> {
 
 export function fetchUsage(): Promise<V1UsageResponse> {
   return apiClient.get<V1UsageResponse>("/api/v1/usage");
+}
+
+// ============================================================
+// Subscription Usage Engine (daily credit + period quotas + rewards)
+// ============================================================
+
+export function fetchSubscriptionUsage(): Promise<SubscriptionUsageSummary> {
+  return apiClient.get<SubscriptionUsageSummary>("/api/v1/subscription/usage");
+}
+
+export function fetchSubscriptionUsageToday(): Promise<DailyCreditView> {
+  return apiClient.get<DailyCreditView>("/api/v1/subscription/usage/today");
+}
+
+export function fetchSubscriptionUsageHistory(
+  page = 1,
+  pageSize = 20
+): Promise<UsageHistoryResponse> {
+  const p = new URLSearchParams();
+  p.set("page", String(page));
+  p.set("pageSize", String(pageSize));
+  return apiClient.get<UsageHistoryResponse>(
+    `/api/v1/subscription/usage/history${qs(p)}`
+  );
+}
+
+// ============================================================
+// Admin — Legal Knowledge inventory (Phase 6)
+// ============================================================
+
+export function fetchKnowledgeInventory(params?: {
+  verificationStatus?: string;
+  sourceType?: string;
+  tier?: string;
+}): Promise<KnowledgeInventoryResponse> {
+  const p = new URLSearchParams();
+  if (params?.verificationStatus) p.set("verificationStatus", params.verificationStatus);
+  if (params?.sourceType) p.set("sourceType", params.sourceType);
+  if (params?.tier) p.set("tier", params.tier);
+  return apiClient.get<KnowledgeInventoryResponse>(
+    `/api/v1/admin/knowledge${qs(p)}`
+  );
 }
 
 export function createCheckoutIntent(planCode: PlanCode): Promise<CheckoutIntent> {
@@ -266,12 +339,30 @@ export function fetchDocumentDetail(id: string): Promise<V1DocumentDetail> {
   return apiClient.get<V1DocumentDetail>(`/api/v1/documents/${id}`);
 }
 
+/** The user's most recent documents — the chat attach picker's source. */
+export function fetchRecentDocuments(limit = 12): Promise<V1RecentDocumentsResponse> {
+  return apiClient.get<V1RecentDocumentsResponse>(
+    `/api/v1/documents/recent${qs(new URLSearchParams({ limit: String(limit) }))}`
+  );
+}
+
+export function fetchDocumentPreview(id: string): Promise<V1DocumentPreview> {
+  return apiClient.get<V1DocumentPreview>(`/api/v1/documents/${id}/preview`);
+}
+
 export function initiateUpload(data: V1DocumentUploadRequest): Promise<V1DocumentUploadResponse> {
   return apiClient.post<V1DocumentUploadResponse>("/api/v1/documents/uploads", data);
 }
 
-export function completeUpload(id: string): Promise<V1DocumentListItem> {
-  return apiClient.post<V1DocumentListItem>(`/api/v1/documents/uploads/${id}/complete`, {});
+/**
+ * Complete an upload by sending the file's bytes. The server stores them
+ * so the preview/file/download routes can serve the document afterwards —
+ * sending only metadata would leave the row without any bytes to preview.
+ */
+export function completeUpload(id: string, file: File): Promise<V1DocumentListItem> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return apiClient.postForm<V1DocumentListItem>(`/api/v1/documents/uploads/${id}/complete`, form);
 }
 
 export function fetchDocumentStatus(id: string): Promise<V1DocumentStatusResponse> {
@@ -515,4 +606,319 @@ export function fetchRewardsHistory(
 
 export function claimDailyVisitReward(): Promise<DailyVisitClaimResponse> {
   return apiClient.post<DailyVisitClaimResponse>("/api/v1/rewards/daily-visit/claim", {});
+}
+
+// ============================================================
+// Points Account (ledger aggregates)
+// ============================================================
+
+export function fetchPointsAccount(): Promise<PointsAccount> {
+  return apiClient.get<PointsAccount>("/api/v1/points");
+}
+
+export function fetchPointsTransactions(
+  page = 1,
+  pageSize = 20
+): Promise<PointsTransactionsResponse> {
+  const p = new URLSearchParams();
+  p.set("page", String(page));
+  p.set("pageSize", String(pageSize));
+  return apiClient.get<PointsTransactionsResponse>(`/api/v1/points/transactions${qs(p)}`);
+}
+
+// ============================================================
+// Notification Center
+// ============================================================
+
+export function fetchNotifications(): Promise<NotificationsResponse> {
+  return apiClient.get<NotificationsResponse>("/api/v1/notifications");
+}
+
+export function markNotificationRead(id: string): Promise<NotificationsResponse> {
+  return apiClient.post<NotificationsResponse>(
+    `/api/v1/notifications/${encodeURIComponent(id)}/read`,
+    {}
+  );
+}
+
+export function markAllNotificationsRead(): Promise<NotificationsResponse> {
+  return apiClient.post<NotificationsResponse>("/api/v1/notifications/read-all", {});
+}
+
+// ============================================================
+// Account type
+// ============================================================
+
+export function convertToLegal(): Promise<ConvertToLegalResponse> {
+  return apiClient.post<ConvertToLegalResponse>("/api/v1/profile/convert-to-legal", {});
+}
+
+export interface UpdateAccountTypeResponse {
+  platformAccountType: PlatformAccountType;
+  accountType: AccountType;
+  accountTypeLocked: boolean;
+}
+
+/** Set the platform account type (PERSONAL | BUSINESS). */
+export function updateAccountType(
+  accountType: PlatformAccountType
+): Promise<UpdateAccountTypeResponse> {
+  return apiClient.patch<UpdateAccountTypeResponse>("/api/v1/me/account-type", { accountType });
+}
+
+// ============================================================
+// Onboarding & organizations
+// ============================================================
+
+/** The server-driven onboarding decision for the current user. */
+export function fetchOnboarding(): Promise<OnboardingState> {
+  return apiClient.get<OnboardingState>("/api/v1/onboarding");
+}
+
+export interface OrganizationListResponse {
+  items: Array<{ org: Organization; role: string }>;
+}
+
+export function fetchOrganizations(): Promise<OrganizationListResponse> {
+  return apiClient.get<OrganizationListResponse>("/api/v1/organizations");
+}
+
+export interface CreateOrganizationInput {
+  name: string;
+  tradeName?: string | null;
+  legalType?: string | null;
+  nationalId?: string | null;
+  registrationNumber?: string | null;
+  economicCode?: string | null;
+  registrationDate?: string | null;
+  industry?: string | null;
+  province?: string | null;
+  city?: string | null;
+  address?: string | null;
+  postalCode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  representativeTitle?: string | null;
+}
+
+export interface CreateOrganizationResponse {
+  organization: Organization;
+  membership: { role: string; status: string };
+  onboardingStatus: string;
+}
+
+export function createOrganization(
+  input: CreateOrganizationInput
+): Promise<CreateOrganizationResponse> {
+  return apiClient.post<CreateOrganizationResponse>("/api/v1/organizations", input);
+}
+
+export interface SignatoryListResponse {
+  items: OrganizationAuthorizedSignatory[];
+}
+
+export function fetchSignatories(orgId: string): Promise<SignatoryListResponse> {
+  return apiClient.get<SignatoryListResponse>(
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/signatories`
+  );
+}
+
+export interface AddSignatoryInput {
+  fullName: string;
+  nationalCode?: string | null;
+  position?: string | null;
+  authorityType?: string | null;
+  phone?: string | null;
+}
+
+export function addSignatory(
+  orgId: string,
+  input: AddSignatoryInput
+): Promise<OrganizationAuthorizedSignatory> {
+  return apiClient.post<OrganizationAuthorizedSignatory>(
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/signatories`,
+    input
+  );
+}
+
+export function removeSignatory(
+  orgId: string,
+  signatoryId: string
+): Promise<{ deleted: boolean }> {
+  return apiClient.delete<{ deleted: boolean }>(
+    `/api/v1/organizations/${encodeURIComponent(orgId)}/signatories?signatoryId=${encodeURIComponent(signatoryId)}`
+  );
+}
+
+// ============================================================
+// Lawyer onboarding
+// ============================================================
+
+export function fetchLawyerOnboarding(): Promise<LawyerOnboardingState> {
+  return apiClient.get<LawyerOnboardingState>("/api/v1/lawyer/onboarding");
+}
+
+export function submitLawyerOnboarding(
+  input: LawyerOnboardingInput
+): Promise<LawyerOnboardingState> {
+  return apiClient.post<LawyerOnboardingState>("/api/v1/lawyer/onboarding", input);
+}
+
+// ============================================================
+// Settings — notifications, privacy, sessions
+// ============================================================
+
+export function fetchNotificationSettings(): Promise<NotificationSettings> {
+  return apiClient.get<NotificationSettings>("/api/v1/settings/notifications");
+}
+
+export function updateNotificationSettings(
+  updates: Partial<NotificationSettings>
+): Promise<NotificationSettings> {
+  return apiClient.patch<NotificationSettings>("/api/v1/settings/notifications", updates);
+}
+
+export function fetchPrivacySettings(): Promise<PrivacySettings> {
+  return apiClient.get<PrivacySettings>("/api/v1/settings/privacy");
+}
+
+export function updatePrivacySettings(
+  updates: Partial<PrivacySettings>
+): Promise<PrivacySettings> {
+  return apiClient.patch<PrivacySettings>("/api/v1/settings/privacy", updates);
+}
+
+export function fetchSessions(): Promise<SessionsResponse> {
+  return apiClient.get<SessionsResponse>("/api/v1/settings/sessions");
+}
+
+export function revokeSession(id: string): Promise<{ revoked: boolean }> {
+  return apiClient.delete<{ revoked: boolean }>(`/api/v1/settings/sessions/${id}`);
+}
+
+export function revokeOtherSessions(): Promise<{ revoked: number }> {
+  return apiClient.delete<{ revoked: number }>("/api/v1/settings/sessions");
+}
+
+// ============================================================
+// Account deletion
+// ============================================================
+
+export function deleteAccount(): Promise<{ deleted: boolean }> {
+  return apiClient.delete<{ deleted: boolean }>("/api/v1/account");
+}
+
+// ============================================================
+// Lawyer marketplace & matching (PART 3 / PART 4)
+// ============================================================
+
+export function fetchLawyers(filters: LawyerListFilters = {}): Promise<LawyerListResponse> {
+  const params = new URLSearchParams();
+  if (filters.category) params.set("category", filters.category);
+  if (filters.province) params.set("province", filters.province);
+  if (filters.city) params.set("city", filters.city);
+  if (typeof filters.maxFeeToman === "number") params.set("maxFeeToman", String(filters.maxFeeToman));
+  if (filters.remoteOnly) params.set("remoteOnly", "true");
+  if (filters.verifiedOnly === false) params.set("verifiedOnly", "false");
+  if (filters.search) params.set("search", filters.search);
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
+  return apiClient.get<LawyerListResponse>(`/api/v1/lawyers${qs(params)}`);
+}
+
+export function fetchLawyer(id: string): Promise<LawyerDetail> {
+  return apiClient.get<LawyerDetail>(`/api/v1/lawyers/${encodeURIComponent(id)}`);
+}
+
+/** Run the matching engine. The engine proposes; the user chooses. */
+export function matchLawyers(criteria: MatchCriteria): Promise<MatchResult> {
+  return apiClient.post<MatchResult>("/api/v1/lawyers/match", criteria);
+}
+
+// ============================================================
+// Legal Intake Wizard (PART 5)
+// ============================================================
+
+export function fetchIntakeSchema(category: string): Promise<IntakeSchema> {
+  return apiClient.get<IntakeSchema>(
+    `/api/v1/intake/schemas/${encodeURIComponent(category)}`
+  );
+}
+
+export function fetchIntakeDrafts(): Promise<IntakeDraft[]> {
+  return apiClient.get<IntakeDraft[]>("/api/v1/intake/drafts");
+}
+
+export function createIntakeDraft(category: string): Promise<IntakeDraft> {
+  return apiClient.post<IntakeDraft>("/api/v1/intake/drafts", { category });
+}
+
+export function fetchIntakeDraft(id: string): Promise<IntakeDraft> {
+  return apiClient.get<IntakeDraft>(`/api/v1/intake/drafts/${encodeURIComponent(id)}`);
+}
+
+export function updateIntakeDraft(
+  id: string,
+  patch: { currentStep?: number; answers?: Record<string, string>; savedAt?: string | null }
+): Promise<IntakeDraft> {
+  return apiClient.patch<IntakeDraft>(
+    `/api/v1/intake/drafts/${encodeURIComponent(id)}`,
+    patch
+  );
+}
+
+export function deleteIntakeDraft(id: string): Promise<{ deleted: boolean }> {
+  return apiClient.delete<{ deleted: boolean }>(
+    `/api/v1/intake/drafts/${encodeURIComponent(id)}`
+  );
+}
+
+// ============================================================
+// Legal Requests — state machine (PART 7)
+// ============================================================
+
+export interface LegalRequestDetail {
+  request: LegalRequest;
+  events: LegalRequestEvent[];
+}
+
+export function fetchLegalRequests(): Promise<LegalRequest[]> {
+  return apiClient.get<LegalRequest[]>("/api/v1/legal-requests");
+}
+
+export function createLegalRequest(input: {
+  title: string;
+  category: string;
+  intakeAnswers?: Record<string, string>;
+}): Promise<LegalRequest> {
+  return apiClient.post<LegalRequest>("/api/v1/legal-requests", input);
+}
+
+export function fetchLegalRequest(id: string): Promise<LegalRequestDetail> {
+  return apiClient.get<LegalRequestDetail>(
+    `/api/v1/legal-requests/${encodeURIComponent(id)}`
+  );
+}
+
+/** Request a state transition. The server rejects illegal moves with 409. */
+export function transitionLegalRequest(
+  id: string,
+  to: LegalRequestState,
+  note?: string
+): Promise<LegalRequest> {
+  return apiClient.post<LegalRequest>(
+    `/api/v1/legal-requests/${encodeURIComponent(id)}/transition`,
+    { to, note }
+  );
+}
+
+// ============================================================
+// Lawyer workspace (PART 24)
+// ============================================================
+
+/** The lawyer's own workspace. Requires the LAWYER role (403 otherwise). */
+export function fetchLawyerWorkspace(): Promise<LawyerWorkspace> {
+  return apiClient.get<LawyerWorkspace>("/api/v1/lawyer/workspace");
 }

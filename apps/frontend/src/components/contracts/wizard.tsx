@@ -5,6 +5,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { TextField, Textarea, Select, RadioGroup } from "@legalir/ui";
 import type { V1ContractType, V1ContractQuestion } from "@legalir/types";
 import { useContractQuestions, useCreateContractDraft, useSaveContractDraft, useContractDraft, useDeleteContractDraft, useCreateContract, useGenerateContract } from "@/hooks/useContracts";
 import { useRouter } from "next/navigation";
@@ -167,105 +168,97 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
     const value = answers[question.fieldKey] ?? "";
     const error = errors[question.fieldKey];
 
-    const baseInputClass = `w-full rounded-medium px-4 py-3 text-body-2 text-on-surface placeholder:text-muted border ${
-      error ? "border-error" : "border-divider"
-    } focus:outline-none focus:ring-2 focus:ring-primary bg-surface touch-target`;
-
     switch (question.inputType) {
       case "text":
         return (
-          <input
+          <TextField
+            id={`q-${question.id}`}
             type="text"
+            label={question.labelFa}
+            required={question.required}
             value={value}
             onChange={(e) => handleAnswer(question.fieldKey, e.target.value)}
             placeholder={question.placeholderFa}
-            className={baseInputClass}
-            aria-label={question.labelFa}
-            aria-invalid={!!error}
-            aria-describedby={error ? `err-${question.id}` : undefined}
+            errorMessage={error}
+            supportingText={question.hintFa}
+            fullWidth
           />
         );
       case "textarea":
         return (
-          <textarea
+          <Textarea
+            id={`q-${question.id}`}
+            label={question.labelFa}
+            required={question.required}
             value={value}
             onChange={(e) => handleAnswer(question.fieldKey, e.target.value)}
             placeholder={question.placeholderFa}
-            className={`${baseInputClass} min-h-[100px] resize-y`}
-            aria-label={question.labelFa}
-            aria-invalid={!!error}
-            aria-describedby={error ? `err-${question.id}` : undefined}
+            errorMessage={error}
+            supportingText={question.hintFa}
+            rows={4}
+            fullWidth
           />
         );
       case "number":
         return (
-          <input
+          <TextField
+            id={`q-${question.id}`}
             type="text"
             inputMode="numeric"
+            label={question.labelFa}
+            required={question.required}
             value={value}
             onChange={(e) => handleAnswer(question.fieldKey, e.target.value)}
             placeholder={question.placeholderFa}
-            className={baseInputClass}
-            aria-label={question.labelFa}
-            aria-invalid={!!error}
-            aria-describedby={error ? `err-${question.id}` : undefined}
+            errorMessage={error}
+            supportingText={question.hintFa}
+            fullWidth
           />
         );
       case "date":
         return (
-          <input
+          <TextField
+            id={`q-${question.id}`}
             type="text"
+            label={question.labelFa}
+            required={question.required}
             value={value}
             onChange={(e) => handleAnswer(question.fieldKey, e.target.value)}
             placeholder="مثلاً ۱۴۰۵/۰۱/۰۱"
-            className={baseInputClass}
-            aria-label={question.labelFa}
-            aria-invalid={!!error}
-            aria-describedby={error ? `err-${question.id}` : undefined}
+            errorMessage={error}
+            supportingText={question.hintFa}
+            fullWidth
           />
         );
       case "select":
         return (
-          <select
+          <Select
+            id={`q-${question.id}`}
+            label={question.labelFa}
+            required={question.required}
             value={value}
             onChange={(e) => handleAnswer(question.fieldKey, e.target.value)}
-            className={baseInputClass}
-            aria-label={question.labelFa}
-            aria-invalid={!!error}
-            aria-describedby={error ? `err-${question.id}` : undefined}
-          >
-            <option value="">-- انتخاب کنید --</option>
-            {question.options?.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.labelFa}
-              </option>
-            ))}
-          </select>
+            placeholder="-- انتخاب کنید --"
+            errorMessage={error}
+            supportingText={question.hintFa}
+            fullWidth
+            options={(question.options ?? []).map((opt) => ({
+              value: opt.value,
+              label: opt.labelFa,
+            }))}
+          />
         );
       case "radio":
         return (
-          <div className="space-y-2">
-            {question.options?.map((opt) => (
-              <label
-                key={opt.value}
-                className={`flex items-center gap-3 rounded-medium p-3 border cursor-pointer touch-target ${
-                  value === opt.value
-                    ? "border-primary bg-primary/5"
-                    : "border-divider"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name={question.fieldKey}
-                  value={opt.value}
-                  checked={value === opt.value}
-                  onChange={(e) => handleAnswer(question.fieldKey, e.target.value)}
-                  className="w-5 h-5 accent-primary"
-                />
-                <span className="text-body-2 text-on-surface">{opt.labelFa}</span>
-              </label>
-            ))}
-          </div>
+          <RadioGroup
+            name={question.fieldKey}
+            value={value}
+            onChange={(next) => handleAnswer(question.fieldKey, next)}
+            options={(question.options ?? []).map((opt) => ({
+              value: opt.value,
+              label: opt.labelFa,
+            }))}
+          />
         );
       default:
         return null;
@@ -341,15 +334,19 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
       <div className="space-y-4">
         {stepQuestions.map((q) => (
           <div key={q.id} className="space-y-2">
-            <label className="block text-body-1 font-medium text-on-surface">
-              {q.labelFa}
-              {q.required && <span className="text-error mr-1">*</span>}
-            </label>
-            {q.hintFa && (
+            {/* Radio groups carry their own legend; the outlined fields
+                render the label inside the notch. */}
+            {q.inputType === "radio" && (
+              <label className="block text-body-1 font-medium text-on-surface">
+                {q.labelFa}
+                {q.required && <span className="text-error mr-1">*</span>}
+              </label>
+            )}
+            {q.hintFa && q.inputType === "radio" && (
               <p className="text-caption text-muted">{q.hintFa}</p>
             )}
             {renderInput(q)}
-            {errors[q.fieldKey] && (
+            {q.inputType === "radio" && errors[q.fieldKey] && (
               <p id={`err-${q.id}`} className="text-caption text-error" role="alert">
                 {errors[q.fieldKey]}
               </p>

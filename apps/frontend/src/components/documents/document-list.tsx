@@ -59,6 +59,8 @@ interface DocumentListProps {
   onSortChange: (value: string) => void;
   onDocumentClick: (id: string) => void;
   onRetry: () => void;
+  /** Opens the delete-confirmation dialog for a document. */
+  onDelete?: (document: V1DocumentListItem) => void;
 }
 
 export function DocumentList({
@@ -73,6 +75,7 @@ export function DocumentList({
   onSortChange,
   onDocumentClick,
   onRetry,
+  onDelete,
 }: DocumentListProps) {
   return (
     <div className="flex flex-col gap-4" dir="rtl">
@@ -119,6 +122,7 @@ export function DocumentList({
                 key={doc.id}
                 document={doc}
                 onClick={() => onDocumentClick(doc.id)}
+                onDelete={onDelete}
               />
             ))}
           </div>

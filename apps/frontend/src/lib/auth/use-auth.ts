@@ -22,6 +22,7 @@ import {
   normalizeMobile,
 } from "./api";
 import type { OtpRequestResult } from "./otp-provider";
+import type { RegistrationIntent } from "@legalir/types";
 
 // ============================================================
 // useRequestOtp
@@ -213,7 +214,12 @@ export function useLogout(): UseLogoutReturn {
 // ============================================================
 
 interface UseRegisterReturn {
-  register: (mobile: string, password: string, acceptTerms: boolean) => Promise<boolean>;
+  register: (
+    mobile: string,
+    password: string,
+    acceptTerms: boolean,
+    intent?: RegistrationIntent
+  ) => Promise<boolean>;
   isPending: boolean;
   error: string | null;
 }
@@ -228,7 +234,12 @@ export function useRegister(): UseRegisterReturn {
   const [error, setError] = useState<string | null>(null);
 
   const register = useCallback(
-    async (rawMobile: string, password: string, acceptTerms: boolean): Promise<boolean> => {
+    async (
+      rawMobile: string,
+      password: string,
+      acceptTerms: boolean,
+      intent: RegistrationIntent = "PERSONAL"
+    ): Promise<boolean> => {
       setError(null);
 
       const mobile = normalizeMobile(rawMobile);
@@ -249,7 +260,12 @@ export function useRegister(): UseRegisterReturn {
 
       setIsPending(true);
       try {
-        const response = await registerApi({ mobile, password, acceptTerms });
+        const response = await registerApi({
+          mobile,
+          password,
+          acceptTerms,
+          registrationIntent: intent,
+        });
 
         setSession({
           sessionId: response.data.sessionId,
@@ -260,7 +276,11 @@ export function useRegister(): UseRegisterReturn {
           createdAt: Date.now(),
         });
 
-        const target = resolveIntendedRoute(intendedRoute);
+        // A brand-new account always enters onboarding; the server decides
+        // the exact step. An explicit intended route (deep link) wins.
+        const target = intendedRoute
+          ? resolveIntendedRoute(intendedRoute)
+          : "/onboarding";
         setIntendedRoute(null);
         router.push(target);
         return true;

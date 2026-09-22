@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { TextField, PasswordField } from "@legalir/ui";
 import { useRequestOtp, usePasswordLogin } from "@/lib/auth/use-auth";
 import { normalizeMobile } from "@/lib/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
@@ -37,7 +38,6 @@ export default function MobileLoginPage() {
   // Password state
   const [passwordMobile, setPasswordMobile] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [passwordValidationError, setPasswordValidationError] = useState("");
 
   // Capture intent from query params on mount
@@ -180,52 +180,42 @@ export default function MobileLoginPage() {
       {activeTab === "password" && (
         <form onSubmit={handlePasswordSubmit} noValidate className="animate-fade-in space-y-5" key="password-tab">
           {/* Mobile Phone Field */}
-          <div>
-            <label htmlFor="password-mobile" className="block text-body-2 text-neutral-700 font-medium mb-2">
-              شماره موبایل
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <div className="flex items-center gap-1.5 text-neutral-400">
-                  <svg
-                    width="22"
-                    height="16"
-                    viewBox="0 0 22 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="rounded-sm"
-                    aria-hidden="true"
-                  >
-                    <rect y="0" width="22" height="5.33" fill="#239543" />
-                    <rect y="5.33" width="22" height="5.33" fill="#FFFFFF" />
-                    <rect y="10.67" width="22" height="5.33" fill="#DA0000" />
-                  </svg>
-                  <span className="text-body-2 text-neutral-400">۹۸+</span>
-                </div>
-              </div>
-              <input
-                id="password-mobile"
-                name="password-mobile"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                value={passwordMobile}
-                onChange={handlePasswordMobileChange}
-                placeholder="۰۹xxxxxxxxx"
-                className="w-full rounded-xl border-2 border-neutral-200 bg-neutral-50 pr-20 pl-4 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 transition-all text-left dir-ltr"
-                dir="ltr"
-                disabled={isPasswordPending}
-                autoFocus
-              />
-            </div>
-          </div>
+          <TextField
+            id="password-mobile"
+            name="password-mobile"
+            label="شماره موبایل"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={passwordMobile}
+            onChange={handlePasswordMobileChange}
+            fullWidth
+            inputDir="ltr"
+            disabled={isPasswordPending}
+            autoFocus
+            leadingIcon={
+              <span className="flex items-center gap-1.5">
+                <svg
+                  width="22"
+                  height="16"
+                  viewBox="0 0 22 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="rounded-sm"
+                  aria-hidden="true"
+                >
+                  <rect y="0" width="22" height="5.33" fill="#239543" />
+                  <rect y="5.33" width="22" height="5.33" fill="#FFFFFF" />
+                  <rect y="10.67" width="22" height="5.33" fill="#DA0000" />
+                </svg>
+                <span className="text-body-2">۹۸+</span>
+              </span>
+            }
+          />
 
           {/* Password Field */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label htmlFor="login-password" className="block text-body-2 text-neutral-700 font-medium">
-                رمز عبور
-              </label>
+            <div className="flex items-center justify-end mb-1">
               <Link
                 href="/auth/forgot-password"
                 className="text-caption text-primary-700 underline underline-offset-2 hover:text-primary-800 transition-colors"
@@ -233,39 +223,16 @@ export default function MobileLoginPage() {
                 رمز عبور را فراموش کرده‌اید؟
               </Link>
             </div>
-            <div className="relative">
-              <input
-                id="login-password"
-                name="login-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={handlePasswordChange}
-                placeholder="رمز عبور خود را وارد کنید"
-                className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-4 pl-11 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors text-left dir-ltr"
-                dir="ltr"
-                disabled={isPasswordPending}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((p) => !p)}
-                className="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400 hover:text-neutral-600 transition-colors touch-target-min"
-                aria-label={showPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
+            <PasswordField
+              id="login-password"
+              name="login-password"
+              label="رمز عبور"
+              autoComplete="current-password"
+              value={password}
+              onChange={handlePasswordChange}
+              fullWidth
+              disabled={isPasswordPending}
+            />
           </div>
 
           {/* Error Message */}
@@ -335,46 +302,37 @@ export default function MobileLoginPage() {
       {activeTab === "otp" && (
         <form onSubmit={handleOtpSubmit} noValidate className="animate-fade-in space-y-5" key="otp-tab">
           {/* Phone Input with Iran prefix */}
-          <div>
-            <label htmlFor="otp-mobile" className="block text-body-2 text-neutral-700 font-medium mb-2">
-              شماره موبایل
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <div className="flex items-center gap-1.5 text-neutral-400">
-                  <svg
-                    width="22"
-                    height="16"
-                    viewBox="0 0 22 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="rounded-sm"
-                    aria-hidden="true"
-                  >
-                    <rect y="0" width="22" height="5.33" fill="#239543" />
-                    <rect y="5.33" width="22" height="5.33" fill="#FFFFFF" />
-                    <rect y="10.67" width="22" height="5.33" fill="#DA0000" />
-                  </svg>
-                  <span className="text-body-2 text-neutral-400">۹۸+</span>
-                </div>
-              </div>
-              <input
-                id="otp-mobile"
-                name="otp-mobile"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                value={otpMobile}
-                onChange={handleOtpMobileChange}
-                placeholder="۰۹xxxxxxxxx"
-                aria-describedby={otpDisplayError ? "otp-mobile-error" : undefined}
-                aria-invalid={!!otpDisplayError}
-                className="w-full rounded-xl border-2 border-neutral-200 bg-neutral-50 pr-20 pl-4 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 transition-all text-left dir-ltr"
-                dir="ltr"
-                disabled={isOtpPending}
-              />
-            </div>
-          </div>
+          <TextField
+            id="otp-mobile"
+            name="otp-mobile"
+            label="شماره موبایل"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={otpMobile}
+            onChange={handleOtpMobileChange}
+            fullWidth
+            inputDir="ltr"
+            disabled={isOtpPending}
+            leadingIcon={
+              <span className="flex items-center gap-1.5">
+                <svg
+                  width="22"
+                  height="16"
+                  viewBox="0 0 22 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="rounded-sm"
+                  aria-hidden="true"
+                >
+                  <rect y="0" width="22" height="5.33" fill="#239543" />
+                  <rect y="5.33" width="22" height="5.33" fill="#FFFFFF" />
+                  <rect y="10.67" width="22" height="5.33" fill="#DA0000" />
+                </svg>
+                <span className="text-body-2">۹۸+</span>
+              </span>
+            }
+          />
 
           {/* Error Message */}
           {otpDisplayError && (
@@ -444,7 +402,7 @@ export default function MobileLoginPage() {
           href="/auth/register"
           className="text-body-2 text-primary-700 font-medium hover:text-primary-800 transition-colors"
         >
-          ساخت حساب جدید
+          هنوز حساب ندارید؟ ثبت‌نام کنید
         </Link>
         <Link
           href="/auth/forgot-password"

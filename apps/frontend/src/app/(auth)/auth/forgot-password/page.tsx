@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { TextField, PasswordField, OTPInput } from "@legalir/ui";
 import { useForgotPasswordRequest, useForgotPasswordVerify, useResetPassword, getPasswordStrength } from "@/lib/auth/use-auth";
 import { normalizeMobile } from "@/lib/auth/api";
 
@@ -28,28 +29,12 @@ export default function ForgotPasswordPage() {
   const [resetToken, setResetToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step3Error, setStep3Error] = useState("");
 
   // Hooks
   const { requestOtpForReset, isPending: isRequesting, error: requestError } = useForgotPasswordRequest();
   const { verifyResetOtp, isPending: isVerifying, error: verifyError } = useForgotPasswordVerify();
   const { resetPassword, isPending: isResetting, error: resetError } = useResetPassword();
-
-  // Digit input refs
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  // Auto-focus first digit input on step 2
-  useEffect(() => {
-    if (step === 2) {
-      // Delay to allow transition
-      const timer = setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [step]);
 
   // ---- Step 1: Request OTP ----
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,56 +76,6 @@ export default function ForgotPasswordPage() {
       });
     }
   }, [step, digits, challengeId, isVerifying, verifyResetOtp, getCode]);
-
-  const handleDigitChange = useCallback(
-    (index: number, value: string) => {
-      const cleaned = value.replace(/\D/g, "").slice(0, 1);
-      const newDigits = [...digits];
-      newDigits[index] = cleaned;
-      setDigits(newDigits);
-
-      if (cleaned && index < DIGIT_COUNT - 1) {
-        inputRefs.current[index + 1]?.focus();
-      }
-    },
-    [digits]
-  );
-
-  const handleKeyDown = useCallback(
-    (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Backspace" && !digits[index] && index > 0) {
-        const newDigits = [...digits];
-        newDigits[index - 1] = "";
-        setDigits(newDigits);
-        inputRefs.current[index - 1]?.focus();
-      } else if (e.key === "ArrowLeft" && index > 0) {
-        inputRefs.current[index - 1]?.focus();
-      } else if (e.key === "ArrowRight" && index < DIGIT_COUNT - 1) {
-        inputRefs.current[index + 1]?.focus();
-      }
-    },
-    [digits]
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, DIGIT_COUNT);
-      if (pasted.length === DIGIT_COUNT && !isVerifying && challengeId) {
-        e.preventDefault();
-        const newDigits = pasted.split("");
-        setDigits(newDigits);
-        verifyResetOtp(challengeId, pasted).then((token) => {
-          if (token) {
-            setResetToken(token);
-            setDirection("forward");
-            setStep(3);
-          }
-        });
-        inputRefs.current.forEach((ref) => ref?.blur());
-      }
-    },
-    [challengeId, isVerifying, verifyResetOtp]
-  );
 
   // ---- Step 3: New Password ----
   const passwordStrength = getPasswordStrength(password);
@@ -262,45 +197,38 @@ export default function ForgotPasswordPage() {
           className="animate-fade-in space-y-5"
           key="step-1"
         >
-          <div>
-            <label htmlFor="forgot-mobile" className="block text-body-2 text-neutral-700 font-medium mb-2">
-              شماره موبایل
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <div className="flex items-center gap-1.5 text-neutral-400">
-                  <svg
-                    width="22"
-                    height="16"
-                    viewBox="0 0 22 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="rounded-sm"
-                    aria-hidden="true"
-                  >
-                    <rect y="0" width="22" height="5.33" fill="#239543" />
-                    <rect y="5.33" width="22" height="5.33" fill="#FFFFFF" />
-                    <rect y="10.67" width="22" height="5.33" fill="#DA0000" />
-                  </svg>
-                  <span className="text-body-2 text-neutral-400">۹۸+</span>
-                </div>
-              </div>
-              <input
-                id="forgot-mobile"
-                name="forgot-mobile"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                value={mobile}
-                onChange={handleMobileChange}
-                placeholder="۰۹xxxxxxxxx"
-                className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-20 pl-4 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors text-left dir-ltr"
-                dir="ltr"
-                disabled={isRequesting}
-                autoFocus
-              />
-            </div>
-          </div>
+          <TextField
+            id="forgot-mobile"
+            name="forgot-mobile"
+            label="شماره موبایل"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={mobile}
+            onChange={handleMobileChange}
+            fullWidth
+            inputDir="ltr"
+            disabled={isRequesting}
+            autoFocus
+            leadingIcon={
+              <span className="flex items-center gap-1.5">
+                <svg
+                  width="22"
+                  height="16"
+                  viewBox="0 0 22 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="rounded-sm"
+                  aria-hidden="true"
+                >
+                  <rect y="0" width="22" height="5.33" fill="#239543" />
+                  <rect y="5.33" width="22" height="5.33" fill="#FFFFFF" />
+                  <rect y="10.67" width="22" height="5.33" fill="#DA0000" />
+                </svg>
+                <span className="text-body-2">۹۸+</span>
+              </span>
+            }
+          />
 
           {requestError && (
             <div
@@ -352,27 +280,14 @@ export default function ForgotPasswordPage() {
             کد تأیید به شماره <span className="font-medium text-neutral-800 dir-ltr">{mobile}</span> ارسال شد
           </div>
 
-          <div>
-            <label className="sr-only">کد تأیید ۶ رقمی</label>
-            <div className="flex items-center justify-center gap-2 dir-ltr" dir="ltr" onPaste={handlePaste}>
-              {digits.map((digit, index) => (
-                <input
-                  key={index}
-                  ref={(el) => { inputRefs.current[index] = el; }}
-                  id={`forgot-otp-${index}`}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={digit}
-                  onChange={(e) => handleDigitChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  maxLength={1}
-                  disabled={isVerifying}
-                  aria-label={`رقم ${index + 1} از ۶`}
-                  className="w-12 h-14 rounded-medium border-2 border-neutral-300 bg-neutral-50 text-center text-h2 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-primary-700 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-                />
-              ))}
-            </div>
+          <div className="flex justify-center">
+            <OTPInput
+              length={DIGIT_COUNT}
+              value={getCode(digits)}
+              onChange={(next) => setDigits(next.padEnd(DIGIT_COUNT, " ").slice(0, DIGIT_COUNT).split("").map((c) => (c === " " ? "" : c)))}
+              disabled={isVerifying}
+              hasError={Boolean(verifyError)}
+            />
           </div>
 
           {isVerifying && (
@@ -426,43 +341,17 @@ export default function ForgotPasswordPage() {
       {step === 3 && (
         <form onSubmit={handleResetPassword} noValidate className="animate-fade-in space-y-5" key="step-3">
           <div>
-            <label htmlFor="new-password" className="block text-body-2 text-neutral-700 font-medium mb-2">
-              رمز عبور جدید
-            </label>
-            <div className="relative">
-              <input
-                id="new-password"
-                name="new-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="new-password"
-                value={password}
-                onChange={handlePasswordChange}
-                placeholder="حداقل ۶ کاراکتر"
-                className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-4 pl-11 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors text-left dir-ltr"
-                dir="ltr"
-                disabled={isResetting}
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((p) => !p)}
-                className="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400 hover:text-neutral-600 transition-colors touch-target-min"
-                aria-label={showPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
+            <PasswordField
+              id="new-password"
+              name="new-password"
+              label="رمز عبور جدید"
+              autoComplete="new-password"
+              value={password}
+              onChange={handlePasswordChange}
+              fullWidth
+              disabled={isResetting}
+              autoFocus
+            />
 
             {password.length > 0 && (
               <div className="mt-2 space-y-1.5">
@@ -482,44 +371,16 @@ export default function ForgotPasswordPage() {
             )}
           </div>
 
-          <div>
-            <label htmlFor="new-confirm-password" className="block text-body-2 text-neutral-700 font-medium mb-2">
-              تکرار رمز عبور جدید
-            </label>
-            <div className="relative">
-              <input
-                id="new-confirm-password"
-                name="new-confirm-password"
-                type={showConfirmPassword ? "text" : "password"}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={handleConfirmPasswordChange}
-                placeholder="رمز عبور را دوباره وارد کنید"
-                className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-4 pl-11 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors text-left dir-ltr"
-                dir="ltr"
-                disabled={isResetting}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((p) => !p)}
-                className="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400 hover:text-neutral-600 transition-colors touch-target-min"
-                aria-label={showConfirmPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
-                tabIndex={-1}
-              >
-                {showConfirmPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
+          <PasswordField
+            id="new-confirm-password"
+            name="new-confirm-password"
+            label="تکرار رمز عبور جدید"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={handleConfirmPasswordChange}
+            fullWidth
+            disabled={isResetting}
+          />
 
           {(step3Error || resetError) && (
             <div className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error" role="alert">

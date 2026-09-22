@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { getCaseById, getCaseTasks, createCaseTask } from "@/lib/case-db";
 import type { CaseTaskCreateRequest } from "@legalir/types";

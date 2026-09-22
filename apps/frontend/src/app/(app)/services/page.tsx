@@ -8,7 +8,8 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { IconSearch } from "@/lib/icons";
+import { IconClose, IconSearch } from "@/lib/icons";
+import { TextField } from "@legalir/ui";
 import { LAW_SERVICE_EXAMPLES, getLawById, type LawServiceExample } from "@/lib/law-catalog";
 
 // ============================================================
@@ -417,37 +418,70 @@ const SERVICES: ServiceItem[] = [
 
   // ---- Calculations ----
   {
-    id: "damages-calculation",
-    title: "محاسبه خسارت",
-    description: "محاسبه خسارت تاخیر تادیه، عدم انجام تعهد، و سایر خسارات قانونی بر اساس نرخ روز",
+    id: "all-calculators",
+    title: "محاسبه‌گرهای حقوقی",
+    description: "فهرست کامل محاسبه‌گرهای دقیق و مستند — هزینه دادرسی، دیه، مهریه، خسارت تأخیر، عیدی، سنوات و حقوق",
     icon: <IconCalculator />,
     category: "calculations",
     gradient: "from-amber-600 to-yellow-500",
-    duration: "~۵ دقیقه",
+    duration: "~۲ دقیقه",
     outputType: "متن",
-    href: "/chat?category=calculator",
+    href: "/calculators",
+  },
+  {
+    id: "damages-calculation",
+    title: "محاسبه خسارت تأخیر تأدیه",
+    description: "محاسبه خسارت تأخیر تأدیه بر پایه شاخص تورم و ماده ۵۲۲ قانون آیین دادرسی مدنی",
+    icon: <IconCalculator />,
+    category: "calculations",
+    gradient: "from-amber-600 to-yellow-500",
+    duration: "~۲ دقیقه",
+    outputType: "متن",
+    href: "/calculators/delayed-payment",
   },
   {
     id: "court-fee-calculation",
     title: "محاسبه هزینه دادرسی",
-    description: "محاسبه هزینه دادرسی، تمبر، و کارشناسی بر اساس نوع دعوی و خواسته",
+    description: "محاسبه هزینه دادرسی بر اساس نوع دعوی، ارزش خواسته و مرحله رسیدگی",
     icon: <IconMoney />,
     category: "calculations",
     gradient: "from-rose-500 to-red-500",
-    duration: "~۵ دقیقه",
+    duration: "~۲ دقیقه",
     outputType: "متن",
-    href: "/chat?category=calculator",
+    href: "/calculators/court-fee",
   },
   {
     id: "diyeh-calculation",
     title: "محاسبه دیه",
-    description: "محاسبه میزان دیه بر اساس نوع آسیب، جنسیت، سال وقوع و نرخ مصوب قوه قضاییه",
+    description: "محاسبه میزان دیه بر اساس نوع آسیب و وقوع در ماه حرام، مطابق نرخ مصوب قوه قضاییه",
     icon: <IconMoney />,
     category: "calculations",
     gradient: "from-indigo-500 to-blue-500",
-    duration: "~۵ دقیقه",
+    duration: "~۲ دقیقه",
     outputType: "متن",
-    href: "/chat?category=calculator",
+    href: "/calculators/diyeh",
+  },
+  {
+    id: "dowry-calculation",
+    title: "محاسبه مهریه به نرخ روز",
+    description: "بازارزش مهریه بر پایه شاخص قیمت سال ازدواج و سال مطالبه",
+    icon: <IconMoney />,
+    category: "calculations",
+    gradient: "from-pink-500 to-rose-500",
+    duration: "~۲ دقیقه",
+    outputType: "متن",
+    href: "/calculators/dowry",
+  },
+  {
+    id: "salary-calculation",
+    title: "محاسبه حقوق خالص و ناخالص",
+    description: "تبدیل حقوق ناخالص به خالص و بالعکس با احتساب بیمه و مالیات بر درآمد",
+    icon: <IconMoney />,
+    category: "calculations",
+    gradient: "from-emerald-500 to-teal-500",
+    duration: "~۲ دقیقه",
+    outputType: "متن",
+    href: "/calculators/salary",
   },
 ];
 
@@ -654,30 +688,28 @@ export default function ServicesPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="relative mb-5 max-w-xl">
-        <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-          <IconSearch size={20} className="text-muted" />
-        </div>
-        <input
+      <div className="mb-5 max-w-xl">
+        <TextField
           type="search"
+          label="جستجو در خدمات"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="جستجو در خدمات..."
-          className="w-full h-12 pr-11 pl-12 rounded-xl bg-surface-container border border-divider/60 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-          aria-label="جستجو در خدمات"
+          leadingIcon={<IconSearch size={20} />}
+          endAdornment={
+            searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="پاک کردن جستجو"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+              >
+                <IconClose size={18} />
+              </button>
+            ) : undefined
+          }
+          fullWidth
         />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery("")}
-            className="absolute inset-y-0 left-0 flex items-center pl-4 text-muted hover:text-on-surface transition-colors"
-            aria-label="پاک کردن جستجو"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        )}
       </div>
 
       {/* Filter Chips */}
@@ -694,10 +726,10 @@ export default function ServicesPage() {
             aria-selected={activeFilter === filter.key}
             onClick={() => setActiveFilter(filter.key)}
             className={[
-              "shrink-0 rounded-xl px-4 py-2 text-caption font-medium transition-all touch-target",
+              "shrink-0 rounded-xl border px-4 py-2 text-caption font-medium transition-all touch-target",
               activeFilter === filter.key
-                ? "bg-primary text-white shadow-md shadow-primary/20"
-                : "bg-surface text-on-surface hover:bg-surface-hover border border-divider/60",
+                ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
             ].join(" ")}
           >
             {filter.label}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { findSessionById, findUserById, getProfile, getPreferences } from '@/lib/db';
+import { findSessionById, findUserById, getProfile, getPreferences, getAccountType } from '@/lib/db';
+import { getPlatformAccountType, getUserRole, findActiveMembership } from '@/lib/rbac';
 
 function getUserFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -28,6 +29,13 @@ export async function GET(request: Request) {
 
   const profile = getProfile(userId);
   const preferences = getPreferences(userId);
+  const accountType = getAccountType(userId);
+
+  // Platform account type + effective RBAC role. The org membership (when
+  // present) takes precedence so a removed member loses access immediately.
+  const platformAccountType = getPlatformAccountType(user);
+  const membership = findActiveMembership(userId);
+  const role = membership ? membership.role : getUserRole(user);
 
   const data = {
     user: {
@@ -35,6 +43,14 @@ export async function GET(request: Request) {
       mobileE164: `+98${user.mobile.replace(/^0/, '')}`,
       mobileDisplay: user.mobile.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'['0123456789'.indexOf(d)] ?? d),
       status: 'active' as const,
+      accountType,
+      // Once legal, the account type can never change again.
+      accountTypeLocked: accountType === 'legal',
+      // --- Platform model (additive) ---
+      platformAccountType,
+      role,
+      orgId: membership?.orgId ?? user.orgId ?? null,
+      orgRole: membership?.role ?? null,
     },
     profile: {
       userId: user.id,
@@ -52,6 +68,8 @@ export async function GET(request: Request) {
       primaryUseCase: profile.primaryUseCase,
     },
     preferences,
+    // Legacy top-level role kept for existing consumers; the authoritative
+    // platform role is `user.role` above.
     role: 'user' as const,
   };
 

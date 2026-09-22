@@ -8,7 +8,8 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { generateDemoContract, getDemoContract } from "@/lib/demo-seed";
-import { recordActivity, consumeDailyRequest, queryDailyQuota } from "@/lib/db";
+import { recordActivity } from "@/lib/db";
+import { reserveUsage, completeUsage, getUsageSummary } from "@/lib/usage/engine";
 
 export async function POST(
   request: Request,
@@ -24,14 +25,21 @@ export async function POST(
 
   const { id } = await params;
 
-  // Enforce the day's allowance before generating.
-  const quota = queryDailyQuota(userId);
-  if (quota.exhausted) {
+  // Reserve the activity's cost atomically before generating. This checks
+  // BOTH the daily request credit AND the period contract-creation quota.
+  const reservation = reserveUsage({
+    userId,
+    activity: "CONTRACT_CREATE",
+    source: "contract",
+    relatedEntityId: id,
+    idempotencyKey: `contract:${id}`,
+  });
+  if (!reservation.ok) {
     return NextResponse.json(
       {
-        code: "QUOTA_EXHAUSTED",
-        message: "سهمیه درخواست امروز شما به پایان رسیده است.",
-        quota,
+        code: reservation.code ?? "QUOTA_EXHAUSTED",
+        message: reservation.messageFa || "سهمیه شما به پایان رسیده است.",
+        usage: getUsageSummary(userId),
       },
       { status: 429 }
     );
@@ -45,7 +53,8 @@ export async function POST(
     );
   }
 
-  consumeDailyRequest(userId);
+  // The generation succeeded — commit the reservation.
+  if (reservation.transaction) completeUsage(reservation.transaction.id);
 
   const contract = getDemoContract(userId, id);
   recordActivity({

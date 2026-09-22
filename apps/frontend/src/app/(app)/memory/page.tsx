@@ -17,6 +17,7 @@ import {
   IconChat,
 } from "@/lib/icons";
 import type { V1MemoryItem } from "@legalir/types";
+import { TextField } from "@legalir/ui";
 
 // ============================================================
 // Constants
@@ -427,32 +428,22 @@ export default function MemoryPage() {
                       onSubmit={(e) => handleSaveEdit(item.id, e)}
                       className="space-y-3"
                     >
-                      <div>
-                        <label className="block text-caption text-muted mb-1">
-                          کلید
-                        </label>
-                        <input
-                          type="text"
-                          value={editKey}
-                          onChange={(e) => setEditKey(e.target.value)}
-                          className="w-full rounded-md border border-divider bg-surface px-3 py-2 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                          placeholder="مثال: نام وکیل"
-                          dir="rtl"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-caption text-muted mb-1">
-                          مقدار
-                        </label>
-                        <input
-                          type="text"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="w-full rounded-md border border-divider bg-surface px-3 py-2 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                          placeholder="مثال: محمد محمدی"
-                          dir="rtl"
-                        />
-                      </div>
+                      <TextField
+                        label="کلید"
+                        type="text"
+                        value={editKey}
+                        onChange={(e) => setEditKey(e.target.value)}
+                        placeholder="مثال: نام وکیل"
+                        fullWidth
+                      />
+                      <TextField
+                        label="مقدار"
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        placeholder="مثال: محمد محمدی"
+                        fullWidth
+                      />
                       <div className="flex items-center gap-2">
                         <button
                           type="submit"

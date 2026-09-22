@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { TextField, Textarea, Select } from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
 import { IconAdd, IconSearch, IconBalance } from "@/lib/icons";
@@ -106,55 +107,41 @@ function CreateCaseModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-body-2 text-on-surface font-medium mb-1.5">عنوان پرونده</label>
-            <input
-              type="text"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="مثلاً: اختلاف ملکی با همسایه"
-              className="w-full h-11 rounded-xl bg-surface-container border border-divider/60 px-4 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-              required
-            />
-          </div>
+          <TextField
+            type="text"
+            label="عنوان پرونده"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="مثلاً: اختلاف ملکی با همسایه"
+            fullWidth
+            required
+          />
 
-          <div>
-            <label className="block text-body-2 text-on-surface font-medium mb-1.5">توضیحات</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="شرح مختصری از موضوع پرونده..."
-              rows={3}
-              className="w-full rounded-xl bg-surface-container border border-divider/60 px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all resize-none"
-            />
-          </div>
+          <Textarea
+            label="توضیحات"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="شرح مختصری از موضوع پرونده..."
+            rows={3}
+            fullWidth
+          />
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-body-2 text-on-surface font-medium mb-1.5">دسته‌بندی</label>
-              <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value as CaseCategory })}
-                className="w-full h-11 rounded-xl bg-surface-container border border-divider/60 px-3 text-body-2 text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{CASE_CATEGORY_FA[c]}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="دسته‌بندی"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value as CaseCategory })}
+              fullWidth
+              options={CATEGORIES.map((c) => ({ value: c, label: CASE_CATEGORY_FA[c] }))}
+            />
 
-            <div>
-              <label className="block text-body-2 text-on-surface font-medium mb-1.5">اولویت</label>
-              <select
-                value={form.priority}
-                onChange={(e) => setForm({ ...form, priority: e.target.value as CasePriority })}
-                className="w-full h-11 rounded-xl bg-surface-container border border-divider/60 px-3 text-body-2 text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>{CASE_PRIORITY_FA[p]}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="اولویت"
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value as CasePriority })}
+              fullWidth
+              options={PRIORITIES.map((p) => ({ value: p, label: CASE_PRIORITY_FA[p] }))}
+            />
           </div>
 
           <div className="flex items-center gap-3 pt-2">
@@ -247,17 +234,15 @@ export default function CasesPage() {
 
       {/* Search & Filter Bar */}
       <div className="flex flex-col tablet:flex-row gap-3 mb-6">
-        <div className="relative flex-1 max-w-xl">
-          <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-            <IconSearch size={20} className="text-muted" />
-          </div>
-          <input
+        <div className="flex-1 max-w-xl">
+          <TextField
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="جستجو در پرونده‌ها..."
-            className="w-full h-11 pr-11 pl-4 rounded-xl bg-surface-container border border-divider/60 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
             aria-label="جستجو در پرونده‌ها"
+            fullWidth
+            leadingIcon={<IconSearch size={20} />}
           />
         </div>
 
@@ -268,10 +253,10 @@ export default function CasesPage() {
               key={f.key}
               onClick={() => setStatusFilter(f.key)}
               className={[
-                "shrink-0 rounded-xl px-3 py-1.5 text-caption font-medium transition-all touch-target",
+                "shrink-0 rounded-xl border px-3 py-1.5 text-caption font-medium transition-all touch-target",
                 statusFilter === f.key
-                  ? "bg-primary text-white shadow-sm"
-                  : "bg-surface text-on-surface hover:bg-surface-hover border border-divider/60",
+                  ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                  : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
               ].join(" ")}
             >
               {f.label}

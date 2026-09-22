@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { TextField } from "@legalir/ui";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUpdateProfile } from "@/hooks/useDashboard";
 
@@ -103,118 +104,91 @@ export default function ProfileCompletionPage() {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {/* Display Name */}
-        <div>
-          <label htmlFor="displayName" className="block text-body-2 text-neutral-700 font-medium mb-2">
-            نام نمایشی
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-neutral-400"
-                aria-hidden="true"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-            <input
-              id="displayName"
-              name="displayName"
-              type="text"
-              value={formData.displayName}
-              onChange={handleChange}
-              placeholder="مثال: علی محمدی"
-              maxLength={100}
-              className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-11 pl-4 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors"
-              dir="rtl"
-              disabled={updateProfile.isPending}
-            />
-          </div>
-        </div>
+        <TextField
+          id="displayName"
+          name="displayName"
+          type="text"
+          label="نام نمایشی"
+          value={formData.displayName}
+          onChange={handleChange}
+          maxLength={100}
+          fullWidth
+          disabled={updateProfile.isPending}
+          leadingIcon={
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          }
+        />
 
         {/* City */}
-        <div>
-          <label htmlFor="city" className="block text-body-2 text-neutral-700 font-medium mb-2">
-            شهر
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-neutral-400"
-                aria-hidden="true"
-              >
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-            </div>
-            <input
-              id="city"
-              name="city"
-              type="text"
-              value={formData.city}
-              onChange={handleChange}
-              placeholder="مثال: تهران"
-              maxLength={50}
-              className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-11 pl-4 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors"
-              dir="rtl"
-              disabled={updateProfile.isPending}
-            />
-          </div>
-        </div>
+        <TextField
+          id="city"
+          name="city"
+          type="text"
+          label="شهر"
+          value={formData.city}
+          onChange={handleChange}
+          maxLength={50}
+          fullWidth
+          disabled={updateProfile.isPending}
+          leadingIcon={
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+          }
+        />
 
         {/* Occupation */}
-        <div>
-          <label htmlFor="occupation" className="block text-body-2 text-neutral-700 font-medium mb-2">
-            شغل
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-neutral-400"
-                aria-hidden="true"
-              >
-                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-              </svg>
-            </div>
-            <input
-              id="occupation"
-              name="occupation"
-              type="text"
-              value={formData.occupation}
-              onChange={handleChange}
-              placeholder="مثال: وکیل دادگستری"
-              maxLength={100}
-              className="w-full rounded-medium border border-neutral-300 bg-neutral-50 pr-11 pl-4 py-3.5 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:border-transparent transition-colors"
-              dir="rtl"
-              disabled={updateProfile.isPending}
-            />
-          </div>
-        </div>
+        <TextField
+          id="occupation"
+          name="occupation"
+          type="text"
+          label="شغل"
+          value={formData.occupation}
+          onChange={handleChange}
+          maxLength={100}
+          fullWidth
+          disabled={updateProfile.isPending}
+          leadingIcon={
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+            </svg>
+          }
+        />
 
         {/* Error Message */}
         {error && (

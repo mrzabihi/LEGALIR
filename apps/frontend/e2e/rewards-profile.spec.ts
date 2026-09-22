@@ -153,7 +153,10 @@ test.describe("My Points page (Tasks 28–29, 31)", () => {
     await mockAuth(page, sessionId);
     await page.goto("/points");
 
-    await expect(page.getByText("امتیازهای من")).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    // The page title is an h1; the breadcrumb also carries this label.
+    await expect(
+      page.getByRole("heading", { name: "امتیازهای من", level: 1 })
+    ).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await expect(page.getByText("راه‌های کسب امتیاز")).toBeVisible();
     await expect(page.getByText("استفاده از امتیاز")).toBeVisible();
   });

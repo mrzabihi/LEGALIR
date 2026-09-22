@@ -41,12 +41,12 @@ export const SERVICE_CONTEXTS: Record<ServiceType, ServiceContext> = {
   },
   legal_notice: {
     serviceType: "legal_notice",
-    label: "تنظیم اظهارنامه",
+    label: "تولید اظهارنامه",
     description: "تنظیم اظهارنامه رسمی با ذکر مستندات قانونی",
   },
   document_analysis: {
     serviceType: "document_analysis",
-    label: "تحلیل سند",
+    label: "تحلیل اسناد",
     description: "بررسی هوشمند اسناد حقوقی همراه با ارجاعات",
   },
   legal_calculation: {
@@ -71,6 +71,31 @@ export function getServiceContext(type: string | undefined | null): ServiceConte
     return SERVICE_CONTEXTS[type as ServiceType];
   }
   return SERVICE_CONTEXTS.legal_consultation;
+}
+
+/**
+ * The composer placeholder for a service, so the input reflects what the
+ * user is actually here to do (§10). Falls back to the generic prompt.
+ */
+export function composerPlaceholder(type: string | undefined | null): string {
+  switch (type) {
+    case "contract_review":
+      return "قرارداد را بارگذاری کنید یا بگویید چه بخشی را می‌خواهید بررسی کنیم...";
+    case "contract_drafting":
+      return "بگویید چه نوع قراردادی می‌خواهید و چه شرایطی باید در آن باشد...";
+    case "legal_notice":
+      return "موضوع اظهارنامه و طرف مقابل را توضیح دهید...";
+    case "document_analysis":
+      return "سند را بارگذاری کنید یا بگویید چه چیزی را در آن بررسی کنیم...";
+    case "legal_calculation":
+      return "برای محاسبه، مبلغ و نوع خسارت یا هزینه را مشخص کنید...";
+    case "law_search":
+      return "قانون، ماده یا موضوع حقوقی موردنظر را بنویسید...";
+    case "case_analysis":
+      return "وضعیت پرونده و آخرین اقدام انجام‌شده را توضیح دهید...";
+    default:
+      return "مسئله حقوقی خود را با جزئیات لازم توضیح دهید...";
+  }
 }
 
 /**
@@ -110,5 +135,9 @@ export function serviceTypeFromQuery(search: string | null | undefined): Service
   if (!search) return "legal_consultation";
   const params = new URLSearchParams(search);
   const service = params.get("service") ?? params.get("category");
+  if (!service) return "legal_consultation";
+  // Canonical `?service=` values are already ServiceType ids.
+  if (service in SERVICE_CONTEXTS) return service as ServiceType;
+  // Legacy `?category=` aliases map through the table above.
   return categoryToServiceType(service);
 }

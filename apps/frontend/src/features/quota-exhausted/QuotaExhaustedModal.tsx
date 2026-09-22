@@ -3,21 +3,30 @@
 // ============================================================
 // LEGALIR — Quota Exhausted Modal
 // ============================================================
-// Shown when the user's daily request allowance is fully consumed
-// (or their subscription has lapsed). Displays a live countdown to
-// the next reset (Tehran midnight, from the server clock) and a CTA
-// to purchase/upgrade a subscription.
+// Shown when a billable activity is blocked by the usage engine. The
+// title and body switch on the structured error code so the user learns
+// WHICH limit they hit:
+//
+//   • daily credit exhausted  → resets at Tehran midnight (countdown)
+//   • a period service quota  → resets only at period end
+//   • subscription expired    → renew
+//
+// The countdown is driven by the server's `resetAt`, never the client clock.
 // ============================================================
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Dialog, Button } from "@legalir/ui";
-import type { V1DailyQuota } from "@legalir/types";
+import { toPersianNumber } from "@/lib/persian-utils";
+import type { SubscriptionUsageSummary, UsageErrorCode } from "@legalir/types";
 
 interface QuotaExhaustedModalProps {
   open: boolean;
   onClose: () => void;
-  quota: V1DailyQuota | null;
+  /** The structured error code from the engine (defaults to daily credit). */
+  code?: string | null;
+  /** The live usage summary returned with the 429. */
+  usage?: SubscriptionUsageSummary | null;
 }
 
 function pad(n: number): string {
@@ -51,21 +60,46 @@ function useCountdown(resetAt: string | undefined): string {
   return remaining;
 }
 
-export function QuotaExhaustedModal({ open, onClose, quota }: QuotaExhaustedModalProps) {
-  const countdown = useCountdown(quota?.resetAt);
-  const expired = quota?.subscriptionExpired ?? false;
+/** Which period quota a code refers to, for the copy. */
+const PERIOD_QUOTA_CODES: Partial<Record<UsageErrorCode, string>> = {
+  AI_MESSAGE_LIMIT_EXCEEDED: "پیام هوش مصنوعی",
+  TOKEN_LIMIT_EXCEEDED: "توکن",
+  DOCUMENT_ANALYSIS_LIMIT_EXCEEDED: "تحلیل سند",
+  CONTRACT_LIMIT_EXCEEDED: "قرارداد",
+};
+
+export function QuotaExhaustedModal({ open, onClose, code, usage }: QuotaExhaustedModalProps) {
+  const resetAt = usage?.daily.resetAt;
+  const countdown = useCountdown(resetAt);
+
+  const expired = code === "SUBSCRIPTION_EXPIRED" || usage?.subscriptionExpired === true;
+  const noSubscription = code === "NO_ACTIVE_SUBSCRIPTION";
+  const periodQuotaName = code ? PERIOD_QUOTA_CODES[code as UsageErrorCode] : undefined;
+  const isPeriodQuota = Boolean(periodQuotaName);
+
+  const title = expired
+    ? "اشتراک شما به پایان رسیده است"
+    : noSubscription
+      ? "اشتراک فعالی ندارید"
+      : isPeriodQuota
+        ? `سهمیه ${periodQuotaName} شما به پایان رسیده است`
+        : "اعتبار امروز شما به پایان رسید";
+
+  const description = expired
+    ? "برای ادامه استفاده از خدمات هوشمند، اشتراک خود را تمدید کنید."
+    : noSubscription
+      ? "برای استفاده از این امکان، یک پلن تهیه کنید."
+      : isPeriodQuota
+        ? `سهمیه ${periodQuotaName} این دوره شما مصرف شده است. این سهمیه فقط در پایان دوره بازنشانی می‌شود.`
+        : "اعتبار درخواست‌های امروز شما مصرف شده است. می‌توانید تا بازنشانی اعتبار صبر کنید یا اشتراک تهیه کنید.";
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       maxWidth="sm"
-      title={expired ? "اشتراک شما به پایان رسیده است" : "سهمیه درخواست امروز به پایان رسید"}
-      description={
-        expired
-          ? "برای ادامه استفاده از خدمات هوشمند، اشتراک خود را تمدید کنید."
-          : "سهمیه درخواست‌های امروز شما مصرف شده است. می‌توانید تا بازنشانی سهمیه صبر کنید یا اشتراک تهیه کنید."
-      }
+      title={title}
+      description={description}
       actions={
         <>
           <Button variant="text" onClick={onClose}>
@@ -80,28 +114,39 @@ export function QuotaExhaustedModal({ open, onClose, quota }: QuotaExhaustedModa
       }
     >
       <div className="space-y-4">
-        {/* Countdown to reset */}
-        <div className="rounded-large bg-surfaceVariant/50 p-4 text-center">
-          <p className="text-bodySmall text-onSurfaceVariant mb-2">
-            زمان باقی‌مانده تا بازنشانی سهمیه
-          </p>
-          <p
-            className="text-h2 font-bold text-primary tabular-nums"
-            dir="ltr"
-            aria-live="polite"
-          >
-            {countdown}
-          </p>
-          <p className="text-labelSmall text-muted mt-1">بازنشانی در نیمه‌شب به وقت تهران</p>
-        </div>
+        {/* Countdown to reset — only meaningful for the daily credit */}
+        {!isPeriodQuota && !noSubscription && (
+          <div className="rounded-large bg-surfaceVariant/50 p-4 text-center">
+            <p className="text-bodySmall text-onSurfaceVariant mb-2">
+              زمان باقی‌مانده تا بازنشانی اعتبار
+            </p>
+            <p
+              className="text-h2 font-bold text-primary tabular-nums"
+              dir="ltr"
+              aria-live="polite"
+            >
+              {countdown}
+            </p>
+            <p className="text-labelSmall text-muted mt-1">بازنشانی در نیمه‌شب به وقت تهران</p>
+          </div>
+        )}
 
-        {/* Usage summary */}
-        {quota && (
-          <div className="flex items-center justify-between rounded-medium bg-surfaceVariant/30 px-4 py-3">
-            <span className="text-bodySmall text-onSurfaceVariant">مصرف امروز</span>
-            <span className="text-labelMedium text-onSurface tabular-nums" dir="ltr">
-              {quota.used} / {quota.total}
-            </span>
+        {/* Usage summary — today's credit and the persistent reward points */}
+        {usage && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-medium bg-surfaceVariant/30 px-4 py-3">
+              <span className="text-bodySmall text-onSurfaceVariant">اعتبار امروز</span>
+              <span className="text-labelMedium text-onSurface tabular-nums" dir="ltr">
+                {toPersianNumber(usage.daily.pointsRemaining)} /{" "}
+                {toPersianNumber(usage.daily.pointsTotal)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-medium bg-surfaceVariant/30 px-4 py-3">
+              <span className="text-bodySmall text-onSurfaceVariant">امتیازهای شما</span>
+              <span className="text-labelMedium text-onSurface tabular-nums" dir="ltr">
+                {toPersianNumber(usage.rewardPoints)}
+              </span>
+            </div>
           </div>
         )}
       </div>

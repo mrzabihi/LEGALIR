@@ -10,11 +10,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useMe } from "@/hooks/useDashboard";
-import {
-  useRewardsSummary,
-  useRewardsHistory,
-  useClaimDailyVisit,
-} from "@/hooks/useRewards";
+import { useRewardsSummary, useClaimDailyVisit } from "@/hooks/useRewards";
+import { usePointsAccount, usePointsTransactions } from "@/hooks/useAccount";
+import { Breadcrumb } from "@/components/shared/Breadcrumb";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
   IconCoin,
@@ -83,13 +81,18 @@ function ruleIcon(eventType: RewardRuleInfo["eventType"]) {
 export default function MyPointsPage() {
   const me = useMe();
   const summary = useRewardsSummary();
-  const history = useRewardsHistory(1, 50);
+  const account = usePointsAccount();
+  const history = usePointsTransactions(1, 50);
   const claim = useClaimDailyVisit();
 
   const [toast, setToast] = useState<string | null>(null);
 
   const profileCompleted = (me.data?.profile?.completionPercent ?? 0) >= 100;
-  const balance = summary.data?.balance ?? 0;
+  // Balance is the ledger-derived aggregate — the same source the header
+  // badge and dashboard card read, so all three always agree.
+  const balance = account.data?.balance ?? summary.data?.balance ?? 0;
+  const lifetimeEarned = account.data?.lifetimeEarned ?? 0;
+  const lifetimeSpent = account.data?.lifetimeSpent ?? 0;
   const visitClaimed = summary.data?.today?.visitRewardClaimed ?? false;
   const rules = summary.data?.rules ?? [];
 
@@ -118,6 +121,13 @@ export default function MyPointsPage() {
         </div>
       )}
 
+      <Breadcrumb
+        items={[
+          { label: "داشبورد", href: "/dashboard" },
+          { label: "امتیازهای من" },
+        ]}
+      />
+
       <div className="flex items-center gap-3 mb-6">
         <Link
           href="/dashboard"
@@ -143,6 +153,22 @@ export default function MyPointsPage() {
             <p className="text-h1 text-white font-bold tabular-nums" aria-live="polite">
               {toPersianNumber(balance)}
               <span className="text-body-1 text-secondary-200 font-normal mr-2">امتیاز</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Lifetime aggregates — derived from the ledger, never stored */}
+        <div className="relative mt-5 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white/10 px-4 py-3">
+            <p className="text-caption text-secondary-100/80">مجموع کسب‌شده</p>
+            <p className="text-body-1 text-white font-semibold tabular-nums mt-0.5" dir="ltr">
+              +{toPersianNumber(lifetimeEarned)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-4 py-3">
+            <p className="text-caption text-secondary-100/80">مجموع خرج‌شده</p>
+            <p className="text-body-1 text-white font-semibold tabular-nums mt-0.5" dir="ltr">
+              −{toPersianNumber(lifetimeSpent)}
             </p>
           </div>
         </div>

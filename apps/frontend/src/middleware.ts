@@ -23,13 +23,16 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/services",
   "/support",
+  "/calculators",
+  "/lawyer",
+  "/onboarding",
 ];
 
 /** Routes accessible only to unauthenticated users (redirect to dashboard if logged in) */
 const GUEST_ONLY_PREFIXES = ["/auth/mobile", "/auth/verify", "/login", "/register"];
 
 /** Public routes accessible by anyone */
-const PUBLIC_PREFIXES = ["/", "/pricing", "/features", "/about", "/contact", "/health", "/design-system"];
+const PUBLIC_PREFIXES = ["/", "/pricing", "/features", "/about", "/contact", "/terms", "/privacy-policy", "/blog", "/health", "/design-system", "/contracts/verify"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -90,7 +93,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Skip the middleware entirely for static assets and API routes. The
+  // previous matcher only excluded a handful of extensions, so every
+  // font/PDF/icon request still paid for a middleware invocation (and
+  // the isPublic/isProtected scans) before being served.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|mockServiceWorker.js|.*\\.svg$|.*\\.png$).*)",
+    "/((?!_next/static|_next/image|api|favicon.ico|mockServiceWorker.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|pdf|txt|xml|json|webmanifest)$).*)",
   ],
 };

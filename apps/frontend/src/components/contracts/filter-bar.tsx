@@ -2,6 +2,7 @@
 // LEGALIR — Contract Filter Bar (Phase 10)
 // ============================================================
 
+import { TextField, Select } from "@legalir/ui";
 import type { V1ContractState, V1ContractCategory } from "@legalir/types";
 import { V1_CONTRACT_STATE_LABELS } from "@legalir/types";
 
@@ -39,16 +40,14 @@ export function ContractFilterBar({
   return (
     <div className="flex flex-col gap-3">
       {/* Search */}
-      <div className="relative">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="جستجو در قراردادها..."
-          className="w-full rounded-medium bg-surface-container px-4 py-3 text-body-2 text-on-surface placeholder:text-muted border border-divider focus:outline-none focus:ring-2 focus:ring-primary touch-target"
-          aria-label="جستجو در قراردادها"
-        />
-      </div>
+      <TextField
+        type="search"
+        label="جستجو در قراردادها"
+        value={search}
+        onChange={(e) => onSearchChange(e.target.value)}
+        placeholder="جستجو در قراردادها..."
+        fullWidth
+      />
 
       {/* Filters Row */}
       <div className="flex flex-col tablet:flex-row gap-2">
@@ -81,34 +80,36 @@ export function ContractFilterBar({
 
         <div className="flex gap-2 ms-auto rtl:ms-auto rtl:me-auto">
           {/* Category Filter */}
-          <select
+          <Select
+            label="دسته‌بندی"
             value={categoryFilter ?? ""}
             onChange={(e) =>
               onCategoryFilterChange(
                 (e.target.value as V1ContractCategory) || undefined
               )
             }
-            className="rounded-medium bg-surface-container px-3 py-1.5 text-caption border border-divider touch-target"
-            aria-label="دسته‌بندی"
-          >
-            <option value="">همه دسته‌ها</option>
-            <option value="personal">شخصی</option>
-            <option value="business">تجاری</option>
-          </select>
+            placeholder="همه دسته‌ها"
+            selectSize="small"
+            options={[
+              { value: "personal", label: "شخصی" },
+              { value: "business", label: "تجاری" },
+            ]}
+          />
 
           {/* Sort */}
-          <select
+          <Select
+            label="مرتب‌سازی"
             value={sort}
             onChange={(e) =>
               onSortChange(e.target.value as "newest" | "oldest" | "title")
             }
-            className="rounded-medium bg-surface-container px-3 py-1.5 text-caption border border-divider touch-target"
-            aria-label="مرتب‌سازی"
-          >
-            <option value="newest">جدیدترین</option>
-            <option value="oldest">قدیمی‌ترین</option>
-            <option value="title">الفبا</option>
-          </select>
+            selectSize="small"
+            options={[
+              { value: "newest", label: "جدیدترین" },
+              { value: "oldest", label: "قدیمی‌ترین" },
+              { value: "title", label: "الفبا" },
+            ]}
+          />
         </div>
       </div>
     </div>

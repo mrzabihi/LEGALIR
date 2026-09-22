@@ -83,8 +83,8 @@ export function appendMessage(conversationId: string, message: StoredMessage): v
 export function deleteMessages(conversationId: string): void {
   const table = readMessagesTable();
   if (!(conversationId in table)) return;
-  delete table[conversationId];
-  writeMessagesTable(table);
+  const { [conversationId]: _removed, ...rest } = table;
+  writeMessagesTable(rest);
 }
 
 // ============================================================

@@ -6,6 +6,7 @@ import { IconRetry, IconWarning } from "@/lib/icons";
 import { AiRunIndicator } from "./ai-run-indicator";
 import { StructuredResponse } from "./structured-response";
 import { DisclaimerBanner } from "./disclaimer-banner";
+import { ChatDocumentAttachment, refToAttachment } from "./chat-document-attachment";
 
 interface MessageBubbleProps {
   message: Message & {
@@ -17,6 +18,8 @@ interface MessageBubbleProps {
   runStatus?: AiRunStatus | null;
   onRetry?: () => void;
   onCitationClick?: (reference: V1Reference) => void;
+  /** Open a document attached to this message in the existing viewer. */
+  onAttachmentClick?: (documentId: string) => void;
   scrollToSectionId?: string | null;
   onScrollComplete?: () => void;
 }
@@ -27,6 +30,7 @@ export function MessageBubble({
   runStatus,
   onRetry,
   onCitationClick,
+  onAttachmentClick,
   scrollToSectionId,
   onScrollComplete,
 }: MessageBubbleProps) {
@@ -35,6 +39,7 @@ export function MessageBubble({
   const isFailed = message.status === "failed";
   const isBlocked = message.status === "blocked";
   const hasSections = isAssistant && message.sections && message.sections.length > 0;
+  const attachments = message.attachments ?? [];
 
   return (
     <div
@@ -81,6 +86,22 @@ export function MessageBubble({
             <div className="flex items-center gap-2 mb-2 text-warning">
               <IconWarning size={16} />
               <span className="text-bodySmall">پاسخ به این درخواست امکان‌پذیر نیست</span>
+            </div>
+          )}
+
+          {/* Attached documents — persisted references, opened in the
+              existing viewer. Shown above the message text. */}
+          {attachments.length > 0 && (
+            <div className="mb-2 space-y-2">
+              {attachments.map((ref) => (
+                <ChatDocumentAttachment
+                  key={ref.attachmentId}
+                  variant="MESSAGE"
+                  document={refToAttachment(ref)}
+                  onPrimary={isUser}
+                  onOpen={onAttachmentClick}
+                />
+              ))}
             </div>
           )}
 

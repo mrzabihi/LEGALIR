@@ -12,6 +12,8 @@ import { useLogout } from "@/lib/auth/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMe } from "@/hooks/useDashboard";
 import { useRewardsSummary } from "@/hooks/useRewards";
+import { SubscriptionStatusChip } from "@/components/subscription/subscription-status";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   IconPerson,
@@ -50,21 +52,39 @@ export function TopBar() {
 
   return (
     <>
-      {/* Mobile logo */}
-      <Link href="/dashboard" className="desktop:hidden flex items-center shrink-0">
-        <img src="/legalir-logo.png" alt="LEGALIR" className="h-10 w-auto shrink-0" />
+      {/* Mobile leading slot — the bottom navigation bar already covers
+          every destination, so there is no hamburger/drawer trigger here.
+          The subscription chip takes its place instead. */}
+      <div className="desktop:hidden">
+        <SubscriptionStatusChip />
+      </div>
+
+      {/* Notification Center — on mobile/tablet the bell sits at the start
+          of the header; on desktop it stays beside the avatar (below). */}
+      <div className="desktop:hidden">
+        <NotificationBell />
+      </div>
+
+      {/* Centered brand logo — single instance shared by desktop & mobile */}
+      <Link
+        href="/dashboard"
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center"
+        aria-label="LEGALIR — داشبورد"
+      >
+        <img
+          src="/legalir-logo-fa-type.png"
+          alt="LEGALIR"
+          className="h-8 tablet:h-10 w-auto max-w-[150px] tablet:max-w-[190px] object-contain [[data-theme=dark]_&]:brightness-0 [[data-theme=dark]_&]:invert"
+        />
       </Link>
 
       <div className="flex-1" />
 
-      {/* Quick support button */}
-      <Link
-        href="/support"
-        className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-xl hover:bg-neutral-100 transition-colors touch-target-min"
-        aria-label="پشتیبانی"
-      >
-        <IconPhone size={20} className="text-neutral-500" />
-      </Link>
+      {/* Subscription status — desktop shows it beside the avatar; on
+          mobile it leads the header instead (see the top of this bar). */}
+      <div className="hidden desktop:block">
+        <SubscriptionStatusChip />
+      </div>
 
       {/* Points card — beside Avatar */}
       <Link
@@ -81,6 +101,13 @@ export function TopBar() {
           {toPersianNumber(balance)}
         </span>
       </Link>
+
+      {/* Notification Center — desktop keeps the bell beside the avatar.
+          On mobile/tablet it moves into the navigation drawer header, so
+          it is hidden here to avoid showing it twice. */}
+      <div className="hidden desktop:block">
+        <NotificationBell />
+      </div>
 
       {/* User Menu */}
       <div className="relative" ref={menuRef}>

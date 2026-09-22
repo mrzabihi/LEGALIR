@@ -5,6 +5,7 @@
 "use client";
 
 import { useState } from "react";
+import { Checkbox } from "@legalir/ui";
 import type { V1ContractDetail as V1ContractDetailType } from "@legalir/types";
 import { ContractStateBadge } from "./state-badge";
 import { ContractPreview } from "./contract-preview";
@@ -137,18 +138,15 @@ export function ContractDetailView({ contract }: ContractDetailProps) {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-h4 text-on-surface">مدیریت نسخه‌ها</h3>
-              <label className="flex items-center gap-2 text-caption text-muted cursor-pointer touch-target">
-                <input
-                  type="checkbox"
-                  checked={compareMode}
-                  onChange={(e) => {
-                    setCompareMode(e.target.checked);
-                    if (!e.target.checked) setSelectedCompareVersions([]);
-                  }}
-                  className="w-4 h-4 accent-primary"
-                />
-                حالت مقایسه
-              </label>
+              <Checkbox
+                label="حالت مقایسه"
+                checked={compareMode}
+                onChange={(e) => {
+                  setCompareMode(e.target.checked);
+                  if (!e.target.checked) setSelectedCompareVersions([]);
+                }}
+                className="text-caption text-muted touch-target"
+              />
             </div>
 
             {comparePair && (

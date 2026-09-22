@@ -3,8 +3,11 @@
    Material Design V2 + Persian RTL + Vazir Font
    ============================================================ */
 
-/* --- Vazir Font --- */
-@import "vazirmatn/Vazirmatn-font-face.css";
+/* --- Vazir Font ---
+   Variable font: one 111 KB file covers weights 100–900. The static
+   face sheet declared 9 separate @font-face rules (~460 KB total) and
+   the browser fetched a new file on every weight change. */
+@import "vazirmatn/Vazirmatn-Variable-font-face.css";
 
 /* ============================================================
    TAILWIND CSS DIRECTIVES
@@ -100,42 +103,212 @@
   --color-error-50: #FEF2F2;
   --color-error-100: #FEE2E2;
   --color-error-200: #FECACA;
+  --color-error-300: #FCA5A5;
+  --color-error-400: #F87171;
+  --color-error-500: #EF4444;
   --color-error-600: #B42318;
   --color-error-700: #912018;
+  --color-error-800: #7A1C14;
+  --color-error-900: #601410;
 
   --color-warning-50: #FFFBEB;
   --color-warning-100: #FEF3C7;
   --color-warning-200: #FDE68A;
+  --color-warning-300: #FCD34D;
+  --color-warning-400: #FBBF24;
+  --color-warning-500: #F59E0B;
   --color-warning-600: #B45309;
   --color-warning-700: #92400E;
+  --color-warning-800: #78350F;
+  --color-warning-900: #4D3300;
 
   --color-success-50: #ECFDF5;
   --color-success-100: #D1FAE5;
   --color-success-200: #A7F3D0;
+  --color-success-300: #6EE7B7;
+  --color-success-400: #34D399;
+  --color-success-500: #10B981;
   --color-success-600: #1F6F50;
   --color-success-700: #16623F;
+  --color-success-800: #11543A;
+  --color-success-900: #0D331F;
 
   --color-info-50: #EFF6FF;
   --color-info-100: #DBEAFE;
   --color-info-200: #BFDBFE;
+  --color-info-300: #93C5FD;
+  --color-info-400: #60A5FA;
+  --color-info-500: #3B82F6;
   --color-info-600: #2563EB;
   --color-info-700: #1D4ED8;
+  --color-info-800: #1E40AF;
+  --color-info-900: #0A1E3C;
+
+  /* Violet accent — the third usage-card accent (blue · green · violet).
+     Deliberately NOT mapped onto the `violet` Tailwind alias, which points
+     at the info ramp; these are referenced directly via var(). */
+  --color-violet-50: #F5F3FF;
+  --color-violet-500: #8B5CF6;
+  --color-violet-600: #7C3AED;
+
+  /* --- Material Design 3 semantic roles (additive) --- */
+
+  /* Tertiary — warm accent derived from the brand gold, used sparingly */
+  --color-tertiary: #8A6A33;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #FBF8F1;
+  --color-on-tertiary-container: #5C4822;
+
+  /* Secondary container (MD3 role) */
+  --color-secondary-container: #F3ECDD;
+  --color-on-secondary-container: #5C4822;
+
+  /* Surface container hierarchy (MD3 tonal elevation) */
+  --color-surface-dim: #E5E7EB;
+  --color-surface-bright: #FFFFFF;
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F9FAFB;
+  --color-surface-container-high: #E5E7EB;
+  --color-surface-container-highest: #DBDEE3;
+
+  /* On-container pairs for semantic roles */
+  --color-on-error-container: #601410;
+  --color-on-warning-container: #4D3300;
+  --color-on-success-container: #0D331F;
+  --color-on-info-container: #0A1E3C;
+
+  /* --- Selection controls (checkbox · switch · selectable option/card) ---
+     One place for the "is this control on?" colour language, so no page
+     file ever hard-codes the brand green. ACTIVE/SELECTED is the brand
+     green; PRIMARY/STRONG BRAND stays navy; SUPPORTING stays warm sand. */
+  --control-selected: #32B183;
+  --control-selected-foreground: #FFFFFF;
+  /* Tonal surface behind a selected card — a whisper of the green. */
+  --control-selected-surface: #E9F7F1;
+  --control-selected-border: #32B183;
+  --control-unselected-bg: #FFFFFF;
+  --control-unselected-border: #C4CBD4;
+  --control-hover: #F3F4F6;
+  --control-focus: #32B183;
+  --control-disabled-bg: #F3F4F6;
+  --control-disabled-text: #9CA3AF;
+
+  /* State layer opacities (MD3 interaction states) */
+  --state-hover-opacity: 0.08;
+  --state-focus-opacity: 0.12;
+  --state-pressed-opacity: 0.12;
+  --state-dragged-opacity: 0.16;
+  --state-disabled-opacity: 0.38;
 
   /* Inverse */
   --color-inverse-surface: #1F2937;
   --color-inverse-on-surface: #F9FAFB;
   --color-inverse-primary: #94A3B8;
 
+  /* --- Warm Smoked Glass navigation surfaces ---
+     Shared material language for the desktop sidebar and the mobile
+     bottom navigation. A desaturated warm taupe (not brown) that reads
+     as smoked glass over the light page while keeping ivory foregrounds
+     at WCAG AA. Foreground opacities are tuned against the *composited*
+     surface (base over the page), not the raw base colour. */
+  --warm-glass-base: #4E4339;
+  --warm-glass-surface: rgba(78, 67, 57, 0.86);
+  --warm-glass-surface-strong: rgba(78, 67, 57, 0.94);
+  --warm-glass-border: rgba(255, 248, 238, 0.14);
+  --warm-glass-ivory: #FFF9F0;
+  --warm-glass-ivory-muted: rgba(255, 249, 240, 0.82);
+  --warm-glass-state-layer: rgba(255, 248, 238, 0.14);
+  --warm-glass-state-layer-strong: rgba(255, 248, 238, 0.20);
+  --warm-glass-shadow: 0 8px 30px rgba(35, 29, 22, 0.16);
+
+  /* Sidebar premium gradient — a vertical tonal drift *inside* the same
+     warm-taupe family. The top edge catches a little ambient light and the
+     base settles into the flat surface colour; the two endpoints average to
+     --warm-glass-surface-strong, so the identity is unchanged. The delta is
+     deliberately tiny (~4% luminance) so it reads as depth, never as a hue
+     shift. Ivory foregrounds stay at 6.7:1 (active) / 5.2:1 (muted) against
+     the lightest point — both pass WCAG AA. */
+  --warm-glass-gradient-top: rgba(88, 76, 65, 0.94);
+  --warm-glass-gradient-bottom: rgba(70, 60, 51, 0.94);
+  --sidebar-gradient: linear-gradient(
+    180deg,
+    var(--warm-glass-gradient-top) 0%,
+    var(--warm-glass-gradient-bottom) 100%
+  );
+
+  /* Bottom navigation — aliases onto the shared warm-glass family */
+  --bottom-nav-bg: var(--warm-glass-surface);
+  --bottom-nav-border: var(--warm-glass-border);
+  --bottom-nav-icon-active: var(--warm-glass-ivory);
+  --bottom-nav-icon-inactive: var(--warm-glass-ivory-muted);
+  --bottom-nav-label-active: var(--warm-glass-ivory);
+  --bottom-nav-label-inactive: var(--warm-glass-ivory-muted);
+  --bottom-nav-state-layer: var(--warm-glass-state-layer);
+  --bottom-nav-shadow: var(--warm-glass-shadow);
+
+  /* Desktop sidebar — same family, more opaque/architectural */
+  --sidebar-bg: var(--warm-glass-surface-strong);
+  --sidebar-border: var(--warm-glass-border);
+  --sidebar-item-hover: var(--warm-glass-state-layer);
+  --sidebar-item-active: var(--warm-glass-state-layer-strong);
+  --sidebar-icon-active: var(--warm-glass-ivory);
+  --sidebar-icon-inactive: var(--warm-glass-ivory-muted);
+  --sidebar-text-active: var(--warm-glass-ivory);
+  --sidebar-text-inactive: var(--warm-glass-ivory-muted);
+  --sidebar-profile-bg: rgba(255, 248, 238, 0.08);
+
+  /* --- Contract workspace sticky header ---
+     The sticky status surface of the contract draft workspace. It floats
+     above the white contract form, so it must read as a distinct control
+     surface without becoming a saturated blue bar: the base is a whisper
+     of the brand navy (#DAE3F3), the text is the deep navy, and the bronze
+     accent is reserved for the small lifecycle chip and a hairline — never
+     used as a surface. Elevation is scroll-aware: the header is flat at the
+     top of the page and lifts once content slides underneath it. */
+  --contract-sticky-bg: #DAE3F3;
+  --contract-sticky-text: #172B4E;
+  /* Navy-tinted secondary text — reads better on the blue surface than the
+     neutral gray `--color-muted`, and still clears WCAG AA (5.0:1). */
+  --contract-sticky-muted: rgba(23, 43, 78, 0.72);
+  --contract-sticky-accent: #C3B18A;
+  --contract-sticky-border: rgba(23, 43, 78, 0.10);
+  --contract-sticky-shadow: 0 6px 18px rgba(23, 43, 78, 0.08);
+  /* Tonal fills that sit *on* the sticky surface. */
+  --contract-sticky-chip: rgba(23, 43, 78, 0.06);
+  --contract-sticky-chip-strong: rgba(23, 43, 78, 0.12);
+  --contract-sticky-track: rgba(23, 43, 78, 0.14);
+
   /* Scrim & Shadow */
   --color-scrim: rgba(0, 0, 0, 0.5);
   --color-shadow: rgba(0, 0, 0, 0.10);
 
-  /* Shapes */
-  --shape-small: 4px;
-  --shape-medium: 8px;
-  --shape-large: 12px;
-  --shape-xlarge: 16px;
-  --shape-full: 28px;
+  /* Shapes (MD3 shape scale) */
+  --shape-xs: 4px;
+  --shape-small: 8px;
+  --shape-medium: 12px;
+  --shape-large: 16px;
+  --shape-xlarge: 24px;
+  --shape-full: 9999px;
+
+  /* Motion (MD3 duration + easing) */
+  --motion-duration-short1: 50ms;
+  --motion-duration-short2: 100ms;
+  --motion-duration-short3: 150ms;
+  --motion-duration-short4: 200ms;
+  --motion-duration-medium1: 250ms;
+  --motion-duration-medium2: 300ms;
+  --motion-duration-medium3: 350ms;
+  --motion-duration-medium4: 400ms;
+  --motion-duration-long1: 450ms;
+  --motion-duration-long2: 500ms;
+  --motion-duration-long3: 550ms;
+  --motion-duration-long4: 600ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+  --motion-easing-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
 
   /* Fonts */
   --font-family-fa: Vazir, Vazirmatn, "Noto Sans Arabic", Tahoma, sans-serif;
@@ -223,9 +396,130 @@
   --color-on-info: #1E3A5F;
   --color-info-container: #0A1E3C;
 
+  /* --- Material Design 3 semantic roles (additive) --- */
+  --color-tertiary: #D5BE97;
+  --color-on-tertiary: #5C4822;
+  --color-tertiary-container: #3A2E15;
+  --color-on-tertiary-container: #F3ECDD;
+
+  --color-secondary-container: #3A2E15;
+  --color-on-secondary-container: #F3ECDD;
+
+  --color-surface-dim: #0B1220;
+  --color-surface-bright: #26344C;
+  --color-surface-container-lowest: #0B1220;
+  --color-surface-container-low: #131C2E;
+  --color-surface-container-high: #26344C;
+  --color-surface-container-highest: #2E3D57;
+
+  --color-on-error-container: #FCA5A5;
+  --color-on-warning-container: #FCD34D;
+  --color-on-success-container: #6EE7B7;
+  --color-on-info-container: #93C5FD;
+
+  /* Selection controls — same brand green, surfaces retuned for dark. */
+  --control-selected: #32B183;
+  --control-selected-foreground: #FFFFFF;
+  --control-selected-surface: #12332A;
+  --control-selected-border: #32B183;
+  --control-unselected-bg: #1E2A38;
+  --control-unselected-border: #4B5563;
+  --control-hover: #26344C;
+  --control-focus: #32B183;
+  --control-disabled-bg: #1E2A38;
+  --control-disabled-text: #6B7280;
+
+  /* Semantic ramps — inverted for dark surfaces so `bg-*-50` stays a
+     subtle tint and `text-*-700` stays readable on it. */
+  --color-error-50: #2A1210;
+  --color-error-100: #3D1714;
+  --color-error-200: #5A211C;
+  --color-error-300: #7F2D26;
+  --color-error-400: #B42318;
+  --color-error-500: #EF4444;
+  --color-error-600: #F87171;
+  --color-error-700: #FCA5A5;
+  --color-error-800: #FECACA;
+  --color-error-900: #FEE2E2;
+
+  --color-warning-50: #2A1F0A;
+  --color-warning-100: #3D2C0E;
+  --color-warning-200: #5A4114;
+  --color-warning-300: #7A5719;
+  --color-warning-400: #B45309;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #FBBF24;
+  --color-warning-700: #FCD34D;
+  --color-warning-800: #FDE68A;
+  --color-warning-900: #FEF3C7;
+
+  --color-success-50: #0A2119;
+  --color-success-100: #0F3024;
+  --color-success-200: #164534;
+  --color-success-300: #1F6F50;
+  --color-success-400: #10B981;
+  --color-success-500: #34D399;
+  --color-success-600: #6EE7B7;
+  --color-success-700: #A7F3D0;
+  --color-success-800: #D1FAE5;
+  --color-success-900: #ECFDF5;
+
+  --color-info-50: #0A1E3C;
+  --color-info-100: #10294F;
+  --color-info-200: #1E3A5F;
+  --color-info-300: #1D4ED8;
+  --color-info-400: #3B82F6;
+  --color-info-500: #60A5FA;
+  --color-info-600: #93C5FD;
+  --color-info-700: #BFDBFE;
+  --color-info-800: #DBEAFE;
+  --color-info-900: #EFF6FF;
+
+  --color-violet-50: #1E1B4B;
+  --color-violet-500: #A78BFA;
+  --color-violet-600: #C4B5FD;
+
   --color-inverse-surface: #F3F4F6;
   --color-inverse-on-surface: #1F2937;
   --color-inverse-primary: #162033;
+
+  /* Warm Smoked Glass — dark theme. The page is deep navy, so the glass
+     lifts to a lighter warm taupe to stay distinguishable while keeping
+     the same ivory foregrounds. */
+  --warm-glass-base: #6B5D4F;
+  --warm-glass-surface: rgba(107, 93, 79, 0.72);
+  --warm-glass-surface-strong: rgba(107, 93, 79, 0.86);
+  --warm-glass-border: rgba(255, 248, 238, 0.16);
+  --warm-glass-ivory: #FFF9F0;
+  --warm-glass-ivory-muted: rgba(255, 249, 240, 0.80);
+  --warm-glass-state-layer: rgba(255, 248, 238, 0.14);
+  --warm-glass-state-layer-strong: rgba(255, 248, 238, 0.20);
+  --warm-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.42);
+  --sidebar-profile-bg: rgba(255, 248, 238, 0.08);
+
+  /* Sidebar premium gradient — dark theme. Same tiny vertical drift, lifted
+     to the dark-theme taupe so the glass stays distinguishable over the deep
+     navy page. Endpoints average to --warm-glass-surface-strong. */
+  --warm-glass-gradient-top: rgba(118, 103, 88, 0.86);
+  --warm-glass-gradient-bottom: rgba(96, 83, 70, 0.86);
+  --sidebar-gradient: linear-gradient(
+    180deg,
+    var(--warm-glass-gradient-top) 0%,
+    var(--warm-glass-gradient-bottom) 100%
+  );
+
+  /* Contract workspace sticky header — dark counterpart. The light-blue
+     surface becomes a lifted navy panel; the bronze accent is brightened
+     so it still reads as an accent on a dark base. */
+  --contract-sticky-bg: #16233C;
+  --contract-sticky-text: #E8EDF5;
+  --contract-sticky-muted: rgba(232, 237, 245, 0.72);
+  --contract-sticky-accent: #D5BE97;
+  --contract-sticky-border: rgba(255, 255, 255, 0.10);
+  --contract-sticky-shadow: 0 6px 18px rgba(0, 0, 0, 0.40);
+  --contract-sticky-chip: rgba(255, 255, 255, 0.06);
+  --contract-sticky-chip-strong: rgba(255, 255, 255, 0.12);
+  --contract-sticky-track: rgba(255, 255, 255, 0.16);
 
   --color-scrim: rgba(0, 0, 0, 0.7);
   --color-shadow: rgba(0, 0, 0, 0.3);
@@ -297,10 +591,29 @@ html:not([data-theme]) {
 }
 
 /* --- Focus Visible --- */
-:focus-visible {
+/* MD3 outlined fields (.group\/field) render their own focus state on
+   the fieldset border; excluding them here prevents a second ring. */
+:not(:where(.group\/field *)):focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: var(--shape-small);
+}
+
+/* --- MD3 field autofill --- */
+/* Chrome paints its own background/colour on autofilled inputs, which
+   breaks the outlined look. Keep the field transparent and inherit the
+   theme text colour; the floating label is driven by `:autofill` in
+   field-shell.tsx so it stays lifted. */
+.group\/field input:-webkit-autofill,
+.group\/field input:-webkit-autofill:hover,
+.group\/field input:-webkit-autofill:focus,
+.group\/field textarea:-webkit-autofill,
+.group\/field select:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-on-surface);
+  -webkit-box-shadow: 0 0 0 1000px transparent inset;
+  box-shadow: 0 0 0 1000px transparent inset;
+  transition: background-color 9999s ease-in-out 0s;
+  caret-color: var(--color-on-surface);
 }
 
 /* --- Reduced Motion --- */
@@ -328,6 +641,31 @@ html:not([data-theme]) {
 .touch-target {
   min-width: 48px;
   min-height: 48px;
+}
+
+/* ============================================================
+   MD3 STATE LAYERS
+   Overlay the current text color at the MD3 interaction opacity.
+   Apply to any interactive surface: `hover:state-hover` etc.
+   ============================================================ */
+.state-hover {
+  background-color: color-mix(in srgb, currentColor var(--state-hover-opacity), transparent);
+}
+.state-focus {
+  background-color: color-mix(in srgb, currentColor var(--state-focus-opacity), transparent);
+}
+.state-pressed {
+  background-color: color-mix(in srgb, currentColor var(--state-pressed-opacity), transparent);
+}
+.state-dragged {
+  background-color: color-mix(in srgb, currentColor var(--state-dragged-opacity), transparent);
+}
+.state-selected {
+  background-color: color-mix(in srgb, currentColor var(--state-focus-opacity), transparent);
+}
+.state-disabled {
+  opacity: var(--state-disabled-opacity);
+  pointer-events: none;
 }
 
 /* Safe area bottom for mobile */
@@ -652,6 +990,51 @@ body.dialog-open {
   }
 }
 
+/* Blog article print styles
+   The article is meant to be printable: the reading column survives,
+   the chrome around it does not. The dark hero is flattened to a light
+   surface so it does not burn a page of toner, and the wide visual
+   sections are allowed to use the full page width. */
+@media print {
+  /* Chrome that only makes sense on screen. */
+  .article-hero {
+    background: white !important;
+    color: black !important;
+  }
+  .article-hero h1,
+  .article-hero p,
+  .article-hero span,
+  .article-hero a,
+  .article-hero dt,
+  .article-hero dd {
+    color: black !important;
+  }
+  .article-hero [aria-hidden="true"] {
+    display: none !important;
+  }
+  .article-hero dl > div {
+    border-color: #ccc !important;
+    background: white !important;
+  }
+
+  /* The reading column keeps its measure; wide sections fill the page. */
+  article#main-content {
+    max-width: none !important;
+  }
+  article#main-content .max-w-\[1440px\],
+  article#main-content .max-w-\[1120px\],
+  article#main-content .max-w-\[780px\] {
+    max-width: none !important;
+  }
+
+  /* Cards and callouts should not split across pages. */
+  article#main-content figure,
+  article#main-content aside,
+  article#main-content section {
+    break-inside: avoid;
+  }
+}
+
 /* Gesture-friendly touch targets for buttons inside cards */
 @media (max-width: 599px) {
   .card-action-expanded button,
@@ -662,12 +1045,16 @@ body.dialog-open {
   }
 }
 
-/* Keyboard navigation: visible focus — unified Navy indicator */
+/* Keyboard navigation: visible focus — unified Navy indicator.
+   MD3 outlined fields (.group\/field) draw their own focus state on
+   the fieldset border, so they are excluded here — otherwise the
+   global ring paints a second, offset outline around the input and
+   the field looks double-bordered. */
 button:focus-visible,
 a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
+input:not(:where(.group\/field *)):focus-visible,
+select:not(:where(.group\/field *)):focus-visible,
+textarea:not(:where(.group\/field *)):focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--color-primary) !important;
   outline-offset: 2px !important;
@@ -781,6 +1168,25 @@ html {
   animation: float 4s ease-in-out infinite;
 }
 
+/* Attach-file paperclip — a slow, restrained wiggle that draws the eye to
+   the attach affordance without being distracting. The final keyframe is
+   the resting pose so reduced-motion users see a plain, upright clip. */
+@keyframes attach-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-12deg); }
+  75%      { transform: rotate(12deg); }
+}
+.animate-attach-wiggle {
+  animation: attach-wiggle 2.6s ease-in-out infinite;
+  transform-origin: 50% 20%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-attach-wiggle {
+    animation: none;
+    transform: none;
+  }
+}
+
 /* Subtle glow pulse for CTA buttons */
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16, 46, 74, 0.3); }
@@ -807,6 +1213,104 @@ html {
 }
 .animate-status-blink {
   animation: status-blink 1.6s ease-in-out infinite;
+}
+
+/* Unread notification indicator — a slow, restrained pulse (never a fast
+   blink). The final keyframe is full opacity so that when reduced motion
+   collapses the animation the dot simply rests as a solid red dot. */
+@keyframes notification-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.88); }
+}
+.animate-notification-pulse {
+  animation: notification-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-notification-pulse {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Route-transition progress bar — grows toward ~92% and holds until the
+   destination commits, then the element unmounts. Anchored to the inline
+   start edge so it reads correctly in RTL. */
+@keyframes nav-progress-grow {
+  0%   { transform: scaleX(0); }
+  15%  { transform: scaleX(0.32); }
+  45%  { transform: scaleX(0.58); }
+  75%  { transform: scaleX(0.78); }
+  100% { transform: scaleX(0.92); }
+}
+.nav-progress-bar {
+  animation: nav-progress-grow 2.4s cubic-bezier(0.1, 0.6, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress-bar {
+    animation: none;
+    transform: scaleX(0.92);
+  }
+}
+
+/* ============================================================
+   PLAN-TIER MOTION
+   A single, restrained "shimmer" sweep across the plan icon — the
+   only motion the subscription surfaces use. Intensity scales with
+   the tier (silver → gold → diamond) so the plan reads at a glance
+   without colour alone. All three respect prefers-reduced-motion.
+   ============================================================ */
+.plan-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+}
+.plan-icon::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    var(--plan-sheen, rgba(255, 255, 255, 0.55)) 50%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  background-position: 200% 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Silver — a slow, faint sweep. */
+.plan-icon--silver::after {
+  --plan-sheen: rgba(255, 255, 255, 0.45);
+  animation: plan-sheen 5.5s ease-in-out infinite;
+}
+/* Gold — a warmer, quicker sweep. */
+.plan-icon--gold::after {
+  --plan-sheen: rgba(255, 236, 179, 0.75);
+  animation: plan-sheen 4s ease-in-out infinite;
+}
+/* Diamond — the brightest, most frequent sweep. */
+.plan-icon--diamond::after {
+  --plan-sheen: rgba(214, 236, 255, 0.9);
+  animation: plan-sheen 3s ease-in-out infinite;
+}
+@keyframes plan-sheen {
+  0% { background-position: 200% 0; opacity: 0; }
+  15% { opacity: 1; }
+  55% { opacity: 1; }
+  70%, 100% { background-position: -100% 0; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-icon::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
 /* Card hover lift effect */
@@ -964,6 +1468,104 @@ html {
   50% { transform: translateY(-10px) scale(1.04); }
 }
 
+/* ============================================================
+   Landing brand logo — glow + hover motion
+   ============================================================
+   The Persian LEGALIR wordmark replaces the old "خدمات هوشمند
+   لیگالیر" heading. A soft radial halo breathes behind it, and on
+   hover the mark lifts, scales and its halo intensifies. All motion
+   is disabled under prefers-reduced-motion. */
+.brand-logo-glow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Breathing halo behind the wordmark */
+.brand-logo-glow::before {
+  content: "";
+  position: absolute;
+  inset: -18% -10%;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--color-primary-500) 34%, transparent) 0%,
+    color-mix(in srgb, var(--color-primary-400) 16%, transparent) 42%,
+    transparent 72%
+  );
+  filter: blur(22px);
+  opacity: 0.75;
+  transform: scale(0.94);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  animation: brand-halo-breathe 5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* A second, tighter light ring that only appears on hover */
+.brand-logo-glow::after {
+  content: "";
+  position: absolute;
+  inset: -6% -4%;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--color-primary-300) 40%, transparent) 0%,
+    transparent 68%
+  );
+  filter: blur(14px);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.brand-logo-glow img {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.45s ease;
+  will-change: transform;
+}
+
+.brand-logo-glow:hover::before,
+.brand-logo-glow:focus-visible::before {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.brand-logo-glow:hover::after,
+.brand-logo-glow:focus-visible::after {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.brand-logo-glow:hover img,
+.brand-logo-glow:focus-visible img {
+  transform: translateY(-4px) scale(1.05);
+  filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--color-primary-600) 45%, transparent));
+}
+
+@keyframes brand-halo-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(0.94); }
+  50%      { opacity: 0.9; transform: scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-glow::before {
+    animation: none;
+    opacity: 0.75;
+    transform: none;
+  }
+  .brand-logo-glow:hover img,
+  .brand-logo-glow:focus-visible img {
+    transform: none;
+  }
+}
+
 /* RTL scrollbar styling */
 [dir="rtl"] ::-webkit-scrollbar {
   width: 6px;
@@ -976,8 +1578,10 @@ html {
   border-radius: 3px;
 }
 
-/* Focus visible ring for keyboard navigation */
-*:focus-visible {
+/* Focus visible ring for keyboard navigation.
+   MD3 outlined fields manage their own focus state on the fieldset
+   border, so they are excluded to avoid a second, offset ring. */
+*:not(:where(.group\/field *)):focus-visible {
   outline: 2px solid var(--color-primary-500);
   outline-offset: 2px;
   border-radius: 4px;

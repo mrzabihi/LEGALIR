@@ -182,7 +182,7 @@ function PlanCard({
             </span>
           </div>
           <div className="flex items-center justify-between text-caption">
-            <span className="text-muted">توکن ماهانه</span>
+            <span className="text-muted">توکن دوره</span>
             <span className="text-on-surface font-medium">
               {toPersianNumber(plan.totalTokenLimit)}
             </span>

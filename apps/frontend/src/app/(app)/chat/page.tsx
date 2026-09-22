@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useConversations, useUpdateConversation } from "@/hooks/useConversations";
 import { useDailyQuota } from "@/hooks/useDashboard";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ServiceContextCard } from "@/components/chat/service-context-card";
+import { PageContextHeader } from "@/components/shared";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
 import { IconChat } from "@/lib/icons";
 import Link from "next/link";
@@ -23,7 +24,15 @@ export default function ChatListPage() {
   }, []);
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col h-full">
+      {/* Contextual header — service resolved from the URL */}
+      <div className="px-4 tablet:px-6 pt-4 shrink-0">
+        <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
+          <PageContextHeader className="mb-0" />
+        </Suspense>
+      </div>
+
+      <div className="flex flex-1 min-h-0">
       {/* Sidebar / Conversation list */}
       <aside className="hidden tablet:flex flex-col w-[320px] shrink-0 border-e border-divider bg-surface h-full">
         <ConversationList
@@ -94,6 +103,7 @@ export default function ChatListPage() {
           </p>
         </div>
       </main>
+      </div>
     </div>
   );
 }

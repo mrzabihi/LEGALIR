@@ -44,7 +44,7 @@ export function BottomNav({ userRole }: BottomNavProps) {
 
   return (
     <nav
-      className="pointer-events-auto fixed bottom-3 inset-x-3 z-40 flex items-center justify-around h-[64px] px-2 rounded-3xl bg-surface/80 backdrop-blur-xl border border-white/20 shadow-elevation-8 safe-bottom"
+      className="pointer-events-auto fixed bottom-3 inset-x-3 z-40 flex items-center justify-around h-[64px] px-2 rounded-3xl bg-glass-surface backdrop-blur-xl border border-glass-border [box-shadow:var(--bottom-nav-shadow)] safe-bottom"
       role="navigation"
       aria-label="منوی پایین"
     >
@@ -66,6 +66,9 @@ export function BottomNav({ userRole }: BottomNavProps) {
                 "-mt-8 z-10",
                 "w-14 h-14 rounded-full",
                 "bg-gradient-to-br from-primary-500 to-primary-700 text-white",
+                // Warm ivory hairline keeps the navy FAB legible against the
+                // darker smoked-glass surface without changing its identity.
+                "ring-2 ring-[rgba(255,249,240,0.45)]",
                 "shadow-elevation-8 hover:shadow-elevation-8",
                 "active:scale-90 transition-all duration-200 ease-emphasized",
                 "touch-target",
@@ -90,17 +93,17 @@ export function BottomNav({ userRole }: BottomNavProps) {
               "tap-highlight-transparent touch-target-min",
               "active:scale-95",
               isActive
-                ? "text-primary-700"
-                : "text-neutral-400 hover:text-neutral-600",
+                ? "text-glass-ivory"
+                : "text-glass-ivory-muted hover:text-glass-ivory",
             ].join(" ")}
             aria-label={item.titleFa}
             aria-current={isActive ? "page" : undefined}
           >
-            {/* Animated active pill indicator */}
+            {/* Animated active pill indicator — warm ivory state layer */}
             <span
               className={[
                 "absolute top-1 left-1/2 -translate-x-1/2 rounded-full transition-all duration-300 ease-emphasized",
-                isActive ? "w-8 h-6 bg-primary-100/80" : "w-0 h-6 bg-transparent",
+                isActive ? "w-8 h-6 bg-glass-state" : "w-0 h-6 bg-transparent",
               ].join(" ")}
               aria-hidden="true"
             />
@@ -109,7 +112,7 @@ export function BottomNav({ userRole }: BottomNavProps) {
             </span>
             <span className={[
               "relative text-[11px] font-medium leading-none transition-colors duration-200",
-              isActive ? "text-primary-700" : "text-neutral-400",
+              isActive ? "text-glass-ivory" : "text-glass-ivory-muted",
             ].join(" ")}>
               {item.titleFa}
             </span>

@@ -8,6 +8,7 @@
 
 import { http, HttpResponse, delay } from "msw";
 import type { ApiSuccess, ApiError, OtpChallenge, OtpResult } from "@legalir/types";
+import { detectPreviewKind } from "@/lib/document-preview";
 import {
   fixtureUserPro,
   fixtureUserNew,
@@ -72,6 +73,7 @@ import {
   fixtureLegalSourceDetails,
   fixtureBlogListItems,
   fixtureBlogPostDetails,
+  fixtureNotifications,
 } from "@legalir/testing";
 
 // --- Constants ---
@@ -86,6 +88,45 @@ const RESEND_COOLDOWN_SEC = 60;
 const MAX_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 300_000; // 5 minutes
 const MAX_REQUESTS_PER_WINDOW = 3;
+
+// --- Usage Engine Fixtures (mock mode) ---
+// Mirrors the shape of GET /api/v1/subscription/usage. Gold plan: 150
+// requests/day → 15,000 daily points; 4.5M tokens, 4,500 AI messages,
+// 15 document analyses, 10 contracts per period.
+
+const fixtureSubscriptionUsage = {
+  hasSubscription: true,
+  planCode: "gold" as const,
+  planNameFa: "طلا",
+  expiresAt: new Date(Date.now() + 21 * 86_400_000).toISOString(),
+  daysRemaining: 21,
+  subscriptionExpired: false,
+  daily: {
+    usageDate: new Date().toISOString().slice(0, 10),
+    requestLimit: 150,
+    requestUsed: 23,
+    requestsRemaining: 127,
+    pointsTotal: 15_000,
+    pointsUsed: 2_300,
+    pointsRemaining: 12_700,
+    resetAt: new Date(new Date().setHours(24, 0, 0, 0)).toISOString(),
+  },
+  period: [
+    { quotaType: "AI_MESSAGES" as const, nameFa: "پیام هوش مصنوعی", limit: 4_500, used: 320, remaining: 4_180, unlimited: false },
+    { quotaType: "TOKENS" as const, nameFa: "توکن", limit: 4_500_000, used: 412_000, remaining: 4_088_000, unlimited: false },
+    { quotaType: "DOCUMENT_ANALYSIS" as const, nameFa: "تحلیل سند", limit: 15, used: 4, remaining: 11, unlimited: false },
+    { quotaType: "CONTRACT_DRAFT" as const, nameFa: "پیش‌نویس قرارداد", limit: 10, used: 2, remaining: 8, unlimited: false },
+    { quotaType: "CONTRACT_CREATION" as const, nameFa: "ایجاد قرارداد", limit: 10, used: 3, remaining: 7, unlimited: false },
+  ],
+  rewardPoints: 850,
+  allowRewardPointsAfterLimit: false,
+};
+
+const fixtureUsageHistory = [
+  { id: "ut-1", activityType: "AI_MESSAGE" as const, displayNameFa: "پیام هوش مصنوعی", pointsCost: 100, serviceQuotaType: "AI_MESSAGES" as const, serviceQuotaCost: 1, status: "COMPLETED" as const, createdAt: new Date(Date.now() - 3_600_000).toISOString() },
+  { id: "ut-2", activityType: "DOCUMENT_ANALYSIS" as const, displayNameFa: "تحلیل سند", pointsCost: 100, serviceQuotaType: "DOCUMENT_ANALYSIS" as const, serviceQuotaCost: 1, status: "COMPLETED" as const, createdAt: new Date(Date.now() - 7_200_000).toISOString() },
+  { id: "ut-3", activityType: "CONTRACT_CREATE" as const, displayNameFa: "ایجاد قرارداد", pointsCost: 100, serviceQuotaType: "CONTRACT_CREATION" as const, serviceQuotaCost: 1, status: "COMPLETED" as const, createdAt: new Date(Date.now() - 86_400_000).toISOString() },
+];
 
 // --- In-Memory State ---
 
@@ -740,6 +781,41 @@ export const handlers = [
   http.get(`${API_BASE}/api/v1/usage`, async () => {
     await delay(400);
     return HttpResponse.json(ok(fixtureV1UsageResponse));
+  }),
+
+  // --- GET /api/v1/subscription/usage ---
+  // The usage engine summary: today's subscription credit (resets at Tehran
+  // midnight), the period-scoped service quotas and the persistent reward
+  // points — three distinct assets.
+  http.get(`${API_BASE}/api/v1/subscription/usage`, async () => {
+    await delay(300);
+    return HttpResponse.json(ok(fixtureSubscriptionUsage));
+  }),
+
+  // --- GET /api/v1/subscription/usage/today ---
+  http.get(`${API_BASE}/api/v1/subscription/usage/today`, async () => {
+    await delay(200);
+    return HttpResponse.json(ok(fixtureSubscriptionUsage.daily));
+  }),
+
+  // --- GET /api/v1/subscription/usage/history ---
+  http.get(`${API_BASE}/api/v1/subscription/usage/history`, async ({ request }) => {
+    await delay(300);
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+    const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20", 10);
+    const items = fixtureUsageHistory.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json(
+      ok({
+        items,
+        pagination: {
+          page,
+          pageSize,
+          total: fixtureUsageHistory.length,
+          totalPages: Math.ceil(fixtureUsageHistory.length / pageSize),
+        },
+      })
+    );
   }),
 
   // --- POST /api/v1/checkout/intents ---
@@ -1556,6 +1632,43 @@ export const handlers = [
     return HttpResponse.json(ok(detail));
   }),
 
+  // --- GET /api/v1/documents/:id/preview ---
+  // Mirrors the real route: resolves the preview kind from MIME +
+  // extension and returns auth-gated same-origin file URLs.
+  http.get(`${API_BASE}/api/v1/documents/:id/preview`, async ({ params }) => {
+    await delay(200);
+    const id = params["id"] as string;
+
+    const previewMap: Record<string, { name: string; mime: string; sizeBytes: number }> = {
+      "doc-lease-001": { name: fixtureDocumentDetail.name, mime: "application/pdf", sizeBytes: fixtureDocumentDetail.sizeBytes },
+      "doc-contract-001": { name: "قرارداد-پیمانکاری-ساختمان.pdf", mime: "application/pdf", sizeBytes: 820_000 },
+      "doc-nda-001": { name: "توافقنامه-محرمانگی-شرکتی.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", sizeBytes: 245_000 },
+      "doc-failed-001": { name: fixtureDocumentDetailFailed.name, mime: "application/pdf", sizeBytes: fixtureDocumentDetailFailed.sizeBytes },
+      "doc-employment-002": { name: "قرارداد-استخدام-شرکت-فنی.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", sizeBytes: 520_000 },
+    };
+
+    const meta = previewMap[id];
+    if (!meta) {
+      return HttpResponse.json(err("NOT_FOUND", "سند یافت نشد", false), { status: 404 });
+    }
+
+    const kind = detectPreviewKind(meta.mime, meta.name);
+    const available = kind !== "unsupported";
+
+    return HttpResponse.json(
+      ok({
+        documentId: id,
+        name: meta.name,
+        mime: meta.mime,
+        sizeBytes: meta.sizeBytes,
+        kind,
+        fileUrl: available ? `/api/v1/documents/${id}/file` : null,
+        downloadUrl: `/api/v1/documents/${id}/download`,
+        available,
+      })
+    );
+  }),
+
   // --- POST /api/v1/documents/:id/retry ---
   http.post(`${API_BASE}/api/v1/documents/:id/retry`, async ({ params, request }) => {
     await delay(1000);
@@ -2284,6 +2397,35 @@ export const handlers = [
       return HttpResponse.json(err("NOT_FOUND", "مطلب یافت نشد", false), { status: 404 });
     }
     return HttpResponse.json(ok(post));
+  }),
+
+  // =========================================
+  // NOTIFICATION CENTER
+  // =========================================
+
+  http.get(`${API_BASE}/api/v1/notifications`, async () => {
+    await delay(200);
+    const items = fixtureNotifications;
+    return HttpResponse.json(
+      ok({ items, unreadCount: items.filter((n) => !n.read).length })
+    );
+  }),
+
+  http.post(`${API_BASE}/api/v1/notifications/read-all`, async () => {
+    await delay(200);
+    const items = fixtureNotifications.map((n) => ({ ...n, read: true }));
+    return HttpResponse.json(ok({ items, unreadCount: 0 }));
+  }),
+
+  http.post(`${API_BASE}/api/v1/notifications/:id/read`, async ({ params }) => {
+    await delay(200);
+    const id = decodeURIComponent(params["id"] as string);
+    const items = fixtureNotifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n
+    );
+    return HttpResponse.json(
+      ok({ items, unreadCount: items.filter((n) => !n.read).length })
+    );
   }),
 
 ];

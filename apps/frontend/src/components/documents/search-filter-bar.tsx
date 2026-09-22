@@ -79,11 +79,11 @@ export function SearchFilterBar({
       <div className="flex items-center gap-2">
         <div className="flex-1">
           <TextField
+            label="جستجوی اسناد"
             value={search}
             onChange={handleSearchChange}
             placeholder="جستجوی اسناد..."
-            aria-label="جستجوی اسناد"
-            startIcon={<IconSearch size={20} className="text-muted" />}
+            leadingIcon={<IconSearch size={20} />}
             fullWidth
           />
         </div>
@@ -116,10 +116,10 @@ export function SearchFilterBar({
               aria-label={opt.label}
               onClick={() => handleStatusChange(opt.value)}
               className={[
-                "shrink-0 px-3 py-1.5 rounded-medium text-caption font-medium transition-colors",
+                "shrink-0 px-3 py-1.5 rounded-medium border text-caption font-medium transition-colors",
                 status === opt.value
-                  ? "bg-primary text-white"
-                  : "bg-surface text-on-surface hover:bg-surface-hover border border-divider",
+                  ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                  : "border-divider bg-surface text-on-surface hover:border-control-selected/50",
               ].join(" ")}
             >
               {opt.label}
@@ -130,11 +130,10 @@ export function SearchFilterBar({
         {/* Sort dropdown */}
         <div className="shrink-0 min-w-[140px]">
           <Select
+            label="مرتب‌سازی"
             value={sort}
             onChange={handleSortChange}
             options={SORT_OPTIONS}
-            aria-label="مرتب‌سازی"
-            placeholder="مرتب‌سازی"
             fullWidth
           />
         </div>

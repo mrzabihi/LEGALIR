@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVerifyOtp, useRequestOtp } from "@/lib/auth/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
+import { OTPInput } from "@legalir/ui";
 
 const DIGIT_COUNT = 6;
 
@@ -25,8 +26,6 @@ function OtpVerifyForm() {
   const [countdown, setCountdown] = useState(0);
   const [canResend, setCanResend] = useState(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Calculate initial countdown from expiresAt
@@ -62,11 +61,6 @@ function OtpVerifyForm() {
     }
   }, [isAuthenticated, router]);
 
-  // Auto-focus first input
-  useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
-
   // Get the current code string from digits
   const getCode = useCallback((newDigits: string[]) => {
     return newDigits.join("");
@@ -79,53 +73,6 @@ function OtpVerifyForm() {
       verifyOtp(challengeId, code);
     }
   }, [digits, challengeId, isVerifying, verifyOtp, getCode]);
-
-  const handleDigitChange = useCallback(
-    (index: number, value: string) => {
-      const cleaned = value.replace(/\D/g, "").slice(0, 1);
-      const newDigits = [...digits];
-      newDigits[index] = cleaned;
-      setDigits(newDigits);
-
-      // Auto-advance to next input
-      if (cleaned && index < DIGIT_COUNT - 1) {
-        inputRefs.current[index + 1]?.focus();
-      }
-    },
-    [digits]
-  );
-
-  const handleKeyDown = useCallback(
-    (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Backspace" && !digits[index] && index > 0) {
-        // Move back and clear previous digit
-        const newDigits = [...digits];
-        newDigits[index - 1] = "";
-        setDigits(newDigits);
-        inputRefs.current[index - 1]?.focus();
-      } else if (e.key === "ArrowLeft" && index > 0) {
-        inputRefs.current[index - 1]?.focus();
-      } else if (e.key === "ArrowRight" && index < DIGIT_COUNT - 1) {
-        inputRefs.current[index + 1]?.focus();
-      }
-    },
-    [digits]
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, DIGIT_COUNT);
-      if (pasted.length === DIGIT_COUNT && !isVerifying && challengeId) {
-        e.preventDefault();
-        const newDigits = pasted.split("");
-        setDigits(newDigits);
-        verifyOtp(challengeId, pasted);
-        // Blur all inputs on paste
-        inputRefs.current.forEach((ref) => ref?.blur());
-      }
-    },
-    [challengeId, isVerifying, verifyOtp]
-  );
 
   // Resend OTP
   const handleResend = useCallback(async () => {
@@ -159,8 +106,6 @@ function OtpVerifyForm() {
           return prev - 1;
         });
       }, 1000);
-
-      inputRefs.current[0]?.focus();
     }
   }, [mobile, isRequesting, requestOtp, cooldownSeconds, router]);
 
@@ -199,32 +144,14 @@ function OtpVerifyForm() {
 
       <div className="space-y-6">
         {/* OTP Digit Inputs */}
-        <div>
-          <label className="sr-only">کد تأیید ۶ رقمی</label>
-          <div
-            ref={containerRef}
-            className="flex items-center justify-center gap-2 dir-ltr"
-            dir="ltr"
-            onPaste={handlePaste}
-          >
-            {digits.map((digit, index) => (
-              <input
-                key={index}
-                ref={(el) => { inputRefs.current[index] = el; }}
-                id={`otp-digit-${index}`}
-                type="text"
-                inputMode="numeric"
-                autoComplete={index === 0 ? "one-time-code" : "off"}
-                value={digit}
-                onChange={(e) => handleDigitChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                maxLength={1}
-                disabled={isVerifying || isLocked}
-                aria-label={`رقم ${index + 1} از ۶`}
-                className="w-14 h-16 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-center text-h2 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 focus:bg-white transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-              />
-            ))}
-          </div>
+        <div className="flex justify-center">
+          <OTPInput
+            length={DIGIT_COUNT}
+            value={getCode(digits)}
+            onChange={(next) => setDigits(next.padEnd(DIGIT_COUNT, " ").slice(0, DIGIT_COUNT).split("").map((c) => (c === " " ? "" : c)))}
+            disabled={isVerifying || isLocked}
+            hasError={Boolean(displayError)}
+          />
         </div>
 
         {/* Loading states */}

@@ -12,6 +12,7 @@ import {
 import { useBlogPosts } from "@/hooks/useDashboard";
 import { toPersianDate } from "@/lib/persian-utils";
 import type { V1BlogListItem } from "@legalir/types";
+import { TextField } from "@legalir/ui";
 
 // ============================================================
 // Deterministic cover gradients (coverImage is null in fixtures)
@@ -28,6 +29,13 @@ function gradientFor(category: string): string {
   return categoryGradients[category] ?? "from-primary-700 to-primary-900";
 }
 
+// Real cover art, keyed by slug. Posts without an entry fall back to the
+// deterministic category gradient. Keeps a post's card cover identical to the
+// featured hero cover for the same article.
+const POST_COVERS: Record<string, string> = {
+  "contract-penalty-clause": "/assets/blog/vajhe-eltezam.jpg",
+};
+
 function formatDate(iso: string): string {
   try {
     return toPersianDate(iso, { dateStyle: "medium" });
@@ -42,28 +50,46 @@ function formatDate(iso: string): string {
 
 function BlogCard({ post }: { post: V1BlogListItem }) {
   const imageColor = gradientFor(post.category);
+  const cover = POST_COVERS[post.slug];
 
   return (
     <article className="group rounded-xl bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-all duration-medium1 overflow-hidden flex flex-col">
-      {/* Cover image placeholder with gradient */}
+      {/* Cover — real artwork when the post ships one, otherwise the
+          deterministic category gradient. Capped at 748×300 so the thumbnail
+          stays small on the listing page at every breakpoint. */}
       <Link href={`/blog/${post.slug}`} className="block">
-        <div
-          className={`h-48 bg-gradient-to-br ${imageColor} flex items-center justify-center relative overflow-hidden`}
-        >
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-4 right-6 w-24 h-24 rounded-full border-2 border-white" />
-            <div className="absolute bottom-2 left-8 w-16 h-16 rounded-full border border-white" />
-            <div className="absolute top-10 left-12 w-32 h-32 rounded-full border border-white/60" />
+        {cover ? (
+          <div className="relative h-48 max-h-[300px] w-full max-w-[748px] overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cover}
+              alt={post.titleFa}
+              width={2048}
+              height={1152}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           </div>
-          <div className="relative z-10 text-center px-4">
-            <span className="text-white/80 text-labelSmall block mb-1">
-              LEGALIR Blog
-            </span>
-            <span className="text-white/50 text-bodySmall">
-              {post.category}
-            </span>
+        ) : (
+          <div
+            className={`h-48 bg-gradient-to-br ${imageColor} flex items-center justify-center relative overflow-hidden`}
+          >
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-4 right-6 w-24 h-24 rounded-full border-2 border-white" />
+              <div className="absolute bottom-2 left-8 w-16 h-16 rounded-full border border-white" />
+              <div className="absolute top-10 left-12 w-32 h-32 rounded-full border border-white/60" />
+            </div>
+            <div className="relative z-10 text-center px-4">
+              <span className="text-white/80 text-labelSmall block mb-1">
+                LEGALIR Blog
+              </span>
+              <span className="text-white/50 text-bodySmall">
+                {post.category}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </Link>
 
       {/* Card content */}
@@ -169,14 +195,45 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function BlogHeader() {
+// ============================================================
+// Blog Hero
+// ROW 1: the page's single <h1> + description.
+// ROW 2: animated LegalIR artwork (self-contained SMIL, served
+//        statically from /public/assets/blog). Rendered as a plain
+//        <img> so the SVG's internal motion runs without extra JS.
+// ============================================================
+
+function BlogHero() {
   return (
-    <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
-      <div className="mx-auto max-w-6xl px-4 text-center">
-        <h1 className="text-h1 text-white mb-4">وبلاگ حقوقی LEGALIR</h1>
-        <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+    <section className="relative overflow-hidden bg-gradient-to-b from-white via-secondary-50/40 to-white">
+      {/* ROW 1 — Blog heading + description */}
+      <div className="mx-auto max-w-6xl px-4 pt-12 text-center tablet:pt-16">
+        <h1 className="text-[clamp(1.75rem,5vw,4rem)] font-bold leading-[1.35] text-primary-800">
+          وبلاگ حقوقی لیــــــــــــــگالیـــــر
+        </h1>
+        <p className="mx-auto mt-4 max-w-[680px] text-body-1 leading-loose text-neutral-500 tablet:mt-5">
           مقالات، راهنماها و تحلیل‌های حقوقی به زبان ساده — دانش حقوقی برای همه
         </p>
+      </div>
+
+      {/* ROW 2 — Animated LegalIR artwork.
+          The artwork is a wide 1672×720 banner (≈2.32:1). It is capped well
+          below the text column so it reads as a framed hero accent rather
+          than a full-bleed image that pushes the article list off-screen. */}
+      <div className="mx-auto w-full max-w-[640px] px-4 pb-12 pt-8 tablet:pb-16 tablet:pt-10">
+        {/* Plain <img>: next/image would rasterize the SVG and strip its
+            internal SMIL animation. Served statically, so no optimizer needed. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/blog/legalir-animated.svg"
+          alt="لیگالیر — دستیار هوشمند حقوقی ایران"
+          width={1672}
+          height={720}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          className="mx-auto block h-auto w-full select-none rounded-2xl ring-1 ring-black/5 shadow-[0_18px_50px_-24px_rgba(15,23,42,0.35)]"
+        />
       </div>
     </section>
   );
@@ -227,7 +284,7 @@ export default function BlogPage() {
   if (isLoading) {
     return (
       <>
-        <BlogHeader />
+        <BlogHero />
         <LoadingState />
       </>
     );
@@ -236,7 +293,7 @@ export default function BlogPage() {
   if (error) {
     return (
       <>
-        <BlogHeader />
+        <BlogHero />
         <ErrorState onRetry={() => refetch()} />
       </>
     );
@@ -244,7 +301,7 @@ export default function BlogPage() {
 
   return (
     <>
-      <BlogHeader />
+      <BlogHero />
 
       {/* Featured Post Hero */}
       {featuredPost && activeCategory === "همه" && !searchQuery.trim() && (
@@ -252,23 +309,17 @@ export default function BlogPage() {
           <div className="mx-auto max-w-6xl px-4 py-12">
             <div className="rounded-xl overflow-hidden bg-surface border border-neutral-200 shadow-elevation-1 hover:shadow-elevation-4 transition-all duration-medium1">
               <div className="grid tablet:grid-cols-2">
-                <div
-                  className={`bg-gradient-to-br ${gradientFor(featuredPost.category)} flex items-center justify-center min-h-[280px] relative overflow-hidden`}
-                >
-                  <div className="absolute inset-0 opacity-10">
-                    <div className="absolute top-8 right-8 w-32 h-32 rounded-full border-2 border-white" />
-                    <div className="absolute bottom-4 left-10 w-20 h-20 rounded-full border border-white" />
-                    <div className="absolute top-20 left-12 w-40 h-40 rounded-full border border-white/60" />
-                    <div className="absolute -bottom-4 right-20 w-28 h-28 rounded-full border-2 border-white/50" />
-                  </div>
-                  <div className="relative z-10 text-center px-4">
-                    <span className="text-white/80 text-labelLarge block mb-1">
-                      LEGALIR Blog
-                    </span>
-                    <span className="text-white/50 text-bodyMedium">
-                      مقاله ویژه
-                    </span>
-                  </div>
+                <div className="relative min-h-[280px] overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/blog/vajhe-eltezam.jpg"
+                    alt={featuredPost.titleFa}
+                    width={2048}
+                    height={1152}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
                 </div>
 
                 <div className="p-8 flex flex-col justify-center">
@@ -320,30 +371,32 @@ export default function BlogPage() {
       <section className="bg-white border-b border-neutral-200 sticky top-0 z-20">
         <div className="mx-auto max-w-6xl px-4 py-5">
           <div className="flex flex-col tablet:flex-row tablet:items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <IconSearch
-                size={18}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400"
-              />
-              <input
-                type="text"
+            <div className="flex-1 max-w-sm">
+              <TextField
+                type="search"
+                label="جستجو در مقالات"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setActiveCategory("همه");
                 }}
                 placeholder="جستجو در مقالات..."
-                className="w-full pr-10 pl-10 py-2.5 rounded-large border border-neutral-300 bg-surface text-body-2 text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+                leadingIcon={<IconSearch size={18} />}
+                endAdornment={
+                  searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+                      aria-label="پاک کردن جستجو"
+                    >
+                      <IconClose size={16} />
+                    </button>
+                  ) : undefined
+                }
+                inputSize="small"
+                fullWidth
               />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
-                  aria-label="پاک کردن جستجو"
-                >
-                  <IconClose size={16} />
-                </button>
-              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -415,14 +468,17 @@ export default function BlogPage() {
             جدیدترین مقالات، راهنماها و تحلیل‌های حقوقی LEGALIR را مستقیماً در
             ایمیل خود دریافت کنید
           </p>
-          <div className="flex flex-col tablet:flex-row items-center justify-center gap-3 max-w-md mx-auto">
-            <input
-              type="email"
-              placeholder="ایمیل خود را وارد کنید"
-              className="flex-1 w-full px-4 py-3 rounded-large border border-neutral-300 bg-surface text-body-2 text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all text-left dir-ltr"
-              dir="ltr"
-            />
-            <button className="w-full tablet:w-auto rounded-medium bg-primary-700 text-white px-6 py-3 text-button hover:bg-primary-800 transition-colors touch-target shadow-elevation-1 hover:shadow-elevation-3 whitespace-nowrap">
+          <div className="flex flex-col tablet:flex-row items-stretch tablet:items-end justify-center gap-3 max-w-md mx-auto">
+            <div className="flex-1 w-full">
+              <TextField
+                label="ایمیل"
+                type="email"
+                placeholder="ایمیل خود را وارد کنید"
+                inputDir="ltr"
+                fullWidth
+              />
+            </div>
+            <button className="w-full tablet:w-auto h-14 rounded-medium bg-primary-700 text-white px-6 text-button hover:bg-primary-800 transition-colors touch-target shadow-elevation-1 hover:shadow-elevation-3 whitespace-nowrap">
               عضویت در خبرنامه
             </button>
           </div>

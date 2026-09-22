@@ -230,6 +230,12 @@ async function buildPdf(outName, build) {
   const page = doc.addPage([PAGE_W, PAGE_H]);
   await build({ doc, reg, bold, first: page });
 
+  // Pin the document timestamps so re-running the generator produces
+  // byte-identical output and does not churn the committed fixtures.
+  const epoch = new Date(Date.UTC(2026, 0, 1));
+  doc.setCreationDate(epoch);
+  doc.setModificationDate(epoch);
+
   const bytes = await doc.save();
   const total = doc.getPageCount();
   fs.writeFileSync(path.join(outDir, outName), bytes);
@@ -439,6 +445,71 @@ async function contractingContract() {
 }
 
 // ------------------------------------------------------------
+// 4) Residential lease (قرارداد اجاره مسکونی)
+// ------------------------------------------------------------
+// Backs the `doc-rent-001` demo row. Its content mirrors that row's
+// `extractedText` and the four findings in its analysis report, so the
+// preview, the extracted text and the risk report all agree.
+
+async function residentialLease() {
+  await buildPdf("قرارداد-اجاره-مسکونی.pdf", async ({ doc, reg, bold, first }) => {
+    let ctx = { page: first, y: 0 };
+    ctx.y = drawHeader(
+      first,
+      reg,
+      bold,
+      "قرارداد اجاره واحد مسکونی",
+      "نمونه آزمایشی — بدون ارزش حقوقی"
+    );
+
+    const intro =
+      "این قرارداد فی‌مابین آقای حسین کاظمی (موجر) و خانم زهرا محمدی (مستأجر) مطابق قانون روابط موجر و مستأجر مصوب ۱۳۷۶ و قانون مدنی منعقد می‌گردد. طرفین با علم و آگاهی کامل، شرایط زیر را می‌پذیرند.";
+    ctx.y = drawParagraph(ctx.page, reg, intro, 11, PAGE_W - MARGIN, ctx.y, INK, 20);
+    ctx.y -= 10;
+
+    const partyRows = [
+      ["موجر", "حسین کاظمی"],
+      ["مستأجر", "زهرا محمدی"],
+      ["موضوع اجاره", "یک واحد آپارتمان مسکونی به مساحت ۹۵ متر مربع"],
+      ["نشانی ملک", "تهران، خیابان ولیعصر، پلاک ۱۲۴، واحد ۳"],
+    ];
+    ctx.y = drawLine(ctx.page, bold, "مشخصات طرفین و ملک", 12, PAGE_W - MARGIN, ctx.y, NAVY);
+    ctx.y -= 2;
+    for (const [k, v] of partyRows) {
+      ctx.y = drawLine(ctx.page, reg, `${k}: ${v}`, 10.5, PAGE_W - MARGIN, ctx.y, INK);
+    }
+    ctx.y = drawRule(ctx.page, ctx.y - 6);
+    ctx.y -= 10;
+
+    const articles = [
+      ["۱", "موضوع اجاره", "موضوع این قرارداد، اجاره یک واحد آپارتمان مسکونی به مساحت ۹۵ متر مربع واقع در تهران، خیابان ولیعصر، پلاک ۱۲۴، واحد ۳ به مستأجر است. مستأجر متعهد می‌شود از ملک صرفاً برای سکونت خود و خانواده استفاده نماید."],
+      ["۲", "مدت اجاره", "مدت اجاره یک سال شمسی از تاریخ ۱۴۰۵/۰۶/۰۱ لغایت ۱۴۰۶/۰۵/۳۱ می‌باشد. در صورت تمایل طرفین به تمدید، مراتب باید حداقل یک ماه پیش از پایان مدت به صورت کتبی اعلام گردد."],
+      ["۳", "مبلغ اجاره و ودیعه", "مبلغ ودیعه ۵۰۰/۰۰۰/۰۰۰ ریال و اجاره ماهانه ۸۵/۰۰۰/۰۰۰ ریال تعیین می‌گردد. مستأجر مکلف است اجاره‌بها را در ابتدای هر ماه شمسی پرداخت نماید. سقف افزایش سالانه اجاره در این قرارداد تعیین نشده است."],
+      ["۴", "نحوه پرداخت", "اجاره‌بها از طریق واریز به حساب بانکی اعلامی موجر پرداخت می‌شود. رسید بانکی معتبرترین دلیل پرداخت محسوب می‌گردد."],
+      ["۵", "استفاده از ملک", "استفاده از ملک صرفاً برای سکونت مجاز است. هرگونه تغییر کاربری، واگذاری به غیر یا اجاره مجدد بدون موافقت کتبی موجر ممنوع می‌باشد."],
+      ["۶", "تعمیرات", "تعمیرات جزئی بر عهده مستأجر و تعمیرات اساسی بر عهده موجر است، مگر آنکه طرفین به نحو دیگری توافق نمایند. تقسیم دقیق مصادیق تعمیرات جزئی و اساسی در این قرارداد مشخص نشده است."],
+      ["۷", "بیمه", "ملک مورد اجاره توسط موجر در برابر حوادث بیمه می‌شود. بیمه اموال و اثاثیه متعلق به مستأجر بر عهده خود اوست."],
+      ["۸", "فسخ قرارداد", "موجر حق فسخ یک‌طرفه قرارداد را در صورت تخلف مستأجر دارد. شرایط دقیق تخلف و مهلت اخطار پیش از فسخ در این ماده تعیین نشده است."],
+      ["۹", "تخلیه و تحویل ملک", "پس از پایان مدت اجاره، مستأجر موظف به تخلیه و تحویل ملک به موجر است. مهلت تخلیه و نحوه تنظیم صورت‌جلسه تحویل در این قرارداد مشخص نشده است."],
+      ["۱۰", "حل اختلاف", "در صورت بروز اختلاف، ابتدا از طریق مذاکره و در صورت عدم حصول نتیجه، از طریق شورای حل اختلاف و سپس دادگاه صالح رسیدگی می‌گردد."],
+      ["۱۱", "نسخ قرارداد", "این قرارداد در دو نسخه که هر دو دارای اعتبار واحد است، تنظیم و به امضای طرفین رسید."],
+    ];
+
+    for (const [n, t, b] of articles) {
+      ctx = drawArticle(doc, ctx, reg, bold, n, t, b);
+    }
+
+    ctx = drawSignatures(doc, ctx, reg, bold, [
+      { side: "right", fields: [["موجر", "حسین کاظمی"], ["تاریخ", "۱۴۰۵/۰۶/۰۱"]] },
+      { side: "left", fields: [["مستأجر", "زهرا محمدی"], ["تاریخ", "۱۴۰۵/۰۶/۰۱"]] },
+    ]);
+
+    const pages = doc.getPages();
+    pages.forEach((p, i) => drawFooter(p, reg, i + 1, pages.length));
+  });
+}
+
+// ------------------------------------------------------------
 // Main
 // ------------------------------------------------------------
 
@@ -447,6 +518,7 @@ async function main() {
   await employmentContract();
   await ndaContract();
   await contractingContract();
+  await residentialLease();
   console.log("Demo PDFs generated in", outDir);
 }
 

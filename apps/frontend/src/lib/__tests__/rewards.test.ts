@@ -5,6 +5,9 @@ import {
   pointsForEvent,
   purchaseEventForPlan,
   tehranDateString,
+  ENERGY_COST_PER_REQUEST,
+  ENERGY_RULES,
+  getEnergyRule,
 } from "../rewards";
 
 describe("REWARD_RULES — typed domain configuration", () => {
@@ -38,6 +41,18 @@ describe("REWARD_RULES — typed domain configuration", () => {
     expect(purchaseEventForPlan("gold")).toBe("SUBSCRIPTION_GOLD_PURCHASED");
     expect(purchaseEventForPlan("diamond")).toBe("SUBSCRIPTION_DIAMOND_PURCHASED");
     expect(purchaseEventForPlan("free")).toBeNull();
+  });
+});
+
+describe("ENERGY_RULES — the spend side of the ledger", () => {
+  it("charges 200 energy per processed request", () => {
+    expect(ENERGY_COST_PER_REQUEST).toBe(200);
+    expect(getEnergyRule("REQUEST_CONSUMED")?.points).toBe(-200);
+  });
+
+  it("keeps the spend event out of the earnable REWARD_RULES list", () => {
+    expect(REWARD_RULES.some((r) => r.eventType === "REQUEST_CONSUMED")).toBe(false);
+    expect(ENERGY_RULES).toHaveLength(1);
   });
 });
 

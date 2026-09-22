@@ -1,6 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
-import { getCaseById, updateCase, getCaseTimeline, getCaseTasks } from "@/lib/case-db";
+import {
+  getCaseById,
+  updateCase,
+  getCaseTimeline,
+  getCaseTasks,
+  getCaseDocuments,
+  getCaseDeadlines,
+} from "@/lib/case-db";
+import { listContractsForUser } from "@/lib/contracts/db";
+import { getDemoDocument } from "@/lib/demo-seed";
 import { recordActivity } from "@/lib/db";
 import type { CaseUpdateRequest } from "@legalir/types";
 
@@ -36,6 +46,52 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     updatedAt: t.updated_at,
   }));
 
+  // Documents linked to this case. Each link is re-checked against the
+  // caller's own documents, so a stale link to a foreign/deleted document
+  // can never leak through the case.
+  const documents = getCaseDocuments(id)
+    .map((link) => {
+      const doc = getDemoDocument(userId, link.document_id);
+      if (!doc) return null;
+      return {
+        id: doc.id,
+        name: doc.name,
+        mime: doc.mime,
+        sizeBytes: doc.sizeBytes,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        linkedAt: link.created_at,
+      };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
+  const deadlines = getCaseDeadlines(id).map((d) => ({
+    id: d.id,
+    caseId: d.case_id,
+    title: d.title,
+    dueAt: d.due_at,
+    source: d.source,
+    sourceRef: d.source_ref,
+    needsConfirmation: d.needs_confirmation,
+    completed: d.completed,
+    createdAt: d.created_at,
+  }));
+
+  // Contracts linked to this case (PART 11). Scoped to the session user
+  // so a foreign contract can never leak through a case.
+  const contracts = listContractsForUser(userId)
+    .filter((ct) => ct.caseId === id)
+    .map((ct) => ({
+      id: ct.id,
+      referenceCode: ct.referenceCode,
+      title: ct.title,
+      typeFa: ct.typeFa,
+      state: ct.state,
+      progress: ct.progress,
+      updatedAt: ct.updatedAt,
+    }));
+
   return NextResponse.json({
     data: {
       case: {
@@ -49,10 +105,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         createdAt: c.created_at,
         updatedAt: c.updated_at,
       },
-      documents: [],
-      contracts: [],
+      documents,
+      contracts,
       timeline,
       tasks,
+      deadlines,
     },
   });
 }

@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { getDemoDocument } from "@/lib/demo-seed";
+import { documentFileReference, resolveDocumentFile } from "@/lib/document-storage";
 
 export async function GET(
   request: Request,
@@ -33,17 +34,28 @@ export async function GET(
     );
   }
 
-  const previewUrl = doc.previewUrl;
-  if (!previewUrl) {
+  // Uploaded documents live in the private root; seeded demo fixtures
+  // live under public/. Resolve through the shared storage layer so both
+  // are found, then fall back to the public path for legacy rows that
+  // only carry a previewUrl.
+  const resolved = resolveDocumentFile(documentFileReference(doc));
+  let filePath: string;
+  let fileName: string;
+
+  if (resolved) {
+    filePath = resolved.absolutePath;
+    fileName = doc.name || resolved.fileName;
+  } else if (doc.previewUrl) {
+    // previewUrl is rooted at "/demo-documents/<file>"; resolve against public/.
+    const relative = doc.previewUrl.replace(/^\/+/, "");
+    filePath = path.join(process.cwd(), "public", relative);
+    fileName = path.basename(filePath);
+  } else {
     return NextResponse.json(
       { code: "NOT_FOUND", message: "فایل پیش‌نمایش برای این سند موجود نیست" },
       { status: 404 }
     );
   }
-
-  // previewUrl is rooted at "/demo-documents/<file>"; resolve against public/.
-  const relative = previewUrl.replace(/^\/+/, "");
-  const filePath = path.join(process.cwd(), "public", relative);
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json(
@@ -53,7 +65,6 @@ export async function GET(
   }
 
   const buf = fs.readFileSync(filePath);
-  const fileName = path.basename(filePath);
   const encodedName = encodeURIComponent(fileName);
 
   return new NextResponse(buf, {

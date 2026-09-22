@@ -1,8 +1,8 @@
 // ============================================================
 // LEGALIR — Account Hub (تنظیمات و پروفایل)
-// Polished hub with visual section cards for Profile, Legal
-// Space, Subscription, Connected Services, Settings, Help and
-// the Legal Blog. Replaces the single-purpose profile editor.
+// Profile Summary (identity at a glance) + Profile Details (all
+// editable fields), plus the legal-space, subscription, settings
+// and help hubs. Mobile and account type are read-only identity.
 // ============================================================
 
 "use client";
@@ -11,11 +11,14 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useMe, useUpdateProfile, useDailyQuota } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
-import { useCurrentSubscription } from "@/hooks/useSubscription";
+import { SubscriptionStatusDetails } from "@/components/subscription/subscription-status";
+import { useUpdateAccountType } from "@/hooks/useAccount";
+import { useOrganizations } from "@/hooks/useOnboarding";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useContracts } from "@/hooks/useContracts";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { JalaliDatePicker, formatJalaliLong } from "@/components/shared/JalaliDatePicker";
+import { Breadcrumb } from "@/components/shared/Breadcrumb";
 import {
   IconChat,
   IconDocument,
@@ -34,8 +37,17 @@ import {
   IconLawBook,
   IconInfo,
   IconBalance,
+  IconChevronDown,
 } from "@/lib/icons";
-import type { Profile, V1SubscriptionHistoryItem } from "@legalir/types";
+import type { Profile, V1SubscriptionHistoryItem, PlatformAccountType } from "@legalir/types";
+import {
+  ACCOUNT_TYPE_FA,
+  ACCOUNT_TYPE_DESCRIPTION_FA,
+  ORG_MEMBER_ROLE_FA,
+  ORGANIZATION_STATUS_FA,
+  ORGANIZATION_LEGAL_TYPE_FA,
+} from "@legalir/types";
+import { Select, TextField, SelectableOption, SelectableCard } from "@legalir/ui";
 
 // ============================================================
 // Helpers
@@ -159,7 +171,20 @@ function EditableField({ label, value, placeholder, onSave }: {
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <input type="text" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={handleKeyDown} disabled={saving} placeholder={placeholder} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl" />
+          <div className="w-full max-w-[200px]">
+            <TextField
+              label={label}
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={saving}
+              placeholder={placeholder}
+              inputSize="small"
+              autoFocus
+              fullWidth
+            />
+          </div>
           <button onClick={handleSave} disabled={saving || draft.trim() === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -192,9 +217,15 @@ function GenderEditableField({ label, value, onSave }: { label: string; value: s
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <select value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl">
-            {GENDER_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <Select
+            label={label}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            selectSize="small"
+            className="w-full max-w-[200px]"
+            options={GENDER_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+          />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -233,7 +264,16 @@ function DateEditableField({ label, value, placeholder, onSave }: {
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <JalaliDatePicker value={draft} onChange={setDraft} disabled={saving} />
+          {/* Birth date is historical — the year list reaches back and
+              rests on a plausible birth year, not the contract default. */}
+          <JalaliDatePicker
+            value={draft}
+            onChange={setDraft}
+            disabled={saving}
+            minYear={1300}
+            maxYear={1405}
+            defaultYear={1365}
+          />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -276,9 +316,15 @@ function SelectEditableField({ label, value, placeholder, options, onSave }: {
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <select value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[220px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl">
-            {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <Select
+            label={label}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            selectSize="small"
+            className="w-full max-w-[220px]"
+            options={options.map((opt) => ({ value: opt.value, label: opt.label }))}
+          />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -322,27 +368,25 @@ function MultiSelectField({ label, value, options, onSave }: {
         {options.map((opt) => {
           const active = value.includes(opt);
           return (
-            <button
+            <SelectableOption
               key={opt}
-              type="button"
-              onClick={() => toggle(opt)}
+              label={opt}
+              selected={active}
               disabled={saving}
-              aria-pressed={active}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption font-medium transition-colors touch-target ${
-                active
-                  ? "bg-primary-50 text-primary-700 border-primary-300 dark:bg-primary-500/10 dark:text-primary-400 dark:border-primary-500/20"
-                  : "bg-surface text-muted border-divider hover:border-primary/40 hover:text-primary"
-              }`}
-            >
-              {active && <IconCheck size={14} />}
-              {opt}
-            </button>
+              onClick={() => toggle(opt)}
+            />
           );
         })}
       </dd>
     </div>
   );
 }
+
+// ============================================================
+// Account-type conversion confirmation
+// ============================================================
+// Converting to a legal account is effectively irreversible, so it
+// requires an explicit confirmation before the request is sent.
 
 // ============================================================
 // Hub UI primitives
@@ -415,19 +459,33 @@ function HubCard({
 export default function AccountHubPage() {
   const me = useMe();
   const updateProfile = useUpdateProfile();
+  const updateAccountType = useUpdateAccountType();
+  const organizations = useOrganizations();
   const usage = useProfileUsage();
   const quota = useDailyQuota();
   const subHistory = useSubscriptionHistory();
-  const currentSub = useCurrentSubscription();
   const documents = useDocuments({ pageSize: 1 });
   const contracts = useContracts({ pageSize: 1 });
   const memories = useMemories();
 
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
+  const accountType = me.data?.user?.accountType ?? "individual";
+  const accountTypeLocked = me.data?.user?.accountTypeLocked ?? accountType === "legal";
+  // Platform account type (PERSONAL | LAWYER | BUSINESS). Falls back to the
+  // legacy field for payloads that predate the platform model.
+  const platformAccountType: PlatformAccountType =
+    me.data?.user?.platformAccountType ?? (accountType === "legal" ? "BUSINESS" : "PERSONAL");
+  const isLawyerAccount = platformAccountType === "LAWYER";
+  // The user's active organization (membership-scoped). A user is NEVER a
+  // company — an org member keeps their personal identity and represents
+  // the entity. When present, the account-type selector is replaced by the
+  // organization card + the user's role.
+  const activeOrg = organizations.data?.items?.[0] ?? null;
   const usageData = usage.data;
   const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
-  const activeSub = currentSub.data ?? null;
 
   const docCount = documents.data?.pagination?.total ?? documents.data?.items?.length ?? 0;
   const contractCount = contracts.data?.pagination?.total ?? contracts.data?.items?.length ?? 0;
@@ -466,14 +524,15 @@ export default function AccountHubPage() {
   const dailyExhausted = dailyTotal > 0 && dailyRemaining === 0;
   const dailyLow = !dailyExhausted && dailyTotal > 0 && dailyRemaining / dailyTotal <= 0.25;
 
-  const subLabel = activeSub?.planNameFa ?? "بدون اشتراک";
+  const lastPayment = subItems[0] ?? null;
 
   return (
     <div className="p-4 tablet:p-6 max-w-3xl mx-auto" dir="rtl">
-      <h1 className="text-h2 text-onSurface font-bold mb-6">تنظیمات و پروفایل</h1>
+      <Breadcrumb items={[{ label: "داشبورد", href: "/dashboard" }, { label: "پروفایل" }]} />
+      <h1 className="text-h2 text-onSurface font-bold mb-6">پروفایل</h1>
 
       {/* ================================================ */}
-      {/* Hero — identity summary */}
+      {/* Profile Summary — identity at a glance */}
       {/* ================================================ */}
       <section className="relative rounded-2xl bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 p-6 mb-6 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -490,80 +549,196 @@ export default function AccountHubPage() {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-h3 text-white font-bold truncate">{profile?.displayName ?? "کاربر LEGALIR"}</h2>
-            {(profile?.city || profile?.occupation) && (
-              <p className="text-body-2 text-primary-200 mt-1 truncate">
-                {[profile.city, profile.occupation].filter(Boolean).join(" — ")}
-              </p>
-            )}
-            <p className="text-caption text-primary-300 mt-1.5">
-              تکمیل پروفایل {toPersianNumber(completionPct)}٪
+            <p className="text-body-2 text-primary-200 mt-1 flex items-center gap-1.5" dir="ltr">
+              <IconPhone size={15} className="text-primary-300" />
+              {formatMobile(mobile)}
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-caption text-white">
+                <IconBalance size={14} />
+                {accountType === "legal" ? "شخص حقوقی" : "شخص حقیقی"}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption ${
+                  completionPct >= 100
+                    ? "bg-emerald-400/20 text-emerald-100"
+                    : "bg-amber-400/20 text-amber-100"
+                }`}
+              >
+                {completionPct >= 100 ? "پروفایل تکمیل است" : `تکمیل پروفایل ${toPersianNumber(completionPct)}٪`}
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ================================================ */}
-      {/* پروفایل من */}
+      {/* Account identity — mobile & account type (read-only) */}
       {/* ================================================ */}
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <SectionTitle icon={<IconPerson size={22} />}>پروفایل من</SectionTitle>
+        <SectionTitle icon={<IconShield size={22} />}>هویت حساب</SectionTitle>
         <dl>
-          <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
-          <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
-          <EditableField label="ایمیل" value={profile?.email ?? ""} placeholder="ایمیل خود را وارد کنید" onSave={hSaveEmail} />
-          <GenderEditableField label="جنسیت" value={profile?.gender ?? ""} onSave={hSaveGender} />
-          <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
-          <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
-          <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-body-2 text-muted shrink-0 w-28">موبایل</dt>
-            <dd className="flex items-center gap-2 text-body-2 text-onSurface" dir="ltr">
-              <IconPhone size={16} className="text-muted" />
-              {formatMobile(mobile)}
+          <div className="flex items-center justify-between py-3 border-b border-divider/60">
+            <dt className="text-body-2 text-muted shrink-0 w-28">شماره موبایل</dt>
+            <dd className="flex flex-col items-end gap-0.5 text-body-2 text-onSurface" dir="ltr">
+              <span className="flex items-center gap-2">
+                <IconPhone size={16} className="text-muted" />
+                {formatMobile(mobile)}
+              </span>
+              <span className="text-caption text-muted" dir="rtl">
+                این شماره هنگام ثبت‌نام حساب ثبت شده و قابل تغییر نیست.
+              </span>
+            </dd>
+          </div>
+          <div className="py-3">
+            <dt className="text-body-2 text-muted mb-2">نوع حساب</dt>
+            <dd className="text-body-2 text-onSurface">
+              {isLawyerAccount ? (
+                <div className="flex flex-col items-end gap-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-caption text-primary-700">
+                    <IconBalance size={14} />
+                    {ACCOUNT_TYPE_FA.LAWYER}
+                  </span>
+                  <span className="text-caption text-muted">
+                    حساب وکیل از طریق پروفایل حرفه‌ای مدیریت می‌شود.
+                  </span>
+                </div>
+              ) : activeOrg ? (
+                /* Organization member — show the entity + the user's role.
+                   A user is never converted into a company. */
+                <div className="rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-body-1 font-semibold text-onSurface truncate">
+                        {activeOrg.org.name}
+                      </p>
+                      <p className="mt-0.5 text-caption text-muted">
+                        {activeOrg.org.legalType
+                          ? ORGANIZATION_LEGAL_TYPE_FA[activeOrg.org.legalType]
+                          : "شخصیت حقوقی"}
+                        {" · "}
+                        {ORGANIZATION_STATUS_FA[activeOrg.org.status]}
+                      </p>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary-700 px-3 py-1 text-caption text-white">
+                      <IconBalance size={14} />
+                      {ORG_MEMBER_ROLE_FA[activeOrg.role as keyof typeof ORG_MEMBER_ROLE_FA] ??
+                        activeOrg.role}
+                    </span>
+                  </div>
+                  <Link
+                    href="/onboarding/organization"
+                    className="mt-3 inline-flex items-center gap-1.5 text-caption font-medium text-primary-700 hover:text-primary-800 transition-colors"
+                  >
+                    اطلاعات شرکت
+                    <IconArrowBack size={14} rtlFlip />
+                  </Link>
+                </div>
+              ) : (
+                /* Personal user — offer to ADD an organization (never
+                   "convert the account"). */
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-1 tablet:grid-cols-2 gap-2">
+                    {(["PERSONAL", "BUSINESS"] as const).map((type) => {
+                      const selected = platformAccountType === type;
+                      return (
+                        <SelectableCard
+                          key={type}
+                          selected={selected}
+                          disabled={updateAccountType.isPending}
+                          onClick={() => {
+                            if (selected) return;
+                            updateAccountType.mutate(type);
+                          }}
+                          title={ACCOUNT_TYPE_FA[type]}
+                          description={ACCOUNT_TYPE_DESCRIPTION_FA[type]}
+                        />
+                      );
+                    })}
+                  </div>
+                  <Link
+                    href="/onboarding/organization"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-primary-700 px-4 py-3 text-body-2 font-medium text-primary-700 hover:bg-primary-50 transition-colors touch-target"
+                  >
+                    <IconBalance size={18} />
+                    ثبت یا افزودن شرکت
+                  </Link>
+                </div>
+              )}
             </dd>
           </div>
         </dl>
       </section>
 
       {/* ================================================ */}
-      {/* پروفایل حقوقی من — Extended Profile (50%) */}
+      {/* Profile Details — all editable fields */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <SectionTitle icon={<IconBalance size={22} />}>پروفایل حقوقی من</SectionTitle>
-        </div>
-        <p className="text-caption text-muted -mt-3 mb-4">
-          با تکمیل این بخش، پروفایل شما به ۱۰۰٪ می‌رسد و ۱۰۰۰ امتیاز دریافت می‌کنید.
-        </p>
-        <dl>
-          <SelectEditableField
-            label="نوع کاربر"
-            value={profile?.userType ?? ""}
-            placeholder="انتخاب کنید"
-            options={USER_TYPE_OPTIONS}
-            onSave={hSaveUserType}
-          />
-          <SelectEditableField
-            label="استان"
-            value={profile?.province ?? ""}
-            placeholder="انتخاب کنید"
-            options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
-            onSave={hSaveProvince}
-          />
-          <MultiSelectField
-            label="حوزه‌های حقوقی مورد نیاز"
-            value={profile?.legalInterests ?? []}
-            options={LEGAL_INTEREST_OPTIONS}
-            onSave={hSaveLegalInterests}
-          />
-          <SelectEditableField
-            label="هدف اصلی استفاده"
-            value={profile?.primaryUseCase ?? ""}
-            placeholder="انتخاب کنید"
-            options={PRIMARY_USE_CASE_OPTIONS}
-            onSave={hSavePrimaryUseCase}
-          />
-        </dl>
+      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 mb-6 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          aria-expanded={detailsOpen}
+          aria-controls="profile-details"
+          className="flex w-full items-center justify-between gap-3 p-5 text-start transition-colors hover:bg-neutral-50"
+        >
+          <span className="flex items-center gap-2 text-h3 text-onSurface font-bold">
+            <span className="text-primary-600"><IconPerson size={22} /></span>
+            جزئیات پروفایل
+          </span>
+          <span className="flex items-center gap-2 text-caption text-muted">
+            {completionPct >= 100 ? "تکمیل شده" : `${toPersianNumber(completionPct)}٪`}
+            <IconChevronDown size={18} className={`transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+
+        {detailsOpen && (
+          <div id="profile-details" className="border-t border-divider/60 p-5 pt-0">
+            <h3 className="text-body-1 text-onSurface font-semibold mt-4 mb-1">اطلاعات پایه</h3>
+            <dl>
+              <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
+              <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
+              <EditableField label="ایمیل" value={profile?.email ?? ""} placeholder="ایمیل خود را وارد کنید" onSave={hSaveEmail} />
+              <GenderEditableField label="جنسیت" value={profile?.gender ?? ""} onSave={hSaveGender} />
+              <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
+              <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
+              <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
+            </dl>
+
+            <h3 className="text-body-1 text-onSurface font-semibold mt-6 mb-1">پروفایل حقوقی من</h3>
+            <p className="text-caption text-muted mb-2">
+              با تکمیل این بخش، پروفایل شما به ۱۰۰٪ می‌رسد و ۱۰۰۰ امتیاز دریافت می‌کنید.
+            </p>
+            <dl>
+              <SelectEditableField
+                label="نوع کاربر"
+                value={profile?.userType ?? ""}
+                placeholder="انتخاب کنید"
+                options={USER_TYPE_OPTIONS}
+                onSave={hSaveUserType}
+              />
+              <SelectEditableField
+                label="استان"
+                value={profile?.province ?? ""}
+                placeholder="انتخاب کنید"
+                options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
+                onSave={hSaveProvince}
+              />
+              <MultiSelectField
+                label="حوزه‌های حقوقی مورد نیاز"
+                value={profile?.legalInterests ?? []}
+                options={LEGAL_INTEREST_OPTIONS}
+                onSave={hSaveLegalInterests}
+              />
+              <SelectEditableField
+                label="هدف اصلی استفاده"
+                value={profile?.primaryUseCase ?? ""}
+                placeholder="انتخاب کنید"
+                options={PRIMARY_USE_CASE_OPTIONS}
+                onSave={hSavePrimaryUseCase}
+              />
+            </dl>
+          </div>
+        )}
       </section>
 
       {/* ================================================ */}
@@ -647,29 +822,12 @@ export default function AccountHubPage() {
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconSubscription size={22} />}>اشتراک</SectionTitle>
 
-        <div className="flex flex-col tablet:flex-row tablet:items-center gap-4 rounded-xl bg-amber-50/60 border border-amber-100 p-4 mb-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-body-1 text-onSurface font-semibold">پلن فعلی: {subLabel}</p>
-            <p className="text-caption text-muted mt-0.5">
-              {activeSub?.endAt ? `اعتبار تا ${toPersianDate(activeSub.endAt)}` : "برای فعال‌سازی اشتراک اقدام کنید"}
-            </p>
-          </div>
-          <Link
-            href="/subscription"
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-medium bg-primary-700 text-white px-5 py-2.5 text-button hover:bg-primary-800 transition-colors touch-target"
-          >
-            مدیریت و ارتقا
-            <IconArrowBack size={16} rtlFlip />
-          </Link>
-        </div>
+        {/* Canonical status — same source as the header chip and sidebar badge */}
+        <SubscriptionStatusDetails className="mb-4" />
 
         {/* درخواست امروز — donut: consumed vs remaining (matches dashboard) */}
-        <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border border-white/10 backdrop-blur p-4 transition-colors duration-300 hover:border-blue-300/30">
-          <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-blue-400/20 blur-2xl transition-opacity duration-500 opacity-60 group-hover:opacity-100"
-            aria-hidden="true"
-          />
-          <div className="relative flex items-center gap-3">
+        <div className="rounded-xl bg-info-50 border border-info-100 p-4 dark:bg-info-container dark:border-divider">
+          <div className="flex items-center gap-3">
             <div
               className="relative w-11 h-11 shrink-0"
               role="img"
@@ -678,48 +836,48 @@ export default function AccountHubPage() {
               <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
                 <defs>
                   <linearGradient id="profileQuotaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="100%" stopColor="#3b82f6" />
+                    <stop offset="0%" stopColor="#60A5FA" />
+                    <stop offset="100%" stopColor="#2563EB" />
                   </linearGradient>
                 </defs>
                 {/* track = consumed portion */}
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--color-info-100)" strokeWidth="4" />
                 {/* remaining allowance sweeps from 12 o'clock */}
                 <circle
                   cx="18" cy="18" r="15.915" fill="none"
-                  stroke={dailyExhausted ? "#f87171" : dailyLow ? "#fbbf24" : "url(#profileQuotaGrad)"}
+                  stroke={dailyExhausted ? "var(--color-error)" : dailyLow ? "var(--color-warning)" : "url(#profileQuotaGrad)"}
                   strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={dailyDash}
                   className="transition-all duration-700 ease-emphasized"
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
+              <span className="absolute inset-0 flex items-center justify-center text-labelSmall font-bold text-info-700 tabular-nums dark:text-info">
                 {toPersianNumber(dailyRemaining)}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">
+              <p className="text-h3 text-info-700 font-bold tabular-nums dark:text-info" dir="ltr">
                 {toPersianNumber(dailyUsed)}/{toPersianNumber(dailyTotal)}
               </p>
-              <p className="text-caption text-primary-200 mt-0.5">درخواست امروز</p>
+              <p className="text-caption text-info-700 mt-0.5 dark:text-info">درخواست امروز</p>
             </div>
           </div>
           {/* legend: consumed vs remaining */}
-          <div className="relative mt-2 flex items-center gap-3 text-[10px] text-primary-200/90">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-300" aria-hidden="true" />
+          <div className="mt-3 flex items-center gap-3 text-caption text-info-700 dark:text-info">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-info-600 dark:bg-info" aria-hidden="true" />
               {toPersianNumber(dailyRemaining)} مانده
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-white/25" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-info-200" aria-hidden="true" />
               {toPersianNumber(dailyUsed)} مصرف
             </span>
           </div>
         </div>
 
-        {subItems.length > 0 && subItems[0] && (
+        {lastPayment && (
           <p className="text-caption text-muted">
-            آخرین پرداخت: {subItems[0].planNameFa} — {toPersianDate(subItems[0].purchasedAt)}
+            آخرین پرداخت: {lastPayment.planNameFa} — {toPersianDate(lastPayment.purchasedAt)}
           </p>
         )}
       </section>
@@ -747,13 +905,19 @@ export default function AccountHubPage() {
         {/* Settings destinations */}
         <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3 mt-4">
           <HubCard
-            href="/settings"
+            href="/settings/notifications"
             icon={<IconSettings size={22} />}
-            title="اعلان‌ها و حریم خصوصی"
-            description="مدیریت اعلان‌ها و دسترسی‌ها"
+            title="اعلان‌ها"
+            description="مدیریت اعلان‌ها و اطلاع‌رسانی‌ها"
           />
           <HubCard
-            href="/settings"
+            href="/settings/privacy"
+            icon={<IconShield size={22} />}
+            title="حریم خصوصی"
+            description="مدیریت دسترسی‌ها و داده‌ها"
+          />
+          <HubCard
+            href="/settings/security"
             icon={<IconShield size={22} />}
             title="نشست‌ها و امنیت"
             description="نشست‌های فعال و امنیت حساب"
@@ -770,7 +934,7 @@ export default function AccountHubPage() {
           <HubCard href="/about" icon={<IconInfo size={22} />} title="درباره لیگالیر" description="آشنایی با پلتفرم و خدمات" />
           <HubCard href="/support" icon={<IconPhone size={22} />} title="پشتیبانی" description="تماس با تیم پشتیبانی" />
           <HubCard href="/blog" icon={<IconLawBook size={22} />} title="راهنما و آموزش" description="مقالات و راهنماهای حقوقی" />
-          <HubCard href="/support" icon={<IconStar size={22} />} title="قوانین استفاده" description="شرایط و ضوابط استفاده از خدمات" />
+          <HubCard href="/terms" icon={<IconStar size={22} />} title="قوانین استفاده" description="شرایط و ضوابط استفاده از خدمات" />
         </div>
       </section>
     </div>

@@ -9,11 +9,26 @@ import bcrypt from "bcryptjs";
 import { computeProfileCompletion } from "./profile-completion";
 import {
   getRewardRule,
+  getEnergyRule,
   tehranDateString,
   purchaseEventForPlan,
   type RewardEventType,
 } from "./rewards";
 import { seedDemoContent, seedLawContent, seedDemoCases, DEMO_USER_MOBILE } from "./demo-seed";
+import { seedPropertyContracts } from "./contracts/seed";
+import { listRenewalReminders } from "./contracts/db";
+import { seedDemoLawyers } from "./lawyer-seed";
+import { getPlanByCode } from "./usage/plans";
+import type {
+  NotificationItem,
+  PlatformAccountType,
+  PlatformRole,
+  PlanEntitlementSnapshot,
+  RegistrationIntent,
+  RegistrationOrigin,
+  OnboardingType,
+  OnboardingStatus,
+} from "@legalir/types";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -23,12 +38,35 @@ function ensureDir() {
   }
 }
 
+// ------------------------------------------------------------
+// Read cache
+// ------------------------------------------------------------
+// Tables used to be re-read and re-parsed from disk on every call —
+// the session table alone is >100KB, and a single page load touches
+// several tables, so this dominated request latency. All writes go
+// through `writeTable` in this process, so an mtime+size check is
+// enough to trust the cached parse; `writeTable` primes the entry so
+// a write can never leave a stale parse behind.
+const tableCache = new Map<string, { mtimeMs: number; size: number; data: unknown[] }>();
+
 export function readTable<T>(name: string): T[] {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
-  if (!fs.existsSync(file)) return [];
+  let stat: fs.Stats;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    stat = fs.statSync(file);
+  } catch {
+    tableCache.delete(name);
+    return [];
+  }
+  const cached = tableCache.get(name);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.data as T[];
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf-8")) as T[];
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+    return data;
   } catch {
     return [];
   }
@@ -38,11 +76,24 @@ export function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+  try {
+    const stat = fs.statSync(file);
+    tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
+  } catch {
+    tableCache.delete(name);
+  }
 }
 
 // ============================================================
 // Types
 // ============================================================
+
+/**
+ * Account type — the legal nature of the account holder.
+ * `individual` (شخص حقیقی) → `legal` (شخص حقوقی) is a one-way transition:
+ * once an account is `legal` it can never return to `individual`.
+ */
+export type AccountType = "individual" | "legal";
 
 export interface DbUser {
   id: string;
@@ -50,6 +101,28 @@ export interface DbUser {
   email: string | null;
   passwordHash: string;
   displayName: string | null;
+  /** Absent on legacy rows — treat as "individual". */
+  accountType?: AccountType;
+  /**
+   * Platform account type (PERSONAL | LAWYER | BUSINESS). Absent on
+   * legacy rows — derived from `accountType` via `normalizeAccountType`.
+   * Kept alongside the legacy field so existing rows never break.
+   */
+  platformAccountType?: PlatformAccountType;
+  /** RBAC role. Absent on legacy rows — treated as "USER". */
+  role?: PlatformRole;
+  /** The organization the user belongs to, when org-scoped. */
+  orgId?: string | null;
+  /**
+   * The entry point chosen at signup (PERSONAL | ORGANIZATION | LAWYER).
+   * Absent on legacy rows — treated as LEGACY. Analytics/UX only; NEVER
+   * used for authorization.
+   */
+  registrationOrigin?: RegistrationOrigin;
+  /** The onboarding track the user is on. Absent on legacy rows. */
+  onboardingType?: OnboardingType;
+  /** Progress through that track. Absent on legacy rows. */
+  onboardingStatus?: OnboardingStatus;
   createdAt: string;
 }
 
@@ -58,6 +131,12 @@ export interface DbSession {
   userId: string;
   createdAt: string;
   expiresAt: string;
+  /** Last time this session was seen on a request (ISO). */
+  lastActiveAt?: string;
+  /** Raw User-Agent header captured at creation. */
+  userAgent?: string | null;
+  /** Best-effort client IP captured at creation. */
+  ip?: string | null;
 }
 
 export interface ActivityRow {
@@ -102,6 +181,8 @@ interface StoredSubscription {
   end_at: string;
   purchased_at: string;
   auto_renew: number;
+  /** Entitlements frozen at purchase time (absent on legacy rows). */
+  plan_snapshot?: PlanEntitlementSnapshot;
 }
 
 interface UsageStatsRow {
@@ -189,19 +270,111 @@ export function createUser(params: {
   email?: string;
   passwordHash: string;
   displayName?: string;
+  /**
+   * The registration entry point. Defaults to PERSONAL. The intent only
+   * seeds the onboarding track — it never grants a role or org access.
+   */
+  registrationIntent?: RegistrationIntent;
 }): DbUser {
   const users = readTable<DbUser>("users");
+  const intent: RegistrationIntent = params.registrationIntent ?? "PERSONAL";
   const user: DbUser = {
     id: crypto.randomUUID(),
     mobile: params.mobile,
     email: params.email ?? null,
     passwordHash: params.passwordHash,
     displayName: params.displayName ?? null,
+    accountType: "individual",
+    platformAccountType: "PERSONAL",
+    role: "USER",
+    orgId: null,
+    registrationOrigin: intent,
+    onboardingType: intent,
+    onboardingStatus: "NOT_STARTED",
     createdAt: new Date().toISOString(),
   };
   users.push(user);
   writeTable("users", users);
   return user;
+}
+
+/** Set the onboarding progress for a user. */
+export function setOnboardingStatus(
+  userId: string,
+  status: OnboardingStatus
+): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.onboardingStatus = status;
+  writeTable("users", users);
+  return user;
+}
+
+/** The user's registration origin, defaulting legacy rows to LEGACY. */
+export function getRegistrationOrigin(userId: string): RegistrationOrigin {
+  return findUserById(userId)?.registrationOrigin ?? "LEGACY";
+}
+
+/**
+ * Set the platform account type. Unlike the legacy one-way
+ * `individual → legal` conversion, the platform type may move between
+ * PERSONAL and BUSINESS freely; LAWYER is granted only through the
+ * lawyer-application flow (which also sets the LAWYER role).
+ *
+ * The legacy `accountType` field is kept in sync so older code paths
+ * that still read it observe a consistent value.
+ */
+export function setPlatformAccountType(
+  userId: string,
+  type: PlatformAccountType
+): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.platformAccountType = type;
+  // Keep the legacy field coherent: BUSINESS maps to "legal".
+  if (type === "BUSINESS") user.accountType = "legal";
+  else if (type === "PERSONAL") user.accountType = "individual";
+  writeTable("users", users);
+  return user;
+}
+
+/** Set the RBAC role on a user row. */
+export function setUserRole(userId: string, role: PlatformRole): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.role = role;
+  writeTable("users", users);
+  return user;
+}
+
+/** The account type, defaulting legacy rows (no field) to "individual". */
+export function getAccountType(userId: string): AccountType {
+  return findUserById(userId)?.accountType ?? "individual";
+}
+
+export interface ConvertAccountResult {
+  ok: boolean;
+  accountType: AccountType;
+  reason?: "not_found" | "already_legal";
+}
+
+/**
+ * Convert an account to `legal`. One-way: a `legal` account can never be
+ * converted back. Enforced here (backend), not just in the UI.
+ */
+export function convertAccountToLegal(userId: string): ConvertAccountResult {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return { ok: false, accountType: "individual", reason: "not_found" };
+  if (user.accountType === "legal") {
+    return { ok: false, accountType: "legal", reason: "already_legal" };
+  }
+  user.accountType = "legal";
+  writeTable("users", users);
+  return { ok: true, accountType: "legal" };
 }
 
 // ============================================================
@@ -210,13 +383,20 @@ export function createUser(params: {
 
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function createSession(userId: string): DbSession {
+export function createSession(
+  userId: string,
+  meta?: { userAgent?: string | null; ip?: string | null }
+): DbSession {
   const sessions = readTable<DbSession>("sessions");
+  const now = new Date().toISOString();
   const session: DbSession = {
     id: crypto.randomUUID(),
     userId,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     expiresAt: new Date(Date.now() + SESSION_MAX_AGE_MS).toISOString(),
+    lastActiveAt: now,
+    userAgent: meta?.userAgent ?? null,
+    ip: meta?.ip ?? null,
   };
   sessions.push(session);
   writeTable("sessions", sessions);
@@ -227,6 +407,47 @@ export function findSessionById(sessionId: string): DbSession | undefined {
   const sessions = readTable<DbSession>("sessions");
   const now = new Date().toISOString();
   return sessions.find((s) => s.id === sessionId && s.expiresAt > now);
+}
+
+/** All non-expired sessions for a user, newest activity first. */
+export function listSessionsForUser(userId: string): DbSession[] {
+  const now = new Date().toISOString();
+  return readTable<DbSession>("sessions")
+    .filter((s) => s.userId === userId && s.expiresAt > now)
+    .sort((a, b) => (b.lastActiveAt ?? b.createdAt).localeCompare(a.lastActiveAt ?? a.createdAt));
+}
+
+/** Bump a session's last-active timestamp (best-effort, throttled by caller). */
+export function touchSession(sessionId: string): void {
+  const sessions = readTable<DbSession>("sessions");
+  const session = sessions.find((s) => s.id === sessionId);
+  if (!session) return;
+  session.lastActiveAt = new Date().toISOString();
+  writeTable("sessions", sessions);
+}
+
+/**
+ * Revoke a single session, scoped to its owner. Returns false when the
+ * session does not exist or belongs to another user (authorization).
+ */
+export function revokeSession(userId: string, sessionId: string): boolean {
+  const sessions = readTable<DbSession>("sessions");
+  const target = sessions.find((s) => s.id === sessionId);
+  if (!target || target.userId !== userId) return false;
+  writeTable(
+    "sessions",
+    sessions.filter((s) => s.id !== sessionId)
+  );
+  return true;
+}
+
+/** Revoke every session for a user except the one provided (keep current). */
+export function revokeOtherSessions(userId: string, keepSessionId: string): number {
+  const sessions = readTable<DbSession>("sessions");
+  const remaining = sessions.filter((s) => !(s.userId === userId && s.id !== keepSessionId));
+  const removed = sessions.length - remaining.length;
+  writeTable("sessions", remaining);
+  return removed;
 }
 
 export function deleteSession(sessionId: string): void {
@@ -480,18 +701,18 @@ export function queryProfileUsage(userId: string) {
 /** Free-tier allowance when the user has no active subscription. */
 export const FREE_DAILY_REQUESTS = 10;
 
-/** Daily allowance per plan code (mirrors fixturePlans.dailyRequestLimit). */
-const PLAN_DAILY_REQUESTS: Record<string, number> = {
-  silver: 100,
-  gold: 150,
-  diamond: 300,
-};
-
-/** The daily request allowance for the user's current plan. */
+/**
+ * The daily request allowance for the user's current plan.
+ *
+ * The number is read from the plan catalog (`subscription_plans`) — the
+ * single source of truth — never from a hard-coded copy. A plan edited by
+ * an admin is reflected here immediately.
+ */
 export function dailyRequestAllowance(userId: string): number {
   const sub = queryActiveSubscription(userId);
   if (!sub) return FREE_DAILY_REQUESTS;
-  return PLAN_DAILY_REQUESTS[sub.planCode] ?? FREE_DAILY_REQUESTS;
+  const plan = getPlanByCode(sub.planCode);
+  return plan?.dailyRequestLimit ?? FREE_DAILY_REQUESTS;
 }
 
 /** True when the user has a subscription row that has already ended. */
@@ -640,6 +861,8 @@ export function createSubscription(params: {
   statusFa: string;
   startAt: string;
   endAt: string;
+  /** Entitlements frozen at purchase time. */
+  planSnapshot?: PlanEntitlementSnapshot;
 }): StoredSubscription {
   const subs = readTable<StoredSubscription>("subscriptions");
   const sub: StoredSubscription = {
@@ -655,6 +878,7 @@ export function createSubscription(params: {
     end_at: params.endAt,
     purchased_at: new Date().toISOString(),
     auto_renew: 1,
+    plan_snapshot: params.planSnapshot,
   };
   subs.push(sub);
   writeTable("subscriptions", subs);
@@ -845,6 +1069,38 @@ export function getRewardBalance(userId: string): number {
     .reduce((sum, e) => sum + e.points_delta, 0);
 }
 
+export interface PointsAccount {
+  balance: number;
+  lifetimeEarned: number;
+  lifetimeSpent: number;
+  transactionCount: number;
+}
+
+/**
+ * Derive the points account aggregates from the ledger. The ledger is the
+ * single source of truth — balance is never stored separately, so it can
+ * never drift from the transactions that produced it.
+ */
+export function getPointsAccount(userId: string): PointsAccount {
+  const rows = readTable<RewardLedgerEntry>("reward_ledger").filter(
+    (e) => e.user_id === userId
+  );
+  let balance = 0;
+  let lifetimeEarned = 0;
+  let lifetimeSpent = 0;
+  for (const e of rows) {
+    balance += e.points_delta;
+    if (e.points_delta >= 0) lifetimeEarned += e.points_delta;
+    else lifetimeSpent += -e.points_delta;
+  }
+  return { balance, lifetimeEarned, lifetimeSpent, transactionCount: rows.length };
+}
+
+/** True when the user can afford `amount` points (used to gate redemption). */
+export function canSpendPoints(userId: string, amount: number): boolean {
+  return getRewardBalance(userId) >= amount;
+}
+
 /** True if a ledger entry with this idempotency key already exists. */
 function ledgerHasIdempotencyKey(key: string): boolean {
   return readTable<RewardLedgerEntry>("reward_ledger").some((e) => e.idempotency_key === key);
@@ -953,6 +1209,341 @@ export function claimPurchaseReward(userId: string, planCode: string, purchaseId
 }
 
 // ============================================================
+// Energy spend
+// ============================================================
+// Every processed request costs energy, regardless of which action
+// triggered it. The spend is written to the same ledger as awards, so
+// `getRewardBalance` (SUM of points_delta) stays the single balance.
+
+export interface SpendEnergyResult {
+  spent: boolean;
+  points: number;
+  balance: number;
+  entry?: RewardLedgerEntry;
+  /** Why the spend did not happen (when `spent` is false). */
+  reason?: "duplicate" | "insufficient_balance" | "no_rule";
+}
+
+/**
+ * Deduct the per-request energy cost from the user's balance.
+ *
+ * `sourceId` must uniquely identify the request (e.g. the message id,
+ * upload id or contract id) — it forms the idempotency key so a retried
+ * request can never be charged twice.
+ *
+ * Soft floor: the balance is never allowed to go negative. When the user
+ * cannot afford the cost, no ledger entry is written and the request is
+ * still allowed to proceed (the daily quota remains the primary gate).
+ */
+export function spendEnergy(params: {
+  userId: string;
+  sourceType: string;
+  sourceId: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}): SpendEnergyResult {
+  const rule = getEnergyRule("REQUEST_CONSUMED");
+  if (!rule) {
+    return { spent: false, points: 0, balance: getRewardBalance(params.userId), reason: "no_rule" };
+  }
+
+  const idempotencyKey = `energy:${params.sourceType}:${params.sourceId}`;
+  if (ledgerHasIdempotencyKey(idempotencyKey)) {
+    return { spent: false, points: 0, balance: getRewardBalance(params.userId), reason: "duplicate" };
+  }
+
+  // Soft floor — never let the balance cross below zero.
+  const currentBalance = getRewardBalance(params.userId);
+  if (currentBalance + rule.points < 0) {
+    return {
+      spent: false,
+      points: 0,
+      balance: currentBalance,
+      reason: "insufficient_balance",
+    };
+  }
+
+  const entry: RewardLedgerEntry = {
+    id: crypto.randomUUID(),
+    user_id: params.userId,
+    event_type: rule.eventType,
+    points_delta: rule.points,
+    source_type: params.sourceType,
+    source_id: params.sourceId,
+    idempotency_key: idempotencyKey,
+    description: params.description ?? rule.descriptionFa,
+    metadata: params.metadata ?? {},
+    created_at: new Date().toISOString(),
+  };
+
+  const rows = readTable<RewardLedgerEntry>("reward_ledger");
+  rows.push(entry);
+  writeTable("reward_ledger", rows);
+
+  return {
+    spent: true,
+    points: rule.points,
+    balance: getRewardBalance(params.userId),
+    entry,
+  };
+}
+
+/**
+ * Spend an explicit number of reward points. Used by the Entitlement & Usage
+ * Engine as the fallback when the daily subscription credit is exhausted and
+ * the product has enabled reward spending. Idempotent per
+ * (sourceType, sourceId) so a retried request can never double-charge.
+ */
+export function spendRewardPoints(params: {
+  userId: string;
+  points: number;
+  sourceType: string;
+  sourceId: string;
+  description?: string;
+}): SpendEnergyResult {
+  const idempotencyKey = `reward-spend:${params.sourceType}:${params.sourceId}`;
+  if (ledgerHasIdempotencyKey(idempotencyKey)) {
+    return {
+      spent: false,
+      points: 0,
+      balance: getRewardBalance(params.userId),
+      reason: "duplicate",
+    };
+  }
+
+  const currentBalance = getRewardBalance(params.userId);
+  if (currentBalance < params.points) {
+    return {
+      spent: false,
+      points: 0,
+      balance: currentBalance,
+      reason: "insufficient_balance",
+    };
+  }
+
+  const entry: RewardLedgerEntry = {
+    id: crypto.randomUUID(),
+    user_id: params.userId,
+    event_type: "REQUEST_CONSUMED",
+    points_delta: -params.points,
+    source_type: params.sourceType,
+    source_id: params.sourceId,
+    idempotency_key: idempotencyKey,
+    description: params.description ?? "مصرف امتیاز",
+    metadata: {},
+    created_at: new Date().toISOString(),
+  };
+
+  const rows = readTable<RewardLedgerEntry>("reward_ledger");
+  rows.push(entry);
+  writeTable("reward_ledger", rows);
+
+  return {
+    spent: true,
+    points: -params.points,
+    balance: getRewardBalance(params.userId),
+    entry,
+  };
+}
+
+// ============================================================
+// Notification Center
+// ============================================================
+// The feed is DERIVED, not stored. Every item comes from a real system
+// event that already exists elsewhere in the database:
+//
+//   reward_ledger  → category "points"    (the points history, normalized)
+//   activities     → category "personal"  (the user's own work events)
+//   catalog below  → category "public"    (LEGALIR-wide announcements)
+//
+// Only the read receipts are persisted, keyed by the item's stable id.
+// This keeps a single source of truth per event and guarantees the unread
+// count can never drift from the feed it describes.
+
+export interface NotificationReadRow {
+  user_id: string;
+  notification_id: string;
+  read_at: string;
+}
+
+/**
+ * Product announcements. These are editorial content shipped with the
+ * build — not user data — so they live here as a static catalog rather
+ * than in a table. `id` is stable and must never be reused.
+ */
+interface AnnouncementDef {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  href?: string;
+  actionLabel?: string;
+}
+
+const ANNOUNCEMENTS: AnnouncementDef[] = [
+  {
+    id: "ann:legal-library-launch",
+    title: "کتابخانه حقوقی LEGALIR منتشر شد",
+    message: "دسترسی رایگان به قوانین، آرای وحدت رویه و راهنماهای حقوقی.",
+    createdAt: "2026-09-10T08:00:00.000Z",
+    href: "/legal-library",
+    actionLabel: "مشاهده کتابخانه",
+  },
+  {
+    id: "ann:legal-calculators",
+    title: "محاسبه‌گرهای حقوقی در دسترس است",
+    message: "دیه، مهریه، هزینه دادرسی، عیدی و سنوات را سریع محاسبه کنید.",
+    createdAt: "2026-09-05T08:00:00.000Z",
+    href: "/calculators",
+    actionLabel: "ورود به محاسبه‌گرها",
+  },
+];
+
+/** Map a reward event to a human label when the ledger description is thin. */
+const REWARD_EVENT_FA: Record<string, string> = {
+  PROFILE_COMPLETED: "تکمیل پروفایل",
+  DAILY_VISIT: "ورود روزانه",
+  REFERRAL_COMPLETED: "دعوت از دوستان",
+  SUBSCRIPTION_SILVER_PURCHASED: "خرید اشتراک نقره‌ای",
+  SUBSCRIPTION_GOLD_PURCHASED: "خرید اشتراک طلایی",
+  SUBSCRIPTION_DIAMOND_PURCHASED: "خرید اشتراک الماسی",
+  REQUEST_CONSUMED: "استفاده از سرویس",
+};
+
+/** Where an activity type deep-links to. Mirrors the dashboard widget map. */
+const ACTIVITY_HREF: Record<ActivityRow["type"], string> = {
+  conversation: "/chat",
+  document: "/documents",
+  contract: "/contracts",
+  subscription: "/subscription",
+  case: "/cases",
+};
+
+function readNotificationReads(userId: string): NotificationReadRow[] {
+  return readTable<NotificationReadRow>("notification_reads").filter(
+    (r) => r.user_id === userId
+  );
+}
+
+/**
+ * Build the canonical notification feed for a user, newest first.
+ * Pure derivation — calling this twice yields identical ids, so read
+ * receipts stay valid across requests.
+ */
+export function deriveNotifications(userId: string): NotificationItem[] {
+  const readIds = new Set(readNotificationReads(userId).map((r) => r.notification_id));
+  const items: NotificationItem[] = [];
+
+  // --- Points events (the existing ledger, normalized) ---
+  for (const entry of readRewardLedger(userId)) {
+    const positive = entry.points_delta >= 0;
+    items.push({
+      id: `points:${entry.id}`,
+      category: "points",
+      tone: positive ? "success" : "warning",
+      title: entry.description || REWARD_EVENT_FA[entry.event_type] || "تغییر امتیاز",
+      message: REWARD_EVENT_FA[entry.event_type],
+      createdAt: entry.created_at,
+      read: readIds.has(`points:${entry.id}`),
+      href: "/points",
+      actionLabel: "مشاهده امتیازها",
+      pointsDelta: entry.points_delta,
+    });
+  }
+
+  // --- Personal events (the user's own activities) ---
+  for (const activity of readTable<ActivityRow>("activities")) {
+    if (activity.user_id !== userId || activity.archived) continue;
+    const id = `activity:${activity.id}`;
+    items.push({
+      id,
+      category: "personal",
+      tone: activity.status === "failed" ? "error" : "neutral",
+      title: activity.title,
+      message: activity.status_fa || activity.description || undefined,
+      createdAt: activity.updated_at,
+      read: readIds.has(id),
+      href: ACTIVITY_HREF[activity.type],
+    });
+  }
+
+  // --- Contract renewal reminders (derived from the contract term) ---
+  // Only when the user has not switched the `contractExpiry` preference off.
+  if (getPreferences(userId).notifications.contractExpiry) {
+    for (const reminder of listRenewalReminders(userId)) {
+      const id = `renewal:${reminder.contractId}:${reminder.endDate}`;
+      items.push({
+        id,
+        category: "personal",
+        tone: reminder.expired ? "error" : "warning",
+        title: reminder.expired
+          ? `قرارداد ${reminder.referenceCode} منقضی شده است`
+          : `قرارداد ${reminder.referenceCode} در آستانه پایان است`,
+        message: reminder.expired
+          ? `مدت اجاره در ${reminder.endDate} به پایان رسیده است. برای تمدید یا تخلیه اقدام کنید.`
+          : `${reminder.daysRemaining} روز تا پایان مدت اجاره باقی مانده است.`,
+        createdAt: reminder.endDate,
+        read: readIds.has(id),
+        href: `/contracts/${reminder.contractId}`,
+        actionLabel: "مشاهده قرارداد",
+      });
+    }
+  }
+
+  // --- Public announcements (static catalog) ---
+  for (const ann of ANNOUNCEMENTS) {
+    items.push({
+      id: ann.id,
+      category: "public",
+      tone: "neutral",
+      title: ann.title,
+      message: ann.message,
+      createdAt: ann.createdAt,
+      read: readIds.has(ann.id),
+      href: ann.href,
+      actionLabel: ann.actionLabel,
+    });
+  }
+
+  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function getUnreadNotificationCount(userId: string): number {
+  return deriveNotifications(userId).filter((n) => !n.read).length;
+}
+
+/** Mark one notification read. Idempotent — re-reading never duplicates. */
+export function markNotificationRead(userId: string, notificationId: string): void {
+  const rows = readTable<NotificationReadRow>("notification_reads");
+  if (rows.some((r) => r.user_id === userId && r.notification_id === notificationId)) {
+    return;
+  }
+  rows.push({
+    user_id: userId,
+    notification_id: notificationId,
+    read_at: new Date().toISOString(),
+  });
+  writeTable("notification_reads", rows);
+}
+
+/** Mark every currently-derived notification read. Returns how many changed. */
+export function markAllNotificationsRead(userId: string): number {
+  const rows = readTable<NotificationReadRow>("notification_reads");
+  const existing = new Set(
+    rows.filter((r) => r.user_id === userId).map((r) => r.notification_id)
+  );
+  const now = new Date().toISOString();
+  let changed = 0;
+  for (const item of deriveNotifications(userId)) {
+    if (existing.has(item.id)) continue;
+    rows.push({ user_id: userId, notification_id: item.id, read_at: now });
+    changed += 1;
+  }
+  if (changed > 0) writeTable("notification_reads", rows);
+  return changed;
+}
+
+// ============================================================
 // Dev seed
 // ============================================================
 
@@ -975,6 +1566,7 @@ const hash = bcrypt.hashSync("123456", 10);
     email: "maryam@example.com",
     passwordHash: hash,
     displayName: "مریم محمدی",
+    accountType: "individual",
     createdAt: new Date().toISOString(),
   };
   writeTable("users", [user]);
@@ -1084,5 +1676,7 @@ if (process.env.NODE_ENV === "development") {
     seedDemoContent(demoUser.id);
     seedLawContent(demoUser.id);
     seedDemoCases(demoUser.id);
+    seedPropertyContracts(demoUser.id);
+    seedDemoLawyers();
   }
 }

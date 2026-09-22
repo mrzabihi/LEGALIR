@@ -20,6 +20,9 @@ export const routes: RouteDef[] = [
   { path: "/features", titleFa: "قابلیت‌ها", access: "guest", icon: "Star" },
   { path: "/about", titleFa: "درباره LEGALIR", access: "guest", icon: "Info" },
   { path: "/contact", titleFa: "تماس با ما", access: "guest", icon: "Phone" },
+  { path: "/terms", titleFa: "قوانین استفاده", access: "guest", icon: "Article" },
+  { path: "/privacy-policy", titleFa: "حریم خصوصی", access: "guest", icon: "Shield" },
+  { path: "/blog", titleFa: "بلاگ", access: "guest", icon: "Article" },
   { path: "/login", titleFa: "ورود", access: "guest" },
   { path: "/register", titleFa: "ثبت‌نام", access: "guest" },
 
@@ -37,6 +40,12 @@ export const routes: RouteDef[] = [
   { path: "/history", titleFa: "تاریخچه", access: "user", icon: "History" },
   { path: "/documents", titleFa: "اسناد", access: "entitled", icon: "Description" },
   { path: "/contracts", titleFa: "قراردادها", access: "entitled", icon: "Article" },
+  { path: "/calculators", titleFa: "محاسبه‌گرها", access: "user", icon: "Calculator" },
+  { path: "/lawyers", titleFa: "وکلا", access: "user", icon: "Balance" },
+  { path: "/lawyer", titleFa: "میزکار وکیل", access: "user", icon: "Balance", hidden: true },
+  { path: "/cases", titleFa: "پرونده‌ها", access: "user", icon: "Balance" },
+  { path: "/requests", titleFa: "درخواست‌ها", access: "user", icon: "Article" },
+  { path: "/intake", titleFa: "پرسش‌نامه حقوقی", access: "user", icon: "Category", hidden: true },
   { path: "/subscription", titleFa: "اشتراک", access: "user", icon: "WorkspacePremium" },
 
   // App — Secondary (not in main nav)
@@ -45,6 +54,7 @@ export const routes: RouteDef[] = [
 
   // App — Admin only
   { path: "/admin/users", titleFa: "مدیریت کاربران", access: "admin", icon: "Person", hidden: true },
+  { path: "/admin/knowledge", titleFa: "پایگاه دانش حقوقی", access: "admin", icon: "Library", hidden: true },
   { path: "/admin/review", titleFa: "بازبینی محتوا", access: "admin", icon: "Shield", hidden: true },
   { path: "/admin/health", titleFa: "سلامت سیستم", access: "admin", icon: "Dashboard", hidden: true },
 ];

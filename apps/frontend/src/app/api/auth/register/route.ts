@@ -13,6 +13,8 @@ import {
   createSession,
   cleanupExpiredSessions,
 } from "@/lib/db";
+import { clientIpFromHeaders } from "@/lib/user-agent";
+import { normalizeRegistrationIntent } from "@legalir/types";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -21,11 +23,17 @@ export async function POST(request: Request) {
     cleanupExpiredSessions();
 
     const body = await request.json();
-    const { mobile, email, password } = body as {
+    const { mobile, email, password, registrationIntent } = body as {
       mobile?: string;
       email?: string;
       password?: string;
+      registrationIntent?: string;
     };
+
+    // The intent is untrusted client input. Normalize it against the
+    // allow-list; anything unknown falls back to PERSONAL. It only seeds
+    // the onboarding track — it never grants a role or org access.
+    const intent = normalizeRegistrationIntent(registrationIntent) ?? "PERSONAL";
 
     // --- Validate required fields ---
     if (!mobile || !/^09\d{9}$/.test(mobile)) {
@@ -92,10 +100,14 @@ export async function POST(request: Request) {
       email,
       passwordHash,
       displayName: undefined,
+      registrationIntent: intent,
     });
 
     // --- Create session ---
-    const session = createSession(user.id);
+    const session = createSession(user.id, {
+      userAgent: request.headers.get("user-agent"),
+      ip: clientIpFromHeaders(request.headers),
+    });
 
     // --- Build response ---
     const userResponse = {

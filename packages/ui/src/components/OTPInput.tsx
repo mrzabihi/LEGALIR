@@ -35,10 +35,11 @@ export function OTPInput({
       const char = e.target.value.slice(-1);
       if (char && numeric && !/^\d$/.test(char)) return;
 
-      const newValue = value.split("");
-      newValue[index] = char;
-      const joined = newValue.join("").slice(0, length);
-      onChange(joined);
+      // Build from a fixed-length array so a digit typed into a later
+      // box never shifts earlier digits (a plain string can't hold gaps).
+      const chars = Array.from({ length }, (_, i) => value[i] ?? "");
+      chars[index] = char;
+      onChange(chars.join("").slice(0, length));
 
       // Auto-focus next
       if (char && index < length - 1) {

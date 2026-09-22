@@ -379,7 +379,15 @@ export default function LandingPage() {
           ============================================================ */}
       <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
         <div className="text-center mb-12">
-          <h2 className="text-h2 text-primary-800 mb-3">خدمات هوشمند لیگالیر</h2>
+          {/* Persian LEGALIR wordmark replaces the old heading text.
+              A breathing halo sits behind it and it lifts on hover. */}
+          <div className="brand-logo-glow mb-3">
+            <img
+              src="/legalir-logo-fa-type.png"
+              alt="خدمات هوشمند لیگالیر"
+              className="h-14 tablet:h-16 w-auto max-w-[280px] object-contain"
+            />
+          </div>
           <p className="text-body-1 text-neutral-500 max-w-xl mx-auto leading-relaxed">
             سه سرویس تخصصی مبتنی بر هوش مصنوعی حقوقی — آموزش‌دیده بر نظام حقوقی ایران
           </p>

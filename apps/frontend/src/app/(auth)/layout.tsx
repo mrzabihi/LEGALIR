@@ -38,7 +38,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         aria-hidden="true"
       />
 
-      <div className="relative z-10 w-full max-w-md">
+      {/* The track-selection page lays out three cards side by side, so it
+          needs a wider column than the single-column login/OTP forms. */}
+      <div
+        className={`relative z-10 w-full ${
+          pathname === "/auth/register" ? "max-w-4xl" : "max-w-md"
+        }`}
+      >
         {/* Logo area */}
         <div className="flex flex-col items-center mb-10">
           <img

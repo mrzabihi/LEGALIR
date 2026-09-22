@@ -22,7 +22,7 @@ describe("Theme Switching", () => {
 
   it("header renders without error in light theme", () => {
     render(wrapInRtl(<Header />));
-    expect(screen.getByLabelText("LEGALIR — صفحه اصلی")).toBeInTheDocument();
+    expect(screen.getByText("صفحه اصلی")).toBeInTheDocument();
   });
 });
 
@@ -46,9 +46,9 @@ describe("Responsive Layout Elements", () => {
     expect(screen.getByText(new RegExp(currentYear))).toBeInTheDocument();
   });
 
-  it("header has accessible logo link", () => {
+  it("header exposes an accessible home link", () => {
     render(wrapInRtl(<Header />));
-    expect(screen.getByLabelText("LEGALIR — صفحه اصلی")).toBeInTheDocument();
+    expect(screen.getByText("صفحه اصلی").closest("a")).toHaveAttribute("href", "/");
   });
 
   it("disclaimer text is present and does not claim guarantee", () => {

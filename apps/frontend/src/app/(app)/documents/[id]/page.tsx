@@ -12,7 +12,10 @@ import {
   useRetryDocument,
   useDeleteDocument,
 } from "@/hooks/useDocuments";
-import { DocumentChatPanel, PreviewPlaceholder } from "@/components/documents";
+// Direct module imports — the `@/components/documents` barrel re-exports the
+// whole document component set, pulling unrelated modules into this route.
+import { DocumentChatPanel } from "@/components/documents/document-chat-panel";
+import { DocumentPreviewCard } from "@/components/documents/document-preview-card";
 import { Button, Skeleton, ErrorState, ConfirmDialog, ProgressLinear } from "@legalir/ui";
 import { IconArrowBack, IconDelete, IconRefresh } from "@/lib/icons";
 import type { V1DocumentDetail } from "@legalir/types";
@@ -179,12 +182,12 @@ export default function DocumentDetailPage() {
         </div>
       )}
 
-      {/* Document preview — moved to the top */}
-      <PreviewPlaceholder
-        documentName={document.name}
+      {/* Document preview — real first-page / image preview, links to the viewer */}
+      <DocumentPreviewCard
+        documentId={document.id}
+        fileName={document.name}
         mime={document.mime}
-        previewUrl={document.previewUrl}
-        downloadUrl={`/api/v1/documents/${document.id}/download`}
+        sizeBytes={document.sizeBytes}
       />
 
       {/* Merged chat + analysis — LegalIR comments on the uploaded file.

@@ -164,6 +164,26 @@ export const IconUpload = createIcon("Upload", (
   <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
 ));
 
+/**
+ * Paperclip — attach a document to the current chat turn.
+ *
+ * Rendered as a stroked (not filled) glyph so the clip reads as a thin
+ * metal loop rather than a solid blob. Pass `motion` to add the gentle
+ * «wiggle» that draws the eye to the attach affordance; the animation is
+ * suppressed automatically under `prefers-reduced-motion`.
+ */
+export const IconAttach = createIcon(
+  "Attach",
+  <path
+    d="M16.5 6.5v9.75a4.5 4.5 0 0 1-9 0V6a3 3 0 0 1 6 0v9.5a1.5 1.5 0 0 1-3 0V7.5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+
 export const IconLogout = createIcon(
   "Logout",
   <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />,
@@ -176,6 +196,23 @@ export const IconMemory = createIcon("Memory", (
 
 export const IconSubscription = createIcon("Subscription", (
   <path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" />
+));
+
+// --- Plan-tier icons (silver · gold · diamond) ---
+
+/** Silver — a single four-point sparkle. */
+export const IconPlanSilver = createIcon("PlanSilver", (
+  <path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z" />
+));
+
+/** Gold — a five-point star. */
+export const IconPlanGold = createIcon("PlanGold", (
+  <path d="M12 2l2.9 6.26L21.5 9.3l-4.75 4.4 1.15 6.6L12 17.2l-5.9 3.1 1.15-6.6L2.5 9.3l6.6-1.04z" />
+));
+
+/** Diamond — a faceted gem. */
+export const IconPlanDiamond = createIcon("PlanDiamond", (
+  <path d="M12 2L3 9l9 13 9-13-9-7zm0 2.5L17.6 9H6.4L12 4.5zM6.9 11h10.2L12 19.2 6.9 11z" />
 ));
 
 export const IconPhone = createIcon("Phone", (
@@ -232,6 +269,39 @@ export const IconMinimize = createIcon("Minimize", (
   <path d="M6 19h12v2H6v-2z" />
 ));
 
+export const IconZoomIn = createIcon("ZoomIn", (
+  <>
+    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+    <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z" />
+  </>
+));
+
+export const IconZoomOut = createIcon("ZoomOut", (
+  <>
+    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+    <path d="M7 9h5v1H7z" />
+  </>
+));
+
+export const IconFitWidth = createIcon("FitWidth", (
+  <>
+    <path d="M4 6h2v12H4zM18 6h2v12h-2z" />
+    <path d="M10 8l-4 4 4 4v-3h4v3l4-4-4-4v3h-4z" />
+  </>
+));
+
+export const IconChevronLeft = createIcon("ChevronLeft", (
+  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+));
+
+export const IconChevronRightSmall = createIcon("ChevronRightSmall", (
+  <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
+));
+
+export const IconOpenInNew = createIcon("OpenInNew", (
+  <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+));
+
 export const IconStar = createIcon("Star", (
   <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
 ));
@@ -259,6 +329,11 @@ export const IconDownload = createIcon("Download", (
   <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
 ));
 
+/** Funnel — filter / refine controls. */
+export const IconFilter = createIcon("Filter", (
+  <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
+));
+
 export const IconEmail = createIcon("Email", (
   <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
 ));
@@ -273,4 +348,103 @@ export const IconServices = createIcon("Services", (
 
 export const IconGender = createIcon("Gender", (
   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+));
+
+// --- Legal Service Icons ---
+
+/** Document with a magnifier — contract review / risk analysis. */
+export const IconFileSearch = createIcon("FileSearch", (
+  <path d="M20 19.59V8l-6-6H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c.45 0 .85-.15 1.19-.4l-4.43-4.43c-.8.52-1.74.83-2.76.83-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5c0 1.02-.31 1.96-.83 2.75L20 19.59zM9 13c0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3-3 1.34-3 3z" />
+));
+
+/** Lines with a pen — contract drafting. */
+export const IconFilePen = createIcon("FilePen", (
+  <path d="M3 10h11v2H3v-2zm0-2h11V6H3v2zm0 8h7v-2H3v2zm15.01-3.13l.71-.71c.39-.39 1.02-.39 1.41 0l.71.71c.39.39.39 1.02 0 1.41l-.71.71-2.12-2.12zm-.71.71l-5.3 5.3V21h2.12l5.3-5.3-2.12-2.12z" />
+));
+
+/** Article / formal document — legal notice. */
+export const IconFileText = createIcon("FileText", (
+  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+));
+
+/** Stacked documents — document analysis. */
+export const IconFiles = createIcon("Files", (
+  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+));
+
+/** Calculator keypad — legal calculations. */
+/** Stacked cylinders — advanced resources / data sources. */
+export const IconDatabase = createIcon("Database", (
+  <path d="M12 2C7.58 2 4 3.34 4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5c0-1.66-3.58-3-8-3zm0 2c3.87 0 6 .99 6 1s-2.13 1-6 1-6-.99-6-1 2.13-1 6-1zm6 15c0 .01-2.13 1-6 1s-6-.99-6-1v-2.23c1.5.72 3.66 1.23 6 1.23s4.5-.51 6-1.23V19zm0-4.5c0 .01-2.13 1-6 1s-6-.99-6-1v-2.23c1.5.72 3.66 1.23 6 1.23s4.5-.51 6-1.23v2.23zm0-4.5c0 .01-2.13 1-6 1s-6-.99-6-1V7.77c1.5.72 3.66 1.23 6 1.23s4.5-.51 6-1.23V10z" />
+));
+
+/** Lightning bolt — priority / fast processing. */
+export const IconBolt = createIcon("Bolt", (
+  <path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z" />
+));
+
+/** Bell — notifications / notification center. */
+export const IconBell = createIcon("Bell", (
+  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+));
+
+export const IconCalculator = createIcon("Calculator", (
+  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-2h2v2zm0-4H7v-2h2v2zm0-4H7V7h2v2zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z" />
+));
+
+/** Car — vehicle contracts. */
+export const IconCar = createIcon("Car", (
+  <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+));
+
+/** Briefcase — freelance / services contracts. */
+export const IconBriefcase = createIcon("Briefcase", (
+  <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" />
+));
+
+/** Cloud — SaaS contracts. */
+export const IconCloud = createIcon("Cloud", (
+  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+));
+
+/** Users — startup / multi-party contracts. */
+export const IconUsers = createIcon("Users", (
+  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+));
+
+// --- Lawyer marketplace: specialty watermarks & card meta ---
+
+/** Business center — companies / corporate law. */
+export const IconBusiness = createIcon("Business", (
+  <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
+));
+
+/** Code brackets — technology / software law. */
+export const IconCode = createIcon("Code", (
+  <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
+));
+
+/** Trademark badge — brand / IP registration. */
+export const IconTrademark = createIcon("Trademark", (
+  <path d="M12 2l2.4 1.8 3-.3 1.2 2.8 2.7 1.4-.6 2.9 1.8 2.4-1.8 2.4.6 2.9-2.7 1.4-1.2 2.8-3-.3L12 22l-2.4-1.8-3 .3-1.2-2.8-2.7-1.4.6-2.9L1.5 11l1.8-2.4-.6-2.9 2.7-1.4 1.2-2.8 3 .3L12 2zm-1.2 6.5v7h1.8v-4.6l1.9 4.6h1.3l1.9-4.6v4.6h1.8v-7h-2.5l-1.8 4.4-1.8-4.4h-2.6z" />
+));
+
+/** Clock — consultation duration / response time. */
+export const IconClock = createIcon("Clock", (
+  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z" />
+));
+
+/** Location pin — city / province. */
+export const IconLocation = createIcon("Location", (
+  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+));
+
+/** Gavel — criminal law / litigation. */
+export const IconGavel = createIcon("Gavel", (
+  <path d="M1 21h12v2H1v-2zM5.24 8.07l2.83-2.83 14.14 14.14-2.83 2.83L5.24 8.07zM12.32 1l5.66 5.66-2.83 2.83-5.66-5.66L12.32 1zM3.83 9.48l5.66 5.66-2.83 2.83L1 12.31l2.83-2.83z" />
+));
+
+/** Scale of justice — general legal / other. */
+export const IconScale = createIcon("Scale", (
+  <path d="M12 3a1.5 1.5 0 011.5 1.5h4.75a1 1 0 010 2H13.5V8h3.25l2.5 6.5a3.75 3.75 0 01-7.25 0L14.5 8H13.5v9.5h4a1 1 0 010 2h-11a1 1 0 010-2h4V8H9.5l2.5 6.5a3.75 3.75 0 01-7.25 0L7.25 8H6.75a1 1 0 010-2H11.5A1.5 1.5 0 0112 3zM6.5 10.2L5.2 13.6a2.25 2.25 0 002.6 0L6.5 10.2zm11 0l-1.3 3.4a2.25 2.25 0 002.6 0l-1.3-3.4z" />
 ));

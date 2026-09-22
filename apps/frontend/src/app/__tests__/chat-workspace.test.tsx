@@ -42,6 +42,7 @@ vi.mock("next/navigation", () => ({
   }),
   useParams: () => ({ id: "conv-rent-001" }),
   usePathname: () => "/chat/conv-rent-001",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { vi } from "vitest";
@@ -290,8 +291,11 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
         })
       );
 
-      // Type and send a message
-      const textarea = screen.getByPlaceholderText("سوال حقوقی خود را بنویسید...");
+      // Type and send a message. The composer placeholder is context-aware
+      // (§10); with no service in the URL it falls back to the generic prompt.
+      const textarea = screen.getByPlaceholderText(
+        "مسئله حقوقی خود را با جزئیات لازم توضیح دهید..."
+      );
       fireEvent.change(textarea, { target: { value: "حقوق مستأجر چیست؟" } });
 
       const sendButton = screen.getByLabelText("ارسال پیام");
@@ -386,7 +390,9 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
         expect(screen.getByText("تست بخش‌ها")).toBeInTheDocument();
       });
 
-      const textarea = screen.getByPlaceholderText("سوال حقوقی خود را بنویسید...");
+      const textarea = screen.getByPlaceholderText(
+        "مسئله حقوقی خود را با جزئیات لازم توضیح دهید..."
+      );
       fireEvent.change(textarea, { target: { value: "تست تحلیل حقوقی" } });
       fireEvent.click(screen.getByLabelText("ارسال پیام"));
 
@@ -562,7 +568,7 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
       });
     });
 
-    it("renders escalation CTA placeholder", async () => {
+    it("renders escalation CTA proposing lawyers for the chat topic", async () => {
       setupConversationHandlers();
 
       const detailWithCompletedMsg = {
@@ -590,12 +596,12 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText("مشاوره با وکیل")).toBeInTheDocument();
+        expect(screen.getByText(/وکلای پیشنهادی برای موضوع/)).toBeInTheDocument();
       });
 
-      // CTA button should be disabled (placeholder)
-      const ctaButton = screen.getByText("مشاوره با وکیل").closest("button");
-      expect(ctaButton).toBeDisabled();
+      // The marketplace link is live and pre-filtered on the chat's topic.
+      const marketplaceLink = screen.getByText(/مشاهده سایر وکلا/).closest("a");
+      expect(marketplaceLink).toHaveAttribute("href", "/lawyers?category=real_estate");
     });
 
     it("shows usage bar with daily request counter", async () => {
