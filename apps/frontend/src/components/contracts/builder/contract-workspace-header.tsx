@@ -30,7 +30,6 @@ import type { ContractCompletenessSection } from "@legalir/types";
 import type { SaveStatus } from "./wizard-context";
 import {
   IconArrowForward,
-  IconCheck,
   IconCopy,
   IconRefresh,
   IconWarning,

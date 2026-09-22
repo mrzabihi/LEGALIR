@@ -162,7 +162,7 @@ describe("SelectableCard", () => {
 
 describe("JalaliDatePicker", () => {
   it("defaults the year list to 1405–1450 and includes 1450", () => {
-    render(<JalaliDatePicker value="" onChange={() => {}} />);
+    render(<JalaliDatePicker value="" onChange={vi.fn()} />);
     const year = screen.getByLabelText("سال") as HTMLSelectElement;
     const values = Array.from(year.options).map((o) => Number(o.value));
     expect(values).toContain(1405);
@@ -173,13 +173,13 @@ describe("JalaliDatePicker", () => {
   });
 
   it("rests on 1405 when empty", () => {
-    render(<JalaliDatePicker value="" onChange={() => {}} />);
+    render(<JalaliDatePicker value="" onChange={vi.fn()} />);
     expect((screen.getByLabelText("سال") as HTMLSelectElement).value).toBe("1405");
   });
 
   it("honours a past-only range for historical fields", () => {
     render(
-      <JalaliDatePicker value="" onChange={() => {}} minYear={1300} maxYear={1405} defaultYear={1365} />
+      <JalaliDatePicker value="" onChange={vi.fn()} minYear={1300} maxYear={1405} defaultYear={1365} />
     );
     const year = screen.getByLabelText("سال") as HTMLSelectElement;
     const values = Array.from(year.options).map((o) => Number(o.value));
@@ -188,7 +188,7 @@ describe("JalaliDatePicker", () => {
   });
 
   it("offers 31 days for فروردین and 30 for مهر", () => {
-    render(<JalaliDatePicker value="1405-01-01" onChange={() => {}} />);
+    render(<JalaliDatePicker value="1405-01-01" onChange={vi.fn()} />);
     const day = screen.getByLabelText("روز") as HTMLSelectElement;
     expect(day.options).toHaveLength(31);
 
@@ -197,7 +197,7 @@ describe("JalaliDatePicker", () => {
   });
 
   it("clamps ۳۱ شهریور to ۳۰ when the month changes to مهر", () => {
-    render(<JalaliDatePicker value="1405-06-31" onChange={() => {}} />);
+    render(<JalaliDatePicker value="1405-06-31" onChange={vi.fn()} />);
     expect((screen.getByLabelText("روز") as HTMLSelectElement).value).toBe("31");
     fireEvent.change(screen.getByLabelText("ماه"), { target: { value: "7" } });
     expect((screen.getByLabelText("روز") as HTMLSelectElement).value).toBe("30");
@@ -213,7 +213,7 @@ describe("JalaliDatePicker", () => {
     render(
       <JalaliDatePicker
         value="1405-06-13"
-        onChange={() => {}}
+        onChange={vi.fn()}
         errorMessage="تاریخ پایان قرارداد نمی‌تواند قبل از تاریخ شروع باشد."
       />
     );
