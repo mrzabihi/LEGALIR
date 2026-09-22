@@ -19,7 +19,6 @@ import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import type { SubscriptionState, SubscriptionStatusView } from "@/lib/subscription";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
-  IconSubscription,
   IconChevronRight,
   IconPlanSilver,
   IconPlanGold,

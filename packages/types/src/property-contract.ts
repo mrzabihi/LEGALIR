@@ -20,21 +20,44 @@
 // Domain + type identity
 // ------------------------------------------------------------
 
-/** The top-level contract domain. Only `property` is implemented today. */
-export type ContractDomain = "property" | "vehicle";
+/** The top-level contract domain. */
+export type ContractDomain = "property" | "vehicle" | "finance" | "services" | "business";
 
-/** Contract types within the property domain. */
+/** Contract types within the property domain (the fully bespoke journeys). */
 export type PropertyContractType = "property_rent" | "property_sale";
 
+/**
+ * Contract types served by the schema-driven engine: they share one
+ * generic wizard step and one generic data shape, and are described
+ * entirely by their registry definition.
+ */
+export type SchemaContractType =
+  | "vehicle_sale"
+  | "debt"
+  | "freelance"
+  | "nda"
+  | "saas"
+  | "startup";
+
 /** Every contract type the engine knows about (extend as domains land). */
-export type ContractTypeId = PropertyContractType | "vehicle_sale";
+export type ContractTypeId = PropertyContractType | SchemaContractType;
 
 /** Which side of the deal the initiating user is on. */
 export type PartyRole =
   | "landlord" // موجر
   | "tenant" // مستأجر
   | "seller" // فروشنده
-  | "buyer"; // خریدار
+  | "buyer" // خریدار
+  | "lender" // طلبکار / قرض‌دهنده
+  | "borrower" // بدهکار / قرض‌گیرنده
+  | "client" // کارفرما
+  | "freelancer" // فریلنسر
+  | "discloser" // افشاکننده اطلاعات
+  | "recipient" // دریافت‌کننده اطلاعات
+  | "provider" // ارائه‌دهنده سرویس
+  | "customer" // مشتری
+  | "founder" // بنیان‌گذار
+  | "investor"; // سرمایه‌گذار
 
 /** The legal capacity a party acts in. */
 export type PartyCapacity =
@@ -598,6 +621,53 @@ export interface PropertySaleData {
 }
 
 // ------------------------------------------------------------
+// Schema-driven contract data (vehicle, finance, services, business)
+// ------------------------------------------------------------
+// The bespoke property journeys have their own typed sub-objects. The
+// remaining contract types are described entirely by their registry
+// definition, so they share ONE generic data shape: a flat map of
+// field key → value, plus the same custom-clause list. This keeps the
+// wizard, the completeness scorer and the template engine generic —
+// adding a type means adding a definition, never a new data type.
+
+/** A single value captured by a schema-driven field. */
+export type GenericFieldValue = string | number | boolean | null;
+
+export interface GenericContractData {
+  schemaVersion: 1;
+  /** Field key → value, keyed by the definition's field descriptors. */
+  values: Record<string, GenericFieldValue>;
+  /** Free-form custom clauses added by the user. */
+  customClauses: CustomClause[];
+}
+
+/** The input control a schema-driven field renders. */
+export type ContractFieldKind =
+  | "text"
+  | "textarea"
+  | "number"
+  | "money"
+  | "date"
+  | "select"
+  | "toggle";
+
+/** One field in a schema-driven contract type. */
+export interface ContractFieldDescriptor {
+  /** Stable key into `GenericContractData.values`. */
+  key: string;
+  labelFa: string;
+  kind: ContractFieldKind;
+  /** The wizard step this field belongs to. */
+  stepId: string;
+  /** Options for `select`. */
+  options?: { value: string; labelFa: string }[];
+  placeholderFa?: string;
+  helperFa?: string;
+  /** True when the field must be filled for the section to complete. */
+  required?: boolean;
+}
+
+// ------------------------------------------------------------
 // Custom clauses
 // ------------------------------------------------------------
 
@@ -614,7 +684,7 @@ export interface CustomClause {
 
 export interface ContractVersionSnapshot {
   /** The full contract data at snapshot time. */
-  data: PropertyRentData | PropertySaleData;
+  data: ContractDomainData;
   parties: ContractParty[];
   payments: ContractPayment[];
   /** Manifest of attached documents (ids + hashes), not the bytes. */
@@ -667,13 +737,19 @@ export interface ContractAuditEntry {
 // The contract aggregate
 // ------------------------------------------------------------
 
+/**
+ * The union of every domain data shape. Property types carry their own
+ * typed sub-objects; every other type carries `GenericContractData`.
+ */
+export type ContractDomainData = PropertyRentData | PropertySaleData | GenericContractData;
+
 export interface PropertyContract {
   id: string;
   /** Human-facing id, e.g. LGL-RENT-1405-000184. */
   referenceCode: string;
   userId: string;
   domain: ContractDomain;
-  type: PropertyContractType;
+  type: ContractTypeId;
   typeFa: string;
   state: PropertyContractState;
   /** The user's role in this contract. */
@@ -686,13 +762,19 @@ export interface PropertyContract {
   templateVersion: string;
   schemaVersion: number;
   /** The working (mutable) data. */
-  data: PropertyRentData | PropertySaleData;
+  data: ContractDomainData;
   currentVersionId: string | null;
   currentVersionNumber: number;
   finalVersionId: string | null;
   finalizedAt: string | null;
   /** Public id used by the QR verification page. */
   publicVerificationId: string;
+  /**
+   * The case this contract belongs to, when created from a case.
+   * Optional and additive — contracts created before case linkage
+   * existed simply have no case.
+   */
+  caseId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -726,16 +808,19 @@ export interface WizardStepDescriptor {
 // ------------------------------------------------------------
 
 export interface PropertyContractCreateRequest {
-  type: PropertyContractType;
-  propertyKind: PropertyKind;
+  type: ContractTypeId;
+  /** Only meaningful for property types; ignored otherwise. */
+  propertyKind?: PropertyKind;
   initiatorRole: PartyRole;
   title?: string;
+  /** Link the new contract to a case the user owns. */
+  caseId?: string;
 }
 
 export interface PropertyContractCreateResponse {
   id: string;
   referenceCode: string;
-  type: PropertyContractType;
+  type: ContractTypeId;
   state: PropertyContractState;
   currentStep: string;
   createdAt: string;
@@ -745,14 +830,14 @@ export interface PropertyContractUpdateRequest {
   title?: string;
   currentStep?: string;
   state?: PropertyContractState;
-  data?: Partial<PropertyRentData> | Partial<PropertySaleData>;
+  data?: Partial<PropertyRentData> | Partial<PropertySaleData> | Partial<GenericContractData>;
 }
 
 export interface PropertyContractListItem {
   id: string;
   referenceCode: string;
   domain: ContractDomain;
-  type: PropertyContractType;
+  type: ContractTypeId;
   typeFa: string;
   title: string;
   state: PropertyContractState;
@@ -810,4 +895,515 @@ export interface ContractVerificationInfo {
   statusFa: string;
   /** Party display names only — never national ids or addresses. */
   partyNames: string[];
+}
+
+// ============================================================
+// UNIVERSAL CONTRACT LIFECYCLE ENGINE
+// ============================================================
+// Everything below is DOMAIN-AGNOSTIC. The contract type defines the
+// CONTENT; this layer defines what happens AFTER the content exists:
+//
+//   PREVIEW → REVIEW → REVISION → SIGNATURE → FINAL → AUDIT
+//
+// Nothing here branches on `type === "property_rent"` and nothing
+// hardcodes a party role. A new contract type inherits the whole
+// lifecycle by registering a definition.
+// ============================================================
+
+// ------------------------------------------------------------
+// Lifecycle stage (the 5-step stepper)
+// ------------------------------------------------------------
+
+/**
+ * The user-facing lifecycle stage. Derived from the contract's real
+ * state + completeness — never from "which button was clicked".
+ */
+export type ContractLifecycleStage =
+  | "INFO" // اطلاعات
+  | "PREVIEW" // پیش‌نمایش
+  | "REVIEW" // بررسی
+  | "SIGNATURE" // امضا
+  | "COMPLETE"; // تکمیل
+
+export const LIFECYCLE_STAGE_LABELS_FA: Record<ContractLifecycleStage, string> = {
+  INFO: "اطلاعات",
+  PREVIEW: "پیش‌نمایش",
+  REVIEW: "بررسی",
+  SIGNATURE: "امضا",
+  COMPLETE: "تکمیل",
+};
+
+/** Ordered stages, index + 1 is the step number. */
+export const LIFECYCLE_STAGES: readonly ContractLifecycleStage[] = [
+  "INFO",
+  "PREVIEW",
+  "REVIEW",
+  "SIGNATURE",
+  "COMPLETE",
+] as const;
+
+export type LifecycleStageStatus = "done" | "active" | "pending";
+
+export interface LifecycleStepView {
+  stage: ContractLifecycleStage;
+  labelFa: string;
+  status: LifecycleStageStatus;
+  /** True when the user may jump to this stage right now. */
+  reachable: boolean;
+}
+
+// ------------------------------------------------------------
+// Registration status — SEPARATE from signature status (§87–90)
+// ------------------------------------------------------------
+// FULLY_SIGNED ≠ OFFICIALLY_REGISTERED. A sale contract that is fully
+// signed in Legalier has NOT transferred ownership; that only happens
+// at the notary office. These two axes are never collapsed.
+
+export type ContractRegistrationStatus =
+  | "NOT_REQUIRED" // ثبت رسمی لازم نیست
+  | "PENDING" // نیازمند ثبت رسمی
+  | "SCHEDULED" // وقت دفترخانه تعیین شده
+  | "REGISTERED" // ثبت رسمی انجام شد
+  | "NOT_APPLICABLE"; // قرارداد لغو/بایگانی شده
+
+export const REGISTRATION_STATUS_FA: Record<ContractRegistrationStatus, string> = {
+  NOT_REQUIRED: "ثبت رسمی لازم نیست",
+  PENDING: "نیازمند ثبت رسمی",
+  SCHEDULED: "وقت دفترخانه تعیین شده",
+  REGISTERED: "ثبت رسمی انجام شد",
+  NOT_APPLICABLE: "موضوعیت ندارد",
+};
+
+// ------------------------------------------------------------
+// Signature provider abstraction (§22)
+// ------------------------------------------------------------
+// OTP_SIGNATURE is the only provider implemented today. The union is
+// open so CERTIFICATE_SIGNATURE / EXTERNAL_SIGNATURE can land without
+// touching the lifecycle engine.
+
+export type SignatureProviderId =
+  | "OTP_SIGNATURE"
+  | "CERTIFICATE_SIGNATURE"
+  | "EXTERNAL_SIGNATURE";
+
+/**
+ * The legal weight of a signature. This drives the wording shown to
+ * the user — an OTP signature must NEVER be labelled «امضای
+ * الکترونیکی مطمئن» or «امضای دیجیتال رسمی».
+ */
+export type SignatureAssuranceLevel =
+  | "ELECTRONIC_CONFIRMATION" // تأیید و امضای الکترونیکی
+  | "SECURE_ELECTRONIC" // امضای الکترونیکی مطمئن (certificate-backed)
+  | "QUALIFIED"; // امضای دیجیتال رسمی
+
+export const SIGNATURE_ASSURANCE_LABELS_FA: Record<SignatureAssuranceLevel, string> = {
+  ELECTRONIC_CONFIRMATION: "تأیید و امضای الکترونیکی",
+  SECURE_ELECTRONIC: "امضای الکترونیکی مطمئن",
+  QUALIFIED: "امضای دیجیتال رسمی",
+};
+
+// ------------------------------------------------------------
+// Signature request / participant / event
+// ------------------------------------------------------------
+
+export type SignatureRequestStatus =
+  | "DRAFT"
+  | "SENT"
+  | "PARTIALLY_SIGNED"
+  | "COMPLETED"
+  | "DECLINED"
+  | "EXPIRED"
+  | "CANCELLED";
+
+export const SIGNATURE_REQUEST_STATUS_FA: Record<SignatureRequestStatus, string> = {
+  DRAFT: "آماده ارسال",
+  SENT: "ارسال‌شده",
+  PARTIALLY_SIGNED: "امضای ناقص",
+  COMPLETED: "تکمیل‌شده",
+  DECLINED: "رد‌شده",
+  EXPIRED: "منقضی‌شده",
+  CANCELLED: "لغو‌شده",
+};
+
+export type SignatureParticipantStatus =
+  | "PENDING"
+  | "VIEWED"
+  | "SIGNED"
+  | "DECLINED";
+
+export const SIGNATURE_PARTICIPANT_STATUS_FA: Record<SignatureParticipantStatus, string> = {
+  PENDING: "در انتظار",
+  VIEWED: "مشاهده‌شده",
+  SIGNED: "امضا‌شده",
+  DECLINED: "رد‌شده",
+};
+
+/**
+ * One participant in a signature request. A participant is either a
+ * registered party (`partyId`) or a guest signer identified only by
+ * mobile (`guestMobile`) — the engine treats both identically.
+ */
+export interface SignatureParticipant {
+  id: string;
+  signatureRequestId: string;
+  contractId: string;
+  /** The contract party, when the signer is a registered party. */
+  partyId: string | null;
+  /** The role label shown to the user, resolved from the registry. */
+  roleFa: string;
+  /** Masked mobile for display, e.g. 0912***0003. */
+  mobileMasked: string;
+  /**
+   * The signer's mobile, needed to deliver the OTP. This is the
+   * signer's identity, not a secret — the OTP itself is never stored.
+   */
+  mobile: string;
+  status: SignatureParticipantStatus;
+  /** ISO timestamp the participant first opened the document. */
+  viewedAt: string | null;
+  signedAt: string | null;
+  declinedAt: string | null;
+  declineReason: string | null;
+  createdAt: string;
+}
+
+/**
+ * An immutable audit event for a signature request. Every state change
+ * appends one — this is the tamper-evident trail DocuSign/Adobe model.
+ */
+export type SignatureEventType =
+  | "REQUEST_CREATED"
+  | "REQUEST_SENT"
+  | "INVITATION_SENT"
+  | "INVITATION_REVOKED"
+  | "DOCUMENT_VIEWED"
+  | "OTP_REQUESTED"
+  | "OTP_FAILED"
+  | "OTP_VERIFIED"
+  | "SIGNED"
+  | "DECLINED"
+  | "REQUEST_COMPLETED"
+  | "REQUEST_EXPIRED"
+  | "REQUEST_CANCELLED"
+  | "INTEGRITY_FAILED";
+
+export interface SignatureEvent {
+  id: string;
+  signatureRequestId: string;
+  contractId: string;
+  participantId: string | null;
+  type: SignatureEventType;
+  /** Human-readable Persian description. */
+  descriptionFa: string;
+  /** The exact version this event refers to. */
+  contractVersionId: string | null;
+  /** SHA-256 of the version at the time of the event. */
+  documentHash: string | null;
+  /** How the signer was authenticated, e.g. "OTP_SMS". */
+  authMethod: string | null;
+  /** Coarse client fingerprint (never the raw IP). */
+  clientFingerprint: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+/**
+ * A signature request bound to ONE immutable contract version. The
+ * request can never outlive the version it was created for: a content
+ * change invalidates it.
+ */
+export interface SignatureRequest {
+  id: string;
+  contractId: string;
+  /** The frozen version every signature in this request binds to. */
+  contractVersionId: string;
+  /** SHA-256 of that version, re-verified before every signature. */
+  documentHash: string;
+  provider: SignatureProviderId;
+  assuranceLevel: SignatureAssuranceLevel;
+  status: SignatureRequestStatus;
+  /** ISO timestamp the request expires (default 72h after send). */
+  expiresAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+/** A signature request plus its participants and event trail. */
+export interface SignatureRequestDetail extends SignatureRequest {
+  participants: SignatureParticipant[];
+  events: SignatureEvent[];
+}
+
+// ------------------------------------------------------------
+// Invitations (§25–28)
+// ------------------------------------------------------------
+// The raw token is returned ONCE, at creation. Only its SHA-256 hash
+// is persisted, so a database leak cannot be replayed.
+
+export type InvitationStatus = "ACTIVE" | "USED" | "REVOKED" | "EXPIRED";
+
+export interface SignatureInvitation {
+  id: string;
+  contractId: string;
+  signatureRequestId: string;
+  participantId: string;
+  /** SHA-256 of the raw token. The raw token is never stored. */
+  tokenHash: string;
+  /** Masked recipient for display. */
+  recipientMasked: string;
+  status: InvitationStatus;
+  /** When true the recipient must verify identity before viewing. */
+  verifyBeforeView: boolean;
+  expiresAt: string;
+  usedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+// ------------------------------------------------------------
+// Review comments (§11, §34)
+// ------------------------------------------------------------
+
+export type ReviewCommentKind = "comment" | "change_request" | "approval_note";
+
+export interface ContractReviewComment {
+  id: string;
+  contractId: string;
+  contractVersionId: string;
+  /** The party who wrote it, when known. */
+  partyId: string | null;
+  /** Display label, e.g. «موجر» or «وکیل». */
+  authorLabelFa: string;
+  /** Who authored it — a party, a lawyer, or the AI. */
+  authorKind: "party" | "lawyer" | "ai" | "system";
+  kind: ReviewCommentKind;
+  body: string;
+  /** Optional clause reference the comment is anchored to. */
+  clauseRef: string | null;
+  createdAt: string;
+}
+
+// ------------------------------------------------------------
+// Lawyer review (§45–62)
+// ------------------------------------------------------------
+
+export type LawyerReviewMode = "BLOCKING" | "NON_BLOCKING";
+
+export type LawyerReviewState =
+  | "REQUESTED"
+  | "MATCHING"
+  | "AWAITING_ACCEPTANCE"
+  | "ACCEPTED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "DECLINED"
+  | "EXPIRED"
+  | "CANCELLED";
+
+export const LAWYER_REVIEW_STATE_FA: Record<LawyerReviewState, string> = {
+  REQUESTED: "درخواست ثبت شد",
+  MATCHING: "در حال یافتن وکیل",
+  AWAITING_ACCEPTANCE: "در انتظار پذیرش وکیل",
+  ACCEPTED: "پذیرفته‌شده",
+  IN_PROGRESS: "در حال بررسی",
+  COMPLETED: "بررسی تکمیل شد",
+  DECLINED: "رد‌شده",
+  EXPIRED: "منقضی‌شده",
+  CANCELLED: "لغو‌شده",
+};
+
+export type LawyerReviewFindingSeverity = "info" | "low" | "medium" | "high" | "critical";
+
+export type LawyerReviewFindingKind =
+  | "risk" // ریسک حقوقی
+  | "missing_clause" // بند ناقص
+  | "ambiguous" // ابهام
+  | "unfair_term" // شرط نامتعارف
+  | "suggestion"; // پیشنهاد بهبود
+
+/**
+ * One finding from a lawyer's review. A lawyer NEVER edits the
+ * contract silently: a finding is a suggestion the user accepts or
+ * rejects, and accepting it creates a NEW version.
+ */
+export interface LawyerReviewFinding {
+  id: string;
+  lawyerReviewRequestId: string;
+  contractId: string;
+  contractVersionId: string;
+  kind: LawyerReviewFindingKind;
+  severity: LawyerReviewFindingSeverity;
+  titleFa: string;
+  bodyFa: string;
+  /** The clause this finding refers to, when anchored. */
+  clauseRef: string | null;
+  /** The lawyer's proposed replacement text, when applicable. */
+  proposedText: string | null;
+  /** The user's decision on the suggestion. */
+  decision: "pending" | "accepted" | "rejected";
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * A lawyer review request. The SLA is STORED, not hardcoded, and the
+ * clock starts at ACCEPTED — not at request time.
+ */
+export interface LawyerReviewRequest {
+  id: string;
+  contractId: string;
+  contractVersionId: string;
+  documentHash: string;
+  /** The user who requested the review. */
+  requestedBy: string;
+  /** The matched lawyer, once one accepts. */
+  lawyerId: string | null;
+  lawyerNameFa: string | null;
+  mode: LawyerReviewMode;
+  state: LawyerReviewState;
+  /** The legal category used for matching. */
+  category: string;
+  /** SLA in hours, measured from ACCEPTED. */
+  slaHours: number;
+  /** ISO timestamp the SLA clock started (set on ACCEPTED). */
+  slaStartedAt: string | null;
+  /** ISO timestamp the SLA is due. */
+  slaDueAt: string | null;
+  /** The lawyer's summary opinion, when completed. */
+  summaryFa: string | null;
+  /** True when the lawyer's opinion blocks signing (BLOCKING mode). */
+  blocksSigning: boolean;
+  requestedAt: string;
+  acceptedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A lawyer review request plus its findings. */
+export interface LawyerReviewRequestDetail extends LawyerReviewRequest {
+  findings: LawyerReviewFinding[];
+}
+
+// ------------------------------------------------------------
+// AI review (§63–70)
+// ------------------------------------------------------------
+// The AI review is NOT a separate chat. It attaches the contract to
+// the EXISTING Legalier conversation by reference and asks the
+// existing pipeline. The result is clearly labelled as AI analysis,
+// never as a lawyer's opinion.
+
+export interface AiContractReview {
+  id: string;
+  contractId: string;
+  contractVersionId: string;
+  /** The conversation the review was run in. */
+  conversationId: string;
+  /** The assistant message that carries the analysis. */
+  messageId: string | null;
+  /** Which party's perspective the analysis was written from. */
+  perspectiveRoleFa: string;
+  /** The AI's summary, clearly labelled as AI analysis. */
+  summaryFa: string;
+  /** Citation locators the analysis relied on. */
+  citations: { locator: string; title: string }[];
+  /** Always true — the UI must render the AI-vs-lawyer distinction. */
+  isAiAnalysis: boolean;
+  createdAt: string;
+}
+
+// ------------------------------------------------------------
+// Lifecycle aggregate (what the workspace renders)
+// ------------------------------------------------------------
+
+export interface ContractLifecycleView {
+  stage: ContractLifecycleStage;
+  steps: LifecycleStepView[];
+  registrationStatus: ContractRegistrationStatus;
+  registrationStatusFa: string;
+  /** The active signature request, when one exists. */
+  signatureRequest: SignatureRequestDetail | null;
+  /** The active lawyer review, when one exists. */
+  lawyerReview: LawyerReviewRequestDetail | null;
+  /** The most recent AI review, when one exists. */
+  aiReview: AiContractReview | null;
+  /** Review comments on the current version. */
+  comments: ContractReviewComment[];
+  /** True when the contract may be prepared for signature right now. */
+  canPrepareForSignature: boolean;
+  /** True when a signature may be given right now. */
+  canSign: boolean;
+  /** True when the contract may be finalized right now. */
+  canFinalize: boolean;
+}
+
+// ------------------------------------------------------------
+// Lifecycle API request/response shapes
+// ------------------------------------------------------------
+
+export interface SignatureRequestCreateRequest {
+  /** Restrict the request to specific parties; omit for all. */
+  partyIds?: string[];
+  /** Guest signers identified only by mobile. */
+  guests?: { roleFa: string; mobile: string }[];
+  /** Hours until the request expires. Defaults to 72. */
+  expiresInHours?: number;
+}
+
+export interface SignatureRequestCreateResponse {
+  request: SignatureRequestDetail;
+  /** Raw invitation tokens, returned ONCE. Never persisted in the clear. */
+  invitations: { participantId: string; token: string; expiresAt: string }[];
+}
+
+export interface SignatureOtpRequestResponse {
+  sent: boolean;
+  mobileMasked: string;
+  expiresAt: string;
+  /** Remaining attempts before the challenge is destroyed. */
+  remainingAttempts: number;
+}
+
+export interface SignatureOtpVerifyRequest {
+  participantId: string;
+  code: string;
+  /** The consent checkbox — must be explicitly true, never prechecked. */
+  consentGiven: boolean;
+  /** The version of the consent text the user agreed to. */
+  consentVersion: string;
+  /** Client-generated key so a retried request cannot double-sign. */
+  idempotencyKey?: string;
+}
+
+export interface SignatureOtpVerifyResponse {
+  participant: SignatureParticipant;
+  request: SignatureRequestDetail;
+  allSigned: boolean;
+  /** The assurance level actually applied — drives the UI wording. */
+  assuranceLevel: SignatureAssuranceLevel;
+}
+
+export interface LawyerReviewCreateRequest {
+  mode: LawyerReviewMode;
+  category: string;
+  /** SLA in hours. Defaults to the platform default (48). */
+  slaHours?: number;
+  note?: string;
+}
+
+export interface AiReviewCreateRequest {
+  /** The party perspective to analyse from. */
+  perspectiveRole?: PartyRole;
+  /** An existing conversation to attach to; a new one is created when omitted. */
+  conversationId?: string;
+  question?: string;
+}
+
+export interface ReviewCommentCreateRequest {
+  body: string;
+  kind?: ReviewCommentKind;
+  clauseRef?: string;
+  partyId?: string;
 }

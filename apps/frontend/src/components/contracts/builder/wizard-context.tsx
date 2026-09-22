@@ -27,11 +27,10 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ContractCompleteness,
+  ContractDomainData,
   ContractParty,
   ContractPayment,
   PropertyContractDetail,
-  PropertyRentData,
-  PropertySaleData,
   PropertyContractState,
 } from "@legalir/types";
 import { savePayments, updatePropertyContract } from "@/lib/api/property-contracts";
@@ -40,7 +39,7 @@ import { getContractDefinition, nextWizardStepId, prevWizardStepId } from "@/lib
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-export type DomainData = PropertyRentData | PropertySaleData;
+export type DomainData = ContractDomainData;
 
 interface WizardContextValue {
   contract: PropertyContractDetail;

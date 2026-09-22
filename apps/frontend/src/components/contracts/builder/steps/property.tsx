@@ -24,10 +24,15 @@ import type {
   KitchenKind,
   ParkingKind,
   PropertyKind,
+  PropertyRentData,
+  PropertySaleData,
   RestroomKind,
   UtilityStatus,
   VillaDetails,
 } from "@legalir/types";
+
+/** This step only ever renders for the two property journeys. */
+type PropertyData = PropertyRentData | PropertySaleData;
 
 const PROPERTY_KINDS: { value: PropertyKind; label: string }[] = [
   { value: "apartment", label: "آپارتمان" },
@@ -66,7 +71,7 @@ const EMPTY_VILLA: VillaDetails = {
 
 export function PropertyStep() {
   const { data, patchData } = useWizard();
-  const d = data;
+  const d = data as PropertyData;
 
   const setAddress = (patch: Partial<typeof d.address>) =>
     patchData({ address: { ...d.address, ...patch } });

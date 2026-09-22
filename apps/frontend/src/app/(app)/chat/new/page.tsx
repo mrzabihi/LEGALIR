@@ -6,6 +6,7 @@ import { CategorySelector } from "@/components/chat/category-selector";
 import { ServiceContextCard } from "@/components/chat/service-context-card";
 import { useCreateConversation } from "@/hooks/useConversations";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
+import { TextField } from "@legalir/ui";
 
 export default function NewConversationPage() {
   const router = useRouter();
@@ -57,14 +58,9 @@ export default function NewConversationPage() {
 
       {/* Title Input */}
       <div className="mb-6">
-        <label
-          htmlFor="conversation-title"
-          className="block text-labelLarge text-onSurface mb-2"
-        >
-          عنوان گفتگو
-        </label>
-        <input
+        <TextField
           id="conversation-title"
+          label="عنوان گفتگو"
           type="text"
           value={title}
           onChange={(e) => {
@@ -72,22 +68,11 @@ export default function NewConversationPage() {
             if (titleError) setTitleError("");
           }}
           placeholder="مثلاً: مشاوره قرارداد اجاره"
-          className={[
-            "w-full rounded-medium border bg-background px-4 py-3",
-            "text-bodyMedium text-onSurface placeholder:text-muted",
-            "focus:outline-2 focus:outline-primary",
-            titleError ? "border-error" : "border-divider",
-          ].join(" ")}
+          errorMessage={titleError || undefined}
           autoFocus
           maxLength={200}
-          aria-invalid={titleError ? "true" : undefined}
-          aria-describedby={titleError ? "title-error" : undefined}
+          fullWidth
         />
-        {titleError && (
-          <p id="title-error" className="text-bodySmall text-error mt-1.5">
-            {titleError}
-          </p>
-        )}
       </div>
 
       {/* Category Selection */}

@@ -6,7 +6,7 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useInitiateUpload, useCompleteUpload, useDocuments } from "@/hooks/useDocuments";
 // Direct module imports — the `@/components/documents` barrel re-exports the
 // whole document component set (including pdfjs-backed viewers), which would
@@ -34,6 +34,12 @@ type WizardStep = "choose" | "library" | "upload" | "processing" | "done" | "err
 
 export default function DocumentUploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // When the flow was entered from the chat composer, remember where to
+  // return and hand the new document back pre-selected (never auto-sent).
+  const returnTo = searchParams.get("returnTo");
+  const fromChat = searchParams.get("source") === "chat";
 
   // --- Wizard state ---
   const [step, setStep] = React.useState<WizardStep>("choose");
@@ -55,7 +61,19 @@ export default function DocumentUploadPage() {
   // --- Navigation ---
   const handleBack = () => {
     if (isMutating) return;
-    router.push("/documents");
+    router.push(returnTo ?? "/documents");
+  };
+
+  /** Return to the chat with the freshly-created document pre-selected. */
+  const returnToChatWithDocument = (doc: V1DocumentListItem) => {
+    if (!returnTo) return;
+    const params = new URLSearchParams({
+      attachedDocumentId: doc.id,
+      attachedDocumentName: doc.name,
+      attachedDocumentMime: doc.mime,
+      attachedDocumentSize: String(doc.sizeBytes),
+    });
+    router.push(`${returnTo}?${params.toString()}`);
   };
 
   // --- File validation ---
@@ -186,7 +204,17 @@ export default function DocumentUploadPage() {
       {step === "done" && (
         <DoneStep
           onView={() => createdId && router.push(`/documents/${createdId}`)}
-          onBack={() => router.push("/documents")}
+          onBack={() => router.push(returnTo ?? "/documents")}
+          fromChat={fromChat}
+          onReturnToChat={
+            createdId
+              ? () => {
+                  const doc = listData?.items.find((d) => d.id === createdId);
+                  if (doc) returnToChatWithDocument(doc);
+                  else router.push(returnTo!);
+                }
+              : undefined
+          }
         />
       )}
 
@@ -379,9 +407,13 @@ function ProcessingStep({
 function DoneStep({
   onView,
   onBack,
+  fromChat = false,
+  onReturnToChat,
 }: {
   onView: () => void;
   onBack: () => void;
+  fromChat?: boolean;
+  onReturnToChat?: () => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-4 py-8 text-center">
@@ -391,15 +423,22 @@ function DoneStep({
       <div>
         <h2 className="text-h3 text-on-surface">سند با موفقیت بارگذاری شد</h2>
         <p className="text-body-2 text-muted mt-1">
-          تحلیل سند شما آماده است. می‌توانید گزارش را مشاهده کنید.
+          {fromChat
+            ? "می‌توانید همین حالا این سند را به گفتگو پیوست کنید."
+            : "تحلیل سند شما آماده است. می‌توانید گزارش را مشاهده کنید."}
         </p>
       </div>
-      <div className="flex items-center gap-3">
-        <Button variant="filled" onClick={onView}>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {fromChat && onReturnToChat && (
+          <Button variant="filled" onClick={onReturnToChat}>
+            بازگشت به گفتگو با این سند
+          </Button>
+        )}
+        <Button variant={fromChat ? "text" : "filled"} onClick={onView}>
           مشاهده تحلیل
         </Button>
         <Button variant="text" onClick={onBack}>
-          بازگشت به اسناد
+          {fromChat ? "بازگشت به گفتگو" : "بازگشت به اسناد"}
         </Button>
       </div>
     </div>

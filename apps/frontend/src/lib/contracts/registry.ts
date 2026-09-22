@@ -16,6 +16,10 @@
 import type {
   ContractDomain,
   ContractTypeId,
+  ContractDomainData,
+  ContractFieldDescriptor,
+  ContractFieldKind,
+  GenericContractData,
   PropertyContractType,
   PropertyKind,
   PartyRole,
@@ -66,15 +70,27 @@ export interface RegistrationPolicy {
   postSignState: "READY_FOR_OFFICIAL_REGISTRATION" | "FINALIZED";
 }
 
-export interface ContractDefinition<TData = PropertyRentData | PropertySaleData> {
+export interface ContractDefinition<TData = ContractDomainData> {
   id: ContractTypeId;
   domain: ContractDomain;
-  /** Only property types are fully implemented today. */
+  /** True when the type is fully implemented and shippable. */
   implemented: boolean;
   typeFa: string;
   categoryFa: string;
   descriptionFa: string;
-  /** Emoji/icon key rendered in the Contract Center. */
+  /**
+   * Extra Persian terms that should match this type in the Contracts
+   * page search — synonyms and everyday words a user might type
+   * («اجاره», «مستأجر», «خودرو», «محرمانگی»). The search normalises
+   * both sides, so these need no diacritics or ZWNJ handling.
+   */
+  keywords: string[];
+  /**
+   * Marks a recently added contract type. Drives the «جدید» badge on the
+   * template card — the UI never infers "new" from the title.
+   */
+  isNew?: boolean;
+  /** Icon key rendered in the Contract Center. */
   icon: string;
   /** Tailwind gradient classes for the type card. */
   gradient: string;
@@ -90,6 +106,12 @@ export interface ContractDefinition<TData = PropertyRentData | PropertySaleData>
   wizardSteps: WizardStepDescriptor[];
   /** Sections used for completeness scoring. */
   sections: ContractSectionDefinition[];
+  /**
+   * Field descriptors for schema-driven types. Property types render
+   * bespoke step components and leave this empty; every other type is
+   * rendered entirely from this list by the generic `SchemaStep`.
+   */
+  fields: ContractFieldDescriptor[];
   /** Documents the contract expects. */
   requiredDocuments: RequiredDocumentDefinition[];
   /** Registration policy — never hard-coded in the UI. */
@@ -601,6 +623,455 @@ function createSaleData(propertyKind: PropertyKind): PropertySaleData {
 }
 
 // ------------------------------------------------------------
+// Schema-driven types (vehicle, finance, services, business)
+// ------------------------------------------------------------
+// These types share ONE data shape (`GenericContractData`) and ONE
+// wizard step component. Everything that distinguishes them — the
+// fields, the steps, the documents, the registration policy — is
+// declared here as data. Adding a type is adding a definition.
+
+/** Build a fresh, empty generic data object. */
+function createGenericData(): GenericContractData {
+  return { schemaVersion: 1, values: {}, customClauses: [] };
+}
+
+/** A field descriptor with the shared defaults applied. */
+function field(
+  stepId: string,
+  key: string,
+  labelFa: string,
+  kind: ContractFieldKind,
+  extra: Partial<ContractFieldDescriptor> = {}
+): ContractFieldDescriptor {
+  return { key, labelFa, kind, stepId, ...extra };
+}
+
+/** A wizard step descriptor for a schema-driven type. */
+function step(
+  id: string,
+  titleFa: string,
+  descriptionFa: string,
+  sections: string[]
+): WizardStepDescriptor {
+  return { id, titleFa, descriptionFa, sections };
+}
+
+/**
+ * Build the completeness sections for a schema-driven type from its
+ * field list: one section per step, requiring every `required` field
+ * that belongs to it. This keeps the section definitions and the field
+ * list from ever drifting apart.
+ */
+function sectionsFromFields(
+  steps: WizardStepDescriptor[],
+  fields: ContractFieldDescriptor[]
+): ContractSectionDefinition[] {
+  return steps
+    .filter((s) => s.sections.length > 0)
+    .map((s) => {
+      const requiredPaths = fields
+        .filter((f) => f.stepId === s.id && f.required)
+        .map((f) => `values.${f.key}`);
+      // The parties and documents steps carry no field descriptors —
+      // their requirement is the special "parties"/"documents" path the
+      // completeness scorer resolves against the aggregate.
+      if (s.id === "parties") requiredPaths.unshift("parties");
+      if (s.id === "documents") requiredPaths.unshift("documents");
+      return {
+        key: s.id,
+        labelFa: s.titleFa,
+        stepId: s.id,
+        requiredPaths,
+      };
+    });
+}
+
+/** The shared "review" step every schema-driven type ends with. */
+const REVIEW_STEP: WizardStepDescriptor = {
+  id: "review",
+  titleFa: "بازبینی و پیش‌نمایش",
+  descriptionFa: "متن نهایی قرارداد را بررسی کنید",
+  sections: [],
+};
+
+// --- Vehicle / Sale -------------------------------------------------
+
+const VEHICLE_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین معامله", "مشخصات فروشنده و خریدار خودرو", ["parties"]),
+  step("vehicle", "مشخصات خودرو", "نوع، مدل، رنگ و شماره‌های شناسایی خودرو", ["vehicle"]),
+  step("financial", "مبلغ و نحوه پرداخت", "قیمت، پیش‌پرداخت و مراحل پرداخت", ["financial"]),
+  step("obligations", "تعهدات و شرایط", "تخلفات، خسارت و شرایط فسخ", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const VEHICLE_FIELDS: ContractFieldDescriptor[] = [
+  field("vehicle", "vehicleType", "نوع خودرو", "text", { required: true, placeholderFa: "مثلاً سواری، وانت" }),
+  field("vehicle", "brand", "برند / سازنده", "text", { required: true, placeholderFa: "مثلاً ایران‌خودرو" }),
+  field("vehicle", "model", "مدل (سال ساخت)", "number", { required: true }),
+  field("vehicle", "color", "رنگ", "text", { required: true }),
+  field("vehicle", "vin", "شماره شاسی (VIN)", "text", { required: true }),
+  field("vehicle", "engineNumber", "شماره موتور", "text", { required: true }),
+  field("vehicle", "plateNumber", "شماره پلاک", "text", { required: true }),
+  field("vehicle", "bodyNumber", "شماره بدنه", "text"),
+  field("vehicle", "mileage", "کارکرد (کیلومتر)", "number"),
+  field("vehicle", "condition", "وضعیت سلامت خودرو", "select", {
+    required: true,
+    options: [
+      { value: "healthy", labelFa: "سالم و بدون ایراد" },
+      { value: "minor_flaws", labelFa: "دارای ایراد جزئی" },
+      { value: "damaged", labelFa: "تصادفی / نیازمند تعمیر" },
+    ],
+  }),
+  field("vehicle", "flawsDescription", "شرح ایرادات و توضیحات", "textarea", {
+    helperFa: "در صورت وجود هر ایراد فنی یا ظاهری، با جزئیات ذکر کنید.",
+  }),
+  field("vehicle", "extras", "امکانات اضافه", "textarea", {
+    helperFa: "مثلاً سیستم صوتی، رینگ غیرفابریک، چراغ اضافه.",
+  }),
+  field("financial", "totalPrice", "قیمت کل خودرو", "money", { required: true }),
+  field("financial", "downPayment", "مبلغ پیش‌پرداخت", "money"),
+  field("financial", "beforeTransferAmount", "مبلغ قابل پرداخت پیش از ثبت سند", "money"),
+  field("financial", "afterPlateAmount", "مبلغ قابل پرداخت پس از تعویض پلاک", "money"),
+  field("financial", "paymentMethod", "روش پرداخت", "select", {
+    required: true,
+    options: [
+      { value: "cash", labelFa: "وجه نقد" },
+      { value: "card_to_card", labelFa: "کارت به کارت" },
+      { value: "bank_transfer", labelFa: "حواله بانکی" },
+      { value: "check", labelFa: "چک" },
+      { value: "instalments", labelFa: "اقساطی" },
+    ],
+  }),
+  field("financial", "instalmentCount", "تعداد اقساط", "number", {
+    helperFa: "در صورت پرداخت اقساطی تکمیل کنید.",
+  }),
+  field("financial", "accountNumber", "شماره حساب مقصد", "text"),
+  field("obligations", "notaryDate", "تاریخ توافقی حضور در دفتر اسناد رسمی", "date"),
+  field("obligations", "violationsBearer", "مسئول تخلفات تا تاریخ انتقال سند", "select", {
+    required: true,
+    options: [
+      { value: "seller", labelFa: "فروشنده" },
+      { value: "buyer", labelFa: "خریدار" },
+    ],
+  }),
+  field("obligations", "damageLiability", "مسئول خسارت تا تاریخ انتقال سند", "select", {
+    required: true,
+    options: [
+      { value: "seller", labelFa: "فروشنده" },
+      { value: "buyer", labelFa: "خریدار" },
+    ],
+  }),
+  field("obligations", "penaltyAmount", "وجه التزام عدم انجام تعهد", "money"),
+  field("obligations", "terminationTerms", "شرایط فسخ قرارداد", "textarea"),
+];
+
+const VEHICLE_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "seller_id", labelFa: "کارت ملی فروشنده", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "کارت ملی خریدار", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "سند و کارت خودرو", required: true, provider: "initiator" },
+  { category: "other", labelFa: "گزارش کارشناسی خودرو", required: false, provider: "either" },
+  { category: "check_image", labelFa: "تصویر چک‌ها", required: false, provider: "either" },
+];
+
+// --- Finance / Debt -------------------------------------------------
+
+const DEBT_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات طلبکار و بدهکار", ["parties"]),
+  step("loan", "مبلغ و شرایط قرض", "مبلغ، تاریخ و شرایط بازپرداخت", ["loan"]),
+  step("guarantee", "تضمین و ضامن", "ضمانت‌نامه و مشخصات ضامن", ["guarantee"]),
+  step("obligations", "تعهدات و فسخ", "وجه التزام تأخیر و شرایط فسخ", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const DEBT_FIELDS: ContractFieldDescriptor[] = [
+  field("loan", "amount", "مبلغ قرض", "money", { required: true }),
+  field("loan", "loanDate", "تاریخ پرداخت قرض", "date", { required: true }),
+  field("loan", "dueDate", "تاریخ سررسید بازپرداخت", "date", { required: true }),
+  field("loan", "repaymentMethod", "نحوه بازپرداخت", "select", {
+    required: true,
+    options: [
+      { value: "lump_sum", labelFa: "یک‌جا در سررسید" },
+      { value: "instalments", labelFa: "اقساطی" },
+    ],
+  }),
+  field("loan", "instalmentCount", "تعداد اقساط", "number", {
+    helperFa: "در صورت بازپرداخت اقساطی تکمیل کنید.",
+  }),
+  field("loan", "purpose", "موضوع و علت قرض", "textarea"),
+  field("guarantee", "hasGuarantor", "آیا ضامن دارد؟", "toggle"),
+  field("guarantee", "guarantorName", "نام و نام خانوادگی ضامن", "text", {
+    helperFa: "در صورت وجود ضامن تکمیل کنید.",
+  }),
+  field("guarantee", "guarantorNationalId", "کد ملی ضامن", "text"),
+  field("guarantee", "collateral", "وثیقه / تضمین", "textarea", {
+    helperFa: "مثلاً سفته، چک، سند ملک.",
+  }),
+  field("obligations", "latePenalty", "وجه التزام تأخیر در بازپرداخت", "money"),
+  field("obligations", "terminationTerms", "شرایط فسخ قرارداد", "textarea"),
+];
+
+const DEBT_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "landlord_id", labelFa: "کارت ملی طلبکار", required: true, provider: "initiator" },
+  { category: "tenant_id", labelFa: "کارت ملی بدهکار", required: true, provider: "counterparty" },
+  { category: "check_image", labelFa: "تصویر چک / سفته", required: false, provider: "either" },
+  { category: "other", labelFa: "سند وثیقه", required: false, provider: "either" },
+];
+
+// --- Services / Freelance -------------------------------------------
+
+const FREELANCE_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات کارفرما و فریلنسر", ["parties"]),
+  step("project", "موضوع پروژه", "شرح خدمات، خروجی و زمان‌بندی", ["project"]),
+  step("financial", "دستمزد و پرداخت", "مبلغ، بیعانه و مراحل پرداخت", ["financial"]),
+  step("obligations", "تعهدات و فسخ", "تعهدات طرفین و شرایط فسخ", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const FREELANCE_FIELDS: ContractFieldDescriptor[] = [
+  field("project", "projectTitle", "عنوان پروژه", "text", { required: true }),
+  field("project", "scope", "شرح خدمات و خروجی‌ها", "textarea", { required: true }),
+  field("project", "startDate", "تاریخ شروع", "date", { required: true }),
+  field("project", "deliveryDate", "تاریخ تحویل", "date", { required: true }),
+  field("project", "revisionCount", "تعداد بازبینی مجاز", "number"),
+  field("financial", "fee", "دستمزد کل", "money", { required: true }),
+  field("financial", "advancePayment", "بیعانه", "money"),
+  field("financial", "paymentMethod", "روش پرداخت", "select", {
+    required: true,
+    options: [
+      { value: "bank_transfer", labelFa: "انتقال بانکی" },
+      { value: "card_to_card", labelFa: "کارت به کارت" },
+      { value: "cash", labelFa: "وجه نقد" },
+    ],
+  }),
+  field("financial", "accountNumber", "شماره حساب فریلنسر", "text"),
+  field("obligations", "confidentiality", "تعهد محرمانگی", "toggle"),
+  field("obligations", "ipOwnership", "مالکیت معنوی خروجی", "select", {
+    required: true,
+    options: [
+      { value: "client", labelFa: "کارفرما" },
+      { value: "freelancer", labelFa: "فریلنسر" },
+      { value: "shared", labelFa: "مشترک" },
+    ],
+  }),
+  field("obligations", "latePenalty", "وجه التزام تأخیر در تحویل", "money"),
+  field("obligations", "terminationTerms", "شرایط فسخ قرارداد", "textarea"),
+];
+
+const FREELANCE_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "seller_id", labelFa: "کارت ملی کارفرما", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "کارت ملی فریلنسر", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "نمونه کار / پیشنهادیه", required: false, provider: "either" },
+];
+
+// --- Business / NDA -------------------------------------------------
+
+const NDA_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات افشاکننده و دریافت‌کننده", ["parties"]),
+  step("scope", "موضوع و دامنه محرمانگی", "هدف افشا و دسته‌های اطلاعات محرمانه", ["scope"]),
+  step("terms", "مدت و استثناها", "مدت اعتبار و موارد مستثنی", ["terms"]),
+  step("obligations", "تعهدات و ضمانت اجرا", "تعهدات طرفین و وجه التزام نقض", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const NDA_FIELDS: ContractFieldDescriptor[] = [
+  field("scope", "ndaKind", "نوع توافق محرمانگی", "select", {
+    required: true,
+    options: [
+      { value: "unilateral", labelFa: "یک‌طرفه" },
+      { value: "bilateral", labelFa: "دوجانبه" },
+    ],
+  }),
+  field("scope", "purpose", "هدف از افشای اطلاعات", "textarea", { required: true }),
+  field("scope", "confidentialCategories", "دسته‌های اطلاعات محرمانه", "textarea", {
+    required: true,
+    helperFa: "مثلاً فهرست مشتریان، قیمت‌گذاری، کد منبع، برنامه محصول.",
+  }),
+  field("terms", "startDate", "تاریخ شروع اعتبار", "date", { required: true }),
+  field("terms", "durationMonths", "مدت اعتبار قرارداد (ماه)", "number", { required: true }),
+  field("terms", "survivalMonths", "مدت بقای تعهد پس از خاتمه (ماه)", "number", {
+    helperFa: "مدت ادامه تعهد عدم افشا پس از پایان همکاری.",
+  }),
+  field("terms", "exclusions", "موارد مستثنی از محرمانگی", "textarea", {
+    helperFa: "اطلاعات عمومی، اطلاعات پیشین، دریافت از ثالث مجاز، افشای اجباری قانونی.",
+  }),
+  field("obligations", "returnOrDestroy", "روش بازگرداندن یا امحای اطلاعات", "select", {
+    required: true,
+    options: [
+      { value: "return", labelFa: "بازگرداندن" },
+      { value: "destroy", labelFa: "امحا با گواهی" },
+      { value: "either", labelFa: "به انتخاب افشاکننده" },
+    ],
+  }),
+  field("obligations", "penaltyAmount", "وجه التزام نقض تعهد", "money"),
+  field("obligations", "governingLaw", "قانون حاکم", "select", {
+    required: true,
+    options: [
+      { value: "iran", labelFa: "قوانین جمهوری اسلامی ایران" },
+      { value: "other", labelFa: "سایر" },
+    ],
+  }),
+  field("obligations", "disputeResolution", "مرجع حل اختلاف", "textarea", {
+    helperFa: "مثلاً مذاکره، داوری مرکز داوری اتاق بازرگانی، مراجع قضایی.",
+  }),
+];
+
+const NDA_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "seller_id", labelFa: "کارت ملی / شناسه افشاکننده", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "کارت ملی / شناسه دریافت‌کننده", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "فهرست تحویل اطلاعات محرمانه", required: false, provider: "either" },
+];
+
+// --- Business / SaaS ------------------------------------------------
+
+const SAAS_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات ارائه‌دهنده و مشتری", ["parties"]),
+  step("service", "خدمت و سطح سرویس", "شرح سرویس، دسترس‌پذیری و پشتیبانی", ["service"]),
+  step("financial", "اشتراک و پرداخت", "مبلغ اشتراک، دوره و روش پرداخت", ["financial"]),
+  step("data", "داده و محرمانگی", "مالکیت داده، بازگرداندن و محرمانگی", ["data"]),
+  step("obligations", "تعهدات و فسخ", "تعهدات طرفین، SLA و شرایط فسخ", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const SAAS_FIELDS: ContractFieldDescriptor[] = [
+  field("service", "serviceName", "نام سرویس / نرم‌افزار", "text", { required: true }),
+  field("service", "serviceDescription", "شرح خدمت ارائه‌شده", "textarea", { required: true }),
+  field("service", "availabilitySla", "تضمین دسترس‌پذیری (٪)", "number", {
+    required: true,
+    helperFa: "مثلاً ۹۹ درصد.",
+  }),
+  field("service", "supportHours", "ساعات پشتیبانی", "text", { required: true }),
+  field("service", "dataCenterLocation", "محل مرکز داده", "text"),
+  field("financial", "subscriptionFee", "مبلغ اشتراک", "money", { required: true }),
+  field("financial", "billingPeriod", "دوره صورت‌حساب", "select", {
+    required: true,
+    options: [
+      { value: "monthly", labelFa: "ماهانه" },
+      { value: "quarterly", labelFa: "سه‌ماهه" },
+      { value: "yearly", labelFa: "سالانه" },
+    ],
+  }),
+  field("financial", "userCount", "تعداد کاربران مجاز", "number"),
+  field("financial", "paymentMethod", "روش پرداخت", "select", {
+    required: true,
+    options: [
+      { value: "bank_transfer", labelFa: "انتقال بانکی" },
+      { value: "card", labelFa: "کارت بانکی" },
+    ],
+  }),
+  field("data", "dataOwnership", "مالکیت داده‌های مشتری", "select", {
+    required: true,
+    options: [
+      { value: "customer", labelFa: "مشتری" },
+      { value: "provider", labelFa: "ارائه‌دهنده" },
+    ],
+  }),
+  field("data", "dataReturnMethod", "روش بازگرداندن داده پس از خاتمه", "textarea", {
+    required: true,
+    helperFa: "قالب و شیوه تحویل داده‌ها به مشتری.",
+  }),
+  field("data", "confidentiality", "تعهد محرمانگی اطلاعات", "toggle"),
+  field("obligations", "ipOwnership", "مالکیت فکری نرم‌افزار", "select", {
+    required: true,
+    options: [
+      { value: "provider", labelFa: "ارائه‌دهنده" },
+      { value: "customer", labelFa: "مشتری" },
+    ],
+  }),
+  field("obligations", "uptimePenalty", "جریمه عدم تحقق SLA", "money"),
+  field("obligations", "terminationNoticeDays", "مدت اطلاع پیش از فسخ (روز)", "number"),
+  field("obligations", "terminationTerms", "شرایط فسخ قرارداد", "textarea"),
+];
+
+const SAAS_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "seller_id", labelFa: "شناسه / کارت ملی ارائه‌دهنده", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "شناسه / کارت ملی مشتری", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "سند SLA و سیاست حریم خصوصی", required: false, provider: "initiator" },
+];
+
+// --- Business / Startup ---------------------------------------------
+
+const STARTUP_STEPS: WizardStepDescriptor[] = [
+  step("parties", "بنیان‌گذاران و شرکا", "مشخصات بنیان‌گذاران و سرمایه‌گذاران", ["parties"]),
+  step("company", "شرکت و نقش‌ها", "نام شرکت، نوع و نقش هر شریک", ["company"]),
+  step("equity", "سهام و سرمایه", "سرمایه اولیه، درصد سهام و vesting", ["equity"]),
+  step("governance", "مدیریت و تصمیم‌گیری", "نحوه تصمیم‌گیری و تقسیم سود و زیان", ["governance"]),
+  step("exit", "خروج و انحلال", "شرایط خروج شریک و انحلال شرکت", ["exit"]),
+  step("obligations", "محرمانگی و حل اختلاف", "عدم رقابت، مالکیت معنوی و حل اختلاف", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const STARTUP_FIELDS: ContractFieldDescriptor[] = [
+  field("company", "companyName", "نام شرکت / استارتاپ", "text", { required: true }),
+  field("company", "companyType", "نوع شرکت", "select", {
+    required: true,
+    options: [
+      { value: "llc", labelFa: "با مسئولیت محدود" },
+      { value: "joint_stock", labelFa: "سهامی خاص" },
+      { value: "cooperative", labelFa: "تعاونی" },
+      { value: "not_registered", labelFa: "هنوز ثبت نشده" },
+    ],
+  }),
+  field("company", "startupSummary", "توضیح مختصر استارتاپ", "textarea", { required: true }),
+  field("company", "startDate", "تاریخ شروع قرارداد", "date", { required: true }),
+  field("company", "roles", "نقش و مسئولیت هر شریک", "textarea", {
+    required: true,
+    helperFa: "مثلاً مدیرعامل، مدیر فنی، مدیر بازاریابی.",
+  }),
+  field("equity", "initialCapital", "سرمایه اولیه", "money", { required: true }),
+  field("equity", "capitalKind", "نوع مشارکت مالی", "select", {
+    required: true,
+    options: [
+      { value: "cash", labelFa: "نقدی" },
+      { value: "equipment", labelFa: "تجهیزات" },
+      { value: "ip", labelFa: "مالکیت معنوی" },
+      { value: "mixed", labelFa: "ترکیبی" },
+    ],
+  }),
+  field("equity", "shareSplit", "درصد سهام هر شریک", "textarea", {
+    required: true,
+    helperFa: "درصد سهام هر بنیان‌گذار را دقیق ذکر کنید.",
+  }),
+  field("equity", "hasVesting", "آیا شرایط vesting دارد؟", "toggle"),
+  field("equity", "vestingTerms", "شرایط vesting", "textarea", {
+    helperFa: "در صورت فعال بودن vesting تکمیل کنید.",
+  }),
+  field("governance", "decisionMaking", "نحوه تصمیم‌گیری", "select", {
+    required: true,
+    options: [
+      { value: "consensus", labelFa: "اجماع" },
+      { value: "majority", labelFa: "رأی اکثریت" },
+      { value: "weighted", labelFa: "بر اساس درصد سهام" },
+    ],
+  }),
+  field("governance", "profitLossSplit", "نحوه تقسیم سود و زیان", "textarea", { required: true }),
+  field("exit", "exitTerms", "شرایط خروج شریک", "textarea", { required: true }),
+  field("exit", "shareTransferTerms", "شرایط انتقال سهام", "textarea"),
+  field("exit", "dissolutionTerms", "شرایط انحلال شرکت", "textarea"),
+  field("obligations", "confidentiality", "تعهد محرمانگی", "toggle"),
+  field("obligations", "nonCompete", "شرط عدم رقابت", "toggle"),
+  field("obligations", "ipOwnership", "مالکیت معنوی دستاوردها", "select", {
+    required: true,
+    options: [
+      { value: "company", labelFa: "شرکت" },
+      { value: "founders", labelFa: "بنیان‌گذاران" },
+    ],
+  }),
+  field("obligations", "disputeResolution", "نحوه حل اختلاف", "textarea", { required: true }),
+];
+
+const STARTUP_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "seller_id", labelFa: "کارت ملی بنیان‌گذاران", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "کارت ملی سرمایه‌گذار", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "اساسنامه / روزنامه رسمی", required: false, provider: "initiator" },
+];
+
+// ------------------------------------------------------------
 // Registry
 // ------------------------------------------------------------
 
@@ -612,6 +1083,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "رهن و اجاره ملک مسکونی",
     categoryFa: "املاک",
     descriptionFa: "تنظیم قرارداد اجاره ملک مسکونی با تعیین ودیعه، اجاره‌بها و شرایط تحویل.",
+    keywords: ["اجاره", "رهن", "مستأجر", "موجر", "ودیعه", "اجاره‌بها", "خانه", "آپارتمان", "مسکونی", "اجاره نامه"],
     icon: "home",
     gradient: "from-primary to-primary-container",
     schemaVersion: 1,
@@ -620,6 +1092,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     defaultInitiatorRole: "landlord",
     wizardSteps: RENT_STEPS,
     sections: RENT_SECTIONS,
+    fields: [],
     requiredDocuments: RENT_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: false,
@@ -637,6 +1110,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "خرید و فروش ملک مسکونی",
     categoryFa: "املاک",
     descriptionFa: "تنظیم مبایعه‌نامه ملک مسکونی با تعیین ثمن، برنامه پرداخت و شرایط ثبت رسمی.",
+    keywords: ["خرید", "فروش", "مبایعه", "مبایعه‌نامه", "ملک", "خانه", "آپارتمان", "سند", "ثمن", "معامله"],
     icon: "key",
     gradient: "from-secondary to-secondary-container",
     schemaVersion: 1,
@@ -645,6 +1119,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     defaultInitiatorRole: "seller",
     wizardSteps: SALE_STEPS,
     sections: SALE_SECTIONS,
+    fields: [],
     requiredDocuments: SALE_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: true,
@@ -658,26 +1133,167 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
   vehicle_sale: {
     id: "vehicle_sale",
     domain: "vehicle",
-    implemented: false,
+    implemented: true,
     typeFa: "خرید و فروش خودرو",
     categoryFa: "خودرو",
-    descriptionFa: "به‌زودی — تنظیم مبایعه‌نامه خودرو.",
+    descriptionFa: "تنظیم قولنامه خودرو با مشخصات فنی، مبلغ معامله و شرایط انتقال سند.",
+    keywords: ["خودرو", "ماشین", "اتومبیل", "قولنامه", "پلاک", "شاسی", "موتور", "خرید", "فروش", "سواری"],
     icon: "car",
     gradient: "from-tertiary to-tertiary-container",
     schemaVersion: 1,
-    templateVersion: "vehicle-v0.0.0",
+    templateVersion: "vehicle-v1.0.0",
     roles: ["seller", "buyer"],
     defaultInitiatorRole: "seller",
-    wizardSteps: [],
-    sections: [],
-    requiredDocuments: [],
+    wizardSteps: VEHICLE_STEPS,
+    sections: sectionsFromFields(VEHICLE_STEPS, VEHICLE_FIELDS),
+    fields: VEHICLE_FIELDS,
+    requiredDocuments: VEHICLE_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: true,
       officialRegistrationOptional: false,
-      explanationFa: "به‌زودی.",
+      explanationFa:
+        "انتقال مالکیت خودرو تنها با تنظیم سند رسمی در دفتر اسناد رسمی و تعویض پلاک انجام می‌شود. نهایی‌شدن این قولنامه در لِگال‌آی‌آر به‌معنای انتقال رسمی مالکیت نیست؛ پس از امضا، قرارداد در وضعیت «نیازمند ثبت رسمی» قرار می‌گیرد.",
       postSignState: "READY_FOR_OFFICIAL_REGISTRATION",
     },
-    createDefaultData: createSaleData,
+    createDefaultData: createGenericData,
+  },
+  debt: {
+    id: "debt",
+    domain: "finance",
+    implemented: true,
+    typeFa: "قرارداد قرض",
+    categoryFa: "مالی",
+    descriptionFa: "تنظیم قرارداد قرض پول با تعیین مبلغ، سررسید بازپرداخت و تضمین.",
+    keywords: ["قرض", "وام", "طلب", "بدهی", "بدهکار", "طلبکار", "ضامن", "سفته", "چک", "بازپرداخت"],
+    icon: "coin",
+    gradient: "from-primary to-primary-container",
+    schemaVersion: 1,
+    templateVersion: "debt-v1.0.0",
+    roles: ["lender", "borrower"],
+    defaultInitiatorRole: "lender",
+    wizardSteps: DEBT_STEPS,
+    sections: sectionsFromFields(DEBT_STEPS, DEBT_FIELDS),
+    fields: DEBT_FIELDS,
+    requiredDocuments: DEBT_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد قرض با ایجاب و قبول و امضای طرفین معتبر است و ثبت رسمی الزامی نیست. برای ضمانت اجرای بیشتر می‌توانید آن را در دفتر اسناد رسمی ثبت کنید.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  freelance: {
+    id: "freelance",
+    domain: "services",
+    implemented: true,
+    typeFa: "قرارداد فریلنسری",
+    categoryFa: "خدمات",
+    descriptionFa: "تنظیم قرارداد پروژه‌ای فریلنسری با شرح خدمات، دستمزد و زمان‌بندی تحویل.",
+    keywords: ["فریلنس", "فریلنسری", "پروژه", "خدمات", "کارفرما", "پیمانکار", "دستمزد", "استخدام", "طراحی", "برنامه‌نویسی"],
+    icon: "briefcase",
+    gradient: "from-secondary to-secondary-container",
+    schemaVersion: 1,
+    templateVersion: "freelance-v1.0.0",
+    roles: ["client", "freelancer"],
+    defaultInitiatorRole: "client",
+    wizardSteps: FREELANCE_STEPS,
+    sections: sectionsFromFields(FREELANCE_STEPS, FREELANCE_FIELDS),
+    fields: FREELANCE_FIELDS,
+    requiredDocuments: FREELANCE_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد فریلنسری با امضای طرفین لازم‌الاجرا می‌شود و ثبت رسمی الزامی ندارد. ثبت آن در دفتر اسناد رسمی اختیاری است.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  nda: {
+    id: "nda",
+    domain: "business",
+    implemented: true,
+    typeFa: "توافقنامه محرمانگی (NDA)",
+    categoryFa: "کسب‌وکار",
+    descriptionFa: "تنظیم توافقنامه عدم افشای اطلاعات محرمانه، یک‌طرفه یا دوجانبه.",
+    keywords: ["محرمانگی", "محرمانه", "NDA", "عدم افشا", "افشا", "رازداری", "اطلاعات", "توافقنامه", "سری"],
+    isNew: true,
+    icon: "shield",
+    gradient: "from-tertiary to-tertiary-container",
+    schemaVersion: 1,
+    templateVersion: "nda-v1.0.0",
+    roles: ["discloser", "recipient"],
+    defaultInitiatorRole: "discloser",
+    wizardSteps: NDA_STEPS,
+    sections: sectionsFromFields(NDA_STEPS, NDA_FIELDS),
+    fields: NDA_FIELDS,
+    requiredDocuments: NDA_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "توافقنامه محرمانگی بر مبنای ماده ۱۰ قانون مدنی با امضای طرفین معتبر و لازم‌الاتباع است و ثبت رسمی الزامی ندارد.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  saas: {
+    id: "saas",
+    domain: "business",
+    implemented: true,
+    typeFa: "قرارداد نرم‌افزار به‌عنوان سرویس (SaaS)",
+    categoryFa: "کسب‌وکار",
+    descriptionFa: "تنظیم قرارداد اشتراک نرم‌افزار با تعیین سطح سرویس، پرداخت و مالکیت داده.",
+    keywords: ["نرم افزار", "نرم‌افزار", "سرویس", "اشتراک", "SaaS", "ابری", "کلاد", "پشتیبانی", "لایسنس", "داده"],
+    isNew: true,
+    icon: "cloud",
+    gradient: "from-primary to-primary-container",
+    schemaVersion: 1,
+    templateVersion: "saas-v1.0.0",
+    roles: ["provider", "customer"],
+    defaultInitiatorRole: "provider",
+    wizardSteps: SAAS_STEPS,
+    sections: sectionsFromFields(SAAS_STEPS, SAAS_FIELDS),
+    fields: SAAS_FIELDS,
+    requiredDocuments: SAAS_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد SaaS با امضای طرفین معتبر است و ثبت رسمی الزامی ندارد. ثبت آن در دفتر اسناد رسمی اختیاری است.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  startup: {
+    id: "startup",
+    domain: "business",
+    implemented: true,
+    typeFa: "قرارداد مشارکت استارتاپ",
+    categoryFa: "کسب‌وکار",
+    descriptionFa: "تنظیم قرارداد بنیان‌گذاران با تعیین سهام، نقش‌ها، مدیریت و شرایط خروج.",
+    keywords: ["استارتاپ", "استارت آپ", "مشارکت", "سهام", "بنیان‌گذار", "شریک", "سرمایه‌گذار", "شرکت", "vesting", "خروج"],
+    isNew: true,
+    icon: "users",
+    gradient: "from-secondary to-secondary-container",
+    schemaVersion: 1,
+    templateVersion: "startup-v1.0.0",
+    roles: ["founder", "investor"],
+    defaultInitiatorRole: "founder",
+    wizardSteps: STARTUP_STEPS,
+    sections: sectionsFromFields(STARTUP_STEPS, STARTUP_FIELDS),
+    fields: STARTUP_FIELDS,
+    requiredDocuments: STARTUP_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد مشارکت استارتاپ با امضای شرکا لازم‌الاجرا می‌شود. ثبت تغییرات سهام و شرکت در مراجع قانونی مستقل از این سند است.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
   },
 };
 
@@ -738,6 +1354,22 @@ export function prevWizardStepId(typeId: ContractTypeId, stepId: string): string
   return steps[idx - 1]!.id;
 }
 
+/** Persian label for a contract domain. */
+export function domainLabelFa(domain: ContractDomain): string {
+  switch (domain) {
+    case "property":
+      return "املاک";
+    case "vehicle":
+      return "خودرو";
+    case "finance":
+      return "مالی";
+    case "services":
+      return "خدمات";
+    case "business":
+      return "کسب‌وکار";
+  }
+}
+
 /** Persian label for a party role within a contract type. */
 export function partyRoleLabelFa(role: PartyRole): string {
   switch (role) {
@@ -749,6 +1381,26 @@ export function partyRoleLabelFa(role: PartyRole): string {
       return "فروشنده";
     case "buyer":
       return "خریدار";
+    case "lender":
+      return "طلبکار";
+    case "borrower":
+      return "بدهکار";
+    case "client":
+      return "کارفرما";
+    case "freelancer":
+      return "فریلنسر";
+    case "discloser":
+      return "افشاکننده اطلاعات";
+    case "recipient":
+      return "دریافت‌کننده اطلاعات";
+    case "provider":
+      return "ارائه‌دهنده سرویس";
+    case "customer":
+      return "مشتری";
+    case "founder":
+      return "بنیان‌گذار";
+    case "investor":
+      return "سرمایه‌گذار";
   }
 }
 

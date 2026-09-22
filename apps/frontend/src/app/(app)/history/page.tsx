@@ -27,6 +27,7 @@ import {
   IconSubscription,
 } from "@/lib/icons";
 import type { V1HistoryItem } from "@legalir/types";
+import { Select, TextField } from "@legalir/ui";
 
 // ============================================================
 // Constants
@@ -201,22 +202,19 @@ function AdminReviewModal({
         </div>
 
         {/* Purpose Input */}
-        <label
-          htmlFor="admin-review-purpose"
-          className="block text-body-2 text-on-surface mb-2 font-medium"
-        >
-          هدف بازبینی <span className="text-error">*</span>
-        </label>
-        <input
-          id="admin-review-purpose"
-          type="text"
-          value={purpose}
-          onChange={(e) => onPurposeChange(e.target.value)}
-          placeholder="مثال: حسابرسی دوره‌ای سه‌ماهه"
-          className="w-full rounded-large bg-background border border-border px-4 py-3 text-body-1 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors mb-5"
-          autoFocus
-          dir="rtl"
-        />
+        <div className="mb-5">
+          <TextField
+            id="admin-review-purpose"
+            label="هدف بازبینی"
+            type="text"
+            value={purpose}
+            onChange={(e) => onPurposeChange(e.target.value)}
+            placeholder="مثال: حسابرسی دوره‌ای سه‌ماهه"
+            required
+            autoFocus
+            fullWidth
+          />
+        </div>
 
         {/* Audit Warning */}
         <div className="rounded-large bg-amber-50 border border-amber-200 p-4 mb-6 flex items-start gap-2.5">
@@ -801,57 +799,49 @@ export default function HistoryPage() {
       {!adminReviewActive && (
         <div className="flex flex-col tablet:flex-row gap-3 mb-6">
           {/* Search */}
-          <div className="relative flex-1">
-            <IconSearch
-              size={18}
-              className="absolute start-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-            />
-            <input
-              type="text"
+          <div className="flex-1">
+            <TextField
+              type="search"
+              label="جستجو در تاریخچه"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="جستجو در تاریخچه..."
-              className="w-full h-11 rounded-large bg-surface border border-border ps-10 pe-4 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
-              dir="rtl"
+              leadingIcon={<IconSearch size={18} />}
+              endAdornment={
+                searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+                    aria-label="پاک کردن جستجو"
+                  >
+                    <IconClose size={16} />
+                  </button>
+                ) : undefined
+              }
+              fullWidth
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute end-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-muted/20 transition-colors touch-target"
-                aria-label="پاک کردن جستجو"
-              >
-                <IconClose size={14} />
-              </button>
-            )}
           </div>
 
           {/* Type Filter */}
-          <select
+          <Select
+            label="فیلتر نوع"
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
-            className="h-11 rounded-large bg-surface border border-border px-4 text-body-2 text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer min-w-[140px]"
-            aria-label="فیلتر نوع"
-          >
-            {TYPE_OPTIONS.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            selectSize="small"
+            className="min-w-[140px]"
+            options={TYPE_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
+          />
 
           {/* Sort Order */}
-          <select
+          <Select
+            label="مرتب‌سازی"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className="h-11 rounded-large bg-surface border border-border px-4 text-body-2 text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer min-w-[140px]"
-            aria-label="مرتب‌سازی"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            selectSize="small"
+            className="min-w-[140px]"
+            options={SORT_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
+          />
         </div>
       )}
 

@@ -31,19 +31,24 @@ import {
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { computeCompleteness, isReadyForReview } from "@/lib/contracts/completeness";
+import { insertReviewComment } from "@/lib/contracts/review-db";
 import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 import { partyRoleLabelFa } from "@/lib/contracts/registry";
 
 type Params = { params: Promise<{ id: string }> };
 
-type ReviewAction = "submit" | "approve" | "request_changes";
+type ReviewAction = "submit" | "approve" | "request_changes" | "comment";
 
 interface ReviewBody {
   action?: ReviewAction;
   partyId?: string;
   comment?: string;
   method?: "otp" | "explicit_consent";
+  /** For the `comment` action: the comment body and optional clause ref. */
+  body?: string;
+  clauseRef?: string | null;
+  kind?: "comment" | "change_request" | "approval_note";
 }
 
 export async function POST(request: Request, { params }: Params) {
@@ -63,8 +68,48 @@ export async function POST(request: Request, { params }: Params) {
   if (body.action === "submit") return submitForReview(userId, contract);
   if (body.action === "approve") return approve(userId, contract, body);
   if (body.action === "request_changes") return requestChanges(userId, contract, body);
+  if (body.action === "comment") return addComment(userId, contract, body);
 
   return badRequest("عملیات درخواستی معتبر نیست", "INVALID_ACTION");
+}
+
+// ------------------------------------------------------------
+// comment — a review note on the current version
+// ------------------------------------------------------------
+
+function addComment(userId: string, contract: PropertyContract, body: ReviewBody) {
+  const text = (body.body ?? body.comment ?? "").trim();
+  if (!text) return badRequest("متن نظر الزامی است.", "EMPTY_COMMENT");
+  if (!contract.currentVersionId) {
+    return conflict("ابتدا قرارداد را برای بررسی ارسال کنید.", "NO_VERSION");
+  }
+
+  const parties = listParties(contract.id);
+  const party = body.partyId
+    ? parties.find((p) => p.id === body.partyId)
+    : parties.find((p) => p.isInitiator);
+
+  const comment = insertReviewComment({
+    contractId: contract.id,
+    contractVersionId: contract.currentVersionId,
+    partyId: party?.id ?? null,
+    authorLabelFa: party ? partyRoleLabelFa(party.role) : "کاربر",
+    authorKind: "party",
+    kind: body.kind ?? "comment",
+    body: text,
+    clauseRef: body.clauseRef ?? null,
+  });
+
+  audit({
+    contractId: contract.id,
+    actorId: userId,
+    actorLabel: comment.authorLabelFa,
+    action: "review.commented",
+    descriptionFa: "نظر بررسی ثبت شد.",
+    metadata: { commentId: comment.id, clauseRef: comment.clauseRef },
+  });
+
+  return ok({ comment });
 }
 
 // ------------------------------------------------------------

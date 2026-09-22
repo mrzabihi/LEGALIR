@@ -5,7 +5,7 @@
 // OTP codes are never logged or persisted here.
 // ============================================================
 
-import type { ApiSuccess, OtpChallenge, OtpResult } from "@legalir/types";
+import type { ApiSuccess, OtpChallenge, OtpResult, RegistrationIntent } from "@legalir/types";
 
 // OTP endpoints are handled by MSW (mocked external backend)
 const API_BASE = process.env["NEXT_PUBLIC_API_BASE"] ?? "";
@@ -149,6 +149,12 @@ export interface RegisterPayload {
   password: string;
   email?: string;
   acceptTerms: boolean;
+  /**
+   * The registration track the user chose in step 1. Untrusted client
+   * input — the server normalizes it against an allow-list and falls back
+   * to PERSONAL. It only seeds onboarding; it never grants a role.
+   */
+  registrationIntent?: RegistrationIntent;
 }
 
 export interface RegisterResult {

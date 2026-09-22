@@ -9,6 +9,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { TextField, Textarea, Select } from "@legalir/ui";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import {
   SettingsCard,
@@ -97,49 +98,36 @@ export default function MemorySettingsPage() {
             onSubmit={handleSubmit}
             className="rounded-large border border-divider bg-surface-hover/40 p-4 mb-5 space-y-3"
           >
-            <div>
-              <label htmlFor="memory-key" className="block text-body-2 text-on-surface mb-1.5">
-                عنوان دانش
-              </label>
-              <input
-                id="memory-key"
-                type="text"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                placeholder="مثال: رویه داخلی شرکت در تنظیم قراردادها"
-                className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary transition"
-                dir="rtl"
-              />
-            </div>
-            <div>
-              <label htmlFor="memory-value" className="block text-body-2 text-on-surface mb-1.5">
-                محتوا
-              </label>
-              <textarea
-                id="memory-value"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                rows={3}
-                placeholder="متن دانش یا توضیح مستند..."
-                className="w-full rounded-large border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-primary transition resize-y"
-                dir="rtl"
-              />
-            </div>
-            <div>
-              <label htmlFor="memory-category" className="block text-body-2 text-on-surface mb-1.5">
-                دسته
-              </label>
-              <select
-                id="memory-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as V1MemoryItem["category"])}
-                className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface focus:outline-none focus:border-primary transition"
-              >
-                <option value="legal_context">دانش حقوقی</option>
-                <option value="profile">اطلاعات کاربر</option>
-                <option value="preference">تنظیمات برگزیده</option>
-              </select>
-            </div>
+            <TextField
+              id="memory-key"
+              type="text"
+              label="عنوان دانش"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="مثال: رویه داخلی شرکت در تنظیم قراردادها"
+              fullWidth
+            />
+            <Textarea
+              id="memory-value"
+              label="محتوا"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              rows={3}
+              placeholder="متن دانش یا توضیح مستند..."
+              fullWidth
+            />
+            <Select
+              id="memory-category"
+              label="دسته"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as V1MemoryItem["category"])}
+              fullWidth
+              options={[
+                { value: "legal_context", label: "دانش حقوقی" },
+                { value: "profile", label: "اطلاعات کاربر" },
+                { value: "preference", label: "تنظیمات برگزیده" },
+              ]}
+            />
             <button
               type="submit"
               disabled={createMemory.isPending || !key.trim() || !value.trim()}

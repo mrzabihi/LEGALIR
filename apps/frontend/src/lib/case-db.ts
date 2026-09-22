@@ -87,6 +87,28 @@ export interface DbCaseTask {
   updated_at: string;
 }
 
+export interface DbCaseDocument {
+  id: string;
+  case_id: string;
+  document_id: string;
+  added_by_user_id: string;
+  created_at: string;
+}
+
+export interface DbCaseDeadline {
+  id: string;
+  case_id: string;
+  title: string;
+  due_at: string;
+  /** Where the deadline came from — never AI-invented. */
+  source: "user" | "lawyer" | "legal_source" | "system";
+  source_ref: string | null;
+  /** True when a critical deadline still needs human confirmation. */
+  needs_confirmation: boolean;
+  completed: boolean;
+  created_at: string;
+}
+
 // --- Case CRUD ---
 
 export function listCases(
@@ -220,4 +242,113 @@ export function updateCaseTask(caseId: string, taskId: string, data: Record<stri
   tasks[idx] = { ...tasks[idx], ...data as Partial<DbCaseTask>, updated_at: new Date().toISOString() } as DbCaseTask;
   writeTable("case_tasks", tasks);
   return tasks[idx];
+}
+
+// --- Case Documents ---
+//
+// A case document is a LINK, not a copy: the file itself lives in the
+// documents table (owned by its uploader), and this table records which
+// case it belongs to. Ownership is therefore checked twice — the case
+// must belong to the caller, and the document must too.
+
+export function getCaseDocuments(caseId: string): DbCaseDocument[] {
+  return readTable<DbCaseDocument>("case_documents")
+    .filter((d) => d.case_id === caseId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function linkCaseDocument(data: {
+  id: string;
+  caseId: string;
+  documentId: string;
+  addedByUserId: string;
+}): DbCaseDocument {
+  const links = readTable<DbCaseDocument>("case_documents");
+  const existing = links.find(
+    (d) => d.case_id === data.caseId && d.document_id === data.documentId
+  );
+  if (existing) return existing;
+
+  const link: DbCaseDocument = {
+    id: data.id,
+    case_id: data.caseId,
+    document_id: data.documentId,
+    added_by_user_id: data.addedByUserId,
+    created_at: new Date().toISOString(),
+  };
+  links.push(link);
+  writeTable("case_documents", links);
+  return link;
+}
+
+export function unlinkCaseDocument(caseId: string, documentId: string): boolean {
+  const links = readTable<DbCaseDocument>("case_documents");
+  const next = links.filter(
+    (d) => !(d.case_id === caseId && d.document_id === documentId)
+  );
+  if (next.length === links.length) return false;
+  writeTable("case_documents", next);
+  return true;
+}
+
+// --- Case Deadlines ---
+
+export function getCaseDeadlines(caseId: string): DbCaseDeadline[] {
+  return readTable<DbCaseDeadline>("case_deadlines")
+    .filter((d) => d.case_id === caseId)
+    .sort((a, b) => a.due_at.localeCompare(b.due_at));
+}
+
+export function createCaseDeadline(data: {
+  id: string;
+  caseId: string;
+  title: string;
+  dueAt: string;
+  source: DbCaseDeadline["source"];
+  sourceRef: string | null;
+  needsConfirmation: boolean;
+}): DbCaseDeadline {
+  const deadline: DbCaseDeadline = {
+    id: data.id,
+    case_id: data.caseId,
+    title: data.title,
+    due_at: data.dueAt,
+    source: data.source,
+    source_ref: data.sourceRef,
+    needs_confirmation: data.needsConfirmation,
+    completed: false,
+    created_at: new Date().toISOString(),
+  };
+  const deadlines = readTable<DbCaseDeadline>("case_deadlines");
+  deadlines.push(deadline);
+  writeTable("case_deadlines", deadlines);
+  return deadline;
+}
+
+export function updateCaseDeadline(
+  caseId: string,
+  deadlineId: string,
+  data: Record<string, unknown>
+): DbCaseDeadline | undefined {
+  const deadlines = readTable<DbCaseDeadline>("case_deadlines");
+  const idx = deadlines.findIndex(
+    (d) => d.id === deadlineId && d.case_id === caseId
+  );
+  if (idx === -1) return undefined;
+  deadlines[idx] = {
+    ...deadlines[idx],
+    ...(data as Partial<DbCaseDeadline>),
+  } as DbCaseDeadline;
+  writeTable("case_deadlines", deadlines);
+  return deadlines[idx];
+}
+
+export function deleteCaseDeadline(caseId: string, deadlineId: string): boolean {
+  const deadlines = readTable<DbCaseDeadline>("case_deadlines");
+  const next = deadlines.filter(
+    (d) => !(d.id === deadlineId && d.case_id === caseId)
+  );
+  if (next.length === deadlines.length) return false;
+  writeTable("case_deadlines", next);
+  return true;
 }

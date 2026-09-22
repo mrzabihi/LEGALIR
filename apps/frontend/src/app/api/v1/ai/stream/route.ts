@@ -17,9 +17,16 @@
 //   { type: "workflow", phase, domain, intent, phaseChanged, pendingQuestions, suggestCaseCreation }
 // ============================================================
 
-import { findSessionById, consumeDailyRequest, queryDailyQuota, touchConversation, spendEnergy } from "@/lib/db";
+import { findSessionById, touchConversation } from "@/lib/db";
+import {
+  reserveUsage,
+  completeUsage,
+  reverseUsage,
+  getUsageSummary,
+} from "@/lib/usage/engine";
 import { createAiProvider, readAiProviderConfig } from "@/lib/ai/provider";
 import { retrieveGroundedSources, retrieveDocumentContext } from "@/lib/ai/grounding";
+import { buildAnswerContract } from "@/lib/knowledge/answer-contract";
 import { appendMessage, getMessages } from "@/lib/ai/store";
 import {
   processWorkflowTurn,
@@ -28,7 +35,28 @@ import {
   createInitialWorkflowState,
 } from "@/lib/ai/workflow";
 import type { WorkflowState } from "@/lib/ai/workflow";
-import type { StructuredResponseSection, V1Reference } from "@legalir/types";
+import { classifyMessage } from "@/lib/ai/pipeline/classify";
+import {
+  createRun,
+  completeStage,
+  skipStage,
+  waitStage,
+  failStage,
+  completeRun,
+  cancelRun,
+} from "@/lib/ai/pipeline/run";
+import { stageNumber, TOTAL_STAGES } from "@/lib/ai/pipeline/stages";
+import {
+  linkAttachmentsToMessage,
+  resolveAttachmentContext,
+  getMessageAttachmentRefs,
+} from "@/lib/ai/attachments";
+import type {
+  ChatAttachmentRef,
+  ProcessingStage,
+  StructuredResponseSection,
+  V1Reference,
+} from "@legalir/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +75,12 @@ interface StreamRequestBody {
     category?: string;
     documentId?: string;
   };
+  /**
+   * Documents the user attached to this message. Each id must reference a
+   * document the user owns — ownership is re-validated server-side and any
+   * id the user does not own is dropped, never linked.
+   */
+  attachmentDocumentIds?: string[];
 }
 
 type Emit = (data: unknown) => void;
@@ -106,14 +140,37 @@ function markdownToSections(md: string): StructuredResponseSection[] {
 // Streaming (abortable, status-emitting)
 // ============================================================
 
+/**
+ * Emit a pipeline progress event. Every stage transition the UI sees comes
+ * from here — the frontend never advances on a timer.
+ */
+function emitStage(
+  emit: Emit,
+  requestId: string,
+  type: string,
+  stage: ProcessingStage,
+  extra: Record<string, unknown> = {}
+): void {
+  emit({
+    type,
+    requestId,
+    stage,
+    stageNumber: stageNumber(stage),
+    totalStages: TOTAL_STAGES,
+    ...extra,
+  });
+}
+
 async function streamAssistant(
   emit: Emit,
   signal: AbortSignal,
   userId: string,
-  body: StreamRequestBody
+  body: StreamRequestBody,
+  requestId: string,
+  userMessageId: string,
+  usageTransactionId: string
 ): Promise<void> {
   // Persist the user message first (§22 — no message loss).
-  const userMessageId = crypto.randomUUID();
   appendMessage(body.conversationId, {
     id: userMessageId,
     conversationId: body.conversationId,
@@ -123,39 +180,82 @@ async function streamAssistant(
     createdAt: new Date().toISOString(),
   });
 
-  // Count the request against the day's plan-derived allowance (§26).
-  consumeDailyRequest(userId);
-
-  // Deduct the per-request energy cost. Keyed by the user message id so a
-  // retried stream can never be charged twice.
-  spendEnergy({
-    userId,
-    sourceType: "chat",
-    sourceId: userMessageId,
-    description: "کسر انرژی بابت درخواست گفتگو",
-  });
+  // Link any attached documents to this message. The document is only
+  // *referenced* — never copied. Ownership is enforced inside the linker,
+  // so a crafted request cannot attach another user's document.
+  const attachmentIds = body.attachmentDocumentIds ?? [];
+  if (attachmentIds.length > 0) {
+    linkAttachmentsToMessage({
+      userId,
+      conversationId: body.conversationId,
+      messageId: userMessageId,
+      documentIds: attachmentIds,
+    });
+  }
 
   // Bump the conversation so it surfaces at the top of the history list.
   touchConversation(userId, body.conversationId);
 
+  // Open a processing run so every stage's latency is recorded.
+  createRun({
+    id: requestId,
+    conversationId: body.conversationId,
+    userId,
+    userMessageId,
+  });
+
   const provider = createAiProvider();
 
-  // Grounding (§24) — retrieve relevant verified legal sources.
-  const grounding = retrieveGroundedSources(body.content, 3);
+  // ----------------------------------------------------------
+  // STAGE 1 — IDENTIFY (real classification)
+  // ----------------------------------------------------------
+  emitStage(emit, requestId, "stage.started", "IDENTIFY");
+  const classification = classifyMessage(body.content, Boolean(body.context?.documentId));
+  completeStage(requestId, "IDENTIFY", {
+    legalCategory: classification.legalCategory,
+    intent: classification.intent,
+    confidence: classification.confidence,
+  });
+  emitStage(emit, requestId, "stage.completed", "IDENTIFY", {
+    status: "COMPLETED",
+  });
 
-  // Document grounding — when the chat is scoped to one of the user's
-  // documents (e.g. a rental contract), inject its text + findings so the
-  // AI can answer about that exact document.
-  const docContext = retrieveDocumentContext(userId, body.context?.documentId);
-
-  // Workflow engine — load state, process turn, get phase-specific prompt.
+  // ----------------------------------------------------------
+  // STAGE 2 — UNDERSTAND (structure the request; ask if unclear)
+  // ----------------------------------------------------------
+  emitStage(emit, requestId, "stage.started", "UNDERSTAND");
   const workflowState: WorkflowState =
     getWorkflowState(body.conversationId) ?? createInitialWorkflowState();
 
-  const turn = processWorkflowTurn(workflowState, body.content, grounding.contextBlock);
+  // The workflow engine extracts facts and decides whether more information
+  // is needed. It runs here — before retrieval — because the questions it
+  // produces are what Stage 2 is actually doing.
+  const turn = processWorkflowTurn(workflowState, body.content, "");
   setWorkflowState(body.conversationId, turn.state);
 
-  // Emit workflow metadata so the frontend can show phase/progress.
+  const needsClarification =
+    classification.requiresClarification && turn.state.pendingQuestions.length > 0;
+
+  if (needsClarification) {
+    // The pipeline does not fabricate an answer when it lacks information.
+    // It records the wait and surfaces the questions to the user.
+    waitStage(requestId, "UNDERSTAND", {
+      pendingQuestions: turn.state.pendingQuestions,
+    });
+    emitStage(emit, requestId, "stage.waiting", "UNDERSTAND", {
+      status: "WAITING",
+      pendingQuestions: turn.state.pendingQuestions,
+    });
+  } else {
+    completeStage(requestId, "UNDERSTAND", {
+      collectedFacts: Object.keys(turn.state.collectedFacts).length,
+    });
+    emitStage(emit, requestId, "stage.completed", "UNDERSTAND", {
+      status: "COMPLETED",
+    });
+  }
+
+  // Emit workflow metadata so the frontend can show phase/pending questions.
   emit({
     type: "workflow",
     phase: turn.state.phase,
@@ -166,12 +266,113 @@ async function streamAssistant(
     suggestCaseCreation: turn.suggestCaseCreation,
   });
 
-  // Compose the system prompt: workflow prompt + legal grounding + document context.
+  // ----------------------------------------------------------
+  // STAGE 3 — RESEARCH (real retrieval)
+  // ----------------------------------------------------------
+  let grounding: ReturnType<typeof retrieveGroundedSources> = {
+    sources: [],
+    contextBlock: "",
+    references: [],
+    contract: buildAnswerContract([]),
+  };
+  let retrievalFailed = false;
+
+  if (!classification.requiresSources) {
+    // A purely informational question needs no source lookup — mark the
+    // stage skipped rather than pretending a search happened.
+    skipStage(requestId, "RESEARCH");
+    emitStage(emit, requestId, "stage.completed", "RESEARCH", {
+      status: "SKIPPED",
+    });
+  } else {
+    emitStage(emit, requestId, "stage.started", "RESEARCH");
+    emit({ type: "retrieval.started", requestId, stage: "RESEARCH" });
+    try {
+      grounding = retrieveGroundedSources(body.content, 3);
+      completeStage(requestId, "RESEARCH", { sourcesUsed: grounding.references.length });
+      emit({
+        type: "retrieval.completed",
+        requestId,
+        stage: "RESEARCH",
+        sourcesUsed: grounding.references.length,
+      });
+      emitStage(emit, requestId, "stage.completed", "RESEARCH", {
+        status: "COMPLETED",
+        sourcesUsed: grounding.references.length,
+      });
+    } catch {
+      // Retrieval failure must not be hidden — the answer will not claim to
+      // be grounded, and the UI shows the stage as failed.
+      retrievalFailed = true;
+      failStage(requestId, "RESEARCH", "RETRIEVAL_FAILED");
+      emitStage(emit, requestId, "stage.failed", "RESEARCH", {
+        status: "FAILED",
+        code: "RETRIEVAL_FAILED",
+        message: "در حال حاضر امکان بررسی منابع حقوقی وجود نداشت.",
+        retryable: true,
+      });
+    }
+  }
+
+  // Document grounding — when the chat is scoped to one of the user's
+  // documents (e.g. a rental contract), inject its text + findings so the
+  // AI can answer about that exact document.
+  const docContext = retrieveDocumentContext(userId, body.context?.documentId);
+
+  // Attachment grounding — the documents the user attached to THIS message.
+  // Only the already-extracted text is injected (never the raw file), and
+  // only for documents the user actually owns.
+  const attachmentContext = resolveAttachmentContext(userId, attachmentIds);
+  const attachmentBlock = attachmentContext.texts.length
+    ? [
+        "\n\n## اسناد پیوست‌شده توسط کاربر",
+        ...attachmentContext.texts.map(
+          (t) => `\n### ${t.name}\n${t.text.slice(0, 4000)}`
+        ),
+      ].join("\n")
+    : "";
+
+  // ----------------------------------------------------------
+  // STAGE 4 — ANALYZE (compose the grounded analysis prompt)
+  // ----------------------------------------------------------
+  emitStage(emit, requestId, "stage.started", "ANALYZE");
+  emit({ type: "analysis.started", requestId, stage: "ANALYZE" });
+
+  const requiresLawyerReview =
+    classification.initialRiskFlags.length > 0 ||
+    classification.legalCategory === "criminal" ||
+    classification.requiresCaseContext;
+
+  // Compose the system prompt: workflow prompt + legal grounding + document
+  // context + the answer contract. The contract carries the no-citation rule
+  // when nothing was retrieved, so the model is never left to guess.
   const system = [
     turn.systemPrompt,
     grounding.contextBlock ? `\n\n${grounding.contextBlock}` : "",
+    grounding.contract.instructionBlock
+      ? `\n\n${grounding.contract.instructionBlock}`
+      : "",
     docContext ? `\n\n${docContext.contextBlock}` : "",
+    attachmentBlock,
+    retrievalFailed
+      ? "\n\nتوجه: در این نوبت امکان بررسی منابع حقوقی وجود نداشت. پاسخ را عمومی ارائه کن و صریحاً بگو که بررسی منابع انجام نشده است."
+      : "",
   ].join("");
+
+  completeStage(requestId, "ANALYZE", {
+    requiresLawyerReview,
+    attachmentsUsed: attachmentContext.documentIds.length,
+  });
+  emit({
+    type: "analysis.completed",
+    requestId,
+    stage: "ANALYZE",
+    requiresLawyerReview,
+  });
+  emitStage(emit, requestId, "stage.completed", "ANALYZE", {
+    status: "COMPLETED",
+    requiresLawyerReview,
+  });
 
   // Build conversation history (the just-added user msg is passed
   // explicitly as the final turn, so exclude it from history).
@@ -183,17 +384,28 @@ async function streamAssistant(
       content: m.content,
     }));
 
+  // ----------------------------------------------------------
+  // STAGE 5 — RESPOND (generate the answer)
+  // ----------------------------------------------------------
+  emitStage(emit, requestId, "stage.started", "RESPOND");
+  emit({ type: "response.started", requestId, stage: "RESPOND" });
+
   let text = "";
   let index = 0;
+  let providerUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimated: true };
 
   for await (const delta of provider.stream({
     system,
     messages: [...history, { role: "user" as const, content: body.content }],
     signal,
+    onUsage: (usage) => {
+      providerUsage = usage;
+    },
   })) {
     text += delta;
     emit({ type: "status", status: "generating" });
-    emit({ type: "chunk", text: delta, index: index++ });
+    emit({ type: "response.delta", requestId, stage: "RESPOND", text: delta, index: index++ });
+    emit({ type: "chunk", text: delta, index: index - 1 });
   }
 
   const sections = markdownToSections(text);
@@ -217,7 +429,41 @@ async function streamAssistant(
     createdAt: new Date().toISOString(),
   });
 
-  emit({ type: "done", messageId, sections, references });
+  // The activity succeeded — commit the reservation and record the real
+  // token usage reported by the provider (never an estimate).
+  completeUsage(usageTransactionId, { tokens: providerUsage.totalTokens });
+
+  completeStage(requestId, "RESPOND", { characters: text.length });
+  emit({ type: "response.completed", requestId, stage: "RESPOND" });
+  emitStage(emit, requestId, "stage.completed", "RESPOND", { status: "COMPLETED" });
+
+  completeRun(requestId, {
+    assistantMessageId: messageId,
+    classification,
+    sourcesUsed: grounding.references.length,
+    requiresLawyerReview,
+  });
+  emit({
+    type: "processing.completed",
+    requestId,
+    sourcesUsed: grounding.references.length,
+    requiresLawyerReview,
+  });
+
+  // The user message's persisted attachment refs, so the UI can render the
+  // attachment cards on the user bubble without a refetch.
+  const userAttachments: ChatAttachmentRef[] =
+    attachmentIds.length > 0 ? getMessageAttachmentRefs(userMessageId) : [];
+
+  emit({
+    type: "done",
+    requestId,
+    messageId,
+    sections,
+    references,
+    userMessageId,
+    userAttachments,
+  });
 }
 
 // ============================================================
@@ -250,18 +496,28 @@ export async function POST(request: Request) {
     );
   }
 
-  // Enforce the day's allowance before doing any work.
-  const quota = queryDailyQuota(userId);
-  if (quota.exhausted) {
+  // Reserve the activity's cost atomically BEFORE doing any work. The
+  // reservation is idempotent per user message, so a retried stream can
+  // never double-charge. On an internal failure the reservation is reversed.
+  const userMessageId = crypto.randomUUID();
+  const reservation = reserveUsage({
+    userId,
+    activity: "AI_MESSAGE",
+    source: "chat",
+    relatedEntityId: userMessageId,
+    idempotencyKey: `chat:${userMessageId}`,
+  });
+  if (!reservation.ok || !reservation.transaction) {
     return new Response(
       JSON.stringify({
-        code: "QUOTA_EXHAUSTED",
-        message: "سهمیه درخواست امروز شما به پایان رسیده است.",
-        quota,
+        code: reservation.code ?? "QUOTA_EXHAUSTED",
+        message: reservation.messageFa || "سهمیه شما به پایان رسیده است.",
+        usage: getUsageSummary(userId),
       }),
       { status: 429, headers: { "Content-Type": "application/json" } }
     );
   }
+  const usageTransactionId = reservation.transaction.id;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -296,24 +552,40 @@ export async function POST(request: Request) {
         { once: true }
       );
 
+      const requestId = crypto.randomUUID();
+
       try {
         emit({ type: "status", status: "queued" });
-        emit({ type: "status", status: "retrieving" });
+        emit({ type: "processing.started", requestId, totalStages: TOTAL_STAGES });
 
-        await streamAssistant(emit, abortController.signal, userId, body);
+        await streamAssistant(
+          emit,
+          abortController.signal,
+          userId,
+          body,
+          requestId,
+          userMessageId,
+          usageTransactionId
+        );
 
         emit({ type: "status", status: "validating" });
         emit({ type: "status", status: "succeeded" });
       } catch (err) {
         const isAbort = err instanceof Error && err.name === "AbortError";
-        if (!abortController.signal.aborted) {
+        if (isAbort) {
+          // The user pressed stop — record the cancellation rather than a
+          // failure, so the run history distinguishes the two.
+          cancelRun(requestId);
+        } else {
+          // Internal failure — refund the reservation so the user's quota is
+          // not burned for a request that produced nothing.
+          reverseUsage(usageTransactionId);
+          failStage(requestId, "RESPOND", "PROVIDER_UNAVAILABLE");
           emit({
             type: "error",
-            code: isAbort ? "ABORTED" : "PROVIDER_UNAVAILABLE",
-            message: isAbort
-              ? "پردازش متوقف شد"
-              : "در حال حاضر اتصال به سرویس هوشمند امکان‌پذیر نیست.",
-            retryable: !isAbort,
+            code: "PROVIDER_UNAVAILABLE",
+            message: "در حال حاضر اتصال به سرویس هوشمند امکان‌پذیر نیست.",
+            retryable: true,
           });
           emit({ type: "status", status: "failed" });
         }

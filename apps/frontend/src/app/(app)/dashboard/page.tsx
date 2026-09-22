@@ -17,7 +17,7 @@ import {
   SmartRecommendations,
   RecentDocuments,
   RecentActivities,
-  UsageSummaryCard,
+  SubscriptionUsageCard,
 } from "@/components/dashboard";
 import {
   useProfileCompletionPrompt,
@@ -37,7 +37,11 @@ export default function DashboardPage() {
 
   const displayName = me.data?.profile?.displayName ?? null;
   const activities = dashboard.data?.recentActivity;
-  const hasNoActivity = !dashboard.isLoading && (!activities || activities.length === 0);
+  // `isPending` (no data yet) — NOT `isLoading` (isPending && isFetching).
+  // During SSR no fetch starts, so `isLoading` is false on the server but true
+  // on the client's first render, which makes the loading branch a hydration
+  // mismatch. `isPending` is true on both sides, so the skeleton is stable.
+  const hasNoActivity = !dashboard.isPending && (!activities || activities.length === 0);
 
   const heroStats = {
     dailyUsed: dashboard.data?.dailyTrialsUsed ?? 0,
@@ -55,7 +59,7 @@ export default function DashboardPage() {
       {/* ── 1) OVERVIEW ─────────────────────────────────────── */}
       <HeroSection
         displayName={displayName}
-        isLoading={me.isLoading}
+        isLoading={me.isPending}
         stats={heroStats}
       />
 
@@ -90,7 +94,7 @@ export default function DashboardPage() {
       {/* Profile Completion — from /api/v1/me */}
       <ProfileCompletionCard
         profile={me.data?.profile}
-        isLoading={me.isLoading}
+        isLoading={me.isPending}
       />
 
       {/* ── 2) ACTIONS ──────────────────────────────────────── */}
@@ -107,37 +111,35 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 items-stretch gap-4 mb-6">
         <RecentActivities
           items={activities}
-          isLoading={dashboard.isLoading}
+          isLoading={dashboard.isPending}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
         <ActiveRequests
           items={dashboard.data?.activeRequests ?? []}
-          isLoading={dashboard.isLoading}
+          isLoading={dashboard.isPending}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
         <SmartRecommendations
           items={dashboard.data?.recommendations ?? []}
-          isLoading={dashboard.isLoading}
+          isLoading={dashboard.isPending}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
       </div>
 
       {/* ── 4) USAGE & SUBSCRIPTION ─────────────────────────── */}
-      {/* The card carries its own header (title + subtitle + «جزئیات بیشتر»). */}
-      <UsageSummaryCard
-        usage={usage.data}
-        isLoading={usage.isLoading}
-        error={usage.error as Error | null}
-        onRetry={() => usage.refetch()}
-      />
+      {/* The card carries its own header (title + subtitle + «جزئیات بیشتر»).
+          It renders the usage engine's two distinct assets — today's
+          subscription credit and the persistent reward points — plus the
+          period-scoped service quotas. */}
+      <SubscriptionUsageCard />
 
       {/* ── 5) SECONDARY ────────────────────────────────────── */}
       <RecentDocuments
         items={dashboard.data?.recentDocuments ?? []}
-        isLoading={dashboard.isLoading}
+        isLoading={dashboard.isPending}
         error={dashboard.error as Error | null}
         onRetry={() => dashboard.refetch()}
       />
@@ -157,7 +159,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {blog.isLoading ? (
+        {blog.isPending ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
               <div key={i} className="h-32 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />

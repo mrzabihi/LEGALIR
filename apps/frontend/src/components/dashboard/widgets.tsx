@@ -34,6 +34,7 @@ import {
   IconStar,
 } from "@/lib/icons";
 import { PointsSummaryCard } from "./points-summary-card";
+import { TextField } from "@legalir/ui";
 
 // ============================================================
 // WidgetShell — common wrapper with loading/error/empty handling
@@ -1040,43 +1041,34 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
 
   return (
     <section className={`mb-6 ${className}`}>
-      <div className="relative max-w-2xl mx-auto">
-        {/* Input container */}
-        <div
-          className={`relative rounded-large border-2 transition-all duration-medium2 bg-surface-container-lowest ${
-            isRouting
-              ? "border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)]"
-              : "border-outline-variant focus-within:border-[color-mix(in_srgb,var(--color-primary)_60%,transparent)] focus-within:shadow-elevation-4"
-          }`}
-        >
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="مسئله حقوقی خود را توضیح دهید..."
-            disabled={isRouting}
-            className="w-full h-14 pl-14 pr-5 rounded-large bg-transparent text-body-1 text-on-surface placeholder:text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_50%,transparent)] outline-none disabled:opacity-60"
-            aria-label="مسئله حقوقی خود را توضیح دهید"
-            dir="rtl"
-          />
-
-          <button
-            type="button"
-            onClick={() => handleSubmit(query)}
-            disabled={!query.trim() || isRouting}
-            className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-primary text-primary-on flex items-center justify-center hover:state-hover transition-colors duration-short3 ease-standard disabled:opacity-40 disabled:cursor-not-allowed touch-target"
-            aria-label="ارسال پرسش"
-          >
-            {isRouting ? (
-              <span className="text-xs">...</span>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
-            )}
-          </button>
-        </div>
+      <div className="max-w-2xl mx-auto">
+        <TextField
+          label="مسئله حقوقی خود را توضیح دهید"
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="مسئله حقوقی خود را توضیح دهید..."
+          disabled={isRouting}
+          endAdornment={
+            <button
+              type="button"
+              onClick={() => handleSubmit(query)}
+              disabled={!query.trim() || isRouting}
+              className="h-10 w-10 rounded-full bg-primary text-primary-on flex items-center justify-center hover:state-hover transition-colors duration-short3 ease-standard disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+              aria-label="ارسال پرسش"
+            >
+              {isRouting ? (
+                <span className="text-xs">...</span>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
+          }
+          fullWidth
+        />
 
         {isRouting && (
           <div className="mt-3 text-center animate-fade-in">

@@ -86,10 +86,12 @@ describe("registry — definitions", () => {
     expect(ids).toContain("property_sale");
   });
 
-  it("keeps the vehicle domain declared but not implemented", () => {
+  it("registers the schema-driven contract types as implemented", () => {
     const all = allContractDefinitions().map((d) => d.id);
-    expect(all).toContain("vehicle_sale");
-    expect(isImplementedContractType("vehicle_sale")).toBe(false);
+    for (const id of ["vehicle_sale", "debt", "freelance", "nda", "saas", "startup"]) {
+      expect(all).toContain(id);
+      expect(isImplementedContractType(id)).toBe(true);
+    }
   });
 
   it("gives each journey a distinct step order", () => {

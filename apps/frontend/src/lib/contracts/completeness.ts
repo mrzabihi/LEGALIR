@@ -49,6 +49,22 @@ const PATH_LABELS: Record<string, string> = {
   documents: "مدارک",
 };
 
+/**
+ * The Persian label for a required path. Property paths are looked up
+ * in the static map; schema-driven paths (`values.<key>`) resolve to
+ * the field descriptor's own label, so a new contract type needs no
+ * entry here.
+ */
+function pathLabelFa(contract: PropertyContract, path: string): string {
+  if (PATH_LABELS[path]) return PATH_LABELS[path];
+  if (path.startsWith("values.")) {
+    const key = path.slice("values.".length);
+    const field = getContractDefinition(contract.type).fields.find((f) => f.key === key);
+    if (field) return field.labelFa;
+  }
+  return path;
+}
+
 /** Required identity fields for a party to count as complete. */
 const REQUIRED_IDENTITY_FIELDS = [
   "firstName",
@@ -66,6 +82,13 @@ function resolvePath(
 ): unknown {
   if (path === "parties") return parties;
   if (path === "documents") return documents;
+  // Schema-driven types store their values in a flat `values` map, so
+  // `values.<key>` resolves one level into `contract.data`.
+  if (path.startsWith("values.")) {
+    const key = path.slice("values.".length);
+    const values = (contract.data as { values?: Record<string, unknown> }).values;
+    return values ? values[key] : undefined;
+  }
   if (!path.startsWith("data.")) return undefined;
 
   const segments = path.slice("data.".length).split(".");
@@ -135,7 +158,7 @@ function scoreSection(
       continue;
     }
     const value = resolvePath(contract, parties, documents, path);
-    if (!isFilled(value)) missing.push(PATH_LABELS[path] ?? path);
+    if (!isFilled(value)) missing.push(pathLabelFa(contract, path));
   }
 
   const total = section.requiredPaths.length;

@@ -16,8 +16,11 @@
 // ============================================================
 
 import type {
+  ContractFieldDescriptor,
   ContractParty,
   ContractPayment,
+  GenericContractData,
+  GenericFieldValue,
   PropertyContract,
   PropertyRentData,
   PropertySaleData,
@@ -294,7 +297,9 @@ function handoverClause(data: PropertyRentData | PropertySaleData): RenderedClau
   };
 }
 
-function customClausesClause(data: PropertyRentData | PropertySaleData): RenderedClause | null {
+function customClausesClause(
+  data: PropertyRentData | PropertySaleData | GenericContractData
+): RenderedClause | null {
   if (data.customClauses.length === 0) return null;
   return {
     id: "common.custom",
@@ -575,6 +580,66 @@ function saleObligationsClause(data: PropertySaleData): RenderedClause {
 }
 
 // ------------------------------------------------------------
+// Generic (schema-driven) clauses
+// ------------------------------------------------------------
+// Every non-property contract type shares one rendering path: the
+// registry's field descriptors are grouped by their wizard step, and
+// each group becomes a clause. Labels and option labels come from the
+// descriptors, so a new contract type needs no template code.
+
+/** Render a single generic field value as human-readable Persian text. */
+function genericValueFa(descriptor: ContractFieldDescriptor, value: GenericFieldValue | undefined): string {
+  if (value === null || value === undefined || value === "") return PLACEHOLDER;
+  switch (descriptor.kind) {
+    case "money":
+      return money(value as unknown as { amount: number; currency: "IRR" });
+    case "date":
+      return typeof value === "string" ? formatIsoJalali(value) : PLACEHOLDER;
+    case "toggle":
+      return value === true ? "بله" : "خیر";
+    case "select": {
+      const opt = descriptor.options?.find((o) => o.value === value);
+      return opt?.labelFa ?? String(value);
+    }
+    case "number":
+      return num(typeof value === "number" ? value : null);
+    default:
+      return String(value);
+  }
+}
+
+/** Build one clause per wizard step that owns at least one filled field. */
+function genericClauses(def: ReturnType<typeof getContractDefinition>, data: GenericContractData): RenderedClause[] {
+  const values = data.values ?? {};
+  const clauses: RenderedClause[] = [];
+  let index = 0;
+
+  for (const step of def.wizardSteps) {
+    const fields = def.fields.filter((f) => f.stepId === step.id);
+    if (fields.length === 0) continue;
+
+    const paragraphs = fields
+      .filter((f) => {
+        const v = values[f.key];
+        return v !== null && v !== undefined && v !== "";
+      })
+      .map((f) => `${f.labelFa}: ${genericValueFa(f, values[f.key])}.`);
+
+    if (paragraphs.length === 0) continue;
+
+    index += 1;
+    clauses.push({
+      id: `generic.${step.id}`,
+      headingFa: `ماده ${index} — ${step.titleFa}`,
+      paragraphs,
+      conditional: false,
+    });
+  }
+
+  return clauses;
+}
+
+// ------------------------------------------------------------
 // Public API
 // ------------------------------------------------------------
 
@@ -591,30 +656,39 @@ export function renderContract(
   const clauses: RenderedClause[] = [];
 
   clauses.push(partiesClause(contract, parties));
-  clauses.push(propertyClause(contract.data));
-  clauses.push(deedClause(contract.data));
-  clauses.push(amenitiesClause(contract.data));
 
-  if (contract.type === "property_rent") {
-    const data = contract.data as PropertyRentData;
-    clauses.push(rentFinancialClause(data));
-    const late = rentLatePenaltyClause(data);
-    if (late) clauses.push(late);
-    clauses.push(rentCostsClause(data));
-    clauses.push(rentUsageClause(data));
-    clauses.push(rentTerminationClause(data));
+  // Schema-driven types render their clauses straight from the registry
+  // field descriptors; the bespoke property journeys keep their
+  // hand-written clause builders.
+  if (def.fields.length > 0) {
+    clauses.push(...genericClauses(def, contract.data as GenericContractData));
   } else {
-    const data = contract.data as PropertySaleData;
-    clauses.push(salePriceClause(data));
-    const schedule = salePaymentScheduleClause(payments);
-    if (schedule) clauses.push(schedule);
-    clauses.push(saleLegalStatusClause(data));
-    clauses.push(saleRegistrationClause(data));
-    clauses.push(saleObligationsClause(data));
+    clauses.push(propertyClause(contract.data as PropertyRentData | PropertySaleData));
+    clauses.push(deedClause(contract.data as PropertyRentData | PropertySaleData));
+    clauses.push(amenitiesClause(contract.data as PropertyRentData | PropertySaleData));
+
+    if (contract.type === "property_rent") {
+      const data = contract.data as PropertyRentData;
+      clauses.push(rentFinancialClause(data));
+      const late = rentLatePenaltyClause(data);
+      if (late) clauses.push(late);
+      clauses.push(rentCostsClause(data));
+      clauses.push(rentUsageClause(data));
+      clauses.push(rentTerminationClause(data));
+    } else {
+      const data = contract.data as PropertySaleData;
+      clauses.push(salePriceClause(data));
+      const schedule = salePaymentScheduleClause(payments);
+      if (schedule) clauses.push(schedule);
+      clauses.push(saleLegalStatusClause(data));
+      clauses.push(saleRegistrationClause(data));
+      clauses.push(saleObligationsClause(data));
+    }
+
+    clauses.push(handoverClause(contract.data as PropertyRentData | PropertySaleData));
   }
 
-  clauses.push(handoverClause(contract.data));
-  const custom = customClausesClause(contract.data);
+  const custom = customClausesClause(contract.data as PropertyRentData | PropertySaleData | GenericContractData);
   if (custom) clauses.push(custom);
 
   const signatureLines = def.roles.map((role) => {
@@ -631,10 +705,17 @@ export function renderContract(
       ? (contract.data as PropertyRentData).durations.contractDate
       : null;
 
+  const preambleKindFa =
+    def.fields.length > 0
+      ? def.typeFa
+      : contract.type === "property_rent"
+        ? "قرارداد اجاره"
+        : "مبایعه‌نامه";
+
   return {
     titleFa: contract.title || def.typeFa,
     preambleFa:
-      `این ${contract.type === "property_rent" ? "قرارداد اجاره" : "مبایعه‌نامه"} در تاریخ ${formatIsoJalali(contractDate)} بین طرفین زیر منعقد گردید و طرفین با آگاهی کامل از مفاد آن، به اجرای تعهدات خود متعهد شدند.`,
+      `این ${preambleKindFa} در تاریخ ${formatIsoJalali(contractDate)} بین طرفین زیر منعقد گردید و طرفین با آگاهی کامل از مفاد آن، به اجرای تعهدات خود متعهد شدند.`,
     clauses,
     signatureLines,
     footerFa: `قالب قرارداد: ${def.templateVersion} — شناسه قرارداد: ${contract.referenceCode}`,

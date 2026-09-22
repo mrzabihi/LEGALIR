@@ -11,6 +11,7 @@ import {
   fetchPointsAccount,
   fetchPointsTransactions,
   convertToLegal,
+  updateAccountType,
   fetchNotificationSettings,
   updateNotificationSettings,
   fetchPrivacySettings,
@@ -23,6 +24,8 @@ import {
 import type {
   NotificationSettings,
   PrivacySettings,
+  MeResponse,
+  PlatformAccountType,
 } from "@legalir/types";
 
 // --- Points account ---
@@ -54,6 +57,36 @@ export function useConvertToLegal() {
     onSuccess: () => {
       // The account type lives on the `me` payload — refresh it everywhere.
       queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
+}
+
+/**
+ * Set the platform account type (PERSONAL | BUSINESS). Optimistic: the
+ * selector reflects the new type in the same frame, then reconciles with
+ * the server response.
+ */
+export function useUpdateAccountType() {
+  const queryClient = useQueryClient();
+  const key = ["me"] as const;
+  return useMutation({
+    mutationFn: (accountType: PlatformAccountType) => updateAccountType(accountType),
+    onMutate: async (accountType) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<MeResponse>(key);
+      if (previous) {
+        queryClient.setQueryData<MeResponse>(key, {
+          ...previous,
+          user: { ...previous.user, platformAccountType: accountType },
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _type, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: key });
     },
   });
 }

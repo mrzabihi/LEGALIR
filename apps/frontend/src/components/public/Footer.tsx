@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TextField } from "@legalir/ui";
 
 const footerLinks = {
   services: {
@@ -94,16 +95,20 @@ export function Footer() {
                     حقوقی ایمیل خود را وارد کنید.
                   </p>
                 </div>
-                <div className="flex gap-2 flex-1">
-                  <input
-                    type="email"
-                    placeholder="ایمیل خود را وارد کنید"
-                    className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 text-body-2 text-right placeholder:text-neutral-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
-                    dir="ltr"
-                  />
+                <div className="flex items-end gap-2 flex-1">
+                  <div className="flex-1">
+                    <TextField
+                      label="ایمیل"
+                      type="email"
+                      placeholder="ایمیل خود را وارد کنید"
+                      inputDir="ltr"
+                      inputSize="small"
+                      fullWidth
+                    />
+                  </div>
                   <button
                     type="button"
-                    className="px-5 py-2.5 rounded-lg bg-primary text-white text-button font-medium hover:bg-primary/90 active:bg-primary/80 transition-colors duration-200 whitespace-nowrap"
+                    className="h-12 px-5 rounded-lg bg-primary text-white text-button font-medium hover:bg-primary/90 active:bg-primary/80 transition-colors duration-200 whitespace-nowrap"
                   >
                     ثبت
                   </button>

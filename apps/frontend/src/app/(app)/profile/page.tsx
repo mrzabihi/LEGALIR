@@ -12,7 +12,8 @@ import Link from "next/link";
 import { useMe, useUpdateProfile, useDailyQuota } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
 import { SubscriptionStatusDetails } from "@/components/subscription/subscription-status";
-import { useConvertToLegal } from "@/hooks/useAccount";
+import { useUpdateAccountType } from "@/hooks/useAccount";
+import { useOrganizations } from "@/hooks/useOnboarding";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useContracts } from "@/hooks/useContracts";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
@@ -38,7 +39,15 @@ import {
   IconBalance,
   IconChevronDown,
 } from "@/lib/icons";
-import type { Profile, V1SubscriptionHistoryItem } from "@legalir/types";
+import type { Profile, V1SubscriptionHistoryItem, PlatformAccountType } from "@legalir/types";
+import {
+  ACCOUNT_TYPE_FA,
+  ACCOUNT_TYPE_DESCRIPTION_FA,
+  ORG_MEMBER_ROLE_FA,
+  ORGANIZATION_STATUS_FA,
+  ORGANIZATION_LEGAL_TYPE_FA,
+} from "@legalir/types";
+import { Select, TextField } from "@legalir/ui";
 
 // ============================================================
 // Helpers
@@ -162,7 +171,20 @@ function EditableField({ label, value, placeholder, onSave }: {
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <input type="text" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={handleKeyDown} disabled={saving} placeholder={placeholder} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl" />
+          <div className="w-full max-w-[200px]">
+            <TextField
+              label={label}
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={saving}
+              placeholder={placeholder}
+              inputSize="small"
+              autoFocus
+              fullWidth
+            />
+          </div>
           <button onClick={handleSave} disabled={saving || draft.trim() === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -195,9 +217,15 @@ function GenderEditableField({ label, value, onSave }: { label: string; value: s
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <select value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[200px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl">
-            {GENDER_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <Select
+            label={label}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            selectSize="small"
+            className="w-full max-w-[200px]"
+            options={GENDER_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+          />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -279,9 +307,15 @@ function SelectEditableField({ label, value, placeholder, options, onSave }: {
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <select value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} className="text-body-2 text-onSurface rounded-lg px-3 py-1.5 w-full max-w-[220px] border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white transition-all" autoFocus dir="rtl">
-            {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <Select
+            label={label}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            selectSize="small"
+            className="w-full max-w-[220px]"
+            options={options.map((opt) => ({ value: opt.value, label: opt.label }))}
+          />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -352,63 +386,6 @@ function MultiSelectField({ label, value, options, onSave }: {
 // ============================================================
 // Converting to a legal account is effectively irreversible, so it
 // requires an explicit confirmation before the request is sent.
-
-function ConvertToLegalDialog({
-  open,
-  pending,
-  error,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  pending: boolean;
-  error: string | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="convert-legal-title"
-    >
-      <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-elevation-4" dir="rtl">
-        <h2 id="convert-legal-title" className="text-h3 text-onSurface font-bold mb-2">
-          تبدیل حساب به حقوقی
-        </h2>
-        <p className="text-body-2 text-muted mb-4">
-          بعد از تبدیل حساب به نوع حقوقی، امکان بازگشت به حساب شخصی از طریق پنل وجود ندارد.
-          آیا مطمئن هستید؟
-        </p>
-        {error && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-caption text-red-700">
-            {error}
-          </p>
-        )}
-        <div className="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={pending}
-            className="rounded-medium border border-divider px-4 py-2 text-button text-onSurface hover:bg-neutral-50 transition-colors disabled:opacity-50"
-          >
-            انصراف
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={pending}
-            className="rounded-medium bg-primary-700 px-4 py-2 text-button text-white hover:bg-primary-800 transition-colors disabled:opacity-50"
-          >
-            {pending ? "در حال تبدیل…" : "تبدیل به حساب حقوقی"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ============================================================
 // Hub UI primitives
@@ -481,7 +458,8 @@ function HubCard({
 export default function AccountHubPage() {
   const me = useMe();
   const updateProfile = useUpdateProfile();
-  const convertToLegal = useConvertToLegal();
+  const updateAccountType = useUpdateAccountType();
+  const organizations = useOrganizations();
   const usage = useProfileUsage();
   const quota = useDailyQuota();
   const subHistory = useSubscriptionHistory();
@@ -490,13 +468,21 @@ export default function AccountHubPage() {
   const memories = useMemories();
 
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [convertOpen, setConvertOpen] = useState(false);
-  const [convertError, setConvertError] = useState<string | null>(null);
 
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
   const accountType = me.data?.user?.accountType ?? "individual";
   const accountTypeLocked = me.data?.user?.accountTypeLocked ?? accountType === "legal";
+  // Platform account type (PERSONAL | LAWYER | BUSINESS). Falls back to the
+  // legacy field for payloads that predate the platform model.
+  const platformAccountType: PlatformAccountType =
+    me.data?.user?.platformAccountType ?? (accountType === "legal" ? "BUSINESS" : "PERSONAL");
+  const isLawyerAccount = platformAccountType === "LAWYER";
+  // The user's active organization (membership-scoped). A user is NEVER a
+  // company — an org member keeps their personal identity and represents
+  // the entity. When present, the account-type selector is replaced by the
+  // organization card + the user's role.
+  const activeOrg = organizations.data?.items?.[0] ?? null;
   const usageData = usage.data;
   const subItems: V1SubscriptionHistoryItem[] = subHistory.data?.items ?? [];
 
@@ -527,18 +513,6 @@ export default function AccountHubPage() {
     (v: string[]) => updateProfile.mutateAsync({ legalInterests: v.length > 0 ? v : null }),
     [updateProfile],
   );
-
-  const handleConvertToLegal = useCallback(async () => {
-    setConvertError(null);
-    try {
-      await convertToLegal.mutateAsync();
-      setConvertOpen(false);
-    } catch (err) {
-      setConvertError(
-        err instanceof Error ? err.message : "تبدیل حساب انجام نشد. دوباره تلاش کنید.",
-      );
-    }
-  }, [convertToLegal]);
 
   // Live daily quota (plan-derived) takes precedence over the stored usage row.
   const dailyUsed = quota.data?.used ?? usageData?.dailyRequestsUsed ?? 0;
@@ -615,22 +589,95 @@ export default function AccountHubPage() {
               </span>
             </dd>
           </div>
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-body-2 text-muted shrink-0 w-28">نوع حساب</dt>
-            <dd className="flex flex-col items-end gap-1 text-body-2 text-onSurface">
-              <span>{accountType === "legal" ? "شخص حقوقی" : "شخص حقیقی"}</span>
-              {accountTypeLocked ? (
-                <span className="text-caption text-muted">
-                  حساب حقوقی است و امکان بازگشت به حساب شخصی وجود ندارد.
-                </span>
+          <div className="py-3">
+            <dt className="text-body-2 text-muted mb-2">نوع حساب</dt>
+            <dd className="text-body-2 text-onSurface">
+              {isLawyerAccount ? (
+                <div className="flex flex-col items-end gap-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-caption text-primary-700">
+                    <IconBalance size={14} />
+                    {ACCOUNT_TYPE_FA.LAWYER}
+                  </span>
+                  <span className="text-caption text-muted">
+                    حساب وکیل از طریق پروفایل حرفه‌ای مدیریت می‌شود.
+                  </span>
+                </div>
+              ) : activeOrg ? (
+                /* Organization member — show the entity + the user's role.
+                   A user is never converted into a company. */
+                <div className="rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-body-1 font-semibold text-onSurface truncate">
+                        {activeOrg.org.name}
+                      </p>
+                      <p className="mt-0.5 text-caption text-muted">
+                        {activeOrg.org.legalType
+                          ? ORGANIZATION_LEGAL_TYPE_FA[activeOrg.org.legalType]
+                          : "شخصیت حقوقی"}
+                        {" · "}
+                        {ORGANIZATION_STATUS_FA[activeOrg.org.status]}
+                      </p>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary-700 px-3 py-1 text-caption text-white">
+                      <IconBalance size={14} />
+                      {ORG_MEMBER_ROLE_FA[activeOrg.role as keyof typeof ORG_MEMBER_ROLE_FA] ??
+                        activeOrg.role}
+                    </span>
+                  </div>
+                  <Link
+                    href="/onboarding/organization"
+                    className="mt-3 inline-flex items-center gap-1.5 text-caption font-medium text-primary-700 hover:text-primary-800 transition-colors"
+                  >
+                    اطلاعات شرکت
+                    <IconArrowBack size={14} rtlFlip />
+                  </Link>
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => { setConvertError(null); setConvertOpen(true); }}
-                  className="rounded-medium border border-primary-300 px-3 py-1.5 text-caption text-primary-700 hover:bg-primary-50 transition-colors"
-                >
-                  تبدیل به حساب حقوقی
-                </button>
+                /* Personal user — offer to ADD an organization (never
+                   "convert the account"). */
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-1 tablet:grid-cols-2 gap-2">
+                    {(["PERSONAL", "BUSINESS"] as const).map((type) => {
+                      const selected = platformAccountType === type;
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            if (selected) return;
+                            updateAccountType.mutate(type);
+                          }}
+                          disabled={updateAccountType.isPending}
+                          aria-pressed={selected}
+                          className={[
+                            "rounded-xl border p-3 text-start transition-colors disabled:opacity-60",
+                            selected
+                              ? "border-primary-500 bg-primary-50"
+                              : "border-divider hover:bg-neutral-50",
+                          ].join(" ")}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-body-2 font-semibold text-onSurface">
+                              {ACCOUNT_TYPE_FA[type]}
+                            </span>
+                            {selected && <IconCheck size={16} className="text-primary-600" />}
+                          </span>
+                          <span className="mt-1 block text-caption text-muted">
+                            {ACCOUNT_TYPE_DESCRIPTION_FA[type]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Link
+                    href="/onboarding/organization"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-primary-700 px-4 py-3 text-body-2 font-medium text-primary-700 hover:bg-primary-50 transition-colors touch-target"
+                  >
+                    <IconBalance size={18} />
+                    ثبت یا افزودن شرکت
+                  </Link>
+                </div>
               )}
             </dd>
           </div>
@@ -707,14 +754,6 @@ export default function AccountHubPage() {
           </div>
         )}
       </section>
-
-      <ConvertToLegalDialog
-        open={convertOpen}
-        pending={convertToLegal.isPending}
-        error={convertError}
-        onCancel={() => setConvertOpen(false)}
-        onConfirm={handleConvertToLegal}
-      />
 
       {/* ================================================ */}
       {/* وبلاگ حقوقی */}

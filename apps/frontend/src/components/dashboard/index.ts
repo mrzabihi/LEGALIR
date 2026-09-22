@@ -16,3 +16,4 @@ export {
 export type { StatusTone } from "./widgets";
 export { QuickActions } from "./quick-access";
 export { PointsSummaryCard } from "./points-summary-card";
+export { SubscriptionUsageCard } from "./subscription-usage-card";

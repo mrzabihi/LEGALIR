@@ -24,6 +24,8 @@ const PROTECTED_PREFIXES = [
   "/services",
   "/support",
   "/calculators",
+  "/lawyer",
+  "/onboarding",
 ];
 
 /** Routes accessible only to unauthenticated users (redirect to dashboard if logged in) */

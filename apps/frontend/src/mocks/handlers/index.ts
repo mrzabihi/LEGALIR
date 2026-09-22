@@ -89,6 +89,45 @@ const MAX_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 300_000; // 5 minutes
 const MAX_REQUESTS_PER_WINDOW = 3;
 
+// --- Usage Engine Fixtures (mock mode) ---
+// Mirrors the shape of GET /api/v1/subscription/usage. Gold plan: 150
+// requests/day → 15,000 daily points; 4.5M tokens, 4,500 AI messages,
+// 15 document analyses, 10 contracts per period.
+
+const fixtureSubscriptionUsage = {
+  hasSubscription: true,
+  planCode: "gold" as const,
+  planNameFa: "طلا",
+  expiresAt: new Date(Date.now() + 21 * 86_400_000).toISOString(),
+  daysRemaining: 21,
+  subscriptionExpired: false,
+  daily: {
+    usageDate: new Date().toISOString().slice(0, 10),
+    requestLimit: 150,
+    requestUsed: 23,
+    requestsRemaining: 127,
+    pointsTotal: 15_000,
+    pointsUsed: 2_300,
+    pointsRemaining: 12_700,
+    resetAt: new Date(new Date().setHours(24, 0, 0, 0)).toISOString(),
+  },
+  period: [
+    { quotaType: "AI_MESSAGES" as const, nameFa: "پیام هوش مصنوعی", limit: 4_500, used: 320, remaining: 4_180, unlimited: false },
+    { quotaType: "TOKENS" as const, nameFa: "توکن", limit: 4_500_000, used: 412_000, remaining: 4_088_000, unlimited: false },
+    { quotaType: "DOCUMENT_ANALYSIS" as const, nameFa: "تحلیل سند", limit: 15, used: 4, remaining: 11, unlimited: false },
+    { quotaType: "CONTRACT_DRAFT" as const, nameFa: "پیش‌نویس قرارداد", limit: 10, used: 2, remaining: 8, unlimited: false },
+    { quotaType: "CONTRACT_CREATION" as const, nameFa: "ایجاد قرارداد", limit: 10, used: 3, remaining: 7, unlimited: false },
+  ],
+  rewardPoints: 850,
+  allowRewardPointsAfterLimit: false,
+};
+
+const fixtureUsageHistory = [
+  { id: "ut-1", activityType: "AI_MESSAGE" as const, displayNameFa: "پیام هوش مصنوعی", pointsCost: 100, serviceQuotaType: "AI_MESSAGES" as const, serviceQuotaCost: 1, status: "COMPLETED" as const, createdAt: new Date(Date.now() - 3_600_000).toISOString() },
+  { id: "ut-2", activityType: "DOCUMENT_ANALYSIS" as const, displayNameFa: "تحلیل سند", pointsCost: 100, serviceQuotaType: "DOCUMENT_ANALYSIS" as const, serviceQuotaCost: 1, status: "COMPLETED" as const, createdAt: new Date(Date.now() - 7_200_000).toISOString() },
+  { id: "ut-3", activityType: "CONTRACT_CREATE" as const, displayNameFa: "ایجاد قرارداد", pointsCost: 100, serviceQuotaType: "CONTRACT_CREATION" as const, serviceQuotaCost: 1, status: "COMPLETED" as const, createdAt: new Date(Date.now() - 86_400_000).toISOString() },
+];
+
 // --- In-Memory State ---
 
 interface StoredChallenge {
@@ -742,6 +781,41 @@ export const handlers = [
   http.get(`${API_BASE}/api/v1/usage`, async () => {
     await delay(400);
     return HttpResponse.json(ok(fixtureV1UsageResponse));
+  }),
+
+  // --- GET /api/v1/subscription/usage ---
+  // The usage engine summary: today's subscription credit (resets at Tehran
+  // midnight), the period-scoped service quotas and the persistent reward
+  // points — three distinct assets.
+  http.get(`${API_BASE}/api/v1/subscription/usage`, async () => {
+    await delay(300);
+    return HttpResponse.json(ok(fixtureSubscriptionUsage));
+  }),
+
+  // --- GET /api/v1/subscription/usage/today ---
+  http.get(`${API_BASE}/api/v1/subscription/usage/today`, async () => {
+    await delay(200);
+    return HttpResponse.json(ok(fixtureSubscriptionUsage.daily));
+  }),
+
+  // --- GET /api/v1/subscription/usage/history ---
+  http.get(`${API_BASE}/api/v1/subscription/usage/history`, async ({ request }) => {
+    await delay(300);
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+    const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20", 10);
+    const items = fixtureUsageHistory.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json(
+      ok({
+        items,
+        pagination: {
+          page,
+          pageSize,
+          total: fixtureUsageHistory.length,
+          totalPages: Math.ceil(fixtureUsageHistory.length / pageSize),
+        },
+      })
+    );
   }),
 
   // --- POST /api/v1/checkout/intents ---

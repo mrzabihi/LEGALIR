@@ -18,11 +18,29 @@
 import Link from "next/link";
 import type { PropertyContractListItem } from "@legalir/types";
 import { Button } from "@legalir/ui";
-import { IconArrowBack, IconContract, IconDelete, IconEdit, IconHome } from "@/lib/icons";
+import {
+  IconArrowBack,
+  IconBriefcase,
+  IconCar,
+  IconCloud,
+  IconCoin,
+  IconContract,
+  IconDelete,
+  IconEdit,
+  IconHome,
+  IconShield,
+  IconUsers,
+} from "@/lib/icons";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   property_rent: <IconHome className="w-5 h-5" />,
   property_sale: <IconContract className="w-5 h-5" />,
+  vehicle_sale: <IconCar className="w-5 h-5" />,
+  debt: <IconCoin className="w-5 h-5" />,
+  freelance: <IconBriefcase className="w-5 h-5" />,
+  nda: <IconShield className="w-5 h-5" />,
+  saas: <IconCloud className="w-5 h-5" />,
+  startup: <IconUsers className="w-5 h-5" />,
 };
 
 /** A state chip colour, keyed by how far along the contract is. */

@@ -164,6 +164,26 @@ export const IconUpload = createIcon("Upload", (
   <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
 ));
 
+/**
+ * Paperclip — attach a document to the current chat turn.
+ *
+ * Rendered as a stroked (not filled) glyph so the clip reads as a thin
+ * metal loop rather than a solid blob. Pass `motion` to add the gentle
+ * «wiggle» that draws the eye to the attach affordance; the animation is
+ * suppressed automatically under `prefers-reduced-motion`.
+ */
+export const IconAttach = createIcon(
+  "Attach",
+  <path
+    d="M16.5 6.5v9.75a4.5 4.5 0 0 1-9 0V6a3 3 0 0 1 6 0v9.5a1.5 1.5 0 0 1-3 0V7.5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+
 export const IconLogout = createIcon(
   "Logout",
   <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />,
@@ -309,6 +329,11 @@ export const IconDownload = createIcon("Download", (
   <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
 ));
 
+/** Funnel — filter / refine controls. */
+export const IconFilter = createIcon("Filter", (
+  <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
+));
+
 export const IconEmail = createIcon("Email", (
   <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
 ));
@@ -365,4 +390,61 @@ export const IconBell = createIcon("Bell", (
 
 export const IconCalculator = createIcon("Calculator", (
   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-2h2v2zm0-4H7v-2h2v2zm0-4H7V7h2v2zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z" />
+));
+
+/** Car — vehicle contracts. */
+export const IconCar = createIcon("Car", (
+  <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+));
+
+/** Briefcase — freelance / services contracts. */
+export const IconBriefcase = createIcon("Briefcase", (
+  <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" />
+));
+
+/** Cloud — SaaS contracts. */
+export const IconCloud = createIcon("Cloud", (
+  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+));
+
+/** Users — startup / multi-party contracts. */
+export const IconUsers = createIcon("Users", (
+  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+));
+
+// --- Lawyer marketplace: specialty watermarks & card meta ---
+
+/** Business center — companies / corporate law. */
+export const IconBusiness = createIcon("Business", (
+  <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
+));
+
+/** Code brackets — technology / software law. */
+export const IconCode = createIcon("Code", (
+  <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
+));
+
+/** Trademark badge — brand / IP registration. */
+export const IconTrademark = createIcon("Trademark", (
+  <path d="M12 2l2.4 1.8 3-.3 1.2 2.8 2.7 1.4-.6 2.9 1.8 2.4-1.8 2.4.6 2.9-2.7 1.4-1.2 2.8-3-.3L12 22l-2.4-1.8-3 .3-1.2-2.8-2.7-1.4.6-2.9L1.5 11l1.8-2.4-.6-2.9 2.7-1.4 1.2-2.8 3 .3L12 2zm-1.2 6.5v7h1.8v-4.6l1.9 4.6h1.3l1.9-4.6v4.6h1.8v-7h-2.5l-1.8 4.4-1.8-4.4h-2.6z" />
+));
+
+/** Clock — consultation duration / response time. */
+export const IconClock = createIcon("Clock", (
+  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z" />
+));
+
+/** Location pin — city / province. */
+export const IconLocation = createIcon("Location", (
+  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+));
+
+/** Gavel — criminal law / litigation. */
+export const IconGavel = createIcon("Gavel", (
+  <path d="M1 21h12v2H1v-2zM5.24 8.07l2.83-2.83 14.14 14.14-2.83 2.83L5.24 8.07zM12.32 1l5.66 5.66-2.83 2.83-5.66-5.66L12.32 1zM3.83 9.48l5.66 5.66-2.83 2.83L1 12.31l2.83-2.83z" />
+));
+
+/** Scale of justice — general legal / other. */
+export const IconScale = createIcon("Scale", (
+  <path d="M12 3a1.5 1.5 0 011.5 1.5h4.75a1 1 0 010 2H13.5V8h3.25l2.5 6.5a3.75 3.75 0 01-7.25 0L14.5 8H13.5v9.5h4a1 1 0 010 2h-11a1 1 0 010-2h4V8H9.5l2.5 6.5a3.75 3.75 0 01-7.25 0L7.25 8H6.75a1 1 0 010-2H11.5A1.5 1.5 0 0112 3zM6.5 10.2L5.2 13.6a2.25 2.25 0 002.6 0L6.5 10.2zm11 0l-1.3 3.4a2.25 2.25 0 002.6 0l-1.3-3.4z" />
 ));

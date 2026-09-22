@@ -22,15 +22,32 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { IconArrowBack, IconChevronDown, IconContract, IconHome } from "@/lib/icons";
+import {
+  IconArrowBack,
+  IconBriefcase,
+  IconCar,
+  IconChevronDown,
+  IconCloud,
+  IconCoin,
+  IconContract,
+  IconHome,
+  IconShield,
+  IconUsers,
+} from "@/lib/icons";
 import { implementedContractDefinitions } from "@/lib/contracts/registry";
 import { useCreatePropertyContract } from "@/hooks/usePropertyContracts";
 import { DEFAULT_PROPERTY_KIND } from "@/lib/api/property-contracts";
-import type { ContractTypeId, PropertyContractType } from "@legalir/types";
+import type { ContractTypeId } from "@legalir/types";
 
 const ICONS: Record<string, React.ReactNode> = {
   home: <IconHome className="w-6 h-6" />,
   key: <IconContract className="w-6 h-6" />,
+  car: <IconCar className="w-6 h-6" />,
+  coin: <IconCoin className="w-6 h-6" />,
+  briefcase: <IconBriefcase className="w-6 h-6" />,
+  shield: <IconShield className="w-6 h-6" />,
+  cloud: <IconCloud className="w-6 h-6" />,
+  users: <IconUsers className="w-6 h-6" />,
 };
 
 /** Columns rendered per breakpoint — must match the grid classes below. */
@@ -82,7 +99,7 @@ export function ContractTypeGrid() {
     setPendingType(typeId);
     try {
       const created = await create.mutateAsync({
-        type: typeId as PropertyContractType,
+        type: typeId,
         propertyKind: DEFAULT_PROPERTY_KIND,
         initiatorRole: definitions.find((d) => d.id === typeId)!.defaultInitiatorRole,
       });

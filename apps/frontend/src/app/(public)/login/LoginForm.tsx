@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { TextField } from "@legalir/ui";
 import { useRequestOtp } from "@/lib/auth/use-auth";
 import { normalizeMobile } from "@/lib/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
@@ -70,33 +71,21 @@ export function LoginForm() {
   return (
     <div className="rounded-xl bg-surface border border-neutral-200 shadow-sm p-8">
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <div>
-          <label htmlFor="mobile" className="block text-body-2 text-neutral-700 mb-2">
-            شماره موبایل
-          </label>
-          <input
-            id="mobile"
-            name="mobile"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel"
-            value={mobile}
-            onChange={handleMobileChange}
-            placeholder="۰۹xxxxxxxxx"
-            aria-describedby={displayError ? "mobile-error" : undefined}
-            aria-invalid={!!displayError}
-            className="w-full rounded-medium border border-neutral-300 bg-white px-4 py-3 text-body-1 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-left dir-ltr transition-colors"
-            dir="ltr"
-            disabled={isPending}
-            autoFocus
-          />
-        </div>
-
-        {displayError && (
-          <p id="mobile-error" className="text-body-2 text-error" role="alert">
-            {displayError}
-          </p>
-        )}
+        <TextField
+          id="mobile"
+          name="mobile"
+          label="شماره موبایل"
+          type="tel"
+          inputMode="numeric"
+          autoComplete="tel"
+          value={mobile}
+          onChange={handleMobileChange}
+          errorMessage={displayError || undefined}
+          fullWidth
+          inputDir="ltr"
+          disabled={isPending}
+          autoFocus
+        />
 
         <button
           type="submit"

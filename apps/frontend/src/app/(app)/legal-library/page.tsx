@@ -9,6 +9,8 @@
 
 import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { TextField } from "@legalir/ui";
+import { IconClose } from "@/lib/icons";
 
 // ============================================================
 // Persian Text Normalization
@@ -900,30 +902,28 @@ export default function LegalLibraryPage() {
       {/* ============================================================
           Search Bar
           ============================================================ */}
-      <div className="relative mb-5 max-w-xl">
-        <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-          <IconSearch />
-        </div>
-        <input
+      <div className="mb-5 max-w-xl">
+        <TextField
           type="search"
+          label="جستجو در اسناد حقوقی"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="جستجو در قوانین، راهنماها، آرا و ابزارهای حقوقی..."
-          className="w-full h-12 pr-12 pl-12 rounded-xl bg-surface border border-divider/60 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-          aria-label="جستجو در اسناد حقوقی"
+          leadingIcon={<IconSearch />}
+          endAdornment={
+            searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+                aria-label="پاک کردن جستجو"
+              >
+                <IconClose size={18} />
+              </button>
+            ) : undefined
+          }
+          fullWidth
         />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery("")}
-            className="absolute inset-y-0 left-0 flex items-center pl-4 text-muted hover:text-on-surface transition-colors"
-            aria-label="پاک کردن جستجو"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        )}
       </div>
 
       {/* ============================================================

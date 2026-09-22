@@ -1,34 +1,23 @@
 // ============================================================
 // LEGALIR — Legal Source Grounding (server-only)
 // ============================================================
-// Retrieves relevant verified legal sources from the existing
-// Legal Library for RAG grounding of AI responses. Never invents
-// citations — if no reliable source is found, an empty list is
-// returned so the gateway can refrain from fabricating source
-// numbers (§24 of the upgrade spec).
+// Retrieves relevant verified legal sources for RAG grounding of AI
+// responses. The ranking, authority weighting and provenance all live in
+// `lib/knowledge/retriever.ts`; this module adapts the engine's hits to
+// the shape the AI gateway consumes and builds the answer contract.
+//
+// Never invents citations — if no reliable source is found, an empty list
+// is returned and the contract forbids citation (the no-citation rule).
 // ============================================================
 
 import type {
-  LegalContentType,
-  SourceType,
-  V1LegalLibraryListItem,
-  V1LegalSourceDetail,
+  AnswerContract,
+  RetrievalHit,
   V1Reference,
-  VerificationStatus,
 } from "@legalir/types";
-import { readLegalLibrary } from "@/lib/legal-library-db";
-import { LAW_SOURCES } from "@/lib/law-catalog";
-import { retrieveCorpus } from "@/lib/legal-corpus";
 import { getDemoDocument } from "@/lib/demo-seed";
-
-// Map Legal Library content types to the Phase-8 reference source types.
-const SOURCE_TYPE_MAP: Partial<Record<LegalContentType, SourceType>> = {
-  LAW_ARTICLE: "law",
-  REGULATION: "regulation",
-  UNIFICATION_RULING: "precedent",
-  JUDICIAL_DECISION: "precedent",
-  LEGAL_GUIDE: "opinion",
-};
+import { retrieveHybrid } from "@/lib/knowledge/retriever";
+import { buildAnswerContract } from "@/lib/knowledge/answer-contract";
 
 export interface GroundedSource {
   id: string;
@@ -39,6 +28,11 @@ export interface GroundedSource {
   summary: string;
   excerpt: string | null;
   verificationStatus: string;
+  /** The authority tier of the source, e.g. «قانون». */
+  tier: string;
+  tierFa: string;
+  /** Article/provision locator, e.g. «ماده ۲۳۰». */
+  locator: string;
 }
 
 export interface GroundingResult {
@@ -47,215 +41,53 @@ export interface GroundingResult {
   contextBlock: string;
   /** References that can be persisted alongside the assistant message. */
   references: V1Reference[];
+  /** The answer contract — grounded flag, tiers and the no-citation rule. */
+  contract: AnswerContract;
 }
 
 // ============================================================
-// Keyword extraction for Persian legal queries
-// ============================================================
-
-// Simple stopword + tokenizer for Persian legal text. Purely lexical
-// (no ML) so it is deterministic, testable and dependency-free.
-const STOPWORDS = new Set([
-  "و", "در", "از", "به", "با", "برای", "که", "این", "آن", "را", "است",
-  "هست", "می", "شود", "باشد", "من", "تو", "او", "ما", "شما", "چگونه",
-  "چه", "چیست", "لطفا", "لطفاً", "کند", "کنم", "دارم", "هستم", "آیا",
-]);
-
-function tokenize(text: string): string[] {
-  return text
-    .replace(/[۰-۹0-9]+/g, " ")
-    .replace(/[^\u0600-\u06FF\s]/g, " ")
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 1 && !STOPWORDS.has(t));
-}
-
-function scoreSource(
-  item: V1LegalLibraryListItem,
-  detail: V1LegalSourceDetail | undefined,
-  tokens: string[]
-): number {
-  let score = 0;
-  const haystack = [
-    item.title,
-    item.summary,
-    item.authority,
-    detail?.body ?? "",
-    detail?.simpleExplanation ?? "",
-    detail?.keyPoints?.join(" ") ?? "",
-    detail?.lawName ?? "",
-    detail?.articleNumber ?? "",
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  for (const token of tokens) {
-    if (haystack.includes(token.toLowerCase())) score += 2;
-  }
-
-  const VERIFIED: VerificationStatus[] = [
-    "VERIFIED_OFFICIAL",
-    "VERIFIED_SECONDARY",
-    "DEMO_VERIFIED",
-  ];
-  if (VERIFIED.includes(item.verificationStatus)) score += 1;
-  if (item.popular) score += 1;
-
-  return score;
-}
-
-// ============================================================
-// Retrieval
+// Retrieval — delegated to the hybrid knowledge engine
 // ============================================================
 
 export function retrieveGroundedSources(
   query: string,
   maxSources = 3
 ): GroundingResult {
-  const tokens = tokenize(query);
+  const { hits } = retrieveHybrid(query, maxSources);
+  const contract = buildAnswerContract(hits);
 
-  if (tokens.length === 0) {
-    return { sources: [], contextBlock: "", references: [] };
-  }
-
-  const table = readLegalLibrary();
-  const details = table.details ?? {};
-
-  const scored = table.items
-    .map((item) => ({
-      item,
-      detail: details[item.id],
-      score: scoreSource(item, details[item.id], tokens),
-    }))
-    .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxSources);
-
-  // --- Official law catalog matches (16 files) ---
-  // Each law contributes its own source/reference with a real article
-  // locator and verbatim-ish quote, so the chat «مستندات»/«ارجاعات»
-  // tabs surface the matching provision directly.
-  const lawMatches = LAW_SOURCES.map((def) => {
-    const haystack = [
-      def.title,
-      def.summary,
-      def.articleSection,
-      def.excerpt,
-      def.keywords.join(" "),
-    ]
-      .join(" ")
-      .toLowerCase();
-    let score = 0;
-    for (const token of tokens) {
-      if (haystack.includes(token.toLowerCase())) score += 3;
-    }
-    return { def, score };
-  })
-    .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxSources);
-
-  const sources: GroundedSource[] = scored.map(({ item, detail }) => ({
-    id: item.id,
-    title: item.title,
-    sourceType: item.sourceType,
-    sourceTypeFa: item.sourceTypeFa,
-    authority: item.authority,
-    summary: item.summary,
-    excerpt: detail?.body ?? detail?.simpleExplanation ?? item.summary,
-    verificationStatus: item.verificationStatus,
+  const sources: GroundedSource[] = hits.map((h: RetrievalHit) => ({
+    id: h.id,
+    title: h.title,
+    sourceType: h.sourceType,
+    sourceTypeFa: h.sourceTypeFa,
+    authority: h.provenance.authority,
+    summary: h.summary,
+    excerpt: h.excerpt,
+    verificationStatus: h.provenance.verificationStatus,
+    tier: h.provenance.tier,
+    tierFa: h.provenance.tierFa,
+    locator: h.provenance.locator,
   }));
 
-  const contextBlock = sources.length
-    ? [
-        "منابع حقوقی مرتبط (برای استناد در پاسخ):",
-        ...sources.map(
-          (s, i) =>
-            `${i + 1}. ${s.title} — ${s.authority} (${s.sourceTypeFa})\n${s.excerpt ?? ""}`
-        ),
-      ].join("\n\n")
-    : "";
+  const references: V1Reference[] = hits.map((h: RetrievalHit) => ({
+    id: crypto.randomUUID(),
+    conversationId: "", // filled by the gateway
+    messageId: "", // filled by the gateway
+    sourceId: h.id,
+    locator: h.provenance.locator,
+    quote: (h.excerpt ?? h.summary).slice(0, 160),
+    section: "منابع مرتبط",
+    sourceType: h.sourceType,
+    sourceTypeFa: h.sourceTypeFa,
+  }));
 
-  const references: V1Reference[] = sources.map((s) => {
-    const mappedType = SOURCE_TYPE_MAP[s.sourceType as LegalContentType];
-    return {
-      id: crypto.randomUUID(),
-      conversationId: "", // filled by the gateway
-      messageId: "", // filled by the gateway
-      sourceId: s.id,
-      locator: "",
-      quote: (s.excerpt ?? s.summary).slice(0, 160),
-      section: "منابع مرتبط",
-      ...(mappedType ? { sourceType: mappedType } : {}),
-      sourceTypeFa: s.sourceTypeFa,
-    };
-  });
-
-  // Merge law matches into the returned sources/references. Laws are
-  // appended after library sources; the gateway keeps the order.
-  for (const { def } of lawMatches) {
-    sources.push({
-      id: def.id,
-      title: def.title,
-      sourceType: def.sourceType,
-      sourceTypeFa: def.sourceTypeFa,
-      authority: def.publicationAuthority,
-      summary: def.summary,
-      excerpt: def.excerpt,
-      verificationStatus: "VERIFIED_OFFICIAL",
-    });
-    references.push({
-      id: crypto.randomUUID(),
-      conversationId: "",
-      messageId: "",
-      sourceId: def.id,
-      locator: def.articleSection,
-      quote: def.excerpt.slice(0, 160),
-      section: "منابع مرتبط",
-      sourceType: def.sourceType,
-      sourceTypeFa: def.sourceTypeFa,
-    });
-  }
-
-  // --- Local legal knowledge corpus (ingested .data/legal-corpus.json) ---
-  // The corpus is the actually-indexed artifact of the 16 official law
-  // files (SHA-256 fingerprinted, chunked, inverted-indexed). Hits that
-  // map to an already-surfaced catalog law (via lawId) are skipped; hits
-  // for files with no catalog entry (e.g. the .docx variants) surface as
-  // their own citable source so the ingested corpus is never dropped.
-  const existingIds = new Set(sources.map((s) => s.id));
-  for (const hit of retrieveCorpus(query, maxSources)) {
-    const sourceId = hit.source.lawId ?? hit.source.id;
-    if (existingIds.has(sourceId)) continue;
-    existingIds.add(sourceId);
-
-    const sourceType = SOURCE_TYPE_MAP[hit.source.sourceType] ?? "law";
-    const excerpt = hit.excerpt || hit.source.excerpt || null;
-
-    sources.push({
-      id: sourceId,
-      title: hit.source.title,
-      sourceType,
-      sourceTypeFa: hit.source.sourceTypeFa,
-      authority: hit.source.authority,
-      summary: hit.source.summary,
-      excerpt,
-      verificationStatus: hit.source.verificationStatus,
-    });
-    references.push({
-      id: crypto.randomUUID(),
-      conversationId: "",
-      messageId: "",
-      sourceId,
-      locator: hit.locator ?? hit.source.articleSection ?? "",
-      quote: (excerpt ?? hit.source.summary).slice(0, 160),
-      section: "منابع مرتبط",
-      sourceType,
-      sourceTypeFa: hit.source.sourceTypeFa,
-    });
-  }
-
-  return { sources, contextBlock, references };
+  return {
+    sources,
+    contextBlock: contract.contextBlock,
+    references,
+    contract,
+  };
 }
 
 // ============================================================

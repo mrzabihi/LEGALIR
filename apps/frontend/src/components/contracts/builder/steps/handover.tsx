@@ -12,7 +12,15 @@
 import React from "react";
 import { useWizard } from "../wizard-context";
 import { Field, FieldGrid, SectionCard, ChoiceField, NumberField, Notice } from "../primitives";
-import type { ConditionState, HandoverRecord } from "@legalir/types";
+import type {
+  ConditionState,
+  HandoverRecord,
+  PropertyRentData,
+  PropertySaleData,
+} from "@legalir/types";
+
+/** This step only ever renders for the two property journeys. */
+type PropertyData = PropertyRentData | PropertySaleData;
 
 const CONDITION_OPTIONS: { value: ConditionState; label: string }[] = [
   { value: "intact", label: "سالم" },
@@ -23,7 +31,7 @@ const CONDITION_OPTIONS: { value: ConditionState; label: string }[] = [
 
 export function HandoverStep() {
   const { data, patchData } = useWizard();
-  const handover = data.handover;
+  const handover = (data as PropertyData).handover;
 
   const setHandover = (patch: Partial<HandoverRecord>) =>
     patchData({ handover: { ...handover, ...patch } });

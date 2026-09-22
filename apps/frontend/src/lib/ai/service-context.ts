@@ -74,6 +74,31 @@ export function getServiceContext(type: string | undefined | null): ServiceConte
 }
 
 /**
+ * The composer placeholder for a service, so the input reflects what the
+ * user is actually here to do (§10). Falls back to the generic prompt.
+ */
+export function composerPlaceholder(type: string | undefined | null): string {
+  switch (type) {
+    case "contract_review":
+      return "قرارداد را بارگذاری کنید یا بگویید چه بخشی را می‌خواهید بررسی کنیم...";
+    case "contract_drafting":
+      return "بگویید چه نوع قراردادی می‌خواهید و چه شرایطی باید در آن باشد...";
+    case "legal_notice":
+      return "موضوع اظهارنامه و طرف مقابل را توضیح دهید...";
+    case "document_analysis":
+      return "سند را بارگذاری کنید یا بگویید چه چیزی را در آن بررسی کنیم...";
+    case "legal_calculation":
+      return "برای محاسبه، مبلغ و نوع خسارت یا هزینه را مشخص کنید...";
+    case "law_search":
+      return "قانون، ماده یا موضوع حقوقی موردنظر را بنویسید...";
+    case "case_analysis":
+      return "وضعیت پرونده و آخرین اقدام انجام‌شده را توضیح دهید...";
+    default:
+      return "مسئله حقوقی خود را با جزئیات لازم توضیح دهید...";
+  }
+}
+
+/**
  * Maps legacy `?category=` query values used by the Services page to a
  * ServiceType. Unknown/empty values fall back to legal_consultation.
  */

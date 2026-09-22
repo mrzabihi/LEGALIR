@@ -11,46 +11,14 @@
 "use client";
 
 import React, { useMemo } from "react";
-import Link from "next/link";
-import { Button, ProgressLinear } from "@legalir/ui";
-import { IconArrowBack, IconArrowForward, IconCheck, IconRefresh } from "@/lib/icons";
+import { Button, snackbar } from "@legalir/ui";
+import { IconArrowBack, IconArrowForward, IconCheck } from "@/lib/icons";
 import { useWizard, WizardProvider } from "./wizard-context";
-import { STEP_COMPONENTS } from "./steps";
+import { stepComponentFor } from "./steps";
+import { ContractWorkspaceHeader } from "./contract-workspace-header";
 import type { ContractCompleteness, PropertyContractDetail } from "@legalir/types";
+import { PROPERTY_CONTRACT_STATE_LABELS } from "@legalir/types";
 import { getContractDefinition } from "@/lib/contracts/registry";
-
-// ------------------------------------------------------------
-// Save indicator
-// ------------------------------------------------------------
-
-function SaveIndicator() {
-  const { saveStatus, lastSavedAt, saveNow } = useWizard();
-
-  if (saveStatus === "saving") {
-    return <span className="text-caption text-muted">در حال ذخیره…</span>;
-  }
-  if (saveStatus === "error") {
-    return (
-      <button
-        type="button"
-        onClick={() => void saveNow()}
-        className="text-caption text-error inline-flex items-center gap-1 hover:underline"
-      >
-        <IconRefresh className="w-3.5 h-3.5" />
-        ذخیره نشد — تلاش دوباره
-      </button>
-    );
-  }
-  if (saveStatus === "saved" && lastSavedAt) {
-    return (
-      <span className="text-caption text-success inline-flex items-center gap-1">
-        <IconCheck className="w-3.5 h-3.5" />
-        ذخیره شد
-      </span>
-    );
-  }
-  return <span className="text-caption text-muted">ذخیره خودکار فعال است</span>;
-}
 
 // ------------------------------------------------------------
 // Step rail
@@ -130,53 +98,39 @@ function WizardBody() {
     progress,
     completeness,
     editable,
+    state,
+    saveStatus,
+    lastSavedAt,
+    saveNow,
   } = useWizard();
   const def = useMemo(() => getContractDefinition(contract.type), [contract.type]);
   const step = def.wizardSteps.find((s) => s.id === stepId) ?? def.wizardSteps[0]!;
-  const StepComponent = STEP_COMPONENTS[step.id];
+  const StepComponent = stepComponentFor(contract.type, step.id);
 
-  const blockers = completeness.blockers;
+  const handleCopyId = () => {
+    void navigator.clipboard?.writeText(contract.referenceCode).then(
+      () => snackbar.show({ message: "شناسه قرارداد کپی شد.", variant: "success" }),
+      () => snackbar.show({ message: "کپی شناسه انجام نشد.", variant: "error" })
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      {/* Header */}
-      <header className="sticky top-0 z-20 bg-surface/95 backdrop-blur border-b border-divider">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="min-w-0">
-              <Link
-                href="/contracts"
-                className="text-caption text-muted hover:text-on-surface inline-flex items-center gap-1"
-              >
-                <IconArrowForward className="w-3.5 h-3.5" />
-                بازگشت به مرکز قراردادها
-              </Link>
-              <h1 className="text-h4 text-on-surface truncate mt-0.5">{contract.title}</h1>
-              <p className="text-caption text-muted">
-                {contract.referenceCode} — {def.typeFa}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <SaveIndicator />
-            </div>
-          </div>
-
-          {/* Progress — real completeness, not step count */}
-          <div className="mt-3">
-            <ProgressLinear
-              value={progress}
-              label={`پیشرفت تکمیل: ${progress}٪`}
-              showValue
-              color={progress === 100 ? "success" : "primary"}
-            />
-            {blockers.length > 0 && (
-              <p className="text-caption text-muted mt-1">
-                {blockers.length} بخش نیازمند تکمیل: {blockers.map((b) => b.labelFa).join("، ")}
-              </p>
-            )}
-          </div>
-        </div>
-      </header>
+      <ContractWorkspaceHeader
+        title={contract.title}
+        referenceCode={contract.referenceCode}
+        typeFa={def.typeFa}
+        stateFa={PROPERTY_CONTRACT_STATE_LABELS[state] ?? ""}
+        progress={progress}
+        sections={completeness.sections}
+        blockers={completeness.blockers}
+        stepIndex={stepIndex}
+        stepCount={stepCount}
+        saveStatus={saveStatus}
+        lastSavedAt={lastSavedAt}
+        onRetrySave={() => void saveNow()}
+        onCopyId={handleCopyId}
+      />
 
       <div className="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 desktop:grid-cols-[260px_1fr] gap-5">
         {/* Rail — desktop only */}
@@ -213,7 +167,7 @@ function WizardBody() {
       </div>
 
       {/* Sticky footer nav */}
-      <div className="fixed bottom-0 inset-x-0 z-20 bg-surface/95 backdrop-blur border-t border-divider desktop:static desktop:bg-transparent desktop:border-0">
+      <div className="fixed bottom-0 inset-x-0 z-20 bg-surface border-t border-divider desktop:static desktop:bg-transparent desktop:border-0">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Button
             variant="outlined"

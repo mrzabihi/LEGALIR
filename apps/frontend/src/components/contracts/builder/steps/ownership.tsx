@@ -19,7 +19,15 @@ import {
   Notice,
   DateField,
 } from "../primitives";
-import type { DeedType, LegalStatusAnswer, PropertySaleData } from "@legalir/types";
+import type {
+  DeedType,
+  LegalStatusAnswer,
+  PropertyRentData,
+  PropertySaleData,
+} from "@legalir/types";
+
+/** This step only ever renders for the two property journeys. */
+type PropertyData = PropertyRentData | PropertySaleData;
 
 const DEED_TYPES: { value: DeedType; label: string }[] = [
   { value: "single_page", label: "تک‌برگ" },
@@ -36,7 +44,7 @@ const LEGAL_ANSWERS: { value: LegalStatusAnswer; label: string }[] = [
 
 export function OwnershipStep() {
   const { contract, data, patchData } = useWizard();
-  const d = data;
+  const d = data as PropertyData;
   const isSale = contract.type === "property_sale";
 
   const setDeed = (patch: Partial<typeof d.deed>) => patchData({ deed: { ...d.deed, ...patch } });

@@ -7,6 +7,7 @@ import {
   fetchDocuments,
   fetchDocumentDetail,
   fetchDocumentPreview,
+  fetchRecentDocuments,
   initiateUpload,
   completeUpload,
   fetchDocumentStatus,
@@ -25,6 +26,16 @@ export function useDocuments(params: V1DocumentListParams = {}) {
   return useQuery({
     queryKey: ["documents", "list", params],
     queryFn: () => fetchDocuments(params),
+    staleTime: 30_000,
+  });
+}
+
+// --- Recent Documents (chat attach picker) ---
+
+export function useRecentDocuments(limit = 12) {
+  return useQuery({
+    queryKey: ["documents", "recent", limit],
+    queryFn: () => fetchRecentDocuments(limit),
     staleTime: 30_000,
   });
 }

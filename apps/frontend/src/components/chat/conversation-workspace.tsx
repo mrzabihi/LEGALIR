@@ -7,16 +7,17 @@ import type {
   V1Reference,
   StructuredResponseSection,
   AiRunStatus,
+  V1DocumentListItem,
+  ProcessingRunView,
 } from "@legalir/types";
-import { IconArrowBack, IconEdit, IconMenu, IconClose, IconStar } from "@/lib/icons";
+import { IconArrowBack, IconEdit, IconMenu, IconClose, IconStar, IconChevronDown } from "@/lib/icons";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { DisclaimerBanner } from "./disclaimer-banner";
 import { EscalationCta } from "./escalation-cta";
-import { WorkflowProgress } from "./workflow-progress";
-import type { WorkflowProgressProps } from "./workflow-progress";
-import type { WorkflowEvent } from "@/lib/ai/stream-client";
+import { LegalRequestProgress } from "./legal-request-progress";
 import { useRouter } from "next/navigation";
+import { TextField } from "@legalir/ui";
 
 interface ExtendedMessage extends Message {
   sections?: StructuredResponseSection[];
@@ -41,8 +42,23 @@ interface ConversationWorkspaceProps {
   onToggleStar?: () => void;
   onMinimize?: () => void;
   onClose?: () => void;
-  workflow?: WorkflowEvent | null;
-  onCreateCase?: () => void;
+  /**
+   * The current legal request's processing run — live while streaming, or
+   * restored from the backend after a refresh. Rendered as an in-conversation
+   * timeline entry that persists after the run finishes (§11, §18).
+   */
+  processingRun?: ProcessingRunView | null;
+  /** Retry a failed run (only offered when the run is retryable). */
+  onPipelineRetry?: () => void;
+  /** Context-aware composer placeholder, derived from the service (§10). */
+  composerPlaceholder?: string;
+  /** Documents attached to the next message (composer tray). */
+  attachedDocuments?: V1DocumentListItem[];
+  onAttachedDocumentsChange?: (documents: V1DocumentListItem[]) => void;
+  /** Open a document attached to a sent message in the existing viewer. */
+  onAttachmentClick?: (documentId: string) => void;
+  /** Where to return after uploading a new document (the chat URL). */
+  returnTo?: string;
 }
 
 export function ConversationWorkspace({
@@ -62,22 +78,43 @@ export function ConversationWorkspace({
   onToggleStar,
   onMinimize,
   onClose,
-  workflow,
-  onCreateCase,
+  processingRun,
+  onPipelineRetry,
+  composerPlaceholder,
+  attachedDocuments,
+  onAttachedDocumentsChange,
+  onAttachmentClick,
+  returnTo,
 }: ConversationWorkspaceProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conversation.title);
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll only when the user is already at the bottom. If they have
+  // scrolled up to read earlier text, we never yank them back down — instead
+  // a «رفتن به پاسخ جدید» button appears (§23).
+  const [atBottom, setAtBottom] = useState(true);
   const lastMessageStatus = messages[messages.length - 1]?.status;
 
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    setAtBottom(true);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setAtBottom(distance < 80);
+  }, []);
+
   useEffect(() => {
-    if (scrollRef.current) {
+    if (atBottom && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, lastMessageStatus]);
+  }, [messages.length, lastMessageStatus, atBottom]);
 
   const handleRename = useCallback(() => {
     const trimmed = renameValue.trim();
@@ -121,7 +158,8 @@ export function ConversationWorkspace({
 
         {isRenaming ? (
           <div className="flex-1 flex items-center gap-2">
-            <input
+            <TextField
+              label="نام گفتگو"
               type="text"
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -130,9 +168,9 @@ export function ConversationWorkspace({
                 if (e.key === "Escape") setIsRenaming(false);
               }}
               onBlur={handleRename}
-              className="flex-1 rounded-medium border border-primary bg-background px-3 py-1.5 text-bodyMedium text-onSurface focus:outline-2 focus:outline-primary"
+              inputSize="small"
               autoFocus
-              aria-label="نام گفتگو"
+              fullWidth
             />
           </div>
         ) : (
@@ -193,22 +231,22 @@ export function ConversationWorkspace({
       {/* Messages Area */}
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
         role="log"
         aria-live="polite"
         aria-atomic="false"
       >
-        {/* Workflow progress indicator */}
-        {workflow && (
+        {/* Legal request progress — a real timeline entry driven entirely by
+            backend state. It stays in the conversation after the run ends
+            (collapsing to a summary) instead of vanishing (§11, §18). */}
+        {processingRun && (
           <div className="mb-4">
-            <WorkflowProgress
-              phase={workflow.phase as WorkflowProgressProps["phase"]}
-              domain={workflow.domain}
-              intent={workflow.intent}
-              phaseChanged={workflow.phaseChanged}
-              pendingQuestions={workflow.pendingQuestions}
-              suggestCaseCreation={workflow.suggestCaseCreation}
-              onCreateCase={onCreateCase}
+            <LegalRequestProgress
+              run={processingRun}
+              isStreaming={isStreaming}
+              onCancel={onStopGeneration}
+              onRetry={onPipelineRetry}
             />
           </div>
         )}
@@ -237,27 +275,35 @@ export function ConversationWorkspace({
                   : undefined
               }
               onCitationClick={onCitationClick}
+              onAttachmentClick={onAttachmentClick}
               scrollToSectionId={scrollToSectionId}
               onScrollComplete={onScrollComplete}
             />
           ))
         )}
 
-        {/* Streaming indicator for new messages */}
-        {isStreaming && runStatus && runStatus !== "succeeded" && (
-          <div className="flex items-center gap-2 px-4 py-2 animate-pulse" aria-live="polite" role="status">
-            <span className="w-2 h-2 rounded-full bg-primary" aria-hidden="true" />
-            <span className="text-bodySmall text-muted">در حال پردازش...</span>
-          </div>
-        )}
-
-        {/* Escalation after messages */}
+        {/* Escalation after messages — proposes lawyers for the chat's topic */}
         {messages.length > 0 && !isStreaming && (
           <div className="mt-4">
-            <EscalationCta />
+            <EscalationCta category={conversation.category} />
           </div>
         )}
       </div>
+
+      {/* Jump-to-latest — shown only when the user has scrolled up while a
+          response is streaming, so they are never force-scrolled (§23). */}
+      {!atBottom && isStreaming && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="absolute -top-12 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border border-divider bg-surface px-3 py-1.5 text-caption text-onSurface shadow-elevation-2 transition hover:bg-surface-hover"
+          >
+            <IconChevronDown size={14} />
+            رفتن به پاسخ جدید
+          </button>
+        </div>
+      )}
 
       {/* Input */}
       <MessageInput
@@ -266,6 +312,10 @@ export function ConversationWorkspace({
         onStop={onStopGeneration}
         disabled={conversation.status === "archived"}
         isGenerating={isStreaming}
+        placeholder={composerPlaceholder}
+        attachedDocuments={attachedDocuments}
+        onAttachedDocumentsChange={onAttachedDocumentsChange}
+        returnTo={returnTo}
       />
     </div>
   );

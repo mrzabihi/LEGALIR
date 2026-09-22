@@ -16,7 +16,19 @@ import {
 } from "./rewards";
 import { seedDemoContent, seedLawContent, seedDemoCases, DEMO_USER_MOBILE } from "./demo-seed";
 import { seedPropertyContracts } from "./contracts/seed";
-import type { NotificationItem } from "@legalir/types";
+import { listRenewalReminders } from "./contracts/db";
+import { seedDemoLawyers } from "./lawyer-seed";
+import { getPlanByCode } from "./usage/plans";
+import type {
+  NotificationItem,
+  PlatformAccountType,
+  PlatformRole,
+  PlanEntitlementSnapshot,
+  RegistrationIntent,
+  RegistrationOrigin,
+  OnboardingType,
+  OnboardingStatus,
+} from "@legalir/types";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -91,6 +103,26 @@ export interface DbUser {
   displayName: string | null;
   /** Absent on legacy rows — treat as "individual". */
   accountType?: AccountType;
+  /**
+   * Platform account type (PERSONAL | LAWYER | BUSINESS). Absent on
+   * legacy rows — derived from `accountType` via `normalizeAccountType`.
+   * Kept alongside the legacy field so existing rows never break.
+   */
+  platformAccountType?: PlatformAccountType;
+  /** RBAC role. Absent on legacy rows — treated as "USER". */
+  role?: PlatformRole;
+  /** The organization the user belongs to, when org-scoped. */
+  orgId?: string | null;
+  /**
+   * The entry point chosen at signup (PERSONAL | ORGANIZATION | LAWYER).
+   * Absent on legacy rows — treated as LEGACY. Analytics/UX only; NEVER
+   * used for authorization.
+   */
+  registrationOrigin?: RegistrationOrigin;
+  /** The onboarding track the user is on. Absent on legacy rows. */
+  onboardingType?: OnboardingType;
+  /** Progress through that track. Absent on legacy rows. */
+  onboardingStatus?: OnboardingStatus;
   createdAt: string;
 }
 
@@ -149,6 +181,8 @@ interface StoredSubscription {
   end_at: string;
   purchased_at: string;
   auto_renew: number;
+  /** Entitlements frozen at purchase time (absent on legacy rows). */
+  plan_snapshot?: PlanEntitlementSnapshot;
 }
 
 interface UsageStatsRow {
@@ -236,8 +270,14 @@ export function createUser(params: {
   email?: string;
   passwordHash: string;
   displayName?: string;
+  /**
+   * The registration entry point. Defaults to PERSONAL. The intent only
+   * seeds the onboarding track — it never grants a role or org access.
+   */
+  registrationIntent?: RegistrationIntent;
 }): DbUser {
   const users = readTable<DbUser>("users");
+  const intent: RegistrationIntent = params.registrationIntent ?? "PERSONAL";
   const user: DbUser = {
     id: crypto.randomUUID(),
     mobile: params.mobile,
@@ -245,9 +285,67 @@ export function createUser(params: {
     passwordHash: params.passwordHash,
     displayName: params.displayName ?? null,
     accountType: "individual",
+    platformAccountType: "PERSONAL",
+    role: "USER",
+    orgId: null,
+    registrationOrigin: intent,
+    onboardingType: intent,
+    onboardingStatus: "NOT_STARTED",
     createdAt: new Date().toISOString(),
   };
   users.push(user);
+  writeTable("users", users);
+  return user;
+}
+
+/** Set the onboarding progress for a user. */
+export function setOnboardingStatus(
+  userId: string,
+  status: OnboardingStatus
+): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.onboardingStatus = status;
+  writeTable("users", users);
+  return user;
+}
+
+/** The user's registration origin, defaulting legacy rows to LEGACY. */
+export function getRegistrationOrigin(userId: string): RegistrationOrigin {
+  return findUserById(userId)?.registrationOrigin ?? "LEGACY";
+}
+
+/**
+ * Set the platform account type. Unlike the legacy one-way
+ * `individual → legal` conversion, the platform type may move between
+ * PERSONAL and BUSINESS freely; LAWYER is granted only through the
+ * lawyer-application flow (which also sets the LAWYER role).
+ *
+ * The legacy `accountType` field is kept in sync so older code paths
+ * that still read it observe a consistent value.
+ */
+export function setPlatformAccountType(
+  userId: string,
+  type: PlatformAccountType
+): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.platformAccountType = type;
+  // Keep the legacy field coherent: BUSINESS maps to "legal".
+  if (type === "BUSINESS") user.accountType = "legal";
+  else if (type === "PERSONAL") user.accountType = "individual";
+  writeTable("users", users);
+  return user;
+}
+
+/** Set the RBAC role on a user row. */
+export function setUserRole(userId: string, role: PlatformRole): DbUser | undefined {
+  const users = readTable<DbUser>("users");
+  const user = users.find((u) => u.id === userId);
+  if (!user) return undefined;
+  user.role = role;
   writeTable("users", users);
   return user;
 }
@@ -603,18 +701,18 @@ export function queryProfileUsage(userId: string) {
 /** Free-tier allowance when the user has no active subscription. */
 export const FREE_DAILY_REQUESTS = 10;
 
-/** Daily allowance per plan code (mirrors fixturePlans.dailyRequestLimit). */
-const PLAN_DAILY_REQUESTS: Record<string, number> = {
-  silver: 100,
-  gold: 150,
-  diamond: 300,
-};
-
-/** The daily request allowance for the user's current plan. */
+/**
+ * The daily request allowance for the user's current plan.
+ *
+ * The number is read from the plan catalog (`subscription_plans`) — the
+ * single source of truth — never from a hard-coded copy. A plan edited by
+ * an admin is reflected here immediately.
+ */
 export function dailyRequestAllowance(userId: string): number {
   const sub = queryActiveSubscription(userId);
   if (!sub) return FREE_DAILY_REQUESTS;
-  return PLAN_DAILY_REQUESTS[sub.planCode] ?? FREE_DAILY_REQUESTS;
+  const plan = getPlanByCode(sub.planCode);
+  return plan?.dailyRequestLimit ?? FREE_DAILY_REQUESTS;
 }
 
 /** True when the user has a subscription row that has already ended. */
@@ -763,6 +861,8 @@ export function createSubscription(params: {
   statusFa: string;
   startAt: string;
   endAt: string;
+  /** Entitlements frozen at purchase time. */
+  planSnapshot?: PlanEntitlementSnapshot;
 }): StoredSubscription {
   const subs = readTable<StoredSubscription>("subscriptions");
   const sub: StoredSubscription = {
@@ -778,6 +878,7 @@ export function createSubscription(params: {
     end_at: params.endAt,
     purchased_at: new Date().toISOString(),
     auto_renew: 1,
+    plan_snapshot: params.planSnapshot,
   };
   subs.push(sub);
   writeTable("subscriptions", subs);
@@ -1187,6 +1288,64 @@ export function spendEnergy(params: {
   };
 }
 
+/**
+ * Spend an explicit number of reward points. Used by the Entitlement & Usage
+ * Engine as the fallback when the daily subscription credit is exhausted and
+ * the product has enabled reward spending. Idempotent per
+ * (sourceType, sourceId) so a retried request can never double-charge.
+ */
+export function spendRewardPoints(params: {
+  userId: string;
+  points: number;
+  sourceType: string;
+  sourceId: string;
+  description?: string;
+}): SpendEnergyResult {
+  const idempotencyKey = `reward-spend:${params.sourceType}:${params.sourceId}`;
+  if (ledgerHasIdempotencyKey(idempotencyKey)) {
+    return {
+      spent: false,
+      points: 0,
+      balance: getRewardBalance(params.userId),
+      reason: "duplicate",
+    };
+  }
+
+  const currentBalance = getRewardBalance(params.userId);
+  if (currentBalance < params.points) {
+    return {
+      spent: false,
+      points: 0,
+      balance: currentBalance,
+      reason: "insufficient_balance",
+    };
+  }
+
+  const entry: RewardLedgerEntry = {
+    id: crypto.randomUUID(),
+    user_id: params.userId,
+    event_type: "REQUEST_CONSUMED",
+    points_delta: -params.points,
+    source_type: params.sourceType,
+    source_id: params.sourceId,
+    idempotency_key: idempotencyKey,
+    description: params.description ?? "مصرف امتیاز",
+    metadata: {},
+    created_at: new Date().toISOString(),
+  };
+
+  const rows = readTable<RewardLedgerEntry>("reward_ledger");
+  rows.push(entry);
+  writeTable("reward_ledger", rows);
+
+  return {
+    spent: true,
+    points: -params.points,
+    balance: getRewardBalance(params.userId),
+    entry,
+  };
+}
+
 // ============================================================
 // Notification Center
 // ============================================================
@@ -1306,6 +1465,29 @@ export function deriveNotifications(userId: string): NotificationItem[] {
       read: readIds.has(id),
       href: ACTIVITY_HREF[activity.type],
     });
+  }
+
+  // --- Contract renewal reminders (derived from the contract term) ---
+  // Only when the user has not switched the `contractExpiry` preference off.
+  if (getPreferences(userId).notifications.contractExpiry) {
+    for (const reminder of listRenewalReminders(userId)) {
+      const id = `renewal:${reminder.contractId}:${reminder.endDate}`;
+      items.push({
+        id,
+        category: "personal",
+        tone: reminder.expired ? "error" : "warning",
+        title: reminder.expired
+          ? `قرارداد ${reminder.referenceCode} منقضی شده است`
+          : `قرارداد ${reminder.referenceCode} در آستانه پایان است`,
+        message: reminder.expired
+          ? `مدت اجاره در ${reminder.endDate} به پایان رسیده است. برای تمدید یا تخلیه اقدام کنید.`
+          : `${reminder.daysRemaining} روز تا پایان مدت اجاره باقی مانده است.`,
+        createdAt: reminder.endDate,
+        read: readIds.has(id),
+        href: `/contracts/${reminder.contractId}`,
+        actionLabel: "مشاهده قرارداد",
+      });
+    }
   }
 
   // --- Public announcements (static catalog) ---
@@ -1495,5 +1677,6 @@ if (process.env.NODE_ENV === "development") {
     seedLawContent(demoUser.id);
     seedDemoCases(demoUser.id);
     seedPropertyContracts(demoUser.id);
+    seedDemoLawyers();
   }
 }

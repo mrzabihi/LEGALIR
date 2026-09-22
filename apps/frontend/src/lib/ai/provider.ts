@@ -26,10 +26,21 @@ export interface AiProviderConfig {
   baseUrl: string;
 }
 
+/** Actual token usage reported by the provider for one completion. */
+export interface AiUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** True when the numbers are a documented fallback, not provider-reported. */
+  estimated: boolean;
+}
+
 export interface AiStreamParams {
   system: string;
   messages: { role: "user" | "assistant"; content: string }[];
   signal?: AbortSignal;
+  /** Called once with the completion's token usage, when known. */
+  onUsage?: (usage: AiUsage) => void;
 }
 
 /**
@@ -98,6 +109,15 @@ function mockFullText(question: string): string {
   return MOCK_SECTIONS(question).join("\n");
 }
 
+/**
+ * Documented fallback token estimate (≈4 characters per token). Only used
+ * when the provider does not report actual usage — never in place of real
+ * provider numbers.
+ */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
 function* chunkText(text: string, chunkSize = 6): Generator<string> {
   // Split on word boundaries (Persian words) for a natural token-like flow.
   const tokens = text.split(/(\s+)/);
@@ -145,6 +165,18 @@ export class MockAiProvider implements AiProvider {
       await sleep(18, params.signal);
       yield chunk;
     }
+    // The mock has no provider-reported usage. Report a documented estimate
+    // (≈4 chars/token) so the token quota still moves in development.
+    if (params.onUsage) {
+      const inputTokens = estimateTokens(params.system + question);
+      const outputTokens = estimateTokens(text);
+      params.onUsage({
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        estimated: true,
+      });
+    }
   }
 
   async health(): Promise<{ ok: boolean }> {
@@ -189,6 +221,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
         model: this.model,
         stream: true,
         temperature: 0.3,
+        // Ask OpenAI-compatible providers to include a final usage chunk.
+        stream_options: { include_usage: true },
         messages: [
           { role: "system", content: params.system },
           ...params.messages,
@@ -209,6 +243,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let usageReported = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -222,13 +257,44 @@ export class OpenAiCompatibleProvider implements AiProvider {
         const trimmed = line.trim();
         if (!trimmed.startsWith("data:")) continue;
         const payload = trimmed.slice(5).trim();
-        if (payload === "[DONE]") return;
+        if (payload === "[DONE]") {
+          if (!usageReported && params.onUsage) {
+            // Provider did not send a usage chunk — fall back to an estimate.
+            const inputTokens = estimateTokens(
+              params.system + params.messages.map((m) => m.content).join(" ")
+            );
+            params.onUsage({
+              inputTokens,
+              outputTokens: 0,
+              totalTokens: inputTokens,
+              estimated: true,
+            });
+          }
+          return;
+        }
         try {
           const json = JSON.parse(payload) as {
             choices?: { delta?: { content?: string } }[];
+            usage?: {
+              prompt_tokens?: number;
+              completion_tokens?: number;
+              total_tokens?: number;
+            };
           };
           const delta = json.choices?.[0]?.delta?.content;
           if (delta) yield delta;
+          // The final chunk carries the real token usage.
+          if (json.usage && params.onUsage) {
+            usageReported = true;
+            const inputTokens = json.usage.prompt_tokens ?? 0;
+            const outputTokens = json.usage.completion_tokens ?? 0;
+            params.onUsage({
+              inputTokens,
+              outputTokens,
+              totalTokens: json.usage.total_tokens ?? inputTokens + outputTokens,
+              estimated: false,
+            });
+          }
         } catch {
           // Ignore malformed keep-alive/comment lines.
         }

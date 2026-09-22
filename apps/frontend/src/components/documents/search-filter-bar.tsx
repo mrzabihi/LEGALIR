@@ -79,11 +79,11 @@ export function SearchFilterBar({
       <div className="flex items-center gap-2">
         <div className="flex-1">
           <TextField
+            label="جستجوی اسناد"
             value={search}
             onChange={handleSearchChange}
             placeholder="جستجوی اسناد..."
-            aria-label="جستجوی اسناد"
-            startIcon={<IconSearch size={20} className="text-muted" />}
+            leadingIcon={<IconSearch size={20} />}
             fullWidth
           />
         </div>
@@ -130,11 +130,10 @@ export function SearchFilterBar({
         {/* Sort dropdown */}
         <div className="shrink-0 min-w-[140px]">
           <Select
+            label="مرتب‌سازی"
             value={sort}
             onChange={handleSortChange}
             options={SORT_OPTIONS}
-            aria-label="مرتب‌سازی"
-            placeholder="مرتب‌سازی"
             fullWidth
           />
         </div>

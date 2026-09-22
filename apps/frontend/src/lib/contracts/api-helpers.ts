@@ -27,7 +27,7 @@ import {
   updateContractForUser,
 } from "./db";
 import { computeCompleteness } from "./completeness";
-import { getContractDefinition, partyRoleLabelFa } from "./registry";
+import { domainLabelFa, getContractDefinition, partyRoleLabelFa } from "./registry";
 import { stateLabelFa } from "./state-machine";
 
 export interface ApiErrorBody {
@@ -110,11 +110,19 @@ export function audit(params: {
   });
 }
 
-/** A short location summary for the list card, e.g. «پاسداران، تهران». */
+/**
+ * A short location summary for the list card, e.g. «پاسداران، تهران».
+ * Property contracts read their address; schema-driven types have no
+ * address, so they fall back to their domain label.
+ */
 function locationFa(contract: PropertyContract): string {
-  const a = contract.data.address;
-  const parts = [a.neighborhood, a.city].filter((p) => p && p.trim().length > 0);
-  return parts.length > 0 ? parts.join("، ") : "بدون نشانی";
+  const data = contract.data as { address?: { neighborhood?: string; city?: string } };
+  const a = data.address;
+  if (a) {
+    const parts = [a.neighborhood, a.city].filter((p) => p && p.trim().length > 0);
+    if (parts.length > 0) return parts.join("، ");
+  }
+  return domainLabelFa(getContractDefinition(contract.type).domain);
 }
 
 /** The two primary party names, e.g. «مریم محمدی و رضا کریمی». */

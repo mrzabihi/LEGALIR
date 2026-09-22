@@ -2,6 +2,15 @@
 // LEGALIR — Shared Domain Types
 // ============================================================
 
+// Platform domain types are re-exported at the bottom of this file; the
+// import below brings the names into local scope for the interfaces here.
+import type {
+  CaseDeadline,
+  PlatformAccountType,
+  PlatformRole,
+  OrgMemberRole,
+} from "./platform";
+
 // --- API Envelope ---
 
 export interface ApiSuccess<T> {
@@ -57,6 +66,15 @@ export interface UserSummary {
   accountType?: AccountType;
   /** True once the account is `legal` — the type can no longer change. */
   accountTypeLocked?: boolean;
+  // --- Platform model (additive; see ./platform) ---
+  /** PERSONAL | LAWYER | BUSINESS. Absent on legacy payloads. */
+  platformAccountType?: PlatformAccountType;
+  /** The effective RBAC role. Absent on legacy payloads — treat as "USER". */
+  role?: PlatformRole;
+  /** The organization the user belongs to, when org-scoped. */
+  orgId?: string | null;
+  /** The user's role within that organization. */
+  orgRole?: OrgMemberRole | null;
 }
 
 export type AccountStatus = "pending" | "active" | "restricted" | "suspended" | "closed";
@@ -243,6 +261,12 @@ export interface Message {
   content: string;
   status: MessageStatus;
   createdAt: string;
+  /**
+   * Documents the user attached to this message. Each entry is a *reference*
+   * to an existing Document — the file is never copied or re-uploaded.
+   * Relationship: Document ← MessageAttachment → Message.
+   */
+  attachments?: ChatAttachmentRef[];
 }
 
 export type MessageStatus = "draft" | "sending" | "sent" | "streaming" | "validating" | "completed" | "blocked" | "failed";
@@ -259,6 +283,181 @@ export interface AiRun {
 }
 
 export type AiRunStatus = "queued" | "retrieving" | "generating" | "validating" | "succeeded" | "blocked" | "failed";
+
+// ============================================================
+// LEGALIER LEGAL INTELLIGENCE PIPELINE
+// ============================================================
+// The five stages that turn a user message into a grounded legal answer.
+// These are NOT court stages — they are LEGALIR's internal processing
+// pipeline. Every stage is driven by real backend work; the UI advances
+// only on the corresponding SSE event, never on a timer.
+// ============================================================
+
+/** The five pipeline stages, in execution order. */
+export type ProcessingStage =
+  | "IDENTIFY"
+  | "UNDERSTAND"
+  | "RESEARCH"
+  | "ANALYZE"
+  | "RESPOND";
+
+/** Ordered list — index + 1 is the user-facing stage number. */
+export const PROCESSING_STAGES: readonly ProcessingStage[] = [
+  "IDENTIFY",
+  "UNDERSTAND",
+  "RESEARCH",
+  "ANALYZE",
+  "RESPOND",
+] as const;
+
+export type StageStatus =
+  | "PENDING"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "WAITING"
+  | "FAILED"
+  | "SKIPPED";
+
+/** Per-stage record inside a processing run. */
+export interface ChatProcessingStage {
+  stage: ProcessingStage;
+  status: StageStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** Wall-clock duration of the stage in milliseconds. */
+  latencyMs: number | null;
+  /** Stage-specific internal metadata (never shown raw to the user). */
+  metadata: Record<string, unknown>;
+}
+
+export type ChatProcessingRunStatus =
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+/**
+ * One end-to-end pipeline execution for a single user message. Persisted so
+ * latency can be benchmarked per stage and a refresh can restore state.
+ */
+export interface ChatProcessingRun {
+  id: string;
+  conversationId: string;
+  userId: string;
+  userMessageId: string;
+  assistantMessageId: string | null;
+  status: ChatProcessingRunStatus;
+  currentStage: ProcessingStage;
+  stages: Record<ProcessingStage, ChatProcessingStage>;
+  /** Structured Stage-1 classification output. */
+  classification: PipelineClassification | null;
+  /** Number of legal sources actually retrieved in Stage 3. */
+  sourcesUsed: number;
+  /** True when Stage 4 flagged the matter for human lawyer review. */
+  requiresLawyerReview: boolean;
+  /**
+   * Questions the pipeline is waiting on the user to answer (Stage 2). Set
+   * when a stage enters WAITING; cleared once the user replies. Persisted so
+   * a refresh can restore the "waiting for you" state.
+   */
+  pendingQuestions: string[];
+  error: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** Total wall-clock duration in milliseconds. */
+  totalLatencyMs: number | null;
+}
+
+// ============================================================
+// User-facing processing projection
+// ============================================================
+// The raw ChatProcessingRun carries internal metadata that must never reach
+// the browser. `ProcessingRunView` is the user-safe projection the API
+// returns and the UI renders: it drops `metadata`, `classification` and
+// `userId`, and carries only the fields the progress timeline needs.
+// ============================================================
+
+/** One step of the progress timeline, as shown to the user. */
+export interface ProcessingStageView {
+  stage: ProcessingStage;
+  /** 1-based position, matching «مرحله N از ۵». */
+  order: number;
+  status: StageStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** Number of sources retrieved (Stage 3 only, when > 0). */
+  sourcesUsed?: number;
+  /** True when this step is the one waiting on the user. */
+  requiresUserAction?: boolean;
+}
+
+/** The user-safe view of a processing run, returned by the conversation API. */
+export interface ProcessingRunView {
+  id: string;
+  conversationId: string;
+  status: ChatProcessingRunStatus;
+  currentStage: ProcessingStage;
+  steps: ProcessingStageView[];
+  /** Questions awaiting the user, when status is `waiting`. */
+  pendingQuestions: string[];
+  sourcesUsed: number;
+  requiresLawyerReview: boolean;
+  /** A user-safe error message (never a stack trace or internal code). */
+  errorMessage: string | null;
+  /** True when the failure can be safely retried by re-sending. */
+  retryable: boolean;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** Structured output of Stage 1 (IDENTIFY). Internal — never shown raw. */
+export interface PipelineClassification {
+  legalCategory: string;
+  intent: string;
+  requiresSources: boolean;
+  requiresDocumentContext: boolean;
+  requiresCaseContext: boolean;
+  requiresClarification: boolean;
+  detectedEntities: string[];
+  initialRiskFlags: string[];
+  confidence: number;
+}
+
+/** SSE event names emitted by the pipeline gateway. */
+export type PipelineEventType =
+  | "processing.started"
+  | "stage.started"
+  | "stage.completed"
+  | "stage.waiting"
+  | "stage.failed"
+  | "retrieval.started"
+  | "retrieval.completed"
+  | "analysis.started"
+  | "analysis.completed"
+  | "response.started"
+  | "response.delta"
+  | "response.completed"
+  | "processing.completed";
+
+/** A single pipeline progress event on the SSE stream. */
+export interface PipelineEvent {
+  type: PipelineEventType;
+  requestId: string;
+  stage?: ProcessingStage;
+  stageNumber?: number;
+  totalStages?: number;
+  status?: StageStatus;
+  /** Present on retrieval.completed. */
+  sourcesUsed?: number;
+  /** Present on analysis.completed. */
+  requiresLawyerReview?: boolean;
+  /** Present on stage.failed. */
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+}
 
 // --- AI Response ---
 
@@ -470,6 +669,59 @@ export const SUPPORTED_DOCUMENT_MIMES = [
 export type SupportedDocumentMime = (typeof SUPPORTED_DOCUMENT_MIMES)[number];
 
 export const MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+
+// ============================================================
+// CHAT DOCUMENT ATTACHMENTS
+// ============================================================
+// A user can attach documents they already own to a chat message. The
+// attachment is a *reference* — the Document stays an independent entity
+// and its bytes are never copied per attach.
+//
+//   Document  ←  MessageAttachment  →  Message
+//
+// The link row (MessageAttachment) is the join; `ChatAttachmentRef` is the
+// hydrated, client-facing projection of that link (document metadata only,
+// never the file itself).
+// ============================================================
+
+/** Maximum number of documents a single message may carry. */
+export const MAX_CHAT_ATTACHMENTS = 5;
+
+/**
+ * A persisted link between a Message and a Document the user owns.
+ * Stored in `.data/message-attachments.json`.
+ */
+export interface MessageAttachment {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  documentId: string;
+  /** Owner of both the message and the document — enforced server-side. */
+  userId: string;
+  createdAt: string;
+}
+
+/**
+ * Client-facing projection of an attachment: document metadata only. The
+ * file itself is fetched through the existing auth-gated preview endpoint,
+ * so a chat card can never leak another user's bytes.
+ */
+export interface ChatAttachmentRef {
+  attachmentId: string;
+  documentId: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  status: DocumentStatus;
+  riskLevel: RiskLevel | null;
+  findingCount: number;
+  createdAt: string;
+}
+
+/** Response of GET /api/v1/documents/recent — the attach picker's source. */
+export interface V1RecentDocumentsResponse {
+  items: V1DocumentListItem[];
+}
 
 // --- Contract (Phase 10) ---
 
@@ -1374,12 +1626,35 @@ export interface CaseListResponse {
   };
 }
 
+export interface CaseLinkedContract {
+  id: string;
+  referenceCode: string;
+  title: string;
+  typeFa: string;
+  state: string;
+  progress: number;
+  updatedAt: string;
+}
+
+export interface CaseDocumentItem {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  /** When the document was linked to this case. */
+  linkedAt: string;
+}
+
 export interface CaseDetailResponse {
   case: Case;
-  documents: { id: string; name: string; status: string; createdAt: string }[];
-  contracts: { id: string; title: string; status: string; createdAt: string }[];
+  documents: CaseDocumentItem[];
+  contracts: CaseLinkedContract[];
   timeline: CaseTimelineEvent[];
   tasks: CaseTask[];
+  deadlines: CaseDeadline[];
 }
 
 export interface CaseTimelineEventCreateRequest {
@@ -1645,6 +1920,12 @@ export interface V1ConversationDetail extends Conversation {
   messages: Message[];
   aiRuns: AiRun[];
   references: V1Reference[];
+  /**
+   * The most recent processing run for this conversation, projected to its
+   * user-safe view. Present so a refresh can restore the progress timeline
+   * (including a WAITING_FOR_USER state) instead of losing it (§37, §43).
+   */
+  processingRun?: ProcessingRunView | null;
 }
 
 export interface StructuredResponseSection {
@@ -1999,6 +2280,358 @@ export interface RateDataset {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription, Points & Usage Engine
+// ---------------------------------------------------------------------------
+// Two DISTINCT assets that must never be conflated in the domain model:
+//
+//   • Reward Points        — earned from product activity; persistent ledger;
+//                            NEVER reset by the daily subscription rollover.
+//   • Subscription Credit  — granted per day by an active plan; resets at
+//                            Tehran midnight; never carries over.
+//
+// A user activity consumes BOTH a daily request (and its points) AND, when
+// the activity is service-specific, one unit of a period-scoped service quota.
+// ---------------------------------------------------------------------------
+
+/** The billable activities a user can perform. Central registry keys. */
+export type ActivityType =
+  | "AI_MESSAGE"
+  | "LEGAL_CHAT_REQUEST"
+  | "DOCUMENT_ANALYSIS"
+  | "CONTRACT_DRAFT"
+  | "CONTRACT_CREATE"
+  | "DOCUMENT_GENERATION"
+  | "LEGAL_CALCULATION"
+  | "CASE_ANALYSIS"
+  | "LAWYER_AI_PREPARATION"
+  | "REGENERATE_AI_RESPONSE";
+
+/** Period-scoped service quotas (do NOT reset daily). */
+export type ServiceQuotaType =
+  | "AI_MESSAGES"
+  | "TOKENS"
+  | "DOCUMENT_ANALYSIS"
+  | "CONTRACT_DRAFT"
+  | "CONTRACT_CREATION";
+
+/** A single entry in the central activity registry. */
+export interface ActivityDefinition {
+  code: ActivityType;
+  displayNameFa: string;
+  /** Points charged from the daily subscription credit. */
+  pointCost: number;
+  /** Whether this activity consumes one unit of the daily request allowance. */
+  countsAsDailyRequest: boolean;
+  /** The period-scoped service quota it consumes, if any. */
+  quotaType: ServiceQuotaType | null;
+  /** Whether the activity is currently billable. */
+  enabled: boolean;
+}
+
+/**
+ * The entitlement snapshot frozen onto a subscription at purchase time.
+ * A later admin edit to the plan must NOT retroactively change a live
+ * subscription's terms.
+ */
+export interface PlanEntitlementSnapshot {
+  dailyRequestLimit: number;
+  activityCostPoints: number;
+  tokenLimit: number;
+  aiMessageLimit: number;
+  documentAnalysisLimit: number;
+  contractDraftLimit: number;
+  contractCreationLimit: number;
+}
+
+/** The admin-editable plan catalog row (template, not an instance). */
+export interface SubscriptionPlan {
+  id: string;
+  code: PlanCode;
+  nameFa: string;
+  descriptionFa: string;
+  durationDays: number;
+  /** Points charged per billable activity. */
+  activityCostPoints: number;
+  dailyRequestLimit: number;
+  tokenLimit: number;
+  aiMessageLimit: number;
+  documentAnalysisLimit: number;
+  contractDraftLimit: number;
+  contractCreationLimit: number;
+  /** When true the corresponding limit is ignored (unlimited). */
+  contractCreationUnlimited: boolean;
+  listPrice: number;
+  salePrice: number;
+  currency: string;
+  features: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A purchased subscription instance (never the same as the plan template). */
+export interface UserSubscription {
+  id: string;
+  userId: string;
+  planId: string;
+  planCode: PlanCode;
+  planNameFa: string;
+  startedAt: string;
+  expiresAt: string;
+  status: SubscriptionStatus;
+  /** Entitlements frozen at purchase time. */
+  planSnapshot: PlanEntitlementSnapshot;
+  autoRenew: boolean;
+  createdAt: string;
+}
+
+/** Per user + subscription + local (Tehran) date. Never deleted — audit trail. */
+export interface SubscriptionDailyUsage {
+  id: string;
+  userId: string;
+  subscriptionId: string;
+  /** Tehran calendar day, YYYY-MM-DD. */
+  usageDate: string;
+  requestLimit: number;
+  requestUsed: number;
+  pointsTotal: number;
+  pointsUsed: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Period-scoped counters, reset only when a new subscription period begins. */
+export interface SubscriptionPeriodUsage {
+  id: string;
+  userId: string;
+  subscriptionId: string;
+  aiMessagesUsed: number;
+  tokensUsed: number;
+  documentAnalysesUsed: number;
+  contractDraftsUsed: number;
+  contractsCreatedUsed: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type UsageTransactionStatus = "RESERVED" | "COMPLETED" | "REVERSED" | "FAILED";
+
+/** The usage ledger — one row per billable activity. */
+export interface UsageTransaction {
+  id: string;
+  userId: string;
+  subscriptionId: string | null;
+  activityType: ActivityType;
+  pointsCost: number;
+  requestCost: number;
+  tokenCost: number;
+  serviceQuotaType: ServiceQuotaType | null;
+  serviceQuotaCost: number;
+  /** Where the points came from: the daily credit or the reward wallet. */
+  creditSource: "SUBSCRIPTION" | "REWARD" | "NONE";
+  source: string;
+  relatedEntityId: string | null;
+  status: UsageTransactionStatus;
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Structured quota-failure codes — the frontend switches on these. */
+export type UsageErrorCode =
+  | "DAILY_REQUEST_LIMIT_EXCEEDED"
+  | "DAILY_POINTS_EXCEEDED"
+  | "AI_MESSAGE_LIMIT_EXCEEDED"
+  | "TOKEN_LIMIT_EXCEEDED"
+  | "DOCUMENT_ANALYSIS_LIMIT_EXCEEDED"
+  | "CONTRACT_LIMIT_EXCEEDED"
+  | "SUBSCRIPTION_EXPIRED"
+  | "NO_ACTIVE_SUBSCRIPTION";
+
+/** The live daily credit view for the dashboard. */
+export interface DailyCreditView {
+  usageDate: string;
+  requestLimit: number;
+  requestUsed: number;
+  requestsRemaining: number;
+  pointsTotal: number;
+  pointsUsed: number;
+  pointsRemaining: number;
+  /** ISO timestamp of the next Tehran-midnight reset. */
+  resetAt: string;
+}
+
+/** A period-scoped quota view. */
+export interface PeriodQuotaView {
+  quotaType: ServiceQuotaType;
+  nameFa: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  unlimited: boolean;
+}
+
+/** The full usage summary the dashboard renders. */
+export interface SubscriptionUsageSummary {
+  hasSubscription: boolean;
+  planCode: PlanCode | null;
+  planNameFa: string | null;
+  expiresAt: string | null;
+  daysRemaining: number | null;
+  subscriptionExpired: boolean;
+  /** Today's subscription credit (resets at Tehran midnight). */
+  daily: DailyCreditView;
+  /** Period-scoped service quotas (reset only at period end). */
+  period: PeriodQuotaView[];
+  /** Reward points — a separate, persistent asset. */
+  rewardPoints: number;
+  /** Whether reward points may be spent after the daily credit is exhausted. */
+  allowRewardPointsAfterLimit: boolean;
+}
+
+/** One row of the usage transaction history. */
+export interface UsageHistoryItem {
+  id: string;
+  activityType: ActivityType;
+  displayNameFa: string;
+  pointsCost: number;
+  serviceQuotaType: ServiceQuotaType | null;
+  serviceQuotaCost: number;
+  status: UsageTransactionStatus;
+  createdAt: string;
+}
+
+export interface UsageHistoryResponse {
+  items: UsageHistoryItem[];
+  pagination: Pagination;
+}
+
+/** Admin plan-edit audit row. */
+export interface PlanAuditEntry {
+  id: string;
+  planId: string;
+  planCode: string;
+  changedBy: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Legal Knowledge Engine (authority hierarchy, provenance, hybrid retrieval)
+// ---------------------------------------------------------------------------
+
+/**
+ * The authority tier of a legal source. Higher tiers outrank lower ones when
+ * two sources conflict, and they are weighted more heavily in retrieval.
+ *
+ *   1 CONSTITUTION  — the constitution itself
+ *   2 STATUTE       — laws passed by the legislature
+ *   3 REGULATION    — executive/administrative regulations
+ *   4 PRECEDENT     — binding judicial rulings (unification rulings)
+ *   5 OPINION       — advisory opinions, legal doctrine, guides
+ *   6 USER_DOCUMENT — the user's own uploaded material
+ */
+export type AuthorityTier =
+  | "CONSTITUTION"
+  | "STATUTE"
+  | "REGULATION"
+  | "PRECEDENT"
+  | "OPINION"
+  | "USER_DOCUMENT";
+
+/** Where a retrieved source came from — the provenance trail. */
+export interface SourceProvenance {
+  /** Which retrieval pass surfaced it. */
+  origin: "LIBRARY" | "CATALOG" | "CORPUS";
+  /** The authority tier assigned to the source. */
+  tier: AuthorityTier;
+  /** Persian label for the tier, e.g. «قانون». */
+  tierFa: string;
+  /** The issuing authority, e.g. «مجلس شورای اسلامی». */
+  authority: string;
+  /** Article/provision locator, e.g. «ماده ۲۳۰». */
+  locator: string;
+  /** The source's verification status. */
+  verificationStatus: VerificationStatus;
+  /** SHA-256 of the ingested file, when the source came from the corpus. */
+  textHash: string | null;
+  /** The source's own validity status. */
+  status: SourceStatus;
+}
+
+/** One fused retrieval hit, with its score breakdown and provenance. */
+export interface RetrievalHit {
+  id: string;
+  title: string;
+  sourceType: SourceType;
+  sourceTypeFa: string;
+  summary: string;
+  excerpt: string | null;
+  /** The fused relevance score (lexical + authority + verification). */
+  score: number;
+  /** The individual signals that produced `score`, for auditability. */
+  signals: {
+    lexical: number;
+    authority: number;
+    verification: number;
+    popularity: number;
+  };
+  provenance: SourceProvenance;
+}
+
+/**
+ * The contract the answer must honour. Built from the retrieval result and
+ * injected into the system prompt. When `grounded` is false the model MUST
+ * NOT cite any source — the no-citation rule.
+ */
+export interface AnswerContract {
+  /** True when at least one citable source was retrieved. */
+  grounded: boolean;
+  /** The number of citable sources. */
+  sourceCount: number;
+  /** The highest authority tier among the retrieved sources. */
+  topTier: AuthorityTier | null;
+  /** The prompt block listing the sources (empty when not grounded). */
+  contextBlock: string;
+  /** The instruction block appended to the system prompt. */
+  instructionBlock: string;
+  /** The rule the model must follow when there is nothing to cite. */
+  noCitationRule: string;
+}
+
+/** One row of the admin knowledge inventory. */
+export interface KnowledgeInventoryItem {
+  id: string;
+  title: string;
+  sourceType: SourceType;
+  sourceTypeFa: string;
+  authority: string;
+  tier: AuthorityTier;
+  tierFa: string;
+  verificationStatus: VerificationStatus;
+  status: SourceStatus;
+  locator: string;
+  origin: SourceProvenance["origin"];
+  textHash: string | null;
+  popular: boolean;
+}
+
+/** The admin knowledge inventory response. */
+export interface KnowledgeInventoryResponse {
+  items: KnowledgeInventoryItem[];
+  total: number;
+  byTier: Record<string, number>;
+  byStatus: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
 // Property Contract Builder (domain-based contract engine)
 // ---------------------------------------------------------------------------
 export * from "./property-contract";
+
+// ---------------------------------------------------------------------------
+// Legal Operating Platform (account types, RBAC, lawyers, orgs, requests)
+// ---------------------------------------------------------------------------
+export * from "./platform";

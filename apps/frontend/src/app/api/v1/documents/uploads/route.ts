@@ -8,8 +8,9 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
-import { createDemoDocument } from "@/lib/demo-seed";
-import { recordActivity, consumeDailyRequest, queryDailyQuota, spendEnergy } from "@/lib/db";
+import { createDemoDocument, deleteDemoDocument } from "@/lib/demo-seed";
+import { recordActivity } from "@/lib/db";
+import { reserveUsage, reverseUsage, getUsageSummary } from "@/lib/usage/engine";
 import { SUPPORTED_DOCUMENT_MIMES, MAX_DOCUMENT_SIZE_BYTES } from "@legalir/types";
 
 export async function POST(request: Request) {
@@ -56,29 +57,30 @@ export async function POST(request: Request) {
     );
   }
 
-  // Enforce the day's allowance before accepting the upload.
-  const quota = queryDailyQuota(userId);
-  if (quota.exhausted) {
+  // Reserve the activity's cost atomically before accepting the upload. This
+  // checks BOTH the daily request credit AND the period document-analysis
+  // quota — either being exhausted blocks the upload.
+  const doc = createDemoDocument(userId, { name, mime, sizeBytes });
+  const reservation = reserveUsage({
+    userId,
+    activity: "DOCUMENT_ANALYSIS",
+    source: "document",
+    relatedEntityId: doc.id,
+    idempotencyKey: `document:${doc.id}`,
+  });
+  if (!reservation.ok) {
+    // Roll back the just-created document row so a blocked upload leaves no
+    // orphan behind.
+    deleteDemoDocument(userId, doc.id);
     return NextResponse.json(
       {
-        code: "QUOTA_EXHAUSTED",
-        message: "سهمیه درخواست امروز شما به پایان رسیده است.",
-        quota,
+        code: reservation.code ?? "QUOTA_EXHAUSTED",
+        message: reservation.messageFa || "سهمیه شما به پایان رسیده است.",
+        usage: getUsageSummary(userId),
       },
       { status: 429 }
     );
   }
-
-  const doc = createDemoDocument(userId, { name, mime, sizeBytes });
-  consumeDailyRequest(userId);
-
-  // Deduct the per-request energy cost (idempotent per document).
-  spendEnergy({
-    userId,
-    sourceType: "document",
-    sourceId: doc.id,
-    description: "کسر انرژی بابت بارگذاری سند",
-  });
 
   // Record the upload in the durable activity log.
   recordActivity({

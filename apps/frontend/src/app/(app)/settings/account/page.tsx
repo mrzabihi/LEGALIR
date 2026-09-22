@@ -10,6 +10,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { TextField, Select } from "@legalir/ui";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { SettingsCard } from "@/components/settings/settings-ui";
 import { useDeleteAccount } from "@/hooks/useAccount";
@@ -72,25 +73,16 @@ export default function AccountClosurePage() {
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label htmlFor="closure-reason" className="block text-body-2 text-on-surface mb-1.5">
-              دلیل حذف حساب
-            </label>
-            <select
-              id="closure-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              disabled={deleteAccount.isPending}
-              className="w-full rounded-full border border-divider bg-surface px-4 py-2.5 text-body-2 text-on-surface focus:outline-none focus:border-error transition disabled:opacity-50"
-            >
-              <option value="">انتخاب دلیل...</option>
-              {CLOSURE_REASONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            id="closure-reason"
+            label="دلیل حذف حساب"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={deleteAccount.isPending}
+            fullWidth
+            placeholder="انتخاب دلیل..."
+            options={CLOSURE_REASONS.map((r) => ({ value: r.value, label: r.label }))}
+          />
 
           {step === "idle" && (
             <button
@@ -108,13 +100,15 @@ export default function AccountClosurePage() {
               <p className="text-body-2 text-error font-medium">
                 برای تأیید، عبارت DELETE را تایپ کنید:
               </p>
-              <input
+              <TextField
+                id="closure-confirm"
                 type="text"
+                label="عبارت تأیید"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="DELETE"
-                className="w-full rounded-full border border-error/40 bg-surface px-4 py-2.5 text-body-2 text-on-surface placeholder:text-muted focus:outline-none focus:border-error transition"
-                dir="ltr"
+                fullWidth
+                inputDir="ltr"
                 autoFocus
               />
               {deleteAccount.isError && (

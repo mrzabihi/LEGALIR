@@ -7,7 +7,14 @@
 // ============================================================
 
 import { env } from "@legalir/config";
-import type { StructuredResponseSection, V1Reference, V1DailyQuota } from "@legalir/types";
+import type {
+  StructuredResponseSection,
+  V1Reference,
+  ProcessingStage,
+  StageStatus,
+  ChatAttachmentRef,
+  SubscriptionUsageSummary,
+} from "@legalir/types";
 
 export interface StreamRequestContext {
   serviceType?: string;
@@ -19,6 +26,8 @@ export interface StreamRequest {
   conversationId: string;
   content: string;
   context?: StreamRequestContext;
+  /** Documents attached to this message (references to owned documents). */
+  attachmentDocumentIds?: string[];
 }
 
 export interface StreamChunk {
@@ -30,6 +39,12 @@ export interface StreamDone {
   messageId: string;
   sections: StructuredResponseSection[];
   references: V1Reference[];
+  /** The processing run id for this turn (matches the persisted run). */
+  requestId?: string;
+  /** The persisted user message id (carries the attachments). */
+  userMessageId?: string;
+  /** The user message's persisted attachment refs. */
+  userAttachments?: ChatAttachmentRef[];
 }
 
 export type StreamStatus =
@@ -49,17 +64,50 @@ export interface WorkflowEvent {
   suggestCaseCreation: boolean;
 }
 
+/**
+ * A pipeline progress update derived from a backend event. The UI advances
+ * its stage indicator purely from these — there is no client-side timer.
+ */
+export interface PipelineProgress {
+  requestId: string;
+  /** The stage this event concerns. */
+  stage: ProcessingStage | null;
+  /** 1-based stage number, when the event carries one. */
+  stageNumber: number | null;
+  totalStages: number | null;
+  /** New status for the stage, when the event implies one. */
+  status: StageStatus | null;
+  /** Present on retrieval.completed. */
+  sourcesUsed?: number;
+  /** Present on analysis.completed. */
+  requiresLawyerReview?: boolean;
+  /** Present on stage.waiting — the questions the user must answer. */
+  pendingQuestions?: string[];
+  /** Present on stage.failed. */
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+}
+
 export interface StreamCallbacks {
   onStatus?: (status: StreamStatus) => void;
   onChunk?: (chunk: StreamChunk) => void;
   onDone?: (done: StreamDone) => void;
-  onError?: (error: { code: string; message: string; retryable: boolean; quota?: V1DailyQuota }) => void;
+  onError?: (error: {
+    code: string;
+    message: string;
+    retryable: boolean;
+    /** The live usage summary, present on a quota-exhaustion (429) response. */
+    usage?: SubscriptionUsageSummary;
+  }) => void;
   onWorkflow?: (event: WorkflowEvent) => void;
+  /** Fired for every pipeline progress event. */
+  onPipeline?: (progress: PipelineProgress) => void;
 }
 
 interface SseEvent {
   type: string;
-  status?: StreamStatus;
+  status?: StreamStatus | StageStatus;
   text?: string;
   index?: number;
   messageId?: string;
@@ -74,6 +122,52 @@ interface SseEvent {
   phaseChanged?: boolean;
   pendingQuestions?: string[];
   suggestCaseCreation?: boolean;
+  requestId?: string;
+  stage?: ProcessingStage;
+  stageNumber?: number;
+  totalStages?: number;
+  sourcesUsed?: number;
+  requiresLawyerReview?: boolean;
+  userMessageId?: string;
+  userAttachments?: ChatAttachmentRef[];
+}
+
+/** Event types that carry pipeline progress. */
+const PIPELINE_EVENT_TYPES = new Set([
+  "processing.started",
+  "stage.started",
+  "stage.completed",
+  "stage.waiting",
+  "stage.failed",
+  "retrieval.started",
+  "retrieval.completed",
+  "analysis.started",
+  "analysis.completed",
+  "response.started",
+  "response.completed",
+  "processing.completed",
+]);
+
+/** Map an event type to the stage status it implies. */
+function statusForEvent(type: string): StageStatus | null {
+  switch (type) {
+    case "stage.started":
+    case "retrieval.started":
+    case "analysis.started":
+    case "response.started":
+      return "ACTIVE";
+    case "stage.completed":
+    case "retrieval.completed":
+    case "analysis.completed":
+    case "response.completed":
+      return "COMPLETED";
+    case "stage.waiting":
+      return "WAITING";
+    case "stage.failed":
+      return "FAILED";
+    default:
+      return null;
+  }
 }
 
 function basePath(): string {
@@ -119,19 +213,26 @@ export function streamChat(
     }
 
     if (!response.ok) {
-      // Quota exhaustion (429) carries a structured body with the live
-      // quota so the UI can show the countdown-to-midnight modal.
+      // Quota exhaustion (429) carries a structured body with the engine's
+      // usage summary so the UI can show the countdown-to-midnight modal and
+      // the exact reason (daily credit vs a period service quota).
       if (response.status === 429) {
-        let quota: V1DailyQuota | undefined;
+        let usage: SubscriptionUsageSummary | undefined;
+        let code = "QUOTA_EXHAUSTED";
         let message = "سهمیه درخواست امروز شما به پایان رسیده است.";
         try {
-          const body = (await response.json()) as { message?: string; quota?: V1DailyQuota };
-          quota = body.quota;
+          const body = (await response.json()) as {
+            code?: string;
+            message?: string;
+            usage?: SubscriptionUsageSummary;
+          };
+          usage = body.usage;
+          if (body.code) code = body.code;
           if (body.message) message = body.message;
         } catch {
           /* keep defaults */
         }
-        callbacks.onError?.({ code: "QUOTA_EXHAUSTED", message, retryable: false, quota });
+        callbacks.onError?.({ code, message, retryable: false, usage });
         return;
       }
       callbacks.onError?.({
@@ -179,9 +280,29 @@ export function streamChat(
             continue;
           }
 
+          // Pipeline progress events are handled before the switch so the
+          // stage indicator advances on every backend transition.
+          if (PIPELINE_EVENT_TYPES.has(event.type)) {
+            callbacks.onPipeline?.({
+              requestId: event.requestId ?? "",
+              stage: event.stage ?? null,
+              stageNumber: event.stageNumber ?? null,
+              totalStages: event.totalStages ?? null,
+              status: statusForEvent(event.type),
+              sourcesUsed: event.sourcesUsed,
+              requiresLawyerReview: event.requiresLawyerReview,
+              pendingQuestions: event.pendingQuestions,
+              code: event.code,
+              message: event.message,
+              retryable: event.retryable,
+            });
+            // response.delta is not in the set above; fall through for the
+            // remaining event types below.
+          }
+
           switch (event.type) {
             case "status":
-              if (event.status) callbacks.onStatus?.(event.status);
+              if (event.status) callbacks.onStatus?.(event.status as StreamStatus);
               break;
             case "chunk":
               callbacks.onChunk?.({ text: event.text ?? "", index: event.index ?? 0 });
@@ -191,6 +312,9 @@ export function streamChat(
                 messageId: event.messageId ?? "",
                 sections: event.sections ?? [],
                 references: event.references ?? [],
+                requestId: event.requestId,
+                userMessageId: event.userMessageId,
+                userAttachments: event.userAttachments,
               });
               break;
             case "error":

@@ -21,6 +21,7 @@ import type {
   ContractDocument,
   ContractParty,
   ContractPayment,
+  ContractTypeId,
   PropertyContractVersion,
   PropertyContract,
   PropertyContractState,
@@ -113,6 +114,90 @@ export function getContractForUser(userId: string, contractId: string): Property
 /** A contract by id, ignoring ownership (server-internal use only). */
 export function getContractById(contractId: string): PropertyContract | null {
   return readTable<PropertyContract>(T_CONTRACTS).find((c) => c.id === contractId) ?? null;
+}
+
+// ------------------------------------------------------------
+// Renewal reminders
+// ------------------------------------------------------------
+// A rent contract has a fixed term (`data.durations.endDate`). As that
+// date approaches the user must be reminded to renew or vacate — this is
+// a legal deadline, not a marketing nudge, so it is derived from the
+// contract itself and never invented.
+//
+// Only contracts that are actually in force are considered: a draft has
+// no term yet, and a cancelled/archived contract needs no reminder.
+
+/** How many days before the end date the reminder starts firing. */
+export const RENEWAL_WINDOW_DAYS = 60;
+
+/** States in which a contract's term is live and a renewal matters. */
+const LIVE_STATES: ReadonlySet<PropertyContract["state"]> = new Set([
+  "SIGNED",
+  "PARTIALLY_SIGNED",
+  "READY_TO_SIGN",
+  "READY_FOR_OFFICIAL_REGISTRATION",
+  "FINALIZED",
+]);
+
+export interface RenewalReminder {
+  contractId: string;
+  referenceCode: string;
+  title: string;
+  /** ISO date the term ends. */
+  endDate: string;
+  /** Whole days until the end date; negative once it has passed. */
+  daysRemaining: number;
+  /** True once the end date is in the past. */
+  expired: boolean;
+}
+
+/** Whole days from `from` to `to`, ignoring the time of day. */
+function daysBetween(from: Date, to: Date): number {
+  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * Derive the renewal reminders from a set of contracts, soonest-ending
+ * first. Pure — no I/O — so it is directly testable.
+ */
+export function deriveRenewalReminders(
+  contracts: PropertyContract[],
+  now: Date = new Date()
+): RenewalReminder[] {
+  const reminders: RenewalReminder[] = [];
+  for (const contract of contracts) {
+    if (!LIVE_STATES.has(contract.state)) continue;
+    if (contract.type !== "property_rent") continue;
+    const endDate = (contract.data as { durations?: { endDate?: string | null } }).durations?.endDate;
+    if (!endDate) continue;
+    const end = new Date(endDate);
+    if (Number.isNaN(end.getTime())) continue;
+    const daysRemaining = daysBetween(now, end);
+    if (daysRemaining > RENEWAL_WINDOW_DAYS) continue;
+    reminders.push({
+      contractId: contract.id,
+      referenceCode: contract.referenceCode,
+      title: contract.title,
+      endDate,
+      daysRemaining,
+      expired: daysRemaining < 0,
+    });
+  }
+  return reminders.sort((a, b) => a.daysRemaining - b.daysRemaining);
+}
+
+/**
+ * The renewal reminders for a user, soonest-ending first. A contract is
+ * included when its term ends within `RENEWAL_WINDOW_DAYS` (or has
+ * already ended) and it is in a live state.
+ */
+export function listRenewalReminders(
+  userId: string,
+  now: Date = new Date()
+): RenewalReminder[] {
+  return deriveRenewalReminders(listContractsForUser(userId), now);
 }
 
 /** A contract by its public verification id (QR target). */
@@ -433,18 +518,30 @@ function deepMerge(
   return result;
 }
 
+/** Short code segment per contract type, used in the reference code. */
+const REFERENCE_KIND: Record<ContractTypeId, string> = {
+  property_rent: "RENT",
+  property_sale: "SALE",
+  vehicle_sale: "VEHICLE",
+  debt: "DEBT",
+  freelance: "FREELANCE",
+  nda: "NDA",
+  saas: "SAAS",
+  startup: "STARTUP",
+};
+
 /** A short, human-facing reference code, e.g. LGL-RENT-1405-000184. */
 export function buildReferenceCode(
-  type: "property_rent" | "property_sale",
+  type: ContractTypeId,
   jalaliYear: number,
   sequence: number
 ): string {
-  const kind = type === "property_rent" ? "RENT" : "SALE";
+  const kind = REFERENCE_KIND[type] ?? "CONTRACT";
   return `LGL-${kind}-${jalaliYear}-${String(sequence).padStart(6, "0")}`;
 }
 
 /** Count existing contracts of a type, used to build the next sequence. */
-export function countContractsOfType(type: "property_rent" | "property_sale"): number {
+export function countContractsOfType(type: ContractTypeId): number {
   return readTable<PropertyContract>(T_CONTRACTS).filter((c) => c.type === type).length;
 }
 

@@ -33,6 +33,7 @@ import {
 } from "@/lib/contracts/registry";
 import { computeCompleteness } from "@/lib/contracts/completeness";
 import { todayJalali } from "@/lib/contracts/dates";
+import { getCaseById, addCaseTimelineEvent } from "@/lib/case-db";
 import { audit, badRequest, ok, toListItem, unauthorized } from "@/lib/contracts/api-helpers";
 
 const VALID_KINDS: PropertyKind[] = ["apartment", "house", "villa"];
@@ -102,6 +103,17 @@ export async function POST(request: Request) {
       ? body.initiatorRole
       : def.defaultInitiatorRole;
 
+  // Optional case linkage. A case id belonging to another user is
+  // rejected outright rather than silently dropped.
+  let caseId: string | null = null;
+  if (body.caseId) {
+    const linkedCase = getCaseById(body.caseId);
+    if (!linkedCase || linkedCase.user_id !== userId) {
+      return badRequest("پرونده یافت نشد", "CASE_NOT_FOUND");
+    }
+    caseId = linkedCase.id;
+  }
+
   const now = new Date().toISOString();
   const jy = todayJalali().jy;
   const sequence = countContractsOfType(typeId) + 1;
@@ -127,6 +139,7 @@ export async function POST(request: Request) {
     finalVersionId: null,
     finalizedAt: null,
     publicVerificationId: `vrf-${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+    caseId,
     createdAt: now,
     updatedAt: now,
   };
@@ -182,6 +195,19 @@ export async function POST(request: Request) {
     categoryFa: def.categoryFa,
     sourceId: contract.id,
   });
+
+  // PART 11 — reflect the linkage on the case timeline so the case shows
+  // the contract it spawned.
+  if (caseId) {
+    addCaseTimelineEvent({
+      id: crypto.randomUUID(),
+      caseId,
+      eventType: "contract_linked",
+      title: "افزودن قرارداد",
+      description: `قرارداد «${contract.title}» به پرونده افزوده شد`,
+      metadata: { contractId: contract.id, referenceCode: contract.referenceCode },
+    });
+  }
 
   return NextResponse.json(
     {

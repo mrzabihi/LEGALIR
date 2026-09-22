@@ -28,6 +28,8 @@ import {
   IconPhone,
   IconSettings,
   IconCalculator,
+  IconBalance,
+  IconLawBook,
   IconChevronRight,
 } from "@/lib/icons";
 
@@ -48,6 +50,8 @@ const NAV_ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
   Person: IconPerson,
   Phone: IconPhone,
   Calculator: IconCalculator,
+  Balance: IconBalance,
+  LawBook: IconLawBook,
 };
 
 function NavIcon({ icon, isActive }: { icon?: string; isActive: boolean }) {
@@ -73,6 +77,25 @@ export function Sidebar({ userRole }: SidebarProps) {
   const { data: meData } = useMe();
   const session = useAuthStore((s) => s.session);
 
+  // The lawyer workspace is only meaningful for LAWYER accounts, so it is
+  // injected here rather than in the shared route registry (which has no
+  // notion of the platform role).
+  const isLawyer = meData?.user?.role === "LAWYER";
+  const items = isLawyer
+    ? [
+        ...navItems,
+        { path: "/lawyer", titleFa: "میزکار وکیل", access: "user" as const, icon: "Balance" },
+      ]
+    : navItems;
+
+  // Blog is a public marketing surface, so it is not part of the shared
+  // route registry's app nav. Pinned as the last item of the desktop sidebar
+  // only — the responsive drawer already exposes it.
+  const desktopItems = [
+    ...items,
+    { path: "/blog", titleFa: "وبلاگ", access: "user" as const, icon: "LawBook" },
+  ];
+
   const profile = meData?.profile;
   const displayName = profile?.displayName ?? session?.mobileDisplay ?? "کاربر";
   const avatarInitial = (displayName ?? "ک")[0]!;
@@ -80,7 +103,7 @@ export function Sidebar({ userRole }: SidebarProps) {
   return (
     <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
       {/* Logo Area — cohesive brand lockup with optical alignment */}
-      <div className="flex items-center px-5 py-5">
+      <div className="flex items-center justify-center px-5 py-5">
         <img src="/legalir-logo-dashboard.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
       </div>
 
@@ -88,7 +111,7 @@ export function Sidebar({ userRole }: SidebarProps) {
 
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5 scrollbar-hide" aria-label="ناوبری اصلی">
-        {navItems.map((item) => {
+        {desktopItems.map((item) => {
           const isActive = pathname === item.path
             || (item.path !== "/dashboard" && pathname.startsWith(item.path + "/"));
           return (

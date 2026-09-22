@@ -22,7 +22,7 @@ import type {
   PropertyContractListResponse,
   PropertyContractVersion,
   PropertyKind,
-  PropertyContractType,
+  ContractTypeId,
 } from "@legalir/types";
 
 /** A contract detail plus the server-computed completeness. */
@@ -34,7 +34,7 @@ export interface PropertyContractListParams {
   page?: number;
   pageSize?: number;
   search?: string;
-  type?: PropertyContractType | "";
+  type?: ContractTypeId | "";
   state?: string;
 }
 
@@ -62,7 +62,7 @@ export function createPropertyContract(
 ): Promise<{
   id: string;
   referenceCode: string;
-  type: PropertyContractType;
+  type: ContractTypeId;
   state: PropertyContract["state"];
   currentStep: string;
   createdAt: string;
@@ -278,6 +278,11 @@ export function archiveContract(id: string): Promise<PropertyContract> {
 /** The authorized URL of the immutable PDF for a version. */
 export function contractPdfUrl(id: string, versionId?: string): string {
   return `/api/v1/property-contracts/${id}/pdf${versionId ? `?version=${versionId}` : ""}`;
+}
+
+/** The authorized URL of the immutable Word (.docx) for a version. */
+export function contractDocxUrl(id: string, versionId?: string): string {
+  return `/api/v1/property-contracts/${id}/docx${versionId ? `?version=${versionId}` : ""}`;
 }
 
 // ------------------------------------------------------------
