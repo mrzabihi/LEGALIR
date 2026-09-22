@@ -12,6 +12,7 @@ import {
   fixtureProfileComplete,
   fixtureProfileIncomplete,
   fixtureProfileUsage,
+  fixtureV1SubscriptionGold,
   fixtureV1SubscriptionHistory,
   fixtureV1MemoryItems,
 } from "@legalir/testing";
@@ -106,6 +107,10 @@ function setupMe(profile = fixtureProfileComplete) {
           pagination: { page: 1, pageSize: 20, total: 3, totalPages: 1 },
         },
       })
+    ),
+    // The «اشتراک» card reads the canonical status from this endpoint.
+    http.get("http://localhost:8000/api/v1/subscriptions/current", () =>
+      HttpResponse.json({ data: fixtureV1SubscriptionGold })
     ),
     http.get("http://localhost:8000/api/v1/me/preferences", () =>
       HttpResponse.json({
@@ -230,9 +235,10 @@ describe("ProfilePage", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      // The Account Hub shows a "اشتراک" card with the current plan + upgrade CTA
-      expect(screen.getByText(/پلن فعلی/)).toBeTruthy();
-      expect(screen.getByText("مدیریت و ارتقا")).toBeTruthy();
+      // The Account Hub shows an «اشتراک» card with the canonical plan name
+      // (from /subscriptions/current) and a manage CTA.
+      expect(screen.getByText("طلا")).toBeTruthy();
+      expect(screen.getByText("مدیریت اشتراک")).toBeTruthy();
     });
   });
 
