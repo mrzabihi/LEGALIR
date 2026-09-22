@@ -168,6 +168,21 @@ const config: Config = {
           on: "var(--color-on-info)",
           "on-container": "var(--color-on-info-container)",
         },
+        // Selection-control state colours (checkbox · switch · selectable
+        // option/card). Backed by the `--control-*` custom properties so the
+        // brand green lives in exactly one place.
+        control: {
+          selected: "var(--control-selected)",
+          "selected-foreground": "var(--control-selected-foreground)",
+          "selected-surface": "var(--control-selected-surface)",
+          "selected-border": "var(--control-selected-border)",
+          "unselected-bg": "var(--control-unselected-bg)",
+          "unselected-border": "var(--control-unselected-border)",
+          hover: "var(--control-hover)",
+          focus: "var(--control-focus)",
+          "disabled-bg": "var(--control-disabled-bg)",
+          "disabled-text": "var(--control-disabled-text)",
+        },
         // Hue aliases → semantic roles. Legacy markup used raw Tailwind hues
         // (amber/blue/emerald/red/green); these map them onto the themeable
         // semantic ramps so dark mode works without touching every file.
@@ -261,6 +276,11 @@ const config: Config = {
         "12u": "48px",
       },
       boxShadow: {
+        // Contract workspace sticky header — scroll-aware elevation. Named
+        // rather than an arbitrary `shadow-[var(--…)]` because Tailwind
+        // cannot disambiguate an arbitrary `var()` between box-shadow and
+        // shadow-colour, and silently emits the colour form (no shadow).
+        "contract-sticky": "var(--contract-sticky-shadow)",
         "elevation-1": "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
         "elevation-3": "0 1px 3px rgba(0,0,0,0.18), 0 4px 8px rgba(0,0,0,0.10)",
         "elevation-4": "0 4px 6px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.08)",

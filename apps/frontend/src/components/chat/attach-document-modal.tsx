@@ -211,14 +211,16 @@ export function AttachDocumentModal({
                   aria-pressed={isPicked}
                   className={[
                     "flex w-full items-center gap-3 rounded-medium px-3 py-2.5 text-start transition-colors",
-                    isPicked ? "bg-primary/10" : "hover:bg-surface-hover",
+                    isPicked ? "bg-control-selected-surface" : "hover:bg-surface-hover",
                     disabled ? "cursor-not-allowed opacity-40" : "",
                   ].join(" ")}
                 >
                   <span
                     className={[
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                      isPicked ? "bg-primary text-white" : "bg-primary/10 text-primary",
+                      isPicked
+                        ? "bg-control-selected text-control-selected-foreground"
+                        : "bg-primary/10 text-primary",
                     ].join(" ")}
                     aria-hidden="true"
                   >
@@ -238,7 +240,7 @@ export function AttachDocumentModal({
                     className={[
                       "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                       isPicked
-                        ? "border-primary bg-primary text-white"
+                        ? "border-control-selected bg-control-selected text-control-selected-foreground"
                         : "border-outline/40 text-transparent",
                     ].join(" ")}
                     aria-hidden="true"

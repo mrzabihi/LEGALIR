@@ -19,8 +19,10 @@ import {
   IconRefresh,
   IconArrowBack,
   IconCalendar,
+  IconError,
 } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { REJECTED_REASON_FA } from "@/lib/lawyers/availability";
 import { LEGAL_CATEGORY_FA } from "@legalir/types";
 
 const WEEKDAY_FA = ["شنبه", "یک‌شنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه"];
@@ -240,12 +242,24 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
             </ul>
           </section>
 
-          <Link
-            href={`/new?lawyerId=${lawyer.id}`}
-            className="block rounded-xl bg-primary px-5 py-3 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
-          >
-            درخواست مشاوره از این وکیل
-          </Link>
+          {lawyer.availabilityStatus === "REJECTED" ? (
+            // Terminal state — the profile is viewable for transparency but
+            // can never start a request.
+            <div
+              role="status"
+              className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-5 py-3 text-center text-button font-medium text-error-700"
+            >
+              <IconError size={16} className="shrink-0" aria-hidden="true" />
+              {REJECTED_REASON_FA}
+            </div>
+          ) : (
+            <Link
+              href={`/new?lawyerId=${lawyer.id}`}
+              className="block rounded-xl bg-primary px-5 py-3 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
+            >
+              درخواست مشاوره از این وکیل
+            </Link>
+          )}
         </div>
       </div>
     </div>

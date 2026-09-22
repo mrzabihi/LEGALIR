@@ -37,10 +37,10 @@ export function ContractCategoryChips({
             role="tab"
             aria-selected={selected}
             onClick={() => onChange(category.key)}
-            className={`shrink-0 h-9 rounded-full px-4 text-labelLarge transition-colors duration-short3 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+            className={`shrink-0 h-9 rounded-full border px-4 text-labelLarge transition-colors duration-short3 focus-visible:outline-2 focus-visible:outline-control-focus focus-visible:outline-offset-2 ${
               selected
-                ? "bg-primary text-primary-on"
-                : "bg-surface-container text-on-surface hover:bg-surface-container-high"
+                ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected/50"
             }`}
           >
             {category.labelFa}

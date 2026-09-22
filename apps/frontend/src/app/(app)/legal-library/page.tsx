@@ -942,10 +942,10 @@ export default function LegalLibraryPage() {
             aria-selected={activeFilter === filter.key}
             onClick={() => setActiveFilter(filter.key)}
             className={[
-              "shrink-0 rounded-xl px-4 py-2 text-caption font-medium transition-all touch-target",
+              "shrink-0 rounded-xl border px-4 py-2 text-caption font-medium transition-all touch-target",
               activeFilter === filter.key
-                ? "bg-primary text-white shadow-md shadow-primary/20"
-                : "bg-surface text-on-surface hover:bg-surface-container border border-divider/60",
+                ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
             ].join(" ")}
           >
             {filter.label}

@@ -11,3 +11,6 @@ export { themeTokens, typography, fontFamily } from "./theme";
 
 // Components
 export * from "./components";
+
+// Persian number formatting (single source of truth)
+export * from "./lib/number-format";

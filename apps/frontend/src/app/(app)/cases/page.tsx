@@ -253,10 +253,10 @@ export default function CasesPage() {
               key={f.key}
               onClick={() => setStatusFilter(f.key)}
               className={[
-                "shrink-0 rounded-xl px-3 py-1.5 text-caption font-medium transition-all touch-target",
+                "shrink-0 rounded-xl border px-3 py-1.5 text-caption font-medium transition-all touch-target",
                 statusFilter === f.key
-                  ? "bg-primary text-white shadow-sm"
-                  : "bg-surface text-on-surface hover:bg-surface-hover border border-divider/60",
+                  ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                  : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
               ].join(" ")}
             >
               {f.label}

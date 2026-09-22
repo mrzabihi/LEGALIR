@@ -304,7 +304,13 @@ export type LawyerAvailabilityStatus =
   | "INACTIVE"
   | "FULL"
   | "LIMITED"
-  | "AVAILABLE_SLOTS";
+  | "AVAILABLE_SLOTS"
+  /**
+   * Removed from the marketplace by LEGALIR review — e.g. struck off by
+   * the bar association. Terminal: a REJECTED lawyer can never accept a
+   * request and is never presented as merely «غیرفعال».
+   */
+  | "REJECTED";
 
 export const LAWYER_AVAILABILITY_FA: Record<LawyerAvailabilityStatus, string> = {
   ACTIVE: "فعال",
@@ -312,6 +318,7 @@ export const LAWYER_AVAILABILITY_FA: Record<LawyerAvailabilityStatus, string> = 
   FULL: "ظرفیت تکمیل",
   LIMITED: "ظرفیت درخواست محدود",
   AVAILABLE_SLOTS: "ظرفیت مشاوره باز",
+  REJECTED: "Rejected",
 };
 
 /** A legal specialty a lawyer practises. */

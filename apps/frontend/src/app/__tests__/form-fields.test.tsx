@@ -13,6 +13,7 @@ import {
   TextField,
   PasswordField,
   NumberField,
+  MoneyField,
   Textarea,
   Select,
   Checkbox,
@@ -100,6 +101,56 @@ describe("NumberField", () => {
   });
 });
 
+describe("MoneyField", () => {
+  it("formats the amount with grouping while typing", () => {
+    const onChange = vi.fn();
+    render(<MoneyField label="ارزش خواسته" value={null} onChange={onChange} />);
+    const input = screen.getByLabelText("ارزش خواسته");
+    fireEvent.change(input, { target: { value: "3000000" } });
+    expect(onChange).toHaveBeenCalledWith(3_000_000);
+    expect(input).toHaveValue("۳٬۰۰۰٬۰۰۰");
+  });
+
+  it("accepts Persian digits and pasted separators", () => {
+    const onChange = vi.fn();
+    render(<MoneyField label="ارزش خواسته" value={null} onChange={onChange} />);
+    const input = screen.getByLabelText("ارزش خواسته");
+    fireEvent.change(input, { target: { value: "۵۰۰.۰۰۰.۰۰۰" } });
+    expect(onChange).toHaveBeenCalledWith(500_000_000);
+  });
+
+  it("emits null when cleared", () => {
+    const onChange = vi.fn();
+    render(<MoneyField label="ارزش خواسته" value={3_000_000} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("ارزش خواسته"), { target: { value: "" } });
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("shows the amount in words, using the field's own unit", () => {
+    const { rerender } = render(
+      <MoneyField label="ارزش خواسته" unit="IRT" value={3_000_000} onChange={() => undefined} />
+    );
+    expect(screen.getByText("سه میلیون تومان")).toBeInTheDocument();
+
+    rerender(
+      <MoneyField label="ارزش خواسته" unit="IRR" value={3_000_000} onChange={() => undefined} />
+    );
+    expect(screen.getByText("سه میلیون ریال")).toBeInTheDocument();
+  });
+
+  it("does not show a words line for an empty field", () => {
+    render(<MoneyField label="ارزش خواسته" value={null} onChange={() => undefined} />);
+    // The unit suffix is always present; the words line is not.
+    expect(screen.queryByText(/^سه /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^صفر /)).not.toBeInTheDocument();
+  });
+
+  it("renders the unit as a suffix", () => {
+    render(<MoneyField label="ارزش خواسته" unit="IRT" value={null} onChange={() => undefined} />);
+    expect(screen.getByText("تومان")).toBeInTheDocument();
+  });
+});
+
 describe("Textarea", () => {
   it("renders a single label and links the error", () => {
     const { container } = render(<Textarea label="توضیحات" errorMessage="الزامی است" />);
@@ -130,18 +181,46 @@ describe("Select", () => {
     expect(label?.className).not.toContain("top-1/2");
   });
 
-  it("keeps the label resting when no value is chosen", () => {
+  it("keeps the label floated when no value is chosen (never overlaps the placeholder)", () => {
     render(
       <Select
         label="استان"
         value=""
         onChange={() => undefined}
+        placeholder="انتخاب کنید"
         options={[{ value: "tehran", label: "تهران" }]}
       />
     );
     const select = screen.getByLabelText("استان");
     const label = document.querySelector("label[for='" + select.id + "']");
-    expect(label?.className).toContain("top-1/2");
+    // A resting label would sit on top of the placeholder text, so the
+    // label must always be lifted onto the notch.
+    expect(label?.className).not.toContain("top-1/2");
+    expect(label?.className).toContain("top-0");
+  });
+
+  it("mutes the placeholder until a real option is chosen", () => {
+    const { rerender } = render(
+      <Select
+        label="استان"
+        value=""
+        onChange={() => undefined}
+        placeholder="انتخاب کنید"
+        options={[{ value: "tehran", label: "تهران" }]}
+      />
+    );
+    expect(screen.getByLabelText("استان").className).toContain("text-onSurfaceVariant");
+
+    rerender(
+      <Select
+        label="استان"
+        value="tehran"
+        onChange={() => undefined}
+        placeholder="انتخاب کنید"
+        options={[{ value: "tehran", label: "تهران" }]}
+      />
+    );
+    expect(screen.getByLabelText("استان").className).toContain("text-onSurface");
   });
 });
 

@@ -415,7 +415,7 @@ export default function UsageSettingsPage() {
             role="tab"
             aria-selected={activeTab === "usage"}
             onClick={() => setActiveTab("usage")}
-            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "usage" ? "bg-primary text-on-primary shadow-sm" : "text-muted hover:text-on-surface"}`}
+            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "usage" ? "bg-control-selected text-control-selected-foreground shadow-sm" : "text-muted hover:text-on-surface"}`}
           >
             مصرف
           </button>
@@ -423,7 +423,7 @@ export default function UsageSettingsPage() {
             role="tab"
             aria-selected={activeTab === "history"}
             onClick={() => setActiveTab("history")}
-            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "history" ? "bg-primary text-on-primary shadow-sm" : "text-muted hover:text-on-surface"}`}
+            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "history" ? "bg-control-selected text-control-selected-foreground shadow-sm" : "text-muted hover:text-on-surface"}`}
           >
             تاریخچه
           </button>

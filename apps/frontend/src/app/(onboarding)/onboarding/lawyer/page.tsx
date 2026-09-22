@@ -12,7 +12,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLawyerOnboarding, useSubmitLawyerOnboarding } from "@/hooks/useOnboarding";
 import { LAWYER_ACTIVITY_TYPE_FA, type LawyerActivityType } from "@legalir/types";
-import { Select, Textarea, TextField } from "@legalir/ui";
+import { Select, Textarea, TextField, SelectableOption } from "@legalir/ui";
 
 const ACTIVITY_TYPES = Object.keys(LAWYER_ACTIVITY_TYPE_FA) as LawyerActivityType[];
 
@@ -229,20 +229,13 @@ export default function LawyerOnboardingPage() {
             {SPECIALIZATIONS.map((s) => {
               const active = specializations.includes(s);
               return (
-                <button
+                <SelectableOption
                   key={s}
-                  type="button"
-                  onClick={() => toggleSpec(s)}
+                  label={s}
+                  selected={active}
                   disabled={submit.isPending}
-                  aria-pressed={active}
-                  className={`inline-flex items-center rounded-full border px-3 py-1.5 text-caption font-medium transition-colors touch-target ${
-                    active
-                      ? "bg-primary-50 text-primary-700 border-primary-300"
-                      : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-primary/40 hover:text-primary"
-                  }`}
-                >
-                  {s}
-                </button>
+                  onClick={() => toggleSpec(s)}
+                />
               );
             })}
           </div>

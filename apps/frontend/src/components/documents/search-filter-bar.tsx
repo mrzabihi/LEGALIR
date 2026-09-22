@@ -116,10 +116,10 @@ export function SearchFilterBar({
               aria-label={opt.label}
               onClick={() => handleStatusChange(opt.value)}
               className={[
-                "shrink-0 px-3 py-1.5 rounded-medium text-caption font-medium transition-colors",
+                "shrink-0 px-3 py-1.5 rounded-medium border text-caption font-medium transition-colors",
                 status === opt.value
-                  ? "bg-primary text-white"
-                  : "bg-surface text-on-surface hover:bg-surface-hover border border-divider",
+                  ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                  : "border-divider bg-surface text-on-surface hover:border-control-selected/50",
               ].join(" ")}
             >
               {opt.label}

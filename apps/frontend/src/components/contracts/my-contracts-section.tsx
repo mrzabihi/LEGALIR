@@ -322,10 +322,10 @@ function StatusChip({
       role="tab"
       aria-selected={selected}
       onClick={onClick}
-      className={`shrink-0 h-9 rounded-full px-3.5 text-labelMedium transition-colors ${
+      className={`shrink-0 h-9 rounded-full border px-3.5 text-labelMedium transition-colors ${
         selected
-          ? "bg-primary text-primary-on"
-          : "bg-surface-container text-on-surface hover:bg-surface-container-high"
+          ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+          : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected/50"
       }`}
     >
       {label}

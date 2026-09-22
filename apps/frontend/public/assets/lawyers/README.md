@@ -15,6 +15,9 @@ badge and `avatarType: "demo"`.
 | `lawyer-demo-mohadeseh-rezaei.webp` | محدثه رضایی — female, ~20, curly hair |
 | `lawyer-demo-nahid-abdollahi.webp` | ناهید عبدالهی — female, ~25, short hair |
 | `lawyer-demo-ali-shokri.webp` | علی شکری — male, ~40, bald, long beard |
+| `lawyer-demo-farbod-saleh.webp` | فربد صالح — male, criminal defence |
+| `lawyer-demo-farshin-ganji.webp` | فرشین گنجی — male, immigration |
+| `lawyer-demo-mehdi-esmaeili.webp` | مهدی اسمعیلی — male, labour |
 
 ## Requirements
 

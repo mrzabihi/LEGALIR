@@ -177,6 +177,22 @@
   --color-on-success-container: #0D331F;
   --color-on-info-container: #0A1E3C;
 
+  /* --- Selection controls (checkbox · switch · selectable option/card) ---
+     One place for the "is this control on?" colour language, so no page
+     file ever hard-codes the brand green. ACTIVE/SELECTED is the brand
+     green; PRIMARY/STRONG BRAND stays navy; SUPPORTING stays warm sand. */
+  --control-selected: #32B183;
+  --control-selected-foreground: #FFFFFF;
+  /* Tonal surface behind a selected card — a whisper of the green. */
+  --control-selected-surface: #E9F7F1;
+  --control-selected-border: #32B183;
+  --control-unselected-bg: #FFFFFF;
+  --control-unselected-border: #C4CBD4;
+  --control-hover: #F3F4F6;
+  --control-focus: #32B183;
+  --control-disabled-bg: #F3F4F6;
+  --control-disabled-text: #9CA3AF;
+
   /* State layer opacities (MD3 interaction states) */
   --state-hover-opacity: 0.08;
   --state-focus-opacity: 0.12;
@@ -240,6 +256,27 @@
   --sidebar-text-active: var(--warm-glass-ivory);
   --sidebar-text-inactive: var(--warm-glass-ivory-muted);
   --sidebar-profile-bg: rgba(255, 248, 238, 0.08);
+
+  /* --- Contract workspace sticky header ---
+     The sticky status surface of the contract draft workspace. It floats
+     above the white contract form, so it must read as a distinct control
+     surface without becoming a saturated blue bar: the base is a whisper
+     of the brand navy (#DAE3F3), the text is the deep navy, and the bronze
+     accent is reserved for the small lifecycle chip and a hairline — never
+     used as a surface. Elevation is scroll-aware: the header is flat at the
+     top of the page and lifts once content slides underneath it. */
+  --contract-sticky-bg: #DAE3F3;
+  --contract-sticky-text: #172B4E;
+  /* Navy-tinted secondary text — reads better on the blue surface than the
+     neutral gray `--color-muted`, and still clears WCAG AA (5.0:1). */
+  --contract-sticky-muted: rgba(23, 43, 78, 0.72);
+  --contract-sticky-accent: #C3B18A;
+  --contract-sticky-border: rgba(23, 43, 78, 0.10);
+  --contract-sticky-shadow: 0 6px 18px rgba(23, 43, 78, 0.08);
+  /* Tonal fills that sit *on* the sticky surface. */
+  --contract-sticky-chip: rgba(23, 43, 78, 0.06);
+  --contract-sticky-chip-strong: rgba(23, 43, 78, 0.12);
+  --contract-sticky-track: rgba(23, 43, 78, 0.14);
 
   /* Scrim & Shadow */
   --color-scrim: rgba(0, 0, 0, 0.5);
@@ -380,6 +417,18 @@
   --color-on-success-container: #6EE7B7;
   --color-on-info-container: #93C5FD;
 
+  /* Selection controls — same brand green, surfaces retuned for dark. */
+  --control-selected: #32B183;
+  --control-selected-foreground: #FFFFFF;
+  --control-selected-surface: #12332A;
+  --control-selected-border: #32B183;
+  --control-unselected-bg: #1E2A38;
+  --control-unselected-border: #4B5563;
+  --control-hover: #26344C;
+  --control-focus: #32B183;
+  --control-disabled-bg: #1E2A38;
+  --control-disabled-text: #6B7280;
+
   /* Semantic ramps — inverted for dark surfaces so `bg-*-50` stays a
      subtle tint and `text-*-700` stays readable on it. */
   --color-error-50: #2A1210;
@@ -458,6 +507,19 @@
     var(--warm-glass-gradient-top) 0%,
     var(--warm-glass-gradient-bottom) 100%
   );
+
+  /* Contract workspace sticky header — dark counterpart. The light-blue
+     surface becomes a lifted navy panel; the bronze accent is brightened
+     so it still reads as an accent on a dark base. */
+  --contract-sticky-bg: #16233C;
+  --contract-sticky-text: #E8EDF5;
+  --contract-sticky-muted: rgba(232, 237, 245, 0.72);
+  --contract-sticky-accent: #D5BE97;
+  --contract-sticky-border: rgba(255, 255, 255, 0.10);
+  --contract-sticky-shadow: 0 6px 18px rgba(0, 0, 0, 0.40);
+  --contract-sticky-chip: rgba(255, 255, 255, 0.06);
+  --contract-sticky-chip-strong: rgba(255, 255, 255, 0.12);
+  --contract-sticky-track: rgba(255, 255, 255, 0.16);
 
   --color-scrim: rgba(0, 0, 0, 0.7);
   --color-shadow: rgba(0, 0, 0, 0.3);

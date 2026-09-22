@@ -133,9 +133,12 @@ function WizardBody() {
       />
 
       <div className="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 desktop:grid-cols-[260px_1fr] gap-5">
-        {/* Rail — desktop only */}
+        {/* Rail — desktop only. Its sticky offset tracks the real height of
+            the contract header (published as `--contract-header-h` by
+            `ContractWorkspaceHeader`), so it never hides under the header
+            when the header's content wraps. */}
         <aside className="hidden desktop:block">
-          <div className="sticky top-32 rounded-large bg-surface border border-divider p-2">
+          <div className="sticky top-[calc(var(--contract-header-h,128px)+1rem)] rounded-large bg-surface border border-divider p-2">
             <StepRail />
           </div>
         </aside>

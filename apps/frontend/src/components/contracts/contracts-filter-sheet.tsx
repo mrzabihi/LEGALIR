@@ -10,7 +10,7 @@
 
 "use client";
 
-import { Drawer, Select } from "@legalir/ui";
+import { Drawer, Select, SelectableOption } from "@legalir/ui";
 import {
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_ORDER,
@@ -129,17 +129,12 @@ function FilterChip({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={selected}
+    <SelectableOption
+      label={label}
+      selected={selected}
       onClick={onClick}
-      className={`h-9 rounded-full px-3.5 text-labelMedium transition-colors ${
-        selected
-          ? "bg-primary text-primary-on"
-          : "bg-surface-container text-on-surface hover:bg-surface-container-high"
-      }`}
-    >
-      {label}
-    </button>
+      showTick={false}
+      className="h-9 px-3.5 text-labelMedium"
+    />
   );
 }

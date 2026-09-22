@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { V1ContractTypeInfo, V1ContractType } from "@legalir/types";
+import { SelectableCard } from "@legalir/ui";
 import { useContractTypes } from "@/hooks/useContracts";
 
 const typeIcons: Record<string, string> = {
@@ -56,38 +57,19 @@ export function ContractTypeSelector({
   function TypeCard({ info }: { info: V1ContractTypeInfo }) {
     const isSelected = selectedType === info.id;
     return (
-      <button
+      <SelectableCard
+        selected={isSelected}
         onClick={() => onSelect(info.id)}
-        className={`w-full rounded-large p-4 border-2 text-right transition-all touch-target ${
-          isSelected
-            ? "border-primary bg-primary/5"
-            : "border-divider bg-surface hover:border-primary/30"
-        }`}
-        aria-pressed={isSelected}
         aria-label={`قرارداد ${info.nameFa}`}
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl" aria-hidden="true">
-            {typeIcons[info.id] ?? "📄"}
-          </span>
-          <div className="flex-1 min-w-0">
-            <h4 className="text-body-1 font-medium text-on-surface">
-              {info.nameFa}
-            </h4>
-            <p className="text-caption text-muted mt-0.5">
-              {info.descriptionFa}
-            </p>
-            <p className="text-caption text-muted mt-0.5">
-              {info.questionCount} سوال
-            </p>
-          </div>
-          {isSelected && (
-            <span className="text-primary text-h3" aria-hidden="true">
-              ✓
-            </span>
-          )}
-        </div>
-      </button>
+        icon={<span className="text-2xl">{typeIcons[info.id] ?? "📄"}</span>}
+        title={info.nameFa}
+        description={
+          <>
+            {info.descriptionFa}
+            <span className="mt-0.5 block">{info.questionCount} سوال</span>
+          </>
+        }
+      />
     );
   }
 

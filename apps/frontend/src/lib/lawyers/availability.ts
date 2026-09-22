@@ -16,8 +16,11 @@
 import type { LawyerAvailabilityStatus } from "@legalir/types";
 import { toPersianNumber } from "@/lib/persian-utils";
 
-/** Visual tone for a status dot. Calm by design — no aggressive red. */
-export type AvailabilityTone = "positive" | "caution" | "neutral" | "muted";
+/**
+ * Visual tone for a status dot. Calm by design — the only red is
+ * `rejected`, reserved for a lawyer removed by LEGALIR review.
+ */
+export type AvailabilityTone = "positive" | "caution" | "neutral" | "muted" | "rejected";
 
 export interface AvailabilityView {
   status: LawyerAvailabilityStatus;
@@ -38,6 +41,7 @@ const STATUS_LABEL: Record<LawyerAvailabilityStatus, string> = {
   FULL: "ظرفیت تکمیل",
   LIMITED: "ظرفیت محدود",
   AVAILABLE_SLOTS: "فعال",
+  REJECTED: "Rejected",
 };
 
 const STATUS_TONE: Record<LawyerAvailabilityStatus, AvailabilityTone> = {
@@ -46,7 +50,14 @@ const STATUS_TONE: Record<LawyerAvailabilityStatus, AvailabilityTone> = {
   LIMITED: "caution",
   FULL: "neutral",
   INACTIVE: "muted",
+  REJECTED: "rejected",
 };
+
+/**
+ * The reason line shown under a REJECTED status. Kept here (not in the
+ * card) so every surface that renders the status shows the same wording.
+ */
+export const REJECTED_REASON_FA = "رد شده توسط کانون وکلای لیگالیر";
 
 /**
  * Capacity copy. `null` capacity means unlimited/unknown — the card then
@@ -56,6 +67,9 @@ function capacityLabel(
   status: LawyerAvailabilityStatus,
   capacity: number | null
 ): string | null {
+  // A rejected lawyer has no intake at all, and the reason is rendered once
+  // in the card's CTA block — so the badge shows no capacity line.
+  if (status === "REJECTED") return null;
   if (capacity === null) return null;
   if (capacity <= 0) return "ظرفیت تکمیل";
   if (status === "LIMITED") return `${toPersianNumber(capacity)} ظرفیت باقی‌مانده`;
@@ -74,6 +88,8 @@ function ctaLabel(status: LawyerAvailabilityStatus): string {
       return "ظرفیت تکمیل";
     case "INACTIVE":
       return "در حال حاضر در دسترس نیست";
+    case "REJECTED":
+      return "حذف شده از فهرست";
   }
 }
 
@@ -117,6 +133,7 @@ export const TONE_DOT_CLASS: Record<AvailabilityTone, string> = {
   caution: "bg-warning",
   neutral: "bg-on-surface-variant/50",
   muted: "bg-on-surface-variant/30",
+  rejected: "bg-error",
 };
 
 /** Tailwind classes for the status text, keyed by tone. */
@@ -125,4 +142,5 @@ export const TONE_TEXT_CLASS: Record<AvailabilityTone, string> = {
   caution: "text-warning-700",
   neutral: "text-on-surface-variant",
   muted: "text-muted",
+  rejected: "text-error",
 };

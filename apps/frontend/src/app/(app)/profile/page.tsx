@@ -47,7 +47,7 @@ import {
   ORGANIZATION_STATUS_FA,
   ORGANIZATION_LEGAL_TYPE_FA,
 } from "@legalir/types";
-import { Select, TextField } from "@legalir/ui";
+import { Select, TextField, SelectableOption, SelectableCard } from "@legalir/ui";
 
 // ============================================================
 // Helpers
@@ -264,7 +264,16 @@ function DateEditableField({ label, value, placeholder, onSave }: {
       <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
       {editing ? (
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <JalaliDatePicker value={draft} onChange={setDraft} disabled={saving} />
+          {/* Birth date is historical — the year list reaches back and
+              rests on a plausible birth year, not the contract default. */}
+          <JalaliDatePicker
+            value={draft}
+            onChange={setDraft}
+            disabled={saving}
+            minYear={1300}
+            maxYear={1405}
+            defaultYear={1365}
+          />
           <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
           <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
@@ -359,21 +368,13 @@ function MultiSelectField({ label, value, options, onSave }: {
         {options.map((opt) => {
           const active = value.includes(opt);
           return (
-            <button
+            <SelectableOption
               key={opt}
-              type="button"
-              onClick={() => toggle(opt)}
+              label={opt}
+              selected={active}
               disabled={saving}
-              aria-pressed={active}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption font-medium transition-colors touch-target ${
-                active
-                  ? "bg-primary-50 text-primary-700 border-primary-300 dark:bg-primary-500/10 dark:text-primary-400 dark:border-primary-500/20"
-                  : "bg-surface text-muted border-divider hover:border-primary/40 hover:text-primary"
-              }`}
-            >
-              {active && <IconCheck size={14} />}
-              {opt}
-            </button>
+              onClick={() => toggle(opt)}
+            />
           );
         })}
       </dd>
@@ -641,32 +642,17 @@ export default function AccountHubPage() {
                     {(["PERSONAL", "BUSINESS"] as const).map((type) => {
                       const selected = platformAccountType === type;
                       return (
-                        <button
+                        <SelectableCard
                           key={type}
-                          type="button"
+                          selected={selected}
+                          disabled={updateAccountType.isPending}
                           onClick={() => {
                             if (selected) return;
                             updateAccountType.mutate(type);
                           }}
-                          disabled={updateAccountType.isPending}
-                          aria-pressed={selected}
-                          className={[
-                            "rounded-xl border p-3 text-start transition-colors disabled:opacity-60",
-                            selected
-                              ? "border-primary-500 bg-primary-50"
-                              : "border-divider hover:bg-neutral-50",
-                          ].join(" ")}
-                        >
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="text-body-2 font-semibold text-onSurface">
-                              {ACCOUNT_TYPE_FA[type]}
-                            </span>
-                            {selected && <IconCheck size={16} className="text-primary-600" />}
-                          </span>
-                          <span className="mt-1 block text-caption text-muted">
-                            {ACCOUNT_TYPE_DESCRIPTION_FA[type]}
-                          </span>
-                        </button>
+                          title={ACCOUNT_TYPE_FA[type]}
+                          description={ACCOUNT_TYPE_DESCRIPTION_FA[type]}
+                        />
                       );
                     })}
                   </div>

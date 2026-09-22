@@ -74,16 +74,16 @@ export function Toggle({
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full p-[2px] transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+        className={`relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full border-2 p-[2px] transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
         } ${
           checked
-            ? "bg-success focus-visible:ring-success/50"
-            : "bg-error focus-visible:ring-error/50"
+            ? "bg-control-selected border-control-selected focus-visible:ring-control-focus/50"
+            : "bg-control-unselected-bg border-control-unselected-border focus-visible:ring-control-focus/50"
         }`}
       >
         <span
-          className={`inline-block h-[27px] w-[27px] rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.16)] transition-transform duration-200 ease-out group-active:scale-95 ${
+          className={`inline-block h-[23px] w-[23px] rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.16)] transition-transform duration-200 ease-out group-active:scale-95 ${
             checked ? "translate-x-[20px]" : "translate-x-0"
           }`}
         />

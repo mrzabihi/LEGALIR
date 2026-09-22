@@ -196,7 +196,18 @@ export function OutlinedFieldShell({
         </span>
       )}
 
-      <div dir={inputDir} className="relative flex min-w-0 flex-1 items-center">
+      <div
+        dir={inputDir}
+        className={[
+          "relative flex min-w-0 flex-1 items-center",
+          // Without a leading adornment the content row sits flush against
+          // the border, so the text/placeholder would touch it — inset it to
+          // match the label (DEFAULT_INSET).
+          startIcon ? "" : "ps-3",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {children}
       </div>
 

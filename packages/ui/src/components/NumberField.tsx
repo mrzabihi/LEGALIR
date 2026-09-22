@@ -6,10 +6,19 @@
 // Numeric input with the shared outlined floating label. Persian
 // digits are normalised to ASCII on the way out so the existing
 // payload/validation logic is untouched.
+//
+// Set `group` for large counts (areas, counts, years of service) to
+// get live thousands grouping with a stable caret. Money must use
+// `MoneyField` instead — it carries the unit and the words line.
 // ============================================================
 
-import React, { forwardRef, useId } from "react";
+import React, { forwardRef, useId, useState } from "react";
 import { OutlinedFieldShell, FieldMessage, type FieldSize } from "./field-shell";
+import { useCaretAnchor } from "../lib/use-caret-anchor";
+import {
+  formatPersianAmount,
+  normalizeDigits,
+} from "../lib/number-format";
 
 export interface NumberFieldProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size" | "onChange" | "value"> {
@@ -27,20 +36,13 @@ export interface NumberFieldProps
   max?: number;
   /** Allow decimal values (default: integers only). */
   allowDecimal?: boolean;
+  /** Group thousands live and render Persian digits (default: false). */
+  group?: boolean;
   leadingIcon?: React.ReactNode;
   trailingIcon?: React.ReactNode;
   startIcon?: React.ReactNode;
   endIcon?: React.ReactNode;
   suffix?: React.ReactNode;
-}
-
-const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
-const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
-
-function normalizeDigits(raw: string): string {
-  return raw
-    .replace(/[۰-۹]/g, (d) => String(PERSIAN_DIGITS.indexOf(d)))
-    .replace(/[٠-٩]/g, (d) => String(ARABIC_DIGITS.indexOf(d)));
 }
 
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
@@ -59,6 +61,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
       min,
       max,
       allowDecimal = false,
+      group = false,
       leadingIcon,
       trailingIcon,
       startIcon,
@@ -85,19 +88,40 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
     const errorId = resolvedError ? `${id}-error` : undefined;
     const helperId = resolvedHelper && !resolvedError ? `${id}-helper` : undefined;
 
-    const displayValue = value === null || value === undefined ? "" : String(value);
+    const { ref: caretRef, remember } = useCaretAnchor();
+
+    const render = (n: number | null | undefined): string => {
+      if (n === null || n === undefined) return "";
+      return group ? formatPersianAmount(n) : String(n);
+    };
+
+    const [text, setText] = useState(() => render(value));
+    const [lastValue, setLastValue] = useState(value);
+
+    // Re-sync when the value changes from outside (reset, draft load).
+    if (value !== lastValue) {
+      setLastValue(value);
+      setText(render(value));
+    }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = normalizeDigits(e.target.value);
+      const el = e.target;
+      if (group) remember(el.value, el.selectionStart ?? el.value.length);
+
+      const raw = normalizeDigits(el.value);
       const cleaned = allowDecimal
         ? raw.replace(/[^\d.]/g, "")
         : raw.replace(/[^\d]/g, "");
-      if (cleaned.trim() === "") return onChange(null);
+      if (cleaned.trim() === "") {
+        setText("");
+        return onChange(null);
+      }
       const n = Number(cleaned);
       if (!Number.isFinite(n)) return;
       let next = n;
       if (min !== undefined) next = Math.max(min, next);
       if (max !== undefined) next = Math.min(max, next);
+      setText(render(next));
       onChange(next);
     };
 
@@ -116,14 +140,18 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
         >
           <div className="relative flex min-w-0 flex-1 items-center">
             <input
-              ref={ref}
+              ref={(node) => {
+                caretRef.current = node;
+                if (typeof ref === "function") ref(node);
+                else if (ref) ref.current = node;
+              }}
               id={id}
               type="text"
               inputMode={allowDecimal ? "decimal" : "numeric"}
               disabled={disabled}
               readOnly={readOnly}
               required={required}
-              value={displayValue}
+              value={text}
               onChange={handleChange}
               placeholder=" "
               aria-invalid={hasError || undefined}
@@ -131,10 +159,13 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
               className={[
                 "peer w-full bg-transparent text-onSurface",
                 "border-none outline-none",
+                group ? "tabular-nums" : "",
                 inputSize === "small" ? "text-bodySmall py-1.5" : "text-bodyMedium py-1.5",
                 "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100",
                 "placeholder:text-onSurfaceVariant/60 transition-opacity duration-short3",
-              ].join(" ")}
+              ]
+                .filter(Boolean)
+                .join(" ")}
               {...rest}
             />
           </div>

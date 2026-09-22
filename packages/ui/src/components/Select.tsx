@@ -3,9 +3,18 @@
 // ============================================================
 // LEGALIR — Material Design 3 Outlined Select
 // ============================================================
-// Native `<select>` styled as an MD3 outlined field with a floating
-// label. The label lifts into the border notch whenever a real
-// option is chosen (a placeholder option counts as "empty").
+// Native `<select>` styled as an MD3 outlined field.
+//
+// The label is ALWAYS floated onto the border notch. A native select
+// has no `:placeholder-shown` state, so a resting label would sit on
+// top of the placeholder/value text — the overlap this component
+// exists to prevent. With the label pinned to the notch, the value
+// area is free to show either the muted placeholder or the chosen
+// option, with real vertical separation between the two.
+//
+//   ┌──── نوع فعالیت ─────────────┐
+//   │ انتخاب کنید               ▼ │
+//   └─────────────────────────────┘
 // ============================================================
 
 import React, { forwardRef, useId, useState } from "react";
@@ -64,7 +73,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const helperId = resolvedHelper && !resolvedError ? `${id}-helper` : undefined;
 
   // Track "has a real value" for both controlled and uncontrolled use
-  // so the label floats correctly on first render (API/draft values).
+  // so the placeholder can be muted until a choice is made.
   const isControlled = value !== undefined;
   const [internalValue, setInternalValue] = useState<string>(
     String(defaultValue ?? "")
@@ -85,7 +94,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         hasError={hasError}
         disabled={disabled}
         size={selectSize}
-        forceFloat={hasValue}
+        // Always floated: the label must never sit on the value text.
+        forceFloat
         className={className}
       >
         <select
@@ -98,8 +108,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           aria-invalid={hasError || undefined}
           aria-describedby={errorId || helperId}
           className={[
-            "peer w-full appearance-none bg-transparent px-3",
-            "text-onSurface border-none outline-none",
+            "peer w-full appearance-none bg-transparent",
+            // The shell already insets the content row by `ps-3`; only
+            // the inline-end needs extra room to clear the chevron.
+            "ps-0 pe-8",
+            "border-none outline-none",
+            hasValue ? "text-onSurface" : "text-onSurfaceVariant",
             selectSize === "small" ? "text-bodySmall py-1.5" : "text-bodyMedium py-1.5",
             disabled ? "" : "cursor-pointer",
           ].join(" ")}

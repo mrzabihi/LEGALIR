@@ -43,6 +43,14 @@ export function FinancialRentStep() {
 
   const months = monthsBetween(d.durations.startDate, d.durations.endDate);
 
+  // The end date may never precede the start date. Both are ISO strings,
+  // so a plain lexicographic compare is a correct chronological compare.
+  const endBeforeStart =
+    !!d.durations.startDate &&
+    !!d.durations.endDate &&
+    d.durations.endDate < d.durations.startDate;
+  const END_BEFORE_START_FA = "تاریخ پایان قرارداد نمی‌تواند قبل از تاریخ شروع باشد.";
+
   /** When the start date changes, keep the end date a whole year later. */
   function onStartChange(iso: string | null) {
     const patch: Partial<PropertyRentData["durations"]> = { startDate: iso };
@@ -129,7 +137,12 @@ export function FinancialRentStep() {
             value={d.durations.startDate}
             onChange={onStartChange}
           />
-          <DateField label="تاریخ پایان اجاره" value={d.durations.endDate} onChange={onEndChange} />
+          <DateField
+            label="تاریخ پایان اجاره"
+            value={d.durations.endDate}
+            onChange={onEndChange}
+            errorMessage={endBeforeStart ? END_BEFORE_START_FA : undefined}
+          />
         </FieldGrid>
         <DateField
           label="تاریخ تحویل ملک"

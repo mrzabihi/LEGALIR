@@ -782,10 +782,10 @@ export default function HistoryPage() {
                 aria-selected={isActive}
                 onClick={() => setSelectedCategory(cat.key)}
                 className={[
-                  "rounded-full px-4 py-2 text-body-2 transition-colors touch-target",
+                  "rounded-full border px-4 py-2 text-body-2 transition-colors touch-target",
                   isActive
-                    ? "bg-primary text-white"
-                    : "bg-surface text-muted hover:text-on-surface border border-border",
+                    ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+                    : "border-border bg-surface text-muted hover:border-control-selected/50 hover:text-on-surface",
                 ].join(" ")}
               >
                 {cat.label}

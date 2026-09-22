@@ -39,7 +39,7 @@ interface LawyerReviewRow {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const LAWYER_SEED_VERSION = "legalir-lawyers-v2";
+export const LAWYER_SEED_VERSION = "legalir-lawyers-v4";
 
 // ---------------------------------------------------------------------------
 // JSON-DB primitives (self-contained to avoid a circular import with db.ts)
@@ -128,16 +128,19 @@ interface DemoLawyerSpec {
 // ---------------------------------------------------------------------------
 // Demo lawyers
 // ---------------------------------------------------------------------------
-// Six profiles chosen so every availability state is visible in the UI:
-//   علی ذبیحی      AVAILABLE_SLOTS (10)   — rated 4.5 / 12 reviews
+// Nine profiles chosen so every availability state is visible in the UI:
+//   علی ذبیحی      REJECTED               — rated 4.5 / 12 reviews
 //   مهدیه فرسایی   LIMITED (2)
 //   حسام ساکی      ACTIVE (unlimited)
 //   محدثه رضایی    INACTIVE
 //   ناهید عبدالهی  AVAILABLE_SLOTS (10)
 //   علی شکری       FULL (0)
+//   فربد صالح      AVAILABLE_SLOTS (8)    — criminal defence
+//   فرشین گنجی     AVAILABLE_SLOTS (6)    — immigration, rated 1.0 / 5
+//   مهدی اسمعیلی   AVAILABLE_SLOTS (5)    — labour, in-person only
 //
 // Names are real, but every professional detail (specialty, experience,
-// licence, rating) is DEMO DATA. All six are `isDemo: true` and are never
+// licence, rating) is DEMO DATA. All nine are `isDemo: true` and are never
 // presented as verified practitioners.
 // ---------------------------------------------------------------------------
 
@@ -162,9 +165,11 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     hourlyRateToman: 2_500_000,
     contractReviewFeeToman: 4_000_000,
     freeFirstConsultation: false,
-    availabilityStatus: "AVAILABLE_SLOTS",
-    consultationCapacity: 10,
-    acceptingRequests: true,
+    // Removed from the marketplace by LEGALIR review — the card renders the
+    // red «رد شده توسط کانون وکلای لیگالیر» treatment instead of a CTA.
+    availabilityStatus: "REJECTED",
+    consultationCapacity: null,
+    acceptingRequests: false,
     avatarFile: "lawyer-demo-ali-zabihi.webp",
   },
   {
@@ -293,6 +298,80 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     acceptingRequests: false,
     avatarFile: "lawyer-demo-ali-shokri.webp",
   },
+  {
+    id: "demo-lawyer-07",
+    fullName: "فربد صالح",
+    professionalTitle: "وکیل جنایی",
+    licenseNumber: "۲۷۴۵۸",
+    licenseYear: 1393,
+    bio: "وکیل دعاوی کیفری؛ دفاع در پرونده‌های سرقت، کلاهبرداری، ضرب و جرح و جرائم اقتصادی، همراهی در مرحله تحقیقات مقدماتی و تنظیم لایحه دفاعیه در دادگاه کیفری.",
+    specializations: [
+      { category: "criminal", yearsExperience: 10 },
+      { category: "cyber", yearsExperience: 6 },
+      { category: "checks", yearsExperience: 5 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_200_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 2_000_000,
+    contractReviewFeeToman: 2_600_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 8,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-farbod-saleh.webp",
+  },
+  {
+    id: "demo-lawyer-08",
+    fullName: "فرشین گنجی",
+    professionalTitle: "وکیل مهاجرت",
+    licenseNumber: "۳۳۱۲۰",
+    licenseYear: 1395,
+    bio: "وکیل مهاجرت؛ پرونده‌های اقامت، ویزای کاری و تحصیلی، تابعیت و درخواست پناهندگی. آماده‌سازی مدارک، تنظیم لایحه و پیگیری پرونده در مراجع مهاجرتی.",
+    specializations: [
+      { category: "immigration", yearsExperience: 8 },
+      { category: "contract", yearsExperience: 5 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_000_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_800_000,
+    contractReviewFeeToman: 2_200_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 6,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-farshin-ganji.webp",
+  },
+  {
+    id: "demo-lawyer-09",
+    fullName: "مهدی اسمعیلی",
+    professionalTitle: "وکیل کار و تأمین اجتماعی",
+    licenseNumber: "۲۹۰۴۷",
+    licenseYear: 1391,
+    bio: "وکیل دعاوی کار و تأمین اجتماعی؛ مطالبه حقوق و مزایا، سنوات و عیدی، بیمه بیکاری، کمیسیون‌های تشخیص و حل اختلاف و بازنشستگی. مشاوره فقط به صورت حضوری در دفتر تهران.",
+    specializations: [
+      { category: "labor", yearsExperience: 12 },
+      { category: "contract", yearsExperience: 7 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    // In-person only — no online consultation.
+    remote: false,
+    consultationFeeToman: 950_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_700_000,
+    contractReviewFeeToman: 2_000_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 5,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-mehdi-esmaeili.webp",
+  },
 ];
 
 const PERSIAN_LANGUAGE = { code: "fa", labelFa: "فارسی", proficiency: "native" as const };
@@ -352,19 +431,32 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
 // ---------------------------------------------------------------------------
 // Demo reviews
 // ---------------------------------------------------------------------------
-// Only علی ذبیحی carries a rating (4.5 / 12 reviews) so the rated AND the
-// unrated card states are both visible. These are DEMO reviews — the
-// author is a synthetic demo user, never a real account.
+// علی ذبیحی carries 4.5 / 12 reviews and فرشین گنجی 1.0 / 5, so the rated,
+// low-rated AND unrated card states are all visible. These are DEMO reviews
+// — the author is a synthetic demo user, never a real account.
 // ---------------------------------------------------------------------------
 
 interface DemoReviewSpec {
   lawyerId: string;
   /** 1–5 ratings; the average is derived from these, never stored. */
   ratings: number[];
+  /** Optional per-review comments; falls back to the shared pool. */
+  comments?: string[];
 }
 
 const DEMO_REVIEWS: DemoReviewSpec[] = [
   { lawyerId: "demo-lawyer-01", ratings: [5, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 4] },
+  {
+    lawyerId: "demo-lawyer-08",
+    ratings: [1, 1, 1, 1, 1],
+    comments: [
+      "متأسفانه پیگیری پرونده بسیار کند بود و پاسخ‌گویی به‌موقع نداشتند.",
+      "مشاوره کوتاه و کلی بود و به جزئیات پرونده من وارد نشدند.",
+      "هزینه مشاوره با کیفیت دریافتی هم‌خوانی نداشت.",
+      "چند بار برای پیگیری تماس گرفتم و پاسخ روشنی نگرفتم.",
+      "انتظار داشتم مدارک را دقیق‌تر بررسی کنند؛ راضی نبودم.",
+    ],
+  },
 ];
 
 const DEMO_REVIEW_COMMENTS = [
@@ -383,7 +475,8 @@ function buildDemoReviews(): LawyerReviewRow[] {
         lawyerId: spec.lawyerId,
         authorUserId: `demo-user-reviewer-${i + 1}`,
         rating,
-        comment: DEMO_REVIEW_COMMENTS[i % DEMO_REVIEW_COMMENTS.length]!,
+        comment:
+          spec.comments?.[i] ?? DEMO_REVIEW_COMMENTS[i % DEMO_REVIEW_COMMENTS.length]!,
         createdAt: SEEDED_AT,
       });
     });

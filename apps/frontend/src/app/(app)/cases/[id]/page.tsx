@@ -82,7 +82,7 @@ function TaskCard({ task }: { task: CaseTask }) {
   return (
     <div className={`flex items-center gap-3 p-3 py-4 rounded-xl border border-divider/60 ${task.status === "done" ? "opacity-60" : ""}`}>
       {task.status !== "done" ? (
-        <input type="checkbox" defaultChecked={false} className="h-5 w-5 rounded border-divider accent-primary cursor-pointer" />
+        <Checkbox aria-label={task.title} />
       ) : (
         <span className="h-5 w-5 flex items-center justify-center text-green-600">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

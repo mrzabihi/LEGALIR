@@ -13,9 +13,17 @@
 "use client";
 
 import React from "react";
-import { TextField, Select, Switch, RadioGroup, Button } from "@legalir/ui";
+import {
+  TextField,
+  Select,
+  Switch,
+  RadioGroup,
+  Button,
+  NumberField as NumberFieldUI,
+  MoneyField as MoneyFieldUI,
+} from "@legalir/ui";
 import { JalaliDatePicker } from "@/components/shared/JalaliDatePicker";
-import { formatToman, parseTomanInput, toToman } from "@/lib/contracts/money";
+import { toman, toToman } from "@/lib/contracts/money";
 import { isoToJalaliString, jalaliStringToIso } from "@/lib/contracts/dates";
 import type { Money } from "@legalir/types";
 
@@ -130,20 +138,14 @@ export function NumberField({
   disabled?: boolean;
 }) {
   return (
-    <TextField
+    <NumberFieldUI
       fullWidth
       label={label}
-      value={value === null ? "" : String(value)}
-      onChange={(e) => {
-        const raw = e.target.value.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
-        if (raw.trim() === "") return onChange(null);
-        const n = Number(raw);
-        if (!Number.isFinite(n)) return;
-        onChange(Math.max(min, n));
-      }}
+      value={value}
+      onChange={onChange}
+      min={min}
       placeholder={placeholder}
       helperText={suffix ? (helperText ? `${helperText} — ${suffix}` : suffix) : helperText}
-      inputMode="numeric"
       disabled={disabled}
     />
   );
@@ -251,14 +253,26 @@ export function DateField({
   value,
   onChange,
   helperText,
+  errorMessage,
   disabled,
+  minYear,
+  maxYear,
+  defaultYear,
 }: {
   /** ISO Gregorian value, or null. */
   label: string;
   value: string | null;
   onChange: (iso: string | null) => void;
   helperText?: string;
+  /** Validation message — turns the control red and replaces the helper. */
+  errorMessage?: string;
   disabled?: boolean;
+  /** Earliest selectable Jalali year. Omit for the default (1300). */
+  minYear?: number;
+  /** Latest selectable Jalali year. Omit for the default (1450). */
+  maxYear?: number;
+  /** Resting year when empty. Omit for the default (1405). */
+  defaultYear?: number;
 }) {
   return (
     <div className="space-y-1.5">
@@ -267,8 +281,14 @@ export function DateField({
         value={isoToJalaliString(value)}
         onChange={(jalali) => onChange(jalaliStringToIso(jalali))}
         disabled={disabled}
+        minYear={minYear}
+        maxYear={maxYear}
+        defaultYear={defaultYear}
+        errorMessage={errorMessage}
       />
-      {helperText && <p className="text-caption text-muted">{helperText}</p>}
+      {helperText && !errorMessage && (
+        <p className="text-caption text-muted">{helperText}</p>
+      )}
     </div>
   );
 }
@@ -278,17 +298,20 @@ export function DateField({
 // ------------------------------------------------------------
 
 /**
- * A toman-denominated money input. The user types toman; the value
- * is stored canonically as integer rial via the central money
- * utility. The live toman preview is read back through `formatToman`
- * so there is exactly one conversion path.
+ * A toman-denominated money input. The user types toman; the value is
+ * stored canonically as integer rial via the central money utility.
+ *
+ * This is a thin adapter over the shared `MoneyField` from the design
+ * system — the live grouping, the unit suffix and the «… تومان» words
+ * line all come from there, so there is exactly one formatting path
+ * for the whole product.
  */
 export function MoneyField({
   label,
   value,
   onChange,
   helperText,
-  placeholder = "مثلاً ۵۰۰,۰۰۰,۰۰۰",
+  placeholder,
   disabled,
 }: {
   label: string;
@@ -298,40 +321,17 @@ export function MoneyField({
   placeholder?: string;
   disabled?: boolean;
 }) {
-  const [text, setText] = React.useState(() => (value ? String(toToman(value)) : ""));
-
-  // Re-sync when the value changes from outside (e.g. a reset).
-  const [lastAmount, setLastAmount] = React.useState(value?.amount ?? 0);
-  if ((value?.amount ?? 0) !== lastAmount) {
-    setLastAmount(value?.amount ?? 0);
-    setText(value ? String(toToman(value)) : "");
-  }
-
-  const parsed = parseTomanInput(text);
-  const invalid = text.trim().length > 0 && parsed === null;
-
   return (
-    <div className="space-y-1">
-      <TextField
-        fullWidth
-        label={label}
-        value={text}
-        onChange={(e) => {
-          const next = e.target.value;
-          setText(next);
-          const money = parseTomanInput(next);
-          onChange(money);
-        }}
-        placeholder={placeholder}
-        inputMode="numeric"
-        errorText={invalid ? "مبلغ وارد‌شده معتبر نیست" : undefined}
-        helperText={helperText}
-        disabled={disabled}
-      />
-      {parsed && parsed.amount > 0 && (
-        <p className="text-caption text-primary px-3">{formatToman(parsed)}</p>
-      )}
-    </div>
+    <MoneyFieldUI
+      fullWidth
+      label={label}
+      unit="IRT"
+      value={value ? toToman(value) : null}
+      onChange={(next) => onChange(next === null ? null : toman(next))}
+      helperText={helperText}
+      placeholder={placeholder}
+      disabled={disabled}
+    />
   );
 }
 

@@ -26,9 +26,9 @@
 
 import Link from "next/link";
 import type { LawyerListItem } from "@legalir/types";
-import { IconCheckCircle, IconClock, IconLocation } from "@/lib/icons";
+import { IconCheckCircle, IconClock, IconError, IconLocation } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { availabilityView } from "@/lib/lawyers/availability";
+import { availabilityView, REJECTED_REASON_FA } from "@/lib/lawyers/availability";
 import { LawyerAvatar } from "./lawyer-avatar";
 import { LawyerRating } from "./lawyer-rating";
 import { LawyerAvailabilityBadge } from "./lawyer-availability-badge";
@@ -57,9 +57,19 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
   const years = yearsOfExperience(lawyer);
   const location = lawyer.locations[0];
   const duration = lawyer.pricing.consultationDurationMinutes;
+  // A lawyer removed by LEGALIR review is shown in a red treatment so the
+  // card can never be mistaken for a bookable profile.
+  const rejected = view.tone === "rejected";
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-divider/60 bg-surface p-5 shadow-sm transition-all duration-200 hover:shadow-elevation-2">
+    <div
+      className={[
+        "group relative flex flex-col overflow-hidden rounded-2xl border p-5 shadow-sm transition-all duration-200",
+        rejected
+          ? "border-error-200 bg-error-50 hover:shadow-elevation-2"
+          : "border-divider/60 bg-surface hover:shadow-elevation-2",
+      ].join(" ")}
+    >
       <LawyerSpecialtyWatermark category={lawyer.specializations[0]?.category} />
 
       <div className="relative flex flex-col gap-4">
@@ -152,31 +162,43 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
           )}
         </div>
 
-        <div className="flex flex-col gap-2 mobile-l:flex-row">
-          <Link
-            href={`/lawyers/${lawyer.id}`}
-            className="flex-1 rounded-xl border border-divider/60 bg-surface px-4 py-2.5 text-center text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        {rejected ? (
+          // Terminal state: no profile link, no request CTA — just the
+          // reason, in red, so the card cannot invite an action.
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-4 py-2.5 text-center text-button font-medium text-error-700"
           >
-            مشاهده پروفایل
-          </Link>
-          {view.canRequest ? (
+            <IconError size={16} className="shrink-0" aria-hidden="true" />
+            {REJECTED_REASON_FA}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 mobile-l:flex-row">
             <Link
-              href={`/new?lawyerId=${lawyer.id}`}
-              className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-[0.98]"
+              href={`/lawyers/${lawyer.id}`}
+              className="flex-1 rounded-xl border border-divider/60 bg-surface px-4 py-2.5 text-center text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              {view.ctaLabel}
+              مشاهده پروفایل
             </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              className="flex-1 cursor-not-allowed rounded-xl bg-surface-container px-4 py-2.5 text-center text-button font-medium text-muted"
-            >
-              {view.ctaLabel}
-            </button>
-          )}
-        </div>
+            {view.canRequest ? (
+              <Link
+                href={`/new?lawyerId=${lawyer.id}`}
+                className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-[0.98]"
+              >
+                {view.ctaLabel}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="flex-1 cursor-not-allowed rounded-xl bg-surface-container px-4 py-2.5 text-center text-button font-medium text-muted"
+              >
+                {view.ctaLabel}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -123,10 +123,15 @@ function PartyForm({ role }: { role: PartyRole }) {
         />
       </FieldGrid>
 
+      {/* Birth date is historical: the year list must reach back, and the
+          picker rests on a plausible birth year rather than 1405. */}
       <DateField
         label="تاریخ تولد"
         value={identity.birthDate}
         onChange={(iso) => set("birthDate", iso)}
+        minYear={1300}
+        maxYear={1405}
+        defaultYear={1365}
       />
 
       <Field
