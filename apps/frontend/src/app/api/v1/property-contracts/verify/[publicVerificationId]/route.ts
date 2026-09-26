@@ -16,7 +16,9 @@ import { notFound, ok } from "@/lib/contracts/api-helpers";
 import { getContractByPublicId, getVersion, listParties } from "@/lib/contracts/db";
 import { verificationStatusFa } from "@/lib/contracts/registration-policy";
 
-type Params = { params: Promise<{ publicVerificationId: string }> };
+interface Params {
+  params: Promise<{ publicVerificationId: string }>;
+}
 
 export async function GET(_request: Request, { params }: Params) {
   const { publicVerificationId } = await params;

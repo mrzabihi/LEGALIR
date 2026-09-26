@@ -62,7 +62,9 @@ import {
 import { activeSignatureProvider, verifyVersionIntegrity } from "@/lib/contracts/signature";
 import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 const DEFAULT_EXPIRY_HOURS = 72;
 

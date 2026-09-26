@@ -15,7 +15,6 @@ import { fixtureNotifications } from "@legalir/testing";
 import { NotificationItem } from "../notification-item";
 import { NotificationBell } from "../notification-bell";
 import NotificationsPage from "@/app/(app)/notifications/page";
-import type { NotificationItem as NotificationItemType } from "@legalir/types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn(), replace: vi.fn() }),

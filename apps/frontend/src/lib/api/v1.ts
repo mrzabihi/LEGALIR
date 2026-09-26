@@ -676,7 +676,7 @@ export function fetchOnboarding(): Promise<OnboardingState> {
 }
 
 export interface OrganizationListResponse {
-  items: Array<{ org: Organization; role: string }>;
+  items: { org: Organization; role: string }[];
 }
 
 export function fetchOrganizations(): Promise<OrganizationListResponse> {

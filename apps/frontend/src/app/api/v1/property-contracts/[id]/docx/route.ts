@@ -21,7 +21,9 @@ import {
 import { getVersion, listVersions } from "@/lib/contracts/db";
 import { renderContractDocx } from "@/lib/contracts/docx";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;

@@ -16,7 +16,9 @@ import { computeCompleteness } from "@/lib/contracts/completeness";
 import { buildLifecycleView } from "@/lib/contracts/lifecycle-view";
 import { contractFeatureFlags } from "@/lib/contracts/feature-flags";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;

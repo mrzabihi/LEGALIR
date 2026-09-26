@@ -8,6 +8,7 @@ const cspScriptSrc = isDev
   : "'self' 'unsafe-inline'";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
 

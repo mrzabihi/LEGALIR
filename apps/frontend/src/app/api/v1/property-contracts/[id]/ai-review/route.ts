@@ -31,7 +31,9 @@ import { insertAiReview, latestAiReview } from "@/lib/contracts/review-db";
 import { partyRoleLabelFa } from "@/lib/contracts/registry";
 import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 interface AiReviewBody {
   perspectiveRole?: PartyRole;

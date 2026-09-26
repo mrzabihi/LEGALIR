@@ -205,7 +205,7 @@ describe("template categories", () => {
 describe("ContractTemplateGrid (SECTION 1)", () => {
   it("renders a card per implemented template with a «شروع» action", () => {
     render(
-      <ContractTemplateGrid query="" category="all" onStart={() => {}} />
+      <ContractTemplateGrid query="" category="all" onStart={() => undefined} />
     );
     // Every implemented definition is present.
     expect(screen.getByText("رهن و اجاره ملک مسکونی")).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe("ContractTemplateGrid (SECTION 1)", () => {
 
   it("filters by category", () => {
     render(
-      <ContractTemplateGrid query="" category="business" onStart={() => {}} />
+      <ContractTemplateGrid query="" category="business" onStart={() => undefined} />
     );
     expect(screen.getByText("توافقنامه محرمانگی (NDA)")).toBeInTheDocument();
     expect(screen.queryByText("رهن و اجاره ملک مسکونی")).not.toBeInTheDocument();
@@ -223,7 +223,7 @@ describe("ContractTemplateGrid (SECTION 1)", () => {
 
   it("filters by the shared search query", () => {
     render(
-      <ContractTemplateGrid query="محرمانگی" category="all" onStart={() => {}} />
+      <ContractTemplateGrid query="محرمانگی" category="all" onStart={() => undefined} />
     );
     expect(screen.getByText("توافقنامه محرمانگی (NDA)")).toBeInTheDocument();
     expect(screen.queryByText("رهن و اجاره ملک مسکونی")).not.toBeInTheDocument();
@@ -253,8 +253,8 @@ describe("MyContractsSection (SECTION 2)", () => {
       <MyContractsSection
         contracts={[draft, finalized]}
         isLoading={false}
-        onDelete={() => {}}
-        onCopyId={() => {}}
+        onDelete={() => undefined}
+        onCopyId={() => undefined}
         query=""
       />
     );
@@ -266,8 +266,8 @@ describe("MyContractsSection (SECTION 2)", () => {
       <MyContractsSection
         contracts={[finalized]}
         isLoading={false}
-        onDelete={() => {}}
-        onCopyId={() => {}}
+        onDelete={() => undefined}
+        onCopyId={() => undefined}
         query=""
       />
     );
@@ -279,8 +279,8 @@ describe("MyContractsSection (SECTION 2)", () => {
       <MyContractsSection
         contracts={[]}
         isLoading={false}
-        onDelete={() => {}}
-        onCopyId={() => {}}
+        onDelete={() => undefined}
+        onCopyId={() => undefined}
         query=""
       />
     );
@@ -292,8 +292,8 @@ describe("MyContractsSection (SECTION 2)", () => {
       <MyContractsSection
         contracts={[draft]}
         isLoading={false}
-        onDelete={() => {}}
-        onCopyId={() => {}}
+        onDelete={() => undefined}
+        onCopyId={() => undefined}
         query="چیزی که وجود ندارد"
       />
     );
@@ -305,8 +305,8 @@ describe("MyContractsSection (SECTION 2)", () => {
       <MyContractsSection
         contracts={[draft, finalized]}
         isLoading={false}
-        onDelete={() => {}}
-        onCopyId={() => {}}
+        onDelete={() => undefined}
+        onCopyId={() => undefined}
         query=""
       />
     );
@@ -324,7 +324,7 @@ describe("template card vs user card", () => {
     render(
       <ContractTemplateCard
         definition={getContractDefinition("property_rent")}
-        onStart={() => {}}
+        onStart={() => undefined}
       />
     );
     expect(screen.getByText("شروع")).toBeInTheDocument();
@@ -333,7 +333,7 @@ describe("template card vs user card", () => {
 
   it("a user card leads with status, progress and a resume verb", () => {
     const contract = toUnifiedPropertyContract(makeProperty());
-    render(<UserContractCard contract={contract} onCopyId={() => {}} />);
+    render(<UserContractCard contract={contract} onCopyId={() => undefined} />);
     // Status label, real progress and the status-specific action.
     expect(screen.getByText("پیش‌نویس")).toBeInTheDocument();
     expect(screen.getByText("40٪")).toBeInTheDocument();
@@ -368,8 +368,8 @@ describe("ContractWorkspaceHeader", () => {
         stepCount={5}
         saveStatus="idle"
         lastSavedAt={null}
-        onRetrySave={() => {}}
-        onCopyId={() => {}}
+        onRetrySave={() => undefined}
+        onCopyId={() => undefined}
         {...overrides}
       />
     );

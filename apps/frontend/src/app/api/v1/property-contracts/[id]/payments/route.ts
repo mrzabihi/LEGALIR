@@ -19,7 +19,9 @@ import {
 import { listPayments, replacePayments } from "@/lib/contracts/db";
 import { isEditable } from "@/lib/contracts/state-machine";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 const METHODS: PaymentMethod[] = ["bank_transfer", "card", "check", "sadad_check", "other"];
 const STATUSES: ContractPaymentStatus[] = ["pending", "paid", "overdue", "cancelled"];

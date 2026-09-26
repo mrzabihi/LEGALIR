@@ -48,7 +48,9 @@ import { computeCompleteness } from "@/lib/contracts/completeness";
 import { assertTransition, IllegalTransitionError, isEditable } from "@/lib/contracts/state-machine";
 import { getWizardStep } from "@/lib/contracts/registry";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 /**
  * Assemble the full detail aggregate for a contract.

@@ -34,7 +34,7 @@ export function DocumentViewer({
   documentId,
   fileName,
   mime,
-  sizeBytes,
+  sizeBytes: _sizeBytes,
 }: DocumentViewerProps) {
   const { data: preview, isLoading, isError, error, refetch } = useDocumentPreview(documentId);
 

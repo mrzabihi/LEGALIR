@@ -47,7 +47,9 @@ import {
 import { listLawyerProfiles } from "@/lib/lawyer-db";
 import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 const DEFAULT_SLA_HOURS = 48;
 

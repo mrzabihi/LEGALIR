@@ -20,7 +20,9 @@ import {
 import { getVersion, listVersions } from "@/lib/contracts/db";
 import { renderContractPdf } from "@/lib/contracts/pdf";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;

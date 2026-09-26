@@ -56,7 +56,7 @@ function makeDocument(
 
 describe("PropertyContractCard — draft actions", () => {
   it("shows Continue/Edit and Delete Draft for a draft", () => {
-    render(<PropertyContractCard contract={makeContract()} onDelete={() => {}} />);
+    render(<PropertyContractCard contract={makeContract()} onDelete={() => undefined} />);
     expect(screen.getByText("ادامه / ویرایش")).toBeInTheDocument();
     expect(screen.getByText("حذف پیش‌نویس")).toBeInTheDocument();
   });
@@ -83,7 +83,7 @@ describe("PropertyContractCard — draft actions", () => {
     render(
       <PropertyContractCard
         contract={makeContract({ state: "FINALIZED", stateFa: "نهایی‌شده" })}
-        onDelete={() => {}}
+        onDelete={() => undefined}
       />
     );
     expect(screen.queryByText("حذف پیش‌نویس")).not.toBeInTheDocument();
@@ -94,7 +94,7 @@ describe("DocumentCard — delete action", () => {
   it("shows a delete action that opens confirmation (not a direct delete)", () => {
     const onDelete = vi.fn();
     const doc = makeDocument();
-    render(<DocumentCard document={doc} onClick={() => {}} onDelete={onDelete} />);
+    render(<DocumentCard document={doc} onClick={() => undefined} onDelete={onDelete} />);
     const btn = screen.getByRole("button", { name: /حذف سند/ });
     fireEvent.click(btn);
     expect(onDelete).toHaveBeenCalledTimes(1);
@@ -109,7 +109,7 @@ describe("DocumentCard — delete action", () => {
   });
 
   it("omits the delete action when no handler is provided", () => {
-    render(<DocumentCard document={makeDocument()} onClick={() => {}} />);
+    render(<DocumentCard document={makeDocument()} onClick={() => undefined} />);
     expect(screen.queryByRole("button", { name: /حذف سند/ })).not.toBeInTheDocument();
   });
 });

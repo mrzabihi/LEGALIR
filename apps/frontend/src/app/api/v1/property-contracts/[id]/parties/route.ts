@@ -20,7 +20,9 @@ import { listParties, upsertParty } from "@/lib/contracts/db";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import { isEditable } from "@/lib/contracts/state-machine";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 const CAPACITIES: PartyCapacity[] = ["owner", "attorney", "legal_representative"];
 

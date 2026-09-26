@@ -30,7 +30,9 @@ import {
   updateInvitation,
 } from "@/lib/contracts/signature/db";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 const DEFAULT_EXPIRY_HOURS = 72;
 

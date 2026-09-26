@@ -473,7 +473,6 @@ export default function AccountHubPage() {
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
   const accountType = me.data?.user?.accountType ?? "individual";
-  const accountTypeLocked = me.data?.user?.accountTypeLocked ?? accountType === "legal";
   // Platform account type (PERSONAL | LAWYER | BUSINESS). Falls back to the
   // legacy field for payloads that predate the platform model.
   const platformAccountType: PlatformAccountType =

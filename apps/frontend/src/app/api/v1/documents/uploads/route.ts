@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { createDemoDocument, deleteDemoDocument } from "@/lib/demo-seed";
 import { recordActivity } from "@/lib/db";
-import { reserveUsage, reverseUsage, getUsageSummary } from "@/lib/usage/engine";
+import { reserveUsage, getUsageSummary } from "@/lib/usage/engine";
 import { SUPPORTED_DOCUMENT_MIMES, MAX_DOCUMENT_SIZE_BYTES } from "@legalir/types";
 
 export async function POST(request: Request) {
