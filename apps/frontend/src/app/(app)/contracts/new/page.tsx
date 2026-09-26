@@ -13,8 +13,8 @@
 
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { IconArrowBack, IconArrowForward, IconContract, IconHome } from "@/lib/icons";
 import { implementedContractDefinitions } from "@/lib/contracts/registry";
@@ -29,27 +29,49 @@ const ICONS: Record<string, React.ReactNode> = {
 
 export default function ContractCenterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const create = useCreatePropertyContract();
   const [error, setError] = useState<string | null>(null);
   const [pendingType, setPendingType] = useState<ContractTypeId | null>(null);
 
   const definitions = implementedContractDefinitions();
 
-  async function start(typeId: ContractTypeId) {
-    setError(null);
-    setPendingType(typeId);
-    try {
-      const created = await create.mutateAsync({
-        type: typeId as PropertyContractType,
-        propertyKind: DEFAULT_PROPERTY_KIND,
-        initiatorRole: definitions.find((d) => d.id === typeId)!.defaultInitiatorRole,
-      });
-      router.push(`/contracts/${created.id}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "ایجاد قرارداد ناموفق بود");
-      setPendingType(null);
-    }
-  }
+  const start = useCallback(
+    async (typeId: ContractTypeId) => {
+      setError(null);
+      setPendingType(typeId);
+      try {
+        const created = await create.mutateAsync({
+          type: typeId as PropertyContractType,
+          propertyKind: DEFAULT_PROPERTY_KIND,
+          initiatorRole: definitions.find((d) => d.id === typeId)!.defaultInitiatorRole,
+        });
+        router.push(`/contracts/${created.id}`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "ایجاد قرارداد ناموفق بود");
+        setPendingType(null);
+      }
+    },
+    [create, definitions, router]
+  );
+
+  // Deep-link support: `/contracts/new?type=nda` (used by the /services
+  // catalog and the NDA campaign banner) starts that contract straight
+  // away, so the link lands the user in the wizard rather than on a
+  // picker they have to navigate again. A missing or unknown `type`
+  // falls through to the normal picker. The ref guards against
+  // StrictMode double-invoking the effect and creating two drafts.
+  const autoStarted = useRef(false);
+  const requestedType = searchParams.get("type");
+
+  useEffect(() => {
+    if (autoStarted.current) return;
+    if (!requestedType) return;
+    const match = definitions.find((d) => d.id === requestedType);
+    if (!match) return;
+    autoStarted.current = true;
+    void start(match.id);
+  }, [requestedType, definitions, start]);
 
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto" dir="rtl">
