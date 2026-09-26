@@ -1,14 +1,19 @@
 {
-  "name": "LEGALIR",
-  "short_name": "LEGALIR",
-  "description": "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
-  "start_url": "/",
+  "id": "/",
+  "name": "لیگالیر | دستیار هوشمند حقوقی ایران",
+  "short_name": "لیگالیر",
+  "description": "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران — مشاوره حقوقی، تحلیل اسناد و تولید قرارداد با هوش مصنوعی",
+  "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0F172A",
   "theme_color": "#162033",
   "orientation": "any",
   "lang": "fa-IR",
   "dir": "rtl",
+  "categories": ["business", "productivity", "education"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
@@ -23,16 +28,39 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
+      "src": "/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "مشاوره حقوقی",
+      "short_name": "مشاوره",
+      "description": "شروع گفتگوی حقوقی با هوش مصنوعی",
+      "url": "/chat/new",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "تحلیل سند",
+      "short_name": "تحلیل سند",
+      "description": "بارگذاری و تحلیل هوشمند اسناد حقوقی",
+      "url": "/documents/upload",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "تولید قرارداد",
+      "short_name": "قرارداد",
+      "description": "ساخت پیش‌نویس قرارداد شخصی‌سازی‌شده",
+      "url": "/contracts/new",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
