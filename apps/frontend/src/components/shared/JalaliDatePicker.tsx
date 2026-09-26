@@ -177,9 +177,12 @@ export function JalaliDatePicker({
 
   return (
     <div className={`flex flex-col gap-2 ${className}`} dir="rtl">
-      <div className="flex items-start gap-2">
+      {/* The three selects share one row; the «اعمال» button wraps onto
+          its own full-width line on narrow screens so it is never pushed
+          off the edge of a phone viewport. */}
+      <div className="flex flex-wrap items-start gap-2">
         {/* Day */}
-        <div className="w-[92px] shrink-0">
+        <div className="w-[72px] shrink-0 tablet:w-[92px]">
           <Select
             label="روز"
             value={String(effectiveDay)}
@@ -193,7 +196,7 @@ export function JalaliDatePicker({
         </div>
 
         {/* Month */}
-        <div className="min-w-[112px] flex-1">
+        <div className="min-w-[96px] flex-1 tablet:min-w-[112px]">
           <Select
             label="ماه"
             value={String(month)}
@@ -207,7 +210,7 @@ export function JalaliDatePicker({
         </div>
 
         {/* Year */}
-        <div className="w-[104px] shrink-0">
+        <div className="w-[84px] shrink-0 tablet:w-[104px]">
           <Select
             label="سال"
             value={String(year)}
@@ -224,7 +227,7 @@ export function JalaliDatePicker({
           type="button"
           onClick={apply}
           disabled={disabled}
-          className="mt-1 shrink-0 rounded-medium border border-primary/40 px-3 py-2 text-caption text-primary transition-colors hover:bg-primary-50 touch-target disabled:opacity-50"
+          className="mt-1 w-full shrink-0 rounded-medium border border-primary/40 px-3 py-2 text-caption text-primary transition-colors hover:bg-primary-50 touch-target disabled:opacity-50 tablet:w-auto"
         >
           اعمال
         </button>

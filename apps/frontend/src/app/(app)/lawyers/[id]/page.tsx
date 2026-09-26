@@ -11,8 +11,8 @@
 import { use } from "react";
 import Link from "next/link";
 import { useLawyer } from "@/hooks/useLawyers";
+import { LawyerAvatar } from "@/components/lawyers";
 import {
-  IconPerson,
   IconStar,
   IconCheckCircle,
   IconInfo,
@@ -23,7 +23,7 @@ import {
 } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { REJECTED_REASON_FA } from "@/lib/lawyers/availability";
-import { LEGAL_CATEGORY_FA } from "@legalir/types";
+import { specialtyLabel } from "@/lib/lawyers/specialty";
 
 const WEEKDAY_FA = ["شنبه", "یک‌شنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه"];
 
@@ -79,9 +79,12 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
       <div className="relative mb-6 overflow-hidden rounded-2xl border border-divider/60 bg-surface p-6 shadow-sm">
         <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-primary-600 to-primary-800" />
         <div className="flex flex-col gap-4 tablet:flex-row tablet:items-start">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <IconPerson size={40} />
-          </div>
+          <LawyerAvatar
+            name={lawyer.fullName}
+            avatarUrl={lawyer.avatarUrl}
+            avatarType={lawyer.avatarType}
+            size={72}
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-h2 text-on-surface">{lawyer.fullName}</h1>
@@ -148,7 +151,7 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
                   key={s.category}
                   className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-caption text-primary-700"
                 >
-                  {LEGAL_CATEGORY_FA[s.category] ?? s.category} · {toPersianNumber(s.yearsExperience)} سال
+                  {specialtyLabel(s.category)} · {toPersianNumber(s.yearsExperience)} سال
                 </span>
               ))}
             </div>

@@ -6,7 +6,24 @@
 // ============================================================
 
 import { useState } from "react";
+import { Tabs } from "@legalir/ui";
 import { AiAssistantPanel } from "@/components/assistant";
+
+// ============================================================
+// Mobile section tabs
+// ============================================================
+// On phones the three support surfaces (FAQ, contact, AI chat) used to
+// stack into one ~1800px scroll with no separation. Below `desktop` they
+// become mutually-exclusive tabs; at `desktop` and up the tab bar is
+// hidden and the original two-column grid returns.
+
+type SupportTab = "faq" | "contact" | "chat";
+
+const SUPPORT_TABS: { value: SupportTab; label: string }[] = [
+  { value: "faq", label: "سوالات متداول" },
+  { value: "contact", label: "تماس با ما" },
+  { value: "chat", label: "چت هوشمند" },
+];
 
 // ============================================================
 // FAQ Data
@@ -57,16 +74,32 @@ const FAQ_ITEMS = [
 
 export default function SupportPage() {
   const [openFaq, setOpenFaq] = useState<string | null>("q1");
+  const [tab, setTab] = useState<SupportTab>("faq");
 
   return (
     <div className="p-4 tablet:p-6 max-w-5xl mx-auto" dir="rtl">
       <h1 className="text-h2 text-on-surface mb-6 font-bold">پشتیبانی و راهنما</h1>
 
+      {/* Mobile/tablet: one section at a time. Hidden at desktop, where the
+          two-column grid below shows everything at once. */}
+      <div className="desktop:hidden mb-6">
+        <Tabs
+          tabs={SUPPORT_TABS}
+          value={tab}
+          onChange={(v) => setTab(v as SupportTab)}
+          fullWidth
+        />
+      </div>
+
       <div className="grid desktop:grid-cols-5 gap-6">
         {/* Left column: FAQ + Contact */}
         <div className="desktop:col-span-3 space-y-6">
           {/* FAQ Section */}
-          <section className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60">
+          <section
+            className={`rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 ${
+              tab === "faq" ? "" : "hidden desktop:block"
+            }`}
+          >
             <h2 className="text-h3 text-on-surface mb-4 font-bold">سوالات متداول</h2>
             <div className="space-y-2">
               {FAQ_ITEMS.map((faq) => {
@@ -111,7 +144,11 @@ export default function SupportPage() {
           </section>
 
           {/* Contact Info */}
-          <section className="rounded-2xl bg-surface p-6 shadow-sm border border-divider/60">
+          <section
+            className={`rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 ${
+              tab === "contact" ? "" : "hidden desktop:block"
+            }`}
+          >
             <h2 className="text-h3 text-on-surface mb-4 font-bold">تماس با ما</h2>
             <div className="grid tablet:grid-cols-2 gap-4">
               <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container/50 border border-divider/30">
@@ -169,7 +206,7 @@ export default function SupportPage() {
         </div>
 
         {/* Right column: AI Assistant */}
-        <div className="desktop:col-span-2">
+        <div className={`desktop:col-span-2 ${tab === "chat" ? "" : "hidden desktop:block"}`}>
           <div className="rounded-2xl bg-surface shadow-sm border border-divider/60 overflow-hidden min-h-[500px]">
             <AiAssistantPanel pageContext="support" mode="page" />
           </div>

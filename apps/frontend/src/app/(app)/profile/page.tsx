@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useMe, useUpdateProfile, useDailyQuota } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
@@ -31,7 +31,7 @@ import {
   IconPhone,
   IconPerson,
   IconCheck,
-  IconClose,
+  IconEdit,
   IconArrowBack,
   IconStar,
   IconLawBook,
@@ -119,6 +119,50 @@ function persianCount(n: number | undefined): string {
 }
 
 // ============================================================
+// Profile draft — the editable slice of the profile
+// ============================================================
+// One flat object holds every field the «جزئیات پروفایل» section can
+// change. Seeding it from the server profile and comparing it back is
+// what tells the section whether the ویرایش button should read ذخیره.
+
+interface ProfileDraft {
+  firstName: string;
+  familyName: string;
+  email: string;
+  gender: string;
+  birthDate: string;
+  city: string;
+  occupation: string;
+  userType: string;
+  province: string;
+  legalInterests: string[];
+  primaryUseCase: string;
+}
+
+const EMPTY_DRAFT: ProfileDraft = {
+  firstName: "", familyName: "", email: "", gender: "", birthDate: "",
+  city: "", occupation: "", userType: "", province: "",
+  legalInterests: [], primaryUseCase: "",
+};
+
+function draftFromProfile(profile: Profile | null): ProfileDraft {
+  const { firstName, familyName } = splitDisplayName(profile?.displayName ?? null);
+  return {
+    firstName,
+    familyName,
+    email: profile?.email ?? "",
+    gender: profile?.gender ?? "",
+    birthDate: profile?.birthDate ?? "",
+    city: profile?.city ?? "",
+    occupation: profile?.occupation ?? "",
+    userType: profile?.userType ?? "",
+    province: profile?.province ?? "",
+    legalInterests: profile?.legalInterests ?? [],
+    primaryUseCase: profile?.primaryUseCase ?? "",
+  };
+}
+
+// ============================================================
 // Circular Progress Ring
 // ============================================================
 
@@ -140,245 +184,150 @@ function CircularRing({ pct, size = 64, strokeWidth = 5, color }: {
 }
 
 // ============================================================
-// Inline Editable Field
+// Profile detail rows — read / edit
 // ============================================================
+// The whole «جزئیات پروفایل» section shares ONE edit mode: a single
+// ویرایش/ذخیره button in the section header flips every row between a
+// read-only value and its control. There are no per-field pencils —
+// the section is the unit of editing, so the user reviews all changes
+// together and saves them in one request.
 
-function EditableField({ label, value, placeholder, onSave }: {
-  label: string; value: string; placeholder: string; onSave: (v: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-
-  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
-  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
-
-  const handleSave = useCallback(async () => {
-    const trimmed = draft.trim();
-    if (trimmed === value || saving) return;
-    setSaving(true);
-    try { await onSave(trimmed); setEditing(false); }
-    finally { setSaving(false); }
-  }, [draft, value, saving, onSave]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSave();
-    if (e.key === "Escape") handleCancel();
-  }, [handleSave, handleCancel]);
-
+/** One label/value row. Stacks on mobile, two columns from tablet up. */
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
-      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
-      {editing ? (
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <div className="w-full max-w-[200px]">
-            <TextField
-              label={label}
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={saving}
-              placeholder={placeholder}
-              inputSize="small"
-              autoFocus
-              fullWidth
-            />
-          </div>
-          <button onClick={handleSave} disabled={saving || draft.trim() === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
-          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-onSurface">{value || <span className="text-neutral-300">{placeholder}</span>}</dd>
-          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
-      )}
+    <div className="grid grid-cols-1 gap-1.5 py-3 border-b border-divider/60 last:border-b-0 tablet:grid-cols-[7rem_1fr] tablet:items-center tablet:gap-3">
+      <dt className="text-body-2 text-muted">{label}</dt>
+      <dd className="min-w-0 tablet:flex tablet:justify-end">{children}</dd>
     </div>
   );
 }
 
-function GenderEditableField({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  const displayLabel = GENDER_OPTIONS.find((o) => o.value === value)?.label ?? "انتخاب نشده";
-
-  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
-  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
-  const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
-
+/** Read-mode value with a muted placeholder fallback. */
+function ReadValue({ value, placeholder }: { value: string; placeholder: string }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
-      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
+    <span className="text-body-2 text-onSurface break-words">
+      {value || <span className="text-neutral-300">{placeholder}</span>}
+    </span>
+  );
+}
+
+/** A text row — a value in read mode, a TextField in edit mode. */
+function TextRow({ label, value, placeholder, editing, onChange, inputDir }: {
+  label: string; value: string; placeholder: string; editing: boolean;
+  onChange: (v: string) => void; inputDir?: "ltr" | "rtl";
+}) {
+  return (
+    <FieldRow label={label}>
       {editing ? (
-        <div className="flex items-center gap-2 flex-1 justify-end">
+        <div className="w-full tablet:max-w-[240px]">
+          <TextField
+            label={label}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            inputSize="small"
+            inputDir={inputDir}
+            fullWidth
+          />
+        </div>
+      ) : (
+        <ReadValue value={value} placeholder={placeholder} />
+      )}
+    </FieldRow>
+  );
+}
+
+/** A select row (gender / user type / province / primary use case). */
+function SelectRow({ label, value, placeholder, options, editing, onChange }: {
+  label: string; value: string; placeholder: string;
+  options: readonly { value: string; label: string }[];
+  editing: boolean; onChange: (v: string) => void;
+}) {
+  const displayLabel = options.find((o) => o.value === value)?.label ?? "";
+  return (
+    <FieldRow label={label}>
+      {editing ? (
+        <div className="w-full tablet:max-w-[240px]">
           <Select
             label={label}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={saving}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
             selectSize="small"
-            className="w-full max-w-[200px]"
-            options={GENDER_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+            fullWidth
+            options={options.map((opt) => ({ value: opt.value, label: opt.label }))}
           />
-          <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
-          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-onSurface">{value ? displayLabel : <span className="text-neutral-300">انتخاب نشده</span>}</dd>
-          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
+        <ReadValue value={displayLabel} placeholder={placeholder} />
       )}
-    </div>
+    </FieldRow>
   );
 }
 
-function DateEditableField({ label, value, placeholder, onSave }: {
-  label: string; value: string; placeholder: string; onSave: (v: string) => void;
+/** Birth date row — Jalali picker in edit mode, long date in read mode. */
+function DateRow({ label, value, placeholder, editing, onChange }: {
+  label: string; value: string; placeholder: string;
+  editing: boolean; onChange: (v: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-
-  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
-  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
-  const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
-
   const parsed = value ? /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value.trim()) : null;
   const displayValue = parsed
     ? formatJalaliLong(parseInt(parsed[1]!, 10), parseInt(parsed[2]!, 10), parseInt(parsed[3]!, 10))
     : "";
-
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
-      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
+    <FieldRow label={label}>
       {editing ? (
-        <div className="flex items-center gap-2 flex-1 justify-end">
+        <div className="w-full tablet:max-w-[360px]">
           {/* Birth date is historical — the year list reaches back and
               rests on a plausible birth year, not the contract default. */}
           <JalaliDatePicker
-            value={draft}
-            onChange={setDraft}
-            disabled={saving}
+            value={value}
+            onChange={onChange}
             minYear={1300}
             maxYear={1405}
             defaultYear={1365}
+            showSelected={false}
           />
-          <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
-          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-onSurface">{displayValue || <span className="text-neutral-300">{placeholder}</span>}</dd>
-          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
+        <ReadValue value={displayValue} placeholder={placeholder} />
       )}
-    </div>
+    </FieldRow>
   );
 }
 
-// ============================================================
-// Select-based editable field (extended profile)
-// ============================================================
-
-function SelectEditableField({ label, value, placeholder, options, onSave }: {
-  label: string;
-  value: string;
-  placeholder: string;
-  options: readonly { value: string; label: string }[];
-  onSave: (v: string) => void;
+/** Multi-select chips (legalInterests) — interactive only in edit mode. */
+function ChipsRow({ label, value, options, editing, onChange }: {
+  label: string; value: string[]; options: readonly string[];
+  editing: boolean; onChange: (v: string[]) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  const displayLabel = options.find((o) => o.value === value)?.label ?? "";
-
-  const handleEdit = useCallback(() => { setDraft(value); setEditing(true); }, [value]);
-  const handleCancel = useCallback(() => { setEditing(false); setDraft(value); }, [value]);
-  const handleSave = useCallback(async () => { if (draft === value || saving) return; setSaving(true); try { await onSave(draft); setEditing(false); } finally { setSaving(false); } }, [draft, value, saving, onSave]);
-
   return (
-    <div className="flex items-center justify-between py-3 border-b border-divider/60 group last:border-b-0">
-      <dt className="text-body-2 text-muted shrink-0 w-28">{label}</dt>
-      {editing ? (
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <Select
-            label={label}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={saving}
-            selectSize="small"
-            className="w-full max-w-[220px]"
-            options={options.map((opt) => ({ value: opt.value, label: opt.label }))}
-          />
-          <button onClick={handleSave} disabled={saving || draft === value} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-30" aria-label="ذخیره"><IconCheck size={16} /></button>
-          <button onClick={handleCancel} disabled={saving} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors" aria-label="لغو"><IconClose size={16} /></button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <dd className="text-body-2 text-onSurface">{value ? displayLabel : <span className="text-neutral-300">{placeholder}</span>}</dd>
-          <button onClick={handleEdit} className="p-1.5 rounded-lg text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary-50 transition-all" aria-label={`ویرایش ${label}`}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// Multi-select chips (legalInterests)
-// ============================================================
-
-function MultiSelectField({ label, value, options, onSave }: {
-  label: string;
-  value: string[];
-  options: readonly string[];
-  onSave: (v: string[]) => void;
-}) {
-  const [saving, setSaving] = useState(false);
-
-  const toggle = useCallback(async (opt: string) => {
-    if (saving) return;
-    const next = value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt];
-    setSaving(true);
-    try { await onSave(next); } finally { setSaving(false); }
-  }, [value, saving, onSave]);
-
-  return (
-    <div className="py-3 border-b border-divider/60 last:border-b-0">
-      <dt className="text-body-2 text-muted mb-2">{label}</dt>
-      <dd className="flex flex-wrap gap-2">
+    <FieldRow label={label}>
+      <div className="flex flex-wrap gap-2 tablet:justify-end">
         {options.map((opt) => {
           const active = value.includes(opt);
+          if (!editing) {
+            if (!active) return null;
+            return (
+              <span key={opt} className="rounded-full bg-neutral-100 px-2.5 py-1 text-caption text-onSurfaceVariant">
+                {opt}
+              </span>
+            );
+          }
           return (
             <SelectableOption
               key={opt}
               label={opt}
               selected={active}
-              disabled={saving}
-              onClick={() => toggle(opt)}
+              onClick={() => onChange(active ? value.filter((v) => v !== opt) : [...value, opt])}
             />
           );
         })}
-      </dd>
-    </div>
+        {!editing && value.length === 0 && (
+          <span className="text-body-2 text-neutral-300">انتخاب نشده</span>
+        )}
+      </div>
+    </FieldRow>
   );
 }
 
@@ -469,11 +418,15 @@ export default function AccountHubPage() {
   const memories = useMemories();
 
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Section-level edit mode: one draft holds every editable field, so the
+  // whole «جزئیات پروفایل» block is reviewed and saved as a unit.
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<ProfileDraft>(EMPTY_DRAFT);
 
   const profile = me.data?.profile ?? null;
   const mobile = me.data?.user?.mobileDisplay;
   const accountType = me.data?.user?.accountType ?? "individual";
-  const accountTypeLocked = me.data?.user?.accountTypeLocked ?? accountType === "legal";
   // Platform account type (PERSONAL | LAWYER | BUSINESS). Falls back to the
   // legacy field for payloads that predate the platform model.
   const platformAccountType: PlatformAccountType =
@@ -491,29 +444,56 @@ export default function AccountHubPage() {
   const contractCount = contracts.data?.pagination?.total ?? contracts.data?.items?.length ?? 0;
   const memoryCount = memories.data?.items?.length ?? 0;
 
-  const { firstName, familyName } = splitDisplayName(profile?.displayName ?? null);
   const completionPct = profile?.completionPercent ?? 0;
 
-  const hSaveFirstName = useCallback(
-    (v: string) => updateProfile.mutateAsync({ displayName: [v, familyName].filter(Boolean).join(" ") || null }),
-    [updateProfile, familyName],
+  // The saved profile as a draft — the read-mode source of truth and the
+  // baseline the draft is compared against.
+  const savedDraft = useMemo(() => draftFromProfile(profile), [profile]);
+
+  // The draft is seeded from the server profile whenever edit mode opens,
+  // so cancelling and re-entering always starts from the saved values.
+  const startEditing = useCallback(() => {
+    setDraft(savedDraft);
+    setEditing(true);
+  }, [savedDraft]);
+
+  const patchDraft = useCallback(
+    <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) =>
+      setDraft((d) => ({ ...d, [key]: value })),
+    [],
   );
-  const hSaveFamilyName = useCallback(
-    (v: string) => updateProfile.mutateAsync({ displayName: [firstName, v].filter(Boolean).join(" ") || null }),
-    [updateProfile, firstName],
+
+  // True once any field differs from the saved profile — drives the
+  // ویرایش → ذخیره button swap.
+  const isDirty = useMemo(
+    () => JSON.stringify(draft) !== JSON.stringify(savedDraft),
+    [draft, savedDraft],
   );
-  const hSaveCity = useCallback((v: string) => updateProfile.mutateAsync({ city: v || null }), [updateProfile]);
-  const hSaveOccupation = useCallback((v: string) => updateProfile.mutateAsync({ occupation: v || null }), [updateProfile]);
-  const hSaveEmail = useCallback((v: string) => updateProfile.mutateAsync({ email: v || null }), [updateProfile]);
-  const hSaveBirthDate = useCallback((v: string) => updateProfile.mutateAsync({ birthDate: v || null }), [updateProfile]);
-  const hSaveGender = useCallback((v: string) => updateProfile.mutateAsync({ gender: (v || null) as Profile["gender"] }), [updateProfile]);
-  const hSaveUserType = useCallback((v: string) => updateProfile.mutateAsync({ userType: v || null }), [updateProfile]);
-  const hSaveProvince = useCallback((v: string) => updateProfile.mutateAsync({ province: v || null }), [updateProfile]);
-  const hSavePrimaryUseCase = useCallback((v: string) => updateProfile.mutateAsync({ primaryUseCase: v || null }), [updateProfile]);
-  const hSaveLegalInterests = useCallback(
-    (v: string[]) => updateProfile.mutateAsync({ legalInterests: v.length > 0 ? v : null }),
-    [updateProfile],
-  );
+
+  // Read mode shows the saved values; edit mode shows the live draft.
+  const shown = editing ? draft : savedDraft;
+
+  const handleSave = useCallback(async () => {
+    if (saving || !isDirty) return;
+    setSaving(true);
+    try {
+      await updateProfile.mutateAsync({
+        displayName: [draft.firstName, draft.familyName].filter(Boolean).join(" ") || null,
+        email: draft.email || null,
+        gender: (draft.gender || null) as Profile["gender"],
+        birthDate: draft.birthDate || null,
+        city: draft.city || null,
+        occupation: draft.occupation || null,
+        userType: draft.userType || null,
+        province: draft.province || null,
+        legalInterests: draft.legalInterests.length > 0 ? draft.legalInterests : null,
+        primaryUseCase: draft.primaryUseCase || null,
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, isDirty, draft, updateProfile]);
 
   // Live daily quota (plan-derived) takes precedence over the stored usage row.
   const dailyUsed = quota.data?.used ?? usageData?.dailyRequestsUsed ?? 0;
@@ -674,34 +654,53 @@ export default function AccountHubPage() {
       {/* Profile Details — all editable fields */}
       {/* ================================================ */}
       <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 mb-6 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setDetailsOpen((v) => !v)}
-          aria-expanded={detailsOpen}
-          aria-controls="profile-details"
-          className="flex w-full items-center justify-between gap-3 p-5 text-start transition-colors hover:bg-neutral-50"
-        >
-          <span className="flex items-center gap-2 text-h3 text-onSurface font-bold">
+        <div className="flex items-center justify-between gap-3 p-5">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((v) => !v)}
+            aria-expanded={detailsOpen}
+            aria-controls="profile-details"
+            className="flex min-w-0 flex-1 items-center gap-2 text-start text-h3 text-onSurface font-bold"
+          >
             <span className="text-primary-600"><IconPerson size={22} /></span>
             جزئیات پروفایل
-          </span>
-          <span className="flex items-center gap-2 text-caption text-muted">
-            {completionPct >= 100 ? "تکمیل شده" : `${toPersianNumber(completionPct)}٪`}
-            <IconChevronDown size={18} className={`transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
-          </span>
-        </button>
+            <span className="flex items-center gap-2 text-caption text-muted font-normal">
+              {completionPct >= 100 ? "تکمیل شده" : `${toPersianNumber(completionPct)}٪`}
+              <IconChevronDown size={18} className={`transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+
+          {/* One button for the whole section: ویرایش opens every row for
+              editing; once a field changes it becomes ذخیره. */}
+          {detailsOpen && (
+            <button
+              type="button"
+              onClick={editing ? handleSave : startEditing}
+              disabled={saving || (editing && !isDirty)}
+              className={[
+                "inline-flex shrink-0 items-center gap-1.5 rounded-medium px-3 py-2 text-caption font-medium transition-colors touch-target",
+                editing
+                  ? "bg-primary text-white hover:bg-primary-700 disabled:opacity-50"
+                  : "border border-primary/40 text-primary hover:bg-primary-50",
+              ].join(" ")}
+            >
+              {editing ? <IconCheck size={16} /> : <IconEdit size={16} />}
+              {editing ? "ذخیره" : "ویرایش"}
+            </button>
+          )}
+        </div>
 
         {detailsOpen && (
           <div id="profile-details" className="border-t border-divider/60 p-5 pt-0">
             <h3 className="text-body-1 text-onSurface font-semibold mt-4 mb-1">اطلاعات پایه</h3>
             <dl>
-              <EditableField label="نام" value={firstName} placeholder="نام خود را وارد کنید" onSave={hSaveFirstName} />
-              <EditableField label="نام خانوادگی" value={familyName} placeholder="نام خانوادگی" onSave={hSaveFamilyName} />
-              <EditableField label="ایمیل" value={profile?.email ?? ""} placeholder="ایمیل خود را وارد کنید" onSave={hSaveEmail} />
-              <GenderEditableField label="جنسیت" value={profile?.gender ?? ""} onSave={hSaveGender} />
-              <DateEditableField label="تاریخ تولد" value={profile?.birthDate ?? ""} placeholder="انتخاب تاریخ" onSave={hSaveBirthDate} />
-              <EditableField label="شهر" value={profile?.city ?? ""} placeholder="شهر محل سکونت" onSave={hSaveCity} />
-              <EditableField label="شغل" value={profile?.occupation ?? ""} placeholder="شغل خود را وارد کنید" onSave={hSaveOccupation} />
+              <TextRow label="نام" value={shown.firstName} placeholder="نام خود را وارد کنید" editing={editing} onChange={(v) => patchDraft("firstName", v)} />
+              <TextRow label="نام خانوادگی" value={shown.familyName} placeholder="نام خانوادگی" editing={editing} onChange={(v) => patchDraft("familyName", v)} />
+              <TextRow label="ایمیل" value={shown.email} placeholder="ایمیل خود را وارد کنید" editing={editing} onChange={(v) => patchDraft("email", v)} inputDir="ltr" />
+              <SelectRow label="جنسیت" value={shown.gender} placeholder="انتخاب نشده" options={GENDER_OPTIONS} editing={editing} onChange={(v) => patchDraft("gender", v)} />
+              <DateRow label="تاریخ تولد" value={shown.birthDate} placeholder="انتخاب تاریخ" editing={editing} onChange={(v) => patchDraft("birthDate", v)} />
+              <TextRow label="شهر" value={shown.city} placeholder="شهر محل سکونت" editing={editing} onChange={(v) => patchDraft("city", v)} />
+              <TextRow label="شغل" value={shown.occupation} placeholder="شغل خود را وارد کنید" editing={editing} onChange={(v) => patchDraft("occupation", v)} />
             </dl>
 
             <h3 className="text-body-1 text-onSurface font-semibold mt-6 mb-1">پروفایل حقوقی من</h3>
@@ -709,32 +708,36 @@ export default function AccountHubPage() {
               با تکمیل این بخش، پروفایل شما به ۱۰۰٪ می‌رسد و ۱۰۰۰ امتیاز دریافت می‌کنید.
             </p>
             <dl>
-              <SelectEditableField
+              <SelectRow
                 label="نوع کاربر"
-                value={profile?.userType ?? ""}
+                value={shown.userType}
                 placeholder="انتخاب کنید"
                 options={USER_TYPE_OPTIONS}
-                onSave={hSaveUserType}
+                editing={editing}
+                onChange={(v) => patchDraft("userType", v)}
               />
-              <SelectEditableField
+              <SelectRow
                 label="استان"
-                value={profile?.province ?? ""}
+                value={shown.province}
                 placeholder="انتخاب کنید"
                 options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
-                onSave={hSaveProvince}
+                editing={editing}
+                onChange={(v) => patchDraft("province", v)}
               />
-              <MultiSelectField
+              <ChipsRow
                 label="حوزه‌های حقوقی مورد نیاز"
-                value={profile?.legalInterests ?? []}
+                value={shown.legalInterests}
                 options={LEGAL_INTEREST_OPTIONS}
-                onSave={hSaveLegalInterests}
+                editing={editing}
+                onChange={(v) => patchDraft("legalInterests", v)}
               />
-              <SelectEditableField
+              <SelectRow
                 label="هدف اصلی استفاده"
-                value={profile?.primaryUseCase ?? ""}
+                value={shown.primaryUseCase}
                 placeholder="انتخاب کنید"
                 options={PRIMARY_USE_CASE_OPTIONS}
-                onSave={hSavePrimaryUseCase}
+                editing={editing}
+                onChange={(v) => patchDraft("primaryUseCase", v)}
               />
             </dl>
           </div>

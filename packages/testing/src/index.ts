@@ -268,7 +268,9 @@ export const fixtureV1SubscriptionGold: V1Subscription = {
   planCode: "gold",
   planNameFa: "طلا",
   startAt: "2026-07-01T00:00:00Z",
-  endAt: "2026-10-01T00:00:00Z",
+  // Far enough out that the fixture never drifts into the 7-day
+  // «expiring soon» window (which would flip the CTA to «تمدید اشتراک»).
+  endAt: "2027-07-01T00:00:00Z",
   status: "active",
   autoRenew: true,
   cancelledAt: null,
