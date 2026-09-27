@@ -11,8 +11,9 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLawyers } from "@/hooks/useLawyers";
-import { IconSearch, IconInfo, IconRefresh, IconChevronLeft, IconChevronRightSmall } from "@/lib/icons";
+import { IconSearch, IconInfo, IconRefresh, IconChevronLeft, IconChevronRightSmall, IconHandshake } from "@/lib/icons";
 import { LawyerCard, LawyerCardSkeleton } from "@/components/lawyers";
+import { PromoPanel } from "@/components/shared";
 import { LEGAL_CATEGORY_FA, type LawyerListFilters } from "@legalir/types";
 import { Select, TextField, Checkbox } from "@legalir/ui";
 
@@ -216,6 +217,26 @@ export default function LawyersPage() {
           ))}
         </div>
       )}
+
+      {/* Supporting visual for the human-lawyer journey.
+          Deliberately placed *after* the results: search, filtering and
+          lawyer selection are the page's job, so nothing promotional may
+          sit between the user and the list. It renders in both the
+          populated and the empty state, so the human-lawyer path is
+          always offered — without ever implying the AI chat connects to
+          a human lawyer. */}
+      <PromoPanel
+        art="four"
+        eyebrow="مشاوره با وکیل انسانی"
+        title="جلسه مشاوره، حضوری یا آنلاین"
+        message="وکیل منتخب شما پرونده را بررسی می‌کند، مدارک را می‌خواند و مسیر حقوقی را گام‌به‌گام توضیح می‌دهد. هزینه و زمان جلسه پیش از رزرو مشخص است."
+        cta="رزرو جلسه مشاوره"
+        href="/consultations/new"
+        icon={IconHandshake}
+        imageSide="start"
+        size="panel"
+        className="mt-8"
+      />
     </div>
   );
 }

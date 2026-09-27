@@ -25,6 +25,8 @@ import {
 } from "@/features/profile-completion-prompt";
 import Link from "next/link";
 import { getServiceById } from "@/lib/services";
+import { PromoModule } from "@/components/shared";
+import { IconServices } from "@/lib/icons";
 
 export default function DashboardPage() {
   const me = useMe();
@@ -137,6 +139,19 @@ export default function DashboardPage() {
       <SubscriptionUsageCard />
 
       {/* ── 5) SECONDARY ────────────────────────────────────── */}
+      {/* Compact promo module — a secondary surface, deliberately small
+          and placed below the user's own work (activities, requests,
+          usage) so it never competes with their active tasks. */}
+      <PromoModule
+        art="five"
+        title="خدمات حقوقی روی همه دستگاه‌ها"
+        message="پرونده، سند و قراردادهایتان را از موبایل یا رایانه مدیریت کنید — همه‌چیز همگام و در دسترس."
+        cta="مرور خدمات"
+        href="/services"
+        icon={IconServices}
+        className="mb-6"
+      />
+
       <RecentDocuments
         items={dashboard.data?.recentDocuments ?? []}
         isLoading={dashboard.isPending}

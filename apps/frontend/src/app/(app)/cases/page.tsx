@@ -7,6 +7,7 @@ import { TextField, Textarea, Select } from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
 import { IconAdd, IconSearch, IconBalance } from "@/lib/icons";
+import { PromoArt } from "@/components/shared";
 
 // ============================================================
 // Status Badge Component
@@ -275,10 +276,14 @@ export default function CasesPage() {
       )}
 
       {/* Empty State */}
+      {/* The case-related artwork lives *only* here. A populated list is
+          the user's own data and must never be displaced by a generic
+          advertisement, so the visual is scoped to the empty state where
+          it adds context instead of competing with real cases. */}
       {!loading && cases.length === 0 && (
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <div className="h-20 w-20 rounded-2xl bg-surface-container border border-divider/40 flex items-center justify-center">
-            <IconBalance size={36} className="text-muted/40" />
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <div className="w-full max-w-[220px]">
+            <PromoArt art="two" alt="" sizes="(min-width: 600px) 220px, 200px" />
           </div>
           <p className="text-body-1 text-muted font-medium">هنوز پرونده‌ای ثبت نشده است</p>
           <p className="text-body-2 text-muted/60">

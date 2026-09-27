@@ -4,3 +4,4 @@ export { MobileTable, MobileTableCard } from "./mobile-table";
 export { SplashScreen } from "./SplashScreen";
 export { AppSplashGate } from "./AppSplashGate";
 export { PageContextHeader } from "./PageContextHeader";
+export { PromoArt, PromoPanel, PromoModule, type PromoArtKey } from "./promo-art";

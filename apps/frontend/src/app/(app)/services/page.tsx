@@ -29,7 +29,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { TextField } from "@legalir/ui";
-import { IconClose, IconSearch, IconServices } from "@/lib/icons";
+import { IconClose, IconSearch, IconServices, IconLawBook } from "@/lib/icons";
+import { PromoPanel } from "@/components/shared";
 import {
   CATALOG_SIZE,
   LIBRARY_CAMPAIGN,
@@ -268,6 +269,27 @@ export default function ServicesPage() {
               ))}
             </div>
           </section>
+
+          {/* ============================================================
+              4b. Coverage panel — the breadth of the legal system
+              ============================================================
+              Sits between the quick-start banners and the new-services
+              area, where the reader has just scanned the six most-used
+              services and is deciding whether the catalog covers their
+              case. It never competes with the search field above or the
+              catalog below — it is a full-width editorial break. */}
+          <PromoPanel
+            art="three"
+            eyebrow="پوشش حقوقی"
+            title="از قانون مدنی تا آرای وحدت رویه"
+            message="لیگالیر بر پایه منابع معتبر نظام حقوقی ایران کار می‌کند — قوانین، مقررات، بخشنامه‌ها و رویه قضایی، همه در یک پلتفرم."
+            cta="مشاهده منابع حقوقی"
+            href="/legal-library"
+            icon={IconLawBook}
+            imageSide="end"
+            size="panel"
+            className="mb-10"
+          />
 
           {/* ============================================================
               5. New services — NDA feature banner + secondary cards

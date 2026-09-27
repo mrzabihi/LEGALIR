@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CTASection } from "@/components/public/CTASection";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
+import { PromoPanel } from "@/components/shared";
 import { readBlog } from "@/lib/legal-library-db";
 import { toPersianDate, toPersianDigits } from "@/lib/persian-utils";
 import {
@@ -19,6 +20,7 @@ import {
   IconLawBook,
   IconCategory,
   IconCalendar,
+  IconHandshake,
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
@@ -600,6 +602,29 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ============================================================
+          HUMAN LAWYER — editorial promo panel
+          ============================================================
+          Placed after «چطور کار میکند» — the reader has just seen the
+          AI path end in «ارجاع به وکیل», so this is the natural moment
+          to offer the human one. The artwork is square and carries the
+          LEGALIR wordmark, so the copy beside it never repeats the
+          brand as a second heading. */}
+      <section className="mx-auto max-w-6xl px-4 pb-20 tablet:pb-24">
+        <PromoPanel
+          art="one"
+          eyebrow="وکیل انسانی"
+          title="وقتی موضوع به بررسی تخصصی نیاز دارد"
+          message="لیگالیر مسیر ارتباط با وکلای متخصص و تأییدشده را فراهم می‌کند — انتخاب وکیل بر اساس تخصص، شهر و بودجه، با شفافیت کامل در هزینه و سابقه."
+          cta="مشاهده وکلای تأییدشده"
+          href="/lawyers"
+          icon={IconHandshake}
+          imageSide="end"
+          size="feature"
+        />
+      </section>
+
 
       {/* ============================================================
           LEGAL SOURCES — "منابع حقوقی تحت پوشش"

@@ -8,7 +8,9 @@ import {
   IconCategory,
   IconSearch,
   IconClose,
+  IconLawBook,
 } from "@/lib/icons";
+import { PromoPanel } from "@/components/shared";
 import { useBlogPosts } from "@/hooks/useDashboard";
 import { toPersianDate } from "@/lib/persian-utils";
 import type { V1BlogListItem } from "@legalir/types";
@@ -455,6 +457,28 @@ export default function BlogPage() {
               </div>
             </>
           )}
+        </div>
+      </section>
+
+      {/* Editorial promo — the library behind the articles.
+          Placed after the article grid and before the newsletter CTA, so
+          it reads as a continuation of the reading experience rather
+          than an interruption of it. The artwork is square and already
+          carries the LEGALIR wordmark, so the copy beside it never
+          repeats the brand as a second heading. */}
+      <section className="bg-white border-t border-neutral-200 py-12 tablet:py-16">
+        <div className="mx-auto max-w-6xl px-4">
+          <PromoPanel
+            art="six"
+            eyebrow="کتابخانه حقوقی"
+            title="از متن قانون تا رویه دادگاه"
+            message="قوانین، آرای وحدت رویه و راهنماهای کاربردی — منابعی که هر مقاله بر پایه آنها نوشته شده است، به‌صورت ساختاریافته در دسترس شماست."
+            cta="مشاهده کتابخانه حقوقی"
+            href="/legal-library"
+            icon={IconLawBook}
+            imageSide="start"
+            size="panel"
+          />
         </div>
       </section>
 
