@@ -200,6 +200,65 @@ test.describe("Services discovery page", () => {
     await expect(page.getByRole("heading", { name: "دسته‌بندی خدمات" })).toBeVisible();
   });
 
+  test("the six featured cards are one coherent system with a CTA each", async ({ page }) => {
+    await page.goto("/services");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+
+    const section = page.locator('section[aria-labelledby="service-banners-title"]');
+    const cards = section.locator("a");
+
+    // Exactly the six services, no more and no fewer.
+    await expect(cards).toHaveCount(6);
+
+    // Every card is a single link (no nested second anchor) carrying a
+    // heading, a description and a visible action label.
+    for (let i = 0; i < 6; i += 1) {
+      const card = cards.nth(i);
+      await expect(card.locator("h3")).toHaveCount(1);
+      await expect(card.locator("p")).toHaveCount(1);
+      await expect(card.locator("a")).toHaveCount(0);
+      await expect(card.locator("span.mt-auto")).toBeVisible();
+    }
+
+    // The six verified destinations, one per card.
+    const hrefs = await cards.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("href")),
+    );
+    expect(new Set(hrefs).size).toBe(6);
+  });
+
+  test("the new-services section features NDA once, with balanced secondary cards", async ({
+    page,
+  }) => {
+    await page.goto("/services");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+
+    const section = page.locator('section[aria-labelledby="new-services-title"]');
+    await expect(section).toBeVisible();
+
+    // The NDA promotion is the wide feature banner — exactly one link to
+    // the NDA contract, never shown twice as both banner and card.
+    await expect(section.locator('a[href="/contracts/new?type=nda"]')).toHaveCount(1);
+
+    // The two genuinely-new secondary services are present and linked.
+    await expect(section.locator('a[href="/calculators/inheritance"]')).toHaveCount(1);
+    await expect(
+      section.locator('a[href="/calculators/regional-property-value"]'),
+    ).toHaveCount(1);
+
+    // The feature banner is a full-width band, not a narrow side column:
+    // it must be at least as wide as the secondary card row beneath it.
+    const featureWidth = await section
+      .locator('section[aria-labelledby="campaign-nda-title"]')
+      .evaluate((el) => el.getBoundingClientRect().width);
+    const rowWidth = await section.locator("ul").evaluate((el) => el.getBoundingClientRect().width);
+    expect(featureWidth).toBeGreaterThanOrEqual(rowWidth - 1);
+  });
+
   for (const viewport of VIEWPORTS) {
     test(`no horizontal overflow at ${viewport.name}px`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });

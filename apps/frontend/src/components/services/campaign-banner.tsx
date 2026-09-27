@@ -14,6 +14,15 @@
 //     to its own band so nothing is cropped or obscured
 //   • all copy is selectable HTML, never baked into the artwork
 //
+// Sizes:
+//   hero    — the primary campaign near the top of the page
+//   panel   — the secondary treatment between catalog sections
+//   compact — the narrow strip beside a card row
+//   wide    — the full-width, deliberately short feature banner that
+//             leads the new-services section. Copy and artwork sit side
+//             by side from `tablet` up; on a phone the artwork drops to
+//             its own band below the copy so the CTA is never covered.
+//
 // Motion: the illustration drifts (`animate-float`) and the panel
 // reveals on scroll. Both collapse under `prefers-reduced-motion`.
 // ============================================================
@@ -29,14 +38,7 @@ import { trackServicesEvent, type CampaignBannerDef } from "@/lib/services/catal
 
 interface CampaignBannerProps {
   banner: CampaignBannerDef;
-  /**
-   * `hero` is the primary campaign near the top of the page; `panel` is
-   * the secondary treatment between catalog sections; `compact` is the
-   * narrow strip beside the new-services area; `vertical` is the
-   * full-height column treatment that sits *beside* a card row and
-   * stretches to match it.
-   */
-  size?: "hero" | "panel" | "compact" | "vertical";
+  size?: "hero" | "panel" | "compact" | "wide";
   className?: string;
 }
 
@@ -49,7 +51,7 @@ export function CampaignBanner({
   const Icon = banner.icon;
   const isHero = size === "hero";
   const isCompact = size === "compact";
-  const isVertical = size === "vertical";
+  const isWide = size === "wide";
 
   // One accent → the illustration tint and the CTA fill. The panel
   // surface itself comes from the banner's own gradient so each
@@ -67,17 +69,17 @@ export function CampaignBanner({
   }
 
   return (
-    <Reveal className={[isVertical ? "h-full" : "", className].filter(Boolean).join(" ")}>
+    <Reveal className={className}>
       <section
         aria-labelledby={`${banner.id}-title`}
         style={accentVars}
         className={[
           "relative isolate overflow-hidden rounded-xlarge bg-gradient-to-br text-white shadow-elevation-3",
           banner.gradient,
-          isVertical
-            ? "flex h-full flex-col p-5"
-            : isHero
-              ? "p-5 tablet:p-7 laptop:p-8"
+          isHero
+            ? "p-5 tablet:p-7 laptop:p-8"
+            : isWide
+              ? "p-5 tablet:p-6 laptop:p-7"
               : isCompact
                 ? "p-5"
                 : "p-5 tablet:p-6",
@@ -96,21 +98,16 @@ export function CampaignBanner({
 
         <div
           className={[
-            "relative gap-5",
-            isVertical
-              ? "flex flex-1 flex-col"
-              : "grid items-center",
-            !isVertical && isCompact
-              ? "tablet:grid-cols-[1fr_auto]"
-              : !isVertical
-                ? "laptop:grid-cols-[minmax(0,1fr)_minmax(0,340px)] laptop:gap-8"
-                : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
+            "relative grid items-center gap-5",
+            isWide
+              ? "tablet:grid-cols-[minmax(0,1fr)_minmax(0,240px)] tablet:gap-6 laptop:grid-cols-[minmax(0,1fr)_minmax(0,300px)] laptop:gap-8"
+              : isCompact
+                ? "tablet:grid-cols-[1fr_auto]"
+                : "laptop:grid-cols-[minmax(0,1fr)_minmax(0,340px)] laptop:gap-8",
+          ].join(" ")}
         >
           {/* ---- Copy ---- */}
-          <div className={["min-w-0", isVertical ? "flex flex-1 flex-col" : ""].join(" ")}>
+          <div className="min-w-0">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm">
               <Icon size={14} />
               {banner.eyebrow}
@@ -120,7 +117,7 @@ export function CampaignBanner({
               id={`${banner.id}-title`}
               className={[
                 "mt-3 font-bold leading-snug text-white",
-                isHero ? "text-h2" : isCompact ? "text-h4" : "text-h3",
+                isHero ? "text-h2" : isWide ? "text-h3" : isCompact ? "text-h4" : "text-h3",
               ].join(" ")}
             >
               {banner.title}
@@ -135,12 +132,7 @@ export function CampaignBanner({
               {banner.message}
             </p>
 
-            <div
-              className={[
-                "mt-4 flex flex-wrap items-center gap-3",
-                isVertical ? "mt-auto pt-4" : "",
-              ].join(" ")}
-            >
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <Link
                 href={banner.href}
                 onClick={handleClick}
@@ -160,23 +152,22 @@ export function CampaignBanner({
           {/* ---- Artwork ---- */}
           {/* On mobile the art gets its own band rather than sitting
               behind the copy, so the headline and CTA are never covered.
-              In `vertical` mode it leads the column at every breakpoint —
-              that is what makes the tile read as a banner on a phone
-              instead of a plain text card. */}
+              `wide` keeps the art in the trailing cell from `tablet` up
+              and only stacks it below the copy on a phone. */}
           <div
             aria-hidden="true"
             className={[
               "pointer-events-none flex items-center justify-center text-[var(--cb-ink)]",
-              isVertical ? "order-first" : isCompact ? "hidden tablet:flex" : "",
+              isCompact ? "hidden tablet:flex" : "",
             ].join(" ")}
           >
             <Art
               className={[
                 "h-auto w-full",
-                isVertical
-                  ? "max-w-[200px]"
-                  : isHero
-                    ? "max-w-[280px] tablet:max-w-[340px]"
+                isHero
+                  ? "max-w-[280px] tablet:max-w-[340px]"
+                  : isWide
+                    ? "max-w-[200px] tablet:max-w-[220px] laptop:max-w-[260px]"
                     : isCompact
                       ? "max-w-[180px]"
                       : "max-w-[240px] tablet:max-w-[300px]",

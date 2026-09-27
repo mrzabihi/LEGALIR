@@ -42,6 +42,13 @@
   ],
   "shortcuts": [
     {
+      "name": "مشاوره با وکیل",
+      "short_name": "وکیل",
+      "description": "ثبت درخواست مشاوره با وکیل انسانی",
+      "url": "/consultations/new",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
       "name": "مشاوره حقوقی",
       "short_name": "مشاوره",
       "description": "شروع گفتگوی حقوقی با هوش مصنوعی",

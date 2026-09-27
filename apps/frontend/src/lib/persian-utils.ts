@@ -90,6 +90,34 @@ export function toPersianCurrency(
 }
 
 /**
+ * Normalize Persian text for search comparison.
+ *
+ * Collapses the orthographic variants that make naive `includes()` fail on
+ * real Persian input: Arabic yeh/kaf vs Persian, Arabic-Indic digits vs
+ * Persian, the zero-width non-joiner, tatweel, diacritics, and the Arabic
+ * heh. Also lowercases Latin so mixed terms like `NDA` match `nda`.
+ *
+ * This is the single source of truth for Persian search normalization —
+ * every search surface (services, library, contracts) should call it
+ * rather than re-implementing its own character map.
+ */
+export function normalizePersian(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\u064A\u0649]/g, "\u06CC") // Arabic yeh / alef maksura → Persian yeh
+    .replace(/\u0643/g, "\u06A9") // Arabic kaf → Persian kaf
+    .replace(/\u0629/g, "\u0647") // Arabic teh marbuta → heh
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627") // alef variants → alef
+    .replace(/[\u064B-\u0652\u0670]/g, "") // harakat / diacritics
+    .replace(/\u0640/g, "") // tatweel
+    .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, "") // ZWSP/ZWNJ/ZWJ/bidi marks
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)) // Persian digits
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)) // Arabic-Indic digits
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Format a file size in bytes to a human-readable Persian string.
  * Examples: 1024 => "۱ کیلوبایت", 1048576 => "۱ مگابایت"
  */

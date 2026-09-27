@@ -257,7 +257,7 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
             </div>
           ) : (
             <Link
-              href={`/new?lawyerId=${lawyer.id}`}
+              href={`/consultations/new?lawyerId=${lawyer.id}`}
               className="block rounded-xl bg-primary px-5 py-3 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
             >
               درخواست مشاوره از این وکیل

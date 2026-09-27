@@ -75,6 +75,14 @@ import type {
   V1SubscriptionHistoryItem,
   V1SubscriptionHistoryResponse,
   V1ProfileUsage,
+  // Lawyer marketplace & consultation
+  LawyerListItem,
+  LawyerDetail,
+  LawyerListResponse,
+  LegalRequest,
+  LegalRequestState,
+  ConsultationDetail,
+  ConsultationMessageView,
 } from "@legalir/types";
 
 // --- User Fixtures ---
@@ -2478,3 +2486,179 @@ export {
   fixtureBlogPostDetails,
   fixtureNotifications,
 } from "./legal-library-fixtures";
+
+// ============================================================
+// Lawyer marketplace & consultation fixtures
+// ============================================================
+// The consultation flow had no lawyer fixtures at all. These cover the
+// three shapes the UI reads: a marketplace list item, a full profile, and
+// the case-room projection. Two lawyers are provided so a test can prove
+// that a replacement actually changes the target — never a single
+// hard-coded lawyer that would hide a stale-selection bug.
+
+const LAWYER_A_ID = "fixture-lawyer-a";
+const LAWYER_B_ID = "fixture-lawyer-b";
+
+export const fixtureLawyerListItem: LawyerListItem = {
+  id: LAWYER_A_ID,
+  fullName: "سارا محمدی",
+  avatarUrl: null,
+  avatarType: "demo",
+  professionalTitle: "وکیل خانواده",
+  verificationStatus: "VERIFIED",
+  specializations: [
+    { category: "family", yearsExperience: 9, note: null },
+    { category: "contract", yearsExperience: 6, note: null },
+  ],
+  locations: [{ province: "تهران", city: "تهران", remote: true }],
+  languages: [{ code: "fa", labelFa: "فارسی", proficiency: "native" }],
+  pricing: {
+    consultationFeeToman: 1_200_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 2_000_000,
+    contractReviewFeeToman: 3_000_000,
+    freeFirstConsultation: false,
+  },
+  performance: {
+    acceptedRequests: 44,
+    completedCases: 40,
+    medianResponseMinutes: 25,
+    averageRating: 4.6,
+    reviewCount: 18,
+  },
+  availabilityStatus: "ACTIVE",
+  consultationCapacity: null,
+  isDemo: true,
+  acceptingRequests: true,
+  bioExcerpt: "وکیل دعاوی خانواده و قراردادها.",
+};
+
+/** A second lawyer, in a different specialty, for replacement tests. */
+export const fixtureLawyerListItemB: LawyerListItem = {
+  id: LAWYER_B_ID,
+  fullName: "رضا کریمی",
+  avatarUrl: null,
+  avatarType: "demo",
+  professionalTitle: "وکیل کیفری",
+  verificationStatus: "VERIFIED",
+  specializations: [{ category: "criminal", yearsExperience: 12, note: null }],
+  locations: [{ province: "تهران", city: "تهران", remote: false }],
+  languages: [{ code: "fa", labelFa: "فارسی", proficiency: "native" }],
+  pricing: {
+    consultationFeeToman: 1_500_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_500_000,
+    contractReviewFeeToman: null,
+    freeFirstConsultation: false,
+  },
+  performance: {
+    acceptedRequests: 78,
+    completedCases: 70,
+    medianResponseMinutes: 15,
+    averageRating: 4.8,
+    reviewCount: 30,
+  },
+  availabilityStatus: "AVAILABLE_SLOTS",
+  consultationCapacity: 5,
+  isDemo: true,
+  acceptingRequests: true,
+  bioExcerpt: "وکیل دعاوی کیفری.",
+};
+
+/** A lawyer who cannot receive a request — used for the ineligible path. */
+export const fixtureLawyerListItemUnavailable: LawyerListItem = {
+  ...fixtureLawyerListItemB,
+  id: "fixture-lawyer-unavailable",
+  fullName: "وکیل غیرفعال",
+  availabilityStatus: "INACTIVE",
+  consultationCapacity: null,
+  acceptingRequests: false,
+};
+
+export const fixtureLawyerListResponse: LawyerListResponse = {
+  items: [fixtureLawyerListItem, fixtureLawyerListItemB],
+  pagination: { page: 1, pageSize: 20, total: 2, totalPages: 1 },
+};
+
+export const fixtureLawyerDetail: LawyerDetail = {
+  ...fixtureLawyerListItem,
+  bio: "وکیل دعاوی خانواده و قراردادها با تمرکز بر طلاق توافقی و حضانت فرزند.",
+  licenseNumber: "۱۲۳۴۵",
+  licenseYear: 1392,
+  verifiedAt: "2026-01-01T00:00:00.000Z",
+  availability: [{ weekday: 0, startTime: "09:00", endTime: "17:00" }],
+  reviews: [],
+};
+
+export const fixtureLawyerDetailB: LawyerDetail = {
+  ...fixtureLawyerListItemB,
+  bio: "وکیل دعاوی کیفری با سابقه دفاع در پرونده‌های اقتصادی.",
+  licenseNumber: "۵۴۳۲۱",
+  licenseYear: 1389,
+  verifiedAt: "2026-01-01T00:00:00.000Z",
+  availability: [{ weekday: 0, startTime: "09:00", endTime: "17:00" }],
+  reviews: [],
+};
+
+/** A legal request in a given state, owned by `userId`. */
+export function fixtureLegalRequest(
+  state: LegalRequestState = "WAITING_FOR_ACCEPTANCE",
+  overrides: Partial<LegalRequest> = {}
+): LegalRequest {
+  return {
+    id: "fixture-request-1",
+    userId: "fixture-user-1",
+    caseId: null,
+    conversationId: null,
+    title: "مشاوره حضانت فرزند",
+    category: "family",
+    state,
+    intakeAnswers: { "شرح موضوع": "درخواست مشاوره درباره حضانت فرزند." },
+    analysisId: null,
+    selectedLawyerId: LAWYER_A_ID,
+    attachmentDocumentIds: [],
+    orgId: null,
+    createdAt: "2026-09-01T10:00:00.000Z",
+    updatedAt: "2026-09-01T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export const fixtureConsultationMessages: ConsultationMessageView[] = [
+  {
+    id: "fixture-message-1",
+    senderName: "شما",
+    senderRole: "USER",
+    isMine: true,
+    body: "سلام، درباره حضانت فرزند سؤال داشتم.",
+    attachments: [],
+    readAt: null,
+    createdAt: "2026-09-01T10:05:00.000Z",
+  },
+  {
+    id: "fixture-message-2",
+    senderName: "سارا محمدی",
+    senderRole: "LAWYER",
+    isMine: false,
+    body: "سلام، در خدمتم. لطفاً مدارک را ارسال کنید.",
+    attachments: [],
+    readAt: null,
+    createdAt: "2026-09-01T10:10:00.000Z",
+  },
+];
+
+/** The full case-room projection for the client viewer. */
+export function fixtureConsultationDetail(
+  overrides: Partial<ConsultationDetail> = {}
+): ConsultationDetail {
+  return {
+    request: fixtureLegalRequest(),
+    events: [],
+    viewerRole: "client",
+    lawyer: fixtureLawyerDetail,
+    messages: fixtureConsultationMessages,
+    attachments: [],
+    method: "secure_text",
+    ...overrides,
+  };
+}

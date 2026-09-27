@@ -858,6 +858,7 @@ export type LegalRequestState =
   | "LAWYER_PROPOSED"
   | "LAWYER_SELECTED"
   | "WAITING_FOR_ACCEPTANCE"
+  | "DECLINED"
   | "ACCEPTED"
   | "SCHEDULED"
   | "IN_PROGRESS"
@@ -876,6 +877,7 @@ export const LEGAL_REQUEST_STATE_FA: Record<LegalRequestState, string> = {
   LAWYER_PROPOSED: "وکلای پیشنهادی آماده است",
   LAWYER_SELECTED: "وکیل انتخاب شد",
   WAITING_FOR_ACCEPTANCE: "منتظر پذیرش وکیل",
+  DECLINED: "رد شده توسط وکیل",
   ACCEPTED: "پذیرفته شده",
   SCHEDULED: "زمان‌بندی شده",
   IN_PROGRESS: "در حال انجام",
@@ -898,7 +900,10 @@ export const LEGAL_REQUEST_TRANSITIONS: Record<LegalRequestState, LegalRequestSt
   MATCHING: ["LAWYER_PROPOSED", "LAWYER_REQUESTED", "CANCELLED"],
   LAWYER_PROPOSED: ["LAWYER_SELECTED", "MATCHING", "CANCELLED"],
   LAWYER_SELECTED: ["WAITING_FOR_ACCEPTANCE", "LAWYER_PROPOSED", "CANCELLED"],
-  WAITING_FOR_ACCEPTANCE: ["ACCEPTED", "LAWYER_PROPOSED", "CANCELLED"],
+  WAITING_FOR_ACCEPTANCE: ["ACCEPTED", "DECLINED", "LAWYER_PROPOSED", "CANCELLED"],
+  // A declined request is not terminal: the client may reassign it to
+  // another lawyer (LAWYER_PROPOSED) or give up (CANCELLED → CLOSED).
+  DECLINED: ["LAWYER_PROPOSED", "CANCELLED", "CLOSED"],
   ACCEPTED: ["SCHEDULED", "IN_PROGRESS", "CANCELLED"],
   SCHEDULED: ["IN_PROGRESS", "CANCELLED"],
   IN_PROGRESS: ["WAITING_FOR_CLIENT", "WAITING_FOR_LAWYER", "COMPLETED", "CANCELLED"],
@@ -914,6 +919,41 @@ export function canTransitionLegalRequest(from: LegalRequestState, to: LegalRequ
   return LEGAL_REQUEST_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
+/**
+ * Transitions that only the ASSIGNED LAWYER may perform. The client owns
+ * the intake chain and may cancel at any point, but must never be able to
+ * accept their own request or mark their own consultation complete — that
+ * would let a client fabricate a lawyer's response.
+ *
+ * The server enforces this split: the client-facing transition route
+ * rejects any move listed here with 403, and the lawyer-facing respond
+ * route rejects anything NOT listed here.
+ */
+export const LAWYER_ONLY_TRANSITIONS: Record<LegalRequestState, LegalRequestState[]> = {
+  DRAFT: [],
+  AI_INTAKE: [],
+  AI_ANALYSIS_READY: [],
+  LAWYER_REQUESTED: [],
+  MATCHING: [],
+  LAWYER_PROPOSED: [],
+  LAWYER_SELECTED: [],
+  WAITING_FOR_ACCEPTANCE: ["ACCEPTED", "DECLINED"],
+  DECLINED: [],
+  ACCEPTED: ["SCHEDULED", "IN_PROGRESS"],
+  SCHEDULED: ["IN_PROGRESS"],
+  IN_PROGRESS: ["WAITING_FOR_CLIENT", "WAITING_FOR_LAWYER", "COMPLETED"],
+  WAITING_FOR_CLIENT: ["IN_PROGRESS", "COMPLETED"],
+  WAITING_FOR_LAWYER: ["IN_PROGRESS", "COMPLETED"],
+  COMPLETED: [],
+  CANCELLED: [],
+  CLOSED: [],
+};
+
+/** True when only the assigned lawyer may make this move. */
+export function isLawyerTransition(from: LegalRequestState, to: LegalRequestState): boolean {
+  return LAWYER_ONLY_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 /** States in which the request is still active (not terminal). */
 export const ACTIVE_LEGAL_REQUEST_STATES: LegalRequestState[] = [
   "DRAFT",
@@ -924,6 +964,7 @@ export const ACTIVE_LEGAL_REQUEST_STATES: LegalRequestState[] = [
   "LAWYER_PROPOSED",
   "LAWYER_SELECTED",
   "WAITING_FOR_ACCEPTANCE",
+  "DECLINED",
   "ACCEPTED",
   "SCHEDULED",
   "IN_PROGRESS",
@@ -947,6 +988,11 @@ export interface LegalRequest {
   analysisId: string | null;
   /** The lawyer the client selected. */
   selectedLawyerId: string | null;
+  /**
+   * Documents the client attached to the consultation. Only the client and
+   * the assigned lawyer may read them (enforced per-request, not per-document).
+   */
+  attachmentDocumentIds?: string[];
   /** The organization this request belongs to, when org-scoped. */
   orgId: string | null;
   createdAt: string;
@@ -1186,4 +1232,62 @@ export interface LawyerWorkspace {
   stats: LawyerWorkspaceStats;
   inbox: LawyerInboxItem[];
   cases: LawyerCaseItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Consultation case (PART 25)
+// ---------------------------------------------------------------------------
+// A consultation IS a LegalRequest — a dedicated entity, never an AI
+// conversation. These are the read projections the case room renders. The
+// viewer is either the client (owner) or the assigned lawyer; the server
+// decides which, and the projection carries `viewerRole` so the UI can
+// show the right actions without guessing.
+
+/** Which side of the consultation the current viewer is on. */
+export type ConsultationViewerRole = "client" | "lawyer";
+
+/** A message in the case room, with the sender resolved for display. */
+export interface ConsultationMessageView {
+  id: string;
+  /** The sender's display name (never the raw user id). */
+  senderName: string;
+  senderRole: PlatformRole;
+  /** True when the current viewer sent this message. */
+  isMine: boolean;
+  body: string;
+  attachments: MessageAttachment[];
+  readAt: string | null;
+  createdAt: string;
+}
+
+/** The consultation service method. Only secure text is live today. */
+export type ConsultationMethod = "secure_text";
+
+export const CONSULTATION_METHOD_FA: Record<ConsultationMethod, string> = {
+  secure_text: "مشاوره متنی امن",
+};
+
+/**
+ * The full case-room payload. `lawyer` is null only when the request has no
+ * selected lawyer yet (the intake path). `attachments` carries metadata
+ * only — the bytes are streamed through the case-scoped attachment route.
+ */
+export interface ConsultationDetail {
+  request: LegalRequest;
+  events: LegalRequestEvent[];
+  viewerRole: ConsultationViewerRole;
+  lawyer: LawyerDetail | null;
+  messages: ConsultationMessageView[];
+  attachments: ConsultationAttachmentView[];
+  /** The method offered for this consultation. */
+  method: ConsultationMethod;
+}
+
+/** Attachment metadata as shown in the case room. */
+export interface ConsultationAttachmentView {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  createdAt: string;
 }

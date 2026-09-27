@@ -7,6 +7,11 @@
 //
 // Owner-only. The actor recorded in the event log is always the session
 // user, never a client-supplied id.
+//
+// Lawyer-only moves (accept/decline, and the active-case lifecycle) are
+// rejected here with 403 — the client must never be able to accept their
+// own request or drive it to COMPLETED. Those moves go through
+// POST /[id]/respond, which is gated on the assigned lawyer.
 // ============================================================
 
 import { NextResponse } from "next/server";
@@ -14,7 +19,12 @@ import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/rbac";
 import { getRequestById, transitionRequest } from "@/lib/legal-request-db";
 import { createCase, addCaseTimelineEvent } from "@/lib/case-db";
-import { LEGAL_REQUEST_STATE_FA, canTransitionLegalRequest, type LegalRequestState } from "@legalir/types";
+import {
+  LEGAL_REQUEST_STATE_FA,
+  canTransitionLegalRequest,
+  isLawyerTransition,
+  type LegalRequestState,
+} from "@legalir/types";
 
 const VALID_STATES = new Set(Object.keys(LEGAL_REQUEST_STATE_FA));
 
@@ -45,6 +55,15 @@ export async function POST(
     return NextResponse.json(
       { code: "VALIDATION_ERROR", message: "وضعیت مقصد معتبر نیست" },
       { status: 400 }
+    );
+  }
+
+  // A lawyer-only move is not the client's to make. Reject it before the
+  // legality check so the client can never accept their own request.
+  if (isLawyerTransition(existing.state, body.to as LegalRequestState)) {
+    return NextResponse.json(
+      { code: "FORBIDDEN", message: "این تغییر وضعیت فقط توسط وکیل امکان‌پذیر است" },
+      { status: 403 }
     );
   }
 

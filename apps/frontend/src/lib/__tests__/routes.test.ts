@@ -8,6 +8,7 @@ import {
   getMainNavItems,
   getBottomNavItems,
   canAccessRoute,
+  isNavItemActive,
   isPublicPath,
   isAuthPath,
 } from "@/lib/routes";
@@ -101,6 +102,47 @@ describe("getBottomNavItems", () => {
     const items = getBottomNavItems("user");
     const paths = items.map((i) => i.path);
     expect(paths).not.toContain("/admin/users");
+  });
+});
+
+describe("isNavItemActive", () => {
+  it("matches an item's own path exactly", () => {
+    expect(isNavItemActive("/dashboard", "/dashboard")).toBe(true);
+    expect(isNavItemActive("/services", "/services")).toBe(true);
+    expect(isNavItemActive("/profile", "/profile")).toBe(true);
+  });
+
+  it("keeps a section lit on its child routes", () => {
+    expect(isNavItemActive("/services/contracts", "/services")).toBe(true);
+    expect(isNavItemActive("/services/contracts/new", "/services")).toBe(true);
+    expect(isNavItemActive("/profile/points", "/profile")).toBe(true);
+  });
+
+  it("does not light a section for a sibling path", () => {
+    expect(isNavItemActive("/services-archive", "/services")).toBe(false);
+    expect(isNavItemActive("/dashboard", "/services")).toBe(false);
+  });
+
+  it("treats the centre action as exact-match only", () => {
+    expect(isNavItemActive("/new", "/new")).toBe(true);
+    expect(isNavItemActive("/new/contract", "/new")).toBe(false);
+  });
+
+  it("never lights two bottom-nav items at once", () => {
+    const items = getBottomNavItems("user");
+    const paths = [
+      "/dashboard",
+      "/services",
+      "/services/contracts/new",
+      "/support",
+      "/profile/points",
+      "/new",
+      "/new/contract",
+    ];
+    for (const pathname of paths) {
+      const active = items.filter((i) => isNavItemActive(pathname, i.path));
+      expect(active.length).toBeLessThanOrEqual(1);
+    }
   });
 });
 

@@ -448,3 +448,25 @@ export const IconGavel = createIcon("Gavel", (
 export const IconScale = createIcon("Scale", (
   <path d="M12 3a1.5 1.5 0 011.5 1.5h4.75a1 1 0 010 2H13.5V8h3.25l2.5 6.5a3.75 3.75 0 01-7.25 0L14.5 8H13.5v9.5h4a1 1 0 010 2h-11a1 1 0 010-2h4V8H9.5l2.5 6.5a3.75 3.75 0 01-7.25 0L7.25 8H6.75a1 1 0 010-2H11.5A1.5 1.5 0 0112 3zM6.5 10.2L5.2 13.6a2.25 2.25 0 002.6 0L6.5 10.2zm11 0l-1.3 3.4a2.25 2.25 0 002.6 0l-1.3-3.4z" />
 ));
+
+// --- Services page: category & discovery icons ---
+
+/** Open book — legal library / educational resources. */
+export const IconLibrary = createIcon("Library", (
+  <path d="M12 5.5C10.5 4.2 8.4 3.5 6 3.5c-1.1 0-2.1.15-3 .45V19c.9-.3 1.9-.45 3-.45 2.4 0 4.5.7 6 2 1.5-1.3 3.6-2 6-2 1.1 0 2.1.15 3 .45V3.95c-.9-.3-1.9-.45-3-.45-2.4 0-4.5.7-6 2zm0 11.6c-1.4-.9-3.1-1.4-5-1.4-.7 0-1.4.08-2 .22V5.6c.6-.13 1.3-.2 2-.2 1.9 0 3.6.5 5 1.4v10.3zm2 0V6.8c1.4-.9 3.1-1.4 5-1.4.7 0 1.4.07 2 .2v10.32c-.6-.14-1.3-.22-2-.22-1.9 0-3.6.5-5 1.4z" />
+));
+
+/** Sparkle — new / recently added services. */
+export const IconSparkle = createIcon("Sparkle", (
+  <path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2zm6.5 11l.95 2.8 2.8.95-2.8.95-.95 2.8-.95-2.8-2.8-.95 2.8-.95.95-2.8z" />
+));
+
+/** Shield with a check — confidentiality / NDA. */
+export const IconShieldCheck = createIcon("ShieldCheck", (
+  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1.2 15.2L7 12.4l1.4-1.4 2.4 2.4 5-5L17.2 9.8l-6.4 6.4z" />
+));
+
+/** Handshake — human lawyer consultation. */
+export const IconHandshake = createIcon("Handshake", (
+  <path d="M12.5 6.5l-1.4-1.4a2 2 0 00-2.8 0L4 9.4V14l3.5 3.5a1.4 1.4 0 002 0l.5-.5 1.5 1.5a1.4 1.4 0 002 0l.5-.5 1.5 1.5a1.4 1.4 0 002 0l3-3V9.4l-3.5-3.5a2 2 0 00-2.8 0L12.5 6.5zm-1.4 1.4l1.4 1.4 1.4-1.4 3.1 3.1v3.1l-2 2-1.5-1.5.9-.9-1.4-1.4-.9.9-1.5-1.5.9-.9-1.4-1.4-.9.9-1.5-1.5 2-2 3.1 3.1z" />
+));

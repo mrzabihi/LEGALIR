@@ -33,7 +33,6 @@ import { IconClose, IconSearch, IconServices } from "@/lib/icons";
 import {
   CATALOG_SIZE,
   LIBRARY_CAMPAIGN,
-  NDA_CAMPAIGN,
   NEW_SERVICES,
   PRIMARY_CAMPAIGN,
   SECONDARY_CAMPAIGN,
@@ -271,11 +270,15 @@ export default function ServicesPage() {
           </section>
 
           {/* ============================================================
-              5. New services + compact NDA campaign
+              5. New services — NDA feature banner + secondary cards
               ============================================================ */}
-          <div className="mb-10 grid gap-4 laptop:grid-cols-[minmax(0,1fr)_minmax(0,340px)] laptop:items-stretch">
+          {/* `NewServices` owns the whole section: it renders the NDA
+              campaign as a full-width feature banner and the remaining
+              new services as a balanced row beneath it. The page must
+              not render a second NDA banner — that would show the same
+              promotion twice. */}
+          <div className="mb-10">
             <NewServices services={NEW_SERVICES} />
-            <CampaignBanner banner={NDA_CAMPAIGN} size="vertical" />
           </div>
 
           {/* ============================================================

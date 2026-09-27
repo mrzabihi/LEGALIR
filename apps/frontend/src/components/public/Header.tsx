@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { IconMenu, IconClose } from "@/lib/icons";
 
 interface NavItem {
@@ -29,31 +30,72 @@ export function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [ctaOpen, setCtaOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Portals need a DOM target, which only exists after hydration.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Lock background scroll while the drawer is open, restoring the exact
+  // scroll position on close (iOS Safari otherwise jumps to the top).
   useEffect(() => {
-    if (mobileOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!mobileOpen) return;
+    const scrollY = window.scrollY;
+    const { overflow, position, top, width } = document.body.style;
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = overflow;
+      document.body.style.position = position;
+      document.body.style.top = top;
+      document.body.style.width = width;
+      window.scrollTo(0, scrollY);
     };
   }, [mobileOpen]);
 
+  // Move focus into the drawer on open, trap Tab inside it, and restore
+  // focus to the hamburger on close.
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && mobileOpen) {
+    if (!mobileOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
         setMobileOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusables = drawerRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables || focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
   }, [mobileOpen]);
 
   useEffect(() => {
@@ -151,10 +193,8 @@ export function Header() {
           </div>
         </div>
 
-        {/* Mobile spacer — keeps the hamburger pinned to the end */}
-        <div className="laptop:hidden flex-1" aria-hidden="true" />
-
-        {/* Mobile: Hamburger */}
+        {/* Mobile: Hamburger — first in DOM order so it lands on the start
+            (right) side under RTL. */}
         <div className="flex items-center gap-1 laptop:hidden">
           <button
             onClick={() => setMobileOpen(true)}
@@ -165,76 +205,97 @@ export function Header() {
             <IconMenu size={24} />
           </button>
         </div>
+
+        {/* Mobile spacer — pushes the hamburger to the start (right) side */}
+        <div className="laptop:hidden flex-1" aria-hidden="true" />
       </div>
 
-      {/* Mobile Nav Drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 laptop:hidden" role="dialog" aria-modal="true" aria-label="منوی موبایل">
+      {/* Mobile Nav Drawer — portaled to <body> so the header's
+          `backdrop-blur-md` (a backdrop-filter, which makes the header the
+          containing block for fixed descendants) cannot clip it to the
+          header's own box. */}
+      {mounted &&
+        mobileOpen &&
+        createPortal(
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
+            className="fixed inset-0 z-50 overflow-hidden laptop:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="منوی موبایل"
+          >
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden="true"
+            />
 
-          <div className="absolute inset-y-0 end-0 w-[85vw] max-w-[340px] bg-white shadow-2xl flex flex-col animate-drawer-slide-in">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200">
-              <div className="flex items-center gap-3">
+            <div
+              ref={drawerRef}
+              className="absolute inset-y-0 start-0 flex h-dvh w-[min(85vw,340px)] max-w-full flex-col bg-white shadow-2xl animate-drawer-slide-in"
+            >
+              <div className="safe-area-top flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
                 <img
                   src="/legalir-logo.png"
                   alt="LEGALIR"
-                  className="h-14 w-auto"
+                  className="h-10 w-auto shrink-0"
                 />
+                <button
+                  ref={closeBtnRef}
+                  onClick={() => setMobileOpen(false)}
+                  className="touch-target-min flex shrink-0 items-center justify-center rounded-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
+                  aria-label="بستن منو"
+                >
+                  <IconClose size={24} />
+                </button>
               </div>
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="h-10 w-10 rounded-medium flex items-center justify-center text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 transition-colors"
-                aria-label="بستن منو"
+
+              <nav
+                className="flex-1 overflow-y-auto overscroll-contain px-3 py-4"
+                aria-label="منوی موبایل"
               >
-                <IconClose size={24} />
-              </button>
-            </div>
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`mb-1 block rounded-medium px-4 py-3.5 text-body-1 transition-colors ${
+                      isActive(item.href)
+                        ? "bg-primary-50 font-medium text-primary-700"
+                        : "text-neutral-700 hover:bg-neutral-50"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
 
-            <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="منوی موبایل">
-              {navItems.map((item) => (
+                <div className="my-5 border-t border-neutral-200" />
+
+                <p className="mb-3 px-4 text-caption font-medium text-neutral-400">
+                  خدمات پرکاربرد
+                </p>
+                {ctaItems.map((cta) => (
+                  <Link
+                    key={cta.href}
+                    href={cta.href}
+                    className="mb-1 flex items-center gap-3 rounded-medium px-4 py-3 text-body-1 text-neutral-700 transition-colors hover:bg-neutral-50"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-secondary-500" />
+                    {cta.label}
+                  </Link>
+                ))}
+              </nav>
+
+              <div className="safe-area-bottom shrink-0 border-t border-neutral-200 bg-neutral-50 px-4 py-4">
                 <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block px-4 py-3.5 rounded-medium text-body-1 transition-colors mb-1 ${
-                    isActive(item.href)
-                      ? "bg-primary-50 text-primary-700 font-medium"
-                      : "text-neutral-700 hover:bg-neutral-50"
-                  }`}
+                  href="/auth/mobile"
+                  className="flex w-full items-center justify-center rounded-medium bg-primary-700 py-3.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-800"
                 >
-                  {item.label}
+                  ورود / ثبت‌نام
                 </Link>
-              ))}
-
-              <div className="my-5 border-t border-neutral-200" />
-
-              <p className="px-4 text-caption text-neutral-400 mb-3 font-medium">خدمات پرکاربرد</p>
-              {ctaItems.map((cta) => (
-                <Link
-                  key={cta.href}
-                  href={cta.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-medium text-body-1 text-neutral-700 hover:bg-neutral-50 transition-colors mb-1"
-                >
-                  <span className="w-2 h-2 rounded-full bg-secondary-500" />
-                  {cta.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="px-4 py-4 border-t border-neutral-200 bg-neutral-50">
-              <Link
-                href="/auth/mobile"
-                className="flex items-center justify-center w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-medium hover:bg-primary-800 transition-colors shadow-sm"
-              >
-                ورود / ثبت‌نام
-              </Link>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </header>
   );
 }

@@ -16,6 +16,7 @@ import { useUpdateAccountType } from "@/hooks/useAccount";
 import { useOrganizations } from "@/hooks/useOnboarding";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useContracts } from "@/hooks/useContracts";
+import { useConsultations } from "@/hooks/useConsultations";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { JalaliDatePicker, formatJalaliLong } from "@/components/shared/JalaliDatePicker";
 import { Breadcrumb } from "@/components/shared/Breadcrumb";
@@ -415,6 +416,7 @@ export default function AccountHubPage() {
   const subHistory = useSubscriptionHistory();
   const documents = useDocuments({ pageSize: 1 });
   const contracts = useContracts({ pageSize: 1 });
+  const consultations = useConsultations();
   const memories = useMemories();
 
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -443,6 +445,7 @@ export default function AccountHubPage() {
   const docCount = documents.data?.pagination?.total ?? documents.data?.items?.length ?? 0;
   const contractCount = contracts.data?.pagination?.total ?? contracts.data?.items?.length ?? 0;
   const memoryCount = memories.data?.items?.length ?? 0;
+  const consultationCount = consultations.data?.length ?? 0;
 
   const completionPct = profile?.completionPercent ?? 0;
 
@@ -800,6 +803,14 @@ export default function AccountHubPage() {
             title="قراردادهای من"
             description="ساخت و مدیریت قرارداد"
             status={`${persianCount(contractCount)} قرارداد`}
+            statusTone="primary"
+          />
+          <HubCard
+            href="/consultations"
+            icon={<IconBalance size={22} />}
+            title="مشاوره‌های من"
+            description="درخواست مشاوره با وکیل انسانی و پیگیری پرونده"
+            status={`${persianCount(consultationCount)} مشاوره`}
             statusTone="primary"
           />
           <HubCard

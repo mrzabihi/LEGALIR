@@ -92,6 +92,8 @@ import type {
   LegalRequestEvent,
   LegalRequestState,
   LawyerWorkspace,
+  ConsultationDetail,
+  SecureMessage,
   OnboardingState,
   Organization,
   OrganizationAuthorizedSignatory,
@@ -892,6 +894,8 @@ export function createLegalRequest(input: {
   title: string;
   category: string;
   intakeAnswers?: Record<string, string>;
+  selectedLawyerId?: string | null;
+  attachmentDocumentIds?: string[];
 }): Promise<LegalRequest> {
   return apiClient.post<LegalRequest>("/api/v1/legal-requests", input);
 }
@@ -899,6 +903,43 @@ export function createLegalRequest(input: {
 export function fetchLegalRequest(id: string): Promise<LegalRequestDetail> {
   return apiClient.get<LegalRequestDetail>(
     `/api/v1/legal-requests/${encodeURIComponent(id)}`
+  );
+}
+
+// ============================================================
+// Consultations — the case room (PART 25)
+// ============================================================
+// A consultation IS a LegalRequest; these wrappers read/write the
+// case-scoped room around it. The detail payload is role-aware: the
+// server decides whether the viewer is the client or the lawyer.
+
+/** The full case room for one consultation. */
+export function fetchConsultation(id: string): Promise<ConsultationDetail> {
+  return apiClient.get<ConsultationDetail>(
+    `/api/v1/legal-requests/${encodeURIComponent(id)}`
+  );
+}
+
+/** The lawyer's accept/decline decision on an assigned request. */
+export function respondToConsultation(
+  id: string,
+  action: "accept" | "decline",
+  note?: string
+): Promise<LegalRequest> {
+  return apiClient.post<LegalRequest>(
+    `/api/v1/legal-requests/${encodeURIComponent(id)}/respond`,
+    { action, note }
+  );
+}
+
+/** Send a message in the case room. Returns the appended message. */
+export function sendConsultationMessage(
+  id: string,
+  body: string
+): Promise<SecureMessage> {
+  return apiClient.post<SecureMessage>(
+    `/api/v1/legal-requests/${encodeURIComponent(id)}/messages`,
+    { body }
   );
 }
 

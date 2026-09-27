@@ -39,7 +39,20 @@ interface LawyerReviewRow {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const LAWYER_SEED_VERSION = "legalir-lawyers-v4";
+export const LAWYER_SEED_VERSION = "legalir-lawyers-v6";
+
+/**
+ * The demo lawyer who can actually log in. The first demo profile is
+ * bound to a real `users` row so the lawyer journey (workspace, inbox,
+ * accept/decline, case messages) is testable end-to-end with the dev OTP
+ * (405405). The remaining demo lawyers keep synthetic ids and are
+ * marketplace-only.
+ */
+const DEMO_LAWYER_LOGIN = {
+  userId: "demo-user-demo-lawyer-03",
+  mobile: "09120000010",
+  displayName: "حسام ساکی",
+};
 
 // ---------------------------------------------------------------------------
 // JSON-DB primitives (self-contained to avoid a circular import with db.ts)
@@ -63,6 +76,22 @@ function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
   const file = path.join(DATA_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+}
+
+/**
+ * Mirrors DbUser in db.ts. Declared locally to keep this module free of a
+ * circular import with db.ts (which imports this file).
+ */
+interface DemoUserRow {
+  id: string;
+  mobile: string;
+  email: string | null;
+  passwordHash: string;
+  displayName: string | null;
+  accountType?: "individual" | "legal";
+  platformAccountType?: "PERSONAL" | "LAWYER" | "BUSINESS";
+  role?: "USER" | "LAWYER" | "ADMIN" | "SUPER_ADMIN" | "COMPANY_MEMBER" | "COMPANY_ADMIN" | "COMPANY_OWNER";
+  createdAt: string;
 }
 
 interface LawyerMeta {
@@ -392,7 +421,9 @@ const DEMO_AVATAR_TYPE: LawyerAvatarType = "demo";
 function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
   return {
     id: spec.id,
-    userId: `demo-user-${spec.id}`,
+    // The first demo lawyer is bound to a real, login-able user row so the
+    // lawyer journey works end-to-end; the rest stay synthetic.
+    userId: spec.id === "demo-lawyer-03" ? DEMO_LAWYER_LOGIN.userId : `demo-user-${spec.id}`,
     fullName: spec.fullName,
     professionalTitle: spec.professionalTitle,
     licenseNumber: spec.licenseNumber,
@@ -507,7 +538,41 @@ export function seedDemoLawyers(): void {
   for (const row of buildDemoReviews()) reviewsById.set(row.id, row);
   writeTable<LawyerReviewRow>("lawyer_reviews", [...reviewsById.values()]);
 
+  seedDemoLawyerUser();
+
   writeTable<LawyerMeta>("lawyer_meta", [
     { version: LAWYER_SEED_VERSION, seededAt: new Date().toISOString() },
   ]);
+}
+
+/**
+ * Seed the login-able demo lawyer's `users` row. Upserted by id so a
+ * re-seed never duplicates, and the role/account type are (re)asserted
+ * so the lawyer side stays reachable even if the row predates them.
+ */
+function seedDemoLawyerUser(): void {
+  // Drop any stale demo-lawyer user rows from an earlier seed version. They
+  // share the demo mobile, so leaving one behind would make findUserByMobile
+  // resolve the wrong (non-accepting) lawyer.
+  const users = readTable<DemoUserRow>("users").filter(
+    (u) => !(u.id.startsWith("demo-user-demo-lawyer-") && u.id !== DEMO_LAWYER_LOGIN.userId)
+  );
+  const now = new Date().toISOString();
+  const idx = users.findIndex((u) => u.id === DEMO_LAWYER_LOGIN.userId);
+  const row: DemoUserRow = {
+    id: DEMO_LAWYER_LOGIN.userId,
+    mobile: DEMO_LAWYER_LOGIN.mobile,
+    email: null,
+    // OTP-only login: the password hash is never used, but the column is
+    // required by the row shape.
+    passwordHash: "",
+    displayName: DEMO_LAWYER_LOGIN.displayName,
+    accountType: "individual",
+    platformAccountType: "LAWYER",
+    role: "LAWYER",
+    createdAt: idx >= 0 ? users[idx]!.createdAt : now,
+  };
+  if (idx >= 0) users[idx] = row;
+  else users.push(row);
+  writeTable<DemoUserRow>("users", users);
 }

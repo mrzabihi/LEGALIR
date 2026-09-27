@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getBottomNavItems } from "@/lib/routes";
+import { getBottomNavItems, isNavItemActive } from "@/lib/routes";
 import type { UserRole } from "@/lib/routes";
 import {
   IconHome,
@@ -49,10 +49,9 @@ export function BottomNav({ userRole }: BottomNavProps) {
       aria-label="منوی پایین"
     >
       {items.map((item) => {
-        const isActive = pathname === item.path
-          || (item.path !== "/dashboard" && item.path !== "/services"
-            && item.path !== "/support" && item.path !== "/profile"
-            && pathname.startsWith(item.path + "/"));
+        // Selected state comes from the shared route helper so the rule is
+        // identical everywhere it is needed and unit-testable.
+        const isActive = isNavItemActive(pathname, item.path);
         const IconComp = item.icon ? NAV_ICON_MAP[item.icon] : null;
         const isCenter = item.path === "/new";
 
@@ -99,16 +98,21 @@ export function BottomNav({ userRole }: BottomNavProps) {
             aria-label={item.titleFa}
             aria-current={isActive ? "page" : undefined}
           >
-            {/* Animated active pill indicator — warm ivory state layer */}
-            <span
-              className={[
-                "absolute top-1 left-1/2 -translate-x-1/2 rounded-full transition-all duration-300 ease-emphasized",
-                isActive ? "w-8 h-6 bg-glass-state" : "w-0 h-6 bg-transparent",
-              ].join(" ")}
-              aria-hidden="true"
-            />
-            <span className={["relative transition-transform duration-200", isActive ? "scale-110 -translate-y-0.5" : "scale-100"].join(" ")}>
-              {IconComp ? <IconComp size={22} /> : <span className="text-lg">•</span>}
+            {/* Active indicator — a capsule centred on the icon itself.
+                It is a sibling of the icon inside a fixed-size box, so it
+                can never drift to the item's top edge or leave the gap the
+                old `top-1` rectangle produced. */}
+            <span className="relative flex h-7 w-14 items-center justify-center">
+              <span
+                className={[
+                  "absolute inset-0 rounded-full transition-opacity duration-200 ease-standard",
+                  isActive ? "bg-glass-state opacity-100" : "opacity-0",
+                ].join(" ")}
+                aria-hidden="true"
+              />
+              <span className="relative">
+                {IconComp ? <IconComp size={22} /> : <span className="text-lg">•</span>}
+              </span>
             </span>
             <span className={[
               "relative text-[11px] font-medium leading-none transition-colors duration-200",

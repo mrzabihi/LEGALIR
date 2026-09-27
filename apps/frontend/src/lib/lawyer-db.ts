@@ -20,6 +20,8 @@ import type {
   LawyerListResponse,
   LawyerVerificationStatus,
   LawyerPerformance,
+  LawyerDetail,
+  LawyerReview,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -176,6 +178,46 @@ export function toListItem(profile: LawyerProfile): LawyerListItem {
     isDemo: profile.isDemo,
     acceptingRequests: profile.acceptingRequests,
     bioExcerpt: bio.length > 140 ? `${bio.slice(0, 140)}…` : bio,
+  };
+}
+
+/**
+ * Project a full profile into the public detail shape. Reviews carry a
+ * display name only — the reviewer's user id is never exposed. Shared by
+ * the public profile route and the consultation case room so both render
+ * the same lawyer.
+ */
+export function toLawyerDetail(profile: LawyerProfile): LawyerDetail {
+  const reviews: LawyerReview[] = listLawyerReviews(profile.id).map((r) => ({
+    id: r.id,
+    authorName: "کاربر لگالیر",
+    rating: r.rating,
+    comment: r.comment,
+    createdAt: r.createdAt,
+  }));
+
+  return {
+    id: profile.id,
+    fullName: profile.fullName,
+    avatarUrl: profile.avatarUrl,
+    avatarType: profile.avatarType ?? "real",
+    professionalTitle: profile.professionalTitle ?? null,
+    bio: profile.bio,
+    licenseNumber: profile.licenseNumber,
+    licenseYear: profile.licenseYear,
+    verificationStatus: profile.verificationStatus,
+    verifiedAt: profile.verifiedAt,
+    specializations: profile.specializations,
+    locations: profile.locations,
+    languages: profile.languages,
+    pricing: profile.pricing,
+    availability: profile.availability,
+    performance: computePerformance(profile.id),
+    availabilityStatus: profile.availabilityStatus ?? "ACTIVE",
+    consultationCapacity: profile.consultationCapacity ?? null,
+    isDemo: profile.isDemo,
+    acceptingRequests: profile.acceptingRequests,
+    reviews,
   };
 }
 

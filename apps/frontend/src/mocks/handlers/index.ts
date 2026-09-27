@@ -74,6 +74,12 @@ import {
   fixtureBlogListItems,
   fixtureBlogPostDetails,
   fixtureNotifications,
+  fixtureLawyerListResponse,
+  fixtureLawyerDetail,
+  fixtureLawyerDetailB,
+  fixtureLegalRequest,
+  fixtureConsultationDetail,
+  fixtureConsultationMessages,
 } from "@legalir/testing";
 
 // --- Constants ---
@@ -2426,6 +2432,116 @@ export const handlers = [
     return HttpResponse.json(
       ok({ items, unreadCount: items.filter((n) => !n.read).length })
     );
+  }),
+
+  // --- Lawyer marketplace & consultation (PART 25) ---
+  // The consultation flow reads the real directory through these. The list
+  // honours `category` so a drill-down test can prove the specialty filter
+  // is applied server-side rather than in the component.
+
+  http.get(`${API_BASE}/api/v1/lawyers`, async ({ request }) => {
+    await delay(150);
+    const url = new URL(request.url);
+    const category = url.searchParams.get("category");
+    const items = category
+      ? fixtureLawyerListResponse.items.filter((l) =>
+          l.specializations.some((s) => s.category === category)
+        )
+      : fixtureLawyerListResponse.items;
+    return HttpResponse.json(
+      ok({
+        items,
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: items.length,
+          totalPages: 1,
+        },
+      })
+    );
+  }),
+
+  http.get(`${API_BASE}/api/v1/lawyers/:id`, async ({ params }) => {
+    await delay(150);
+    const id = decodeURIComponent(params["id"] as string);
+    const detail =
+      id === fixtureLawyerDetailB.id
+        ? fixtureLawyerDetailB
+        : id === fixtureLawyerDetail.id
+          ? fixtureLawyerDetail
+          : null;
+    if (!detail) {
+      return HttpResponse.json(
+        { code: "NOT_FOUND", message: "وکیل یافت نشد" },
+        { status: 404 }
+      );
+    }
+    return HttpResponse.json(ok(detail));
+  }),
+
+  http.post(`${API_BASE}/api/v1/lawyers/match`, async () => {
+    await delay(150);
+    return HttpResponse.json(
+      ok({
+        candidates: fixtureLawyerListResponse.items.map((lawyer, i) => ({
+          lawyer,
+          score: 1 - i * 0.1,
+          reasons: [],
+        })),
+      })
+    );
+  }),
+
+  http.get(`${API_BASE}/api/v1/legal-requests`, async () => {
+    await delay(150);
+    return HttpResponse.json(ok([fixtureLegalRequest()]));
+  }),
+
+  http.post(`${API_BASE}/api/v1/legal-requests`, async ({ request }) => {
+    await delay(150);
+    const body = (await request.json()) as {
+      title?: string;
+      category?: string;
+      selectedLawyerId?: string | null;
+    };
+    return HttpResponse.json(
+      ok(
+        fixtureLegalRequest(
+          body.selectedLawyerId ? "WAITING_FOR_ACCEPTANCE" : "DRAFT",
+          {
+            title: body.title ?? "مشاوره",
+            category: body.category ?? "family",
+            selectedLawyerId: body.selectedLawyerId ?? null,
+          }
+        )
+      ),
+      { status: 201 }
+    );
+  }),
+
+  http.get(`${API_BASE}/api/v1/legal-requests/:id`, async () => {
+    await delay(150);
+    return HttpResponse.json(ok(fixtureConsultationDetail()));
+  }),
+
+  http.post(`${API_BASE}/api/v1/legal-requests/:id/respond`, async () => {
+    await delay(150);
+    return HttpResponse.json(ok(fixtureLegalRequest("ACCEPTED")));
+  }),
+
+  http.post(`${API_BASE}/api/v1/legal-requests/:id/transition`, async () => {
+    await delay(150);
+    return HttpResponse.json(ok(fixtureLegalRequest("CANCELLED")));
+  }),
+
+  http.get(`${API_BASE}/api/v1/legal-requests/:id/messages`, async () => {
+    await delay(150);
+    return HttpResponse.json(ok(fixtureConsultationMessages));
+  }),
+
+  http.post(`${API_BASE}/api/v1/legal-requests/:id/messages`, async () => {
+    await delay(150);
+    return HttpResponse.json(ok(fixtureConsultationMessages[0]), { status: 201 });
   }),
 
 ];

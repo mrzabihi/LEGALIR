@@ -25,6 +25,7 @@ const PROTECTED_PREFIXES = [
   "/support",
   "/calculators",
   "/lawyer",
+  "/consultations",
   "/onboarding",
 ];
 
@@ -68,7 +69,10 @@ export function middleware(request: NextRequest) {
       // Preserve the intended route
       const loginUrl = new URL("/auth/mobile", request.url);
       if (pathname !== "/dashboard") {
-        loginUrl.searchParams.set("intent", pathname);
+        // Preserve the query string too — a guest who started from a specific
+        // lawyer (`/consultations/new?lawyerId=X`) must return to the same
+        // lawyer after signing in, not a bare wizard.
+        loginUrl.searchParams.set("intent", pathname + request.nextUrl.search);
       }
       return NextResponse.redirect(loginUrl);
     }

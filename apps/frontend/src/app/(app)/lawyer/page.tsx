@@ -208,7 +208,7 @@ export default function LawyerWorkspacePage() {
               {inbox.map((item) => (
                 <li key={item.requestId}>
                   <Link
-                    href={`/requests/${item.requestId}`}
+                    href={`/consultations/${item.requestId}`}
                     className="flex items-center justify-between gap-3 rounded-xl border border-divider/60 px-3 py-3 transition hover:border-primary/40 hover:bg-primary/5"
                   >
                     <div className="min-w-0 flex-1">

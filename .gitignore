@@ -37,6 +37,11 @@ coverage/
 test-results/
 playwright-report/
 
+# QA artifacts — screenshots and audit captures, never part of the app
+apps/frontend/.audit/
+apps/frontend/e2e/__shots__/
+debug.log
+
 # Database
 .data/
 
@@ -61,3 +66,11 @@ iran legal/
 /LEGALIR FARSI TYPE LOGO.png
 /LEGALIR FARSI TYPE LOGO LIGHT SLIDE BAR.png
 /222dfc49-1d89-424f-9847-ea4b488f4aad.png
+
+# Root-level scratch screenshots (random-hash names, not app assets)
+/CTljOmhc97JsaYGY.jpg
+/DnMKGCqTKCn6mpu5.jpg
+/KgXDHOeRvN8TcQQM.jpg
+/iCfCBgp5YOQl9h7f.jpg
+/ujB-_wTPolET6g7R.jpg
+/vuC1eGyJVxPdB8Lo.jpg

@@ -44,7 +44,8 @@ export const routes: RouteDef[] = [
   { path: "/lawyers", titleFa: "وکلا", access: "user", icon: "Balance" },
   { path: "/lawyer", titleFa: "میزکار وکیل", access: "user", icon: "Balance", hidden: true },
   { path: "/cases", titleFa: "پرونده‌ها", access: "user", icon: "Balance" },
-  { path: "/requests", titleFa: "درخواست‌ها", access: "user", icon: "Article" },
+  { path: "/consultations", titleFa: "مشاوره‌های من", access: "user", icon: "Balance" },
+  { path: "/requests", titleFa: "درخواست‌ها", access: "user", icon: "Article", hidden: true },
   { path: "/intake", titleFa: "پرسش‌نامه حقوقی", access: "user", icon: "Category", hidden: true },
   { path: "/subscription", titleFa: "اشتراک", access: "user", icon: "WorkspacePremium" },
 
@@ -123,6 +124,21 @@ export function getBottomNavItems(role: UserRole): RouteDef[] {
     .map((p) => mainItems.find((r) => r.path === p))
     .filter((r): r is RouteDef => r !== undefined);
   return ordered.slice(0, 5);
+}
+
+/**
+ * Whether a navigation item should render as selected for `pathname`.
+ *
+ * An item owns its own path *and* every nested route beneath it, so
+ * `/services`, `/services/xyz` and `/services/xyz/edit` all keep «خدمات»
+ * lit. The centre action (`/new`) is exact-match only — it is a verb, not a
+ * section, so it must never stay lit while the user is elsewhere. No two
+ * items can match at once because no nav path is a prefix of another.
+ */
+export function isNavItemActive(pathname: string, itemPath: string): boolean {
+  if (pathname === itemPath) return true;
+  if (itemPath === "/new") return false;
+  return pathname.startsWith(itemPath + "/");
 }
 
 /**
