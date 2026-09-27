@@ -31,6 +31,14 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
     setDrawerOpen(false);
   }, [pathname, setDrawerOpen]);
 
+  // Reset the content scroll container on route change. The scrollable
+  // element is <main id="main-content">, not the window, so Next.js's
+  // automatic scroll-to-top does not apply — without this, a new page
+  // inherits the previous page's scroll offset.
+  useEffect(() => {
+    document.getElementById("main-content")?.scrollTo(0, 0);
+  }, [pathname]);
+
   // Close drawer on desktop resize
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");

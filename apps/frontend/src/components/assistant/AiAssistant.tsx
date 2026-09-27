@@ -91,10 +91,13 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
     }
   }, [messages]);
 
-  // Focus input when panel opens
+  // Focus input when panel opens. `preventScroll` keeps the browser from
+  // scrolling the page's scroll container to reveal the textarea — on pages
+  // where the panel sits below the fold (e.g. /support) that scroll made the
+  // page appear to open mid-way down.
   useEffect(() => {
     const timer = setTimeout(() => {
-      inputRef.current?.focus();
+      inputRef.current?.focus({ preventScroll: true });
     }, 350);
     return () => clearTimeout(timer);
   }, []);

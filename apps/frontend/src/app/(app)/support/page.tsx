@@ -185,7 +185,7 @@ export default function SupportPage() {
                 </div>
                 <div>
                   <p className="text-body-2 text-on-surface font-medium">آدرس</p>
-                  <p className="text-caption text-muted mt-0.5">تهران، خیابان ولیعصر، برج فناوری، طبقه ۱۲</p>
+                  <p className="text-caption text-muted mt-0.5">تهران، خیابان کریم خان، خیابان خردمند جنوبی، کوچه ملیکان</p>
                 </div>
               </div>
 
