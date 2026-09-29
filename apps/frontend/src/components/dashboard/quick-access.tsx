@@ -3,9 +3,16 @@
 // ============================================================
 // Six equal product-style cards in one desktop row. Each card owns a
 // single brand accent (from the service registry) that tints exactly
-// three things: the icon container, the arrow affordance and a
-// watermark illustration. The card surface itself stays neutral, so
-// six different hues never read as visual chaos.
+// three things: the illustration band, the icon chip and the action
+// bar. The card surface itself stays neutral, so six different hues
+// never read as visual chaos.
+//
+// This is the *compact* variant of the /services «خدمات پرکاربرد»
+// card: the same anatomy (illustration band → copy → tonal action bar)
+// and the same illustrations, scaled down to the narrow dashboard
+// column. It is deliberately not a copy of the larger card — the band,
+// the icon chip, the type scale and the action bar all shrink so six
+// cards fit one row without cropping or overlap.
 //
 // All copy and hrefs come from the service registry — nothing here
 // hard-codes service metadata.
@@ -17,6 +24,8 @@ import Link from "next/link";
 import { getServiceById, type LegalService } from "@/lib/services";
 import type { ServiceType } from "@/lib/ai/service-context";
 import { IconCalculator, IconChevronRight, IconServices } from "@/lib/icons";
+import { serviceArtKey } from "@/lib/services/presentation";
+import { SERVICE_ART } from "@/components/services/service-art";
 
 /** One card's worth of presentation data. */
 interface QuickAccessItem {
@@ -76,13 +85,23 @@ const QUICK_ACCESS_ITEMS: QuickAccessItem[] = [
 
 function QuickAccessServiceCard({ item }: { item: QuickAccessItem }) {
   const Icon = item.icon;
+  const artKey = serviceArtKey(item.id);
+  const Art = artKey ? SERVICE_ART[artKey] : null;
 
-  // One accent → three derived tones. `--qa-ink` mixes toward the theme's
-  // on-surface colour so the icon stays legible in light AND dark mode
-  // without a second hand-tuned colour per service.
+  // One accent → four derived tones. `--qa-ink` mixes toward the theme's
+  // on-surface colour so the icon, the illustration AND the action-bar
+  // label stay legible in light AND dark mode without a second
+  // hand-tuned colour per service.
+  //
+  // The mix is 55% accent, matching the /services card. The action bar
+  // now carries a text label («مشاهده»), so it must clear WCAG AA
+  // 4.5:1 against its own 12% tint — the light accents (gold #D89A13,
+  // green #32B183, crimson #B6251E) only do so once the ink is pulled
+  // this far toward on-surface. At 82% they measured 3.07:1, 3.79:1 and
+  // 3.31:1 — legible but failing.
   const accentVars = {
     "--qa-accent": item.accent,
-    "--qa-ink": `color-mix(in srgb, ${item.accent} 82%, var(--color-on-surface))`,
+    "--qa-ink": `color-mix(in srgb, ${item.accent} 55%, var(--color-on-surface))`,
     "--qa-soft": `color-mix(in srgb, ${item.accent} 12%, transparent)`,
     "--qa-soft-strong": `color-mix(in srgb, ${item.accent} 22%, transparent)`,
   } as CSSProperties;
@@ -92,31 +111,48 @@ function QuickAccessServiceCard({ item }: { item: QuickAccessItem }) {
       href={item.href}
       aria-label={item.ariaLabel}
       style={accentVars}
-      className="group relative flex h-full flex-col overflow-hidden rounded-xlarge border border-[color:var(--color-outline-variant)] bg-surface-container-lowest p-4 transition-all duration-short4 ease-standard hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--qa-accent)_35%,transparent)] hover:shadow-elevation-3 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--qa-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface)] touch-target laptop:min-h-[196px] laptop:p-5"
+      className="group relative flex h-full flex-col overflow-hidden rounded-xlarge border border-[color:var(--color-outline-variant)] bg-surface-container-lowest transition-all duration-short4 ease-standard hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--qa-accent)_35%,transparent)] hover:shadow-elevation-3 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--qa-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface)] touch-target"
     >
-      {/* Watermark illustration — decorative only, clipped by the card edge. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-3 -right-3 hidden text-[var(--qa-ink)] opacity-[0.07] transition-opacity duration-short4 ease-standard group-hover:opacity-[0.12] tablet:block"
-      >
-        <Icon size={88} />
-      </span>
+      {/* Illustration band — the compact form of the /services card band.
+          Shorter, so six cards still fit one desktop row. */}
+      <div className="relative h-20 w-full shrink-0 overflow-hidden bg-[var(--qa-soft)] tablet:h-24">
+        {/* Small tinted icon chip, pinned to the top-start corner. */}
+        <span
+          aria-hidden="true"
+          className="absolute start-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-small bg-[var(--qa-soft-strong)] text-[var(--qa-ink)] transition-transform duration-short4 ease-standard group-hover:scale-[1.05]"
+        >
+          <Icon size={16} />
+        </span>
 
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-[var(--qa-soft)] text-[var(--qa-ink)] transition-transform duration-short4 ease-standard group-hover:scale-[1.03] laptop:h-12 laptop:w-12">
-        <Icon size={24} />
+        {Art && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center text-[var(--qa-ink)] transition-transform duration-short4 ease-standard group-hover:scale-[1.03]"
+          >
+            <Art className="h-full w-full" />
+          </span>
+        )}
       </div>
 
-      <div className="mt-3 flex-1">
+      {/* Copy */}
+      <div className="flex flex-1 flex-col p-3 laptop:p-4">
         <h3 className="text-body-2 font-semibold text-on-surface">{item.title}</h3>
         <p className="mt-1 text-caption leading-relaxed text-on-surface-variant line-clamp-2">
           {item.description}
         </p>
-      </div>
 
-      {/* Arrow affordance — the whole card is the real target. */}
-      <span className="mt-3 inline-flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-full bg-[var(--qa-soft)] text-[var(--qa-ink)] transition-colors duration-short4 ease-standard group-hover:bg-[var(--qa-soft-strong)]">
-        <IconChevronRight size={16} />
-      </span>
+        {/* Action bar — the compact form of the /services CTA. The whole
+            card is the real target, so this is a styled span, not a link. */}
+        <span className="mt-auto block pt-3">
+          <span className="flex min-h-[36px] w-full items-center justify-between gap-1.5 rounded-small bg-[var(--qa-soft)] px-3 text-caption font-semibold text-[var(--qa-ink)] transition-colors duration-short4 ease-standard group-hover:bg-[var(--qa-soft-strong)]">
+            مشاهده
+            <IconChevronRight
+              size={15}
+              className="shrink-0 transition-transform duration-short4 ease-standard group-hover:-translate-x-0.5"
+            />
+          </span>
+        </span>
+      </div>
     </Link>
   );
 }

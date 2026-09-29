@@ -9,3 +9,4 @@ export { CategoryShortcuts } from "./category-shortcuts";
 export { NewServices } from "./new-services";
 export { Reveal } from "./reveal";
 export { BANNER_ART, type BannerArtKey } from "./banner-art";
+export { SERVICE_ART, type ServiceArtKey } from "./service-art";
