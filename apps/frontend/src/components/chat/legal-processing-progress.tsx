@@ -11,7 +11,7 @@
 // Independent of chat business logic — it takes stage statuses as props.
 // ============================================================
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { PROCESSING_STAGES, type ProcessingStage, type StageStatus } from "@legalir/types";
 import { STAGE_CONFIG, STAGE_ORDER, TOTAL_STAGES } from "@/lib/ai/pipeline/stages";
 import { toPersianNumber } from "@/lib/persian-utils";

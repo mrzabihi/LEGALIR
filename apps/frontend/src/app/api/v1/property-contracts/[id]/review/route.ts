@@ -36,7 +36,9 @@ import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 import { partyRoleLabelFa } from "@/lib/contracts/registry";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 type ReviewAction = "submit" | "approve" | "request_changes" | "comment";
 

@@ -16,7 +16,9 @@ import {
 import { updateContractForUser } from "@/lib/contracts/db";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;

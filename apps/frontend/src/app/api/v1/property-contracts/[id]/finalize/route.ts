@@ -27,7 +27,9 @@ import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 import { evaluateRegistrationPolicy } from "@/lib/contracts/registration-policy";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;

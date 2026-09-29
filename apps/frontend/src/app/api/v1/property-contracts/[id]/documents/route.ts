@@ -25,7 +25,9 @@ import { getContractDefinition } from "@/lib/contracts/registry";
 import { writeContractFile } from "@/lib/contracts/storage";
 import { isEditable } from "@/lib/contracts/state-machine";
 
-type Params = { params: Promise<{ id: string }> };
+interface Params {
+  params: Promise<{ id: string }>;
+}
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;
