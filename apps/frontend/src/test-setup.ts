@@ -11,17 +11,20 @@ import { server } from "@/mocks/server";
 // measure their container (the document preview card / PDF viewer) need
 // both. Minimal no-op shims — tests assert on rendered output, not layout.
 if (typeof globalThis.ResizeObserver === "undefined") {
+  /* eslint-disable @typescript-eslint/no-empty-function */
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+  /* eslint-enable @typescript-eslint/no-empty-function */
 }
 
 // jsdom has no IntersectionObserver; the article table of contents uses
 // one to track the active heading. A no-op shim is enough — tests assert
 // on the rendered anchors, not on scroll-spy behaviour.
 if (typeof globalThis.IntersectionObserver === "undefined") {
+  /* eslint-disable @typescript-eslint/no-empty-function */
   globalThis.IntersectionObserver = class {
     observe() {}
     unobserve() {}
@@ -33,9 +36,11 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
     rootMargin = "";
     thresholds = [];
   } as unknown as typeof IntersectionObserver;
+  /* eslint-enable @typescript-eslint/no-empty-function */
 }
 
 if (typeof window !== "undefined" && !window.matchMedia) {
+  /* eslint-disable @typescript-eslint/no-empty-function */
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
@@ -46,6 +51,7 @@ if (typeof window !== "undefined" && !window.matchMedia) {
     removeEventListener: () => {},
     dispatchEvent: () => false,
   })) as unknown as typeof window.matchMedia;
+  /* eslint-enable @typescript-eslint/no-empty-function */
 }
 
 // MSW server for all tests

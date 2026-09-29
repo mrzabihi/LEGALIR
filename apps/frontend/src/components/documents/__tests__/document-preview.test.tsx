@@ -37,9 +37,9 @@ vi.mock("@/lib/pdf", () => ({
                 width: 600 * scale,
                 height: 800 * scale,
               }),
-              render: () => ({ promise: Promise.resolve(), cancel: () => {} }),
+              render: () => ({ promise: Promise.resolve(), cancel: () => undefined }),
             }),
-          destroy: () => {},
+          destroy: () => undefined,
         }),
       }),
     })

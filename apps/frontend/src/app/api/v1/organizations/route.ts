@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   const auth = requireAuth(request);
   if (!auth.ok) return auth.response;
 
-  const items: Array<{ org: Organization; role: string }> = [];
+  const items: { org: Organization; role: string }[] = [];
   const membership = findActiveMembership(auth.ctx.userId);
   if (membership) {
     const org = getOrganizationById(membership.orgId);

@@ -16,7 +16,6 @@ import React, { use } from "react";
 import Link from "next/link";
 import { usePropertyContract } from "@/hooks/usePropertyContracts";
 import { ContractBuilder } from "@/components/contracts/builder/wizard-shell";
-import { IconArrowForward } from "@/lib/icons";
 
 function BuilderContent({ id }: { id: string }) {
   const { data, isLoading, isError, error, refetch } = usePropertyContract(id);
