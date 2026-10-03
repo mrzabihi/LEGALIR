@@ -2118,7 +2118,11 @@ export const handlers = [
     await delay(400);
     const url = new URL(request.url);
 
-    let items = [...fixtureV1HistoryItems];
+    const archivedView = url.searchParams.get("archived") === "true";
+    const archivedCount = fixtureV1HistoryItems.filter((i) => i.archived).length;
+
+    // Split active vs archive view before applying the other filters.
+    let items = fixtureV1HistoryItems.filter((i) => i.archived === archivedView);
 
     // Category filter
     const category = url.searchParams.get("category");
@@ -2152,9 +2156,59 @@ export const handlers = [
     const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20");
 
     return HttpResponse.json(
-      ok(
-        { items, pagination: { page, pageSize, total: items.length, totalPages: Math.ceil(items.length / pageSize) } }
-      )
+      ok({
+        items,
+        pagination: { page, pageSize, total: items.length, totalPages: Math.ceil(items.length / pageSize) },
+        archivedCount,
+        retention: { maxItems: 100, maxAgeDays: 31 },
+      })
+    );
+  }),
+
+  // --- PATCH /api/v1/history — archive / restore ---
+  http.patch(`${API_BASE}/api/v1/history`, async ({ request }) => {
+    await delay(300);
+    const body = (await request.json()) as { id?: string; archived?: boolean };
+    if (!body.id || typeof body.archived !== "boolean") {
+      return HttpResponse.json(err("VALIDATION_ERROR", "شناسه و وضعیت بایگانی الزامی است", false), {
+        status: 400,
+      });
+    }
+    return HttpResponse.json(
+      ok({
+        id: body.id,
+        archived: body.archived,
+        archivedAt: body.archived ? new Date().toISOString() : null,
+      })
+    );
+  }),
+
+  // --- DELETE /api/v1/history?id=… — permanent delete ---
+  http.delete(`${API_BASE}/api/v1/history`, async ({ request }) => {
+    await delay(300);
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) {
+      return HttpResponse.json(err("VALIDATION_ERROR", "شناسه مورد الزامی است", false), { status: 400 });
+    }
+    const item = fixtureV1HistoryItems.find((i) => i.id === id);
+    return HttpResponse.json(ok({ id, title: item?.title ?? "", kind: item?.type ?? "conversation" }));
+  }),
+
+  // --- POST /api/v1/history/:id/edit — fork a completed item ---
+  http.post(`${API_BASE}/api/v1/history/:id/edit`, async ({ params }) => {
+    await delay(400);
+    const id = params["id"] as string;
+    const source = fixtureV1HistoryItems.find((i) => i.id === id);
+    if (!source) {
+      return HttpResponse.json(err("NOT_FOUND", "مورد یافت نشد", false), { status: 404 });
+    }
+    return HttpResponse.json(
+      ok({
+        id: `new-${id}`,
+        href: source.type === "contract" ? `/contracts/new-${id}` : `/chat/new-${id}`,
+        title: `نسخه جدید از: ${source.title}`,
+      }),
+      { status: 201 }
     );
   }),
 

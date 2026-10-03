@@ -152,6 +152,24 @@ export interface ActivityRow {
   created_at: string;
   updated_at: string;
   archived: number;
+  /**
+   * When the row was moved to the archive (ISO). Absent on legacy rows
+   * that were archived before this field existed — the archive view
+   * falls back to `updated_at` for display in that case.
+   */
+  archived_at?: string | null;
+  /**
+   * Start of the active-history retention window (ISO). Independent of
+   * `created_at` so that restoring an old item from the archive gives it
+   * a fresh window instead of deleting it immediately. Absent on legacy
+   * rows — treated as `created_at` when missing.
+   */
+  retention_started_at?: string;
+  /**
+   * For a row produced by "edit a completed item", the id of the source
+   * history item it was derived from. Null for ordinary rows.
+   */
+  source_item_id?: string | null;
 }
 
 export interface SubscriptionRow {
@@ -948,6 +966,8 @@ export interface RecordActivityInput {
   categoryFa?: string | null;
   /** Stable id of the underlying entity; used to upsert instead of duplicate. */
   sourceId?: string;
+  /** Source history item id when this row was produced by "edit". */
+  sourceItemId?: string | null;
 }
 
 export function recordActivity(input: RecordActivityInput): ActivityRow {
@@ -967,6 +987,11 @@ export function recordActivity(input: RecordActivityInput): ActivityRow {
     existing.category_fa = input.categoryFa ?? existing.category_fa;
     existing.updated_at = now;
     existing.archived = 0;
+    existing.archived_at = null;
+    // A re-recorded entity is a fresh active item: restart its retention
+    // window so an update never inherits an old, nearly-expired window.
+    existing.retention_started_at = now;
+    if (input.sourceItemId !== undefined) existing.source_item_id = input.sourceItemId;
     writeTable("activities", rows);
     return existing;
   }
@@ -984,6 +1009,9 @@ export function recordActivity(input: RecordActivityInput): ActivityRow {
     created_at: now,
     updated_at: now,
     archived: 0,
+    archived_at: null,
+    retention_started_at: now,
+    source_item_id: input.sourceItemId ?? null,
   };
   rows.push(row);
   writeTable("activities", rows);
@@ -997,7 +1025,13 @@ export function removeActivity(userId: string, sourceId: string): void {
   if (next.length !== rows.length) writeTable("activities", next);
 }
 
-/** Toggle the archived flag on an activity row. Returns the updated row. */
+/**
+ * Toggle the archived flag on an activity row. Returns the updated row.
+ *
+ * Archiving stamps `archived_at`; restoring clears it and restarts the
+ * retention window (`retention_started_at`) so a long-archived item is
+ * not deleted the instant it returns to the active history.
+ */
 export function archiveActivity(
   userId: string,
   sourceId: string,
@@ -1006,8 +1040,11 @@ export function archiveActivity(
   const rows = readTable<ActivityRow>("activities");
   const row = rows.find((r) => r.id === sourceId && r.user_id === userId);
   if (!row) return null;
+  const now = new Date().toISOString();
   row.archived = archived ? 1 : 0;
-  row.updated_at = new Date().toISOString();
+  row.archived_at = archived ? now : null;
+  if (!archived) row.retention_started_at = now;
+  row.updated_at = now;
   writeTable("activities", rows);
   return row;
 }
@@ -1026,6 +1063,12 @@ export interface StoredConversation {
   messageCount: number;
   createdAt: string;
   updatedAt: string;
+  /** When the conversation was archived (ISO). Absent on legacy rows. */
+  archivedAt?: string | null;
+  /** Start of the active-history retention window (ISO). Absent on legacy rows. */
+  retentionStartedAt?: string;
+  /** Source history item id when this conversation was created by "edit". */
+  sourceItemId?: string | null;
 }
 
 export function readConversations(): StoredConversation[] {
@@ -1048,6 +1091,37 @@ export function touchConversation(userId: string, conversationId: string): void 
   conv.updatedAt = new Date().toISOString();
   conv.messageCount = (conv.messageCount ?? 0) + 1;
   writeConversations(all);
+}
+
+/**
+ * Archive or restore a conversation. Mirrors `archiveActivity`: archiving
+ * stamps `archivedAt`, restoring clears it and restarts the retention
+ * window so a long-archived chat is not purged the moment it returns.
+ */
+export function archiveConversation(
+  userId: string,
+  conversationId: string,
+  archived: boolean
+): StoredConversation | null {
+  const all = readConversations();
+  const conv = all.find((c) => c.id === conversationId && c.userId === userId);
+  if (!conv) return null;
+  const now = new Date().toISOString();
+  conv.status = archived ? "archived" : "active";
+  conv.archivedAt = archived ? now : null;
+  if (!archived) conv.retentionStartedAt = now;
+  conv.updatedAt = now;
+  writeConversations(all);
+  return conv;
+}
+
+/** Remove a conversation row (owner-scoped). Returns true when a row was removed. */
+export function deleteConversationRow(userId: string, conversationId: string): boolean {
+  const all = readConversations();
+  const next = all.filter((c) => !(c.id === conversationId && c.userId === userId));
+  if (next.length === all.length) return false;
+  writeConversations(next);
+  return true;
 }
 
 // ============================================================

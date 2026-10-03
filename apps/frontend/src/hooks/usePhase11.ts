@@ -7,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchHistory,
   archiveHistoryItem,
+  deleteHistoryItem,
+  editHistoryItem,
   fetchMemories,
   createMemory,
   updateMemory,
@@ -29,6 +31,7 @@ export function useHistory(params: {
   search?: string;
   sort?: string;
   type?: string;
+  archived?: boolean;
 } = {}) {
   return useQuery({
     queryKey: ["history", params],
@@ -47,6 +50,34 @@ export function useArchiveHistoryItem() {
   return useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       archiveHistoryItem(id, archived),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+    },
+  });
+}
+
+// ============================================================
+// useDeleteHistoryItem — permanent delete (no undo)
+// ============================================================
+
+export function useDeleteHistoryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteHistoryItem(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+    },
+  });
+}
+
+// ============================================================
+// useEditHistoryItem — fork a completed item into a new process
+// ============================================================
+
+export function useEditHistoryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => editHistoryItem(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["history"] });
     },

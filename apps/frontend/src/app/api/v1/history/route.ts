@@ -1,21 +1,33 @@
 // ============================================================
-// LEGALIR — GET /api/v1/history
+// LEGALIR — /api/v1/history
 // ============================================================
-// Returns the user's full history: every conversation they created
-// (grouped by the category they chose) merged with other recorded
-// activities (documents, contracts). Supports category, type,
-// search, and sort filters. Requires a valid session cookie.
+// The single owner-scoped surface for the history section:
+//
+//   GET    — list the ACTIVE history, or the ARCHIVE view when
+//            `?archived=true`. Also returns the archived count (for the
+//            header badge) and the retention limits (so the UI can
+//            explain them). Runs the retention sweep opportunistically
+//            so the 100-item / 31-day rule holds even between job ticks.
+//   PATCH  — archive / restore one item (conversation or activity row).
+//   DELETE — permanently remove one item and the data private to it.
+//
+// Every operation resolves the user from the session cookie and scopes
+// the lookup to that user, so a foreign id can never be read or mutated.
 // ============================================================
 
 import { NextResponse } from "next/server";
 import {
-  findSessionById,
-  cleanupExpiredSessions,
   queryHistory,
   archiveActivity,
+  archiveConversation,
   readConversations,
-  writeConversations,
+  type ActivityRow,
 } from "@/lib/db";
+import { getUserIdFromRequest } from "@/lib/api/server-auth";
+import { enforceRetentionForUser, RETENTION_MAX_ITEMS, RETENTION_MAX_AGE_DAYS } from "@/lib/history/retention";
+import { purgeHistoryItem } from "@/lib/history/purge";
+import type { V1HistoryItem } from "@legalir/types";
+
 // Map a conversation's LegalCategory to the history category tabs.
 const CATEGORY_MAP: Record<string, string> = {
   family: "family",
@@ -51,17 +63,8 @@ const STATUS_FA: Record<string, string> = {
 
 export async function GET(request: Request) {
   try {
-    cleanupExpiredSessions();
-
-    const sessionId = extractCookie(request.headers.get("cookie") ?? "", "legalir-session");
-    if (!sessionId) {
-      return jsonUnauthorized();
-    }
-
-    const session = findSessionById(sessionId);
-    if (!session) {
-      return jsonUnauthorized();
-    }
+    const userId = getUserIdFromRequest(request);
+    if (!userId) return jsonUnauthorized();
 
     const url = new URL(request.url);
     const category = url.searchParams.get("category") ?? undefined;
@@ -70,32 +73,41 @@ export async function GET(request: Request) {
     const sort = url.searchParams.get("sort") ?? "newest";
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
     const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20", 10);
+    const archivedView = url.searchParams.get("archived") === "true";
 
-    // Build conversation-derived history items (every chat the user made).
-    const conversations = readConversations()
-      .filter((c) => c.userId === session.userId)
+    // Enforce the retention limits before reading so the list the user
+    // sees already reflects the 100-item / 31-day rule. Idempotent.
+    enforceRetentionForUser(userId);
+
+    // Conversation-derived items (every chat the user made).
+    const conversations: V1HistoryItem[] = readConversations()
+      .filter((c) => c.userId === userId)
       .map((c) => {
         const cat = c.category ? (CATEGORY_MAP[c.category] ?? "other") : "other";
+        const archived = Boolean(c.archivedAt) || c.status === "archived";
         return {
           id: c.id,
           userId: c.userId,
           type: "conversation" as const,
           title: c.title,
-          category: cat,
+          category: cat as V1HistoryItem["category"],
           categoryFa: CATEGORY_FA[cat] ?? "سایر",
           status: c.status,
           statusFa: STATUS_FA[c.status] ?? c.status,
           description: null,
           createdAt: c.createdAt,
           updatedAt: c.updatedAt,
-          archived: c.status === "archived",
+          archived,
+          archivedAt: c.archivedAt ?? null,
+          retentionStartedAt: c.retentionStartedAt ?? c.createdAt,
+          sourceItemId: c.sourceItemId ?? null,
         };
       });
 
-    // Merge with other recorded activities (documents, contracts, cases,
-    // subscriptions). Conversations are derived above, so exclude them here.
+    // Other recorded activities (documents, contracts, cases,
+    // subscriptions). Conversations are derived above, so exclude them.
     const activityResult = queryHistory({
-      userId: session.userId,
+      userId,
       category,
       search,
       type,
@@ -103,14 +115,14 @@ export async function GET(request: Request) {
       page: 1,
       pageSize: 10000,
     });
-    const activities = activityResult.items
+    const activities: V1HistoryItem[] = activityResult.items
       .filter((a) => a.type !== "conversation")
       .map((a) => ({
         id: a.id,
         userId: a.user_id,
-        type: a.type,
+        type: a.type as V1HistoryItem["type"],
         title: a.title,
-        category: a.category,
+        category: a.category as V1HistoryItem["category"],
         categoryFa: a.category_fa,
         status: a.status,
         statusFa: a.status_fa,
@@ -118,11 +130,20 @@ export async function GET(request: Request) {
         createdAt: a.created_at,
         updatedAt: a.updated_at,
         archived: Boolean(a.archived),
+        archivedAt: a.archived_at ?? null,
+        retentionStartedAt: a.retention_started_at ?? a.created_at,
+        sourceItemId: a.source_item_id ?? null,
       }));
 
-    let items = [...conversations, ...activities];
+    const all = [...conversations, ...activities];
 
-    // Apply filters.
+    // The archive badge counts every archived item, independent of the
+    // active filters (so the number never changes as the user filters).
+    const archivedCount = all.filter((a) => a.archived).length;
+
+    // Split active vs archived, then apply the remaining filters.
+    let items = all.filter((a) => a.archived === archivedView);
+
     if (category && category !== "all") {
       items = items.filter((a) => a.category === category);
     }
@@ -136,10 +157,12 @@ export async function GET(request: Request) {
       items = items.filter((a) => a.type === type);
     }
 
-    // Sort.
+    // Sort. The archive view defaults to most-recently-archived first.
     if (sort === "oldest") items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     else if (sort === "title") items.sort((a, b) => a.title.localeCompare(b.title, "fa"));
-    else items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    else if (archivedView) {
+      items.sort((a, b) => (b.archivedAt ?? b.updatedAt).localeCompare(a.archivedAt ?? a.updatedAt));
+    } else items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
     const total = items.length;
     const paged = items.slice((page - 1) * pageSize, page * pageSize);
@@ -149,28 +172,28 @@ export async function GET(request: Request) {
         data: {
           items: paged,
           pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+          archivedCount,
+          retention: { maxItems: RETENTION_MAX_ITEMS, maxAgeDays: RETENTION_MAX_AGE_DAYS },
         },
         meta: { requestId: crypto.randomUUID() },
       },
       { status: 200 },
     );
   } catch (err) {
-    console.error("[history] Error:", err);
+    console.error("[history] GET error:", err);
     return jsonInternalError();
   }
 }
 
 /**
- * PATCH /api/v1/history — toggle the archived flag on a history item.
+ * PATCH /api/v1/history — archive or restore one item.
  * Conversations live in conversations.json; other items live in the
  * activities table. Both are persisted so the state survives reloads.
  */
 export async function PATCH(request: Request) {
   try {
-    const sessionId = extractCookie(request.headers.get("cookie") ?? "", "legalir-session");
-    if (!sessionId) return jsonUnauthorized();
-    const session = findSessionById(sessionId);
-    if (!session) return jsonUnauthorized();
+    const userId = getUserIdFromRequest(request);
+    if (!userId) return jsonUnauthorized();
 
     const body = (await request.json().catch(() => ({}))) as {
       id?: string;
@@ -184,28 +207,59 @@ export async function PATCH(request: Request) {
     }
 
     // Try conversations first (chat items).
-    const conversations = readConversations();
-    const conv = conversations.find(
-      (c) => c.id === body.id && c.userId === session.userId
-    );
+    const conv = archiveConversation(userId, body.id, body.archived);
     if (conv) {
-      conv.status = body.archived ? "archived" : "active";
-      conv.updatedAt = new Date().toISOString();
-      writeConversations(conversations);
-      return NextResponse.json({ data: { id: conv.id, archived: body.archived } });
+      return NextResponse.json({
+        data: { id: conv.id, archived: body.archived, archivedAt: conv.archivedAt ?? null },
+      });
     }
 
-    // Otherwise it's an activity row (document / contract / subscription).
-    const updated = archiveActivity(session.userId, body.id, body.archived);
+    // Otherwise it's an activity row (document / contract / case / subscription).
+    const updated = archiveActivity(userId, body.id, body.archived);
     if (!updated) {
       return NextResponse.json(
         { code: "NOT_FOUND", message: "مورد یافت نشد", fieldErrors: [], retryable: false },
         { status: 404 },
       );
     }
-    return NextResponse.json({ data: { id: updated.id, archived: Boolean(updated.archived) } });
+    return NextResponse.json({
+      data: { id: updated.id, archived: Boolean(updated.archived), archivedAt: updated.archived_at ?? null },
+    });
   } catch (err) {
     console.error("[history] PATCH error:", err);
+    return jsonInternalError();
+  }
+}
+
+/**
+ * DELETE /api/v1/history?id=… — permanently remove one history item and
+ * the data private to it. Owner-scoped: a foreign id resolves to null and
+ * returns 404, so nothing is ever deleted across users.
+ */
+export async function DELETE(request: Request) {
+  try {
+    const userId = getUserIdFromRequest(request);
+    if (!userId) return jsonUnauthorized();
+
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) {
+      return NextResponse.json(
+        { code: "VALIDATION_ERROR", message: "شناسه مورد الزامی است", fieldErrors: [], retryable: false },
+        { status: 400 },
+      );
+    }
+
+    const removed = purgeHistoryItem(userId, id);
+    if (!removed) {
+      return NextResponse.json(
+        { code: "NOT_FOUND", message: "مورد یافت نشد", fieldErrors: [], retryable: false },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ data: { id: removed.id, title: removed.title, kind: removed.kind } });
+  } catch (err) {
+    console.error("[history] DELETE error:", err);
     return jsonInternalError();
   }
 }
@@ -222,13 +276,4 @@ function jsonInternalError() {
     { code: "INTERNAL_ERROR", message: "خطای داخلی سرور. لطفاً دوباره تلاش کنید", fieldErrors: [], retryable: true, correlationId: crypto.randomUUID() },
     { status: 500 },
   );
-}
-
-function extractCookie(cookieHeader: string, name: string): string | null {
-  const match = cookieHeader
-    .split(";")
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(name + "="));
-  if (!match) return null;
-  return match.slice(name.length + 1) || null;
 }

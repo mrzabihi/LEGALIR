@@ -56,6 +56,7 @@ import type {
   V1ContractArchiveResponse,
   V1ContractDraft,
   V1HistoryListResponse,
+  V1HistoryEditResponse,
   V1MemoryItem,
   V1MemoryListResponse,
   V1MemoryUpdateRequest,
@@ -478,6 +479,8 @@ export function fetchHistory(
     search?: string;
     sort?: string;
     type?: string;
+    /** When true, fetch the archive view instead of the active history. */
+    archived?: boolean;
   } = {}
 ): Promise<V1HistoryListResponse> {
   const p = new URLSearchParams();
@@ -487,6 +490,7 @@ export function fetchHistory(
   if (params.search) p.set("search", params.search);
   if (params.sort) p.set("sort", params.sort);
   if (params.type && params.type !== "all") p.set("type", params.type);
+  if (params.archived) p.set("archived", "true");
   return apiClient.get<V1HistoryListResponse>(`/api/v1/history${qs(p)}`);
 }
 
@@ -494,11 +498,33 @@ export function fetchHistory(
 export function archiveHistoryItem(
   id: string,
   archived: boolean
-): Promise<{ id: string; archived: boolean }> {
-  return apiClient.patch<{ id: string; archived: boolean }>("/api/v1/history", {
-    id,
-    archived,
-  });
+): Promise<{ id: string; archived: boolean; archivedAt: string | null }> {
+  return apiClient.patch<{ id: string; archived: boolean; archivedAt: string | null }>(
+    "/api/v1/history",
+    { id, archived }
+  );
+}
+
+/**
+ * Permanently delete a history item and the data private to it. This is
+ * not a hide — the server removes the item from every user-facing path.
+ */
+export function deleteHistoryItem(
+  id: string
+): Promise<{ id: string; title: string; kind: string }> {
+  return apiClient.delete<{ id: string; title: string; kind: string }>(
+    `/api/v1/history?id=${encodeURIComponent(id)}`
+  );
+}
+
+/**
+ * Create a NEW process from a completed item's editable input. The
+ * original item is preserved; the new process links back to it.
+ */
+export function editHistoryItem(id: string): Promise<V1HistoryEditResponse> {
+  return apiClient.post<V1HistoryEditResponse>(
+    `/api/v1/history/${encodeURIComponent(id)}/edit`
+  );
 }
 
 // ============================================================

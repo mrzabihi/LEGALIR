@@ -1009,7 +1009,9 @@ export interface V1HistoryListParams {
   category?: HistoryCategory | "all";
   search?: string;
   sort?: "newest" | "oldest" | "title";
-  type?: "all" | "conversation" | "document" | "contract";
+  type?: "all" | "conversation" | "document" | "contract" | "subscription" | "case";
+  /** When true, return the archive view instead of the active history. */
+  archived?: boolean;
 }
 
 export interface V1HistoryItem {
@@ -1025,11 +1027,28 @@ export interface V1HistoryItem {
   createdAt: string;
   updatedAt: string;
   archived: boolean;
+  /** When the item was archived (ISO). Null/absent for active items. */
+  archivedAt?: string | null;
+  /** Start of the active-history retention window (ISO). */
+  retentionStartedAt?: string;
+  /** Source history item id when this item was created by "edit". */
+  sourceItemId?: string | null;
 }
 
 export interface V1HistoryListResponse {
   items: V1HistoryItem[];
   pagination: Pagination;
+  /** Number of archived items the user has (for the archive button badge). */
+  archivedCount?: number;
+  /** The active-history retention limits, surfaced so the UI can explain them. */
+  retention?: { maxItems: number; maxAgeDays: number };
+}
+
+/** Result of "edit a completed item" — a brand-new process. */
+export interface V1HistoryEditResponse {
+  id: string;
+  href: string;
+  title: string;
 }
 
 // --- Phase 11: Memory ---

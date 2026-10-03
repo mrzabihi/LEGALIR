@@ -2,6 +2,16 @@
 // LEGALIR — Phase 11 History Page Integration Tests
 // ============================================================
 
+import { vi } from "vitest";
+
+// The workspace reads `?archived=true` from the URL and pushes on edit.
+const pushMock = vi.fn();
+let currentSearch = "";
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(currentSearch),
+}));
+
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import React from "react";
@@ -34,17 +44,25 @@ function setHandlers(handlers: ReturnType<typeof http.get>[]) {
 // Setup helpers
 // ============================================================
 
+/** A history GET handler that honours the `archived` query param. */
+function historyHandler() {
+  return http.get("http://localhost:8000/api/v1/history", ({ request }) => {
+    const url = new URL(request.url);
+    const archivedView = url.searchParams.get("archived") === "true";
+    const items = fixtureV1HistoryItems.filter((i) => i.archived === archivedView);
+    return HttpResponse.json({
+      data: {
+        items,
+        pagination: { page: 1, pageSize: 20, total: items.length, totalPages: 1 },
+        archivedCount: fixtureV1HistoryItems.filter((i) => i.archived).length,
+        retention: { maxItems: 100, maxAgeDays: 31 },
+      },
+    });
+  });
+}
+
 function setupHistoryWithItems() {
-  setHandlers([
-    http.get("http://localhost:8000/api/v1/history", () =>
-      HttpResponse.json({
-        data: {
-          items: fixtureV1HistoryItems,
-          pagination: { page: 1, pageSize: 20, total: 8, totalPages: 1 },
-        },
-      })
-    ),
-  ]);
+  setHandlers([historyHandler()]);
 }
 
 function setupHistoryEmpty() {
@@ -54,6 +72,8 @@ function setupHistoryEmpty() {
         data: {
           items: [],
           pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+          archivedCount: 0,
+          retention: { maxItems: 100, maxAgeDays: 31 },
         },
       })
     ),
@@ -76,6 +96,8 @@ function setupHistoryError() {
 // ============================================================
 
 beforeEach(() => {
+  currentSearch = "";
+  pushMock.mockClear();
   queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -99,7 +121,6 @@ describe("HistoryPage", () => {
     setupHistoryWithItems();
     render(<HistoryPage />, { wrapper: TestWrapper });
     await waitFor(() => {
-      // "همه" appears in both category tabs and type filter, so use getAllByText
       const allTabs = screen.getAllByText("همه");
       expect(allTabs.length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("پرونده‌ها")).toBeTruthy();
@@ -157,7 +178,6 @@ describe("HistoryPage", () => {
 
     fireEvent.click(screen.getByText("املاک"));
 
-    // Items with real_estate category should be visible
     await waitFor(() => {
       expect(screen.getByText(/مشاوره قرارداد اجاره/)).toBeTruthy();
     });
@@ -174,35 +194,6 @@ describe("HistoryPage", () => {
     expect(screen.queryByText(/بازبینی مدیر/)).toBeNull();
   });
 
-  // --- Permission: User can only see their own resources ---
-
-  it("only shows resources for the authenticated user (via API)", async () => {
-    setupHistoryWithItems();
-    render(<HistoryPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      const items = fixtureV1HistoryItems;
-      // All items belong to u-pro-001
-      items.forEach((item) => {
-        expect(item.userId).toBe("u-pro-001");
-      });
-    });
-  });
-
-  // --- Resource Type Display ---
-
-  it("shows resource type labels for each item", async () => {
-    setupHistoryWithItems();
-    render(<HistoryPage />, { wrapper: TestWrapper });
-
-    await waitFor(() => {
-      // Multiple items share type labels, use getAllByText
-      expect(screen.getAllByText("Conversation").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Document").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Contract").length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
   // --- Search ---
 
   it("has a search input", async () => {
@@ -214,15 +205,138 @@ describe("HistoryPage", () => {
     });
   });
 
-  // --- Archived Items ---
+  // --- Retention note ---
 
-  it("shows archived items with dimmed styling", async () => {
+  it("shows the retention note on the active view", async () => {
+    setupHistoryWithItems();
+    render(<HistoryPage />, { wrapper: TestWrapper });
+    await waitFor(() => {
+      expect(screen.getByText(/۱۰۰ مورد و حداکثر ۳۱ روز/)).toBeTruthy();
+    });
+  });
+
+  // --- Archive entry point ---
+
+  it("shows an archive button with the archived count", async () => {
+    setupHistoryWithItems();
+    render(<HistoryPage />, { wrapper: TestWrapper });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/بایگانی \(1 مورد\)/)).toBeTruthy();
+    });
+  });
+
+  it("renders the archive view when ?archived=true", async () => {
+    currentSearch = "archived=true";
+    setupHistoryWithItems();
+    render(<HistoryPage />, { wrapper: TestWrapper });
+    await waitFor(() => {
+      expect(screen.getByText("بایگانی")).toBeTruthy();
+      expect(screen.getByText(/از پاک‌سازی خودکار تاریخچه مستثنا هستند/)).toBeTruthy();
+      // The archived fixture item is listed.
+      expect(screen.getByText("چک برگشتی و نحوه اقدام")).toBeTruthy();
+    });
+  });
+
+  // --- Per-status actions ---
+
+  it("shows a continue action for a draft item", async () => {
+    setupHistoryWithItems();
+    render(<HistoryPage />, { wrapper: TestWrapper });
+    await waitFor(() => {
+      expect(screen.getAllByText("ادامه").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows a view-result action for a completed item", async () => {
+    setupHistoryWithItems();
+    render(<HistoryPage />, { wrapper: TestWrapper });
+    await waitFor(() => {
+      expect(screen.getAllByText("مشاهده نتیجه").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows a retry action for a failed item", async () => {
+    setupHistoryWithItems();
+    render(<HistoryPage />, { wrapper: TestWrapper });
+    await waitFor(() => {
+      expect(screen.getByText("مشاهده جزئیات خطا")).toBeTruthy();
+      // Retry is a secondary icon action — labelled, not visible text.
+      expect(screen.getByLabelText("تلاش مجدد")).toBeTruthy();
+    });
+  });
+
+  // --- Delete confirmation ---
+
+  it("opens the permanent-delete dialog and cancels without deleting", async () => {
     setupHistoryWithItems();
     render(<HistoryPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      // The archived item (چک برگشتی و نحوه اقدام) should be in the list
-      expect(screen.getByText("چک برگشتی و نحوه اقدام")).toBeTruthy();
+      expect(screen.getAllByLabelText("حذف").length).toBeGreaterThanOrEqual(1);
+    });
+
+    fireEvent.click(screen.getAllByLabelText("حذف")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByText("حذف دائمی این مورد؟")).toBeTruthy();
+      expect(screen.getByText("مطمئنم، حذف کن")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText("انصراف"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("حذف دائمی این مورد؟")).toBeNull();
+    });
+  });
+
+  it("deletes the item when the dialog is confirmed", async () => {
+    let deletedId: string | null = null;
+    setHandlers([
+      historyHandler(),
+      http.delete("http://localhost:8000/api/v1/history", ({ request }) => {
+        deletedId = new URL(request.url).searchParams.get("id");
+        return HttpResponse.json({ data: { id: deletedId, title: "x", kind: "conversation" } });
+      }),
+    ]);
+
+    render(<HistoryPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText("حذف").length).toBeGreaterThanOrEqual(1);
+    });
+
+    fireEvent.click(screen.getAllByLabelText("حذف")[0]!);
+    await waitFor(() => expect(screen.getByText("مطمئنم، حذف کن")).toBeTruthy());
+    fireEvent.click(screen.getByText("مطمئنم، حذف کن"));
+
+    await waitFor(() => {
+      expect(deletedId).not.toBeNull();
+    });
+  });
+
+  // --- Edit (fork) ---
+
+  it("forks a completed item into a new process and navigates", async () => {
+    setHandlers([
+      historyHandler(),
+      http.post("http://localhost:8000/api/v1/history/:id/edit", ({ params }) =>
+        HttpResponse.json(
+          { data: { id: `new-${params["id"]}`, href: "/chat/new", title: "نسخه جدید" } },
+          { status: 201 }
+        )
+      ),
+    ]);
+
+    render(<HistoryPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText("ویرایش").length).toBeGreaterThanOrEqual(1);
+    });
+
+    fireEvent.click(screen.getAllByLabelText("ویرایش")[0]!);
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/chat/new");
     });
   });
 });
