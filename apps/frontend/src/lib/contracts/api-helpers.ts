@@ -22,6 +22,7 @@ import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import {
   appendAudit,
   getContractForUser,
+  listAudit,
   listContractDocuments,
   listParties,
   updateContractForUser,
@@ -29,6 +30,8 @@ import {
 import { computeCompleteness } from "./completeness";
 import { domainLabelFa, getContractDefinition, partyRoleLabelFa } from "./registry";
 import { stateLabelFa } from "./state-machine";
+import { analysisStatusFor } from "./review-db";
+import { isArchivedPropertyState } from "./status";
 
 export interface ApiErrorBody {
   code: string;
@@ -161,6 +164,10 @@ export function toListItem(contract: PropertyContract): PropertyContractListItem
   const parties = listParties(contract.id);
   const def = getContractDefinition(contract.type);
   const step = def.wizardSteps.find((s) => s.id === contract.currentStep);
+  // The AI-review axis is derived from the stored reviews and the
+  // version they were bound to — never from the document state. A
+  // contract whose text is ready can still be un-reviewed.
+  const analysis = analysisStatusFor(contract.id, contract.currentVersionId);
   return {
     id: contract.id,
     referenceCode: contract.referenceCode,
@@ -175,9 +182,28 @@ export function toListItem(contract: PropertyContract): PropertyContractListItem
     partySummaryFa: partySummaryFa(contract, parties),
     currentStep: contract.currentStep,
     currentStepTitleFa: step?.titleFa ?? "بازبینی",
+    analysisStatus: analysis.status,
+    lastAnalyzedAt: analysis.lastAnalyzedAt,
+    archived: isArchivedPropertyState(contract.state),
+    exportedAt: lastExportedAt(contract.id),
     updatedAt: contract.updatedAt,
     createdAt: contract.createdAt,
   };
+}
+
+/**
+ * The timestamp of the last export, derived from the audit log. An
+ * export is an EVENT, not a lifecycle state, so it is read from the
+ * `contract.exported` audit entry rather than stored on the contract
+ * row. Returns null when the contract has never been exported.
+ */
+function lastExportedAt(contractId: string): string | null {
+  const entries = listAudit(contractId).filter((a) => a.action === "contract.exported");
+  if (entries.length === 0) return null;
+  return entries.reduce(
+    (latest, e) => (e.createdAt > latest ? e.createdAt : latest),
+    entries[0]!.createdAt
+  );
 }
 
 /** The Persian label for a party role, re-exported for route use. */

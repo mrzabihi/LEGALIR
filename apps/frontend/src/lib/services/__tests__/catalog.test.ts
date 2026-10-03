@@ -171,7 +171,7 @@ describe("SERVICE_BANNERS", () => {
     expect(hrefs).toContain("/documents?service=document_analysis");
     expect(hrefs).toContain("/chat?service=legal_notice");
     expect(hrefs).toContain("/contracts?service=contract_drafting");
-    expect(hrefs).toContain("/documents?service=contract_review");
+    expect(hrefs).toContain("/contracts/review");
     expect(hrefs).toContain("/chat?service=legal_consultation");
   });
 

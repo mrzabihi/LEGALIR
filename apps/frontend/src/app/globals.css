@@ -246,6 +246,26 @@
   --bottom-nav-state-layer: var(--warm-glass-state-layer);
   --bottom-nav-shadow: var(--warm-glass-shadow);
 
+  /* Bottom navigation — Persian capsule bar (v0.6 redesign).
+     The body stays on the shared warm-glass surface so the bar can never
+     drift from the sidebar. The centre action is the brand navy with a soft
+     gold hairline; the active destination is a lighter ivory wash ringed in
+     gold. Every value aliases an existing family — no new raw colours. */
+  --bottom-nav-body: var(--warm-glass-surface-strong);
+  --bottom-nav-center-bg: var(--color-primary-600);
+  --bottom-nav-accent: var(--color-secondary-300);
+  --bottom-nav-capsule-bg: rgba(255, 248, 238, 0.16);
+  --bottom-nav-capsule-ring: color-mix(in srgb, var(--color-secondary-300) 55%, transparent);
+  --bottom-nav-icon: var(--warm-glass-ivory);
+  --bottom-nav-icon-muted: var(--warm-glass-ivory-muted);
+  --bottom-nav-badge-text: var(--color-primary-700);
+  /* Motion — capsule glide, colour shift, press feedback, sheet reveal.
+     Kept as tokens so the bar's timing is tuned in one place. */
+  --bottom-nav-motion-glide: 260ms;
+  --bottom-nav-motion-color: 180ms;
+  --bottom-nav-motion-press: 120ms;
+  --bottom-nav-motion-sheet: 250ms;
+
   /* Desktop sidebar — same family, more opaque/architectural */
   --sidebar-bg: var(--warm-glass-surface-strong);
   --sidebar-border: var(--warm-glass-border);
@@ -671,6 +691,22 @@ html:not([data-theme]) {
 /* Safe area bottom for mobile */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Bottom-nav active capsule — the shared indicator glides between
+   destinations. Transition lives here (not inline) so the reduced-motion
+   override below can neutralise it in one place. */
+.bottom-nav-indicator {
+  transition:
+    left var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1),
+    width var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1),
+    top var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1),
+    height var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav-indicator {
+    transition: none;
+  }
 }
 
 /* Full height viewport for mobile */

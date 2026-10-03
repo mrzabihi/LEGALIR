@@ -18,40 +18,69 @@ afterEach(() => {
 // ============================================================
 
 describe("normalizeMobile", () => {
-  it("accepts standard 09 format", () => {
-    expect(normalizeMobile("09123456789")).toBe("09123456789");
+  const CANONICAL = "+989123456789";
+
+  it("maps every accepted format to one canonical E.164 value", () => {
+    const formats = [
+      "09123456789",
+      "9123456789",
+      "+989123456789",
+      "00989123456789",
+      "989123456789",
+      "۰۹۱۲۳۴۵۶۷۸۹",
+      "٠٩١٢٣٤٥٦٧٨٩",
+      "0912 345 6789",
+      "0912-345-6789",
+      "+98 (912) 345 6789",
+      "۰۹۱۲ ۳۴۵ ۶۷۸۹",
+      "  +98 912 345 6789  ",
+    ];
+    for (const input of formats) {
+      expect(normalizeMobile(input), `input: ${input}`).toBe(CANONICAL);
+    }
   });
 
-  it("converts Persian digits to Western", () => {
-    expect(normalizeMobile("۰۹۱۲۳۴۵۶۷۸۹")).toBe("09123456789");
+  it("is idempotent — re-normalizing a canonical value is a no-op", () => {
+    expect(normalizeMobile(CANONICAL)).toBe(CANONICAL);
+    expect(normalizeMobile(normalizeMobile("09123456789")!)).toBe(CANONICAL);
   });
 
-  it("handles +98 prefix", () => {
-    expect(normalizeMobile("+989123456789")).toBe("09123456789");
+  it("strips zero-width / bidi / BOM characters", () => {
+    expect(normalizeMobile("\u200B0912\u200E3456789\uFEFF")).toBe(CANONICAL);
   });
 
-  it("handles 0098 prefix", () => {
-    expect(normalizeMobile("00989123456789")).toBe("09123456789");
+  it("returns null for empty / whitespace-only input", () => {
+    expect(normalizeMobile("")).toBe(null);
+    expect(normalizeMobile("   ")).toBe(null);
   });
 
-  it("strips whitespace and dashes", () => {
-    expect(normalizeMobile("0912 345 67 89")).toBe("09123456789");
-    expect(normalizeMobile("0912-345-6789")).toBe("09123456789");
+  it("returns null for landline numbers", () => {
+    expect(normalizeMobile("08123456789")).toBe(null);
+    expect(normalizeMobile("02123456789")).toBe(null);
   });
 
-  it("strips parentheses", () => {
-    expect(normalizeMobile("(0912) 3456789")).toBe("09123456789");
-  });
-
-  it("returns null for invalid numbers", () => {
+  it("returns null for wrong-length numbers", () => {
     expect(normalizeMobile("0912")).toBe(null);
     expect(normalizeMobile("+98912")).toBe(null);
-    expect(normalizeMobile("abc")).toBe(null);
-    expect(normalizeMobile("")).toBe(null);
+    expect(normalizeMobile("091234567890")).toBe(null);
   });
 
-  it("returns null for non-Iranian mobile", () => {
-    expect(normalizeMobile("08123456789")).toBe(null);
+  it("returns null for letters and mixed junk", () => {
+    expect(normalizeMobile("abc")).toBe(null);
+    expect(normalizeMobile("0912abc6789")).toBe(null);
+    expect(normalizeMobile("09١٢٣٤٥٦٧٨٩x")).toBe(null);
+  });
+
+  it("returns null for multiple + or repeated/inconsistent prefixes", () => {
+    expect(normalizeMobile("++989123456789")).toBe(null);
+    expect(normalizeMobile("+98+989123456789")).toBe(null);
+    expect(normalizeMobile("00980989123456789")).toBe(null);
+    expect(normalizeMobile("0989123456789")).toBe(null);
+  });
+
+  it("returns null for non-Iranian country codes", () => {
+    expect(normalizeMobile("+14155552671")).toBe(null);
+    expect(normalizeMobile("+971501234567")).toBe(null);
   });
 });
 
@@ -62,6 +91,10 @@ describe("toE164", () => {
 
   it("handles Persian digits", () => {
     expect(toE164("۰۹۱۲۳۴۵۶۷۸۹")).toBe("+989123456789");
+  });
+
+  it("is a no-op on an already-canonical value", () => {
+    expect(toE164("+989123456789")).toBe("+989123456789");
   });
 });
 
@@ -299,6 +332,23 @@ describe("Rate Limit", () => {
 
     try {
       await requestOtpApi("09129999999");
+    } catch (err: unknown) {
+      const apiErr = err as { code: string };
+      expect(apiErr.code).toBe("RATE_LIMITED");
+    }
+  });
+
+  it("format variation cannot bypass the rate limit (same number, 4 spellings)", async () => {
+    // Three requests, three different spellings of ONE number — they must
+    // share a single rate-limit bucket, so the 4th (yet another spelling)
+    // is rejected.
+    await requestOtpApi("09128888888");
+    await requestOtpApi("+989128888888");
+    await requestOtpApi("00989128888888");
+
+    try {
+      await requestOtpApi("9128888888");
+      throw new Error("expected the 4th request to be rate-limited");
     } catch (err: unknown) {
       const apiErr = err as { code: string };
       expect(apiErr.code).toBe("RATE_LIMITED");

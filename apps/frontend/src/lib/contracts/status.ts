@@ -1,63 +1,117 @@
 // ============================================================
 // LEGALIR — Contract status presentation model
 // ============================================================
-// The app has TWO contract lifecycles:
+// A contract has SEVERAL independent axes, and the old single chip row
+// conflated them. This module keeps them apart, because they answer
+// different questions and change for different reasons:
+//
+//   • DRAFT status   — how far along is the DOCUMENT itself?
+//                      (started → in progress → ready)
+//   • ANALYSIS status — what did the AI review of a FIXED version say?
+//                      (not reviewed → running → ready → needs re-review → error)
+//   • ARCHIVE status — is the contract active or filed away?
+//   • EXPORT         — an EVENT (a file was downloaded), not a lifecycle.
+//
+// Two raw lifecycles feed the draft axis:
 //   • the Contract Operating System (`PropertyContractState`, 15 states)
 //   • the legacy V1 workspace (`V1ContractState`, 7 states)
 //
-// The Contracts page shows both in one list, so it needs ONE set of
-// user-facing status buckets. This module is the single mapping from
-// either raw state onto that shared vocabulary — the UI never branches
-// on a raw state string, and the two lifecycles can never drift into
-// two different sets of labels.
+// The UI never branches on a raw state string; it reads these axes.
 //
-// The buckets are ordered by *work remaining*, so the default sort
-// (draft first) falls out of the group order rather than a second list.
+// IMPORTANT — the words «تأیید شده» and «آماده» describe the DOCUMENT
+// (the user confirmed the text / the text is complete). They are NEVER
+// a legal approval, and they are NEVER the AI analysis result. The
+// analysis axis is the only place an AI verdict appears, and it is
+// always labelled as AI analysis.
 // ============================================================
 
 import type { PropertyContractState, V1ContractState } from "@legalir/types";
 
-/** The shared, user-facing status buckets. */
-export type ContractStatusGroup =
-  | "draft"
-  | "in_progress"
-  | "generated"
-  | "under_review"
-  | "approved"
-  | "exported"
-  | "archived";
+// ------------------------------------------------------------
+// Axis 1 — draft status (the document)
+// ------------------------------------------------------------
 
-/** Display order — least-finished first, so drafts surface at the top. */
-export const CONTRACT_STATUS_ORDER: ContractStatusGroup[] = [
-  "draft",
+/**
+ * How far along the document is. Deliberately coarse: the user cares
+ * about "can I still work on it" and "is the text done", not about the
+ * 15 internal states.
+ */
+export type ContractDraftStatus = "started" | "in_progress" | "ready";
+
+export const CONTRACT_DRAFT_STATUS_ORDER: ContractDraftStatus[] = [
+  "started",
   "in_progress",
-  "generated",
-  "under_review",
-  "approved",
-  "exported",
-  "archived",
+  "ready",
 ];
 
-export const CONTRACT_STATUS_LABELS: Record<ContractStatusGroup, string> = {
-  draft: "پیش‌نویس",
+export const CONTRACT_DRAFT_STATUS_LABELS: Record<ContractDraftStatus, string> = {
+  started: "شروع‌شده",
   in_progress: "در حال تکمیل",
-  generated: "تولید شده",
-  under_review: "در حال بررسی",
-  approved: "تأیید شده",
-  exported: "خروجی گرفته شده",
-  archived: "بایگانی",
+  ready: "متن آماده",
 };
 
 /** A short, plain-language hint shown under the status in a card. */
-export const CONTRACT_STATUS_HINTS: Record<ContractStatusGroup, string> = {
-  draft: "آماده ادامه تکمیل",
-  in_progress: "در حال تکمیل اطلاعات",
-  generated: "متن قرارداد آماده است",
-  under_review: "در انتظار بررسی",
-  approved: "تأییدشده و آماده خروجی",
-  exported: "خروجی گرفته شده",
-  archived: "بایگانی‌شده",
+export const CONTRACT_DRAFT_STATUS_HINTS: Record<ContractDraftStatus, string> = {
+  started: "اطلاعات اولیه ثبت شده است",
+  in_progress: "در حال تکمیل اطلاعات قرارداد",
+  ready: "متن قرارداد آماده است",
 };
+
+// ------------------------------------------------------------
+// Axis 2 — analysis status (the AI review of a fixed version)
+// ------------------------------------------------------------
+
+/**
+ * The state of the AI review. `needs_re_review` is the important one:
+ * the document changed after the last analysis, so the stored result
+ * describes a version that no longer exists and must not be shown as
+ * the current verdict.
+ */
+export type ContractAnalysisStatus =
+  | "not_reviewed"
+  | "running"
+  | "ready"
+  | "needs_re_review"
+  | "error";
+
+export const CONTRACT_ANALYSIS_STATUS_ORDER: ContractAnalysisStatus[] = [
+  "not_reviewed",
+  "running",
+  "ready",
+  "needs_re_review",
+  "error",
+];
+
+export const CONTRACT_ANALYSIS_STATUS_LABELS: Record<ContractAnalysisStatus, string> = {
+  not_reviewed: "بررسی‌نشده",
+  running: "در حال بررسی",
+  ready: "نتیجه آماده",
+  needs_re_review: "نیازمند بررسی مجدد",
+  error: "خطا در بررسی",
+};
+
+export const CONTRACT_ANALYSIS_STATUS_HINTS: Record<ContractAnalysisStatus, string> = {
+  not_reviewed: "هنوز با هوش مصنوعی بررسی نشده است",
+  running: "بررسی هوش مصنوعی در حال انجام است",
+  ready: "نتیجه بررسی برای نسخه فعلی آماده است",
+  needs_re_review: "سند پس از بررسی تغییر کرده است",
+  error: "بررسی با خطا مواجه شد",
+};
+
+// ------------------------------------------------------------
+// Axis 3 — archive status
+// ------------------------------------------------------------
+
+export type ContractArchiveStatus = "active" | "archived";
+
+export const CONTRACT_ARCHIVE_STATUS_LABELS: Record<ContractArchiveStatus, string> = {
+  active: "فعال",
+  archived: "بایگانی",
+};
+
+// ------------------------------------------------------------
+// Semantic tone (shared by every axis)
+// ------------------------------------------------------------
 
 /**
  * Semantic tone for a status. Maps onto the design-system semantic
@@ -70,15 +124,25 @@ export type ContractStatusTone =
   | "info"
   | "warning"
   | "success"
-  | "muted";
+  | "muted"
+  | "error";
 
-export const CONTRACT_STATUS_TONE: Record<ContractStatusGroup, ContractStatusTone> = {
-  draft: "neutral",
+export const CONTRACT_DRAFT_STATUS_TONE: Record<ContractDraftStatus, ContractStatusTone> = {
+  started: "neutral",
   in_progress: "primary",
-  generated: "info",
-  under_review: "warning",
-  approved: "success",
-  exported: "success",
+  ready: "info",
+};
+
+export const CONTRACT_ANALYSIS_STATUS_TONE: Record<ContractAnalysisStatus, ContractStatusTone> = {
+  not_reviewed: "muted",
+  running: "info",
+  ready: "success",
+  needs_re_review: "warning",
+  error: "error",
+};
+
+export const CONTRACT_ARCHIVE_STATUS_TONE: Record<ContractArchiveStatus, ContractStatusTone> = {
+  active: "neutral",
   archived: "muted",
 };
 
@@ -90,6 +154,7 @@ export const STATUS_TONE_CLASSES: Record<ContractStatusTone, string> = {
   warning: "bg-warning-50 text-warning-700",
   success: "bg-success-50 text-success-700",
   muted: "bg-surface-container text-muted",
+  error: "bg-error-50 text-error-700",
 };
 
 /** The dot colour inside a status badge, keyed by tone. */
@@ -100,91 +165,188 @@ export const STATUS_DOT_CLASSES: Record<ContractStatusTone, string> = {
   warning: "bg-warning",
   success: "bg-success",
   muted: "bg-on-surface-variant/50",
+  error: "bg-error",
 };
 
 // ------------------------------------------------------------
-// Raw state → shared bucket
+// Raw state → draft status
 // ------------------------------------------------------------
 
-const PROPERTY_STATE_GROUP: Record<PropertyContractState, ContractStatusGroup> = {
-  DRAFT: "draft",
+const PROPERTY_STATE_DRAFT: Record<PropertyContractState, ContractDraftStatus> = {
+  DRAFT: "started",
   PARTIES_PENDING: "in_progress",
   PROPERTY_PENDING: "in_progress",
   DOCUMENTS_PENDING: "in_progress",
   TERMS_PENDING: "in_progress",
-  READY_FOR_REVIEW: "under_review",
-  COUNTERPARTY_REVIEW: "under_review",
   CHANGES_REQUESTED: "in_progress",
-  READY_TO_SIGN: "approved",
-  PARTIALLY_SIGNED: "approved",
-  SIGNED: "approved",
-  READY_FOR_OFFICIAL_REGISTRATION: "exported",
-  FINALIZED: "exported",
-  CANCELLED: "archived",
-  ARCHIVED: "archived",
+  READY_FOR_REVIEW: "ready",
+  COUNTERPARTY_REVIEW: "ready",
+  READY_TO_SIGN: "ready",
+  PARTIALLY_SIGNED: "ready",
+  SIGNED: "ready",
+  READY_FOR_OFFICIAL_REGISTRATION: "ready",
+  FINALIZED: "ready",
+  CANCELLED: "started",
+  ARCHIVED: "ready",
 };
 
-const V1_STATE_GROUP: Record<V1ContractState, ContractStatusGroup> = {
-  draft: "draft",
+const V1_STATE_DRAFT: Record<V1ContractState, ContractDraftStatus> = {
+  draft: "started",
   collecting: "in_progress",
-  generated: "generated",
-  under_review: "under_review",
-  approved: "approved",
-  exported: "exported",
-  archived: "archived",
+  generated: "ready",
+  under_review: "ready",
+  approved: "ready",
+  exported: "ready",
+  archived: "ready",
 };
 
-/** Map a Contract-OS state onto the shared bucket. */
-export function statusGroupForPropertyState(state: PropertyContractState): ContractStatusGroup {
-  return PROPERTY_STATE_GROUP[state] ?? "draft";
+/** Map a Contract-OS state onto the draft axis. */
+export function draftStatusForPropertyState(state: PropertyContractState): ContractDraftStatus {
+  return PROPERTY_STATE_DRAFT[state] ?? "started";
 }
 
-/** Map a legacy V1 state onto the shared bucket. */
-export function statusGroupForV1State(state: V1ContractState): ContractStatusGroup {
-  return V1_STATE_GROUP[state] ?? "draft";
+/** Map a legacy V1 state onto the draft axis. */
+export function draftStatusForV1State(state: V1ContractState): ContractDraftStatus {
+  return V1_STATE_DRAFT[state] ?? "started";
 }
+
+// ------------------------------------------------------------
+// Raw state → archive status
+// ------------------------------------------------------------
+
+/** True when the raw Contract-OS state means "filed away". */
+export function isArchivedPropertyState(state: PropertyContractState): boolean {
+  return state === "ARCHIVED" || state === "CANCELLED";
+}
+
+/** True when the raw V1 state means "filed away". */
+export function isArchivedV1State(state: V1ContractState): boolean {
+  return state === "archived";
+}
+
+// ------------------------------------------------------------
+// Derived predicates
+// ------------------------------------------------------------
 
 /** True when the contract still has work the user can resume. */
-export function isActionableStatus(group: ContractStatusGroup): boolean {
-  return group === "draft" || group === "in_progress";
+export function isActionableDraft(status: ContractDraftStatus): boolean {
+  return status === "started" || status === "in_progress";
 }
 
-/** True when the contract is finished and only readable. */
-export function isReadOnlyStatus(group: ContractStatusGroup): boolean {
-  return group === "approved" || group === "exported" || group === "archived";
+/** True when the document text is complete and only readable. */
+export function isReadyDraft(status: ContractDraftStatus): boolean {
+  return status === "ready";
 }
 
 /**
- * The primary action label for a status — the single verb the card
- * offers. Kept here so every card in the list agrees on the wording.
+ * The primary action label for a contract, derived from BOTH the draft
+ * axis and the analysis axis. The analysis axis wins when it has
+ * something actionable to say (a stale or failed review), because that
+ * is the more urgent next step; otherwise the draft axis decides.
+ *
+ * This is the single verb the card offers, so every card agrees.
  */
-export function primaryActionLabel(group: ContractStatusGroup): string {
-  switch (group) {
-    case "draft":
+export function primaryActionLabel(
+  draft: ContractDraftStatus,
+  analysis: ContractAnalysisStatus = "not_reviewed",
+  archived = false
+): string {
+  if (archived) return "مشاهده";
+  if (analysis === "running") return "مشاهده پیشرفت بررسی";
+  if (analysis === "needs_re_review") return "بررسی نسخه جدید";
+  if (analysis === "error") return "تلاش مجدد بررسی";
+  if (analysis === "ready") return "مشاهده نتیجه بررسی";
+  switch (draft) {
+    case "started":
       return "ادامه تکمیل";
     case "in_progress":
-      return "ادامه";
-    case "generated":
-      return "مشاهده قرارداد";
-    case "under_review":
-      return "مشاهده وضعیت";
-    case "approved":
-      return "مشاهده نسخه نهایی";
-    case "exported":
-      return "دانلود مجدد";
-    case "archived":
-      return "مشاهده";
+      return "ادامه تکمیل";
+    case "ready":
+      return "مشاهده و ویرایش";
   }
 }
 
-/** The high-level groups the "all" view is organised into. */
+// ------------------------------------------------------------
+// Top-level tabs (the «همه» view)
+// ------------------------------------------------------------
+
+/**
+ * The four top-level tabs. These are the ONLY lifecycle buckets the
+ * user sees as tabs; the finer axes live under «فیلترهای بیشتر».
+ */
+export type ContractTab = "all" | "needs_work" | "ready" | "archived";
+
+export interface ContractTabDescriptor {
+  key: ContractTab;
+  labelFa: string;
+}
+
+export const CONTRACT_TABS: ContractTabDescriptor[] = [
+  { key: "all", labelFa: "همه" },
+  { key: "needs_work", labelFa: "نیازمند تکمیل" },
+  { key: "ready", labelFa: "آماده" },
+  { key: "archived", labelFa: "بایگانی" },
+];
+
+/** True when a contract belongs in the given top-level tab. */
+export function matchesTab(
+  tab: ContractTab,
+  draft: ContractDraftStatus,
+  archived: boolean
+): boolean {
+  switch (tab) {
+    case "all":
+      return true;
+    case "needs_work":
+      return !archived && isActionableDraft(draft);
+    case "ready":
+      return !archived && isReadyDraft(draft);
+    case "archived":
+      return archived;
+  }
+}
+
+// ------------------------------------------------------------
+// Backwards-compatible aliases
+// ------------------------------------------------------------
+// The old single-axis vocabulary is still referenced by the status
+// badge and a few call sites. It is derived from the draft axis so the
+// two can never disagree, and it is kept only until those call sites
+// migrate to the explicit axes above.
+
+/** @deprecated Use `ContractDraftStatus`. */
+export type ContractStatusGroup = ContractDraftStatus;
+
+/** @deprecated Use `CONTRACT_DRAFT_STATUS_ORDER`. */
+export const CONTRACT_STATUS_ORDER = CONTRACT_DRAFT_STATUS_ORDER;
+
+/** @deprecated Use `CONTRACT_DRAFT_STATUS_LABELS`. */
+export const CONTRACT_STATUS_LABELS = CONTRACT_DRAFT_STATUS_LABELS;
+
+/** @deprecated Use `CONTRACT_DRAFT_STATUS_HINTS`. */
+export const CONTRACT_STATUS_HINTS = CONTRACT_DRAFT_STATUS_HINTS;
+
+/** @deprecated Use `CONTRACT_DRAFT_STATUS_TONE`. */
+export const CONTRACT_STATUS_TONE = CONTRACT_DRAFT_STATUS_TONE;
+
+/** @deprecated Use `draftStatusForPropertyState`. */
+export const statusGroupForPropertyState = draftStatusForPropertyState;
+
+/** @deprecated Use `draftStatusForV1State`. */
+export const statusGroupForV1State = draftStatusForV1State;
+
+/** @deprecated Use `isActionableDraft`. */
+export const isActionableStatus = isActionableDraft;
+
+/** @deprecated Use `isReadyDraft`. */
+export const isReadOnlyStatus = isReadyDraft;
+
+/** @deprecated Use `CONTRACT_TABS`. */
 export const MY_CONTRACTS_GROUPS: {
   key: string;
   titleFa: string;
-  statuses: ContractStatusGroup[];
+  statuses: ContractDraftStatus[];
 }[] = [
-  { key: "needs-work", titleFa: "نیازمند ادامه", statuses: ["draft", "in_progress"] },
-  { key: "in-review", titleFa: "در حال بررسی", statuses: ["generated", "under_review"] },
-  { key: "ready", titleFa: "قراردادهای آماده", statuses: ["approved", "exported"] },
-  { key: "archived", titleFa: "بایگانی", statuses: ["archived"] },
+  { key: "needs-work", titleFa: "نیازمند ادامه", statuses: ["started", "in_progress"] },
+  { key: "ready", titleFa: "قراردادهای آماده", statuses: ["ready"] },
 ];

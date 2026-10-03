@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { findSessionById, findUserById, getProfile, getPreferences, getAccountType } from '@/lib/db';
 import { getPlatformAccountType, getUserRole, findActiveMembership } from '@/lib/rbac';
+import { toPersianMobileDisplay } from '@legalir/validation';
 
 function getUserFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -40,8 +41,8 @@ export async function GET(request: Request) {
   const data = {
     user: {
       id: user.id,
-      mobileE164: `+98${user.mobile.replace(/^0/, '')}`,
-      mobileDisplay: user.mobile.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'['0123456789'.indexOf(d)] ?? d),
+      mobileE164: user.mobile,
+      mobileDisplay: toPersianMobileDisplay(user.mobile),
       status: 'active' as const,
       accountType,
       // Once legal, the account type can never change again.

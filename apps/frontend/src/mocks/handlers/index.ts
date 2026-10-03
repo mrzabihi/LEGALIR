@@ -9,6 +9,7 @@
 import { http, HttpResponse, delay } from "msw";
 import type { ApiSuccess, ApiError, OtpChallenge, OtpResult } from "@legalir/types";
 import { detectPreviewKind } from "@/lib/document-preview";
+import { normalizeIranMobile } from "@legalir/validation";
 import {
   fixtureUserPro,
   fixtureUserNew,
@@ -241,8 +242,13 @@ export const handlers = [
 
     const body = (await request.json()) as { mobile: string };
 
+    // Normalize to canonical E.164 — the mock mirrors the real backend so
+    // format variation cannot bypass the rate limit or reach a different
+    // challenge bucket.
+    const mobile = body.mobile ? normalizeIranMobile(body.mobile) : null;
+
     // Validate mobile format
-    if (!body.mobile || !/^09\d{9}$/.test(body.mobile)) {
+    if (!mobile) {
       return HttpResponse.json(
         err("INVALID_MOBILE", "شماره موبایل معتبر نیست", false),
         { status: 400 }
@@ -250,12 +256,12 @@ export const handlers = [
     }
 
     // --- Rate Limit Check ---
-    const timestamps = rateLimitStore.get(body.mobile) ?? [];
+    const timestamps = rateLimitStore.get(mobile) ?? [];
     const recentWindow = timestamps.filter((t) => Date.now() - t < RATE_LIMIT_WINDOW_MS);
-    rateLimitStore.set(body.mobile, recentWindow);
+    rateLimitStore.set(mobile, recentWindow);
 
     // Scenario: 09111111111 is always rate-limited
-    if (body.mobile === "09111111111" || recentWindow.length >= MAX_REQUESTS_PER_WINDOW) {
+    if (mobile === "+989111111111" || recentWindow.length >= MAX_REQUESTS_PER_WINDOW) {
       return HttpResponse.json(
         err("RATE_LIMITED", "تعداد درخواست‌ها بیش از حد مجاز است", true),
         { status: 429 }
@@ -264,17 +270,17 @@ export const handlers = [
 
     // Track request
     recentWindow.push(Date.now());
-    rateLimitStore.set(body.mobile, recentWindow);
+    rateLimitStore.set(mobile, recentWindow);
 
     // --- Create Challenge ---
     const challengeId = crypto.randomUUID();
-    const expiresAt = body.mobile === "09333333333"
+    const expiresAt = mobile === "+989333333333"
       ? Date.now() + 1_000  // Scenario: test expired OTP (1s TTL)
       : Date.now() + CHALLENGE_TTL_MS;
 
     const challenge: StoredChallenge = {
       challengeId,
-      mobile: body.mobile,
+      mobile,
       code: DEV_OTP,
       expiresAt,
       attempts: 0,
@@ -352,7 +358,7 @@ export const handlers = [
     // --- Verify Code ---
 
     // Scenario: 09222222222 always returns invalid OTP
-    const isAlwaysInvalid = stored.mobile === "09222222222";
+    const isAlwaysInvalid = stored.mobile === "+989222222222";
 
     if (body.code !== stored.code || isAlwaysInvalid) {
       if (stored.attempts >= MAX_ATTEMPTS) {
@@ -372,7 +378,7 @@ export const handlers = [
     stored.used = true;
     challengeStore.set(body.challengeId, stored);
 
-    const isNewUser = stored.mobile === "09120000000";
+    const isNewUser = stored.mobile === "+989120000000";
     const user = isNewUser ? fixtureUserNew : fixtureUserPro;
     const sessionId = crypto.randomUUID();
 

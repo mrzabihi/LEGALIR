@@ -7,9 +7,10 @@
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { useMe } from "@/hooks/useDashboard";
 import {
   requestOtpApi,
   verifyOtpApi,
@@ -20,6 +21,7 @@ import {
   forgotPasswordVerifyApi,
   resetPasswordApi,
   normalizeMobile,
+  MOBILE_ERROR_MESSAGE,
 } from "./api";
 import type { OtpRequestResult } from "./otp-provider";
 import type { RegistrationIntent } from "@legalir/types";
@@ -43,7 +45,7 @@ export function useRequestOtp(): UseRequestOtpReturn {
 
     const mobile = normalizeMobile(rawMobile);
     if (!mobile) {
-      setError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+      setError(MOBILE_ERROR_MESSAGE);
       return null;
     }
 
@@ -75,18 +77,32 @@ export function useRequestOtp(): UseRequestOtpReturn {
 }
 
 
-// Intent-to-route mapping
-const INTENT_ROUTE_MAP: Record<string, string> = {
-  chat: "/chat",
+// Intent-to-route mapping. The landing header's "شروع کنید" menu sends the
+// user here with a short intent token; each token must land on the service
+// the user actually picked — not the generic dashboard.
+export const INTENT_ROUTE_MAP: Record<string, string> = {
+  chat: "/new",
   document: "/documents",
-  contract: "/new",
-  subscribe: "/subscription",
+  contract: "/contracts",
+  subscribe: "/pricing",
   support: "/chat",
 };
 
-function resolveIntendedRoute(intendedRoute: string | null): string {
+/**
+ * Only same-origin, internal paths are accepted as a post-login destination.
+ * A value like `//evil.com` or `https://evil.com` is a protocol-relative or
+ * absolute URL and would turn the login flow into an open redirect, so it is
+ * rejected in favour of the dashboard.
+ */
+export function isSafeReturnPath(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\");
+}
+
+export function resolveIntendedRoute(intendedRoute: string | null): string {
   if (!intendedRoute) return "/dashboard";
-  if (intendedRoute.startsWith("/")) return intendedRoute;
+  if (intendedRoute.startsWith("/")) {
+    return isSafeReturnPath(intendedRoute) ? intendedRoute : "/dashboard";
+  }
   return INTENT_ROUTE_MAP[intendedRoute] ?? "/dashboard";
 }
 
@@ -244,7 +260,7 @@ export function useRegister(): UseRegisterReturn {
 
       const mobile = normalizeMobile(rawMobile);
       if (!mobile) {
-        setError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+        setError(MOBILE_ERROR_MESSAGE);
         return false;
       }
 
@@ -331,7 +347,7 @@ export function usePasswordLogin(): UsePasswordLoginReturn {
 
       const mobile = normalizeMobile(rawMobile);
       if (!mobile) {
-        setError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+        setError(MOBILE_ERROR_MESSAGE);
         return false;
       }
 
@@ -402,7 +418,7 @@ export function useForgotPasswordRequest(): ForgotPasswordStep1Return {
 
     const mobile = normalizeMobile(rawMobile);
     if (!mobile) {
-      setError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+      setError(MOBILE_ERROR_MESSAGE);
       return null;
     }
 
@@ -547,7 +563,7 @@ export function validatePassword(password: string): string | null {
 
 export function validateMobile(rawMobile: string): string | null {
   if (!rawMobile.trim()) return "شماره موبایل الزامی است";
-  if (!normalizeMobile(rawMobile)) return "شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید";
+  if (!normalizeMobile(rawMobile)) return MOBILE_ERROR_MESSAGE;
   return null;
 }
 
@@ -566,4 +582,62 @@ export function useAuth() {
     isLoading,
     isNewUser: session?.isNewUser ?? false,
   };
+}
+
+// ============================================================
+// useSessionStatus — authoritative, cookie-backed session state
+// ============================================================
+// The zustand store is persisted to localStorage, so a stale entry can
+// outlive the real session (expired cookie, logout in another tab). The
+// server's `/api/v1/me` is the source of truth: a 401 means the user is
+// NOT authenticated, regardless of what localStorage claims. This hook
+// reconciles the two and clears the stale store entry so the header can
+// fall back to "ورود / ثبت‌نام".
+
+export interface SessionStatus {
+  /** True only once the server has confirmed the session. */
+  isAuthenticated: boolean;
+  /** True while the session is still being resolved (initial load). */
+  isLoading: boolean;
+  /** Display name from the profile, when available. */
+  displayName: string | null;
+}
+
+export function useSessionStatus(): SessionStatus {
+  const { data, isLoading, isError, error } = useMe();
+  const clearSession = useAuthStore((s) => s.clearSession);
+
+  // A 401 from the server invalidates any persisted session.
+  useEffect(() => {
+    if (isError && (error as { status?: number } | null)?.status === 401) {
+      clearSession();
+    }
+  }, [isError, error, clearSession]);
+
+  return {
+    isAuthenticated: Boolean(data),
+    isLoading,
+    displayName: data?.profile?.displayName ?? null,
+  };
+}
+
+// ============================================================
+// useRedirectAuthenticated — bounce logged-in users off guest pages
+// ============================================================
+// Used by the auth pages. It waits for the server to confirm the session
+// before redirecting, so a stale localStorage entry cannot hijack the
+// post-login destination. When an intended route is pending, the user is
+// sent there instead of the dashboard.
+
+export function useRedirectAuthenticated(skip = false): void {
+  const router = useRouter();
+  const { isAuthenticated } = useSessionStatus();
+  const intendedRoute = useAuthStore((s) => s.intendedRoute);
+
+  useEffect(() => {
+    if (skip) return;
+    if (isAuthenticated) {
+      router.replace(resolveIntendedRoute(intendedRoute));
+    }
+  }, [skip, isAuthenticated, intendedRoute, router]);
 }

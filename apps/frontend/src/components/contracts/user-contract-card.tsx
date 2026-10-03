@@ -2,15 +2,20 @@
 // LEGALIR — User contract card (work item)
 // ============================================================
 // A USER contract card is a work item, not an inspiration. Where a
-// template card leads with a big illustration and a "شروع" verb, this
+// template card leads with a big illustration and a specific CTA, this
 // one leads with the contract's IDENTITY and its STATE OF WORK:
 //
-//   thumbnail · status badge · title · type · progress ·
-//   last change · primary action · secondary ⋮ menu
+//   thumbnail · draft badge · title · type · id · party names ·
+//   progress · last change · analysis badge · primary action · ⋮ menu
 //
-// The primary action is the single verb for the current status
-// («ادامه تکمیل», «مشاهده قرارداد», «دانلود مجدد»), so the card always
-// tells the user what the next step is.
+// The card shows BOTH axes, because they answer different questions:
+//   • the DRAFT badge  — how far along the document is;
+//   • the ANALYSIS badge — what the AI review of the last fixed
+//     version said (or that it has not run / is stale).
+//
+// The primary action is the single verb for the current state, derived
+// from BOTH axes («ادامه تکمیل», «بررسی نسخه جدید», «مشاهده نتیجه
+// بررسی»), so the card always tells the user what the next step is.
 // ============================================================
 
 "use client";
@@ -18,7 +23,13 @@
 import Link from "next/link";
 import type { UnifiedContract } from "@/lib/contracts/unified";
 import { contractHref } from "@/lib/contracts/unified";
-import { primaryActionLabel } from "@/lib/contracts/status";
+import {
+  CONTRACT_ANALYSIS_STATUS_LABELS,
+  CONTRACT_ANALYSIS_STATUS_TONE,
+  STATUS_DOT_CLASSES,
+  STATUS_TONE_CLASSES,
+  primaryActionLabel,
+} from "@/lib/contracts/status";
 import { ContractVisual } from "@/lib/contracts/visuals";
 import { toRelativeTime } from "@/lib/persian-utils";
 import { IconArrowBack, IconCopy, IconDelete } from "@/lib/icons";
@@ -35,7 +46,13 @@ interface UserContractCardProps {
 
 export function UserContractCard({ contract, onDelete, onCopyId }: UserContractCardProps) {
   const href = contractHref(contract);
-  const actionLabel = primaryActionLabel(contract.status);
+  // The primary verb reads BOTH axes: a stale or failed review is the
+  // more urgent next step than finishing the text.
+  const actionLabel = primaryActionLabel(
+    contract.status,
+    contract.analysisStatus,
+    contract.archived
+  );
 
   const menuItems: ContractCardMenuItem[] = [];
   if (onCopyId) {
@@ -81,6 +98,12 @@ export function UserContractCard({ contract, onDelete, onCopyId }: UserContractC
             {contract.subtitleFa ? ` · ${contract.subtitleFa}` : ""}
           </p>
 
+          {/* The contract id — the same value the «کپی شناسه» action
+              copies, shown so the user can match a card to a document. */}
+          <p className="mt-0.5 truncate font-mono text-labelSmall text-muted" dir="ltr">
+            {contract.referenceCode}
+          </p>
+
           {/* Progress — the server-computed completeness for OS
               contracts; V1 contracts have no progress, so the bar is
               replaced by the last-change line alone. */}
@@ -105,9 +128,15 @@ export function UserContractCard({ contract, onDelete, onCopyId }: UserContractC
             </div>
           )}
 
-          <p className="mt-2 text-labelSmall text-muted">
-            آخرین تغییر: {toRelativeTime(contract.updatedAt)}
-          </p>
+          {/* The AI-review axis — a SEPARATE badge from the draft badge,
+              because it answers a different question. It is always
+              labelled as an AI review, never a legal verdict. */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <AnalysisBadge status={contract.analysisStatus} />
+            <span className="text-labelSmall text-muted">
+              آخرین تغییر: {toRelativeTime(contract.updatedAt)}
+            </span>
+          </div>
         </div>
 
         {menuItems.length > 0 && <ContractCardMenu items={menuItems} />}
@@ -123,5 +152,25 @@ export function UserContractCard({ contract, onDelete, onCopyId }: UserContractC
         </Link>
       </div>
     </div>
+  );
+}
+
+/**
+ * The AI-review badge. It is prefixed with «بررسی هوش مصنوعی» so the
+ * label can never be mistaken for a legal approval, and it always
+ * carries its text — the colour dot is decoration, not the message.
+ */
+function AnalysisBadge({ status }: { status: UnifiedContract["analysisStatus"] }) {
+  const tone = CONTRACT_ANALYSIS_STATUS_TONE[status];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-labelSmall ${STATUS_TONE_CLASSES[tone]}`}
+    >
+      <span
+        className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT_CLASSES[tone]}`}
+        aria-hidden="true"
+      />
+      بررسی هوش مصنوعی: {CONTRACT_ANALYSIS_STATUS_LABELS[status]}
+    </span>
   );
 }

@@ -532,6 +532,22 @@ export interface DocumentJob {
 
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
+/**
+ * The nature of a finding (spec §10). The four kinds are kept distinct so
+ * the result surface can separate a legal conflict from a contractual risk,
+ * a gap in the information, and a text-extraction (OCR) problem — they call
+ * for different user actions and must never be conflated.
+ *
+ * Optional and forward-compatible: when the analysis pipeline does not emit
+ * a kind, the UI derives one from real signals (a citation ⇒ conflict with
+ * law) rather than inventing a classification.
+ */
+export type FindingKind =
+  | "conflict_with_law"
+  | "contractual_risk"
+  | "incomplete_info"
+  | "ocr_error";
+
 export interface DocumentFinding {
   id: string;
   documentId: string;
@@ -542,6 +558,8 @@ export interface DocumentFinding {
   recommendation: string;
   citation: Citation | null;
   confidence: number;
+  /** The nature of the finding; absent when the pipeline did not classify it. */
+  kind?: FindingKind;
 }
 
 export interface RiskReport {

@@ -833,6 +833,24 @@ export interface PropertyContractUpdateRequest {
   data?: Partial<PropertyRentData> | Partial<PropertySaleData> | Partial<GenericContractData>;
 }
 
+/**
+ * The AI-review axis of a contract, computed server-side from the
+ * stored `AiContractReview` rows and the current version. It is
+ * deliberately separate from `state` (the document lifecycle): a
+ * contract whose text is ready can still be un-reviewed, and a
+ * contract whose text changed after a review is `needs_re_review`.
+ *
+ * `needs_re_review` is the load-bearing one — the stored result
+ * describes a version that no longer exists and must never be shown as
+ * the current verdict.
+ */
+export type ContractAnalysisStatus =
+  | "not_reviewed"
+  | "running"
+  | "ready"
+  | "needs_re_review"
+  | "error";
+
 export interface PropertyContractListItem {
   id: string;
   referenceCode: string;
@@ -849,6 +867,14 @@ export interface PropertyContractListItem {
   partySummaryFa: string;
   currentStep: string;
   currentStepTitleFa: string;
+  /** The AI-review axis. Defaults to `not_reviewed` when never run. */
+  analysisStatus: ContractAnalysisStatus;
+  /** ISO timestamp of the last completed AI review, or null. */
+  lastAnalyzedAt: string | null;
+  /** True when the contract is filed away (ARCHIVED / CANCELLED). */
+  archived: boolean;
+  /** ISO timestamp of the last export, or null. An event, not a state. */
+  exportedAt: string | null;
   updatedAt: string;
   createdAt: string;
 }

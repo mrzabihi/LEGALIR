@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TextField } from "@legalir/ui";
 import { useRequestOtp } from "@/lib/auth/use-auth";
-import { normalizeMobile } from "@/lib/auth/api";
+import { normalizeMobile, MOBILE_ERROR_MESSAGE } from "@/lib/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function LoginForm() {
@@ -12,7 +12,6 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const { requestOtp, isPending, error: apiError } = useRequestOtp();
   const setIntendedRoute = useAuthStore((s) => s.setIntendedRoute);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const [mobile, setMobile] = useState("");
   const [validationError, setValidationError] = useState("");
@@ -24,13 +23,6 @@ export function LoginForm() {
       setIntendedRoute(intent);
     }
   }, [searchParams, setIntendedRoute]);
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/dashboard");
-    }
-  }, [isAuthenticated, router]);
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -47,7 +39,7 @@ export function LoginForm() {
     // Validate before submission
     const normalized = normalizeMobile(mobile);
     if (!normalized) {
-      setValidationError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+      setValidationError(MOBILE_ERROR_MESSAGE);
       return;
     }
 

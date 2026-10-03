@@ -489,7 +489,7 @@ export const SERVICE_BANNERS: ServiceBannerDef[] = [
     title: "بررسی قرارداد",
     message: "تحلیل ریسک و شرایط قرارداد پیش از امضا",
     cta: "بررسی قرارداد",
-    href: "/documents?service=contract_review",
+    href: "/contracts/review",
     icon: IconFileSearch,
     gradient: "from-rose-500 to-pink-500",
     accent: "#B6251E",

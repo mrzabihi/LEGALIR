@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useVerifyOtp, useRequestOtp } from "@/lib/auth/use-auth";
-import { useAuthStore } from "@/stores/auth-store";
+import { toNationalMobile } from "@/lib/auth/api";
 import { OTPInput } from "@legalir/ui";
 
 const DIGIT_COUNT = 6;
@@ -20,7 +20,6 @@ function OtpVerifyForm() {
 
   const { verifyOtp, isPending: isVerifying, error: verifyError } = useVerifyOtp();
   const { requestOtp, isPending: isRequesting, error: requestError } = useRequestOtp();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const [digits, setDigits] = useState<string[]>(Array(DIGIT_COUNT).fill(""));
   const [countdown, setCountdown] = useState(0);
@@ -53,13 +52,6 @@ function OtpVerifyForm() {
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [initialCountdown]);
-
-  // Redirect if authenticated
-  useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/dashboard");
-    }
-  }, [isAuthenticated, router]);
 
   // Get the current code string from digits
   const getCode = useCallback((newDigits: string[]) => {
@@ -130,7 +122,7 @@ function OtpVerifyForm() {
       {/* Mobile display with edit */}
       <div className="flex items-center justify-center gap-2 mb-8">
         <div className="flex items-center gap-2 bg-neutral-100 rounded-medium px-4 py-2">
-          <span className="text-body-2 text-neutral-700 font-medium dir-ltr">{mobile}</span>
+          <span className="text-body-2 text-neutral-700 font-medium dir-ltr">{toNationalMobile(mobile)}</span>
         </div>
         <button
           type="button"

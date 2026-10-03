@@ -346,6 +346,23 @@ export const IconServices = createIcon("Services", (
   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
 ));
 
+/** Four rounded squares — the «خدمات» (services) destination in the
+ *  bottom navigation. Distinct from the list-style IconServices so the
+ *  bar reads as a grid of offerings rather than a document. */
+export const IconGrid = createIcon("Grid", (
+  <>
+    <rect x="3" y="3" width="8" height="8" rx="2" />
+    <rect x="13" y="3" width="8" height="8" rx="2" />
+    <rect x="3" y="13" width="8" height="8" rx="2" />
+    <rect x="13" y="13" width="8" height="8" rx="2" />
+  </>
+));
+
+/** Headset with a mic boom — the «پشتیبانی» (support) destination. */
+export const IconHeadset = createIcon("Headset", (
+  <path d="M12 1a9 9 0 00-9 9v7a3 3 0 003 3h3v-8H5v-2a7 7 0 1114 0v2h-4v8h3a3 3 0 003-3v-7a9 9 0 00-9-9z" />
+));
+
 export const IconGender = createIcon("Gender", (
   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
 ));

@@ -14,6 +14,12 @@
 //     finished work, then by most-recently-updated;
 //   • smart grouping — the "همه" view is bucketed by work remaining.
 //
+// A contract carries THREE independent axes (see `status.ts`):
+//   • `status`         — the DRAFT axis (how far along the document is)
+//   • `analysisStatus` — the AI-review axis (of a fixed version)
+//   • `archived`       — the archive axis
+// plus `exportedAt`, which is an EVENT, not a lifecycle.
+//
 // The status buckets themselves live in `status.ts`; this module only
 // decides order and grouping.
 // ============================================================
@@ -21,12 +27,13 @@
 import type { PropertyContractListItem, V1ContractListItem } from "@legalir/types";
 import { V1_CONTRACT_STATE_LABELS } from "@legalir/types";
 import {
-  CONTRACT_STATUS_ORDER,
-  MY_CONTRACTS_GROUPS,
-  isActionableStatus,
-  statusGroupForPropertyState,
-  statusGroupForV1State,
-  type ContractStatusGroup,
+  CONTRACT_DRAFT_STATUS_ORDER,
+  draftStatusForPropertyState,
+  draftStatusForV1State,
+  isActionableDraft,
+  isArchivedV1State,
+  type ContractAnalysisStatus,
+  type ContractDraftStatus,
 } from "./status";
 
 /** One contract, whichever lifecycle it came from. */
@@ -43,8 +50,16 @@ export interface UnifiedContract {
    * `referenceCode`; legacy V1 rows have none, so their `id` stands in.
    */
   referenceCode: string;
-  /** The shared status bucket. */
-  status: ContractStatusGroup;
+  /** The DRAFT axis — how far along the document itself is. */
+  status: ContractDraftStatus;
+  /** The AI-review axis — the verdict on a FIXED version. */
+  analysisStatus: ContractAnalysisStatus;
+  /** The archive axis. */
+  archived: boolean;
+  /** ISO timestamp of the last export, or null. An event, not a state. */
+  exportedAt: string | null;
+  /** ISO timestamp of the last completed AI review, or null. */
+  lastAnalyzedAt: string | null;
   /** The raw, lifecycle-specific state label shown on the badge. */
   stateFa: string;
   /** 0–100 completeness. V1 contracts have no progress, so 0. */
@@ -67,7 +82,7 @@ export interface UnifiedContract {
 
 /** Fold a Contract-OS list item into the unified shape. */
 export function toUnifiedPropertyContract(item: PropertyContractListItem): UnifiedContract {
-  const status = statusGroupForPropertyState(item.state);
+  const status = draftStatusForPropertyState(item.state);
   return {
     id: item.id,
     source: "os",
@@ -76,13 +91,17 @@ export function toUnifiedPropertyContract(item: PropertyContractListItem): Unifi
     title: item.title,
     referenceCode: item.referenceCode,
     status,
+    analysisStatus: item.analysisStatus,
+    archived: item.archived,
+    exportedAt: item.exportedAt,
+    lastAnalyzedAt: item.lastAnalyzedAt,
     stateFa: item.stateFa,
     progress: item.progress,
     subtitleFa: item.locationFa !== "بدون نشانی" ? item.locationFa : item.partySummaryFa,
     currentStepTitleFa: item.currentStepTitleFa,
     updatedAt: item.updatedAt,
     createdAt: item.createdAt,
-    actionable: isActionableStatus(status),
+    actionable: isActionableDraft(status) && !item.archived,
     deletable: item.state === "DRAFT" || item.state === "CANCELLED",
     raw: item,
   };
@@ -90,7 +109,8 @@ export function toUnifiedPropertyContract(item: PropertyContractListItem): Unifi
 
 /** Fold a legacy V1 list item into the unified shape. */
 export function toUnifiedV1Contract(item: V1ContractListItem): UnifiedContract {
-  const status = statusGroupForV1State(item.state);
+  const status = draftStatusForV1State(item.state);
+  const archived = isArchivedV1State(item.state);
   return {
     id: item.id,
     source: "v1",
@@ -99,6 +119,12 @@ export function toUnifiedV1Contract(item: V1ContractListItem): UnifiedContract {
     title: item.title,
     referenceCode: item.id,
     status,
+    // The legacy V1 workspace has no AI-review axis, so it is always
+    // un-reviewed — never a fabricated verdict.
+    analysisStatus: "not_reviewed",
+    archived,
+    exportedAt: null,
+    lastAnalyzedAt: null,
     stateFa: V1_CONTRACT_STATE_LABELS[item.state] ?? "",
     progress: 0,
     subtitleFa:
@@ -106,7 +132,7 @@ export function toUnifiedV1Contract(item: V1ContractListItem): UnifiedContract {
     currentStepTitleFa: null,
     updatedAt: item.updatedAt,
     createdAt: item.createdAt,
-    actionable: isActionableStatus(status),
+    actionable: isActionableDraft(status) && !archived,
     deletable: false,
     raw: item,
   };
@@ -124,8 +150,8 @@ export function contractHref(contract: UnifiedContract): string {
  */
 export function sortUnifiedContracts(contracts: UnifiedContract[]): UnifiedContract[] {
   return [...contracts].sort((a, b) => {
-    const rankA = CONTRACT_STATUS_ORDER.indexOf(a.status);
-    const rankB = CONTRACT_STATUS_ORDER.indexOf(b.status);
+    const rankA = CONTRACT_DRAFT_STATUS_ORDER.indexOf(a.status);
+    const rankB = CONTRACT_DRAFT_STATUS_ORDER.indexOf(b.status);
     if (rankA !== rankB) return rankA - rankB;
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
@@ -139,17 +165,30 @@ export interface UnifiedContractGroup {
 }
 
 /**
- * Bucket contracts into the four "همه" groups. Empty groups are
- * dropped so the page never renders a heading with nothing under it.
+ * Bucket contracts into the "همه" groups. Empty groups are dropped so
+ * the page never renders a heading with nothing under it.
  */
 export function groupUnifiedContracts(contracts: UnifiedContract[]): UnifiedContractGroup[] {
-  return MY_CONTRACTS_GROUPS.map((group) => ({
-    key: group.key,
-    titleFa: group.titleFa,
-    contracts: sortUnifiedContracts(
-      contracts.filter((c) => group.statuses.includes(c.status))
-    ),
-  })).filter((group) => group.contracts.length > 0);
+  const groups: { key: string; titleFa: string; match: (c: UnifiedContract) => boolean }[] = [
+    {
+      key: "needs-work",
+      titleFa: "نیازمند ادامه",
+      match: (c) => !c.archived && isActionableDraft(c.status),
+    },
+    {
+      key: "ready",
+      titleFa: "قراردادهای آماده",
+      match: (c) => !c.archived && c.status === "ready",
+    },
+    { key: "archived", titleFa: "بایگانی", match: (c) => c.archived },
+  ];
+  return groups
+    .map((g) => ({
+      key: g.key,
+      titleFa: g.titleFa,
+      contracts: sortUnifiedContracts(contracts.filter(g.match)),
+    }))
+    .filter((g) => g.contracts.length > 0);
 }
 
 /** The drafts the user can pick up right now, newest first. */

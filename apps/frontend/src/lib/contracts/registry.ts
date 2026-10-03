@@ -79,6 +79,12 @@ export interface ContractDefinition<TData = ContractDomainData> {
   categoryFa: string;
   descriptionFa: string;
   /**
+   * The specific call to action on the template card — «تنظیم قرارداد
+   * اجاره», not a generic «شروع». It names the exact document the user
+   * is about to build, so the card answers "what happens if I click?".
+   */
+  ctaFa: string;
+  /**
    * Extra Persian terms that should match this type in the Contracts
    * page search — synonyms and everyday words a user might type
    * («اجاره», «مستأجر», «خودرو», «محرمانگی»). The search normalises
@@ -1083,6 +1089,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "رهن و اجاره ملک مسکونی",
     categoryFa: "املاک",
     descriptionFa: "تنظیم قرارداد اجاره ملک مسکونی با تعیین ودیعه، اجاره‌بها و شرایط تحویل.",
+    ctaFa: "تنظیم قرارداد اجاره",
     keywords: ["اجاره", "رهن", "مستأجر", "موجر", "ودیعه", "اجاره‌بها", "خانه", "آپارتمان", "مسکونی", "اجاره نامه"],
     icon: "home",
     gradient: "from-primary to-primary-container",
@@ -1110,6 +1117,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "خرید و فروش ملک مسکونی",
     categoryFa: "املاک",
     descriptionFa: "تنظیم مبایعه‌نامه ملک مسکونی با تعیین ثمن، برنامه پرداخت و شرایط ثبت رسمی.",
+    ctaFa: "تنظیم مبایعه‌نامه ملک",
     keywords: ["خرید", "فروش", "مبایعه", "مبایعه‌نامه", "ملک", "خانه", "آپارتمان", "سند", "ثمن", "معامله"],
     icon: "key",
     gradient: "from-secondary to-secondary-container",
@@ -1137,6 +1145,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "خرید و فروش خودرو",
     categoryFa: "خودرو",
     descriptionFa: "تنظیم قولنامه خودرو با مشخصات فنی، مبلغ معامله و شرایط انتقال سند.",
+    ctaFa: "تنظیم قولنامه خودرو",
     keywords: ["خودرو", "ماشین", "اتومبیل", "قولنامه", "پلاک", "شاسی", "موتور", "خرید", "فروش", "سواری"],
     icon: "car",
     gradient: "from-tertiary to-tertiary-container",
@@ -1164,6 +1173,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "قرارداد قرض",
     categoryFa: "مالی",
     descriptionFa: "تنظیم قرارداد قرض پول با تعیین مبلغ، سررسید بازپرداخت و تضمین.",
+    ctaFa: "تنظیم قرارداد قرض",
     keywords: ["قرض", "وام", "طلب", "بدهی", "بدهکار", "طلبکار", "ضامن", "سفته", "چک", "بازپرداخت"],
     icon: "coin",
     gradient: "from-primary to-primary-container",
@@ -1191,6 +1201,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "قرارداد فریلنسری",
     categoryFa: "خدمات",
     descriptionFa: "تنظیم قرارداد پروژه‌ای فریلنسری با شرح خدمات، دستمزد و زمان‌بندی تحویل.",
+    ctaFa: "تنظیم قرارداد فریلنسری",
     keywords: ["فریلنس", "فریلنسری", "پروژه", "خدمات", "کارفرما", "پیمانکار", "دستمزد", "استخدام", "طراحی", "برنامه‌نویسی"],
     icon: "briefcase",
     gradient: "from-secondary to-secondary-container",
@@ -1218,6 +1229,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "توافقنامه محرمانگی (NDA)",
     categoryFa: "کسب‌وکار",
     descriptionFa: "تنظیم توافقنامه عدم افشای اطلاعات محرمانه، یک‌طرفه یا دوجانبه.",
+    ctaFa: "تنظیم توافقنامه محرمانگی",
     keywords: ["محرمانگی", "محرمانه", "NDA", "عدم افشا", "افشا", "رازداری", "اطلاعات", "توافقنامه", "سری"],
     isNew: true,
     icon: "shield",
@@ -1246,6 +1258,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "قرارداد نرم‌افزار به‌عنوان سرویس (SaaS)",
     categoryFa: "کسب‌وکار",
     descriptionFa: "تنظیم قرارداد اشتراک نرم‌افزار با تعیین سطح سرویس، پرداخت و مالکیت داده.",
+    ctaFa: "تنظیم قرارداد SaaS",
     keywords: ["نرم افزار", "نرم‌افزار", "سرویس", "اشتراک", "SaaS", "ابری", "کلاد", "پشتیبانی", "لایسنس", "داده"],
     isNew: true,
     icon: "cloud",
@@ -1274,6 +1287,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     typeFa: "قرارداد مشارکت استارتاپ",
     categoryFa: "کسب‌وکار",
     descriptionFa: "تنظیم قرارداد بنیان‌گذاران با تعیین سهام، نقش‌ها، مدیریت و شرایط خروج.",
+    ctaFa: "تنظیم قرارداد مشارکت",
     keywords: ["استارتاپ", "استارت آپ", "مشارکت", "سهام", "بنیان‌گذار", "شریک", "سرمایه‌گذار", "شرکت", "vesting", "خروج"],
     isNew: true,
     icon: "users",

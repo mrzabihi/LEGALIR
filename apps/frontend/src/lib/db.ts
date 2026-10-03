@@ -15,6 +15,7 @@ import {
   type RewardEventType,
 } from "./rewards";
 import { seedDemoContent, seedLawContent, seedDemoCases, DEMO_USER_MOBILE } from "./demo-seed";
+import { normalizeIranMobile } from "@legalir/validation";
 import { seedPropertyContracts } from "./contracts/seed";
 import { listRenewalReminders } from "./contracts/db";
 import { seedDemoLawyers } from "./lawyer-seed";
@@ -275,12 +276,45 @@ export interface RewardLedgerEntry {
 // User operations
 // ============================================================
 
+/**
+ * Canonicalize a stored mobile value to E.164. Rows written before the
+ * canonical-format migration hold the national `09…` form; those are
+ * converted on read so a legacy row and a new row for the same number
+ * resolve to the same identity. Unrecognized values are returned as-is
+ * (never silently dropped).
+ */
+export function normalizeStoredMobile(mobile: string): string {
+  return normalizeIranMobile(mobile) ?? mobile;
+}
+
+/**
+ * Find a user by mobile number, accepting ANY supported input format
+ * (`09123456789`, `9123456789`, `+989123456789`, `0098…`, Persian
+ * digits, spaced/dashed). The lookup is canonical, so format variation
+ * can never reach a different account or miss an existing one.
+ */
 export function findUserByMobile(mobile: string): DbUser | undefined {
-  return readTable<DbUser>("users").find((u) => u.mobile === mobile);
+  const canonical = normalizeIranMobile(mobile);
+  if (!canonical) return undefined;
+  return readTable<DbUser>("users").find(
+    (u) => normalizeStoredMobile(u.mobile) === canonical
+  );
 }
 
 export function findUserById(id: string): DbUser | undefined {
   return readTable<DbUser>("users").find((u) => u.id === id);
+}
+
+/**
+ * Raised when a create/update would violate the identity-phone
+ * uniqueness invariant. Callers translate this into a 409 response.
+ */
+export class MobileConflictError extends Error {
+  readonly code = "MOBILE_EXISTS";
+  constructor(readonly mobile: string) {
+    super("این شماره موبایل قبلاً ثبت‌نام شده است");
+    this.name = "MobileConflictError";
+  }
 }
 
 export function createUser(params: {
@@ -294,11 +328,30 @@ export function createUser(params: {
    */
   registrationIntent?: RegistrationIntent;
 }): DbUser {
+  // The identity phone is stored canonically (E.164) so every format of
+  // the same number maps to one row. Invalid input is rejected rather
+  // than stored.
+  const canonical = normalizeIranMobile(params.mobile);
+  if (!canonical) {
+    throw new Error("INVALID_MOBILE");
+  }
+
   const users = readTable<DbUser>("users");
+
+  // Uniqueness invariant for the identity phone. This is the single
+  // writer for the users table in this process, so the read-modify-write
+  // below is atomic with respect to concurrent requests.
+  const duplicate = users.find(
+    (u) => normalizeStoredMobile(u.mobile) === canonical
+  );
+  if (duplicate) {
+    throw new MobileConflictError(canonical);
+  }
+
   const intent: RegistrationIntent = params.registrationIntent ?? "PERSONAL";
   const user: DbUser = {
     id: crypto.randomUUID(),
-    mobile: params.mobile,
+    mobile: canonical,
     email: params.email ?? null,
     passwordHash: params.passwordHash,
     displayName: params.displayName ?? null,
@@ -1636,7 +1689,7 @@ const hash = bcrypt.hashSync("123456", 10);
 
   const user: DbUser = {
     id: userId,
-    mobile: "09120000003",
+    mobile: "+989120000003",
     email: "maryam@example.com",
     passwordHash: hash,
     displayName: "مریم محمدی",

@@ -32,7 +32,7 @@ import {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const DEMO_USER_MOBILE = "09120000003";
+export const DEMO_USER_MOBILE = "+989120000003";
 export const DEMO_SEED_VERSION = "legalir-demo-v4";
 
 // ============================================================

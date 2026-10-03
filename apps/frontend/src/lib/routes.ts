@@ -112,18 +112,61 @@ export function getMainNavItems(role: UserRole): RouteDef[] {
   });
 }
 
+// ============================================================
+// Bottom navigation — Persian capsule bar (v0.6)
+// ============================================================
+// The mobile bar is a fixed, hand-ordered set of four destinations plus a
+// centre action. It is deliberately *not* derived from `getMainNavItems`:
+// the visual order (خانه · خدمات · [ساخت جدید] · پشتیبانی · تنظیمات) is a
+// product decision, and the centre slot is a verb (opens a sheet), not a
+// route. Keeping the list here — next to the active-match rule — means the
+// bar and its tests read from one source of truth.
+
+export interface BottomNavDestination {
+  path: string;
+  titleFa: string;
+  /** Key into the bottom-nav icon map (see components/app/bottom-nav.tsx). */
+  icon: string;
+}
+
+/** Right-to-left visual order. The centre slot is rendered separately. */
+export const bottomNavDestinations: BottomNavDestination[] = [
+  { path: "/dashboard", titleFa: "خانه", icon: "Home" },
+  { path: "/services", titleFa: "خدمات", icon: "Grid" },
+  { path: "/support", titleFa: "پشتیبانی", icon: "Headset" },
+  { path: "/profile", titleFa: "تنظیمات", icon: "Settings" },
+];
+
+export interface CreateAction {
+  id: string;
+  titleFa: string;
+  /** Real in-app destination the action opens. */
+  href: string;
+  /** Key into the create-action icon map. */
+  icon: string;
+}
+
 /**
- * Returns bottom navigation items (max 5) for mobile.
- * Most important routes for quick access.
+ * The four quick-start actions in the «ساخت جدید» sheet. Each points at an
+ * existing flow — opening the sheet never creates a contract, request or AI
+ * run by itself; the user must pick an action.
  */
-export function getBottomNavItems(role: UserRole): RouteDef[] {
-  const mainItems = getMainNavItems(role);
-  // Priority: dashboard, new, memory, history, documents
-  const priorityOrder = ["/dashboard", "/services", "/new", "/support", "/profile"];
-  const ordered = priorityOrder
-    .map((p) => mainItems.find((r) => r.path === p))
-    .filter((r): r is RouteDef => r !== undefined);
-  return ordered.slice(0, 5);
+export const createActions: CreateAction[] = [
+  { id: "draft-contract", titleFa: "تنظیم قرارداد", href: "/contracts/new", icon: "FilePen" },
+  { id: "review-contract", titleFa: "بررسی قرارداد", href: "/contracts/review", icon: "FileSearch" },
+  { id: "generate-notice", titleFa: "تولید اظهارنامه", href: "/chat?category=formal_letter", icon: "FileText" },
+  { id: "legal-consultation", titleFa: "مشاوره حقوقی", href: "/chat", icon: "Chat" },
+];
+
+/**
+ * The destination that should be lit for `pathname`, or `null` when the
+ * current page is outside the four destinations (e.g. `/contracts`). Uses
+ * the same segment-boundary rule as `isNavItemActive`, so `/services-archive`
+ * never lights «خدمات» and `/dashboard` never lights for every path.
+ */
+export function getActiveBottomNavPath(pathname: string): string | null {
+  const match = bottomNavDestinations.find((d) => isNavItemActive(pathname, d.path));
+  return match ? match.path : null;
 }
 
 /**

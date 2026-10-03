@@ -50,7 +50,7 @@ export const LAWYER_SEED_VERSION = "legalir-lawyers-v6";
  */
 const DEMO_LAWYER_LOGIN = {
   userId: "demo-user-demo-lawyer-03",
-  mobile: "09120000010",
+  mobile: "+989120000010",
   displayName: "حسام ساکی",
 };
 

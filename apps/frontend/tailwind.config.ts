@@ -325,6 +325,11 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateY(12px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        // Bottom-sheet reveal — rises from the bottom edge with a short fade.
+        "sheet-up": {
+          "0%": { opacity: "0", transform: "translateY(100%)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
         "drawer-slide-in": {
           "0%": { transform: "translateX(100%)" },
           "100%": { transform: "translateX(0)" },
@@ -350,6 +355,7 @@ const config: Config = {
         "glow-pulse": "glow-pulse 3s ease-in-out infinite",
         "skeleton-pulse": "skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "slide-up-fade": "slide-up-fade 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)",
+        "sheet-up": "sheet-up var(--bottom-nav-motion-sheet) cubic-bezier(0.05, 0.7, 0.1, 1)",
         "drawer-slide-in": "drawer-slide-in 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)",
         "heading-shine": "heading-shine 1.5s cubic-bezier(0.4, 0.0, 0.2, 1) both",
         "hover-shimmer": "hover-shimmer 1.2s ease-in-out infinite",

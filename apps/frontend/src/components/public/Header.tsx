@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { IconMenu, IconClose } from "@/lib/icons";
+import { IconMenu, IconClose, IconDashboard } from "@/lib/icons";
+import { useSessionStatus } from "@/lib/auth/use-auth";
 
 interface NavItem {
   href: string;
@@ -20,20 +21,45 @@ const navItems: NavItem[] = [
   { href: "/contact", label: "تماس با ما" },
 ];
 
+// Each service carries both its real destination and the intent token the
+// login flow understands. A signed-in user goes straight to `href`; a guest
+// is sent to `/auth/mobile?intent=<intent>` and returned to `href` after
+// logging in (or signing up).
 const ctaItems = [
-  { href: "/auth/mobile?intent=chat", label: "مشاوره حقوقی" },
-  { href: "/auth/mobile?intent=document", label: "تحلیل سند" },
-  { href: "/auth/mobile?intent=contract", label: "تولید قرارداد" },
+  { href: "/new", intent: "chat", label: "مشاوره حقوقی" },
+  { href: "/documents", intent: "document", label: "تحلیل سند" },
+  { href: "/contracts", intent: "contract", label: "تولید قرارداد" },
 ];
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [ctaOpen, setCtaOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Authoritative session state (server-confirmed). `isLoading` is true until
+  // the first `/api/v1/me` settles, which lets us hold the auth controls back
+  // so a stale localStorage entry never flashes the wrong button.
+  const { isAuthenticated, isLoading: sessionLoading } = useSessionStatus();
+
+  // Send the user to a service: directly when signed in, otherwise through
+  // the login page with the intent preserved for the post-login redirect.
+  const goToService = useCallback(
+    (href: string, intent: string) => {
+      setCtaOpen(false);
+      setMobileOpen(false);
+      if (isAuthenticated) {
+        router.push(href);
+      } else {
+        router.push(`/auth/mobile?intent=${intent}`);
+      }
+    },
+    [isAuthenticated, router]
+  );
 
   // Portals need a DOM target, which only exists after hydration.
   useEffect(() => {
@@ -145,12 +171,33 @@ export function Header() {
 
         {/* Desktop Actions */}
         <div className="hidden laptop:flex items-center gap-3">
-          <Link
-            href="/auth/mobile"
-            className="px-4 py-2.5 rounded-medium text-body-2 font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
-          >
-            ورود
-          </Link>
+          {/* Auth controls are held back until the session is resolved, so the
+              header never flashes "ورود / ثبت‌نام" for a signed-in user. */}
+          {!sessionLoading &&
+            (isAuthenticated ? (
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-medium text-body-2 font-medium text-primary-700 hover:text-primary-800 hover:bg-primary-50 transition-colors"
+              >
+                <IconDashboard size={18} />
+                داشبورد
+              </Link>
+            ) : (
+              <div className="flex items-center gap-1">
+                <Link
+                  href="/auth/mobile"
+                  className="px-4 py-2.5 rounded-medium text-body-2 font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                >
+                  ورود
+                </Link>
+                <Link
+                  href="/auth/register"
+                  className="px-4 py-2.5 rounded-medium text-body-2 font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                >
+                  ثبت‌نام
+                </Link>
+              </div>
+            ))}
 
           <div className="relative" ref={ctaRef}>
             <button
@@ -172,14 +219,14 @@ export function Header() {
               }`}
             >
               {ctaItems.map((cta) => (
-                <Link
+                <button
                   key={cta.href}
-                  href={cta.href}
-                  className="block px-4 py-3 text-body-2 text-neutral-700 hover:bg-neutral-50 hover:text-primary-700 transition-colors"
-                  onClick={() => setCtaOpen(false)}
+                  type="button"
+                  onClick={() => goToService(cta.href, cta.intent)}
+                  className="block w-full text-start px-4 py-3 text-body-2 text-neutral-700 hover:bg-neutral-50 hover:text-primary-700 transition-colors"
                 >
                   {cta.label}
-                </Link>
+                </button>
               ))}
               <div className="border-t border-neutral-100 my-1" />
               <Link
@@ -273,24 +320,44 @@ export function Header() {
                   خدمات پرکاربرد
                 </p>
                 {ctaItems.map((cta) => (
-                  <Link
+                  <button
                     key={cta.href}
-                    href={cta.href}
-                    className="mb-1 flex items-center gap-3 rounded-medium px-4 py-3 text-body-1 text-neutral-700 transition-colors hover:bg-neutral-50"
+                    type="button"
+                    onClick={() => goToService(cta.href, cta.intent)}
+                    className="mb-1 flex w-full items-center gap-3 rounded-medium px-4 py-3 text-start text-body-1 text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
                     <span className="h-2 w-2 rounded-full bg-secondary-500" />
                     {cta.label}
-                  </Link>
+                  </button>
                 ))}
               </nav>
 
               <div className="safe-area-bottom shrink-0 border-t border-neutral-200 bg-neutral-50 px-4 py-4">
-                <Link
-                  href="/auth/mobile"
-                  className="flex w-full items-center justify-center rounded-medium bg-primary-700 py-3.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-800"
-                >
-                  ورود / ثبت‌نام
-                </Link>
+                {!sessionLoading &&
+                  (isAuthenticated ? (
+                    <Link
+                      href="/dashboard"
+                      className="flex w-full items-center justify-center gap-2 rounded-medium bg-primary-700 py-3.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-800"
+                    >
+                      <IconDashboard size={18} />
+                      داشبورد
+                    </Link>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <Link
+                        href="/auth/mobile"
+                        className="flex w-full items-center justify-center rounded-medium bg-primary-700 py-3.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-800"
+                      >
+                        ورود
+                      </Link>
+                      <Link
+                        href="/auth/register"
+                        className="flex w-full items-center justify-center rounded-medium border border-primary-700/40 py-3.5 text-button font-medium text-primary-700 transition-colors hover:bg-primary-50"
+                      >
+                        ثبت‌نام
+                      </Link>
+                    </div>
+                  ))}
               </div>
             </div>
           </div>,

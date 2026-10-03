@@ -13,9 +13,11 @@
 // The order is a product requirement, not a layout accident: the page
 // must always offer "start something new" before "resume something old".
 //
-// The search query and the category live in the URL, so a filtered view
-// survives refresh, deep-linking and browser back/forward. Both sections
-// read the SAME query — one input drives the whole page.
+// The search query, the template category AND the whole contract filter
+// state live in the URL, so a filtered view survives refresh,
+// deep-linking and browser back/forward. This component OWNS that
+// state (it is the single writer) and hands it down; the sections only
+// read it and ask for changes.
 // ============================================================
 
 "use client";
@@ -37,34 +39,62 @@ import {
   type UnifiedContract,
 } from "@/lib/contracts/unified";
 import type { TemplateCategory } from "@/lib/contracts/categories";
+import {
+  parseContractFilters,
+  serializeContractFilters,
+  type ContractFilterState,
+} from "@/lib/contracts/filters";
 import { trackContractEvent } from "@/lib/contracts/analytics";
 import { ContractSearch } from "./contract-search";
 import { ContractCategoryChips } from "./contract-category-chips";
 import { ContractTemplateGrid } from "./contract-template-grid";
 import { MyContractsSection } from "./my-contracts-section";
+import { ContractsPageHeader } from "./contracts-page-header";
 
 export function ContractList() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // --- URL-backed filters (single source of truth) -------------------
-  const query = searchParams.get("q") ?? "";
+  // --- URL-backed state (single source of truth) ---------------------
+  // The template category and the contract filter state are two
+  // independent URL slices; both are read here and written back through
+  // one helper so neither clobbers the other.
   const category = (searchParams.get("category") as TemplateCategory | null) ?? "all";
+  const filters = React.useMemo(
+    () => parseContractFilters(new URLSearchParams(searchParams.toString())),
+    [searchParams]
+  );
 
-  const setParam = React.useCallback(
-    (key: string, value: string) => {
+  const writeParams = React.useCallback(
+    (mutate: (next: URLSearchParams) => void) => {
       const next = new URLSearchParams(searchParams.toString());
-      if (value) next.set(key, value);
-      else next.delete(key);
+      mutate(next);
       const qs = next.toString();
       router.replace(qs ? `/contracts?${qs}` : "/contracts", { scroll: false });
     },
     [router, searchParams]
   );
 
-  const setQuery = (value: string) => setParam("q", value);
+  const setFilters = React.useCallback(
+    (next: ContractFilterState) => {
+      const serialized = serializeContractFilters(next);
+      writeParams((params) => {
+        // Replace the whole filter slice, leaving `category` untouched.
+        for (const key of ["tab", "q", "draft", "analysis", "type", "range", "sort"]) {
+          params.delete(key);
+        }
+        serialized.forEach((value, key) => params.set(key, value));
+      });
+    },
+    [writeParams]
+  );
+
+  const setQuery = (value: string) => setFilters({ ...filters, query: value });
   const setCategory = (value: TemplateCategory) => {
-    setParam("category", value === "all" ? "" : value);
+    writeParams((params) => {
+      if (value === "all") params.delete("category");
+      else params.set("category", value);
+    });
     trackContractEvent("contract_category_selected", { category: value });
   };
 
@@ -72,10 +102,18 @@ export function ContractList() {
   // Contract-OS contracts and legacy V1 contracts live in separate
   // tables/endpoints; both are folded into one `UnifiedContract` list so
   // the page has a single, lifecycle-agnostic view of the user's work.
-  const { data: propertyData, isLoading: propertyLoading } = usePropertyContracts({
-    pageSize: 50,
-  });
-  const { data: v1Data, isLoading: v1Loading } = useContracts({});
+  const {
+    data: propertyData,
+    isLoading: propertyLoading,
+    isError: propertyError,
+    refetch: refetchProperty,
+  } = usePropertyContracts({ pageSize: 50 });
+  const {
+    data: v1Data,
+    isLoading: v1Loading,
+    isError: v1Error,
+    refetch: refetchV1,
+  } = useContracts({});
 
   const contracts = React.useMemo<UnifiedContract[]>(() => {
     const os = (propertyData?.items ?? []).map(toUnifiedPropertyContract);
@@ -84,6 +122,11 @@ export function ContractList() {
   }, [propertyData, v1Data]);
 
   const isLoading = propertyLoading || v1Loading;
+  const isError = propertyError || v1Error;
+  const refetchAll = React.useCallback(() => {
+    void refetchProperty();
+    void refetchV1();
+  }, [refetchProperty, refetchV1]);
 
   // --- Start a new contract -----------------------------------------
   const create = useCreatePropertyContract();
@@ -139,13 +182,23 @@ export function ContractList() {
     );
   };
 
+  const scrollToTemplates = React.useCallback(() => {
+    document
+      .getElementById("templates-heading")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   return (
     <div className="space-y-8" dir="rtl">
+      {/* Page header — states the page's job and offers the two entry
+          points (build a new draft / review an existing contract). */}
+      <ContractsPageHeader onStartNew={scrollToTemplates} />
+
       {/* Search — directly under the page title, driving both sections. */}
       <ContractSearch
-        value={query}
+        value={filters.query}
         onChange={setQuery}
-        onSubmit={() => trackContractEvent("contract_search_performed", { query })}
+        onSubmit={() => trackContractEvent("contract_search_performed", { query: filters.query })}
       />
 
       {/* SECTION 1 — what can I build? */}
@@ -158,7 +211,7 @@ export function ContractList() {
         </div>
 
         <ContractTemplateGrid
-          query={query}
+          query={filters.query}
           category={category}
           onStart={handleStart}
           startingTypeId={startingTypeId}
@@ -170,14 +223,13 @@ export function ContractList() {
       <MyContractsSection
         contracts={contracts}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={refetchAll}
         onDelete={setPendingDelete}
         onCopyId={handleCopyId}
-        query={query}
-        onStart={() => {
-          document
-            .getElementById("templates-heading")
-            ?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onStart={scrollToTemplates}
       />
 
       {/* Delete-draft confirmation. Nothing is deleted until the user

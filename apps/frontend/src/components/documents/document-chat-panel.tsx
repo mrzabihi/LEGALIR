@@ -33,6 +33,12 @@ interface DocumentChatPanelProps {
   documentName: string;
   /** The document's risk analysis, rendered as LegalIR's opening comment. */
   report?: RiskReport | null;
+  /**
+   * A question the user asked about a specific finding (spec §12). When it
+   * changes, the panel sends it automatically — so «درباره این یافته سؤال
+   * کنید» lands the user in the chat with the question already asked.
+   */
+  pendingQuestion?: { text: string; nonce: number } | null;
 }
 
 // ============================================================
@@ -144,7 +150,12 @@ const FOLLOW_UPS: Record<DocumentType, Record<IntentId, string[]>> = {
   },
 };
 
-export function DocumentChatPanel({ documentId, documentName, report }: DocumentChatPanelProps) {
+export function DocumentChatPanel({
+  documentId,
+  documentName,
+  report,
+  pendingQuestion,
+}: DocumentChatPanelProps) {
   const queryClient = useQueryClient();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
@@ -288,6 +299,20 @@ export function DocumentChatPanel({ documentId, documentName, report }: Document
     },
     [conversationId, isStreaming, documentId, queryClient]
   );
+
+  // Auto-send a question the user asked about a specific finding (spec §12).
+  // The nonce is only marked handled once the send actually fires, so a
+  // question asked before the conversation is ready is not lost.
+  const lastQuestionNonce = useRef<number | null>(null);
+  useEffect(() => {
+    if (!pendingQuestion) return;
+    if (lastQuestionNonce.current === pendingQuestion.nonce) return;
+    setSelectedIntent("review");
+    if (conversationId && !isStreaming) {
+      lastQuestionNonce.current = pendingQuestion.nonce;
+      void handleSendMessage(pendingQuestion.text);
+    }
+  }, [pendingQuestion, conversationId, isStreaming, handleSendMessage]);
 
   const handleStopGeneration = useCallback(() => {
     abortRef.current?.();

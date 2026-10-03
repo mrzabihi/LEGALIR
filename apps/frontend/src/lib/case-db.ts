@@ -170,6 +170,36 @@ export function updateCase(caseId: string, data: Record<string, unknown>): DbCas
   return cases[idx];
 }
 
+/**
+ * Permanently delete a case and every row that belongs to it (tasks,
+ * timeline, document links, deadlines). Owner-scoped: a case owned by
+ * another user is never touched. Returns true when a case was removed.
+ *
+ * Linked documents/contracts are NOT deleted — they are independent
+ * records that merely reference the case, so removing the case must not
+ * cascade into them.
+ */
+export function deleteCase(userId: string, caseId: string): boolean {
+  const cases = readTable<DbCase>("cases");
+  const target = cases.find((c) => c.id === caseId && c.user_id === userId);
+  if (!target) return false;
+  writeTable("cases", cases.filter((c) => c.id !== caseId));
+  writeTable("case_tasks", readTable<DbCaseTask>("case_tasks").filter((t) => t.case_id !== caseId));
+  writeTable(
+    "case_timeline",
+    readTable<DbCaseTimelineEvent>("case_timeline").filter((e) => e.case_id !== caseId)
+  );
+  writeTable(
+    "case_documents",
+    readTable<DbCaseDocument>("case_documents").filter((d) => d.case_id !== caseId)
+  );
+  writeTable(
+    "case_deadlines",
+    readTable<DbCaseDeadline>("case_deadlines").filter((d) => d.case_id !== caseId)
+  );
+  return true;
+}
+
 // --- Case Timeline ---
 
 export function getCaseTimeline(caseId: string): DbCaseTimelineEvent[] {

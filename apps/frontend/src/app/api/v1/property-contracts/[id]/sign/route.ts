@@ -61,6 +61,7 @@ import {
 } from "@/lib/contracts/signature/db";
 import { activeSignatureProvider, verifyVersionIntegrity } from "@/lib/contracts/signature";
 import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
+import { normalizeIranMobile } from "@legalir/validation";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -140,6 +141,20 @@ function createRequest(userId: string, contract: PropertyContract, body: SignBod
 
   if (selected.length === 0) return badRequest("طرف امضاکننده مشخص نیست", "NO_PARTY");
 
+  // Every signer must have a valid mobile — normalize to canonical E.164
+  // before it becomes a participant, so the OTP provider and the stored
+  // participant row agree on one identity regardless of input format.
+  for (const party of selected) {
+    if (!normalizeIranMobile(party.identity.mobile)) {
+      return badRequest("شماره موبایل یکی از طرفین معتبر نیست", "INVALID_MOBILE");
+    }
+  }
+  for (const guest of body.guests ?? []) {
+    if (!normalizeIranMobile(guest.mobile)) {
+      return badRequest("شماره موبایل یکی از امضاکنندگان معتبر نیست", "INVALID_MOBILE");
+    }
+  }
+
   const now = new Date();
   const expiresInHours = body.expiresInHours ?? DEFAULT_EXPIRY_HOURS;
   const expiresAt = new Date(now.getTime() + expiresInHours * 3600_000).toISOString();
@@ -163,12 +178,16 @@ function createRequest(userId: string, contract: PropertyContract, body: SignBod
   const participants: SignatureParticipant[] = [];
   for (const party of selected) {
     participants.push(
-      insertParticipant(buildParticipant(request, party, party.identity.mobile))
+      insertParticipant(
+        buildParticipant(request, party, normalizeIranMobile(party.identity.mobile)!)
+      )
     );
   }
   for (const guest of body.guests ?? []) {
     participants.push(
-      insertParticipant(buildParticipant(request, null, guest.mobile, guest.roleFa))
+      insertParticipant(
+        buildParticipant(request, null, normalizeIranMobile(guest.mobile)!, guest.roleFa)
+      )
     );
   }
 

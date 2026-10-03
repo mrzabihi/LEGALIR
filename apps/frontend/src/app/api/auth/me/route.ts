@@ -6,6 +6,7 @@
 
 import { NextResponse } from "next/server";
 import { findSessionById, findUserById, cleanupExpiredSessions } from "@/lib/db";
+import { toNationalMobile } from "@legalir/validation";
 
 export async function GET(request: Request) {
   try {
@@ -70,13 +71,13 @@ export async function GET(request: Request) {
         data: {
           user: {
             id: user.id,
-            mobileE164: "+98" + user.mobile.slice(1),
-            mobileDisplay: user.mobile,
+            mobileE164: user.mobile,
+            mobileDisplay: toNationalMobile(user.mobile),
             status: "active",
           },
           profile: {
             displayName: user.displayName,
-            mobile: user.mobile,
+            mobile: toNationalMobile(user.mobile),
             email: user.email ?? null,
           },
         },

@@ -39,6 +39,13 @@ interface MessageInputProps {
   onAttachedDocumentsChange?: (documents: V1DocumentListItem[]) => void;
   /** Where to return after uploading a new document (the chat URL). */
   returnTo?: string;
+  /**
+   * A one-shot prefill for the composer, used when the user arrives from
+   * a context that already knows what they want to ask (e.g. the review
+   * flow's «درباره این یافته سؤال کنید»). It seeds the input once and is
+   * never auto-sent — the user stays in control of the message.
+   */
+  initialValue?: string;
 }
 
 export function MessageInput({
@@ -51,6 +58,7 @@ export function MessageInput({
   attachedDocuments = [],
   onAttachedDocumentsChange,
   returnTo,
+  initialValue,
 }: MessageInputProps) {
   const [value, setValue] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -60,13 +68,15 @@ export function MessageInput({
   // Load draft
   useEffect(() => {
     if (!initialized.current) {
-      const draft = loadDraft(conversationId);
+      // A context-provided prefill wins over a stale local draft, so the
+      // question the user just clicked is what they see.
+      const draft = initialValue ?? loadDraft(conversationId);
       if (draft) {
         setValue(draft);
       }
       initialized.current = true;
     }
-  }, [conversationId]);
+  }, [conversationId, initialValue]);
 
   // Re-initialize when conversation changes
   useEffect(() => {

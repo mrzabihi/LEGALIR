@@ -84,8 +84,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "legalir-auth",
+      // `intendedRoute` is persisted alongside the session so the service the
+      // user picked in the landing header survives a refresh (or a detour
+      // through signup) and still wins over the generic dashboard redirect.
       partialize: (state) => ({
         session: state.session,
+        intendedRoute: state.intendedRoute,
       }),
     }
   )

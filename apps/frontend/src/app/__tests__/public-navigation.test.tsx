@@ -1,10 +1,26 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Header } from "@/components/public/Header";
 import { Footer } from "@/components/public/Footer";
 
+// The Header uses the App Router hooks; jsdom has no router mounted.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/",
+}));
+
+// The Header reads session state through React Query (`useMe`), so every
+// render needs a provider. `retry: false` keeps the guest case deterministic.
 function wrapInRtl(children: React.ReactNode) {
-  return <div dir="rtl">{children}</div>;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
+  });
+  return (
+    <QueryClientProvider client={client}>
+      <div dir="rtl">{children}</div>
+    </QueryClientProvider>
+  );
 }
 
 describe("Public Header Navigation", () => {

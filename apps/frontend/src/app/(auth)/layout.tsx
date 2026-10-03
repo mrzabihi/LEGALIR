@@ -4,21 +4,17 @@
 
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { useAuthStore } from "@/stores/auth-store";
+import { usePathname } from "next/navigation";
+import { useRedirectAuthenticated } from "@/lib/auth/use-auth";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  // Redirect authenticated users away from auth pages (except /auth/profile)
-  useEffect(() => {
-    if (isAuthenticated() && pathname !== "/auth/profile") {
-      router.replace("/dashboard");
-    }
-  }, [isAuthenticated, pathname, router]);
+  // Redirect authenticated users away from auth pages (except /auth/profile).
+  // The guard waits for the server to confirm the session and honours a
+  // pending intended route, so a stale localStorage entry cannot hijack the
+  // post-login destination.
+  useRedirectAuthenticated(pathname === "/auth/profile");
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-primary-950 via-primary-900 to-primary-800 flex items-center justify-center px-4 py-12">
