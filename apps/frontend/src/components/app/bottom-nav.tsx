@@ -7,15 +7,20 @@
 // The centre button carries the Persian LEGALIR wordmark and opens the
 // «ساخت جدید» sheet.
 //
-// Layout: a 5-column grid `1fr 1fr auto 1fr 1fr`. The two `1fr` columns on
-// each side are equal, so the centre column is always exactly centred — an
-// expanding capsule can never push it off-axis. The centre button and its
-// label are absolutely positioned at `left-1/2`, so they stay put regardless
-// of the grid.
+// Layout: two equal `flex-1` groups flank a fixed centre gap, so the centre
+// action is always exactly centred — an expanding capsule can never push it
+// off-axis. The centre button and its label are absolutely positioned at
+// `left-1/2`, so they stay put regardless of the groups.
 //
 // The active capsule is a single shared indicator measured after mount (never
 // during render), so SSR and the first client render agree. It is decorative
-// (`pointer-events-none`) and never intercepts taps.
+// (`pointer-events-none`) and never intercepts taps. Because the indicator is
+// the *only* background an active destination draws, an active item never
+// also paints a hover wash — one coherent layer per state.
+//
+// The «ساخت جدید» sheet is non-modal: the bar stays fully interactive while
+// it is open, so a single tap on any destination both closes the sheet and
+// navigates. The sheet owns no backdrop over the bar and no focus trap.
 
 "use client";
 
@@ -140,14 +145,9 @@ export function BottomNav() {
           />
         )}
 
-        {/* Destination links. Inert while the sheet is open so the modal
-            truly blocks the page behind it — only the centre × stays live. */}
-        <div
-          className={[
-            "flex h-full w-full items-center",
-            sheetOpen ? "pointer-events-none" : "",
-          ].join(" ")}
-        >
+        {/* Destination links. Always live — the sheet is non-modal, so a
+            single tap here navigates and closes the sheet in one gesture. */}
+        <div className="flex h-full w-full items-center">
           {/* Two equal `flex-1` groups flank a fixed centre gap, so the
               centre action is always exactly centred no matter which
               destination is expanded. */}
@@ -183,7 +183,12 @@ export function BottomNav() {
           </div>
         </div>
 
-        {/* Centre action — brand wordmark, opens the create sheet. */}
+        {/* Centre action — brand wordmark, toggles the create sheet. The
+            whole circle is the hit target; the logo and badge are inert so
+            they never swallow the click. Feedback: a subtle brightness lift
+            on hover, a short press scale, a brand focus ring, and a distinct
+            open state (brighter ring + «×» badge). The logo itself never
+            moves or rotates. */}
         <button
           type="button"
           onClick={() => setSheetOpen((open) => !open)}
@@ -191,23 +196,21 @@ export function BottomNav() {
           aria-haspopup="dialog"
           aria-expanded={sheetOpen}
           aria-controls="create-action-sheet"
-          className="absolute left-1/2 top-[-20px] z-20 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full transition-transform duration-[var(--bottom-nav-motion-press)] ease-standard active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bottom-nav-body)]"
-          style={{
-            background: "var(--bottom-nav-center-bg)",
-            boxShadow:
-              "inset 0 0 0 1.5px var(--bottom-nav-accent), 0 6px 16px rgba(0,0,0,0.28)",
-          }}
+          data-center-action
+          data-open={sheetOpen ? "true" : "false"}
+          className="bottom-nav-center absolute left-1/2 top-[-20px] z-20 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full transition-[transform,filter,box-shadow] duration-[var(--bottom-nav-motion-press)] ease-standard hover:brightness-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bottom-nav-body)]"
+          style={{ background: "var(--bottom-nav-center-bg)" }}
         >
           <img
             src="/legalir-logo-fa-light.png"
             alt=""
-            className="h-auto w-[42px] select-none"
+            className="pointer-events-none h-auto w-[42px] select-none"
             draggable={false}
           />
           {/* Corner badge — «+» to open, «×» to close. */}
           <span
             aria-hidden="true"
-            className="absolute -bottom-0.5 -left-0.5 flex h-5 w-5 items-center justify-center rounded-full"
+            className="pointer-events-none absolute -bottom-0.5 -left-0.5 flex h-5 w-5 items-center justify-center rounded-full"
             style={{
               background: "var(--bottom-nav-accent)",
               color: "var(--bottom-nav-badge-text)",
@@ -257,7 +260,16 @@ function NavDestination({
       <span
         ref={registerCapsule}
         data-nav-capsule
-        className="inline-flex items-center justify-center gap-1 rounded-full px-2 py-2 transition-colors duration-[var(--bottom-nav-motion-color)] ease-standard group-hover:bg-glass-state"
+        data-active={isActive ? "true" : "false"}
+        className={[
+          "inline-flex items-center justify-center gap-1 rounded-full px-2 py-2",
+          "transition-[background-color,filter] duration-[var(--bottom-nav-motion-color)] ease-standard",
+          // Hover wash only on inactive items — an active item already draws
+          // the shared indicator, so a second background would double up.
+          isActive
+            ? "group-hover:brightness-110"
+            : "group-hover:bg-glass-state",
+        ].join(" ")}
         style={{
           color: isActive
             ? "var(--bottom-nav-accent)"
