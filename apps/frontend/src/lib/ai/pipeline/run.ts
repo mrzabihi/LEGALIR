@@ -326,6 +326,17 @@ export function cancelRun(id: string): ChatProcessingRun | undefined {
   });
 }
 
+/**
+ * Remove every processing run belonging to a conversation. Called when a
+ * conversation is permanently deleted so no in-flight run can complete
+ * and re-surface the deleted item in history.
+ */
+export function deleteRunsForConversation(conversationId: string): void {
+  const rows = readTable<ChatProcessingRun>(TABLE);
+  const next = rows.filter((r) => r.conversationId !== conversationId);
+  if (next.length !== rows.length) writeTable(TABLE, next);
+}
+
 function latencyFrom(startedAt: string | null, endedAt: string): number | null {
   if (!startedAt) return null;
   const start = Date.parse(startedAt);
