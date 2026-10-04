@@ -6,7 +6,9 @@ import { describe, it, expect } from "vitest";
 import {
   routes,
   getMainNavItems,
-  getBottomNavItems,
+  bottomNavDestinations,
+  getActiveBottomNavPath,
+  createActions,
   canAccessRoute,
   isNavItemActive,
   isPublicPath,
@@ -87,21 +89,70 @@ describe("getMainNavItems", () => {
   });
 });
 
-describe("getBottomNavItems", () => {
-  it("returns at most 5 items", () => {
-    const items = getBottomNavItems("user");
-    expect(items.length).toBeLessThanOrEqual(5);
+describe("bottomNavDestinations", () => {
+  it("declares the four fixed destinations in visual order", () => {
+    expect(bottomNavDestinations.map((d) => d.path)).toEqual([
+      "/dashboard",
+      "/services",
+      "/support",
+      "/profile",
+    ]);
   });
 
-  it("includes dashboard as first item", () => {
-    const items = getBottomNavItems("user");
-    expect(items[0]?.path).toBe("/dashboard");
+  it("gives every destination a Persian title and an icon key", () => {
+    for (const d of bottomNavDestinations) {
+      expect(d.titleFa.length).toBeGreaterThan(0);
+      expect(d.icon.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("getActiveBottomNavPath", () => {
+  it("lights the destination that owns the current path", () => {
+    expect(getActiveBottomNavPath("/dashboard")).toBe("/dashboard");
+    expect(getActiveBottomNavPath("/services")).toBe("/services");
+    expect(getActiveBottomNavPath("/profile/points")).toBe("/profile");
   });
 
-  it("only includes items the user can access", () => {
-    const items = getBottomNavItems("user");
-    const paths = items.map((i) => i.path);
-    expect(paths).not.toContain("/admin/users");
+  it("returns null outside the four destinations", () => {
+    expect(getActiveBottomNavPath("/contracts")).toBeNull();
+    expect(getActiveBottomNavPath("/services-archive")).toBeNull();
+  });
+
+  it("never lights two destinations at once", () => {
+    const paths = [
+      "/dashboard",
+      "/services",
+      "/services/contracts/new",
+      "/support",
+      "/profile/points",
+      "/contracts",
+    ];
+    for (const pathname of paths) {
+      const active = bottomNavDestinations.filter((d) =>
+        isNavItemActive(pathname, d.path)
+      );
+      expect(active.length).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("createActions", () => {
+  it("offers four quick-start actions", () => {
+    expect(createActions).toHaveLength(4);
+  });
+
+  it("points every action at a real in-app destination", () => {
+    for (const action of createActions) {
+      expect(action.href).toMatch(/^\//);
+      expect(action.titleFa.length).toBeGreaterThan(0);
+      expect(action.icon.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses unique ids", () => {
+    const ids = createActions.map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
@@ -129,7 +180,6 @@ describe("isNavItemActive", () => {
   });
 
   it("never lights two bottom-nav items at once", () => {
-    const items = getBottomNavItems("user");
     const paths = [
       "/dashboard",
       "/services",
@@ -140,7 +190,9 @@ describe("isNavItemActive", () => {
       "/new/contract",
     ];
     for (const pathname of paths) {
-      const active = items.filter((i) => isNavItemActive(pathname, i.path));
+      const active = bottomNavDestinations.filter((d) =>
+        isNavItemActive(pathname, d.path)
+      );
       expect(active.length).toBeLessThanOrEqual(1);
     }
   });

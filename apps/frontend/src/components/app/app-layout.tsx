@@ -39,7 +39,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // the shell.
   const sidebar = <Sidebar userRole={userRole} />;
   const topBar = <TopBar />;
-  const bottomNav = <BottomNav userRole={userRole} />;
+  const bottomNav = <BottomNav />;
 
   return (
     <>

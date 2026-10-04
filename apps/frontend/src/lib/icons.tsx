@@ -65,6 +65,10 @@ export const IconChevronDown = createIcon("ChevronDown", (
   <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
 ));
 
+export const IconChevronUp = createIcon("ChevronUp", (
+  <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z" />
+));
+
 export const IconArrowBack = createIcon(
   "ArrowBack",
   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />,
@@ -344,6 +348,23 @@ export const IconCalendar = createIcon("Calendar", (
 
 export const IconServices = createIcon("Services", (
   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+));
+
+/** Four rounded squares — the «خدمات» (services) destination in the
+ *  bottom navigation. Distinct from the list-style IconServices so the
+ *  bar reads as a grid of offerings rather than a document. */
+export const IconGrid = createIcon("Grid", (
+  <>
+    <rect x="3" y="3" width="8" height="8" rx="2" />
+    <rect x="13" y="3" width="8" height="8" rx="2" />
+    <rect x="3" y="13" width="8" height="8" rx="2" />
+    <rect x="13" y="13" width="8" height="8" rx="2" />
+  </>
+));
+
+/** Headset with a mic boom — the «پشتیبانی» (support) destination. */
+export const IconHeadset = createIcon("Headset", (
+  <path d="M12 1a9 9 0 00-9 9v7a3 3 0 003 3h3v-8H5v-2a7 7 0 1114 0v2h-4v8h3a3 3 0 003-3v-7a9 9 0 00-9-9z" />
 ));
 
 export const IconGender = createIcon("Gender", (
