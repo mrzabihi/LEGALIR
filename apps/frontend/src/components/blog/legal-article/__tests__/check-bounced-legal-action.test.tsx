@@ -1,28 +1,28 @@
 // ============================================================
-// LEGALIR — «راهنمای جامع حقوق مستأجر» tests
+// LEGALIR — «چک برگشتی؛ اقدامات قانونی و مراحل پیگیری» tests
 // ============================================================
-// Covers the second rich legal article and the block kinds it adds:
+// Covers the third rich legal article and the block kinds it adds:
 //   • the content module is well-formed and its anchors are unique
-//   • the storyline runs پیش از اجاره → پایان قرارداد → واژه‌نامه
+//   • the storyline runs نقشه راه → مراحل → مسیرها → واژه‌نامه → پرسش‌ها
 //   • the provisions index renders as a real HTML table
-//   • the checklist, FAQ and closing CTAs render as real elements
-//   • the resolver returns both rich articles by slug
+//   • the timeline, checklist, FAQ and closing CTA render as real elements
+//   • the resolver returns the article by slug
 // ============================================================
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { tenantRightsGuideArticle } from "@/lib/blog/tenant-rights-guide";
+import { checkBouncedLegalActionArticle } from "@/lib/blog/check-bounced-legal-action";
 import { getLegalArticle } from "@/lib/blog/legal-articles";
 import { articleHeadings } from "@/lib/blog/article-types";
 import { LegalArticle } from "../legal-article";
 
-const doc = tenantRightsGuideArticle;
+const doc = checkBouncedLegalActionArticle;
 
 // ------------------------------------------------------------
 // Content model
 // ------------------------------------------------------------
 
-describe("tenant-rights-guide content model", () => {
+describe("check-bounced-legal-action content model", () => {
   it("has a hero with the three framing facts", () => {
     expect(doc.hero.meta).toHaveLength(3);
     expect(doc.hero.meta.map((m) => m.label)).toEqual([
@@ -44,14 +44,15 @@ describe("tenant-rights-guide content model", () => {
     expect(first?.kind === "paragraph" && first.lead).toBe(true);
   });
 
-  it("follows the source's storyline: پیش از اجاره → پایان قرارداد → واژه‌نامه", () => {
+  it("follows the source's storyline: نقشه راه → مراحل → مسیرها → واژه‌نامه → پرسش‌ها", () => {
     const ids = articleHeadings(doc).map((h) => h.id);
-    expect(ids.indexOf("before-renting")).toBeLessThan(ids.indexOf("end-of-term"));
-    expect(ids.indexOf("end-of-term")).toBeLessThan(ids.indexOf("legal-terms"));
-    expect(ids.indexOf("legal-terms")).toBeLessThan(ids.indexOf("faq"));
+    expect(ids.indexOf("roadmap")).toBeLessThan(ids.indexOf("step-1-bank"));
+    expect(ids.indexOf("step-1-bank")).toBeLessThan(ids.indexOf("step-4-choose-route"));
+    expect(ids.indexOf("step-4-choose-route")).toBeLessThan(ids.indexOf("glossary"));
+    expect(ids.indexOf("glossary")).toBeLessThan(ids.indexOf("faq"));
   });
 
-  it("carries the provisions index as a table with all ten rows", () => {
+  it("carries the provisions index as a table with all seven rows", () => {
     const tables = doc.blocks.filter((b) => b.kind === "table");
     expect(tables).toHaveLength(1);
     const table = tables[0];
@@ -59,23 +60,30 @@ describe("tenant-rights-guide content model", () => {
       "موضوع",
       "مستند قانونی",
     ]);
-    expect(table?.kind === "table" && table.rows).toHaveLength(10);
+    expect(table?.kind === "table" && table.rows).toHaveLength(7);
     expect(
       table?.kind === "table" && table.rows.map((r) => r[1])
-    ).toContain("ماده ۴۹۸ قانون مدنی");
+    ).toContain("ماده ۲۳");
   });
 
-  it("carries the FAQ with five questions", () => {
+  it("carries the FAQ with six questions", () => {
     const faqs = doc.blocks.filter((b) => b.kind === "faq");
     expect(faqs).toHaveLength(1);
-    expect(faqs[0]?.kind === "faq" && faqs[0].items).toHaveLength(5);
+    expect(faqs[0]?.kind === "faq" && faqs[0].items).toHaveLength(6);
   });
 
-  it("closes with the two service CTAs from the source", () => {
+  it("carries the ten-step checklist", () => {
+    const checklists = doc.blocks.filter(
+      (b) => b.kind === "list" && b.variant === "checklist"
+    );
+    expect(checklists).toHaveLength(1);
+    expect(checklists[0]?.kind === "list" && checklists[0].items).toHaveLength(10);
+  });
+
+  it("closes with the chat CTA from the source", () => {
     const ctas = doc.blocks.filter((b) => b.kind === "cta");
     expect(ctas.map((c) => c.kind === "cta" && c.href)).toEqual([
-      "/contracts/new",
-      "/contracts/review",
+      "/auth/mobile?intent=chat",
     ]);
   });
 });
@@ -84,7 +92,7 @@ describe("tenant-rights-guide content model", () => {
 // Renderer
 // ------------------------------------------------------------
 
-describe("tenant-rights-guide renderer", () => {
+describe("check-bounced-legal-action renderer", () => {
   it("renders one H2 per level-2 heading", () => {
     render(<LegalArticle doc={doc} />);
     const level2 = articleHeadings(doc).filter((h) => h.level === 2);
@@ -103,44 +111,42 @@ describe("tenant-rights-guide renderer", () => {
     expect(
       screen.getByRole("columnheader", { name: "مستند قانونی" })
     ).toBeInTheDocument();
-    expect(screen.getByText("ماده ۴۸۶ قانون مدنی")).toBeInTheDocument();
-    expect(
-      screen.getByText("مواد ۶ تا ۱۳ قانون روابط موجر و مستأجر ۱۳۷۶")
-    ).toBeInTheDocument();
+    expect(screen.getByText("ماده ۲ قانون صدور چک")).toBeInTheDocument();
+    expect(screen.getByText("ماده ۲۳")).toBeInTheDocument();
   });
 
   it("renders the checklist items", () => {
     render(<LegalArticle doc={doc} />);
-    expect(screen.getByText("مشخصات طرفین درست است.")).toBeInTheDocument();
     expect(
-      screen.getByText("نسخه قرارداد و مدارک پرداخت نزد مستأجر نگهداری می‌شود.")
+      screen.getByText("گواهی عدم پرداخت دریافت کرده‌اید.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("کد رهگیری گواهی را بررسی کرده‌اید.")
     ).toBeInTheDocument();
   });
 
   it("renders the FAQ questions and answers", () => {
     render(<LegalArticle doc={doc} />);
     expect(
-      screen.getByText("آیا فروش خانه باعث پایان اجاره می‌شود؟")
+      screen.getByText("اجراییه ماده ۲۳ چیست؟")
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/در حالت عادی، فروش ملک به‌خودی‌خود اجاره را از بین نمی‌برد/)
+      screen.getByText(/سازوکاری است که به دارنده اجازه می‌دهد/)
     ).toBeInTheDocument();
   });
 
-  it("renders the closing CTAs as links to the contract services", () => {
+  it("renders the closing CTA as a link to the chat service", () => {
     render(<LegalArticle doc={doc} />);
-    const draft = screen.getByRole("link", {
-      name: /تنظیم پیش‌نویس قرارداد جدید/,
+    const cta = screen.getByRole("link", {
+      name: /شروع پرسش و پاسخ حقوقی/,
     });
-    expect(draft).toHaveAttribute("href", "/contracts/new");
-    const review = screen.getByRole("link", { name: /بررسی قرارداد/ });
-    expect(review).toHaveAttribute("href", "/contracts/review");
+    expect(cta).toHaveAttribute("href", "/auth/mobile?intent=chat");
   });
 
   it("renders the source's warnings as highlights", () => {
     render(<LegalArticle doc={doc} />);
     expect(screen.getByText("توجه")).toBeInTheDocument();
-    expect(screen.getByText("نکته مهم")).toBeInTheDocument();
+    expect(screen.getByText("مهم‌ترین نکته: مهلت شش‌ماهه")).toBeInTheDocument();
   });
 });
 
@@ -149,19 +155,9 @@ describe("tenant-rights-guide renderer", () => {
 // ------------------------------------------------------------
 
 describe("getLegalArticle", () => {
-  it("resolves every registered rich article by slug", () => {
-    expect(getLegalArticle("contract-penalty-clause")?.slug).toBe(
-      "contract-penalty-clause"
-    );
-    expect(getLegalArticle("tenant-rights-guide")?.slug).toBe(
-      "tenant-rights-guide"
-    );
+  it("resolves the bounced-check article by slug", () => {
     expect(getLegalArticle("check-bounced-legal-action")?.slug).toBe(
       "check-bounced-legal-action"
     );
-  });
-
-  it("returns undefined for a slug without a rich document", () => {
-    expect(getLegalArticle("divorce-process-iran")).toBeUndefined();
   });
 });

@@ -12,10 +12,12 @@
 import type { LegalArticleDoc } from "./article-types";
 import { contractPenaltyClauseArticle } from "./contract-penalty-clause";
 import { tenantRightsGuideArticle } from "./tenant-rights-guide";
+import { checkBouncedLegalActionArticle } from "./check-bounced-legal-action";
 
 const LEGAL_ARTICLES: Record<string, LegalArticleDoc> = {
   [contractPenaltyClauseArticle.slug]: contractPenaltyClauseArticle,
   [tenantRightsGuideArticle.slug]: tenantRightsGuideArticle,
+  [checkBouncedLegalActionArticle.slug]: checkBouncedLegalActionArticle,
 };
 
 /** Look up a rich legal article by slug. */
