@@ -14,6 +14,7 @@ import React from "react";
 import type { ArticleBlock, LegalArticleDoc } from "@/lib/blog/article-types";
 import { LegalArticleSection } from "./legal-article-section";
 import {
+  LegalList,
   LegalProvisionCard,
   LegalCaseCard,
   LegalQuote,
@@ -21,6 +22,9 @@ import {
   LegalTimeline,
   LegalTakeaway,
   LegalCardList,
+  LegalTable,
+  LegalFaq,
+  LegalCta,
   LegalSourceReference,
 } from "./blocks";
 
@@ -59,6 +63,8 @@ function ArticleBlockView({ block }: { block: ArticleBlock }) {
         </h3>
       );
 
+    case "list":
+      return <LegalList block={block} />;
     case "provision":
       return <LegalProvisionCard block={block} />;
     case "case":
@@ -73,6 +79,12 @@ function ArticleBlockView({ block }: { block: ArticleBlock }) {
       return <LegalTakeaway block={block} />;
     case "cardList":
       return <LegalCardList block={block} />;
+    case "table":
+      return <LegalTable block={block} />;
+    case "faq":
+      return <LegalFaq block={block} />;
+    case "cta":
+      return <LegalCta block={block} />;
     case "source":
       return <LegalSourceReference block={block} />;
   }

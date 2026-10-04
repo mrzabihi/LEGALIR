@@ -282,10 +282,3 @@ export const contractPenaltyClauseArticle: LegalArticleDoc = {
     },
   ],
 };
-
-/** Look up a rich legal article by slug. */
-export function getLegalArticle(slug: string): LegalArticleDoc | undefined {
-  return slug === contractPenaltyClauseArticle.slug
-    ? contractPenaltyClauseArticle
-    : undefined;
-}

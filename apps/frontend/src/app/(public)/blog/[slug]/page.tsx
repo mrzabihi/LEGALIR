@@ -15,7 +15,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { readBlog } from "@/lib/legal-library-db";
-import { getLegalArticle } from "@/lib/blog/contract-penalty-clause";
+import { getLegalArticle } from "@/lib/blog/legal-articles";
 import { articleHeadings } from "@/lib/blog/article-types";
 import { toPersianDate } from "@/lib/persian-utils";
 import {

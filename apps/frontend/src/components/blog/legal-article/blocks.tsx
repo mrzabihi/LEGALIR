@@ -12,6 +12,7 @@
 // ============================================================
 
 import React from "react";
+import Link from "next/link";
 import {
   IconLawBook,
   IconBalance,
@@ -19,8 +20,11 @@ import {
   IconInfo,
   IconWarning,
   IconLinkSource,
+  IconArrowBack,
+  IconServices,
 } from "@/lib/icons";
 import type {
+  ArticleListBlock,
   ArticleProvisionBlock,
   ArticleCaseBlock,
   ArticleQuoteBlock,
@@ -28,8 +32,183 @@ import type {
   ArticleTimelineBlock,
   ArticleTakeawayBlock,
   ArticleCardListBlock,
+  ArticleTableBlock,
+  ArticleFaqBlock,
+  ArticleCtaBlock,
   ArticleSourceBlock,
 } from "@/lib/blog/article-types";
+
+// ------------------------------------------------------------
+// LegalList — a bulleted / numbered / checklist run of items
+// ------------------------------------------------------------
+
+export function LegalList({ block }: { block: ArticleListBlock }) {
+  const variant = block.variant ?? "bullet";
+
+  return (
+    <div className="my-6">
+      {block.intro && (
+        <p className="text-body-1 text-on-surface-variant leading-loose text-justify mb-3">
+          {block.intro}
+        </p>
+      )}
+      <ul className={variant === "ordered" ? "space-y-2" : "space-y-2.5"}>
+        {block.items.map((item, i) => (
+          <li key={i} className="flex items-start gap-3">
+            {variant === "checklist" ? (
+              <span
+                aria-hidden="true"
+                className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-small border border-secondary-300 text-secondary-600"
+              >
+                <IconCheck size={12} />
+              </span>
+            ) : variant === "ordered" ? (
+              <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary-700 text-white text-labelSmall tabular-nums">
+                {i + 1}
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-secondary-500"
+              />
+            )}
+            <span className="text-body-1 text-on-surface leading-loose text-justify">
+              {item}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// LegalTable — a real HTML table; scrolls inside its own box on mobile
+// ------------------------------------------------------------
+
+export function LegalTable({ block }: { block: ArticleTableBlock }) {
+  return (
+    <figure className="my-8">
+      {block.title && (
+        <figcaption className="text-titleMedium text-primary-800 mb-3">
+          {block.title}
+        </figcaption>
+      )}
+      {/* The scroll container is the figure's own box: on narrow screens the
+          table scrolls horizontally inside it, and the page itself never
+          overflows the viewport. */}
+      <div className="overflow-x-auto rounded-large border border-divider">
+        <table className="w-full min-w-[520px] border-collapse text-right">
+          <thead>
+            <tr className="bg-secondary-50">
+              {block.columns.map((col) => (
+                <th
+                  key={col}
+                  scope="col"
+                  className="px-4 py-3 text-labelLarge text-secondary-900 border-b border-secondary-200 whitespace-nowrap"
+                >
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row, r) => (
+              <tr
+                key={r}
+                className="odd:bg-surface even:bg-surface-container-low/40"
+              >
+                {row.map((cell, c) => (
+                  <td
+                    key={c}
+                    className={`px-4 py-3 text-body-2 leading-relaxed border-b border-divider align-top ${
+                      c === 0
+                        ? "text-on-surface font-medium"
+                        : "text-on-surface-variant"
+                    }`}
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {block.caption && (
+        <p className="mt-3 text-caption text-muted leading-relaxed">
+          {block.caption}
+        </p>
+      )}
+    </figure>
+  );
+}
+
+// ------------------------------------------------------------
+// LegalFaq — a question / answer list (native disclosure, no JS)
+// ------------------------------------------------------------
+
+export function LegalFaq({ block }: { block: ArticleFaqBlock }) {
+  return (
+    <section className="my-10" aria-label={block.title ?? "پرسش‌های متداول"}>
+      {block.title && (
+        <h3 className="text-titleMedium text-primary-800 mb-4">{block.title}</h3>
+      )}
+      <div className="space-y-3">
+        {block.items.map((item) => (
+          <details
+            key={item.question}
+            className="group rounded-large border border-divider bg-surface open:border-primary-200 open:bg-primary-50/30"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-labelLarge text-primary-800 [&::-webkit-details-marker]:hidden">
+              {item.question}
+              <span
+                aria-hidden="true"
+                className="text-muted transition-transform duration-medium1 group-open:rotate-180"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                </svg>
+              </span>
+            </summary>
+            <p className="px-5 pb-4 text-body-2 text-on-surface-variant leading-loose text-justify">
+              {item.answer}
+            </p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ------------------------------------------------------------
+// LegalCta — a closing service call-to-action
+// ------------------------------------------------------------
+
+export function LegalCta({ block }: { block: ArticleCtaBlock }) {
+  return (
+    <aside className="my-8 rounded-large border border-primary-200 bg-gradient-to-br from-primary-50 to-secondary-50 p-6">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-medium bg-primary-700 text-white">
+          <IconServices size={18} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-titleMedium text-primary-800 mb-1.5">{block.title}</p>
+          <p className="text-body-2 text-on-surface-variant leading-loose text-justify mb-4">
+            {block.text}
+          </p>
+          <Link
+            href={block.href}
+            className="inline-flex items-center gap-1.5 rounded-medium bg-primary-700 px-5 py-2.5 text-button text-white transition-colors hover:bg-primary-800 touch-target"
+          >
+            {block.cta}
+            <IconArrowBack size={16} rtlFlip />
+          </Link>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 // ------------------------------------------------------------
 // LegalProvisionCard — a statute article
@@ -243,6 +422,7 @@ const CARD_LIST_VARIANTS = {
 
 export function LegalCardList({ block }: { block: ArticleCardListBlock }) {
   const v = CARD_LIST_VARIANTS[block.variant];
+  const cross = block.marker === "cross";
   return (
     <section className="my-10" aria-label={block.title}>
       <h3 className="text-titleMedium text-primary-800 mb-2">{block.title}</h3>
@@ -261,7 +441,7 @@ export function LegalCardList({ block }: { block: ArticleCardListBlock }) {
               <span
                 className={`inline-flex items-center justify-center h-7 w-7 rounded-medium text-labelSmall shrink-0 tabular-nums ${v.badge}`}
               >
-                {i + 1}
+                {cross ? "✗" : i + 1}
               </span>
               <h4 className={`text-labelLarge leading-snug ${v.title}`}>
                 {item.title}

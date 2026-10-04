@@ -1166,14 +1166,18 @@ export const fixtureBlogPostDetails: Record<string, V1BlogPostDetail> = {
     readingTime: 15,
     publishedAt: "2026-08-01T00:00:00Z",
     updatedAt: "2026-08-01T00:00:00Z",
-    seoTitle: "حقوق مستأجر | LEGALIR",
-    seoDescription: "راهنمای جامع حقوق مستأجر",
+    seoTitle: "راهنمای جامع حقوق مستأجر | LEGALIR",
+    seoDescription:
+      "از تنظیم قرارداد تا تخلیه — آشنایی با حقوق قانونی مستأجر طبق قانون روابط موجر و مستأجر و قانون مدنی",
     canonicalUrl: null,
-    relatedSources: [],
+    relatedSources: [
+      { id: "src-checklist-lease", title: "چک‌لیست قرارداد اجاره", sourceType: "CHECKLIST", sourceTypeFa: "چک‌لیست", relationType: "RELATED_TO", relationTypeFa: "مرتبط", summary: "نکات ضروری که باید قبل از امضای قرارداد اجاره بررسی کنید" },
+      { id: "src-faq-tenant", title: "سوالات متداول مالک و مستأجر", sourceType: "FAQ", sourceTypeFa: "پرسش و پاسخ", relationType: "RELATED_TO", relationTypeFa: "مرتبط", summary: "پاسخ به رایج‌ترین سوالات حقوقی در زمینه روابط موجر و مستأجر" },
+    ],
     relatedGuides: [],
     relatedServices: [
-      { id: "documents", title: "تحلیل قرارداد", description: "قرارداد اجاره خود را بارگذاری و تحلیل کنید", href: "/documents", cta: "تحلیل قرارداد" },
-      { id: "chat", title: "مشاوره حقوقی", description: "سوالات خود درباره رابطه موجر و مستأجر را بپرسید", href: "/chat", cta: "شروع گفتگو" },
+      { id: "contract-draft", title: "تنظیم پیش‌نویس قرارداد", description: "مرحله‌به‌مرحله اطلاعات لازم را وارد کنید و پیش‌نویس قرارداد اجاره را آماده کنید", href: "/contracts/new", cta: "تنظیم پیش‌نویس قرارداد جدید" },
+      { id: "contract-review", title: "بررسی قرارداد", description: "قرارداد اجاره خود را بارگذاری کنید تا موارد مهم و نکات حقوقی آن را بهتر بشناسید", href: "/contracts/review", cta: "بررسی قرارداد" },
     ],
     previousPost: { slug: "contract-penalty-clause", titleFa: "وجه‌الالتزام در قراردادها" },
     nextPost: { slug: "check-bounced-legal-action", titleFa: "چک برگشتی — اقدامات قانونی" },

@@ -9,6 +9,7 @@
 // The block vocabulary is deliberately small and legal-specific:
 //   paragraph  — running prose
 //   heading    — H2/H3 with a stable anchor id (drives the TOC)
+//   list       — a bulleted / numbered / checklist run of items
 //   provision  — a statute article (e.g. ماده ۲۳۰ قانون مدنی)
 //   case       — a ruling (e.g. رأی وحدت رویه ۸۰۵)
 //   quote      — a verbatim holding pulled out of the flow
@@ -16,6 +17,9 @@
 //   timeline   — an ordered sequence of legal developments
 //   takeaway   — the closing set of key points
 //   cardList   — a numbered grid of effects / challenges / examples
+//   table      — a real HTML table (e.g. the provisions index)
+//   faq        — a question / answer list
+//   cta        — a closing service call-to-action
 //   source     — the references the article rests on
 // ============================================================
 
@@ -32,6 +36,19 @@ export interface ArticleHeadingBlock {
   level: 2 | 3;
   text: string;
   id: string;
+}
+
+/**
+ * A run of parallel items — a bulleted list, a numbered list, or a
+ * checklist. `ordered` renders an `<ol>`, `checklist` renders the
+ * source's own ☐ boxes, and the default renders a `<ul>`.
+ */
+export interface ArticleListBlock {
+  kind: "list";
+  variant?: "bullet" | "ordered" | "checklist";
+  /** Optional lead-in line shown above the list. */
+  intro?: string;
+  items: string[];
 }
 
 /** A statute article — the primary legal provision the article cites. */
@@ -99,7 +116,35 @@ export interface ArticleCardListBlock {
   variant: "effect" | "challenge" | "example";
   title: string;
   intro?: string;
+  /** Badge style: a running number (default) or the source's own ✗ mark. */
+  marker?: "number" | "cross";
   items: { title: string; text: string }[];
+}
+
+/** A real HTML table — e.g. the index of provisions a tenant should know. */
+export interface ArticleTableBlock {
+  kind: "table";
+  title?: string;
+  caption?: string;
+  columns: string[];
+  rows: string[][];
+}
+
+/** A question / answer list — the article's FAQ. */
+export interface ArticleFaqBlock {
+  kind: "faq";
+  title?: string;
+  items: { question: string; answer: string }[];
+}
+
+/** A closing service call-to-action. */
+export interface ArticleCtaBlock {
+  kind: "cta";
+  title: string;
+  text: string;
+  /** The button label, e.g. «تنظیم پیش‌نویس قرارداد جدید». */
+  cta: string;
+  href: string;
 }
 
 /** The references the article rests on. */
@@ -112,6 +157,7 @@ export interface ArticleSourceBlock {
 export type ArticleBlock =
   | ArticleParagraphBlock
   | ArticleHeadingBlock
+  | ArticleListBlock
   | ArticleProvisionBlock
   | ArticleCaseBlock
   | ArticleQuoteBlock
@@ -119,6 +165,9 @@ export type ArticleBlock =
   | ArticleTimelineBlock
   | ArticleTakeawayBlock
   | ArticleCardListBlock
+  | ArticleTableBlock
+  | ArticleFaqBlock
+  | ArticleCtaBlock
   | ArticleSourceBlock;
 
 /**
