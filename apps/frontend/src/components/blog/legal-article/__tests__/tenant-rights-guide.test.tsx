@@ -159,6 +159,6 @@ describe("getLegalArticle", () => {
   });
 
   it("returns undefined for a slug without a rich document", () => {
-    expect(getLegalArticle("check-bounced-legal-action")).toBeUndefined();
+    expect(getLegalArticle("divorce-process-iran")).toBeUndefined();
   });
 });

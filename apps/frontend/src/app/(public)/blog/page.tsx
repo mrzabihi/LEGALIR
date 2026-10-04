@@ -36,6 +36,7 @@ function gradientFor(category: string): string {
 // featured hero cover for the same article.
 const POST_COVERS: Record<string, string> = {
   "contract-penalty-clause": "/assets/blog/vajhe-eltezam.jpg",
+  "tenant-rights-guide": "/assets/blog/rent-house.jpg",
 };
 
 function formatDate(iso: string): string {
