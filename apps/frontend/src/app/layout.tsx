@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/lib/providers";
+import { InstallBanner } from "@/components/pwa/install-banner";
+import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 
 export const metadata: Metadata = {
   title: {
@@ -8,7 +10,22 @@ export const metadata: Metadata = {
     template: "%s | لیگالیر",
   },
   description: "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
+  applicationName: "لیگالیر",
   manifest: "/manifest.json",
+  // iOS standalone chrome — Safari ignores the manifest's display mode for
+  // the status bar and home-screen title, so these meta tags are required.
+  appleWebApp: {
+    capable: true,
+    title: "لیگالیر",
+    // `default` lets iOS reserve the top safe area and pick a readable status
+    // bar colour. `black-translucent` would force white text, which is
+    // invisible on this app's light surfaces.
+    statusBarStyle: "default",
+  },
+  formatDetection: { telephone: false },
+  // Next emits the standardised `mobile-web-app-capable`; iOS before 16.4 only
+  // honours the legacy `apple-mobile-web-app-capable`, so emit both.
+  other: { "apple-mobile-web-app-capable": "yes" },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -46,6 +63,10 @@ export default function RootLayout({
           پرش به محتوای اصلی
         </a>
         <Providers>{children}</Providers>
+        {/* PWA: install affordance (mobile) + service-worker lifecycle.
+            Both are client-only and render nothing on the server. */}
+        <InstallBanner />
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

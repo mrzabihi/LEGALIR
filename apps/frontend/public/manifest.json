@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "لیگالیر | دستیار هوشمند حقوقی ایران",
+  "name": "Legalir | لیگالیر",
   "short_name": "لیگالیر",
   "description": "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران — مشاوره حقوقی، تحلیل اسناد و تولید قرارداد با هوش مصنوعی",
   "start_url": "/dashboard",
@@ -10,7 +10,7 @@
   "background_color": "#0F172A",
   "theme_color": "#162033",
   "orientation": "any",
-  "lang": "fa-IR",
+  "lang": "fa",
   "dir": "rtl",
   "categories": ["business", "productivity", "education"],
   "prefer_related_applications": false,

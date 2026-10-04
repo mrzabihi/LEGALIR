@@ -53,6 +53,26 @@ const nextConfig: NextConfig = {
 
   // Security headers
   headers: async () => [
+    // The service worker must never be served stale, or a client can be
+    // pinned to an old version. `no-cache` forces revalidation on every
+    // update check while still allowing a 304 when unchanged.
+    {
+      source: "/sw.js",
+      headers: [
+        { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        { key: "Service-Worker-Allowed", value: "/" },
+      ],
+    },
+    // The manifest is small and changes rarely; a short TTL keeps install
+    // metadata fresh without a per-request round trip.
+    {
+      source: "/manifest.json",
+      headers: [
+        { key: "Cache-Control", value: "public, max-age=3600" },
+        { key: "Content-Type", value: "application/manifest+json; charset=utf-8" },
+      ],
+    },
     {
       source: "/(.*)",
       headers: [

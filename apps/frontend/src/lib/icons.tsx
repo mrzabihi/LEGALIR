@@ -491,3 +491,25 @@ export const IconShieldCheck = createIcon("ShieldCheck", (
 export const IconHandshake = createIcon("Handshake", (
   <path d="M12.5 6.5l-1.4-1.4a2 2 0 00-2.8 0L4 9.4V14l3.5 3.5a1.4 1.4 0 002 0l.5-.5 1.5 1.5a1.4 1.4 0 002 0l.5-.5 1.5 1.5a1.4 1.4 0 002 0l3-3V9.4l-3.5-3.5a2 2 0 00-2.8 0L12.5 6.5zm-1.4 1.4l1.4 1.4 1.4-1.4 3.1 3.1v3.1l-2 2-1.5-1.5.9-.9-1.4-1.4-.9.9-1.5-1.5.9-.9-1.4-1.4-.9.9-1.5-1.5 2-2 3.1 3.1z" />
 ));
+
+// --- PWA install affordances ---
+
+/** Download-into-tray — the Android/desktop "install app" action. */
+export const IconInstall = createIcon("Install", (
+  <path d="M12 3a1 1 0 011 1v8.59l2.3-2.3a1 1 0 011.4 1.42l-4 4a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.42l2.3 2.3V4a1 1 0 011-1zM5 18a1 1 0 011 1v1h12v-1a1 1 0 112 0v1.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 20.5V19a1 1 0 011-1z" />
+));
+
+/** iOS share glyph — the square with an up arrow used by Safari's Share. */
+export const IconShare = createIcon("Share", (
+  <path d="M12 2a1 1 0 01.7.29l3.5 3.5a1 1 0 01-1.42 1.42L13 5.41V14a1 1 0 11-2 0V5.41L9.22 7.21A1 1 0 017.8 5.79l3.5-3.5A1 1 0 0112 2zM6 9a2 2 0 00-2 2v9a2 2 0 002 2h12a2 2 0 002-2v-9a2 2 0 00-2-2h-2.5a1 1 0 100 2H18v9H6v-9h2.5a1 1 0 100-2H6z" />
+));
+
+/** Add-to-home — a phone with a plus badge. */
+export const IconAddToHome = createIcon("AddToHome", (
+  <path d="M8 2a2 2 0 00-2 2v16a2 2 0 002 2h8a2 2 0 002-2v-6.5a1 1 0 10-2 0V20H8V4h4.5a1 1 0 100-2H8zm9 1a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0V7h-1a1 1 0 110-2h1V4a1 1 0 011-1z" />
+));
+
+/** Vertical ellipsis — the browser overflow menu (Chrome/Firefox/Edge). */
+export const IconMoreVert = createIcon("MoreVert", (
+  <path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+));

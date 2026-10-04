@@ -35,8 +35,9 @@ export function Footer() {
       {/* Gold gradient top border */}
       <div className="h-1 bg-gradient-to-r from-primary-700 via-secondary-600 to-primary-700" />
 
-      {/* Main footer content */}
-      <div className="bg-neutral-100">
+      {/* Main footer content. `safe-area-bottom` keeps the copyright line
+          clear of the iPhone home indicator in standalone (installed) mode. */}
+      <div className="bg-neutral-100 safe-area-bottom">
         <div className="mx-auto max-w-6xl px-4 py-14">
           {/* Top Section: About + Links in responsive grid */}
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5 mb-12">
