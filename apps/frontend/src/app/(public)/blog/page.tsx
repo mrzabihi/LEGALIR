@@ -37,6 +37,7 @@ function gradientFor(category: string): string {
 const POST_COVERS: Record<string, string> = {
   "contract-penalty-clause": "/assets/blog/vajhe-eltezam.jpg",
   "tenant-rights-guide": "/assets/blog/rent-house.jpg",
+  "check-bounced-legal-action": "/assets/blog/cheque.jpg",
 };
 
 function formatDate(iso: string): string {
