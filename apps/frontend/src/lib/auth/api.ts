@@ -6,6 +6,15 @@
 // ============================================================
 
 import type { ApiSuccess, OtpChallenge, OtpResult, RegistrationIntent } from "@legalir/types";
+import {
+  normalizeIranMobile,
+  toNationalMobile,
+  toPersianMobileDisplay,
+  maskMobile,
+  MOBILE_ERROR_MESSAGE,
+} from "@legalir/validation";
+
+export { toNationalMobile, toPersianMobileDisplay, maskMobile, MOBILE_ERROR_MESSAGE };
 
 // OTP endpoints are handled by MSW (mocked external backend)
 const API_BASE = process.env["NEXT_PUBLIC_API_BASE"] ?? "";
@@ -95,49 +104,24 @@ export async function getMeApi(): Promise<ApiSuccess<GetMeResult>> {
 }
 
 /**
- * Normalize Iranian mobile numbers:
- * - Converts Persian digits to Western
- * - Strips whitespace, dashes, parentheses
- * - Handles +98, 0098, and 0 prefixes
- * - Returns 09XXXXXXXXX format or null if invalid
+ * Normalize an Iranian mobile number to canonical E.164 (`+989123456789`).
+ *
+ * Delegates to the shared `@legalir/validation` module so the web app,
+ * the API routes and the JSON store all agree on one identity. Accepts
+ * Persian/Arabic digits, spaces, dashes, parentheses and the +98 / 0098
+ * / 98 / 0 prefixes. Returns null when the input is not a valid Iranian
+ * mobile number.
  */
 export function normalizeMobile(raw: string): string | null {
-  // Convert Persian/Arabic digits to Western
-  const persianMap: Record<string, string> = {
-    "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
-    "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
-    "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
-    "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
-  };
-
-  let cleaned = raw
-    .replace(/[۰-۹٠-٩]/g, (d) => persianMap[d] ?? d)
-    .replace(/[\s\-().]/g, "");
-
-  // Strip +98 / 0098 prefix
-  if (cleaned.startsWith("+98")) {
-    cleaned = "0" + cleaned.slice(3);
-  } else if (cleaned.startsWith("0098")) {
-    cleaned = "0" + cleaned.slice(4);
-  } else if (cleaned.startsWith("98") && cleaned.length === 12) {
-    cleaned = "0" + cleaned.slice(2);
-  }
-
-  // Validate: must be 0 followed by 9 and 9 more digits
-  if (!/^09\d{9}$/.test(cleaned)) {
-    return null;
-  }
-
-  return cleaned;
+  return normalizeIranMobile(raw);
 }
 
 /**
- * Convert 09XXXXXXXXX to E.164 format (+989XXXXXXXXX)
+ * Convert any accepted mobile format to E.164 (`+989123456789`).
+ * Idempotent: a canonical value passes through unchanged.
  */
 export function toE164(mobile: string): string {
-  const normalized = normalizeMobile(mobile);
-  if (!normalized) return mobile;
-  return "+98" + normalized.slice(1);
+  return normalizeIranMobile(mobile) ?? mobile;
 }
 
 // ============================================================

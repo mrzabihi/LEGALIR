@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TextField, PasswordField, Checkbox } from "@legalir/ui";
 import { useRegister, getPasswordStrength } from "@/lib/auth/use-auth";
-import { normalizeMobile } from "@/lib/auth/api";
+import { normalizeMobile, MOBILE_ERROR_MESSAGE } from "@/lib/auth/api";
 import {
   normalizeRegistrationIntent,
   REGISTRATION_INTENT_FA,
@@ -36,7 +36,7 @@ interface TouchedFields {
 
 function validateMobileField(rawMobile: string): string | null {
   if (!rawMobile.trim()) return "شماره موبایل الزامی است";
-  if (!normalizeMobile(rawMobile)) return "شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید";
+  if (!normalizeMobile(rawMobile)) return MOBILE_ERROR_MESSAGE;
   return null;
 }
 

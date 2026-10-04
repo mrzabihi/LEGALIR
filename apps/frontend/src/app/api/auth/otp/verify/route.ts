@@ -6,8 +6,9 @@
 
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { findUserByMobile, createUser, createSession, cleanupExpiredSessions } from '@/lib/db';
+import { findUserByMobile, createUser, createSession, cleanupExpiredSessions, MobileConflictError } from '@/lib/db';
 import { clientIpFromHeaders } from '@/lib/user-agent';
+import { toNationalMobile } from '@legalir/validation';
 
 const OTP_CODE = '405405';
 const MAX_ATTEMPTS = 5;
@@ -85,8 +86,18 @@ export async function POST(request: Request) {
 
     if (!user) {
       const hash = await bcrypt.hash(crypto.randomUUID(), 10);
-      user = createUser({ mobile: challenge.mobile, passwordHash: hash });
-      isNewUser = true;
+      try {
+        user = createUser({ mobile: challenge.mobile, passwordHash: hash });
+        isNewUser = true;
+      } catch (err) {
+        // A concurrent request created the same identity between our
+        // lookup and insert — resolve to the existing account instead of
+        // failing, so format variation can never produce a duplicate.
+        if (err instanceof MobileConflictError) {
+          user = findUserByMobile(challenge.mobile);
+        }
+        if (!user) throw err;
+      }
     }
 
     const session = createSession(user.id, {
@@ -101,12 +112,12 @@ export async function POST(request: Request) {
         isNewUser,
         user: {
           id: user.id,
-          mobileE164: '+98' + user.mobile.slice(1),
-          mobileDisplay: user.mobile,
+          mobileE164: user.mobile,
+          mobileDisplay: toNationalMobile(user.mobile),
           status: 'active',
         },
-        mobileE164: '+98' + user.mobile.slice(1),
-        mobileDisplay: user.mobile,
+        mobileE164: user.mobile,
+        mobileDisplay: toNationalMobile(user.mobile),
       },
       meta: { requestId: crypto.randomUUID() },
     });

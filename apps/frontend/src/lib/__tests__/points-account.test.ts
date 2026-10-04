@@ -240,15 +240,18 @@ describe("mobile immutability", () => {
     }
     db.upsertProfile(user.id, updates);
 
-    expect(db.findUserById(user.id)?.mobile).toBe("09120000113");
+    expect(db.findUserById(user.id)?.mobile).toBe("+989120000113");
   });
 
   it("the mobile is the lookup identity and stays stable across profile writes", () => {
     const user = makeUser("09120000114");
     db.upsertProfile(user.id, { displayName: "نام جدید", city: "تهران" });
 
+    // Stored canonically, but reachable through any accepted input format.
     expect(db.findUserByMobile("09120000114")?.id).toBe(user.id);
-    expect(db.findUserById(user.id)?.mobile).toBe("09120000114");
+    expect(db.findUserByMobile("+989120000114")?.id).toBe(user.id);
+    expect(db.findUserByMobile("00989120000114")?.id).toBe(user.id);
+    expect(db.findUserById(user.id)?.mobile).toBe("+989120000114");
   });
 });
 

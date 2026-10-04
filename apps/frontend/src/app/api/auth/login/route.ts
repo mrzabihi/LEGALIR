@@ -14,6 +14,7 @@ import {
   cleanupExpiredSessions,
 } from "@/lib/db";
 import { clientIpFromHeaders } from "@/lib/user-agent";
+import { normalizeIranMobile, toNationalMobile } from "@legalir/validation";
 
 export async function POST(request: Request) {
   try {
@@ -42,10 +43,13 @@ export async function POST(request: Request) {
     }
 
     // --- Identify user by mobile (primary) or email ---
+    // Normalize the mobile to canonical E.164 before lookup so any accepted
+    // format reaches the same account.
+    const canonicalMobile = mobile ? normalizeIranMobile(mobile) : null;
     let foundUser: ReturnType<typeof findUserByMobile> | undefined;
 
-    if (mobile && /^09\d{9}$/.test(mobile)) {
-      foundUser = findUserByMobile(mobile);
+    if (canonicalMobile) {
+      foundUser = findUserByMobile(canonicalMobile);
     } else if (email && email.includes("@")) {
       // Email-based lookup — find by mobile for now since our DB schema is mobile-keyed
       foundUser = findUserByMobile(email); // fallback; email-based lookup not yet supported
@@ -99,8 +103,8 @@ export async function POST(request: Request) {
     // --- Build response ---
     const userResponse = {
       id: foundUser.id,
-      mobileE164: "+98" + foundUser.mobile.slice(1),
-      mobileDisplay: foundUser.mobile,
+      mobileE164: foundUser.mobile,
+      mobileDisplay: toNationalMobile(foundUser.mobile),
       status: "active",
     };
 

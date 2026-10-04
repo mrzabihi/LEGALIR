@@ -4,15 +4,32 @@
 
 import { z } from "zod";
 
+// --- Phone (single source of truth) ---
+
+export {
+  IRAN_DIAL_CODE,
+  MOBILE_ERROR_MESSAGE,
+  normalizeIranMobile,
+  isValidIranMobile,
+  toWesternDigits,
+  toNationalMobile,
+  toPersianMobileDisplay,
+  maskMobile,
+  iranMobileSchema,
+} from "./phone";
+
+import { iranMobileSchema } from "./phone";
+
 // --- Persian Helpers ---
 
-const persianMobileRegex = /^(\+98|0)?9\d{9}$/;
 const mobileE164Regex = /^\+989\d{9}$/;
 
-export const mobileInputSchema = z
-  .string()
-  .min(1, "شماره موبایل الزامی است")
-  .regex(/^09\d{9}$/, "شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد");
+/**
+ * Accepts any supported Iranian mobile format and transforms it to the
+ * canonical E.164 value (`+989123456789`). Invalid input fails with the
+ * shared Persian message.
+ */
+export const mobileInputSchema = iranMobileSchema;
 
 export const mobileE164Schema = z
   .string()

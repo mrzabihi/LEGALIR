@@ -21,6 +21,7 @@ import {
   computeDashboardMetrics,
   subscriptionDaysRemaining,
 } from "@/lib/dashboard-metrics";
+import { toPersianMobileDisplay } from "@legalir/validation";
 
 export async function GET(request: Request) {
   const userId = getUserIdFromRequest(request);
@@ -51,8 +52,8 @@ export async function GET(request: Request) {
   const data = {
     user: user ? {
       id: user.id,
-      mobileE164: `+98${user.mobile.replace(/^0/, '')}`,
-      mobileDisplay: user.mobile.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'['0123456789'.indexOf(d)] ?? d),
+      mobileE164: user.mobile,
+      mobileDisplay: toPersianMobileDisplay(user.mobile),
       status: 'active' as const,
     } : null,
     profile: {

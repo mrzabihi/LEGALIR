@@ -12,9 +12,11 @@ import {
   createUser,
   createSession,
   cleanupExpiredSessions,
+  MobileConflictError,
 } from "@/lib/db";
 import { clientIpFromHeaders } from "@/lib/user-agent";
 import { normalizeRegistrationIntent } from "@legalir/types";
+import { normalizeIranMobile, toNationalMobile } from "@legalir/validation";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -23,7 +25,7 @@ export async function POST(request: Request) {
     cleanupExpiredSessions();
 
     const body = await request.json();
-    const { mobile, email, password, registrationIntent } = body as {
+    const { mobile: rawMobile, email, password, registrationIntent } = body as {
       mobile?: string;
       email?: string;
       password?: string;
@@ -36,7 +38,11 @@ export async function POST(request: Request) {
     const intent = normalizeRegistrationIntent(registrationIntent) ?? "PERSONAL";
 
     // --- Validate required fields ---
-    if (!mobile || !/^09\d{9}$/.test(mobile)) {
+    // Independently normalize + validate the mobile to canonical E.164.
+    // The client format is never trusted, so a direct API call with
+    // `+98912…` / `0098912…` / Persian digits resolves to the same identity.
+    const mobile = rawMobile ? normalizeIranMobile(rawMobile) : null;
+    if (!mobile) {
       return NextResponse.json(
         {
           code: "INVALID_MOBILE",
@@ -95,13 +101,31 @@ export async function POST(request: Request) {
     const passwordHash = await bcrypt.hash(password, salt);
 
     // --- Create user ---
-    const user = createUser({
-      mobile,
-      email,
-      passwordHash,
-      displayName: undefined,
-      registrationIntent: intent,
-    });
+    // `createUser` re-checks uniqueness atomically; a concurrent request
+    // that won the race surfaces as MOBILE_EXISTS rather than a duplicate.
+    let user;
+    try {
+      user = createUser({
+        mobile,
+        email,
+        passwordHash,
+        displayName: undefined,
+        registrationIntent: intent,
+      });
+    } catch (err) {
+      if (err instanceof MobileConflictError) {
+        return NextResponse.json(
+          {
+            code: "MOBILE_EXISTS",
+            message: "این شماره موبایل قبلاً ثبت‌نام شده است",
+            fieldErrors: [],
+            retryable: false,
+          },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
 
     // --- Create session ---
     const session = createSession(user.id, {
@@ -112,8 +136,8 @@ export async function POST(request: Request) {
     // --- Build response ---
     const userResponse = {
       id: user.id,
-      mobileE164: "+98" + user.mobile.slice(1),
-      mobileDisplay: user.mobile,
+      mobileE164: user.mobile,
+      mobileDisplay: toNationalMobile(user.mobile),
       status: "active",
     };
 

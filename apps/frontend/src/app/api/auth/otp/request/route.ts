@@ -5,6 +5,7 @@
 // ============================================================
 
 import { NextResponse } from 'next/server';
+import { normalizeIranMobile } from '@legalir/validation';
 
 const OTP_CODE = '405405';
 const OTP_TTL_MS = 120_000;
@@ -54,9 +55,13 @@ export async function POST(request: Request) {
   try {
     cleanupExpired();
     const body = await request.json();
-    const { mobile } = body as { mobile?: string };
+    const { mobile: rawMobile } = body as { mobile?: string };
 
-    if (!mobile || !/^09\d{9}$/.test(mobile)) {
+    // Independently normalize + validate — never trust the client format.
+    // The canonical E.164 value is what the challenge and the rate-limit
+    // bucket are keyed on, so format variation cannot bypass the limit.
+    const mobile = rawMobile ? normalizeIranMobile(rawMobile) : null;
+    if (!mobile) {
       return NextResponse.json(
         { code: 'INVALID_MOBILE', message: 'شماره موبایل معتبر نیست', retryable: false },
         { status: 400 }

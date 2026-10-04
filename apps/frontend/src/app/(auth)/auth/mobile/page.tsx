@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { TextField, PasswordField } from "@legalir/ui";
 import { useRequestOtp, usePasswordLogin } from "@/lib/auth/use-auth";
-import { normalizeMobile } from "@/lib/auth/api";
+import { normalizeMobile, MOBILE_ERROR_MESSAGE } from "@/lib/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 type LoginTab = "password" | "otp";
@@ -20,7 +20,6 @@ export default function MobileLoginPage() {
   const { login, isPending: isPasswordPending, error: passwordError } = usePasswordLogin();
 
   const setIntendedRoute = useAuthStore((s) => s.setIntendedRoute);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   // Login tab — default to password for returning users (check localStorage for saved preference)
   const [activeTab, setActiveTab] = useState<LoginTab>(() => {
@@ -48,13 +47,6 @@ export default function MobileLoginPage() {
     }
   }, [searchParams, setIntendedRoute]);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/dashboard");
-    }
-  }, [isAuthenticated, router]);
-
   // Persist tab preference
   const handleTabChange = useCallback((tab: LoginTab) => {
     setActiveTab(tab);
@@ -79,7 +71,7 @@ export default function MobileLoginPage() {
 
     const normalized = normalizeMobile(otpMobile);
     if (!normalized) {
-      setOtpValidationError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+      setOtpValidationError(MOBILE_ERROR_MESSAGE);
       return;
     }
 
@@ -114,7 +106,7 @@ export default function MobileLoginPage() {
 
     const normalized = normalizeMobile(passwordMobile);
     if (!normalized) {
-      setPasswordValidationError("شماره موبایل معتبر نیست. لطفاً با ۰۹ وارد کنید");
+      setPasswordValidationError(MOBILE_ERROR_MESSAGE);
       return;
     }
 
@@ -142,7 +134,7 @@ export default function MobileLoginPage() {
       <div className="text-center mb-8">
         <h1 className="text-h2 text-primary-900 mb-2">ورود به حساب کاربری</h1>
         <p className="text-body-2 text-neutral-500">
-          برای استفاده از خدمات حقوقی LEGALIR وارد شوید
+          برای استفاده از خدمات حقوقی لیگالیر وارد شوید
         </p>
       </div>
 
