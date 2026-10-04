@@ -80,6 +80,9 @@ export default function ConversationPage() {
   const [attachedDocuments, setAttachedDocuments] = useState<V1DocumentListItem[]>([]);
   // Document opened from a message's attachment card (existing viewer).
   const [viewerDocumentId, setViewerDocumentId] = useState<string | null>(null);
+  // One-shot composer prefill, set when the user arrives from a context
+  // that already knows the question (e.g. «درباره این یافته سؤال کنید»).
+  const [composerInitialValue, setComposerInitialValue] = useState<string | undefined>(undefined);
 
   // The single legal-request state machine (§51). One run object, advanced
   // only by backend events — never by a client-side timer (§33). It is
@@ -135,6 +138,24 @@ export default function ConversationPage() {
     params.delete("attachedDocumentName");
     params.delete("attachedDocumentMime");
     params.delete("attachedDocumentSize");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${qs ? `?${qs}` : ""}`
+    );
+  }, [id]);
+
+  // Arriving from a finding's «درباره این یافته سؤال کنید»: seed the
+  // composer with the question (never auto-send), then strip the param so
+  // a refresh does not re-seed it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const ask = params.get("ask");
+    if (!ask) return;
+    setComposerInitialValue(ask);
+    params.delete("ask");
     const qs = params.toString();
     window.history.replaceState(
       null,
@@ -412,6 +433,7 @@ export default function ConversationPage() {
                     onAttachedDocumentsChange={setAttachedDocuments}
                     onAttachmentClick={setViewerDocumentId}
                     returnTo={`/chat/${id}`}
+                    composerInitialValue={composerInitialValue}
                   />
                 )}
               </div>

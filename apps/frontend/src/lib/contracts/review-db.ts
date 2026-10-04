@@ -159,6 +159,29 @@ export function latestAiReview(contractId: string): AiContractReview | null {
   return listAiReviews(contractId)[0] ?? null;
 }
 
+/**
+ * The AI-review axis for a contract, derived from its stored reviews
+ * and the version they were bound to.
+ *
+ *   • no review at all                        → not_reviewed
+ *   • newest review bound to currentVersion   → ready
+ *   • newest review bound to an older version → needs_re_review
+ *
+ * A review is ALWAYS bound to a fixed version, so a content change
+ * makes the stored result visibly stale rather than silently wrong.
+ */
+export function analysisStatusFor(
+  contractId: string,
+  currentVersionId: string | null
+): { status: "not_reviewed" | "ready" | "needs_re_review"; lastAnalyzedAt: string | null } {
+  const latest = latestAiReview(contractId);
+  if (!latest) return { status: "not_reviewed", lastAnalyzedAt: null };
+  if (currentVersionId && latest.contractVersionId === currentVersionId) {
+    return { status: "ready", lastAnalyzedAt: latest.createdAt };
+  }
+  return { status: "needs_re_review", lastAnalyzedAt: latest.createdAt };
+}
+
 export function insertAiReview(review: AiContractReview): AiContractReview {
   const rows = readTable<AiContractReview>(T_AI);
   rows.push(review);

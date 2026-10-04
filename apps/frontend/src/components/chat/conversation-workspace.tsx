@@ -59,6 +59,8 @@ interface ConversationWorkspaceProps {
   onAttachmentClick?: (documentId: string) => void;
   /** Where to return after uploading a new document (the chat URL). */
   returnTo?: string;
+  /** One-shot composer prefill (e.g. a question about a specific finding). */
+  composerInitialValue?: string;
 }
 
 export function ConversationWorkspace({
@@ -85,6 +87,7 @@ export function ConversationWorkspace({
   onAttachedDocumentsChange,
   onAttachmentClick,
   returnTo,
+  composerInitialValue,
 }: ConversationWorkspaceProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conversation.title);
@@ -316,6 +319,7 @@ export function ConversationWorkspace({
         attachedDocuments={attachedDocuments}
         onAttachedDocumentsChange={onAttachedDocumentsChange}
         returnTo={returnTo}
+        initialValue={composerInitialValue}
       />
     </div>
   );

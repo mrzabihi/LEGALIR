@@ -19,6 +19,7 @@ import {
 import { listParties, upsertParty } from "@/lib/contracts/db";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import { isEditable } from "@/lib/contracts/state-machine";
+import { normalizeIranMobile } from "@legalir/validation";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -69,6 +70,19 @@ export async function PUT(request: Request, { params }: Params) {
   const existing = listParties(contract.id).find((p) => p.role === body.role);
   const identity = body.identity ?? {};
 
+  // Normalize the contact mobile to canonical E.164 when present. This is
+  // a contact field, not an identity key, so it is normalized but never
+  // uniqueness-constrained. An invalid value is rejected rather than stored.
+  const rawMobile = identity.mobile ?? existing?.identity.mobile ?? "";
+  let mobile = "";
+  if (rawMobile.trim()) {
+    const normalized = normalizeIranMobile(rawMobile);
+    if (!normalized) {
+      return badRequest("شماره موبایل معتبر وارد کنید؛ مانند 09123456789", "INVALID_MOBILE");
+    }
+    mobile = normalized;
+  }
+
   const party: ContractParty = {
     id: existing?.id ?? `pty-${crypto.randomUUID()}`,
     contractId: contract.id,
@@ -84,7 +98,7 @@ export async function PUT(request: Request, { params }: Params) {
       birthCertificatePlace:
         identity.birthCertificatePlace ?? existing?.identity.birthCertificatePlace ?? "",
       birthDate: identity.birthDate ?? existing?.identity.birthDate ?? null,
-      mobile: identity.mobile ?? existing?.identity.mobile ?? "",
+      mobile,
       address: identity.address ?? existing?.identity.address ?? "",
       postalCode: identity.postalCode ?? existing?.identity.postalCode ?? "",
     },

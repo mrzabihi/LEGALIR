@@ -8,38 +8,46 @@
 //   • draft priority — resumable contracts surface first;
 //   • a dedicated «ادامه دهید» block for drafts, hidden when there
 //     are none;
-//   • smart grouping on "همه" (نیازمند ادامه / در حال بررسی / آماده /
-//     بایگانی);
+//   • smart grouping on "همه" (نیازمند ادامه / آماده / بایگانی) — but
+//     ONLY when no finer filter is active, so a filtered view is a
+//     plain, predictable list;
 //   • at most eight cards per group, with «مشاهده بیشتر» that expands
-//     in place and preserves the active filters;
-//   • status chips inline on desktop, in a bottom sheet on mobile.
+//     in place;
+//   • the coarse lifecycle tabs inline on desktop, the finer axes
+//     (draft / analysis / type / recency) behind «فیلترهای بیشتر»;
+//   • the SAME finer axes in a mobile drawer.
+//
+// The filter state itself is NOT owned here — it lives in the URL and
+// is passed in as `filters` / `onFiltersChange`, so browser Back works
+// and a filtered view survives a refresh. This component only reads it
+// and asks the page to change it.
 // ============================================================
 
 "use client";
 
 import React from "react";
 import type { UnifiedContract } from "@/lib/contracts/unified";
+import { groupUnifiedContracts, resumableContracts } from "@/lib/contracts/unified";
+import { CONTRACT_TABS, type ContractTab } from "@/lib/contracts/status";
 import {
-  groupUnifiedContracts,
-  resumableContracts,
-  sortUnifiedContracts,
-} from "@/lib/contracts/unified";
-import {
-  CONTRACT_STATUS_LABELS,
-  CONTRACT_STATUS_ORDER,
-  type ContractStatusGroup,
-} from "@/lib/contracts/status";
-import { faIncludes } from "@/lib/contracts/search";
+  activeFilterChips,
+  applyContractFilters,
+  contractTypeOptions,
+  hasActiveFilters,
+  removeFilterChip,
+  sortContractList,
+  CONTRACT_SORT_LABELS,
+  CONTRACT_SORT_ORDER,
+  type ActiveFilterChip,
+  type ContractFilterState,
+  type ContractSortKey,
+} from "@/lib/contracts/filters";
 import { trackContractEvent } from "@/lib/contracts/analytics";
-import { Select } from "@legalir/ui";
-import { IconFilter, IconHistory } from "@/lib/icons";
+import { Dialog, Drawer, Select } from "@legalir/ui";
+import { IconClose, IconFilter, IconHistory, IconRefresh } from "@/lib/icons";
 import { UserContractCard } from "./user-contract-card";
 import { ContractsEmptyState } from "./contracts-empty-state";
-import {
-  CONTRACT_SORT_LABELS,
-  ContractsFilterSheet,
-  type ContractSortKey,
-} from "./contracts-filter-sheet";
+import { ContractFilterPanel } from "./contract-filter-panel";
 
 /** How many cards a group shows before «مشاهده بیشتر». */
 const GROUP_LIMIT = 8;
@@ -47,73 +55,91 @@ const GROUP_LIMIT = 8;
 interface MyContractsSectionProps {
   contracts: UnifiedContract[];
   isLoading: boolean;
+  /** True when the list could not be loaded — shows a retry affordance. */
+  isError?: boolean;
+  /** Retry the failed list load. */
+  onRetry?: () => void;
   /** Opens the delete-confirmation dialog. */
   onDelete: (contract: UnifiedContract) => void;
   /** Copies a contract's id to the clipboard. */
   onCopyId: (contract: UnifiedContract) => void;
-  /** The shared search query from the page header. */
-  query: string;
+  /** The whole filter state — owned by the page (URL-backed). */
+  filters: ContractFilterState;
+  /** Ask the page to replace the filter state. */
+  onFiltersChange: (next: ContractFilterState) => void;
   /** Called when the user asks to start a contract from the empty state. */
   onStart?: () => void;
+}
+
+/** True when any axis beyond the coarse tab is narrowing the list. */
+function hasFinerFilters(filters: ContractFilterState): boolean {
+  return (
+    filters.draft.length > 0 ||
+    filters.analysis.length > 0 ||
+    filters.types.length > 0 ||
+    filters.dateRange !== "any"
+  );
 }
 
 export function MyContractsSection({
   contracts,
   isLoading,
+  isError = false,
+  onRetry,
   onDelete,
   onCopyId,
-  query,
+  filters,
+  onFiltersChange,
   onStart,
 }: MyContractsSectionProps) {
-  const [status, setStatus] = React.useState<ContractStatusGroup | "all">("all");
-  const [type, setType] = React.useState("");
-  const [sort, setSort] = React.useState<ContractSortKey>("updated");
-  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
 
-  const hasFilters = status !== "all" || type !== "" || query.trim() !== "";
+  const typeOptions = React.useMemo(() => contractTypeOptions(contracts), [contracts]);
 
-  const filtered = React.useMemo(() => {
-    let list = contracts;
-    if (status !== "all") list = list.filter((c) => c.status === status);
-    if (type) list = list.filter((c) => c.type === type);
-    if (query.trim()) {
-      list = list.filter(
-        (c) => faIncludes(c.title, query) || faIncludes(c.typeFa, query)
-      );
-    }
-    return list;
-  }, [contracts, status, type, query]);
+  // The whole filter state, applied in one place (AND between groups,
+  // OR within a group) then ordered by the chosen sort key.
+  const visible = React.useMemo(() => {
+    const filtered = applyContractFilters(contracts, filters);
+    return sortContractList(filtered, filters.sort);
+  }, [contracts, filters]);
 
-  const sorted = React.useMemo(() => {
-    const base = sortUnifiedContracts(filtered);
-    if (sort === "updated") return base;
-    if (sort === "created") {
-      return [...base].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    }
-    return [...base].sort((a, b) => a.title.localeCompare(b.title, "fa"));
-  }, [filtered, sort]);
+  const chips = React.useMemo(() => activeFilterChips(filters), [filters]);
+  const finerActive = hasFinerFilters(filters);
 
+  // The «ادامه دهید» block and the grouped view are only meaningful on
+  // the unfiltered «همه» view — a filtered list is shown flat.
+  const showGrouped = filters.tab === "all" && !finerActive;
   const drafts = React.useMemo(
-    () => (status === "all" && !type ? resumableContracts(filtered) : []),
-    [filtered, status, type]
+    () => (showGrouped ? resumableContracts(visible) : []),
+    [visible, showGrouped]
   );
   const groups = React.useMemo(
-    () => (status === "all" ? groupUnifiedContracts(sorted) : []),
-    [sorted, status]
+    () => (showGrouped ? groupUnifiedContracts(visible) : []),
+    [visible, showGrouped]
   );
 
-  const clearFilters = () => {
-    setStatus("all");
-    setType("");
-    setSort("updated");
+  const setTab = (tab: ContractTab) => {
+    onFiltersChange({ ...filters, tab });
+    trackContractEvent("contract_status_filtered", { status: tab });
   };
 
-  const changeStatus = (next: ContractStatusGroup | "all") => {
-    setStatus(next);
-    trackContractEvent("contract_status_filtered", { status: next });
+  const clearFilters = () => {
+    onFiltersChange({
+      ...filters,
+      tab: "all",
+      query: "",
+      draft: [],
+      analysis: [],
+      types: [],
+      dateRange: "any",
+      sort: "updated",
+    });
+  };
+
+  const removeChip = (chip: ActiveFilterChip) => {
+    onFiltersChange(removeFilterChip(filters, chip));
   };
 
   return (
@@ -123,73 +149,139 @@ export function MyContractsSection({
           قراردادهای من
         </h2>
 
-        {/* Mobile: filters live in a bottom sheet. */}
+        {/* Mobile: the finer axes live in a drawer. */}
         <button
           type="button"
-          onClick={() => setSheetOpen(true)}
+          onClick={() => setDrawerOpen(true)}
           className="tablet:hidden inline-flex h-10 items-center gap-1.5 rounded-medium border border-divider px-3 text-labelLarge text-on-surface"
         >
           <IconFilter size={18} />
           فیلترها
+          {finerActive && (
+            <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
+              {filters.draft.length +
+                filters.analysis.length +
+                filters.types.length +
+                (filters.dateRange !== "any" ? 1 : 0)}
+            </span>
+          )}
         </button>
       </div>
 
-      {/* Desktop filter bar — status chips + type + sort. */}
+      {/* Desktop filter bar — the coarse tabs on one row, the finer axes
+          behind «فیلترهای بیشتر», and the sort control. */}
       <div className="hidden tablet:flex items-center gap-3">
         <div
           role="tablist"
           aria-label="فیلتر وضعیت"
           className="flex flex-1 gap-2 overflow-x-auto pb-1 -mb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <StatusChip
-            label="همه"
-            selected={status === "all"}
-            onClick={() => changeStatus("all")}
-          />
-          {CONTRACT_STATUS_ORDER.map((key) => (
-            <StatusChip
-              key={key}
-              label={CONTRACT_STATUS_LABELS[key]}
-              selected={status === key}
-              onClick={() => changeStatus(key)}
+          {CONTRACT_TABS.map((tab) => (
+            <TabChip
+              key={tab.key}
+              label={tab.labelFa}
+              selected={filters.tab === tab.key}
+              onClick={() => setTab(tab.key)}
             />
           ))}
         </div>
 
-        <Select
-          label="نوع قرارداد"
-          value={type}
-          onChange={(e) => {
-            setType(e.target.value);
-            trackContractEvent("contract_type_filtered", { type: e.target.value });
-          }}
-          placeholder="همه انواع"
-          selectSize="small"
-          className="shrink-0"
-          options={uniqueTypes(contracts).map((t) => ({ value: t.type, label: t.typeFa }))}
-        />
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          className={[
+            "shrink-0 inline-flex h-10 items-center gap-1.5 rounded-medium border px-3 text-labelLarge transition-colors",
+            finerActive
+              ? "border-primary text-primary"
+              : "border-divider text-on-surface hover:border-control-selected/50",
+          ].join(" ")}
+        >
+          <IconFilter size={18} />
+          فیلترهای بیشتر
+          {finerActive && (
+            <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
+              {filters.draft.length +
+                filters.analysis.length +
+                filters.types.length +
+                (filters.dateRange !== "any" ? 1 : 0)}
+            </span>
+          )}
+        </button>
 
         <Select
           label="مرتب‌سازی"
-          value={sort}
+          value={filters.sort}
           onChange={(e) => {
-            setSort(e.target.value as ContractSortKey);
+            onFiltersChange({ ...filters, sort: e.target.value as ContractSortKey });
             trackContractEvent("contract_sort_changed", { sort: e.target.value });
           }}
           selectSize="small"
           className="shrink-0"
-          options={(Object.keys(CONTRACT_SORT_LABELS) as ContractSortKey[]).map((key) => ({
+          options={CONTRACT_SORT_ORDER.map((key) => ({
             value: key,
             label: CONTRACT_SORT_LABELS[key],
           }))}
         />
       </div>
 
+      {/* Result count + the removable active-filter chips. */}
+      {!isLoading && !isError && contracts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-caption text-muted">
+            {visible.length} قرارداد
+          </span>
+          {chips.map((chip) => (
+            <button
+              key={`${chip.group}:${chip.value}`}
+              type="button"
+              onClick={() => removeChip(chip)}
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-divider bg-surface px-2.5 text-caption text-on-surface transition-colors hover:border-error/40 hover:text-error"
+              aria-label={`حذف فیلتر ${chip.labelFa}`}
+            >
+              {chip.labelFa}
+              <IconClose size={12} />
+            </button>
+          ))}
+          {chips.length > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-caption text-primary hover:underline"
+            >
+              پاک کردن همه
+            </button>
+          )}
+        </div>
+      )}
+
       {isLoading ? (
         <ContractListSkeleton />
+      ) : isError ? (
+        <div
+          className="flex flex-col items-center justify-center rounded-large border border-divider bg-surface px-4 py-12 text-center"
+          role="alert"
+        >
+          <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error-50 text-error">
+            <IconRefresh size={28} />
+          </span>
+          <h3 className="text-titleMedium text-on-surface">بارگذاری قراردادها ناموفق بود</h3>
+          <p className="mt-1 max-w-sm text-body-2 text-muted">
+            ارتباط با سرور برقرار نشد. دوباره تلاش کنید.
+          </p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-6 inline-flex h-10 items-center gap-1.5 rounded-medium bg-primary px-4 text-labelLarge text-primary-on transition-colors hover:state-hover"
+            >
+              <IconRefresh size={18} />
+              تلاش مجدد
+            </button>
+          )}
+        </div>
       ) : contracts.length === 0 ? (
         <ContractsEmptyState variant="no-contracts" onStart={onStart} />
-      ) : filtered.length === 0 ? (
+      ) : visible.length === 0 ? (
         <ContractsEmptyState variant="no-results" onClearFilters={clearFilters} />
       ) : (
         <div className="space-y-6">
@@ -217,11 +309,11 @@ export function MyContractsSection({
             </div>
           )}
 
-          {/* Grouped view on "همه", flat list when a status is chosen. */}
-          {status === "all"
+          {/* Grouped view on the unfiltered «همه» tab, flat list otherwise. */}
+          {showGrouped
             ? groups.map((group) => {
                 const expanded = expandedGroups[group.key] ?? false;
-                const visible = expanded
+                const shown = expanded
                   ? group.contracts
                   : group.contracts.slice(0, GROUP_LIMIT);
                 return (
@@ -233,7 +325,7 @@ export function MyContractsSection({
                       </span>
                     </div>
                     <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
-                      {visible.map((contract) => (
+                      {shown.map((contract) => (
                         <UserContractCard
                           key={contract.id}
                           contract={contract}
@@ -258,7 +350,7 @@ export function MyContractsSection({
               })
             : (
               <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
-                {sorted.map((contract) => (
+                {visible.map((contract) => (
                   <UserContractCard
                     key={contract.id}
                     contract={contract}
@@ -268,46 +360,107 @@ export function MyContractsSection({
                 ))}
               </div>
             )}
-
-          {hasFilters && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-labelLarge text-primary hover:underline"
-              >
-                پاک کردن فیلترها
-              </button>
-            </div>
-          )}
         </div>
       )}
 
-      <ContractsFilterSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        status={status}
-        onStatusChange={changeStatus}
-        type={type}
-        onTypeChange={setType}
-        sort={sort}
-        onSortChange={setSort}
-        onClear={clearFilters}
-      />
+      {/* Desktop «فیلترهای بیشتر» — the finer axes in a dialog. */}
+      <Dialog
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        title="فیلترهای بیشتر"
+        description="قراردادها را بر اساس وضعیت پیش‌نویس، وضعیت بررسی، نوع و بازه زمانی محدود کنید."
+        maxWidth="md"
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="h-10 rounded-medium px-4 text-labelLarge text-primary transition-colors hover:state-hover"
+            >
+              پاک کردن
+            </button>
+            <button
+              type="button"
+              onClick={() => setMoreOpen(false)}
+              className="h-10 rounded-medium bg-primary px-4 text-labelLarge text-primary-on transition-colors hover:state-hover"
+            >
+              اعمال
+            </button>
+          </>
+        }
+      >
+        <ContractFilterPanel
+          filters={filters}
+          onChange={onFiltersChange}
+          typeOptions={typeOptions}
+        />
+      </Dialog>
+
+      {/* Mobile drawer — the SAME panel, so the two can never drift. */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="فیلتر و مرتب‌سازی"
+        width={340}
+      >
+        <div className="space-y-6">
+          <fieldset>
+            <legend className="mb-2 text-labelLarge text-on-surface">وضعیت</legend>
+            <div className="flex flex-wrap gap-2">
+              {CONTRACT_TABS.map((tab) => (
+                <TabChip
+                  key={tab.key}
+                  label={tab.labelFa}
+                  selected={filters.tab === tab.key}
+                  onClick={() => setTab(tab.key)}
+                />
+              ))}
+            </div>
+          </fieldset>
+
+          <ContractFilterPanel
+            filters={filters}
+            onChange={onFiltersChange}
+            typeOptions={typeOptions}
+          />
+
+          <Select
+            id="contract-sort-mobile"
+            label="مرتب‌سازی"
+            value={filters.sort}
+            onChange={(e) =>
+              onFiltersChange({ ...filters, sort: e.target.value as ContractSortKey })
+            }
+            fullWidth
+            options={CONTRACT_SORT_ORDER.map((key) => ({
+              value: key,
+              label: CONTRACT_SORT_LABELS[key],
+            }))}
+          />
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="h-11 flex-1 rounded-medium border border-outline text-labelLarge text-primary transition-colors hover:state-hover"
+            >
+              پاک کردن
+            </button>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              className="h-11 flex-1 rounded-medium bg-primary text-labelLarge text-primary-on transition-colors hover:state-hover"
+            >
+              اعمال
+            </button>
+          </div>
+        </div>
+      </Drawer>
     </section>
   );
 }
 
-/** The distinct contract types present in the list, for the type filter. */
-function uniqueTypes(contracts: UnifiedContract[]): { type: string; typeFa: string }[] {
-  const seen = new Map<string, string>();
-  for (const c of contracts) {
-    if (!seen.has(c.type)) seen.set(c.type, c.typeFa);
-  }
-  return [...seen.entries()].map(([type, typeFa]) => ({ type, typeFa }));
-}
-
-function StatusChip({
+function TabChip({
   label,
   selected,
   onClick,

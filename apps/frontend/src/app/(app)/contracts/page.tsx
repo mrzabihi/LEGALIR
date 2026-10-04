@@ -7,14 +7,10 @@ import { Suspense } from "react";
 // whole contract component set (wizard, preview, version compare, …), which
 // would pull unrelated modules into this list route's client bundle.
 import { ContractList } from "@/components/contracts/contract-list";
-import { PageContextHeader } from "@/components/shared";
 
 export default function ContractsPage() {
   return (
-    <div className="p-4 tablet:p-6 max-w-7xl mx-auto" dir="rtl">
-      <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
-        <PageContextHeader />
-      </Suspense>
+    <div className="p-4 tablet:p-6 max-w-[1400px] mx-auto" dir="rtl">
       <Suspense
         fallback={
           <div className="space-y-3" aria-label="در حال بارگذاری">

@@ -24,3 +24,4 @@ export { DocumentList } from "./document-list";
 export { ProcessingPipeline } from "./processing-pipeline";
 export type { PipelineStage } from "./processing-pipeline";
 export { DocumentChatPanel } from "./document-chat-panel";
+export { ReviewResult } from "./review-result";

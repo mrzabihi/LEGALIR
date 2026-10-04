@@ -22,9 +22,19 @@ import {
   sortUnifiedContracts,
   groupUnifiedContracts,
   resumableContracts,
+  type UnifiedContract,
 } from "@/lib/contracts/unified";
 import { normalizeFa, searchTemplates, faIncludes } from "@/lib/contracts/search";
 import { matchesTemplateCategory, templateCategoryFor } from "@/lib/contracts/categories";
+import {
+  DEFAULT_CONTRACT_FILTERS,
+  applyContractFilters,
+  parseContractFilters,
+  serializeContractFilters,
+  activeFilterChips,
+  removeFilterChip,
+  type ContractFilterState,
+} from "@/lib/contracts/filters";
 import { ContractTemplateGrid } from "../contract-template-grid";
 import { MyContractsSection } from "../my-contracts-section";
 import { UserContractCard } from "../user-contract-card";
@@ -53,6 +63,10 @@ function makeProperty(
     partySummaryFa: "علی رضایی و مریم محمدی",
     currentStep: "financial",
     currentStepTitleFa: "شرایط مالی",
+    analysisStatus: "not_reviewed",
+    lastAnalyzedAt: null,
+    archived: false,
+    exportedAt: null,
     updatedAt: "2026-09-20T10:00:00.000Z",
     createdAt: "2026-09-19T10:00:00.000Z",
     ...overrides,
@@ -84,7 +98,8 @@ describe("unified contract model", () => {
     const u = toUnifiedPropertyContract(makeProperty());
     expect(u.source).toBe("os");
     expect(u.referenceCode).toBe("LGL-RENT-1405-000016");
-    expect(u.status).toBe("draft");
+    // The DRAFT axis: a raw DRAFT state is «شروع‌شده».
+    expect(u.status).toBe("started");
     expect(u.progress).toBe(40);
     expect(u.actionable).toBe(true);
     expect(u.deletable).toBe(true);
@@ -94,7 +109,8 @@ describe("unified contract model", () => {
     const u = toUnifiedV1Contract(makeV1());
     expect(u.source).toBe("v1");
     expect(u.referenceCode).toBe("cnt-lease-001");
-    expect(u.status).toBe("generated");
+    // The DRAFT axis: a generated V1 contract has a complete text.
+    expect(u.status).toBe("ready");
     // V1 contracts have no completeness, so progress is 0.
     expect(u.progress).toBe(0);
     expect(u.deletable).toBe(false);
@@ -121,13 +137,15 @@ describe("unified contract model", () => {
     expect(sorted[0]!.id).toBe("new");
   });
 
-  it("groups into the four «همه» buckets and drops empty ones", () => {
+  it("groups into the «همه» buckets and drops empty ones", () => {
     const draft = toUnifiedPropertyContract(makeProperty({ id: "d", state: "DRAFT" }));
     const archived = toUnifiedPropertyContract(
       makeProperty({ id: "z", state: "ARCHIVED", stateFa: "بایگانی" })
     );
     const groups = groupUnifiedContracts([draft, archived]);
-    expect(groups.map((g) => g.key)).toEqual(["needs-work", "archived"]);
+    // An ARCHIVED raw state maps to the READY draft axis, so it lands in
+    // the «قراردادهای آماده» bucket — the archive axis is separate.
+    expect(groups.map((g) => g.key)).toEqual(["needs-work", "ready"]);
     expect(groups[0]!.titleFa).toBe("نیازمند ادامه");
   });
 
@@ -203,14 +221,16 @@ describe("template categories", () => {
 // ------------------------------------------------------------
 
 describe("ContractTemplateGrid (SECTION 1)", () => {
-  it("renders a card per implemented template with a «شروع» action", () => {
+  it("renders a card per implemented template with a SPECIFIC action", () => {
     render(
       <ContractTemplateGrid query="" category="all" onStart={() => undefined} />
     );
     // Every implemented definition is present.
     expect(screen.getByText("رهن و اجاره ملک مسکونی")).toBeInTheDocument();
     expect(screen.getByText("توافقنامه محرمانگی (NDA)")).toBeInTheDocument();
-    expect(screen.getAllByText("شروع").length).toBeGreaterThan(0);
+    // The CTA names the exact document, not a generic «شروع».
+    expect(screen.getByText("تنظیم قرارداد اجاره")).toBeInTheDocument();
+    expect(screen.getByText("تنظیم توافقنامه محرمانگی")).toBeInTheDocument();
   });
 
   it("filters by category", () => {
@@ -232,7 +252,9 @@ describe("ContractTemplateGrid (SECTION 1)", () => {
   it("calls onStart with the chosen definition", () => {
     const onStart = vi.fn();
     render(<ContractTemplateGrid query="" category="all" onStart={onStart} />);
-    fireEvent.click(screen.getByRole("button", { name: "شروع رهن و اجاره ملک مسکونی" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "تنظیم قرارداد اجاره — رهن و اجاره ملک مسکونی" })
+    );
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart.mock.calls[0]![0].id).toBe("property_rent");
   });
@@ -248,70 +270,140 @@ describe("MyContractsSection (SECTION 2)", () => {
     makeProperty({ id: "f1", state: "FINALIZED", stateFa: "نهایی‌شده", progress: 100 })
   );
 
-  it("shows the «ادامه دهید» block when drafts exist", () => {
-    render(
+  function renderSection(
+    contracts: UnifiedContract[],
+    filters: Partial<ContractFilterState> = {},
+    overrides: Partial<React.ComponentProps<typeof MyContractsSection>> = {}
+  ) {
+    return render(
       <MyContractsSection
-        contracts={[draft, finalized]}
+        contracts={contracts}
         isLoading={false}
         onDelete={() => undefined}
         onCopyId={() => undefined}
-        query=""
+        filters={{ ...DEFAULT_CONTRACT_FILTERS, ...filters }}
+        onFiltersChange={() => undefined}
+        {...overrides}
       />
     );
+  }
+
+  it("shows the «ادامه دهید» block when drafts exist", () => {
+    renderSection([draft, finalized]);
     expect(screen.getByText("ادامه دهید")).toBeInTheDocument();
   });
 
   it("hides the «ادامه دهید» block when there are no drafts", () => {
-    render(
-      <MyContractsSection
-        contracts={[finalized]}
-        isLoading={false}
-        onDelete={() => undefined}
-        onCopyId={() => undefined}
-        query=""
-      />
-    );
+    renderSection([finalized]);
     expect(screen.queryByText("ادامه دهید")).not.toBeInTheDocument();
   });
 
   it("shows the no-contracts empty state when the list is empty", () => {
-    render(
-      <MyContractsSection
-        contracts={[]}
-        isLoading={false}
-        onDelete={() => undefined}
-        onCopyId={() => undefined}
-        query=""
-      />
-    );
+    renderSection([]);
     expect(screen.getByText("هنوز قراردادی نساخته‌اید")).toBeInTheDocument();
   });
 
   it("shows the no-results empty state when the query excludes everything", () => {
-    render(
-      <MyContractsSection
-        contracts={[draft]}
-        isLoading={false}
-        onDelete={() => undefined}
-        onCopyId={() => undefined}
-        query="چیزی که وجود ندارد"
-      />
-    );
+    renderSection([draft], { query: "چیزی که وجود ندارد" });
     expect(screen.getByText("قراردادی با این شرایط پیدا نشد")).toBeInTheDocument();
   });
 
   it("groups contracts under «نیازمند ادامه» on the «همه» view", () => {
-    render(
-      <MyContractsSection
-        contracts={[draft, finalized]}
-        isLoading={false}
-        onDelete={() => undefined}
-        onCopyId={() => undefined}
-        query=""
-      />
-    );
+    renderSection([draft, finalized]);
     expect(screen.getByText("نیازمند ادامه")).toBeInTheDocument();
     expect(screen.getByText("قراردادهای آماده")).toBeInTheDocument();
+  });
+
+  it("shows a retry affordance when the list failed to load", () => {
+    const onRetry = vi.fn();
+    renderSection([], {}, { isError: true, onRetry });
+    expect(screen.getByText("بارگذاری قراردادها ناموفق بود")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("تلاش مجدد"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the active-filter chips and removes one on click", () => {
+    const onFiltersChange = vi.fn();
+    renderSection([draft], { draft: ["started"] }, { onFiltersChange });
+    // The chip label is the draft-status label.
+    fireEvent.click(screen.getByRole("button", { name: "حذف فیلتر شروع‌شده" }));
+    expect(onFiltersChange).toHaveBeenCalledTimes(1);
+    expect(onFiltersChange.mock.calls[0]![0].draft).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------
+// Filter model (spec §6)
+// ------------------------------------------------------------
+
+describe("contract filter model", () => {
+  const draft = toUnifiedPropertyContract(makeProperty({ id: "d1", state: "DRAFT" }));
+  const finalized = toUnifiedPropertyContract(
+    makeProperty({ id: "f1", state: "FINALIZED", stateFa: "نهایی‌شده", progress: 100 })
+  );
+
+  it("round-trips a filter state through the URL, omitting defaults", () => {
+    const state: ContractFilterState = {
+      ...DEFAULT_CONTRACT_FILTERS,
+      tab: "needs_work",
+      draft: ["started", "in_progress"],
+      analysis: ["not_reviewed"],
+      types: ["property_rent"],
+      dateRange: "30d",
+      sort: "title",
+    };
+    const params = serializeContractFilters(state);
+    expect(params.get("tab")).toBe("needs_work");
+    expect(params.get("draft")).toBe("started,in_progress");
+    expect(params.get("type")).toBe("property_rent");
+    expect(params.get("range")).toBe("30d");
+    expect(params.get("sort")).toBe("title");
+    expect(parseContractFilters(params)).toEqual(state);
+  });
+
+  it("produces a clean URL for the default state", () => {
+    expect(serializeContractFilters(DEFAULT_CONTRACT_FILTERS).toString()).toBe("");
+  });
+
+  it("ignores unknown values when parsing", () => {
+    const params = new URLSearchParams("tab=bogus&range=99d&sort=nope&draft=started,bogus");
+    const parsed = parseContractFilters(params);
+    expect(parsed.tab).toBe("all");
+    expect(parsed.dateRange).toBe("any");
+    expect(parsed.sort).toBe("updated");
+    expect(parsed.draft).toEqual(["started"]);
+  });
+
+  it("ANDs between groups and ORs within a group", () => {
+    // draft OR: started matches; analysis AND: not_reviewed matches.
+    const both = applyContractFilters([draft, finalized], {
+      ...DEFAULT_CONTRACT_FILTERS,
+      draft: ["started", "in_progress"],
+      analysis: ["not_reviewed"],
+    });
+    expect(both.map((c) => c.id)).toEqual(["d1"]);
+
+    // A draft filter that excludes the draft leaves nothing.
+    const none = applyContractFilters([draft, finalized], {
+      ...DEFAULT_CONTRACT_FILTERS,
+      draft: ["ready"],
+    });
+    expect(none.map((c) => c.id)).toEqual(["f1"]);
+  });
+
+  it("describes active filters as removable chips", () => {
+    const chips = activeFilterChips({
+      ...DEFAULT_CONTRACT_FILTERS,
+      tab: "ready",
+      draft: ["ready"],
+      sort: "title",
+    });
+    expect(chips.map((c) => c.group)).toEqual(["tab", "draft", "sort"]);
+    const removed = removeFilterChip(
+      { ...DEFAULT_CONTRACT_FILTERS, draft: ["ready"] },
+      { group: "draft", value: "ready", labelFa: "متن آماده" }
+    );
+    expect(removed.draft).toEqual([]);
   });
 });
 
@@ -320,14 +412,14 @@ describe("MyContractsSection (SECTION 2)", () => {
 // ------------------------------------------------------------
 
 describe("template card vs user card", () => {
-  it("a template card leads with a «شروع» verb and no status badge", () => {
+  it("a template card leads with a specific CTA and no status badge", () => {
     render(
       <ContractTemplateCard
         definition={getContractDefinition("property_rent")}
         onStart={() => undefined}
       />
     );
-    expect(screen.getByText("شروع")).toBeInTheDocument();
+    expect(screen.getByText("تنظیم قرارداد اجاره")).toBeInTheDocument();
     expect(screen.queryByText("پیش‌نویس")).not.toBeInTheDocument();
   });
 
@@ -338,6 +430,19 @@ describe("template card vs user card", () => {
     expect(screen.getByText("پیش‌نویس")).toBeInTheDocument();
     expect(screen.getByText("40٪")).toBeInTheDocument();
     expect(screen.getByText("ادامه تکمیل")).toBeInTheDocument();
+  });
+
+  it("a user card shows the AI-review axis separately from the draft axis", () => {
+    const contract = toUnifiedPropertyContract(
+      makeProperty({ analysisStatus: "needs_re_review" })
+    );
+    render(<UserContractCard contract={contract} onCopyId={() => undefined} />);
+    // The analysis badge is labelled as an AI review, never a verdict.
+    expect(
+      screen.getByText("بررسی هوش مصنوعی: نیازمند بررسی مجدد")
+    ).toBeInTheDocument();
+    // A stale review makes the primary verb about re-reviewing.
+    expect(screen.getByText("بررسی نسخه جدید")).toBeInTheDocument();
   });
 });
 

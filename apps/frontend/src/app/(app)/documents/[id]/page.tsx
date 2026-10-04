@@ -16,6 +16,7 @@ import {
 // whole document component set, pulling unrelated modules into this route.
 import { DocumentChatPanel } from "@/components/documents/document-chat-panel";
 import { DocumentPreviewCard } from "@/components/documents/document-preview-card";
+import { ReviewResult } from "@/components/documents/review-result";
 import { Button, Skeleton, ErrorState, ConfirmDialog, ProgressLinear } from "@legalir/ui";
 import { IconArrowBack, IconDelete, IconRefresh } from "@/lib/icons";
 import type { V1DocumentDetail } from "@legalir/types";
@@ -45,6 +46,13 @@ export default function DocumentDetailPage() {
 
   // --- Local UI state ---
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  // A question the user asked about a specific finding (spec §12). The
+  // nonce forces the chat panel to react even when the same finding is
+  // asked about twice in a row.
+  const [pendingQuestion, setPendingQuestion] = React.useState<{
+    text: string;
+    nonce: number;
+  } | null>(null);
 
   // --- Status polling effect ---
   const isProcessing =
@@ -190,6 +198,25 @@ export default function DocumentDetailPage() {
         sizeBytes={document.sizeBytes}
       />
 
+      {/* Structured review result — the six-tab surface (spec §11). */}
+      {document.status === "ready" && (
+        <div className="mt-6">
+          <h2 className="text-h3 text-on-surface mb-4">نتیجه بررسی</h2>
+          <ReviewResult
+            report={document.report}
+            extractedText={document.extractedText}
+            onAskAboutFinding={(finding) =>
+              setPendingQuestion({
+                text: `درباره این یافته توضیح بده: «${finding.title}»${
+                  finding.locator ? ` (${finding.locator})` : ""
+                }`,
+                nonce: Date.now(),
+              })
+            }
+          />
+        </div>
+      )}
+
       {/* Merged chat + analysis — LegalIR comments on the uploaded file.
           The analysis report is rendered as the opening assistant message. */}
       {document.status === "ready" && (
@@ -198,6 +225,7 @@ export default function DocumentDetailPage() {
             documentId={document.id}
             documentName={document.name}
             report={document.report}
+            pendingQuestion={pendingQuestion}
           />
         </div>
       )}

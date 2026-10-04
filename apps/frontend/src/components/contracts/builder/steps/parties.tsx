@@ -15,6 +15,7 @@ import { useWizard } from "../wizard-context";
 import { Field, FieldGrid, SectionCard, Notice, DateField } from "../primitives";
 import { useSaveParty } from "@/hooks/usePropertyContracts";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
+import { normalizeIranMobile, MOBILE_ERROR_MESSAGE } from "@legalir/validation";
 import type { PartyCapacity, PartyIdentity, PartyRole } from "@legalir/types";
 
 const EMPTY_IDENTITY: PartyIdentity = {
@@ -55,15 +56,15 @@ function PartyForm({ role }: { role: PartyRole }) {
       ? "کد ملی باید ۱۰ رقم باشد"
       : undefined;
   const mobileError =
-    identity.mobile.length > 0 && !/^09\d{9}$/.test(identity.mobile)
-      ? "شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد"
+    identity.mobile.length > 0 && !normalizeIranMobile(identity.mobile)
+      ? MOBILE_ERROR_MESSAGE
       : undefined;
 
   const canSave =
     identity.firstName.trim().length > 0 &&
     identity.lastName.trim().length > 0 &&
     /^\d{10}$/.test(identity.nationalId) &&
-    /^09\d{9}$/.test(identity.mobile);
+    normalizeIranMobile(identity.mobile) !== null;
 
   async function handleSave() {
     await saveParty.mutateAsync({
@@ -111,7 +112,7 @@ function PartyForm({ role }: { role: PartyRole }) {
         <Field
           label="شماره موبایل"
           value={identity.mobile}
-          onChange={(v) => set("mobile", v.replace(/\D/g, "").slice(0, 11))}
+          onChange={(v) => set("mobile", v.replace(/[^\d۰-۹٠-٩\s+()-]/g, "").slice(0, 20))}
           inputMode="tel"
           errorText={mobileError}
         />
