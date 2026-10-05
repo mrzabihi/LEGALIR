@@ -59,7 +59,9 @@ const CATEGORIES = [
   { anchor: "cat-consultation", title: "مشاوره و وکالت" },
   { anchor: "cat-contracts", title: "قراردادها و تنظیم اسناد" },
   { anchor: "cat-documents", title: "بررسی و تحلیل اسناد" },
-  { anchor: "cat-calculators", title: "محاسبه‌گرهای حقوقی" },
+  // The calculators shortcut navigates to the calculators index rather
+  // than scrolling to its catalog section.
+  { anchor: "cat-calculators", title: "محاسبه‌گرهای حقوقی", href: "/calculators" },
   { anchor: "cat-cases", title: "پرونده‌ها و پیگیری" },
   { anchor: "cat-library", title: "منابع و آموزش حقوقی" },
 ] as const;
@@ -101,7 +103,7 @@ test.describe("Services discovery page", () => {
     }
   });
 
-  test("category shortcuts are anchors into the catalog sections", async ({ page }) => {
+  test("category shortcuts link to their catalog section or route", async ({ page }) => {
     await page.goto("/services");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
       timeout: APP_READY_TIMEOUT,
@@ -111,7 +113,8 @@ test.describe("Services discovery page", () => {
     await expect(nav).toBeVisible();
 
     for (const category of CATEGORIES) {
-      await expect(nav.locator(`a[href="#${category.anchor}"]`)).toHaveCount(1);
+      const href = "href" in category ? category.href : `#${category.anchor}`;
+      await expect(nav.locator(`a[href="${href}"]`)).toHaveCount(1);
     }
   });
 

@@ -30,11 +30,14 @@ export function CategoryShortcuts({ categories, counts }: CategoryShortcutsProps
         {categories.map((category) => {
           const Icon = category.icon;
           const count = counts[category.id] ?? 0;
+          // Categories with an explicit `href` navigate to that route;
+          // the rest scroll to their catalog section via the anchor.
+          const href = category.href ?? `#${category.anchor}`;
 
           return (
             <li key={category.id}>
               <a
-                href={`#${category.anchor}`}
+                href={href}
                 onClick={() =>
                   trackServicesEvent("services_category_selected", {
                     categoryId: category.id,

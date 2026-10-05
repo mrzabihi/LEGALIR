@@ -64,6 +64,12 @@ export interface ServiceCategory {
   description: string;
   /** Anchor id used by the category shortcuts. */
   anchor: string;
+  /**
+   * Optional destination that overrides the in-page anchor. When set,
+   * the shortcut navigates to this route instead of scrolling to the
+   * catalog section below.
+   */
+  href?: string;
   icon: IconComponent;
   /** Tailwind gradient for the shortcut chip icon. */
   gradient: string;
@@ -99,6 +105,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     title: "محاسبه‌گرهای حقوقی",
     description: "دیه، مهریه، هزینه دادرسی و محاسبات کار و استخدام",
     anchor: "cat-calculators",
+    href: "/calculators",
     icon: IconCalculator,
     gradient: "from-amber-600 to-yellow-500",
   },
