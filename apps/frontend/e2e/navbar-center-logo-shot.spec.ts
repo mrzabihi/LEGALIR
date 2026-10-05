@@ -46,3 +46,17 @@ test("centre action shows the new navbar logo", async ({ page, request }) => {
 
   await page.locator("[data-center-action]").screenshot({ path: "e2e/__shots__/navbar-center-logo.png" });
 });
+
+test("desktop sidebar shows the new sidebar logo", async ({ page, request }) => {
+  await mockAuth(page, request);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/dashboard");
+
+  const img = page.locator('img[src="/legalir-logo-sidebar.png"]');
+  await expect(img).toBeVisible({ timeout: 15_000 });
+
+  const box = await img.boundingBox();
+  expect(box?.height).toBeGreaterThan(30);
+
+  await img.screenshot({ path: "e2e/__shots__/sidebar-logo.png" });
+});

@@ -104,7 +104,7 @@ export function Sidebar({ userRole }: SidebarProps) {
     <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
       {/* Logo Area — cohesive brand lockup with optical alignment */}
       <div className="flex items-center justify-center px-5 py-5">
-        <img src="/legalir-logo-dashboard.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
+        <img src="/legalir-logo-sidebar.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
       </div>
 
       <div className="mx-4 border-b border-glass-border" />
