@@ -54,6 +54,10 @@ const caseDeadlines = new Map<string, Record<string, unknown>[]>([
   [CASE_B, [{ id: "dl-B", case_id: CASE_B, title: "مهلت ب", due_at: "2026-09-01T00:00:00Z", source: "user", source_ref: null, needs_confirmation: false, completed: false, created_at: "2026-08-01T00:00:00Z" }]],
 ]);
 
+// Active memberships, keyed by `${caseId}:${accountId}`. A member of one case
+// must never resolve on another — the isolation the routes depend on.
+const activeMembers = new Map<string, Record<string, unknown>>();
+
 vi.mock("@/lib/case-db", () => ({
   getCaseById: (id: string) => cases.get(id),
   updateCase: vi.fn(),
@@ -61,6 +65,26 @@ vi.mock("@/lib/case-db", () => ({
   getCaseTasks: () => [],
   getCaseDocuments: (caseId: string) => caseDocuments.get(caseId) ?? [],
   getCaseDeadlines: (caseId: string) => caseDeadlines.get(caseId) ?? [],
+  getCaseParties: () => [],
+  getCaseMembers: () => [],
+  getCaseProceedings: () => [],
+  getCaseEngagements: () => [],
+  getCaseRepresentations: () => [],
+  getCaseContractLinks: () => [],
+  getCaseProceeding: () => undefined,
+  getCaseEngagement: () => undefined,
+  getActiveCaseMember: (caseId: string, accountId: string) => activeMembers.get(`${caseId}:${accountId}`),
+  createCaseParty: vi.fn(),
+  deleteCaseParty: vi.fn(),
+  createCaseProceeding: vi.fn(),
+  updateCaseProceeding: vi.fn(),
+  createCaseTask: vi.fn(),
+  wouldCreateDependencyCycle: () => false,
+  createCaseRepresentation: vi.fn(),
+  createCaseEngagement: vi.fn(),
+  updateCaseEngagement: vi.fn(),
+  addCaseMember: vi.fn(),
+  revokeCaseMember: vi.fn(),
   linkCaseDocument: vi.fn(),
   unlinkCaseDocument: vi.fn(),
   createCaseDeadline: vi.fn(),
@@ -129,6 +153,16 @@ import {
 } from "@/app/api/v1/cases/[id]/deadlines/route";
 import { GET as getDocument, DELETE as deleteDocument } from "@/app/api/v1/documents/[id]/route";
 import { POST as verifyLawyer } from "@/app/api/v1/admin/lawyers/[id]/verification/route";
+import { GET as getMembers, POST as postMember, DELETE as deleteMember } from "@/app/api/v1/cases/[id]/members/route";
+import {
+  GET as getEngagements,
+  POST as postEngagement,
+  PATCH as patchEngagement,
+} from "@/app/api/v1/cases/[id]/engagements/route";
+import { GET as getParties, POST as postParty } from "@/app/api/v1/cases/[id]/parties/route";
+import { POST as postStage } from "@/app/api/v1/cases/[id]/stage/route";
+import { POST as postLifecycle } from "@/app/api/v1/cases/[id]/lifecycle/route";
+import { GET as getOverview } from "@/app/api/v1/cases/[id]/overview/route";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,6 +186,7 @@ function params(id: string) {
 beforeEach(() => {
   sessions.clear();
   users.clear();
+  activeMembers.clear();
   users.set("user-A", { id: "user-A", role: "USER", platformAccountType: "PERSONAL" });
   users.set("user-B", { id: "user-B", role: "USER", platformAccountType: "PERSONAL" });
   users.set("admin", { id: "admin", role: "ADMIN", platformAccountType: "PERSONAL" });
@@ -360,6 +395,187 @@ describe("lawyer verification (RBAC)", () => {
     // The mocked setVerificationStatus returns undefined → 404, which proves
     // the request cleared the 401/403 gates and reached the handler body.
     expect(res.status).toBe(404);
+  });
+});
+
+// ============================================================
+// 7b. v2 case endpoints — BOLA + role gates
+// ============================================================
+
+describe("v2 case endpoints (BOLA)", () => {
+  it("user B cannot list user A's members — 404", async () => {
+    const res = await getMembers(req(`http://localhost/api/v1/cases/${CASE_A}/members`, "sess-B"), params(CASE_A));
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot grant a member on user A's case — 404", async () => {
+    const res = await postMember(
+      req(`http://localhost/api/v1/cases/${CASE_A}/members`, "sess-B", {
+        method: "POST",
+        body: JSON.stringify({ accountId: "x", role: "viewer" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot revoke a member on user A's case — 404", async () => {
+    const res = await deleteMember(
+      req(`http://localhost/api/v1/cases/${CASE_A}/members?accountId=x`, "sess-B", { method: "DELETE" }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot list user A's engagements — 404", async () => {
+    const res = await getEngagements(req(`http://localhost/api/v1/cases/${CASE_A}/engagements`, "sess-B"), params(CASE_A));
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot invite a lawyer to user A's case — 404", async () => {
+    const res = await postEngagement(
+      req(`http://localhost/api/v1/cases/${CASE_A}/engagements`, "sess-B", {
+        method: "POST",
+        body: JSON.stringify({ lawyerProfileId: "law-1", kind: "consultation", sharedScopes: ["summary"], ownerConsent: true }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot change an engagement on user A's case — 404", async () => {
+    const res = await patchEngagement(
+      req(`http://localhost/api/v1/cases/${CASE_A}/engagements`, "sess-B", {
+        method: "PATCH",
+        body: JSON.stringify({ engagementId: "e-1", state: "accepted" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot list user A's parties — 404", async () => {
+    const res = await getParties(req(`http://localhost/api/v1/cases/${CASE_A}/parties`, "sess-B"), params(CASE_A));
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot add a party to user A's case — 404", async () => {
+    const res = await postParty(
+      req(`http://localhost/api/v1/cases/${CASE_A}/parties`, "sess-B", {
+        method: "POST",
+        body: JSON.stringify({ kind: "person", name: "x", legalRole: "plaintiff" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot change the stage of user A's case — 404", async () => {
+    const res = await postStage(
+      req(`http://localhost/api/v1/cases/${CASE_A}/stage`, "sess-B", {
+        method: "POST",
+        body: JSON.stringify({ proceedingId: "p-1", stage: "civil_hearing" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot change the lifecycle of user A's case — 404", async () => {
+    const res = await postLifecycle(
+      req(`http://localhost/api/v1/cases/${CASE_A}/lifecycle`, "sess-B", {
+        method: "POST",
+        body: JSON.stringify({ lifecycle: "CLOSED", reason: "x" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("user B cannot read user A's overview — 404", async () => {
+    const res = await getOverview(req(`http://localhost/api/v1/cases/${CASE_A}/overview`, "sess-B"), params(CASE_A));
+    expect(res.status).toBe(404);
+  });
+
+  it("the owner can read their own overview", async () => {
+    const res = await getOverview(req(`http://localhost/api/v1/cases/${CASE_A}/overview`, "sess-A"), params(CASE_A));
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.case.id).toBe(CASE_A);
+  });
+});
+
+// ============================================================
+// 7c. Membership isolation — a member of one case reaches only that case
+// ============================================================
+
+describe("membership isolation (BOLA)", () => {
+  it("a lawyer member of case A can read case A but NOT case B", async () => {
+    activeMembers.set(`${CASE_A}:lawyer-1`, {
+      id: "m-1",
+      case_id: CASE_A,
+      account_id: "lawyer-1",
+      role: "lawyer",
+      scopes: ["documents"],
+      status: "active",
+      granted_at: "2026-08-01T00:00:00Z",
+      granted_by_user_id: "user-A",
+      revoked_at: null,
+    });
+    signIn("sess-lawyer", "lawyer-1");
+
+    const own = await getOverview(req(`http://localhost/api/v1/cases/${CASE_A}/overview`, "sess-lawyer"), params(CASE_A));
+    expect(own.status).toBe(200);
+
+    const foreign = await getOverview(req(`http://localhost/api/v1/cases/${CASE_B}/overview`, "sess-lawyer"), params(CASE_B));
+    expect(foreign.status).toBe(404);
+  });
+
+  it("a pending member sees the case but cannot write (stage change → 403)", async () => {
+    activeMembers.set(`${CASE_A}:pending-1`, {
+      id: "m-2",
+      case_id: CASE_A,
+      account_id: "pending-1",
+      role: "pending",
+      scopes: [],
+      status: "active",
+      granted_at: "2026-08-01T00:00:00Z",
+      granted_by_user_id: "user-A",
+      revoked_at: null,
+    });
+    signIn("sess-pending", "pending-1");
+
+    const res = await postStage(
+      req(`http://localhost/api/v1/cases/${CASE_A}/stage`, "sess-pending", {
+        method: "POST",
+        body: JSON.stringify({ proceedingId: "p-1", stage: "civil_hearing" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("a viewer cannot grant membership (403, not 404 — they can see the case)", async () => {
+    activeMembers.set(`${CASE_A}:viewer-1`, {
+      id: "m-3",
+      case_id: CASE_A,
+      account_id: "viewer-1",
+      role: "viewer",
+      scopes: [],
+      status: "active",
+      granted_at: "2026-08-01T00:00:00Z",
+      granted_by_user_id: "user-A",
+      revoked_at: null,
+    });
+    signIn("sess-viewer", "viewer-1");
+
+    const res = await postMember(
+      req(`http://localhost/api/v1/cases/${CASE_A}/members`, "sess-viewer", {
+        method: "POST",
+        body: JSON.stringify({ accountId: "x", role: "viewer" }),
+      }),
+      params(CASE_A)
+    );
+    expect(res.status).toBe(403);
   });
 });
 

@@ -1574,6 +1574,10 @@ export interface CaseListItem {
   taskCount: number;
   createdAt: string;
   updatedAt: string;
+  /** The internal LEGALIR lifecycle (v2). */
+  lifecycle?: "ACTIVE" | "ON_HOLD" | "CLOSED" | "ARCHIVED";
+  /** The human-facing LEGALIR reference (LGL-CASE-…). */
+  internalRef?: string;
 }
 
 export type CaseTimelineEventType =
@@ -2741,3 +2745,8 @@ export * from "./property-contract";
 // Legal Operating Platform (account types, RBAC, lawyers, orgs, requests)
 // ---------------------------------------------------------------------------
 export * from "./platform";
+
+// ---------------------------------------------------------------------------
+// Case Management operational model (lifecycle, proceedings, members, …)
+// ---------------------------------------------------------------------------
+export * from "./case-management";

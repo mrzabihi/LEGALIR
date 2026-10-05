@@ -1,30 +1,48 @@
 // ============================================================
 // LEGALIR — /api/v1/cases/[id]/deadlines
 // ============================================================
-// Legal deadlines on a case (PART 10).
+// Deadlines on a case (v2). Three INDEPENDENT kinds — legal / internal /
+// hearing — are never merged. A deadline is ALWAYS user-, lawyer- or
+// source-supplied; the AI never invents one. A rule-derived deadline
+// carries its rule reference and stays `proposed`/`needs_review` until a
+// human confirms it.
 //
-// A deadline is ALWAYS user-, lawyer- or source-supplied. The AI never
-// invents one. When a deadline is derived from a legal rule it must carry
-// the rule reference (`sourceRef`) and is flagged `needsConfirmation`
-// until a human confirms it — the UI shows «نیازمند تأیید» for those.
+// A date-only deadline is NOT overdue at the start of its day: the
+// operational state is derived in the Asia/Tehran calendar, so it reads
+// «روز موعد» until the end of that date.
 //
-// AUTHORIZATION: the case must belong to the caller.
+// AUTHORIZATION: `resolveCaseAccess`; foreign case → 404.
 // ============================================================
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import {
-  getCaseById,
   getCaseDeadlines,
   createCaseDeadline,
   updateCaseDeadline,
   deleteCaseDeadline,
   addCaseTimelineEvent,
 } from "@/lib/case-db";
+import { resolveCaseAccess } from "@/lib/cases/access";
+import { toDeadlineV2 } from "@/lib/cases/dto";
+import { deriveOperationalState } from "@/lib/cases/domain";
+import type {
+  CaseDeadlineCreateRequestV2,
+  CaseDeadlineUpdateRequestV2,
+  CaseDeadlineKind,
+  CaseDeadlineBasis,
+  CaseDeadlineReviewState,
+  CaseDeadlineOperationalState,
+} from "@legalir/types";
 
 const VALID_SOURCES = ["user", "lawyer", "legal_source", "system"] as const;
 type DeadlineSource = (typeof VALID_SOURCES)[number];
+
+const VALID_KINDS: CaseDeadlineKind[] = ["legal", "internal", "hearing"];
+const VALID_BASIS: CaseDeadlineBasis[] = ["manual", "computed", "document"];
+const VALID_REVIEW: CaseDeadlineReviewState[] = ["user_entered", "proposed", "needs_review", "reviewed"];
+const VALID_OPERATIONAL: CaseDeadlineOperationalState[] = ["open", "action_done", "needs_review_after_due", "cancelled"];
 
 function generateId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -34,24 +52,10 @@ function generateId(): string {
   });
 }
 
-function ownedCase(userId: string, caseId: string) {
-  const c = getCaseById(caseId);
-  if (!c || c.user_id !== userId) return null;
-  return c;
-}
-
-function toDto(d: ReturnType<typeof getCaseDeadlines>[number]) {
-  return {
-    id: d.id,
-    caseId: d.case_id,
-    title: d.title,
-    dueAt: d.due_at,
-    source: d.source,
-    sourceRef: d.source_ref,
-    needsConfirmation: d.needs_confirmation,
-    completed: d.completed,
-    createdAt: d.created_at,
-  };
+/** The stored row plus its derived operational state for the current instant. */
+function toDto(row: ReturnType<typeof getCaseDeadlines>[number]) {
+  const dto = toDeadlineV2(row);
+  return { ...dto, operationalState: deriveOperationalState(dto, new Date()) };
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -61,7 +65,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
   }
 
@@ -75,17 +80,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
   }
+  if (!access.canWrite) {
+    return NextResponse.json({ code: "FORBIDDEN", message: "دسترسی کافی ندارید" }, { status: 403 });
+  }
 
-  let body: {
-    title?: string;
-    dueAt?: string;
-    source?: string;
-    sourceRef?: string | null;
-    needsConfirmation?: boolean;
-  };
+  let body: CaseDeadlineCreateRequestV2;
   try {
     body = await req.json();
   } catch {
@@ -103,10 +106,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const source: DeadlineSource = VALID_SOURCES.includes(body.source as DeadlineSource)
     ? (body.source as DeadlineSource)
     : "user";
+  const kind: CaseDeadlineKind = VALID_KINDS.includes(body.kind as CaseDeadlineKind)
+    ? (body.kind as CaseDeadlineKind)
+    : "legal";
+  const basis: CaseDeadlineBasis = VALID_BASIS.includes(body.basis as CaseDeadlineBasis)
+    ? (body.basis as CaseDeadlineBasis)
+    : source === "legal_source"
+      ? "computed"
+      : "manual";
 
   // A deadline derived from a legal rule is never auto-trusted.
-  const needsConfirmation =
-    body.needsConfirmation ?? source === "legal_source";
+  const needsConfirmation = basis === "computed" || source === "legal_source";
 
   const deadline = createCaseDeadline({
     id: generateId(),
@@ -114,8 +124,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     title,
     dueAt: body.dueAt,
     source,
-    sourceRef: body.sourceRef ?? null,
+    sourceRef: body.ruleRef ?? null,
     needsConfirmation,
+    proceedingId: body.proceedingId ?? null,
+    kind,
+    dateOnly: body.dateOnly ?? true,
+    basis,
+    ruleRef: body.ruleRef ?? null,
+    sourceDocumentId: body.sourceDocumentId ?? null,
+    announcedDueAt: body.announcedDueAt ?? null,
   });
 
   addCaseTimelineEvent({
@@ -124,7 +141,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     eventType: "deadline_added",
     title: "مهلت اضافه شد",
     description: title,
-    metadata: { deadlineId: deadline.id, dueAt: deadline.due_at, source },
+    recordedByUserId: userId,
+    source: "user",
+    deadlineId: deadline.id,
+    metadata: { dueAt: deadline.due_at, source, kind },
   });
 
   return NextResponse.json({ data: toDto(deadline) }, { status: 201 });
@@ -137,17 +157,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
   }
+  if (!access.canWrite) {
+    return NextResponse.json({ code: "FORBIDDEN", message: "دسترسی کافی ندارید" }, { status: 403 });
+  }
 
-  let body: {
-    deadlineId?: string;
-    title?: string;
-    dueAt?: string;
-    completed?: boolean;
-    needsConfirmation?: boolean;
-  };
+  let body: CaseDeadlineUpdateRequestV2;
   try {
     body = await req.json();
   } catch {
@@ -161,8 +179,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates["title"] = body.title;
   if (body.dueAt !== undefined) updates["due_at"] = body.dueAt;
-  if (body.completed !== undefined) updates["completed"] = body.completed;
-  if (body.needsConfirmation !== undefined) updates["needs_confirmation"] = body.needsConfirmation;
+  if (body.kind !== undefined && VALID_KINDS.includes(body.kind)) updates["kind"] = body.kind;
+  if (body.overrideReason !== undefined) updates["override_reason"] = body.overrideReason;
+  if (body.announcedDueAt !== undefined) updates["announced_due_at"] = body.announcedDueAt;
+  if (body.reviewState !== undefined && VALID_REVIEW.includes(body.reviewState)) {
+    updates["review_state"] = body.reviewState;
+    if (body.reviewState === "reviewed") {
+      updates["reviewed_by_user_id"] = userId;
+      updates["reviewed_at"] = new Date().toISOString();
+      updates["needs_confirmation"] = false;
+    }
+  }
+  if (body.operationalState !== undefined && VALID_OPERATIONAL.includes(body.operationalState)) {
+    updates["operational_state"] = body.operationalState;
+  }
 
   const updated = updateCaseDeadline(id, body.deadlineId, updates);
   if (!updated) {
@@ -179,8 +209,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
+  }
+  if (!access.canWrite) {
+    return NextResponse.json({ code: "FORBIDDEN", message: "دسترسی کافی ندارید" }, { status: 403 });
   }
 
   const deadlineId = new URL(req.url).searchParams.get("deadlineId")?.trim();

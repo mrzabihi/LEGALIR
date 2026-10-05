@@ -5,23 +5,22 @@
 // the file lives in the documents table (owned by its uploader) and
 // this route records which case it belongs to.
 //
-// AUTHORIZATION (PART 15): ownership is checked TWICE —
-//   1. the case must belong to the caller, and
-//   2. the document must belong to the caller.
-// A user can never attach someone else's document to their own case,
-// nor read a case they do not own.
+// AUTHORIZATION: access is resolved through `resolveCaseAccess` (owner or
+// an active member with the `documents` scope). Ownership of the DOCUMENT
+// is checked a second time — a user can never attach someone else's
+// document to a case, nor read a case they cannot access.
 // ============================================================
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import {
-  getCaseById,
   getCaseDocuments,
   linkCaseDocument,
   unlinkCaseDocument,
   addCaseTimelineEvent,
 } from "@/lib/case-db";
+import { resolveCaseAccess } from "@/lib/cases/access";
 import { getDemoDocument } from "@/lib/demo-seed";
 
 function generateId(): string {
@@ -32,13 +31,6 @@ function generateId(): string {
   });
 }
 
-/** Resolve the case, enforcing ownership. Returns null when not permitted. */
-function ownedCase(userId: string, caseId: string) {
-  const c = getCaseById(caseId);
-  if (!c || c.user_id !== userId) return null;
-  return c;
-}
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const userId = getUserIdFromRequest(req);
   if (!userId) {
@@ -46,8 +38,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
+  }
+  if (!access.canReadDocuments) {
+    return NextResponse.json({ code: "FORBIDDEN", message: "دسترسی به اسناد این پرونده ندارید" }, { status: 403 });
   }
 
   // Only documents the caller still owns are surfaced — a link whose
@@ -80,8 +76,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
+  }
+  if (!access.canWrite) {
+    return NextResponse.json({ code: "FORBIDDEN", message: "دسترسی کافی ندارید" }, { status: 403 });
   }
 
   let body: { documentId?: string };
@@ -115,7 +115,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     eventType: "document_added",
     title: "سند اضافه شد",
     description: doc.name,
-    metadata: { documentId, linkId: link.id },
+    recordedByUserId: userId,
+    source: "user",
+    documentId,
+    metadata: { linkId: link.id },
   });
 
   return NextResponse.json(
@@ -143,8 +146,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   const { id } = await params;
-  if (!ownedCase(userId, id)) {
+  const access = resolveCaseAccess(userId, id);
+  if (!access) {
     return NextResponse.json({ code: "NOT_FOUND", message: "پرونده یافت نشد" }, { status: 404 });
+  }
+  if (!access.canWrite) {
+    return NextResponse.json({ code: "FORBIDDEN", message: "دسترسی کافی ندارید" }, { status: 403 });
   }
 
   const documentId = new URL(req.url).searchParams.get("documentId")?.trim();

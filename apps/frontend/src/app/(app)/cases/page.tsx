@@ -74,6 +74,9 @@ function CreateCaseModal({
 }) {
   const [form, setForm] = useState({ title: "", description: "", category: "contract" as CaseCategory, priority: "medium" as CasePriority });
   const [creating, setCreating] = useState(false);
+  // One idempotency key per modal session: a double-click or retry reuses it,
+  // so the server returns the SAME case instead of creating a duplicate.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +86,7 @@ function CreateCaseModal({
       const res = await fetch("/api/v1/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, idempotencyKey }),
       });
       const json = await res.json();
       if (json.data?.id) onCreated(json.data.id);
@@ -318,6 +321,13 @@ export default function CasesPage() {
               <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary-700 transition-colors line-clamp-2">
                 {c.title}
               </h3>
+
+              {/* The LEGALIR internal reference — never an official court number. */}
+              {c.internalRef && (
+                <p className="text-caption text-muted/70 mb-2" dir="ltr">
+                  شناسه لیگالیر: {c.internalRef}
+                </p>
+              )}
 
               {/* Badges */}
               <div className="flex items-center gap-2 mt-auto pt-3 border-t border-divider/40">
