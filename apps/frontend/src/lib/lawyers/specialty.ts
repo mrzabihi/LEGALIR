@@ -62,6 +62,8 @@ const EXTRA_ICON: Record<string, IconComponent> = {
   property: IconHome,
   business: IconBusiness,
   contracts: IconContract,
+  marriage: IconUsers,
+  medical: IconShield,
 };
 
 /** Persian labels for the extra (non-category) specialty slugs. */
@@ -75,6 +77,8 @@ const EXTRA_LABEL: Record<string, string> = {
   property: "املاک",
   business: "کسب‌وکار",
   contracts: "قراردادها",
+  marriage: "ازدواج و طلاق",
+  medical: "پزشکی",
 };
 
 /**

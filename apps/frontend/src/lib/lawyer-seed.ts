@@ -1,10 +1,15 @@
 // ============================================================
 // LEGALIR — Demo Lawyer Seed (server-only)
 // ============================================================
-// Seeds 10 clearly-marked demo lawyers (isDemo: true) across the
+// Seeds 20 clearly-marked demo lawyers (isDemo: true) across the
 // LegalCategory slugs so the marketplace and the matching engine have
 // realistic data in dev. Every row is VERIFIED and carries a synthetic
 // `userId` (demo-user-*) that never collides with a real account.
+//
+// Each profile is bound to one of the 20 supplied portraits under
+// /assets/lawyers/lawyer-demo-01.png … lawyer-demo-20.png (avatarType
+// "demo" — synthetic illustrations, never real photographs of the named
+// people). The card marks every one with the «نمونه» badge.
 //
 // Idempotent: guarded by a `lawyer_meta` seed_version, and rows are
 // upserted by id so re-running the dev server never duplicates.
@@ -39,7 +44,7 @@ interface LawyerReviewRow {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const LAWYER_SEED_VERSION = "legalir-lawyers-v6";
+export const LAWYER_SEED_VERSION = "legalir-lawyers-v7";
 
 /**
  * The demo lawyer who can actually log in. The first demo profile is
@@ -157,19 +162,31 @@ interface DemoLawyerSpec {
 // ---------------------------------------------------------------------------
 // Demo lawyers
 // ---------------------------------------------------------------------------
-// Nine profiles chosen so every availability state is visible in the UI:
-//   علی ذبیحی      REJECTED               — rated 4.5 / 12 reviews
-//   مهدیه فرسایی   LIMITED (2)
-//   حسام ساکی      ACTIVE (unlimited)
-//   محدثه رضایی    INACTIVE
-//   ناهید عبدالهی  AVAILABLE_SLOTS (10)
-//   علی شکری       FULL (0)
-//   فربد صالح      AVAILABLE_SLOTS (8)    — criminal defence
-//   فرشین گنجی     AVAILABLE_SLOTS (6)    — immigration, rated 1.0 / 5
-//   مهدی اسمعیلی   AVAILABLE_SLOTS (5)    — labour, in-person only
+// Twenty profiles spread across the practice areas so the marketplace reads
+// like a real roster and every availability state is visible in the UI:
+//   demo-lawyer-01  علی ذبیحی       REJECTED               — rated 4.5 / 12 reviews
+//   demo-lawyer-02  مهدیه فرسایی    LIMITED (2)
+//   demo-lawyer-03  حسام ساکی       ACTIVE (unlimited)
+//   demo-lawyer-04  محدثه رضایی     INACTIVE
+//   demo-lawyer-05  ناهید عبدالهی   AVAILABLE_SLOTS (10)
+//   demo-lawyer-06  علی شکری        FULL (0)
+//   demo-lawyer-07  فربد صالح       AVAILABLE_SLOTS (8)    — criminal defence
+//   demo-lawyer-08  فرشین گنجی      AVAILABLE_SLOTS (6)    — immigration, rated 1.0 / 5
+//   demo-lawyer-09  مهدی اسمعیلی    AVAILABLE_SLOTS (5)    — labour, in-person only
+//   demo-lawyer-10  سارا کریمی      AVAILABLE_SLOTS (7)    — family / marriage
+//   demo-lawyer-11  امیرحسین رضایی  AVAILABLE_SLOTS (9)    — contracts / companies
+//   demo-lawyer-12  الهام موسوی     LIMITED (3)            — real estate
+//   demo-lawyer-13  محمدرضا احمدی   AVAILABLE_SLOTS (6)    — criminal
+//   demo-lawyer-14  پریسا شریفی     AVAILABLE_SLOTS (8)    — commerce
+//   demo-lawyer-15  بهنام قاسمی     AVAILABLE_SLOTS (4)    — checks & negotiable instruments
+//   demo-lawyer-16  مریم تهرانی     AVAILABLE_SLOTS (5)    — tax
+//   demo-lawyer-17  کاوه مرادی      AVAILABLE_SLOTS (7)    — cyber crime
+//   demo-lawyer-18  شیرین یزدانی    LIMITED (2)            — medical law
+//   demo-lawyer-19  آرش نیکنام      AVAILABLE_SLOTS (6)    — companies / commerce
+//   demo-lawyer-20  نگار سلطانی     AVAILABLE_SLOTS (9)    — immigration / contracts
 //
 // Names are real, but every professional detail (specialty, experience,
-// licence, rating) is DEMO DATA. All nine are `isDemo: true` and are never
+// licence, rating) is DEMO DATA. All twenty are `isDemo: true` and are never
 // presented as verified practitioners.
 // ---------------------------------------------------------------------------
 
@@ -199,7 +216,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "REJECTED",
     consultationCapacity: null,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-ali-zabihi.webp",
+    avatarFile: "lawyer-demo-01.png",
   },
   {
     id: "demo-lawyer-02",
@@ -224,7 +241,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "LIMITED",
     consultationCapacity: 2,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-mahdieh-farsaei.webp",
+    avatarFile: "lawyer-demo-02.png",
   },
   {
     id: "demo-lawyer-03",
@@ -250,7 +267,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "ACTIVE",
     consultationCapacity: null,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-hesam-saki.webp",
+    avatarFile: "lawyer-demo-10.png",
   },
   {
     id: "demo-lawyer-04",
@@ -275,7 +292,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "INACTIVE",
     consultationCapacity: null,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-mohadeseh-rezaei.webp",
+    avatarFile: "lawyer-demo-04.png",
   },
   {
     id: "demo-lawyer-05",
@@ -300,7 +317,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 10,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-nahid-abdollahi.webp",
+    avatarFile: "lawyer-demo-05.png",
   },
   {
     id: "demo-lawyer-06",
@@ -325,7 +342,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "FULL",
     consultationCapacity: 0,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-ali-shokri.webp",
+    avatarFile: "lawyer-demo-12.png",
   },
   {
     id: "demo-lawyer-07",
@@ -350,7 +367,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 8,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-farbod-saleh.webp",
+    avatarFile: "lawyer-demo-07.png",
   },
   {
     id: "demo-lawyer-08",
@@ -374,7 +391,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 6,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-farshin-ganji.webp",
+    avatarFile: "lawyer-demo-11.png",
   },
   {
     id: "demo-lawyer-09",
@@ -399,7 +416,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 5,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-mehdi-esmaeili.webp",
+    avatarFile: "lawyer-demo-13.png",
   },
 ];
 
