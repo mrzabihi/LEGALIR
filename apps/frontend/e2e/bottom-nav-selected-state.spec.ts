@@ -7,7 +7,8 @@
  *   • the active destination is derived from the real route tree, so a
  *     section stays lit on its child routes and never lights two at once
  *   • `aria-current="page"` appears on exactly one destination
- *   • the sliding capsule indicator sits over the active destination
+ *   • the active destination draws no box: only its icon takes the brand
+ *     colour, and a soft glow sits under its label
  *   • the centre button opens the «ساخت جدید» sheet (four actions) and
  *     Escape closes it
  *   • the sheet is NON-MODAL: the bar stays live while it is open, so a
@@ -138,7 +139,9 @@ test.describe("Bottom navigation selected state", () => {
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
   });
 
-  test("the sliding capsule sits over the active destination", async ({ page }) => {
+  test("the active destination draws no box — only a coloured icon and a glow", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/services");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
@@ -147,27 +150,35 @@ test.describe("Bottom navigation selected state", () => {
 
     const nav = page.getByRole("navigation", { name: "منوی پایین" });
     const active = nav.getByRole("link", { name: "خدمات" });
+    const inactive = nav.getByRole("link", { name: "خانه" });
 
-    const geometry = await active.evaluate((link) => {
-      const capsule = link.querySelector("[data-nav-capsule]");
-      const nav = link.closest("nav");
-      const indicator = nav?.querySelector("[data-nav-indicator]");
-      if (!capsule || !indicator) return null;
-      const c = capsule.getBoundingClientRect();
-      const i = indicator.getBoundingClientRect();
+    // No box, ring, background or shadow is painted on the active item or
+    // its inner wrapper — the selected state is colour + glow only.
+    const activePaint = await active.evaluate((link) => {
+      const inner = link.firstElementChild as HTMLElement;
+      const cs = getComputedStyle(inner);
       return {
-        capsuleCenterX: c.left + c.width / 2,
-        capsuleCenterY: c.top + c.height / 2,
-        indicatorCenterX: i.left + i.width / 2,
-        indicatorCenterY: i.top + i.height / 2,
+        background: cs.backgroundColor,
+        boxShadow: cs.boxShadow,
+        borderWidth: cs.borderTopWidth,
       };
     });
+    expect(activePaint.background).toBe("rgba(0, 0, 0, 0)");
+    expect(activePaint.boxShadow).toBe("none");
+    expect(activePaint.borderWidth).toBe("0px");
 
-    expect(geometry).not.toBeNull();
-    // The indicator is measured from the active capsule, so the two centres
-    // must coincide (within a sub-pixel rounding tolerance).
-    expect(Math.abs(geometry!.indicatorCenterX - geometry!.capsuleCenterX)).toBeLessThanOrEqual(1);
-    expect(Math.abs(geometry!.indicatorCenterY - geometry!.capsuleCenterY)).toBeLessThanOrEqual(1);
+    // The active icon takes the brand colour; the inactive icon does not.
+    const activeIconColor = await active
+      .locator("svg")
+      .evaluate((el) => getComputedStyle(el).color);
+    const inactiveIconColor = await inactive
+      .locator("svg")
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(activeIconColor).not.toBe(inactiveIconColor);
+
+    // The glow host is present and active; the inactive one is not.
+    await expect(active.locator(".bottom-nav-label")).toHaveAttribute("data-active", "true");
+    await expect(inactive.locator(".bottom-nav-label")).toHaveAttribute("data-active", "false");
   });
 
   test("the centre button opens the create sheet and Escape closes it", async ({ page }) => {

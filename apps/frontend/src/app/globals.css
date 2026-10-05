@@ -237,31 +237,23 @@
   );
 
   /* Bottom navigation — aliases onto the shared warm-glass family */
-  --bottom-nav-bg: var(--warm-glass-surface);
-  --bottom-nav-border: var(--warm-glass-border);
-  --bottom-nav-icon-active: var(--warm-glass-ivory);
-  --bottom-nav-icon-inactive: var(--warm-glass-ivory-muted);
-  --bottom-nav-label-active: var(--warm-glass-ivory);
-  --bottom-nav-label-inactive: var(--warm-glass-ivory-muted);
-  --bottom-nav-state-layer: var(--warm-glass-state-layer);
   --bottom-nav-shadow: var(--warm-glass-shadow);
 
   /* Bottom navigation — Persian capsule bar (v0.6 redesign).
      The body stays on the shared warm-glass surface so the bar can never
      drift from the sidebar. The centre action is the brand navy with a soft
-     gold hairline; the active destination is a lighter ivory wash ringed in
-     gold. Every value aliases an existing family — no new raw colours. */
+     gold hairline. The active destination draws no box at all: only its icon
+     takes the brand colour and a soft glow settles under its label. Every
+     value aliases an existing family — no new raw colours. */
   --bottom-nav-body: var(--warm-glass-surface-strong);
   --bottom-nav-center-bg: var(--color-primary-600);
   --bottom-nav-accent: var(--color-secondary-300);
-  --bottom-nav-capsule-bg: rgba(255, 248, 238, 0.16);
-  --bottom-nav-capsule-ring: color-mix(in srgb, var(--color-secondary-300) 55%, transparent);
   --bottom-nav-icon: var(--warm-glass-ivory);
   --bottom-nav-icon-muted: var(--warm-glass-ivory-muted);
+  --bottom-nav-active-icon: var(--control-selected);
   --bottom-nav-badge-text: var(--color-primary-700);
-  /* Motion — capsule glide, colour shift, press feedback, sheet reveal.
-     Kept as tokens so the bar's timing is tuned in one place. */
-  --bottom-nav-motion-glide: 260ms;
+  /* Motion — colour shift, press feedback, sheet reveal. Kept as tokens so
+     the bar's timing is tuned in one place. */
   --bottom-nav-motion-color: 180ms;
   --bottom-nav-motion-press: 120ms;
   --bottom-nav-motion-sheet: 250ms;
@@ -693,18 +685,41 @@ html:not([data-theme]) {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Bottom-nav active capsule — the shared indicator glides between
-   destinations. Transition lives here (not inline) so the reduced-motion
-   override below can neutralise it in one place. */
-.bottom-nav-indicator {
-  transition:
-    left var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1),
-    width var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1),
-    top var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1),
-    height var(--bottom-nav-motion-glide) cubic-bezier(0.2, 0, 0, 1);
+/* Bottom-nav active destination — no box, no ring, no background. The only
+   selected-state marks are the brand-coloured icon (set inline) and a small,
+   soft glow that settles *under the label text*. The glow is a blurred
+   brand-gradient pseudo-element on the label wrapper: it occupies no layout
+   space, never intercepts taps, and is drawn only while the item is active.
+   The wrapper is `relative` and does not clip, so the blur can bleed past the
+   text without being cut off. */
+.bottom-nav-label {
+  position: relative;
+}
+.bottom-nav-label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 78%;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--bottom-nav-active-icon) 50%,
+    transparent 100%
+  );
+  filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--bottom-nav-motion-color) ease;
+}
+.bottom-nav-label[data-active="true"]::after {
+  opacity: 0.5;
 }
 @media (prefers-reduced-motion: reduce) {
-  .bottom-nav-indicator {
+  .bottom-nav-label::after {
     transition: none;
   }
 }
