@@ -12,13 +12,17 @@ import {
   listCalculators,
   CALCULATOR_CATEGORY_FA,
   CALCULATOR_CONFIDENCE_FA,
+  CALCULATOR_STATUS_FA,
 } from "@/lib/calculators";
 import type { CalculatorCategory } from "@legalir/types";
 
 const CATEGORY_ORDER: CalculatorCategory[] = [
-  "judicial",
   "employment",
+  "property",
+  "judicial",
   "family",
+  "injury",
+  "contracts",
   "civil",
 ];
 
@@ -26,6 +30,13 @@ const CONFIDENCE_TONE: Record<string, string> = {
   high: "bg-success-50 text-success-700 border-success-200",
   medium: "bg-warning-50 text-warning-700 border-warning-200",
   low: "bg-error-50 text-error-700 border-error-200",
+};
+
+const STATUS_TONE: Record<string, string> = {
+  legal_basis: "bg-primary-container text-on-primary-container border-[color:var(--color-primary)]",
+  official_tariff: "bg-secondary-container text-on-secondary-container border-[color:var(--color-secondary)]",
+  estimate: "bg-warning-50 text-warning-700 border-warning-200",
+  not_determinable: "bg-error-50 text-error-700 border-error-200",
 };
 
 export default function CalculatorsPage() {
@@ -69,11 +80,20 @@ export default function CalculatorsPage() {
                   >
                     {def.icon}
                   </span>
-                  <span
-                    className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${CONFIDENCE_TONE[def.confidence]}`}
-                  >
-                    {CALCULATOR_CONFIDENCE_FA[def.confidence]}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    {def.status && (
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_TONE[def.status] ?? CONFIDENCE_TONE[def.confidence]}`}
+                      >
+                        {CALCULATOR_STATUS_FA[def.status]}
+                      </span>
+                    )}
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${CONFIDENCE_TONE[def.confidence]}`}
+                    >
+                      {CALCULATOR_CONFIDENCE_FA[def.confidence]}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex-1">

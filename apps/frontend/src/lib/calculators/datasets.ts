@@ -17,6 +17,7 @@
 
 import type { RateDataset } from "@legalir/types";
 import { DATASET_REGIONAL_PROPERTY_1404 } from "./regional-property/locations";
+import { RATE_DATASETS_1405 } from "./datasets-1405";
 
 // ============================================================
 // Shared authority strings (kept as consts so they never drift)
@@ -316,6 +317,10 @@ export const RATE_DATASETS: RateDataset[] = [
   DATASET_PAYROLL_TAX_1404,
   DATASET_INHERITANCE_1404,
   DATASET_REGIONAL_PROPERTY_1404,
+  // 1405 annual configuration — the current calculation year. Registered
+  // after the 1404 set so `getDataset` resolves both; calculators that
+  // target the current year reference the `-1405` ids.
+  ...RATE_DATASETS_1405,
 ];
 
 /** Look up a dataset by id. Returns undefined for unknown ids. */
