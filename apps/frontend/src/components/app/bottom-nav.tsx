@@ -133,9 +133,9 @@ export function BottomNav() {
           style={{ background: "var(--bottom-nav-center-bg)" }}
         >
           <img
-            src="/legalir-logo-fa-light.png"
+            src="/legalir-navbar-center-logo.png"
             alt=""
-            className="pointer-events-none h-auto w-[42px] select-none"
+            className="pointer-events-none h-[42px] w-auto select-none"
             draggable={false}
           />
           {/* Corner badge — «+» to open, «×» to close. */}
