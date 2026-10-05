@@ -1,5 +1,6 @@
 export { OfflineBanner } from "./offline-banner";
 export { ForbiddenPage } from "./forbidden-page";
+export { NotFoundView, hasInternalHistory, type HistoryProbe } from "./not-found-view";
 export { MobileTable, MobileTableCard } from "./mobile-table";
 export { SplashScreen } from "./SplashScreen";
 export { AppSplashGate } from "./AppSplashGate";
