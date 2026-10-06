@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
 
+  // The admin panel is reachable at http://admin.localhost:3000 (the
+  // middleware rewrites that host onto the /admin tree). Dev-only: allow the
+  // subdomain origin so Next does not reject cross-origin dev requests.
+  ...(isDev && { allowedDevOrigins: ["admin.localhost", "*.localhost"] }),
+
   // Enable bundle analysis via ANALYZE=true env
   ...(process.env["ANALYZE"] === "true" && {
     webpack: (config: Record<string, unknown>) => {

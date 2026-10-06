@@ -2828,6 +2828,11 @@ export * from "./property-contract";
 export * from "./platform";
 
 // ---------------------------------------------------------------------------
+// Admin panel (audit, flags, orders, settlements, AI/RAG, support)
+// ---------------------------------------------------------------------------
+export * from "./admin";
+
+// ---------------------------------------------------------------------------
 // Case Management operational model (lifecycle, proceedings, members, …)
 // ---------------------------------------------------------------------------
 export * from "./case-management";

@@ -1,33 +1,37 @@
 // ============================================================
-// LEGALIR — Contracts page header
+// LEGALIR — Contracts hub header
 // ============================================================
-// The page's own header, not the generic service header. The
-// Contracts page hosts TWO services that must never be confused:
+// The shared header for the unified /contracts hub. It resolves the
+// active service from the URL (the single source of truth) and is
+// rendered ABOVE the two-tab switcher, so it stays pixel-identical when
+// the user switches between «قراردادهای فعال» and «به‌زودی فعال می‌شوند».
+//
+// The header hosts TWO services that must never be confused:
 //
 //   • تنظیم پیش‌نویس  — build a new contract from a template
 //   • بررسی قرارداد   — have an EXISTING contract analysed by AI
 //
-// So the header states the page's job in one sentence and offers the
-// two entry points as a primary and a secondary action. The primary
-// action scrolls to the template library (the page's own first
-// section) rather than navigating away, so the user never loses the
-// page they are on.
+// so it states the job in one sentence and offers the two entry points as
+// a primary and a secondary action, both real navigations.
 // ============================================================
 
 "use client";
 
 import Link from "next/link";
-import { Button } from "@legalir/ui";
+import { usePathname, useSearchParams } from "next/navigation";
+import { resolveService } from "@/lib/services";
 import { IconChevronRight, IconFilePen, IconFileSearch } from "@/lib/icons";
 
-interface ContractsPageHeaderProps {
-  /** Scrolls to the template library (SECTION 1). */
-  onStartNew: () => void;
-}
+export function ContractsPageHeader() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-export function ContractsPageHeader({ onStartNew }: ContractsPageHeaderProps) {
+  const service = resolveService(pathname, searchParams);
+  const Icon = service?.icon;
+  const title = service?.title ?? "تنظیم قرارداد";
+
   return (
-    <header className="mb-6">
+    <header className="mb-5">
       {/* Breadcrumb */}
       <nav aria-label="breadcrumb" className="mb-3">
         <ol className="flex items-center gap-1.5 text-caption text-muted">
@@ -44,33 +48,42 @@ export function ContractsPageHeader({ onStartNew }: ContractsPageHeaderProps) {
           </li>
           <li>
             <span aria-current="page" className="px-1 py-0.5 font-medium text-on-surface">
-              تنظیم پیش‌نویس و قراردادهای من
+              {title}
             </span>
           </li>
         </ol>
       </nav>
 
       <div className="flex flex-col gap-4 laptop:flex-row laptop:items-start laptop:justify-between laptop:gap-8">
-        <div className="min-w-0">
-          <h1 className="text-h2 font-bold text-on-surface">تنظیم پیش‌نویس و قراردادهای من</h1>
-          <p className="mt-2 max-w-2xl text-body-2 leading-relaxed text-on-surface-variant">
-            قرارداد تازه بسازید، پیش‌نویس‌های خود را تکمیل کنید و برای بررسی به هوش مصنوعی لیگالیر
-            بسپارید.
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          {Icon && (
+            <span
+              aria-hidden="true"
+              className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-gradient-to-br ${service?.gradient} text-white shadow-elevation-1 mobile-l:flex`}
+            >
+              <Icon size={22} />
+            </span>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-h2 font-bold text-on-surface">{title}</h1>
+            <p className="mt-1.5 max-w-2xl text-body-2 leading-relaxed text-on-surface-variant">
+              قرارداد تازه بسازید، پیش‌نویس‌های خود را تکمیل کنید و خدمات قراردادی در دست توسعه را
+              ببینید.
+            </p>
+          </div>
         </div>
 
         {/* The two entry points. The primary builds; the secondary
             reviews. They are visually distinct so the two services are
             never mistaken for one another. */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button
-            variant="filled"
-            size="large"
-            startIcon={<IconFilePen size={20} />}
-            onClick={onStartNew}
+          <Link
+            href="/contracts/new"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-medium bg-primary px-6 text-labelLarge text-primary-on transition-colors hover:state-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 touch-target"
           >
+            <IconFilePen size={20} aria-hidden="true" />
             تنظیم پیش‌نویس جدید
-          </Button>
+          </Link>
           <Link
             href="/contracts/review"
             className="inline-flex h-12 items-center justify-center gap-2 rounded-medium border border-outline px-6 text-labelLarge text-primary transition-colors hover:state-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"

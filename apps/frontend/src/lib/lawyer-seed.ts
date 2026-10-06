@@ -44,7 +44,7 @@ interface LawyerReviewRow {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const LAWYER_SEED_VERSION = "legalir-lawyers-v7";
+export const LAWYER_SEED_VERSION = "legalir-lawyers-v8";
 
 /**
  * The demo lawyer who can actually log in. The first demo profile is
@@ -154,7 +154,7 @@ interface DemoLawyerSpec {
   acceptingRequests: boolean;
   /**
    * Synthetic demo portrait filename under /assets/lawyers/. These are
-   * generated portraits — never real photographs of the named people.
+   * generated illustrations — never real photographs of the named people.
    */
   avatarFile: string;
 }
@@ -178,7 +178,7 @@ interface DemoLawyerSpec {
 //   demo-lawyer-12  الهام موسوی     LIMITED (3)            — real estate
 //   demo-lawyer-13  محمدرضا احمدی   AVAILABLE_SLOTS (6)    — criminal
 //   demo-lawyer-14  پریسا شریفی     AVAILABLE_SLOTS (8)    — commerce
-//   demo-lawyer-15  بهنام قاسمی     AVAILABLE_SLOTS (4)    — checks & negotiable instruments
+//   demo-lawyer-15  بهاره قاسمی     AVAILABLE_SLOTS (4)    — checks & negotiable instruments
 //   demo-lawyer-16  مریم تهرانی     AVAILABLE_SLOTS (5)    — tax
 //   demo-lawyer-17  کاوه مرادی      AVAILABLE_SLOTS (7)    — cyber crime
 //   demo-lawyer-18  شیرین یزدانی    LIMITED (2)            — medical law
@@ -241,7 +241,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "LIMITED",
     consultationCapacity: 2,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-02.png",
+    avatarFile: "lawyer-demo-03.png",
   },
   {
     id: "demo-lawyer-03",
@@ -267,7 +267,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "ACTIVE",
     consultationCapacity: null,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-10.png",
+    avatarFile: "lawyer-demo-02.png",
   },
   {
     id: "demo-lawyer-04",
@@ -292,7 +292,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "INACTIVE",
     consultationCapacity: null,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-04.png",
+    avatarFile: "lawyer-demo-05.png",
   },
   {
     id: "demo-lawyer-05",
@@ -317,7 +317,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 10,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-05.png",
+    avatarFile: "lawyer-demo-09.png",
   },
   {
     id: "demo-lawyer-06",
@@ -342,7 +342,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "FULL",
     consultationCapacity: 0,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-12.png",
+    avatarFile: "lawyer-demo-04.png",
   },
   {
     id: "demo-lawyer-07",
@@ -367,7 +367,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 8,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-07.png",
+    avatarFile: "lawyer-demo-06.png",
   },
   {
     id: "demo-lawyer-08",
@@ -391,7 +391,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 6,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-11.png",
+    avatarFile: "lawyer-demo-07.png",
   },
   {
     id: "demo-lawyer-09",
@@ -416,7 +416,272 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 5,
     acceptingRequests: true,
+    avatarFile: "lawyer-demo-08.png",
+  },
+  {
+    id: "demo-lawyer-10",
+    fullName: "سارا کریمی",
+    professionalTitle: "وکیل متخصص دعاوی خانواده و امور زوجین",
+    licenseNumber: "۲۴۱۸۸",
+    licenseYear: 1393,
+    bio: "وکیل دعاوی خانواده؛ طلاق توافقی و یک‌طرفه، مهریه، نفقه و حضانت فرزند. همراهی زوجین در مسیر سازش یا طرح دعاوی خانوادگی با رویکردی کم‌تنش و راه‌حل‌محور.",
+    specializations: [
+      { category: "family", yearsExperience: 9 },
+      { category: "marriage", yearsExperience: 8 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_050_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_850_000,
+    contractReviewFeeToman: 2_400_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 7,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-14.png",
+  },
+  {
+    id: "demo-lawyer-11",
+    fullName: "امیرحسین رضایی",
+    professionalTitle: "مشاور قراردادها و حقوق شرکت‌ها",
+    licenseNumber: "۱۸۷۴۲",
+    licenseYear: 1389,
+    bio: "مشاور قراردادها و حقوق شرکت‌ها؛ تنظیم و بازبینی قراردادهای تجاری، مشارکت مدنی و سرمایه‌گذاری، و همراهی در مذاکرات و ساختاردهی معاملات پیچیده.",
+    specializations: [
+      { category: "contract", yearsExperience: 13 },
+      { category: "companies", yearsExperience: 11 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_600_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_600_000,
+    contractReviewFeeToman: 4_200_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 9,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-10.png",
+  },
+  {
+    id: "demo-lawyer-12",
+    fullName: "الهام موسوی",
+    professionalTitle: "وکیل دعاوی ملکی و قراردادهای املاک",
+    licenseNumber: "۲۶۳۰۵",
+    licenseYear: 1392,
+    bio: "وکیل دعاوی ملکی؛ الزام به تنظیم سند رسمی، خلع ید، تخلیه و اختلافات مالک و مستأجر، همراه با تنظیم و بازبینی قراردادهای خرید، فروش و اجاره.",
+    specializations: [
+      { category: "real_estate", yearsExperience: 10 },
+      { category: "contract", yearsExperience: 8 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_150_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_950_000,
+    contractReviewFeeToman: 2_700_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "LIMITED",
+    consultationCapacity: 3,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-15.png",
+  },
+  {
+    id: "demo-lawyer-13",
+    fullName: "محمدرضا احمدی",
+    professionalTitle: "وکیل دعاوی کیفری",
+    licenseNumber: "۱۴۹۲۷",
+    licenseYear: 1387,
+    bio: "وکیل دعاوی کیفری با سابقه دفاع در پرونده‌های کلاهبرداری، جعل، خیانت در امانت و جرائم علیه اموال. تنظیم لایحه دفاعیه و پیگیری پرونده تا مرحله تجدیدنظر.",
+    specializations: [
+      { category: "criminal", yearsExperience: 14 },
+      { category: "checks", yearsExperience: 9 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_350_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_100_000,
+    contractReviewFeeToman: 2_900_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 6,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-11.png",
+  },
+  {
+    id: "demo-lawyer-14",
+    fullName: "پریسا شریفی",
+    professionalTitle: "مشاور معاملات تجاری و بازرگانی",
+    licenseNumber: "۲۹۵۵۰",
+    licenseYear: 1394,
+    bio: "مشاور معاملات تجاری و بازرگانی؛ تنظیم قراردادهای خرید و فروش، نمایندگی و توزیع، و پیگیری اختلافات بازرگانی در مراجع داوری و دادگاه‌های عمومی.",
+    specializations: [
+      { category: "commerce", yearsExperience: 8 },
+      { category: "contract", yearsExperience: 6 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_000_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_800_000,
+    contractReviewFeeToman: 2_500_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 8,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-16.png",
+  },
+  {
+    id: "demo-lawyer-15",
+    fullName: "بهاره قاسمی",
+    professionalTitle: "وکیل چک و اسناد تجاری",
+    licenseNumber: "۲۰۳۶۴",
+    licenseYear: 1391,
+    bio: "وکیل چک و اسناد تجاری؛ مطالبه وجه چک و سفته، دعاوی مربوط به چک برگشتی، صدور اجراییه و پیگیری پرونده‌های اسناد تجاری در دادگاه و اجرای احکام.",
+    specializations: [
+      { category: "checks", yearsExperience: 11 },
+      { category: "commerce", yearsExperience: 7 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_250_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 2_000_000,
+    contractReviewFeeToman: 2_600_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 4,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-17.png",
+  },
+  {
+    id: "demo-lawyer-16",
+    fullName: "مریم تهرانی",
+    professionalTitle: "وکیل دعاوی مالیاتی",
+    licenseNumber: "۱۷۵۸۹",
+    licenseYear: 1390,
+    bio: "وکیل دعاوی مالیاتی؛ تنظیم لایحه اعتراض به برگ تشخیص و برگ اجرایی، پیگیری پرونده در هیئت‌های حل اختلاف مالیاتی و شورای عالی مالیاتی، و مشاوره برنامه‌ریزی مالیاتی.",
+    specializations: [
+      { category: "tax", yearsExperience: 12 },
+      { category: "companies", yearsExperience: 9 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_450_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_400_000,
+    contractReviewFeeToman: 3_300_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 5,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-18.png",
+  },
+  {
+    id: "demo-lawyer-17",
+    fullName: "کاوه مرادی",
+    professionalTitle: "وکیل جرائم رایانه‌ای و فضای مجازی",
+    licenseNumber: "۳۵۲۷۱",
+    licenseYear: 1397,
+    bio: "وکیل جرائم رایانه‌ای؛ دفاع در پرونده‌های کلاهبرداری اینترنتی، هک، انتشار محتوای مجرمانه و نقض حریم خصوصی داده‌ها، همراه با مشاوره امنیت حقوقی کسب‌وکارهای آنلاین.",
+    specializations: [
+      { category: "cyber", yearsExperience: 7 },
+      { category: "criminal", yearsExperience: 5 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 950_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_700_000,
+    contractReviewFeeToman: 2_300_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 7,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-12.png",
+  },
+  {
+    id: "demo-lawyer-18",
+    fullName: "شیرین یزدانی",
+    professionalTitle: "وکیل دعاوی پزشکی و مسئولیت مدنی",
+    licenseNumber: "۲۱۸۴۶",
+    licenseYear: 1392,
+    bio: "وکیل دعاوی پزشکی؛ پیگیری پرونده‌های قصور پزشکی در کمیسیون‌های پزشکی قانونی و دادگاه، مطالبه دیه و خسارت، و مشاوره حقوقی به کادر درمان و مراکز درمانی.",
+    specializations: [
+      { category: "medical", yearsExperience: 9 },
+      { category: "contract", yearsExperience: 6 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_200_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_900_000,
+    contractReviewFeeToman: 2_500_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "LIMITED",
+    consultationCapacity: 2,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-19.png",
+  },
+  {
+    id: "demo-lawyer-19",
+    fullName: "آرش نیکنام",
+    professionalTitle: "مشاور حقوق شرکت‌ها و تجارت",
+    licenseNumber: "۱۶۹۳۲",
+    licenseYear: 1390,
+    bio: "مشاور حقوق شرکت‌ها و تجارت؛ ثبت و تغییرات شرکت، تنظیم صورت‌جلسات و اساسنامه، دعاوی سهامداران و قراردادهای تجاری. همراهی شرکت‌ها در امور روزمره حقوقی.",
+    specializations: [
+      { category: "companies", yearsExperience: 10 },
+      { category: "commerce", yearsExperience: 9 },
+      { category: "contract", yearsExperience: 8 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_400_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_300_000,
+    contractReviewFeeToman: 3_400_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 6,
+    acceptingRequests: true,
     avatarFile: "lawyer-demo-13.png",
+  },
+  {
+    id: "demo-lawyer-20",
+    fullName: "نگار سلطانی",
+    professionalTitle: "وکیل مهاجرت و قراردادهای بین‌الملل",
+    licenseNumber: "۳۲۸۱۵",
+    licenseYear: 1396,
+    bio: "وکیل مهاجرت و قراردادهای بین‌الملل؛ پرونده‌های اقامت و ویزای کاری، تنظیم و بازبینی قراردادهای بین‌المللی و مشاوره به شرکت‌ها در معاملات فرامرزی.",
+    specializations: [
+      { category: "immigration", yearsExperience: 6 },
+      { category: "contract", yearsExperience: 4 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 900_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_650_000,
+    contractReviewFeeToman: 2_300_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 9,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-20.png",
   },
 ];
 
@@ -479,9 +744,10 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
 // ---------------------------------------------------------------------------
 // Demo reviews
 // ---------------------------------------------------------------------------
-// علی ذبیحی carries 4.5 / 12 reviews and فرشین گنجی 1.0 / 5, so the rated,
-// low-rated AND unrated card states are all visible. These are DEMO reviews
-// — the author is a synthetic demo user, never a real account.
+// A handful of profiles carry reviews so the rated, low-rated AND unrated
+// card states are all visible: علی ذبیحی 4.5 / 12, فرشین گنجی 1.0 / 5, and
+// several mid-rated profiles. These are DEMO reviews — the author is a
+// synthetic demo user, never a real account.
 // ---------------------------------------------------------------------------
 
 interface DemoReviewSpec {
@@ -505,6 +771,11 @@ const DEMO_REVIEWS: DemoReviewSpec[] = [
       "انتظار داشتم مدارک را دقیق‌تر بررسی کنند؛ راضی نبودم.",
     ],
   },
+  { lawyerId: "demo-lawyer-05", ratings: [5, 5, 4, 5, 4] },
+  { lawyerId: "demo-lawyer-11", ratings: [5, 4, 5, 5] },
+  { lawyerId: "demo-lawyer-13", ratings: [4, 5, 4, 4, 5] },
+  { lawyerId: "demo-lawyer-16", ratings: [5, 5, 5, 4] },
+  { lawyerId: "demo-lawyer-20", ratings: [4, 4, 5] },
 ];
 
 const DEMO_REVIEW_COMMENTS = [

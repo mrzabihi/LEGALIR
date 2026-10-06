@@ -1,0 +1,621 @@
+// ============================================================
+// LEGALIR — Admin panel React Query hooks
+// ============================================================
+// One hook per admin data dependency. All cache keys are namespaced under
+// ["admin", ...] so a mutation can invalidate a precise slice. The hooks
+// carry no authorization logic — the server enforces every permission.
+// ============================================================
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+  PlatformRole,
+  Permission,
+  FeatureFlag,
+  LawyerSettlement,
+  AiProviderConfig,
+  RagSource,
+  SupportTicket,
+  StaffMember,
+} from "@legalir/types";
+import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
+import { useMe } from "@/hooks/useDashboard";
+import {
+  fetchAdminOverview,
+  fetchAdminReports,
+  fetchAdminUsers,
+  fetchAdminUser,
+  fetchAdminRequests,
+  fetchAdminRequest,
+  fetchAdminFlags,
+  updateAdminFlag,
+  type UpdateFlagInput,
+  fetchAdminOrders,
+  fetchAdminOrder,
+  createAdminRefund,
+  decideAdminRefund,
+  type CreateRefundInput,
+  fetchCommissionRules,
+  updateCommissionRule,
+  type UpdateCommissionRuleInput,
+  fetchAdminSettlements,
+  fetchAdminSettlement,
+  createAdminSettlement,
+  type CreateSettlementInput,
+  addAdminSettlementLine,
+  type AddSettlementLineInput,
+  transitionAdminSettlement,
+  type SettlementTransitionInput,
+  fetchAiProviders,
+  saveAiProvider,
+  type SaveAiProviderInput,
+  testAiProvider,
+  fetchAiPrompts,
+  createAiPromptVersion,
+  type CreatePromptVersionInput,
+  activateAiPromptVersion,
+  fetchAiUsageMetrics,
+  fetchRagSources,
+  updateRagReview,
+  type UpdateRagReviewInput,
+  fetchCalculatorsInventory,
+  fetchSupportTickets,
+  fetchSupportTicket,
+  createSupportTicket,
+  type CreateTicketInput,
+  addSupportMessage,
+  updateSupportTicket,
+  type UpdateTicketInput,
+  fetchAdminContent,
+  fetchAdminStaff,
+  fetchAdminRoles,
+  changeStaffRole,
+  fetchAdminAudit,
+  type AdminAuditQuery,
+  fetchAdminSettings,
+  fetchAdminLawyers,
+  decideLawyerVerification,
+  fetchAdminPlans,
+  fetchAdminPlan,
+  updateAdminPlan,
+  type AdminPlanUpdate,
+  type AdminUsersQuery,
+  type AdminRequestsQuery,
+  type AdminOrdersQuery,
+} from "@/lib/api/admin";
+import type {
+  SettlementStatus,
+  SupportTicketStatus,
+  SupportTicketPriority,
+  RagReviewState,
+} from "@legalir/types";
+
+// ---------------------------------------------------------------------------
+// Identity gate (UX only)
+// ---------------------------------------------------------------------------
+
+/**
+ * The current staff identity + a permission predicate. This is a UX
+ * affordance: the same permission is re-checked server-side on every admin
+ * API call, so hiding a control here is never the security boundary.
+ */
+export function useAdminMe() {
+  const me = useMe();
+  const role = me.data?.user.role as PlatformRole | undefined;
+  const isStaff = role ? canAccessAdminPanel(role) : false;
+  const can = (permission: Permission): boolean =>
+    role ? roleHasPermission(role, permission) : false;
+  return {
+    ...me,
+    role: role ?? null,
+    isStaff,
+    can,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Overview, reports, settings
+// ---------------------------------------------------------------------------
+
+export function useAdminOverview(rangeDays = 30) {
+  return useQuery({
+    queryKey: ["admin", "overview", rangeDays],
+    queryFn: () => fetchAdminOverview(rangeDays),
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+export function useAdminReports(rangeDays = 30) {
+  return useQuery({
+    queryKey: ["admin", "reports", rangeDays],
+    queryFn: () => fetchAdminReports(rangeDays),
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+export function useAdminSettings() {
+  return useQuery({
+    queryKey: ["admin", "settings"],
+    queryFn: fetchAdminSettings,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Users & requests
+// ---------------------------------------------------------------------------
+
+export function useAdminUsers(query: AdminUsersQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "users", query],
+    queryFn: () => fetchAdminUsers(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminUser(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "users", "detail", id],
+    queryFn: () => fetchAdminUser(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useAdminPlans() {
+  return useQuery({
+    queryKey: ["admin", "plans"],
+    queryFn: fetchAdminPlans,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+export function useAdminPlan(code: string | null) {
+  return useQuery({
+    queryKey: ["admin", "plans", "detail", code],
+    queryFn: () => fetchAdminPlan(code as string),
+    enabled: Boolean(code),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateAdminPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, input }: { code: string; input: AdminPlanUpdate }) =>
+      updateAdminPlan(code, input),
+    onSuccess: (updated) => {
+      qc.setQueryData(["admin", "plans", "detail", updated.code], (old: unknown) =>
+        old && typeof old === "object" ? { ...(old as object), plan: updated } : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "plans"] });
+    },
+  });
+}
+
+export function useAdminRequests(query: AdminRequestsQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "requests", query],
+    queryFn: () => fetchAdminRequests(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminRequest(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "requests", "detail", id],
+    queryFn: () => fetchAdminRequest(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Feature flags
+// ---------------------------------------------------------------------------
+
+export function useAdminFlags() {
+  return useQuery({
+    queryKey: ["admin", "flags"],
+    queryFn: fetchAdminFlags,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateAdminFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, input }: { key: string; input: UpdateFlagInput }) =>
+      updateAdminFlag(key, input),
+    onSuccess: (updated: FeatureFlag) => {
+      qc.setQueryData<{ items: FeatureFlag[] }>(["admin", "flags"], (old) =>
+        old ? { items: old.items.map((f) => (f.key === updated.key ? updated : f)) } : old
+      );
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Orders & refunds
+// ---------------------------------------------------------------------------
+
+export function useAdminOrders(query: AdminOrdersQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "orders", query],
+    queryFn: () => fetchAdminOrders(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminOrder(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "orders", "detail", id],
+    queryFn: () => fetchAdminOrder(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useCreateAdminRefund() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, input }: { orderId: string; input: CreateRefundInput }) =>
+      createAdminRefund(orderId, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+      qc.invalidateQueries({ queryKey: ["admin", "overview"] });
+    },
+  });
+}
+
+export function useDecideAdminRefund() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: "approved" | "rejected" }) =>
+      decideAdminRefund(id, decision),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+      qc.invalidateQueries({ queryKey: ["admin", "overview"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Finance & settlements
+// ---------------------------------------------------------------------------
+
+export function useCommissionRules() {
+  return useQuery({
+    queryKey: ["admin", "finance", "rules"],
+    queryFn: fetchCommissionRules,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateCommissionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateCommissionRuleInput) => updateCommissionRule(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "finance", "rules"] });
+    },
+  });
+}
+
+export function useAdminSettlements(filter: { lawyerId?: string; status?: SettlementStatus } = {}) {
+  return useQuery({
+    queryKey: ["admin", "settlements", filter],
+    queryFn: () => fetchAdminSettlements(filter),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useAdminSettlement(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "settlements", "detail", id],
+    queryFn: () => fetchAdminSettlement(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+export function useCreateAdminSettlement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSettlementInput) => createAdminSettlement(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "settlements"] }),
+  });
+}
+
+export function useAddSettlementLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AddSettlementLineInput }) =>
+      addAdminSettlementLine(id, input),
+    onSuccess: (updated: LawyerSettlement) => {
+      qc.setQueryData(["admin", "settlements", "detail", updated.id], updated);
+      qc.invalidateQueries({ queryKey: ["admin", "settlements"] });
+    },
+  });
+}
+
+export function useTransitionSettlement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: SettlementTransitionInput }) =>
+      transitionAdminSettlement(id, input),
+    onSuccess: (updated: LawyerSettlement) => {
+      qc.setQueryData(["admin", "settlements", "detail", updated.id], updated);
+      qc.invalidateQueries({ queryKey: ["admin", "settlements"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// AI providers, prompts & metrics
+// ---------------------------------------------------------------------------
+
+export function useAiProviders() {
+  return useQuery({
+    queryKey: ["admin", "ai", "providers"],
+    queryFn: fetchAiProviders,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useSaveAiProvider() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveAiProviderInput) => saveAiProvider(input),
+    onSuccess: (saved: AiProviderConfig) => {
+      qc.setQueryData<{ items: AiProviderConfig[]; secretStorageConfigured: boolean }>(
+        ["admin", "ai", "providers"],
+        (old) => {
+          if (!old) return old;
+          const exists = old.items.some((p) => p.id === saved.id);
+          return {
+            ...old,
+            items: exists
+              ? old.items.map((p) => (p.id === saved.id ? saved : p))
+              : [...old.items, saved],
+          };
+        }
+      );
+    },
+  });
+}
+
+export function useTestAiProvider() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => testAiProvider(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "ai", "providers"] }),
+  });
+}
+
+export function useAiPrompts(key?: string) {
+  return useQuery({
+    queryKey: ["admin", "ai", "prompts", key ?? null],
+    queryFn: () => fetchAiPrompts(key),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useCreateAiPrompt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreatePromptVersionInput) => createAiPromptVersion(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "ai", "prompts"] }),
+  });
+}
+
+export function useActivateAiPrompt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => activateAiPromptVersion(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "ai", "prompts"] }),
+  });
+}
+
+export function useAiMetrics(rangeDays = 30) {
+  return useQuery({
+    queryKey: ["admin", "ai", "metrics", rangeDays],
+    queryFn: () => fetchAiUsageMetrics(rangeDays),
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// RAG
+// ---------------------------------------------------------------------------
+
+export function useRagSources(filter: { reviewState?: RagReviewState; search?: string } = {}) {
+  return useQuery({
+    queryKey: ["admin", "rag", "sources", filter],
+    queryFn: () => fetchRagSources(filter),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateRagReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateRagReviewInput }) =>
+      updateRagReview(id, input),
+    onSuccess: (updated: RagSource) => {
+      qc.invalidateQueries({ queryKey: ["admin", "rag", "sources"] });
+      void updated;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Calculators
+// ---------------------------------------------------------------------------
+
+export function useCalculatorsInventory() {
+  return useQuery({
+    queryKey: ["admin", "calculators"],
+    queryFn: fetchCalculatorsInventory,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Support
+// ---------------------------------------------------------------------------
+
+export function useSupportTickets(filter: {
+  status?: SupportTicketStatus;
+  priority?: SupportTicketPriority;
+} = {}) {
+  return useQuery({
+    queryKey: ["admin", "support", filter],
+    queryFn: () => fetchSupportTickets(filter),
+    staleTime: 20_000,
+    retry: 1,
+  });
+}
+
+export function useSupportTicket(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "support", "detail", id],
+    queryFn: () => fetchSupportTicket(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+export function useCreateTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTicketInput) => createSupportTicket(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "support"] }),
+  });
+}
+
+export function useAddSupportMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body, isInternal }: { id: string; body: string; isInternal?: boolean }) =>
+      addSupportMessage(id, body, isInternal),
+    onSuccess: (updated: SupportTicket) => {
+      qc.setQueryData(["admin", "support", "detail", updated.id], (old: unknown) =>
+        old && typeof old === "object" ? { ...(old as object), ticket: updated } : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "support"] });
+    },
+  });
+}
+
+export function useUpdateSupportTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateTicketInput }) =>
+      updateSupportTicket(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "support"] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
+
+export function useAdminContent() {
+  return useQuery({
+    queryKey: ["admin", "content"],
+    queryFn: fetchAdminContent,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Staff, roles & audit
+// ---------------------------------------------------------------------------
+
+export function useAdminStaff() {
+  return useQuery({
+    queryKey: ["admin", "staff"],
+    queryFn: fetchAdminStaff,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+export function useAdminRoles() {
+  return useQuery({
+    queryKey: ["admin", "roles"],
+    queryFn: fetchAdminRoles,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+export function useChangeStaffRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: PlatformRole }) =>
+      changeStaffRole(userId, role),
+    onSuccess: (updated: StaffMember) => {
+      qc.setQueryData<{ items: StaffMember[] }>(["admin", "staff"], (old) =>
+        old ? { items: old.items.map((m) => (m.id === updated.id ? updated : m)) } : old
+      );
+    },
+  });
+}
+
+export function useAdminAudit(query: AdminAuditQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "audit", query],
+    queryFn: () => fetchAdminAudit(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Lawyers (verification queue)
+// ---------------------------------------------------------------------------
+
+export function useAdminLawyers(status?: string) {
+  return useQuery({
+    queryKey: ["admin", "lawyers", status ?? null],
+    queryFn: () => fetchAdminLawyers(status),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useDecideLawyerVerification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, note }: { id: string; status: string; note?: string }) =>
+      decideLawyerVerification(id, status, note),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "lawyers"] }),
+  });
+}

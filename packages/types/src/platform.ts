@@ -80,7 +80,15 @@ export type PlatformRole =
   | "COMPANY_OWNER"
   | "COMPANY_ADMIN"
   | "COMPANY_MEMBER"
+  // --- Platform staff (LEGALIR operator) ---
   | "SUPPORT"
+  | "ANALYST"
+  | "AUDITOR"
+  | "ADMIN_OPS"
+  | "ADMIN_LAWYERS"
+  | "ADMIN_FINANCE"
+  | "ADMIN_CONTENT"
+  | "ADMIN_AI"
   | "ADMIN"
   | "SUPER_ADMIN";
 
@@ -91,8 +99,15 @@ export const ROLE_FA: Record<PlatformRole, string> = {
   COMPANY_ADMIN: "مدیر سازمان",
   COMPANY_MEMBER: "عضو سازمان",
   SUPPORT: "پشتیبان",
-  ADMIN: "مدیر سیستم",
-  SUPER_ADMIN: "مدیر ارشد",
+  ANALYST: "تحلیل‌گر",
+  AUDITOR: "حسابرس",
+  ADMIN_OPS: "مدیر عملیات",
+  ADMIN_LAWYERS: "مدیر امور وکلا",
+  ADMIN_FINANCE: "مدیر مالی",
+  ADMIN_CONTENT: "مدیر حقوقی و محتوا",
+  ADMIN_AI: "مدیر هوش مصنوعی",
+  ADMIN: "مدیر پلتفرم",
+  SUPER_ADMIN: "مدیر ارشد پلتفرم",
 };
 
 /**
@@ -126,14 +141,49 @@ export type Permission =
   | "org:contract:write:all"
   | "org:billing:manage"
   | "org:settings:manage"
-  // Platform administration
+  // Platform administration — coarse (legacy keys, kept for compatibility)
   | "admin:users:read"
   | "admin:users:manage"
   | "admin:lawyer:verify"
   | "admin:knowledge:read"
   | "admin:knowledge:write"
   | "admin:audit:read"
-  | "admin:system:manage";
+  | "admin:system:manage"
+  // Platform administration — granular (admin panel sections)
+  | "admin:overview:read"
+  | "admin:requests:read"
+  | "admin:requests:manage"
+  | "admin:lawyer:read"
+  | "admin:services:read"
+  | "admin:services:manage"
+  | "admin:flags:manage"
+  | "admin:plans:read"
+  | "admin:plans:manage"
+  | "admin:billing:read"
+  | "admin:billing:manage"
+  | "admin:refund:approve"
+  | "admin:finance:read"
+  | "admin:finance:manage"
+  | "admin:settlement:manage"
+  | "admin:settlement:approve"
+  | "admin:ai:read"
+  | "admin:ai:manage"
+  | "admin:ai:secret"
+  | "admin:rag:read"
+  | "admin:rag:manage"
+  | "admin:rag:publish"
+  | "admin:calculators:read"
+  | "admin:calculators:manage"
+  | "admin:support:read"
+  | "admin:support:manage"
+  | "admin:content:read"
+  | "admin:content:manage"
+  | "admin:reports:read"
+  | "admin:reports:export"
+  | "admin:staff:read"
+  | "admin:staff:manage"
+  | "admin:settings:read"
+  | "admin:settings:manage";
 
 /** The permission set granted to each role. */
 export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
@@ -210,25 +260,178 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "org:billing:manage",
     "org:settings:manage",
   ],
+  // --- Platform staff ---
+  // Separation of duties: no single operations role holds every power,
+  // and financial approval is split from financial entry.
   SUPPORT: [
+    "admin:overview:read",
     "admin:users:read",
+    "admin:requests:read",
+    "admin:support:read",
+    "admin:support:manage",
     "admin:audit:read",
+  ],
+  ANALYST: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:requests:read",
+    "admin:billing:read",
+    "admin:finance:read",
+    "admin:ai:read",
+    "admin:rag:read",
+    "admin:reports:read",
+  ],
+  AUDITOR: [
+    "admin:overview:read",
+    "admin:audit:read",
+    "admin:billing:read",
+    "admin:finance:read",
+    "admin:reports:read",
+    "admin:staff:read",
+    "admin:settings:read",
+  ],
+  ADMIN_OPS: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:users:manage",
+    "admin:requests:read",
+    "admin:requests:manage",
+    "admin:services:read",
+    "admin:services:manage",
+    "admin:flags:manage",
+    "admin:plans:read",
+    "admin:lawyer:read",
+    "admin:support:read",
+    "admin:support:manage",
+    "admin:reports:read",
+  ],
+  ADMIN_LAWYERS: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:requests:read",
+    "admin:lawyer:read",
+    "admin:lawyer:verify",
+    "admin:reports:read",
+  ],
+  ADMIN_FINANCE: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:billing:read",
+    "admin:billing:manage",
+    "admin:refund:approve",
+    "admin:finance:read",
+    "admin:finance:manage",
+    "admin:settlement:manage",
+    "admin:settlement:approve",
+    "admin:plans:read",
+    "admin:plans:manage",
+    "admin:reports:read",
+    "admin:reports:export",
+  ],
+  ADMIN_CONTENT: [
+    "admin:overview:read",
+    "admin:knowledge:read",
+    "admin:knowledge:write",
+    "admin:content:read",
+    "admin:content:manage",
+    "admin:calculators:read",
+    "admin:calculators:manage",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
+    "admin:reports:read",
+  ],
+  ADMIN_AI: [
+    "admin:overview:read",
+    "admin:ai:read",
+    "admin:ai:manage",
+    "admin:ai:secret",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
+    "admin:calculators:read",
+    "admin:reports:read",
   ],
   ADMIN: [
+    "admin:overview:read",
     "admin:users:read",
     "admin:users:manage",
+    "admin:requests:read",
+    "admin:requests:manage",
+    "admin:lawyer:read",
     "admin:lawyer:verify",
+    "admin:services:read",
+    "admin:services:manage",
+    "admin:flags:manage",
+    "admin:plans:read",
+    "admin:plans:manage",
+    "admin:billing:read",
+    "admin:billing:manage",
+    "admin:refund:approve",
+    "admin:finance:read",
+    "admin:finance:manage",
+    "admin:settlement:manage",
+    "admin:settlement:approve",
+    "admin:ai:read",
+    "admin:ai:manage",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
     "admin:knowledge:read",
     "admin:knowledge:write",
+    "admin:calculators:read",
+    "admin:calculators:manage",
+    "admin:support:read",
+    "admin:support:manage",
+    "admin:content:read",
+    "admin:content:manage",
+    "admin:reports:read",
+    "admin:reports:export",
+    "admin:staff:read",
     "admin:audit:read",
+    "admin:settings:read",
   ],
   SUPER_ADMIN: [
+    "admin:overview:read",
     "admin:users:read",
     "admin:users:manage",
+    "admin:requests:read",
+    "admin:requests:manage",
+    "admin:lawyer:read",
     "admin:lawyer:verify",
+    "admin:services:read",
+    "admin:services:manage",
+    "admin:flags:manage",
+    "admin:plans:read",
+    "admin:plans:manage",
+    "admin:billing:read",
+    "admin:billing:manage",
+    "admin:refund:approve",
+    "admin:finance:read",
+    "admin:finance:manage",
+    "admin:settlement:manage",
+    "admin:settlement:approve",
+    "admin:ai:read",
+    "admin:ai:manage",
+    "admin:ai:secret",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
     "admin:knowledge:read",
     "admin:knowledge:write",
+    "admin:calculators:read",
+    "admin:calculators:manage",
+    "admin:support:read",
+    "admin:support:manage",
+    "admin:content:read",
+    "admin:content:manage",
+    "admin:reports:read",
+    "admin:reports:export",
+    "admin:staff:read",
+    "admin:staff:manage",
     "admin:audit:read",
+    "admin:settings:read",
+    "admin:settings:manage",
     "admin:system:manage",
   ],
 };
@@ -243,9 +446,38 @@ export function isOrgRole(role: PlatformRole): boolean {
   return role === "COMPANY_OWNER" || role === "COMPANY_ADMIN" || role === "COMPANY_MEMBER";
 }
 
-/** True when the role is a platform-staff role. */
+/** True when the role is a platform-staff role (may access the admin panel). */
 export function isStaffRole(role: PlatformRole): boolean {
-  return role === "SUPPORT" || role === "ADMIN" || role === "SUPER_ADMIN";
+  return STAFF_ROLES.includes(role);
+}
+
+/** Every platform-staff role. `USER`/`LAWYER`/company roles are excluded. */
+export const STAFF_ROLES: readonly PlatformRole[] = [
+  "SUPPORT",
+  "ANALYST",
+  "AUDITOR",
+  "ADMIN_OPS",
+  "ADMIN_LAWYERS",
+  "ADMIN_FINANCE",
+  "ADMIN_CONTENT",
+  "ADMIN_AI",
+  "ADMIN",
+  "SUPER_ADMIN",
+] as const;
+
+/** The full-access platform-staff roles (vendor side). */
+export const PLATFORM_SUPERADMIN_ROLES: readonly PlatformRole[] = [
+  "ADMIN",
+  "SUPER_ADMIN",
+] as const;
+
+/**
+ * True when the role may reach the admin panel at all. Used only for UX
+ * gating (hiding the panel chrome); every admin API re-checks the specific
+ * permission server-side, so this is never the authorization boundary.
+ */
+export function canAccessAdminPanel(role: PlatformRole): boolean {
+  return isStaffRole(role);
 }
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ import {
   IconFiles,
   IconGavel,
   IconHandshake,
+  IconHistory,
   IconLawBook,
   IconLibrary,
   IconScale,
@@ -54,7 +55,8 @@ export type ServiceCategoryId =
   | "documents"
   | "calculators"
   | "cases"
-  | "library";
+  | "library"
+  | "my-consultations";
 
 export interface ServiceCategory {
   id: ServiceCategoryId;
@@ -65,14 +67,26 @@ export interface ServiceCategory {
   /** Anchor id used by the category shortcuts. */
   anchor: string;
   /**
-   * Optional destination that overrides the in-page anchor. When set,
-   * the shortcut navigates to this route instead of scrolling to the
-   * catalog section below.
+   * Verified destination for the shortcut. Every category shortcut is a
+   * navigation link to the surface that owns that area of the product
+   * (e.g. contracts → /contracts, lawyers → /lawyers).
    */
-  href?: string;
+  href: string;
+  /**
+   * Optional short meta label rendered instead of the item count — for
+   * shortcuts that are entry points rather than catalog groups (e.g.
+   * «مشاوره‌های من»).
+   */
+  subtitle?: string;
   icon: IconComponent;
   /** Tailwind gradient for the shortcut chip icon. */
   gradient: string;
+  /**
+   * Whether this category groups catalog items. `false` means the
+   * shortcut is a pure navigation destination with no catalog section
+   * below (its count is not rendered).
+   */
+  inCatalog: boolean;
 }
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
@@ -81,24 +95,30 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     title: "مشاوره و وکالت",
     description: "پرسش حقوقی، تحلیل مسئله و مشاوره با وکیل انسانی",
     anchor: "cat-consultation",
+    href: "/lawyers",
     icon: IconChat,
     gradient: "from-blue-500 to-indigo-500",
+    inCatalog: true,
   },
   {
     id: "contracts",
     title: "قراردادها و تنظیم اسناد",
     description: "پیش‌نویس هوشمند قرارداد و نامه‌نگاری حقوقی",
     anchor: "cat-contracts",
+    href: "/contracts",
     icon: IconFilePen,
     gradient: "from-emerald-500 to-teal-500",
+    inCatalog: true,
   },
   {
     id: "documents",
     title: "بررسی و تحلیل اسناد",
     description: "تحلیل ریسک، خلاصه‌سازی و استخراج تعهدات",
     anchor: "cat-documents",
+    href: "/documents",
     icon: IconFileSearch,
     gradient: "from-cyan-500 to-blue-500",
+    inCatalog: true,
   },
   {
     id: "calculators",
@@ -108,24 +128,47 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     href: "/calculators",
     icon: IconCalculator,
     gradient: "from-amber-600 to-yellow-500",
+    inCatalog: true,
   },
   {
     id: "cases",
     title: "پرونده‌ها و پیگیری",
     description: "ثبت پرونده، تایم‌لاین و تحلیل وضعیت پرونده",
     anchor: "cat-cases",
+    href: "/cases",
     icon: IconGavel,
     gradient: "from-violet-500 to-purple-500",
+    inCatalog: true,
   },
   {
     id: "library",
     title: "منابع و آموزش حقوقی",
     description: "قوانین، راهنماها و مقالات آموزشی لیگالیر",
     anchor: "cat-library",
+    href: "/blog",
     icon: IconLibrary,
     gradient: "from-secondary-600 to-secondary-800",
+    inCatalog: true,
+  },
+  {
+    // Personal entry point — the user's own consultation requests. It is a
+    // destination, not a catalog group, so it carries no count.
+    id: "my-consultations",
+    title: "مشاوره‌های من",
+    description: "پیگیری درخواست‌ها و مشاوره‌های ثبت‌شده شما",
+    anchor: "cat-my-consultations",
+    href: "/consultations",
+    subtitle: "پیگیری درخواست‌ها",
+    icon: IconHistory,
+    gradient: "from-primary-600 to-primary-800",
+    inCatalog: false,
   },
 ];
+
+/** Categories that group catalog items (i.e. own a section on the page). */
+export const CATALOG_CATEGORIES: ServiceCategory[] = SERVICE_CATEGORIES.filter(
+  (c) => c.inCatalog
+);
 
 export function getCategory(id: ServiceCategoryId): ServiceCategory {
   const found = SERVICE_CATEGORIES.find((c) => c.id === id);

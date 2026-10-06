@@ -9,7 +9,7 @@
 // ============================================================
 
 import React, { forwardRef, useId, useState } from "react";
-import { OutlinedFieldShell, FieldMessage, type FieldSize } from "./field-shell";
+import { OutlinedFieldShell, FieldMessage, extensionSafe, type FieldSize } from "./field-shell";
 
 export interface PasswordFieldProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size" | "type"> {
@@ -120,6 +120,7 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
                 "placeholder:text-onSurfaceVariant/60 transition-opacity duration-short3",
               ].join(" ")}
               {...rest}
+              {...extensionSafe}
             />
           </div>
         </OutlinedFieldShell>

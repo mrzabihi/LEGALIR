@@ -27,6 +27,10 @@ const PROTECTED_PREFIXES = [
   "/lawyer",
   "/consultations",
   "/onboarding",
+  // The platform admin panel. Middleware only guarantees a session exists;
+  // STAFF authorization is enforced inside the shell (UX) and, authoritatively,
+  // on every `/api/v1/admin/**` request server-side (lib/rbac.ts).
+  "/admin",
 ];
 
 /** Routes accessible only to unauthenticated users (redirect to dashboard if logged in) */
@@ -34,6 +38,18 @@ const GUEST_ONLY_PREFIXES = ["/auth/mobile", "/auth/verify", "/login", "/registe
 
 /** Public routes accessible by anyone */
 const PUBLIC_PREFIXES = ["/", "/pricing", "/features", "/about", "/contact", "/terms", "/privacy-policy", "/blog", "/health", "/design-system", "/contracts/verify"];
+
+/**
+ * The admin panel is also reachable on a dedicated subdomain — e.g.
+ * `http://admin.localhost:3000` — which maps onto the `/admin` tree. Browsers
+ * resolve `*.localhost` to 127.0.0.1, so no host-file edit is needed.
+ */
+const ADMIN_HOST_PREFIX = "admin.";
+
+function isAdminHost(hostHeader: string | null): boolean {
+  const hostname = (hostHeader ?? "").split(":")[0] ?? "";
+  return hostname.startsWith(ADMIN_HOST_PREFIX);
+}
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -49,11 +65,22 @@ function isPublic(pathname: string): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostHeader = request.headers.get("host");
+  const onAdminHost = isAdminHost(hostHeader);
 
-  // Allow public and static assets through
-  if (isPublic(pathname) || pathname.startsWith("/_next") || pathname.startsWith("/api")) {
+  // Allow static assets through. `/api/**` is excluded by the matcher, but
+  // keep the guard explicit for clarity.
+  if (pathname.startsWith("/_next") || pathname.startsWith("/api")) {
     return NextResponse.next();
   }
+
+  // On the admin subdomain, the whole surface maps onto the `/admin` tree.
+  // Compute the effective path so the SAME protection rules apply whether the
+  // operator opens `/admin/orders` on the main host or `/orders` on the
+  // subdomain. The auth flow is excluded so signing in still works.
+  const isAuthFlow = pathname.startsWith("/auth") || isGuestOnly(pathname);
+  const subdomainRewrites = onAdminHost && !pathname.startsWith("/admin") && !isAuthFlow;
+  const effectivePath = subdomainRewrites ? `/admin${pathname === "/" ? "" : pathname}` : pathname;
 
   // Check for session cookie (set by the auth API / MSW handler)
   // In dev mode with MSW, the auth-store manages session client-side in localStorage.
@@ -64,19 +91,41 @@ export function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get("legalir-session");
 
   // --- Protected routes: redirect to login if not authenticated ---
-  if (isProtected(pathname)) {
+  if (isProtected(effectivePath)) {
     if (!sessionCookie) {
-      // Preserve the intended route
+      // The login is served on the SAME host the operator is using, so the
+      // session cookie lands on that origin. A host-only cookie set on
+      // `localhost` is NEVER sent to `admin.localhost` (and vice-versa), so
+      // bouncing a subdomain visitor to the root host would sign them in on
+      // the wrong origin and strand them there. `isAuthFlow` above already
+      // keeps `/auth` out of the admin rewrite, so the auth page renders
+      // normally on the subdomain too, and the preserved `intent` returns
+      // the operator to the admin tree on the same host.
       const loginUrl = new URL("/auth/mobile", request.url);
-      if (pathname !== "/dashboard") {
+      if (effectivePath !== "/dashboard") {
         // Preserve the query string too — a guest who started from a specific
         // lawyer (`/consultations/new?lawyerId=X`) must return to the same
         // lawyer after signing in, not a bare wizard.
-        loginUrl.searchParams.set("intent", pathname + request.nextUrl.search);
+        loginUrl.searchParams.set("intent", effectivePath + request.nextUrl.search);
       }
       return NextResponse.redirect(loginUrl);
     }
+    // Authenticated: serve the admin tree for a subdomain request.
+    if (subdomainRewrites) {
+      const url = request.nextUrl.clone();
+      url.pathname = effectivePath;
+      return NextResponse.rewrite(url);
+    }
     return NextResponse.next();
+  }
+
+  // Any remaining admin-subdomain navigational path (e.g. `/` on
+  // admin.localhost, which is "public" on the main host) resolves to the
+  // admin tree.
+  if (subdomainRewrites) {
+    const url = request.nextUrl.clone();
+    url.pathname = effectivePath;
+    return NextResponse.rewrite(url);
   }
 
   // --- Guest-only routes: redirect to dashboard if already authenticated ---

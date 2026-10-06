@@ -32,6 +32,7 @@ import { TextField } from "@legalir/ui";
 import { IconClose, IconSearch, IconServices, IconLawBook } from "@/lib/icons";
 import { PromoPanel } from "@/components/shared";
 import {
+  CATALOG_CATEGORIES,
   CATALOG_SIZE,
   LIBRARY_CAMPAIGN,
   NEW_SERVICES,
@@ -40,7 +41,6 @@ import {
   SERVICE_BANNERS,
   SERVICE_CATEGORIES,
   itemsByCategory,
-  populatedCategories,
   searchCatalog,
   trackServicesEvent,
   type CatalogItem,
@@ -91,7 +91,14 @@ export default function ServicesPage() {
     [isSearching, trimmed]
   );
 
-  const categories = useMemo(() => populatedCategories(), []);
+  // All seven shortcuts are shown (the six product areas plus the
+  // personal «مشاوره‌های من» entry point); only the six that group
+  // catalog items own a section further down the page.
+  const shortcuts = useMemo(() => SERVICE_CATEGORIES, []);
+  const categories = useMemo(
+    () => CATALOG_CATEGORIES.filter((c) => itemsByCategory(c.id).length > 0),
+    []
+  );
   const counts = useMemo(() => {
     const out: Record<string, number> = {};
     for (const category of SERVICE_CATEGORIES) {
@@ -242,8 +249,13 @@ export default function ServicesPage() {
               2. Category shortcuts
               ============================================================ */}
           <section className="mb-6">
-            <h2 className="mb-3 text-h4 font-bold text-on-surface">دسته‌بندی خدمات</h2>
-            <CategoryShortcuts categories={categories} counts={counts} />
+            <div className="mb-3">
+              <h2 className="text-h4 font-bold text-on-surface">دسترسی سریع</h2>
+              <p className="mt-1 text-caption text-on-surface-variant">
+                ورود سریع به بخش‌های اصلی لیگالیر
+              </p>
+            </div>
+            <CategoryShortcuts categories={shortcuts} counts={counts} />
           </section>
 
           {/* ============================================================

@@ -19,6 +19,7 @@ import React, { forwardRef, useId } from "react";
 import {
   OutlinedFieldShell,
   FieldMessage,
+  extensionSafe,
   type FieldSize,
 } from "./field-shell";
 
@@ -152,6 +153,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
               "transition-opacity duration-short3",
             ].join(" ")}
             {...rest}
+            {...extensionSafe}
           />
         </div>
         {suffix && (

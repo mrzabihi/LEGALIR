@@ -1,7 +1,9 @@
 // ============================================================
-// LEGALIR — Contracts page body
+// LEGALIR — Contracts workspace body (the «قراردادهای فعال» panel)
 // ============================================================
-// The page answers two questions, in this fixed order:
+// Rendered inside the /contracts hub's active view. The page header and
+// the view switcher are owned by the hub; this body answers two questions,
+// in this fixed order:
 //
 //   SECTION 1 — «چه قراردادی می‌توانم بسازم؟»
 //     the template library, filtered by the shared search query and
@@ -49,7 +51,6 @@ import { ContractSearch } from "./contract-search";
 import { ContractCategoryChips } from "./contract-category-chips";
 import { ContractTemplateGrid } from "./contract-template-grid";
 import { MyContractsSection } from "./my-contracts-section";
-import { ContractsPageHeader } from "./contracts-page-header";
 
 export function ContractList() {
   const router = useRouter();
@@ -190,11 +191,7 @@ export function ContractList() {
 
   return (
     <div className="space-y-8" dir="rtl">
-      {/* Page header — states the page's job and offers the two entry
-          points (build a new draft / review an existing contract). */}
-      <ContractsPageHeader onStartNew={scrollToTemplates} />
-
-      {/* Search — directly under the page title, driving both sections. */}
+      {/* Search — directly under the hub's page title, driving both sections. */}
       <ContractSearch
         value={filters.query}
         onChange={setQuery}

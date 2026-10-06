@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import React, { useState } from "react";
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   Chip,
   Badge,
   Tabs,
+  SegmentedControl,
 } from "@legalir/ui";
 
 // Wrap components that need theme context
@@ -269,5 +270,91 @@ describe("Tabs", () => {
     );
     expect(screen.getByRole("tab", { name: "فعال" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "غیرفعال" })).toHaveAttribute("aria-selected", "false");
+  });
+});
+
+describe("SegmentedControl", () => {
+  const SEGMENTS = [
+    { value: "active", label: "قراردادهای فعال" },
+    { value: "coming-soon", label: "به‌زودی فعال می‌شوند" },
+  ];
+
+  it("renders a labelled tablist with one tab per segment", () => {
+    render(
+      <TestWrapper>
+        <SegmentedControl
+          ariaLabel="نمای قراردادها"
+          segments={SEGMENTS}
+          value="active"
+          onChange={/* noop */ () => undefined}
+        />
+      </TestWrapper>
+    );
+    const tablist = screen.getByRole("tablist", { name: "نمای قراردادها" });
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(2);
+  });
+
+  it("marks the selected segment and gives it the roving tabindex", () => {
+    render(
+      <TestWrapper>
+        <SegmentedControl
+          segments={SEGMENTS}
+          value="coming-soon"
+          onChange={/* noop */ () => undefined}
+        />
+      </TestWrapper>
+    );
+    const selected = screen.getByRole("tab", { name: "به‌زودی فعال می‌شوند" });
+    const other = screen.getByRole("tab", { name: "قراردادهای فعال" });
+    expect(selected).toHaveAttribute("aria-selected", "true");
+    expect(selected).toHaveAttribute("tabindex", "0");
+    expect(other).toHaveAttribute("aria-selected", "false");
+    expect(other).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("selects on click — it selects, it never navigates", () => {
+    const onChange = vi.fn();
+    render(
+      <TestWrapper>
+        <SegmentedControl segments={SEGMENTS} value="active" onChange={onChange} />
+      </TestWrapper>
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "به‌زودی فعال می‌شوند" }));
+    expect(onChange).toHaveBeenCalledWith("coming-soon");
+  });
+
+  it("moves selection with the arrow keys", () => {
+    const onChange = vi.fn();
+    render(
+      <TestWrapper>
+        <SegmentedControl segments={SEGMENTS} value="active" onChange={onChange} />
+      </TestWrapper>
+    );
+    // jsdom reports no direction, so the control falls back to LTR.
+    fireEvent.keyDown(screen.getByRole("tab", { name: "قراردادهای فعال" }), {
+      key: "ArrowRight",
+    });
+    expect(onChange).toHaveBeenCalledWith("coming-soon");
+  });
+
+  it("wires each segment to its panel via aria-controls when given an idBase", () => {
+    render(
+      <TestWrapper>
+        <SegmentedControl
+          idBase="contracts-view"
+          segments={SEGMENTS}
+          value="active"
+          onChange={/* noop */ () => undefined}
+        />
+      </TestWrapper>
+    );
+    expect(screen.getByRole("tab", { name: "قراردادهای فعال" })).toHaveAttribute(
+      "aria-controls",
+      "contracts-view-panel-active"
+    );
+    expect(screen.getByRole("tab", { name: "به‌زودی فعال می‌شوند" })).toHaveAttribute(
+      "aria-controls",
+      "contracts-view-panel-coming-soon"
+    );
   });
 });

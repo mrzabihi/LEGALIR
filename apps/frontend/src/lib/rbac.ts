@@ -18,6 +18,9 @@ import { getUserIdFromRequest } from "./api/server-auth";
 import {
   roleHasPermission,
   isOrgRole,
+  isStaffRole,
+  canAccessAdminPanel,
+  STAFF_ROLES,
   normalizeAccountType,
   type Permission,
   type PlatformAccountType,
@@ -154,6 +157,22 @@ export function requireAnyPermission(
   return auth;
 }
 
+/**
+ * Require any platform-staff role. This is the coarse "is this person staff
+ * at all?" gate for the admin panel shell; the specific admin API still
+ * checks its own granular permission. Returns the context or a 403.
+ */
+export function requireStaff(
+  req: Request
+): { ok: true; ctx: AuthContext } | { ok: false; response: NextResponse } {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth;
+  if (!isStaffRole(auth.ctx.role)) {
+    return { ok: false, response: forbidden() };
+  }
+  return auth;
+}
+
 // ---------------------------------------------------------------------------
 // Ownership checks (IDOR / BOLA prevention)
 // ---------------------------------------------------------------------------
@@ -181,4 +200,4 @@ export function isStaffWith(ctx: AuthContext, permission: Permission): boolean {
   return roleHasPermission(ctx.role, permission);
 }
 
-export { roleHasPermission, isOrgRole };
+export { roleHasPermission, isOrgRole, isStaffRole, canAccessAdminPanel, STAFF_ROLES };

@@ -39,6 +39,8 @@ export { Drawer } from "./Drawer";
 export { SnackbarProvider, snackbar } from "./Snackbar";
 export { Tooltip } from "./Tooltip";
 export { Tabs } from "./Tabs";
+export { SegmentedControl } from "./SegmentedControl";
+export type { SegmentItem } from "./SegmentedControl";
 export { Chip } from "./Chip";
 export { Badge } from "./Badge";
 export { ProgressLinear, ProgressCircular } from "./Progress";

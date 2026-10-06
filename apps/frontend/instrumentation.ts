@@ -13,4 +13,10 @@ export async function register(): Promise<void> {
 
   const { startHistoryRetentionJob } = await import("./src/lib/history/retention-job");
   startHistoryRetentionJob();
+
+  // Ensure the admin panel is reachable in development. This is a no-op
+  // outside NODE_ENV=development and a no-op when a super-admin already
+  // exists, so it never touches a real operator's data.
+  const { ensureDevAdminSeed } = await import("./src/lib/admin/staff-seed");
+  ensureDevAdminSeed();
 }
