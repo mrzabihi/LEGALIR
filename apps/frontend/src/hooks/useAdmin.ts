@@ -125,12 +125,13 @@ export function useAdminOverview(rangeDays = 30) {
   });
 }
 
-export function useAdminReports(rangeDays = 30) {
+export function useAdminReports(rangeDays = 30, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["admin", "reports", rangeDays],
     queryFn: () => fetchAdminReports(rangeDays),
     staleTime: 60_000,
     retry: 1,
+    enabled: options.enabled ?? true,
   });
 }
 

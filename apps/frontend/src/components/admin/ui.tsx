@@ -91,11 +91,17 @@ export function StatCard({
   value,
   hint,
   tone = "default",
+  icon,
+  accent = false,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   tone?: "default" | "warning" | "success" | "danger";
+  /** A small leading icon shown in a tinted square beside the label. */
+  icon?: ReactNode;
+  /** Emphasise the card with a brand-tinted surface (a section lead KPI). */
+  accent?: boolean;
 }) {
   const toneClass =
     tone === "warning"
@@ -105,10 +111,32 @@ export function StatCard({
         : tone === "danger"
           ? "text-red-600 dark:text-red-400"
           : "text-onSurface";
+  const iconClass =
+    tone === "warning"
+      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      : tone === "success"
+        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+        : tone === "danger"
+          ? "bg-red-500/10 text-red-600 dark:text-red-400"
+          : "bg-primary/10 text-primary";
   return (
-    <div className="rounded-large border border-divider bg-surface p-4">
-      <p className="text-caption text-muted">{label}</p>
-      <p className={`mt-1 text-h3 font-bold tabular-nums ${toneClass}`}>
+    <div
+      className={`rounded-large border border-divider p-4 ${
+        accent ? "bg-primary/[0.04]" : "bg-surface"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        {icon && (
+          <span
+            aria-hidden="true"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-medium ${iconClass}`}
+          >
+            {icon}
+          </span>
+        )}
+        <p className="min-w-0 text-caption text-muted">{label}</p>
+      </div>
+      <p className={`mt-1.5 text-h3 font-bold tabular-nums ${toneClass}`}>
         {typeof value === "number" ? toPersianNumber(value) : value}
       </p>
       {hint && <p className="mt-0.5 text-caption text-muted">{hint}</p>}
