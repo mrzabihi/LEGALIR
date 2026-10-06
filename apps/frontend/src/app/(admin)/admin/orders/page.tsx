@@ -10,17 +10,39 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Drawer } from "@legalir/ui";
 import {
   useAdminOrders,
   useAdminOrder,
+  useAdminOrderReceipt,
   useCreateAdminRefund,
   useDecideAdminRefund,
   useAdminMe,
 } from "@/hooks/useAdmin";
-import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
+import {
+  toPersianNumber,
+  toPersianDate,
+  toPersianCurrency,
+  toRelativeTime,
+} from "@/lib/persian-utils";
+import { adminOrderReceiptPdfUrl } from "@/lib/api/admin";
 import type { AdminOrder, OrderStatus } from "@/lib/api/admin";
-import { ORDER_STATUS_FA, ADJUSTMENT_KIND_FA, ADJUSTMENT_STATUS_FA } from "@legalir/types";
+import {
+  ORDER_STATUS_FA,
+  ADJUSTMENT_KIND_FA,
+  ADJUSTMENT_STATUS_FA,
+  ADMIN_RECEIPT_KIND_FA,
+} from "@legalir/types";
+import type { AdminReceiptUnavailableReason } from "@legalir/types";
+import {
+  IconFileText,
+  IconDownload,
+  IconOpenInNew,
+  IconWarning,
+  IconCheckCircle,
+  IconShield,
+} from "@/lib/icons";
 import {
   PageHeader,
   Card,
@@ -29,6 +51,8 @@ import {
   Td,
   Badge,
   StateView,
+  LoadingBlock,
+  ErrorBlock,
   Button,
   TextInput,
   Select,
@@ -56,6 +80,158 @@ function errMessage(err: unknown, fallback: string): string {
   return err && typeof err === "object" && "message" in err
     ? String((err as { message: unknown }).message)
     : fallback;
+}
+
+/**
+ * Statuses for which a receipt can exist. Anything else (pending, failed,
+ * expired…) settled without money moving, so the server reports `not_paid`
+ * rather than a fabricated document.
+ */
+const RECEIPT_ELIGIBLE_STATUSES: OrderStatus[] = ["SUCCESS", "REFUNDED", "PARTIALLY_REFUNDED"];
+
+// ---------------------------------------------------------------------------
+// Receipt viewer
+// ---------------------------------------------------------------------------
+// What a «رسید» is for THIS transaction is decided by the server and reported
+// in the descriptor. In this environment the gateway is simulated, so a paid
+// order yields a `system_receipt` the platform renders from the real order
+// row; an unpaid order yields no receipt and a reason. This viewer never
+// fabricates a file — when there is nothing to open it says exactly why.
+
+const RECEIPT_REASON_FA: Record<AdminReceiptUnavailableReason, string> = {
+  not_paid: "این تراکنش به سرانجام نرسیده است، بنابراین رسیدی صادر نشده است.",
+  not_recorded: "برای این تراکنش رسیدی ثبت نشده است.",
+  file_missing: "فایل رسید در جایگاه ذخیره یافت نشد.",
+  expired_link: "اعتبار لینک رسید به پایان رسیده است؛ لطفاً دوباره تلاش کنید.",
+  forbidden: "برای مشاهدهٔ رسید این تراکنش دسترسی ندارید.",
+};
+
+function ReceiptRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-divider py-2 last:border-0">
+      <span className="shrink-0 text-caption text-muted">{label}</span>
+      <span className="min-w-0 text-end text-body-2 text-onSurface">{children}</span>
+    </div>
+  );
+}
+
+function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => void }) {
+  const receipt = useAdminOrderReceipt(orderId);
+  const pdfUrl = adminOrderReceiptPdfUrl(orderId);
+
+  return (
+    <Drawer open onClose={onClose} position="end" width={460} title="رسید پرداخت">
+      {receipt.isLoading ? (
+        <LoadingBlock rows={5} />
+      ) : receipt.isError || !receipt.data ? (
+        <ErrorBlock message="خطا در دریافت اطلاعات رسید" onRetry={() => receipt.refetch()} />
+      ) : (
+        (() => {
+          const r = receipt.data;
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                {r.available ? (
+                  <Badge tone="success">
+                    {r.kind ? ADMIN_RECEIPT_KIND_FA[r.kind] : "رسید"}
+                  </Badge>
+                ) : (
+                  <Badge tone="warning">بدون رسید</Badge>
+                )}
+                <Badge
+                  tone={
+                    r.status === "SUCCESS" || r.status === "REFUNDED" ? "success" : "neutral"
+                  }
+                >
+                  {r.statusFa}
+                </Badge>
+              </div>
+
+              <div className="rounded-large border border-divider p-3">
+                <ReceiptRow label="شناسهٔ تراکنش">
+                  <span dir="ltr" className="font-mono text-caption">
+                    {r.transactionId ?? r.referenceId}
+                  </span>
+                </ReceiptRow>
+                <ReceiptRow label="مبلغ">
+                  <span className="tabular-nums">
+                    {toPersianCurrency(r.amount)}
+                    {r.currency && r.currency !== "IRT" ? ` ${r.currency}` : ""}
+                  </span>
+                </ReceiptRow>
+                <ReceiptRow label="تاریخ پرداخت">
+                  {r.paidAt ? toPersianDate(r.paidAt) : "ثبت نشده"}
+                </ReceiptRow>
+                <ReceiptRow label="خدمت / پلن">{r.serviceFa ?? "—"}</ReceiptRow>
+                <ReceiptRow label="پرداخت‌کننده">
+                  {r.payerDisplayName ?? "بدون نام"}
+                </ReceiptRow>
+                <ReceiptRow label="موبایل (پوشیده)">
+                  <span className="tabular-nums">{r.payerMobileMasked}</span>
+                </ReceiptRow>
+                <ReceiptRow label="درگاه پرداخت">
+                  {r.gatewaySimulated ? "شبیه‌سازی‌شده (این محیط)" : r.gateway}
+                </ReceiptRow>
+                {r.trackingId && (
+                  <ReceiptRow label="کد پیگیری درگاه">
+                    <span dir="ltr" className="font-mono text-caption">
+                      {r.trackingId}
+                    </span>
+                  </ReceiptRow>
+                )}
+              </div>
+
+              {r.available ? (
+                <>
+                  <div className="flex items-start gap-2 rounded-large border border-emerald-200 bg-emerald-50 p-3 text-body-2 text-emerald-700 dark:border-emerald-700/30 dark:bg-emerald-900/20 dark:text-emerald-300">
+                    <IconCheckCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                      رسید سامانه بر پایهٔ اطلاعات ثبت‌شدهٔ همین سفارش تولید می‌شود.
+                      {r.gatewaySimulated
+                        ? " در این محیط درگاه شبیه‌سازی‌شده است و تراکنش بانکی واقعی انجام نشده است."
+                        : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-medium border border-transparent bg-primary px-4 py-2 text-body-2 font-medium text-on-primary transition-colors hover:opacity-90"
+                    >
+                      <IconOpenInNew size={16} />
+                      نمایش PDF در تب جدید
+                    </a>
+                    <a
+                      href={pdfUrl}
+                      download={`receipt-${r.referenceId}.pdf`}
+                      className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-4 py-2 text-body-2 font-medium text-on-surface-variant transition-colors hover:bg-surface-hover"
+                    >
+                      <IconDownload size={16} />
+                      دانلود فایل
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-start gap-2 rounded-large border border-amber-200 bg-amber-50 p-3 text-body-2 text-amber-800 dark:border-amber-700/30 dark:bg-amber-900/20 dark:text-amber-200">
+                  <IconWarning size={16} className="mt-0.5 shrink-0" />
+                  <span>
+                    {r.reason ? RECEIPT_REASON_FA[r.reason] : "رسیدی برای این تراکنش موجود نیست."}
+                  </span>
+                </div>
+              )}
+
+              <p className="flex items-center gap-1.5 text-caption text-muted">
+                <IconShield size={13} className="shrink-0" />
+                لینک فایل، محافظت‌شده و خصوصی است و با مجوز لازم در هر درخواست بازبینی می‌شود.
+              </p>
+            </div>
+          );
+        })()
+      )}
+    </Drawer>
+  );
 }
 
 function OrderDetail({ id }: { id: string }) {
@@ -269,6 +445,7 @@ export default function AdminOrdersPage() {
   const [status, setStatus] = useState<string>("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
 
   const query = useAdminOrders({ search, status: status || undefined, page, pageSize: 20 });
   const totalPages = query.data
@@ -330,7 +507,7 @@ export default function AdminOrdersPage() {
                   <Th>خالص</Th>
                   <Th>وضعیت</Th>
                   <Th>تاریخ</Th>
-                  <Th>جزئیات</Th>
+                  <Th>عملیات</Th>
                 </tr>
               }
             >
@@ -358,13 +535,28 @@ export default function AdminOrdersPage() {
                   </Td>
                   <Td className="whitespace-nowrap">{toPersianDate(o.purchasedAt)}</Td>
                   <Td>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setSelected(selected === o.id ? null : o.id)}
-                    >
-                      {selected === o.id ? "بستن" : "مشاهده"}
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setSelected(selected === o.id ? null : o.id)}
+                      >
+                        {selected === o.id ? "بستن" : "مشاهده"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setReceiptId(o.id)}
+                        title={
+                          RECEIPT_ELIGIBLE_STATUSES.includes(o.status)
+                            ? "مشاهدهٔ رسید پرداخت"
+                            : "برای این تراکنش رسیدی ثبت نشده است"
+                        }
+                      >
+                        <IconFileText size={15} />
+                        رسید
+                      </Button>
+                    </div>
                   </Td>
                 </tr>
               ))}
@@ -402,6 +594,10 @@ export default function AdminOrdersPage() {
         <div className="mt-5">
           <OrderDetail id={selected} />
         </div>
+      )}
+
+      {receiptId && (
+        <ReceiptViewer orderId={receiptId} onClose={() => setReceiptId(null)} />
       )}
     </div>
   );

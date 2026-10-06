@@ -200,6 +200,22 @@
   --state-dragged-opacity: 0.16;
   --state-disabled-opacity: 0.38;
 
+  /* --- Data-visualisation role colours (admin charts & KPI accents) ---
+     A small, fixed categorical set so the SAME series keeps the SAME colour
+     regardless of row order or filtering, plus role colours for
+     positive/negative movement. Registered here — never hard-coded in a
+     page — so every admin chart reads from one palette. Hues are distinct
+     and each clears 3:1 against the light card surface. */
+  --chart-cat-1: #162033; /* brand navy   */
+  --chart-cat-2: #8A6A33; /* brand gold   */
+  --chart-cat-3: #2563EB; /* info blue    */
+  --chart-cat-4: #1F6F50; /* success      */
+  --chart-cat-5: #B7791F; /* warning      */
+  --chart-cat-6: #7C3AED; /* violet       */
+  --chart-pos: #1F6F50;
+  --chart-neg: #B42318;
+  --chart-track: #E5E7EB;
+
   /* Inverse */
   --color-inverse-surface: #1F2937;
   --color-inverse-on-surface: #F9FAFB;
@@ -494,6 +510,20 @@
   --color-inverse-surface: #F3F4F6;
   --color-inverse-on-surface: #1F2937;
   --color-inverse-primary: #162033;
+
+  /* Data-visualisation role colours — dark theme. The light-theme navy #162033
+     would vanish on the deep-navy surface, so category 1 lifts to the same
+     slate the dark theme already uses for primary text; the rest are brightened
+     to keep ≥3:1 against the dark card. */
+  --chart-cat-1: #CBD5E1;
+  --chart-cat-2: #D5BE97;
+  --chart-cat-3: #60A5FA;
+  --chart-cat-4: #34D399;
+  --chart-cat-5: #FBBF24;
+  --chart-cat-6: #A78BFA;
+  --chart-pos: #34D399;
+  --chart-neg: #F87171;
+  --chart-track: #374151;
 
   /* Warm Smoked Glass — dark theme. The page is deep navy, so the glass
      lifts to a lighter warm taupe to stay distinguishable while keeping

@@ -13,12 +13,16 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   IconWarning,
   IconDatabase,
   IconRefresh,
   IconInfo,
+  IconOpenInNew,
+  IconChevronUp,
+  IconChevronDown,
 } from "@/lib/icons";
 
 // ---------------------------------------------------------------------------
@@ -40,22 +44,37 @@ export function Card({
 export function Section({
   title,
   subtitle,
+  infoFa,
   actions,
   children,
 }: {
   title: string;
   subtitle?: string;
+  /** A longer explanation surfaced via a small ⓘ beside the title. */
+  infoFa?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 className="text-h3 text-onSurface font-bold">{title}</h2>
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-1.5 text-h3 text-onSurface font-bold">
+            {title}
+            {infoFa && (
+              <span
+                title={infoFa}
+                className="text-muted"
+                aria-label={infoFa}
+                role="img"
+              >
+                <IconInfo size={15} />
+              </span>
+            )}
+          </h2>
           {subtitle && <p className="mt-0.5 text-body-2 text-muted">{subtitle}</p>}
         </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {children}
     </section>
@@ -77,7 +96,9 @@ export function PageHeader({
         <h1 className="text-h2 text-onSurface font-bold">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-body-2 text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div>
+      )}
     </div>
   );
 }
@@ -86,22 +107,49 @@ export function PageHeader({
 // Stat card
 // ---------------------------------------------------------------------------
 
+/**
+ * A ready-to-render movement indicator, pre-computed by the caller so this
+ * component stays presentational: it never derives a percentage itself.
+ * `tone` is the *interpretation* — for an inverse metric (errors, latency)
+ * an increase is `bad`, and the chip colours accordingly.
+ */
+export interface StatTrend {
+  direction: "up" | "down" | "flat";
+  tone: "good" | "bad" | "neutral";
+  /** Short label, e.g. «۱۲٪+». */
+  labelFa: string;
+  /** Long tooltip explaining the comparison basis and the previous value. */
+  titleFa: string;
+}
+
 export function StatCard({
   label,
   value,
+  unit,
   hint,
   tone = "default",
   icon,
   accent = false,
+  trend,
+  href,
+  valueTitle,
 }: {
   label: string;
   value: string | number;
+  /** Unit shown after the value (e.g. «تومان»). */
+  unit?: string;
   hint?: string;
   tone?: "default" | "warning" | "success" | "danger";
   /** A small leading icon shown in a tinted square beside the label. */
   icon?: ReactNode;
   /** Emphasise the card with a brand-tinted surface (a section lead KPI). */
   accent?: boolean;
+  /** Change-vs-previous-period indicator. Omitted when no honest comparison. */
+  trend?: StatTrend;
+  /** When set the whole card becomes a link to its detail report. */
+  href?: string;
+  /** Tooltip on the value (e.g. the exact figure behind a compact display). */
+  valueTitle?: string;
 }) {
   const toneClass =
     tone === "warning"
@@ -119,12 +167,16 @@ export function StatCard({
         : tone === "danger"
           ? "bg-red-500/10 text-red-600 dark:text-red-400"
           : "bg-primary/10 text-primary";
-  return (
-    <div
-      className={`rounded-large border border-divider p-4 ${
-        accent ? "bg-primary/[0.04]" : "bg-surface"
-      }`}
-    >
+
+  const trendClass =
+    trend?.tone === "good"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : trend?.tone === "bad"
+        ? "text-red-600 dark:text-red-400"
+        : "text-muted";
+
+  const body = (
+    <>
       <div className="flex items-center gap-2">
         {icon && (
           <span
@@ -134,14 +186,61 @@ export function StatCard({
             {icon}
           </span>
         )}
-        <p className="min-w-0 text-caption text-muted">{label}</p>
+        <p className="min-w-0 flex-1 text-caption text-muted">{label}</p>
+        {href && (
+          <IconOpenInNew
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-muted transition-colors group-hover:text-primary"
+          />
+        )}
       </div>
-      <p className={`mt-1.5 text-h3 font-bold tabular-nums ${toneClass}`}>
+      <p
+        className={`mt-1.5 text-h3 font-bold tabular-nums ${toneClass}`}
+        title={valueTitle}
+      >
         {typeof value === "number" ? toPersianNumber(value) : value}
+        {unit && <span className="ms-1 text-caption font-medium text-muted">{unit}</span>}
       </p>
-      {hint && <p className="mt-0.5 text-caption text-muted">{hint}</p>}
-    </div>
+      {trend ? (
+        <p className={`mt-1 flex items-center gap-1 text-caption font-medium ${trendClass}`} title={trend.titleFa}>
+          {trend.direction !== "flat" ? (
+            trend.direction === "up" ? (
+              <IconChevronUp size={13} aria-hidden="true" />
+            ) : (
+              <IconChevronDown size={13} aria-hidden="true" />
+            )
+          ) : (
+            <span aria-hidden="true">•</span>
+          )}
+          <span dir="ltr" className="tabular-nums">
+            {trend.labelFa}
+          </span>
+          <span className="text-muted">نسبت به بازهٔ قبل</span>
+        </p>
+      ) : (
+        hint && <p className="mt-0.5 text-caption text-muted">{hint}</p>
+      )}
+      {trend && hint && <p className="mt-0.5 text-caption text-muted">{hint}</p>}
+    </>
   );
+
+  const shell = `rounded-large border p-4 ${
+    accent ? "bg-primary/[0.04] border-primary/20" : "bg-surface border-divider"
+  }`;
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`group block ${shell} transition-colors hover:border-primary/40 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+        aria-label={`${label} — مشاهدهٔ جزئیات`}
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className={shell}>{body}</div>;
 }
 
 // ---------------------------------------------------------------------------

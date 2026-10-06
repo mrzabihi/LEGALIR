@@ -20,7 +20,7 @@ import Link from "next/link";
 import type { LawyerListItem } from "@legalir/types";
 import { IconCheckCircle, IconError, IconLocation } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { availabilityView, REJECTED_REASON_FA } from "@/lib/lawyers/availability";
+import { availabilityView, removalReason } from "@/lib/lawyers/availability";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
 import { yearsOfExperience } from "@/lib/lawyers/grouping";
 import { LawyerAvatar } from "./lawyer-avatar";
@@ -40,6 +40,7 @@ export function LawyerCardCompact({ lawyer }: LawyerCardCompactProps) {
   const location = lawyer.locations[0];
   const primary = lawyer.specializations[0]?.category;
   const rejected = view.tone === "rejected";
+  const removeReason = removalReason(view.status);
 
   const body = (
     <>
@@ -106,7 +107,7 @@ export function LawyerCardCompact({ lawyer }: LawyerCardCompactProps) {
           className="mt-auto flex items-center justify-center gap-1.5 rounded-xl border border-error-200 bg-error-100 px-3 py-2 text-center text-caption font-medium text-error-700"
         >
           <IconError size={14} className="shrink-0" aria-hidden="true" />
-          {REJECTED_REASON_FA}
+          {removeReason}
         </div>
       </div>
     );

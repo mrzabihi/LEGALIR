@@ -22,9 +22,17 @@ import { readTable, findUserById, normalizeStoredMobile } from "@/lib/db";
 import type { Permission, PlatformRole, LegalRequestState } from "@legalir/types";
 
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
-import { buildOverview, revenueByPlan, dailySales } from "@/lib/admin/metrics";
+import { buildOverview, revenueByPlan, dailySales, resolvedRangeDays } from "@/lib/admin/metrics";
 import { listFlags, updateFlag } from "@/lib/admin/flags";
-import { listOrders, getOrder, listAdjustments, createAdjustment, decideAdjustment } from "@/lib/admin/orders";
+import {
+  listOrders,
+  getOrder,
+  listAdjustments,
+  createAdjustment,
+  decideAdjustment,
+  buildOrderReceipt,
+} from "@/lib/admin/orders";
+import { renderOrderReceiptPdf } from "@/lib/admin/receipt-pdf";
 import {
   listCommissionRules,
   updateCommissionRule,
@@ -122,12 +130,28 @@ interface GetCtx {
   ctx: { userId: string; role: PlatformRole; orgId: string | null };
 }
 
+/**
+ * Parse an optional explicit date window from the query string. Both `from`
+ * and `to` must be present; otherwise the caller falls back to a rolling
+ * `rangeDays` window. This is what powers the «بازهٔ سفارشی» preset.
+ */
+function explicitWindow(url: URL): { from: string; to: string } | null {
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  return from && to ? { from, to } : null;
+}
+
 const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResponse> = {
-  overview: ({ url }) => ok(buildOverview(intParam(url, "rangeDays", 30))),
+  overview: ({ url }) => ok(buildOverview(intParam(url, "rangeDays", 30), explicitWindow(url))),
 
   reports: ({ url }) => {
     const days = intParam(url, "rangeDays", 30);
-    return ok({ rangeDays: days, byPlan: revenueByPlan(days), daily: dailySales(days) });
+    const win = explicitWindow(url);
+    return ok({
+      rangeDays: resolvedRangeDays(days, win),
+      byPlan: revenueByPlan(days, win),
+      daily: dailySales(days, win),
+    });
   },
 
   users: ({ url }) => {
@@ -314,8 +338,46 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
     case "orders": {
       if (!b) return adminError(400, "BAD_PATH", "درخواست نامعتبر");
       if (d === "refunds") return ok({ items: listAdjustments(b) });
+
       const order = getOrder(b);
       if (!order) return adminError(404, "ORDER_NOT_FOUND", "سفارش یافت نشد");
+
+      // Receipt descriptor — describes what a «رسید» is for THIS order and
+      // whether one can be opened. Never fabricates a value or a file.
+      if (d === "receipt") {
+        return ok(buildOrderReceipt(order));
+      }
+
+      // The receipt PDF (system-generated for a confirmed purchase). Only a
+      // paid order has one; an unpaid order yields 409 so the UI can say so.
+      if (d === "receipt.pdf") {
+        const receipt = buildOrderReceipt(order);
+        if (!receipt.available) {
+          return adminError(409, "RECEIPT_UNAVAILABLE", "برای این تراکنش رسیدی ثبت نشده است.");
+        }
+        let bytes: Uint8Array;
+        try {
+          bytes = await renderOrderReceiptPdf(receipt);
+        } catch {
+          return adminError(500, "RECEIPT_RENDER_FAILED", "تولید فایل رسید ناموفق بود.");
+        }
+        const fileName = encodeURIComponent(`receipt-${order.referenceId}.pdf`);
+        return new NextResponse(new Uint8Array(bytes), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Length": String(bytes.length),
+            // `inline` lets the browser's secure PDF viewer render it in a new
+            // tab; the UI's download control forces the save via the anchor
+            // `download` attribute. Never a shared/permanent public URL.
+            "Content-Disposition": `inline; filename*=UTF-8''${fileName}`,
+            // Private, per-operator financial content — never shared-cached.
+            "Cache-Control": "private, no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
+
       return ok({ order, refunds: listAdjustments(b) });
     }
     case "settlements": {

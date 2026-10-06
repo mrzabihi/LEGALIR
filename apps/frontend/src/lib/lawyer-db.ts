@@ -38,6 +38,24 @@ export interface LawyerReviewRow {
   createdAt: string;
 }
 
+/**
+ * One append-only record of a verification decision. The stored profile only
+ * carries the LATEST status; this table is the full history behind it, so
+ * «who changed what, when, and why» can never be lost by an overwrite.
+ */
+export interface LawyerStatusDecisionRow {
+  id: string;
+  lawyerId: string;
+  previousStatus: LawyerVerificationStatus;
+  newStatus: LawyerVerificationStatus;
+  /** Mandatory justification supplied by the deciding admin. */
+  reason: string;
+  actorUserId: string;
+  actorName: string;
+  actorRole: string;
+  createdAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
@@ -99,6 +117,46 @@ export function setVerificationStatus(
   return row;
 }
 
+/**
+ * Force an admin suspension/rejection to win over the lawyer's self-declared
+ * availability. VERIFIED and the submitted funnel keep whatever the lawyer
+ * set; SUSPENDED/REJECTED are terminal and authoritative. Returns a profile
+ * copy — never mutates the caller's object.
+ */
+function withStatusAvailability(profile: LawyerProfile): LawyerProfile {
+  if (profile.verificationStatus === "SUSPENDED") {
+    return { ...profile, availabilityStatus: "SUSPENDED", acceptingRequests: false };
+  }
+  if (profile.verificationStatus === "REJECTED") {
+    return { ...profile, availabilityStatus: "REJECTED", acceptingRequests: false };
+  }
+  return profile;
+}
+
+// ---------------------------------------------------------------------------
+// Status decision history (append-only)
+// ---------------------------------------------------------------------------
+
+/** Append one decision record. The caller must already hold a reason. */
+export function recordStatusDecision(row: LawyerStatusDecisionRow): LawyerStatusDecisionRow {
+  const rows = readTable<LawyerStatusDecisionRow>("lawyer_status_history");
+  rows.push(row);
+  writeTable("lawyer_status_history", rows);
+  return row;
+}
+
+/** The full decision history for a lawyer, newest first. */
+export function listStatusHistory(lawyerId: string): LawyerStatusDecisionRow[] {
+  return readTable<LawyerStatusDecisionRow>("lawyer_status_history")
+    .filter((d) => d.lawyerId === lawyerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** The most recent decision for a lawyer, if any. */
+export function latestStatusDecision(lawyerId: string): LawyerStatusDecisionRow | undefined {
+  return listStatusHistory(lawyerId)[0];
+}
+
 // ---------------------------------------------------------------------------
 // Derived performance
 // ---------------------------------------------------------------------------
@@ -158,25 +216,26 @@ function median(values: number[]): number | null {
 
 /** Project a full profile into the public list-item shape. */
 export function toListItem(profile: LawyerProfile): LawyerListItem {
-  const bio = profile.bio.trim();
+  const p = withStatusAvailability(profile);
+  const bio = p.bio.trim();
   return {
-    id: profile.id,
-    fullName: profile.fullName,
-    avatarUrl: profile.avatarUrl,
-    avatarType: profile.avatarType ?? "real",
-    professionalTitle: profile.professionalTitle ?? null,
-    verificationStatus: profile.verificationStatus,
-    specializations: profile.specializations,
-    locations: profile.locations,
-    languages: profile.languages,
-    pricing: profile.pricing,
-    performance: computePerformance(profile.id),
+    id: p.id,
+    fullName: p.fullName,
+    avatarUrl: p.avatarUrl,
+    avatarType: p.avatarType ?? "real",
+    professionalTitle: p.professionalTitle ?? null,
+    verificationStatus: p.verificationStatus,
+    specializations: p.specializations,
+    locations: p.locations,
+    languages: p.languages,
+    pricing: p.pricing,
+    performance: computePerformance(p.id),
     // Legacy rows predate these fields — default to a requestable status
     // so an old profile is never silently hidden behind a disabled CTA.
-    availabilityStatus: profile.availabilityStatus ?? "ACTIVE",
-    consultationCapacity: profile.consultationCapacity ?? null,
-    isDemo: profile.isDemo,
-    acceptingRequests: profile.acceptingRequests,
+    availabilityStatus: p.availabilityStatus ?? "ACTIVE",
+    consultationCapacity: p.consultationCapacity ?? null,
+    isDemo: p.isDemo,
+    acceptingRequests: p.acceptingRequests,
     bioExcerpt: bio.length > 140 ? `${bio.slice(0, 140)}…` : bio,
   };
 }
@@ -188,7 +247,8 @@ export function toListItem(profile: LawyerProfile): LawyerListItem {
  * the same lawyer.
  */
 export function toLawyerDetail(profile: LawyerProfile): LawyerDetail {
-  const reviews: LawyerReview[] = listLawyerReviews(profile.id).map((r) => ({
+  const p = withStatusAvailability(profile);
+  const reviews: LawyerReview[] = listLawyerReviews(p.id).map((r) => ({
     id: r.id,
     authorName: "کاربر لگالیر",
     rating: r.rating,
@@ -197,26 +257,26 @@ export function toLawyerDetail(profile: LawyerProfile): LawyerDetail {
   }));
 
   return {
-    id: profile.id,
-    fullName: profile.fullName,
-    avatarUrl: profile.avatarUrl,
-    avatarType: profile.avatarType ?? "real",
-    professionalTitle: profile.professionalTitle ?? null,
-    bio: profile.bio,
-    licenseNumber: profile.licenseNumber,
-    licenseYear: profile.licenseYear,
-    verificationStatus: profile.verificationStatus,
-    verifiedAt: profile.verifiedAt,
-    specializations: profile.specializations,
-    locations: profile.locations,
-    languages: profile.languages,
-    pricing: profile.pricing,
-    availability: profile.availability,
-    performance: computePerformance(profile.id),
-    availabilityStatus: profile.availabilityStatus ?? "ACTIVE",
-    consultationCapacity: profile.consultationCapacity ?? null,
-    isDemo: profile.isDemo,
-    acceptingRequests: profile.acceptingRequests,
+    id: p.id,
+    fullName: p.fullName,
+    avatarUrl: p.avatarUrl,
+    avatarType: p.avatarType ?? "real",
+    professionalTitle: p.professionalTitle ?? null,
+    bio: p.bio,
+    licenseNumber: p.licenseNumber,
+    licenseYear: p.licenseYear,
+    verificationStatus: p.verificationStatus,
+    verifiedAt: p.verifiedAt,
+    specializations: p.specializations,
+    locations: p.locations,
+    languages: p.languages,
+    pricing: p.pricing,
+    availability: p.availability,
+    performance: computePerformance(p.id),
+    availabilityStatus: p.availabilityStatus ?? "ACTIVE",
+    consultationCapacity: p.consultationCapacity ?? null,
+    isDemo: p.isDemo,
+    acceptingRequests: p.acceptingRequests,
     reviews,
   };
 }
@@ -230,13 +290,20 @@ export function yearsOfExperience(profile: LawyerProfile): number {
  * Filter + sort the marketplace. Only VERIFIED lawyers are shown in the
  * public marketplace unless `verifiedOnly` is explicitly false — an
  * unverified lawyer must never appear as a bookable option.
+ *
+ * A SUSPENDED lawyer is the one exception: their profile stays visible (for
+ * transparency) but is flagged with an alert and can never take a request
+ * (see `withStatusAvailability`). REJECTED and every pending state remain
+ * hidden.
  */
 export function queryLawyers(filters: LawyerListFilters): LawyerListResponse {
   const verifiedOnly = filters.verifiedOnly ?? true;
   let rows = listLawyerProfiles();
 
   if (verifiedOnly) {
-    rows = rows.filter((l) => l.verificationStatus === "VERIFIED");
+    rows = rows.filter(
+      (l) => l.verificationStatus === "VERIFIED" || l.verificationStatus === "SUSPENDED"
+    );
   }
   if (filters.category) {
     rows = rows.filter((l) => l.specializations.some((s) => s.category === filters.category));

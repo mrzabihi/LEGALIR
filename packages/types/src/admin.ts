@@ -10,7 +10,7 @@
 // only by a masked hint (last 4 characters) and a boolean.
 // ============================================================
 
-import type { PlatformRole, Permission } from "./platform";
+import type { PlatformRole, Permission, LegalRequestState } from "./platform";
 
 // ---------------------------------------------------------------------------
 // Audit log (append-only)
@@ -141,6 +141,81 @@ export interface AdminOrderListResponse {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/**
+ * What a «رسید» (receipt) actually is for an order. The kinds are kept
+ * distinct on purpose and must never be conflated:
+ *   • system_receipt       — a receipt THIS platform renders itself from a
+ *                            confirmed purchase (our gateway is simulated).
+ *   • gateway_confirmation — the payment gateway's own confirmation payload,
+ *                            stored with the order when the gateway supplies one.
+ *   • uploaded_proof       — a file the payer uploaded as proof of payment.
+ */
+export type AdminReceiptKind = "system_receipt" | "gateway_confirmation" | "uploaded_proof";
+
+export const ADMIN_RECEIPT_KIND_FA: Record<AdminReceiptKind, string> = {
+  system_receipt: "رسید سامانه",
+  gateway_confirmation: "تأییدیهٔ درگاه",
+  uploaded_proof: "فایل بارگذاری‌شدهٔ کاربر",
+};
+
+/**
+ * Why no receipt can be shown. Distinguishing these lets the UI give a
+ * specific, honest message instead of one generic one.
+ *   • not_paid     — the order never completed (pending/failed/expired).
+ *   • not_recorded — paid, but no receipt file/confirmation was ever stored.
+ *   • file_missing — a receipt is referenced but its file is gone from storage.
+ *   • expired_link — the access link has expired and must be re-issued.
+ *   • forbidden    — the caller is not allowed to read this receipt.
+ */
+export type AdminReceiptUnavailableReason =
+  | "not_paid"
+  | "not_recorded"
+  | "file_missing"
+  | "expired_link"
+  | "forbidden";
+
+/**
+ * A receipt descriptor for one order. `available` is the single source of
+ * truth for whether a receipt can be opened. When it is false, `reason`
+ * explains why and NO field is fabricated. When it is true, every field is a
+ * value that really exists on the order — a field that is unknown is null and
+ * is omitted from the rendered receipt rather than zero-filled.
+ */
+export interface AdminOrderReceipt {
+  orderId: string;
+  /** The platform's real order/transaction reference (the subscription id). */
+  referenceId: string;
+  available: boolean;
+  reason: AdminReceiptUnavailableReason | null;
+  /** The kind of receipt, when one exists. */
+  kind: AdminReceiptKind | null;
+  /** The platform transaction reference, when one exists. */
+  transactionId: string | null;
+  /** The gateway's own tracking code, when the source supplies one. */
+  trackingId: string | null;
+  amount: number;
+  currency: string;
+  paidAt: string | null;
+  gateway: string;
+  /** Whether the gateway is simulated in this environment (never hidden). */
+  gatewaySimulated: boolean;
+  status: OrderStatus;
+  statusFa: string;
+  /** The service/plan the payment was for. */
+  serviceFa: string | null;
+  /** Masked payer mobile — never the full number. */
+  payerMobileMasked: string;
+  payerDisplayName: string | null;
+  /** True when a downloadable/previewable file backs this receipt. */
+  hasDocument: boolean;
+  /** The content type of the backing file, when known. */
+  documentMime: string | null;
+  /** Permission-checked same-origin URL that streams the receipt file. */
+  fileUrl: string | null;
+  /** ISO timestamp the receipt descriptor was produced. */
+  generatedAt: string;
 }
 
 export type AdjustmentKind = "refund_full" | "refund_partial" | "adjustment";
@@ -535,6 +610,78 @@ export interface AdminKpi {
   unavailableReasonFa?: string;
   /** Where the card drills down to, when available. */
   drillHref?: string;
+  /**
+   * The same measurement over the immediately preceding window of equal
+   * length (e.g. days 31–60 for a 30-day range). `null` when the metric is
+   * range-independent (a lifetime total) or not comparable.
+   */
+  previousValue?: number | null;
+  /**
+   * Percent change vs `previousValue`, rounded to one decimal. `null` when
+   * there is no honest comparison: the previous window has no data, the
+   * previous value is zero, or the metric is not comparable. The UI must
+   * show «—» rather than inventing a trend from a zero base.
+   */
+  changePct?: number | null;
+  /**
+   * How the UI should read a movement. `neutral` (default) means up is good;
+   * `inverse` means up is bad (error rates, latencies, failed jobs) so the
+   * arrow colour is inverted.
+   */
+  trend?: "neutral" | "inverse";
+  /** Display unit appended after the formatted value (e.g. «درصد»). */
+  unitFa?: string;
+}
+
+/** A single «needs attention» row — a real count with a direct link. */
+export interface AdminAttentionItem {
+  key: string;
+  labelFa: string;
+  count: number;
+  /** Short, factual explanation of what this count is. */
+  hintFa: string;
+  /** Where the operator goes to act on it. */
+  href: string;
+  severity: "info" | "warning" | "error";
+}
+
+/** One slice of a composition breakdown (by state, by category, …). */
+export interface AdminBreakdownItem {
+  key: string;
+  labelFa: string;
+  count: number;
+}
+
+/** One point of a daily series (ISO `YYYY-MM-DD` + real count). */
+export interface AdminDailyPoint {
+  date: string;
+  count: number;
+}
+
+/**
+ * A compact, non-sensitive activity row: enough to recognise a request
+ * without exposing the requester's identity (no mobile, email or user id).
+ */
+export interface AdminRecentRequest {
+  id: string;
+  title: string;
+  category: string;
+  categoryFa: string;
+  state: LegalRequestState;
+  stateFa: string;
+  createdAt: string;
+}
+
+/** The comparison window that `previousValue`/`changePct` refer to. */
+export interface AdminOverviewComparison {
+  /** Length of one window in days. */
+  windowDays: number;
+  /** ISO cutoff of the current window start (inclusive). */
+  currentFrom: string;
+  /** ISO cutoff of the previous window start (inclusive). */
+  previousFrom: string;
+  /** ISO cutoff of the previous window end (exclusive — start of current). */
+  previousTo: string;
 }
 
 export interface AdminOverview {
@@ -543,4 +690,20 @@ export interface AdminOverview {
   timezone: string;
   currency: string;
   kpis: AdminKpi[];
+  /** Real counts that may require an operator decision, or `[]`. */
+  attention: AdminAttentionItem[];
+  /** Active requests grouped by state (non-terminal states only). */
+  requestsByState: AdminBreakdownItem[];
+  /** Requests registered in the window grouped by legal category. */
+  requestsByCategory: AdminBreakdownItem[];
+  /** Requests registered per day over the window. */
+  dailyRequests: AdminDailyPoint[];
+  /** The window compared against, or `null` when not comparable. */
+  comparison: AdminOverviewComparison | null;
+  /** Total active (non-terminal) requests right now — a live snapshot. */
+  openRequestsTotal: number;
+  /** The state ids used for `requestsByState`, in display order. */
+  activeRequestStates: LegalRequestState[];
+  /** The most recently registered requests, newest first (bounded). */
+  recentRequests: AdminRecentRequest[];
 }

@@ -42,6 +42,7 @@ const STATUS_LABEL: Record<LawyerAvailabilityStatus, string> = {
   LIMITED: "ظرفیت محدود",
   AVAILABLE_SLOTS: "فعال",
   REJECTED: "Rejected",
+  SUSPENDED: "معلق",
 };
 
 const STATUS_TONE: Record<LawyerAvailabilityStatus, AvailabilityTone> = {
@@ -51,6 +52,7 @@ const STATUS_TONE: Record<LawyerAvailabilityStatus, AvailabilityTone> = {
   FULL: "neutral",
   INACTIVE: "muted",
   REJECTED: "rejected",
+  SUSPENDED: "caution",
 };
 
 /**
@@ -60,6 +62,25 @@ const STATUS_TONE: Record<LawyerAvailabilityStatus, AvailabilityTone> = {
 export const REJECTED_REASON_FA = "رد شده توسط کانون وکلای لیگالیر";
 
 /**
+ * The message shown on a SUSPENDED lawyer's card. The profile stays
+ * reachable so the alert and the reason are visible, but every booking CTA
+ * is disabled.
+ */
+export const SUSPENDED_REASON_FA = "این وکیل توسط لیگالیر به حالت تعلیق درآمده است.";
+
+/**
+ * The removal reason for a lawyer who can no longer take requests, or `null`
+ * when the lawyer is reachable. Both terminal review outcomes (REJECTED by
+ * the bar, SUSPENDED by LEGALIR) share the red card treatment but carry
+ * different copy — deriving it here keeps every surface consistent.
+ */
+export function removalReason(status: LawyerAvailabilityStatus): string | null {
+  if (status === "SUSPENDED") return SUSPENDED_REASON_FA;
+  if (status === "REJECTED") return REJECTED_REASON_FA;
+  return null;
+}
+
+/**
  * Capacity copy. `null` capacity means unlimited/unknown — the card then
  * shows only the status. `0` is treated as full regardless of status.
  */
@@ -67,9 +88,9 @@ function capacityLabel(
   status: LawyerAvailabilityStatus,
   capacity: number | null
 ): string | null {
-  // A rejected lawyer has no intake at all, and the reason is rendered once
+  // A removed lawyer has no intake at all, and the reason is rendered once
   // in the card's CTA block — so the badge shows no capacity line.
-  if (status === "REJECTED") return null;
+  if (status === "REJECTED" || status === "SUSPENDED") return null;
   if (capacity === null) return null;
   if (capacity <= 0) return "ظرفیت تکمیل";
   if (status === "LIMITED") return `${toPersianNumber(capacity)} ظرفیت باقی‌مانده`;
@@ -90,6 +111,8 @@ function ctaLabel(status: LawyerAvailabilityStatus): string {
       return "در حال حاضر در دسترس نیست";
     case "REJECTED":
       return "حذف شده از فهرست";
+    case "SUSPENDED":
+      return "در حال حاضر در دسترس نیست";
   }
 }
 

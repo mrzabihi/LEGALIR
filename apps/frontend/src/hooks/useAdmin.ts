@@ -22,6 +22,7 @@ import { useMe } from "@/hooks/useDashboard";
 import {
   fetchAdminOverview,
   fetchAdminReports,
+  type AdminWindow,
   fetchAdminUsers,
   fetchAdminUser,
   fetchAdminRequests,
@@ -31,6 +32,7 @@ import {
   type UpdateFlagInput,
   fetchAdminOrders,
   fetchAdminOrder,
+  fetchAdminOrderReceipt,
   createAdminRefund,
   decideAdminRefund,
   type CreateRefundInput,
@@ -73,7 +75,9 @@ import {
   type AdminAuditQuery,
   fetchAdminSettings,
   fetchAdminLawyers,
+  fetchAdminLawyer,
   decideLawyerVerification,
+  sendLawyerMessage,
   fetchAdminPlans,
   fetchAdminPlan,
   updateAdminPlan,
@@ -87,6 +91,8 @@ import type {
   SupportTicketStatus,
   SupportTicketPriority,
   RagReviewState,
+  LawyerDecisionBucket,
+  LawyerVerificationStatus,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -116,19 +122,22 @@ export function useAdminMe() {
 // Overview, reports, settings
 // ---------------------------------------------------------------------------
 
-export function useAdminOverview(rangeDays = 30) {
+export function useAdminOverview(rangeDays = 30, window?: AdminWindow | null) {
   return useQuery({
-    queryKey: ["admin", "overview", rangeDays],
-    queryFn: () => fetchAdminOverview(rangeDays),
+    queryKey: ["admin", "overview", rangeDays, window?.from ?? null, window?.to ?? null],
+    queryFn: () => fetchAdminOverview(rangeDays, window),
     staleTime: 60_000,
     retry: 1,
   });
 }
 
-export function useAdminReports(rangeDays = 30, options: { enabled?: boolean } = {}) {
+export function useAdminReports(
+  rangeDays = 30,
+  options: { enabled?: boolean; window?: AdminWindow | null } = {}
+) {
   return useQuery({
-    queryKey: ["admin", "reports", rangeDays],
-    queryFn: () => fetchAdminReports(rangeDays),
+    queryKey: ["admin", "reports", rangeDays, options.window?.from ?? null, options.window?.to ?? null],
+    queryFn: () => fetchAdminReports(rangeDays, options.window),
     staleTime: 60_000,
     retry: 1,
     enabled: options.enabled ?? true,
@@ -267,6 +276,17 @@ export function useAdminOrder(id: string | null) {
     queryFn: () => fetchAdminOrder(id as string),
     enabled: Boolean(id),
     staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** Receipt descriptor for one order. Fetched on demand (when a viewer opens). */
+export function useAdminOrderReceipt(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "orders", "receipt", id],
+    queryFn: () => fetchAdminOrderReceipt(id as string),
+    enabled: Boolean(id) && enabled,
+    staleTime: 60_000,
     retry: 1,
   });
 }
@@ -603,11 +623,25 @@ export function useAdminAudit(query: AdminAuditQuery = {}) {
 // Lawyers (verification queue)
 // ---------------------------------------------------------------------------
 
-export function useAdminLawyers(status?: string) {
+export function useAdminLawyers(
+  params: { bucket?: LawyerDecisionBucket; status?: LawyerVerificationStatus; search?: string } = {}
+) {
   return useQuery({
-    queryKey: ["admin", "lawyers", status ?? null],
-    queryFn: () => fetchAdminLawyers(status),
+    queryKey: ["admin", "lawyers", params.bucket ?? null, params.status ?? null, params.search ?? null],
+    queryFn: () => fetchAdminLawyers(params),
     staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Full registration dossier for the detail drawer. */
+export function useAdminLawyer(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "lawyers", "detail", id],
+    queryFn: () => fetchAdminLawyer(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
     retry: 1,
   });
 }
@@ -615,8 +649,30 @@ export function useAdminLawyers(status?: string) {
 export function useDecideLawyerVerification() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status, note }: { id: string; status: string; note?: string }) =>
-      decideLawyerVerification(id, status, note),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "lawyers"] }),
+    mutationFn: ({
+      id,
+      status,
+      reason,
+    }: {
+      id: string;
+      status: LawyerVerificationStatus;
+      reason: string;
+    }) => decideLawyerVerification(id, status, reason),
+    onSuccess: (_result, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "lawyers"] });
+      qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", id] });
+    },
+  });
+}
+
+/** Send a direct message to a lawyer; refreshes the detail + queue. */
+export function useSendLawyerMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: { subject: string; body: string } }) =>
+      sendLawyerMessage(id, input),
+    onSuccess: (_result, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", id] });
+    },
   });
 }

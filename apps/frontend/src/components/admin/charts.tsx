@@ -31,41 +31,68 @@ import { IconDatabase } from "@/lib/icons";
 // Frame — the titled card every chart sits in
 // ---------------------------------------------------------------------------
 
+/**
+ * The categorical palette. Colours are read from the shared design tokens
+ * (`--chart-cat-*`) so light/dark are handled centrally and a series keeps a
+ * STABLE colour by index — independent of row order or filtering.
+ */
+export const CAT = [
+  "var(--chart-cat-1)",
+  "var(--chart-cat-2)",
+  "var(--chart-cat-3)",
+  "var(--chart-cat-4)",
+  "var(--chart-cat-5)",
+  "var(--chart-cat-6)",
+] as const;
+
+/** Colour for the i-th category, cycling through the fixed palette. */
+export function catColor(i: number): string {
+  return CAT[i % CAT.length]!;
+}
+
 export function ChartFrame({
   title,
   subtitle,
   legend,
+  action,
   children,
   className = "",
 }: {
   title: string;
   subtitle?: string;
   legend?: { label: string; color: string }[];
+  /** A control rendered opposite the title (e.g. a series segmented control). */
+  action?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <Card className={`p-4 tablet:p-5 ${className}`}>
+    <Card className={`flex h-full flex-col p-4 tablet:p-5 ${className}`}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-body-1 font-bold text-onSurface">{title}</h3>
           {subtitle && <p className="mt-0.5 text-caption text-muted">{subtitle}</p>}
         </div>
-        {legend && legend.length > 0 && (
-          <ul className="flex flex-wrap items-center gap-3" aria-hidden="true">
-            {legend.map((l) => (
-              <li key={l.label} className="flex items-center gap-1.5 text-caption text-muted">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: l.color }}
-                />
-                {l.label}
-              </li>
-            ))}
-          </ul>
+        {action ? (
+          <div className="shrink-0">{action}</div>
+        ) : (
+          legend &&
+          legend.length > 0 && (
+            <ul className="flex flex-wrap items-center gap-3" aria-hidden="true">
+              {legend.map((l) => (
+                <li key={l.label} className="flex items-center gap-1.5 text-caption text-muted">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: l.color }}
+                  />
+                  {l.label}
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </div>
-      {children}
+      <div className="flex-1">{children}</div>
     </Card>
   );
 }
@@ -182,8 +209,8 @@ export function LineChart({
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--chart-cat-1)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--chart-cat-1)" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -223,7 +250,7 @@ export function LineChart({
             <path
               d={linePath}
               fill="none"
-              stroke="var(--color-primary)"
+              stroke="var(--chart-cat-1)"
               strokeWidth="2.5"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -240,7 +267,7 @@ export function LineChart({
             cy={yAt(p.value)}
             r={hovered === i ? 6 : 4}
             fill="var(--color-surface)"
-            stroke="var(--color-primary)"
+            stroke="var(--chart-cat-1)"
             strokeWidth="2"
             vectorEffect="non-scaling-stroke"
           />
@@ -323,6 +350,8 @@ export interface BarDatum {
   value: number;
   /** Pre-formatted value text (e.g. a currency string); defaults to the count. */
   display?: string;
+  /** Bar fill; defaults to the primary series colour. */
+  color?: string;
 }
 
 export function BarChart({
@@ -348,14 +377,14 @@ export function BarChart({
             </span>
             <div className="flex items-center gap-3">
               <div
-                className="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-container-high"
+                className="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--chart-track)]"
                 role="img"
                 aria-label={`${b.label}: ${text}`}
                 title={`${b.label}: ${text}`}
               >
                 <div
-                  className="h-full rounded-full bg-primary transition-[width] duration-short4 ease-standard"
-                  style={{ width: `${Math.max(pct, 2)}%` }}
+                  className="h-full rounded-full transition-[width] duration-short4 ease-standard"
+                  style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: b.color ?? "var(--chart-cat-1)" }}
                 />
               </div>
               <span
@@ -369,5 +398,131 @@ export function BarChart({
         );
       })}
     </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Donut chart — composition of a few categories
+// ---------------------------------------------------------------------------
+
+export interface DonutSlice {
+  label: string;
+  value: number;
+}
+
+/**
+ * A dependency-free donut. Segments are laid out in the given order and each
+ * keeps a STABLE colour (index → `CAT`), so re-ordering or filtering never
+ * repaints a category. The hole carries the total; a legend lists every slice
+ * with its count and share, and the whole composition is mirrored into an
+ * `sr-only` list so it is reachable without colour.
+ *
+ * Returns `null` when every slice is zero — the caller renders its own empty
+ * state instead of a blank ring.
+ */
+export function DonutChart({
+  slices,
+  ariaLabel,
+  centerLabel,
+  size = 168,
+  thickness = 22,
+}: {
+  slices: DonutSlice[];
+  ariaLabel: string;
+  /** Caption under the total in the hole (e.g. «درخواست باز»). */
+  centerLabel: string;
+  size?: number;
+  thickness?: number;
+}) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) return null;
+
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const gap = slices.length > 1 ? 2 : 0; // small visual separation, in %, of the ring
+
+  let offset = 0;
+  const arcs = slices.map((s, i) => {
+    const frac = s.value / total;
+    const dash = Math.max(0, frac * circumference - gap);
+    const arc = { s, i, dash, offset, color: catColor(i) };
+    offset += frac * circumference;
+    return arc;
+  });
+
+  return (
+    <div className="flex flex-col items-center gap-4 tablet:flex-row tablet:items-center tablet:justify-center">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg
+          viewBox={`0 0 ${size} ${size}`}
+          width={size}
+          height={size}
+          role="img"
+          aria-label={ariaLabel}
+          className="-rotate-90"
+        >
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="var(--chart-track)"
+            strokeWidth={thickness}
+          />
+          {arcs.map((a) => (
+            <circle
+              key={a.s.label}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={a.color}
+              strokeWidth={thickness}
+              strokeDasharray={`${a.dash} ${circumference - a.dash}`}
+              strokeDashoffset={-a.offset}
+              strokeLinecap="butt"
+            />
+          ))}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-h2 font-bold tabular-nums text-onSurface">
+            {toPersianNumber(total)}
+          </span>
+          <span className="text-caption text-muted">{centerLabel}</span>
+        </div>
+      </div>
+
+      <ul className="w-full max-w-xs space-y-2">
+        {arcs.map((a) => {
+          const pct = Math.round((a.s.value / total) * 100);
+          return (
+            <li key={a.s.label} className="flex items-center gap-2 text-body-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 shrink-0 rounded-small"
+                style={{ backgroundColor: a.color }}
+              />
+              <span className="min-w-0 flex-1 truncate text-on-surface-variant" title={a.s.label}>
+                {a.s.label}
+              </span>
+              <span className="shrink-0 tabular-nums text-onSurface">
+                {toPersianNumber(a.s.value)}
+              </span>
+              <span dir="ltr" className="w-10 shrink-0 text-end tabular-nums text-muted">
+                {toPersianNumber(pct)}٪
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <ul className="sr-only">
+        {slices.map((s) => (
+          <li key={s.label}>
+            {s.label}: {toPersianNumber(s.value)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

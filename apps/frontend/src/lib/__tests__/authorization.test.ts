@@ -133,6 +133,11 @@ vi.mock("@/lib/contracts/db", () => ({
 
 vi.mock("@/lib/lawyer-db", () => ({
   setVerificationStatus: vi.fn(),
+  // The route reads the previous status and records the decision; the mock
+  // returns undefined so the request falls through to a 404 once it has
+  // cleared the auth + reason gates.
+  getLawyerProfileById: vi.fn().mockReturnValue(undefined),
+  recordStatusDecision: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------

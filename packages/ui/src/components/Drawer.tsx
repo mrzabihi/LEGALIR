@@ -97,7 +97,9 @@ export function Drawer({
           slideClass,
           isEnd ? "end-0" : "start-0",
         ].join(" ")}
-        style={{ width }}
+        // `maxWidth: 100%` caps the drawer to the viewport on narrow screens so
+        // a fixed pixel width can never cause horizontal overflow on mobile.
+        style={{ width, maxWidth: "100%" }}
       >
         {title && (
           <div className="flex items-center justify-between p-4 border-b border-divider">

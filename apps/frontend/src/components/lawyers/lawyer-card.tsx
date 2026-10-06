@@ -28,7 +28,7 @@ import Link from "next/link";
 import type { LawyerListItem } from "@legalir/types";
 import { IconCheckCircle, IconClock, IconError, IconLocation } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { availabilityView, REJECTED_REASON_FA } from "@/lib/lawyers/availability";
+import { availabilityView, removalReason } from "@/lib/lawyers/availability";
 import { LawyerAvatar } from "./lawyer-avatar";
 import { LawyerRating } from "./lawyer-rating";
 import { LawyerAvailabilityBadge } from "./lawyer-availability-badge";
@@ -57,9 +57,11 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
   const years = yearsOfExperience(lawyer);
   const location = lawyer.locations[0];
   const duration = lawyer.pricing.consultationDurationMinutes;
-  // A lawyer removed by LEGALIR review is shown in a red treatment so the
-  // card can never be mistaken for a bookable profile.
+  // A lawyer removed from the marketplace (rejected by the bar, or suspended
+  // by LEGALIR) is shown in a red treatment so the card can never be mistaken
+  // for a bookable profile. The copy differs per outcome.
   const rejected = view.tone === "rejected";
+  const removeReason = removalReason(view.status);
 
   return (
     <div
@@ -170,7 +172,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
             className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-4 py-2.5 text-center text-button font-medium text-error-700"
           >
             <IconError size={16} className="shrink-0" aria-hidden="true" />
-            {REJECTED_REASON_FA}
+            {removeReason}
           </div>
         ) : (
           <div className="flex flex-col gap-2 mobile-l:flex-row">

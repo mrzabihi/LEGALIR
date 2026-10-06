@@ -15,6 +15,9 @@ import type {
   AdminOverview,
   AdminOrderListResponse,
   AdminOrder,
+  AdminOrderReceipt,
+  AdminReceiptKind,
+  AdminReceiptUnavailableReason,
   OrderStatus,
   AdminAuditEntry,
   AuditLogListResponse,
@@ -36,11 +39,19 @@ import type {
   SupportTicketStatus,
   SupportTicketPriority,
   AdminKpi,
+  AdminAttentionItem,
+  AdminBreakdownItem,
+  AdminDailyPoint,
+  AdminOverviewComparison,
+  AdminRecentRequest,
   StaffMember,
   RoleDescriptor,
   PlatformRole,
   SubscriptionPlan,
   PlanAuditEntry,
+  LawyerVerificationStatus,
+  LawyerDecisionBucket,
+  LawyerStatusDecision,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -176,13 +187,79 @@ export interface AdminLawyerRow {
   fullName: string;
   licenseNumber: string | null;
   licenseYear: number | null;
-  verificationStatus: string;
+  licenseAuthority: string | null;
+  verificationStatus: LawyerVerificationStatus;
   verificationNote: string | null;
   verifiedAt: string | null;
   isDemo: boolean;
   specializations: { category: string; yearsExperience: number }[];
+  locations: { province: string; city: string }[];
+  activityType: string | null;
+  mobileMasked: string;
+  bucket: LawyerDecisionBucket;
+  lastDecision: AdminLawyerDecision | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A single recorded admin decision (previous → new, actor, reason, time). */
+export interface AdminLawyerDecision {
+  newStatus: LawyerVerificationStatus;
+  actorName: string;
+  reason: string;
+  createdAt: string;
+}
+
+/** A platform → lawyer direct message (delivered via the notification feed). */
+export interface AdminLawyerMessageRow {
+  id: string;
+  lawyerId: string;
+  lawyerUserId: string;
+  subject: string;
+  body: string;
+  actorUserId: string;
+  actorName: string;
+  createdAt: string;
+}
+
+/** The full registration dossier returned by GET /admin/lawyers/[id]. */
+export interface AdminLawyerDetail {
+  profile: {
+    id: string;
+    userId: string;
+    fullName: string;
+    bio: string;
+    professionalTitle: string | null;
+    avatarUrl: string | null;
+    licenseNumber: string | null;
+    licenseYear: number | null;
+    licenseAuthority: string | null;
+    activityType: string | null;
+    verificationStatus: LawyerVerificationStatus;
+    verificationNote: string | null;
+    verifiedAt: string | null;
+    availabilityStatus: string;
+    isDemo: boolean;
+    specializations: { category: string; yearsExperience: number }[];
+    locations: { province: string; city: string; remote: boolean }[];
+    languages: { code: string; labelFa: string; proficiency: string }[];
+    performance: unknown;
+    createdAt: string;
+    updatedAt: string;
+  };
+  contact: { mobileMasked: string; email: string | null };
+  user: {
+    id: string;
+    displayName: string | null;
+    role: string;
+    accountType: string;
+    createdAt: string;
+  };
+  bucket: LawyerDecisionBucket;
+  history: (LawyerStatusDecision & { id: string })[];
+  lastDecision: (LawyerStatusDecision & { id: string }) | null;
+  messages: AdminLawyerMessageRow[];
+  stats: { messagesSent: number; decisions: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -204,12 +281,29 @@ const A = "/api/v1/admin";
 // Overview & reports
 // ---------------------------------------------------------------------------
 
-export function fetchAdminOverview(rangeDays = 30): Promise<AdminOverview> {
-  return apiClient.get<AdminOverview>(`${A}/overview${qs({ rangeDays })}`);
+/** An explicit calendar window (both bounds ISO dates). Overrides `rangeDays`. */
+export interface AdminWindow {
+  from: string;
+  to: string;
 }
 
-export function fetchAdminReports(rangeDays = 30): Promise<AdminReportsResponse> {
-  return apiClient.get<AdminReportsResponse>(`${A}/reports${qs({ rangeDays })}`);
+/** Query fields shared by the overview and reports endpoints. */
+function windowParams(rangeDays: number, window?: AdminWindow | null) {
+  return qs({ rangeDays, from: window?.from, to: window?.to });
+}
+
+export function fetchAdminOverview(
+  rangeDays = 30,
+  window?: AdminWindow | null
+): Promise<AdminOverview> {
+  return apiClient.get<AdminOverview>(`${A}/overview${windowParams(rangeDays, window)}`);
+}
+
+export function fetchAdminReports(
+  rangeDays = 30,
+  window?: AdminWindow | null
+): Promise<AdminReportsResponse> {
+  return apiClient.get<AdminReportsResponse>(`${A}/reports${windowParams(rangeDays, window)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +389,26 @@ export function fetchAdminOrder(
   return apiClient.get<{ order: AdminOrder; refunds: FinancialAdjustment[] }>(
     `${A}/orders/${encodeURIComponent(id)}`
   );
+}
+
+/**
+ * The receipt descriptor for an order: what a «رسید» is here and whether one
+ * can be opened. When `available` is false, `reason` says why and no field is
+ * invented. When it is true, `fileUrl` is a permission-checked same-origin
+ * URL that streams the receipt PDF.
+ */
+export function fetchAdminOrderReceipt(id: string): Promise<AdminOrderReceipt> {
+  return apiClient.get<AdminOrderReceipt>(`${A}/orders/${encodeURIComponent(id)}/receipt`);
+}
+
+/**
+ * The same-origin URL that streams the receipt PDF. Opened in a new tab it is
+ * rendered by the browser's own secure PDF viewer; used as a download link it
+ * carries `Content-Disposition: attachment`. It is not a public/permanent URL
+ * — the server re-checks `admin:billing:read` and sends `no-store`.
+ */
+export function adminOrderReceiptPdfUrl(id: string): string {
+  return `${A}/orders/${encodeURIComponent(id)}/receipt.pdf`;
 }
 
 export interface CreateRefundInput {
@@ -600,21 +714,50 @@ export function fetchAdminSettings(): Promise<AdminSettingsResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// Lawyers (pre-existing concrete route)
+// Lawyers (verification queue)
 // ---------------------------------------------------------------------------
 
-export function fetchAdminLawyers(status?: string): Promise<{ items: AdminLawyerRow[]; total: number }> {
+/** List the review queue. `bucket` is the 4-way admin filter; `search`
+ *  matches name / licence / city / masked mobile. Pass no args for "همه". */
+export function fetchAdminLawyers(params: {
+  bucket?: LawyerDecisionBucket;
+  status?: LawyerVerificationStatus;
+  search?: string;
+} = {}): Promise<{ items: AdminLawyerRow[]; total: number }> {
   return apiClient.get<{ items: AdminLawyerRow[]; total: number }>(
-    `${A}/lawyers${qs({ status })}`
+    `${A}/lawyers${qs({ bucket: params.bucket, status: params.status, search: params.search })}`
   );
 }
 
+/** Full registration dossier for one lawyer (detail drawer). */
+export function fetchAdminLawyer(id: string): Promise<AdminLawyerDetail> {
+  return apiClient.get<AdminLawyerDetail>(`${A}/lawyers/${encodeURIComponent(id)}`);
+}
+
+/**
+ * Record a verification decision. A non-empty `reason` is mandatory for every
+ * transition — the server refuses the request without it.
+ */
 export function decideLawyerVerification(
   id: string,
-  status: string,
-  note?: string
+  status: LawyerVerificationStatus,
+  reason: string
 ): Promise<unknown> {
-  return apiClient.post(`${A}/lawyers/${encodeURIComponent(id)}/verification`, { status, note });
+  return apiClient.post(`${A}/lawyers/${encodeURIComponent(id)}/verification`, {
+    status,
+    reason,
+  });
+}
+
+/** Send a direct message from the platform to a lawyer. */
+export function sendLawyerMessage(
+  id: string,
+  input: { subject: string; body: string }
+): Promise<AdminLawyerMessageRow> {
+  return apiClient.post<AdminLawyerMessageRow>(
+    `${A}/lawyers/${encodeURIComponent(id)}/messages`,
+    input
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -644,8 +787,16 @@ export function fetchAdminKnowledge(params?: {
 export type {
   AdminOverview,
   AdminKpi,
+  AdminAttentionItem,
+  AdminBreakdownItem,
+  AdminDailyPoint,
+  AdminOverviewComparison,
+  AdminRecentRequest,
   AdminOrder,
   AdminOrderListResponse,
+  AdminOrderReceipt,
+  AdminReceiptKind,
+  AdminReceiptUnavailableReason,
   OrderStatus,
   AdminAuditEntry,
   AuditLogListResponse,

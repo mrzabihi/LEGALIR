@@ -1493,6 +1493,48 @@ export interface NotificationReadRow {
   read_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Admin → lawyer direct messages
+// ---------------------------------------------------------------------------
+// An admin message to a lawyer is a real notification, not a parallel inbox:
+// it is persisted here and surfaced through the SAME derived feed below
+// (category "personal"), so the lawyer sees it in the LegalIR notification
+// center and the unread count can never disagree with the feed.
+
+export interface LawyerMessageRow {
+  id: string;
+  lawyerId: string;
+  /** The lawyer's owning user id — the notification recipient. */
+  lawyerUserId: string;
+  subject: string;
+  body: string;
+  actorUserId: string;
+  actorName: string;
+  createdAt: string;
+}
+
+/** Persist a direct admin→lawyer message. Returns the stored row. */
+export function createLawyerMessage(row: LawyerMessageRow): LawyerMessageRow {
+  const rows = readTable<LawyerMessageRow>("lawyer_messages");
+  rows.push(row);
+  writeTable("lawyer_messages", rows);
+  return row;
+}
+
+/** Every message delivered to a lawyer (their own user id), newest first. */
+export function listLawyerMessages(userId: string): LawyerMessageRow[] {
+  return readTable<LawyerMessageRow>("lawyer_messages")
+    .filter((m) => m.lawyerUserId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Every message sent about a specific lawyer profile, newest first. */
+export function listMessagesForLawyerProfile(lawyerId: string): LawyerMessageRow[] {
+  return readTable<LawyerMessageRow>("lawyer_messages")
+    .filter((m) => m.lawyerId === lawyerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 /**
  * Product announcements. These are editorial content shipped with the
  * build — not user data — so they live here as a static catalog rather
@@ -1615,6 +1657,25 @@ export function deriveNotifications(userId: string): NotificationItem[] {
         actionLabel: "مشاهده قرارداد",
       });
     }
+  }
+
+  // --- Direct admin messages (the lawyer inbox, normalized) ---
+  // Every message an admin sends to a lawyer shows up here as a personal
+  // notification — the existing center IS the delivery channel.
+  for (const msg of readTable<LawyerMessageRow>("lawyer_messages")) {
+    if (msg.lawyerUserId !== userId) continue;
+    const id = `lawyer-message:${msg.id}`;
+    items.push({
+      id,
+      category: "personal",
+      tone: "neutral",
+      title: msg.subject,
+      message: msg.body,
+      createdAt: msg.createdAt,
+      read: readIds.has(id),
+      href: "/profile",
+      actionLabel: "مشاهده پروفایل",
+    });
   }
 
   // --- Public announcements (static catalog) ---

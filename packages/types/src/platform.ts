@@ -517,6 +517,84 @@ export function isLawyerPendingVerification(status: LawyerVerificationStatus): b
 }
 
 /**
+ * The four decision buckets an admin actually works with. The stored
+ * `LawyerVerificationStatus` has seven values (a funnel), but an admin only
+ * ever decides بين چهار حالت. Every bucket maps onto both directions:
+ *
+ *   REVIEW    → the submitted funnel (در انتظار بررسی)
+ *   APPROVED  → VERIFIED
+ *   REJECTED  → REJECTED
+ *   SUSPENDED → SUSPENDED
+ */
+export type LawyerDecisionBucket = "REVIEW" | "APPROVED" | "REJECTED" | "SUSPENDED";
+
+export const LAWYER_DECISION_BUCKET_FA: Record<LawyerDecisionBucket, string> = {
+  REVIEW: "در انتظار بررسی",
+  APPROVED: "تأیید شده",
+  REJECTED: "رد شده",
+  SUSPENDED: "تعلیق شده",
+};
+
+/** Display order of the buckets — the review queue always leads. */
+export const LAWYER_DECISION_BUCKETS: LawyerDecisionBucket[] = [
+  "REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "SUSPENDED",
+];
+
+/** Map a stored verification status onto its admin decision bucket. */
+export function lawyerDecisionBucket(status: LawyerVerificationStatus): LawyerDecisionBucket {
+  switch (status) {
+    case "VERIFIED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "SUSPENDED":
+      return "SUSPENDED";
+    default:
+      // UNVERIFIED + every submitted funnel state is awaiting review.
+      return "REVIEW";
+  }
+}
+
+/** True when a bucket represents a human decision that must carry a reason. */
+export function isLawyerDecisionTerminal(bucket: LawyerDecisionBucket): boolean {
+  return bucket === "APPROVED" || bucket === "REJECTED" || bucket === "SUSPENDED";
+}
+
+/**
+ * One append-only record of a status decision. Every change to a lawyer's
+ * verification state MUST produce one of these: without actor + reason +
+ * timestamp the decision is not considered valid.
+ */
+export interface LawyerStatusDecision {
+  id: string;
+  lawyerId: string;
+  previousStatus: LawyerVerificationStatus;
+  newStatus: LawyerVerificationStatus;
+  /** Mandatory justification supplied by the deciding admin. */
+  reason: string;
+  actorUserId: string;
+  actorName: string;
+  actorRole: string;
+  createdAt: string;
+}
+
+/** An admin → lawyer direct message, delivered via the notification feed. */
+export interface LawyerMessage {
+  id: string;
+  lawyerId: string;
+  /** The lawyer's owning user id — the notification recipient. */
+  lawyerUserId: string;
+  subject: string;
+  body: string;
+  actorUserId: string;
+  actorName: string;
+  createdAt: string;
+}
+
+/**
  * How a lawyer's portrait was obtained. `demo` marks a synthetic/generated
  * portrait used for seeded profiles — it must never be presented as a real
  * photograph of the named person. `real` is a verified, consented upload.
@@ -542,7 +620,14 @@ export type LawyerAvailabilityStatus =
    * the bar association. Terminal: a REJECTED lawyer can never accept a
    * request and is never presented as merely «غیرفعال».
    */
-  | "REJECTED";
+  | "REJECTED"
+  /**
+   * Suspended by LEGALIR review. Unlike REJECTED the profile stays visible
+   * (for transparency) but is presented as an alert and can never start a
+   * request. Derived from the lawyer's `verificationStatus` — an admin
+   * suspension is authoritative over the lawyer's self-declared status.
+   */
+  | "SUSPENDED";
 
 export const LAWYER_AVAILABILITY_FA: Record<LawyerAvailabilityStatus, string> = {
   ACTIVE: "فعال",
@@ -551,6 +636,7 @@ export const LAWYER_AVAILABILITY_FA: Record<LawyerAvailabilityStatus, string> = 
   LIMITED: "ظرفیت درخواست محدود",
   AVAILABLE_SLOTS: "ظرفیت مشاوره باز",
   REJECTED: "Rejected",
+  SUSPENDED: "معلق",
 };
 
 /** A legal specialty a lawyer practises. */

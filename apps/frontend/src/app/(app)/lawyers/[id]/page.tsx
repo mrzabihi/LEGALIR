@@ -22,7 +22,7 @@ import {
   IconError,
 } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { REJECTED_REASON_FA } from "@/lib/lawyers/availability";
+import { removalReason, SUSPENDED_REASON_FA } from "@/lib/lawyers/availability";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
 
 const WEEKDAY_FA = ["شنبه", "یک‌شنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه"];
@@ -64,6 +64,12 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
   }
 
   const perf = lawyer.performance;
+  // A lawyer removed by review (rejected by the bar, or suspended by LEGALIR)
+  // keeps a reachable profile for transparency, but the alert is prominent and
+  // every booking CTA below is disabled.
+  const suspended = lawyer.availabilityStatus === "SUSPENDED";
+  const removed = suspended || lawyer.availabilityStatus === "REJECTED";
+  const removeReasonText = removalReason(lawyer.availabilityStatus) ?? SUSPENDED_REASON_FA;
 
   return (
     <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
@@ -74,6 +80,18 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
         <IconArrowBack size={18} />
         فهرست وکلا
       </Link>
+
+      {/* Suspension alert — the profile stays viewable, but this must be
+          impossible to miss before the (disabled) CTAs are reached. */}
+      {suspended && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-xl border border-error-200 bg-error-100 px-4 py-3 text-body-2 text-error-700"
+        >
+          <IconError size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span className="font-medium">{SUSPENDED_REASON_FA}</span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="relative mb-6 overflow-hidden rounded-2xl border border-divider/60 bg-surface p-6 shadow-sm">
@@ -92,6 +110,12 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
                 <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-0.5 text-caption text-success">
                   <IconCheckCircle size={14} />
                   تأییدشده
+                </span>
+              )}
+              {suspended && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-error/10 px-2.5 py-0.5 text-caption text-error">
+                  <IconError size={14} />
+                  معلق
                 </span>
               )}
               {lawyer.isDemo && (
@@ -245,15 +269,16 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
             </ul>
           </section>
 
-          {lawyer.availabilityStatus === "REJECTED" ? (
+          {removed ? (
             // Terminal state — the profile is viewable for transparency but
-            // can never start a request.
+            // can never start a request. The same red treatment covers both
+            // outcomes; only the copy differs.
             <div
               role="status"
               className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-5 py-3 text-center text-button font-medium text-error-700"
             >
               <IconError size={16} className="shrink-0" aria-hidden="true" />
-              {REJECTED_REASON_FA}
+              {removeReasonText}
             </div>
           ) : (
             <Link

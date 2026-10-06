@@ -11,9 +11,11 @@ import { readTable, writeTable, findUserById, normalizeStoredMobile, type DbUser
 import type {
   AdminOrder,
   AdminOrderListResponse,
+  AdminOrderReceipt,
   OrderStatus,
   FinancialAdjustment,
 } from "@legalir/types";
+import { ORDER_STATUS_FA } from "@legalir/types";
 
 const ADJ_TABLE = "financial_adjustments";
 
@@ -31,6 +33,8 @@ interface StoredSubscription {
   purchased_at: string;
   auto_renew: number;
   plan_snapshot?: { listPrice?: number; salePrice?: number } | undefined;
+  /** The gateway tracking code, when the source stored one. */
+  tracking_id?: string | null;
 }
 
 /** Mask a stored mobile for admin display: keep first 4 + last 4. */
@@ -90,7 +94,7 @@ function toOrder(sub: StoredSubscription): AdminOrder {
     currency: sub.currency,
     status: orderStatus(sub.status_fa || sub.status, refunded, amount),
     gateway: "simulated",
-    trackingId: null,
+    trackingId: sub.tracking_id ?? null,
     purchasedAt: sub.purchased_at,
     createdAt: sub.purchased_at,
   };
@@ -131,6 +135,62 @@ export function listOrders(query: OrderQuery = {}): AdminOrderListResponse {
 export function getOrder(id: string): AdminOrder | undefined {
   const sub = readTable<StoredSubscription>("subscriptions").find((s) => s.id === id);
   return sub ? toOrder(sub) : undefined;
+}
+
+/**
+ * Build the receipt descriptor for an order. A receipt EXISTS only for an
+ * order that was actually paid (SUCCESS / REFUNDED / PARTIALLY_REFUNDED); the
+ * platform renders a `system_receipt` from the real order row. An unpaid order
+ * reports `reason: "not_paid"` and NO fabricated fields. This function never
+ * invents a gateway file or a value that is not on the order.
+ */
+export function buildOrderReceipt(order: AdminOrder): AdminOrderReceipt {
+  const paid =
+    order.status === "SUCCESS" ||
+    order.status === "REFUNDED" ||
+    order.status === "PARTIALLY_REFUNDED";
+
+  const base = {
+    orderId: order.id,
+    referenceId: order.referenceId,
+    amount: order.salePrice,
+    currency: order.currency,
+    paidAt: paid ? order.purchasedAt : null,
+    gateway: order.gateway,
+    gatewaySimulated: order.gateway === "simulated",
+    status: order.status,
+    statusFa: ORDER_STATUS_FA[order.status],
+    serviceFa: order.planNameFa,
+    payerMobileMasked: order.userMobileMasked,
+    payerDisplayName: order.userDisplayName,
+    generatedAt: new Date().toISOString(),
+  } satisfies Partial<AdminOrderReceipt>;
+
+  if (!paid) {
+    return {
+      ...base,
+      available: false,
+      reason: "not_paid",
+      kind: null,
+      transactionId: null,
+      trackingId: null,
+      hasDocument: false,
+      documentMime: null,
+      fileUrl: null,
+    } as AdminOrderReceipt;
+  }
+
+  return {
+    ...base,
+    available: true,
+    reason: null,
+    kind: "system_receipt",
+    transactionId: order.referenceId,
+    trackingId: order.trackingId,
+    hasDocument: true,
+    documentMime: "application/pdf",
+    fileUrl: `/api/v1/admin/orders/${encodeURIComponent(order.id)}/receipt.pdf`,
+  } as AdminOrderReceipt;
 }
 
 export function listAdjustments(orderId?: string): FinancialAdjustment[] {

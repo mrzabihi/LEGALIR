@@ -1,18 +1,27 @@
 // ============================================================
 // LEGALIR — Admin · Lawyers (وکلا)
 // ============================================================
-// The lawyer verification queue. Every lawyer carries an explicit
-// verification state; a profile that has merely been *submitted* is never
-// shown as verified (the lawyer platform is not live). A reviewer decides
-// VERIFIED / REJECTED / SUSPENDED, and the decision is audited server-side.
+// The lawyer review queue. Every lawyer carries an explicit verification
+// state; a profile that has merely been *submitted* is never shown as
+// verified. A reviewer records a decision (تأیید / رد / تعلیق) together with
+// a mandatory reason — the decision, its actor and its timestamp are written
+// to the lawyer's history and the platform audit trail server-side.
+//
+// This queue reads the SAME source of truth the public /lawyers marketplace
+// reads, so a decision here is reflected there immediately (no second status).
 // ============================================================
 
 "use client";
 
-import { useMemo, useState } from "react";
-import { useAdminLawyers, useDecideLawyerVerification, useAdminMe } from "@/hooks/useAdmin";
+import { useState } from "react";
+import { useAdminLawyers, useAdminMe } from "@/hooks/useAdmin";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
-import { LAWYER_VERIFICATION_FA, LEGAL_CATEGORY_FA } from "@legalir/types";
+import {
+  LAWYER_DECISION_BUCKETS,
+  LAWYER_DECISION_BUCKET_FA,
+  LEGAL_CATEGORY_FA,
+  type LawyerDecisionBucket,
+} from "@legalir/types";
 import {
   PageHeader,
   DataTable,
@@ -24,94 +33,54 @@ import {
   IdChip,
   FilterPills,
   InfoBanner,
+  TextInput,
 } from "@/components/admin/ui";
+import { LawyerDetailDrawer, BUCKET_TONES } from "@/components/admin/lawyer-detail-drawer";
 
-const STATUS_ORDER = [
-  "UNDER_REVIEW",
-  "DOCUMENTS_SUBMITTED",
-  "PROFILE_SUBMITTED",
-  "VERIFIED",
-  "REJECTED",
-  "SUSPENDED",
-  "UNVERIFIED",
-] as const;
-
-const STATUS_TONES: Record<string, "neutral" | "success" | "warning" | "danger" | "info" | "brand"> = {
-  UNVERIFIED: "neutral",
-  PROFILE_SUBMITTED: "info",
-  DOCUMENTS_SUBMITTED: "info",
-  UNDER_REVIEW: "warning",
-  VERIFIED: "success",
-  REJECTED: "danger",
-  SUSPENDED: "danger",
-};
+type BucketFilter = LawyerDecisionBucket | "ALL";
 
 export default function AdminLawyersPage() {
   const { can } = useAdminMe();
   const canReview = can("admin:lawyer:verify");
 
-  const [status, setStatus] = useState<string>("");
-  const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [bucket, setBucket] = useState<BucketFilter>("ALL");
+  const [search, setSearch] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const query = useAdminLawyers(status || undefined);
-  const decide = useDecideLawyerVerification();
+  const query = useAdminLawyers({
+    bucket: bucket === "ALL" ? undefined : bucket,
+    search: search.trim() || undefined,
+  });
 
-  const filters = useMemo(
-    () => [
-      { value: "", label: "همه" },
-      ...STATUS_ORDER.map((s) => ({ value: s, label: LAWYER_VERIFICATION_FA[s] })),
-    ],
-    []
-  );
-
-  async function onDecide(id: string, next: string, note?: string) {
-    setFeedback(null);
-    setBusyId(id);
-    try {
-      await decide.mutateAsync({ id, status: next, note });
-      setFeedback({
-        tone: "success",
-        text: `وضعیت تأیید وکیل به «${LAWYER_VERIFICATION_FA[next as keyof typeof LAWYER_VERIFICATION_FA] ?? next}» تغییر کرد.`,
-      });
-    } catch (err) {
-      const message =
-        err && typeof err === "object" && "message" in err
-          ? String((err as { message: unknown }).message)
-          : "تغییر وضعیت ناموفق بود";
-      setFeedback({ tone: "error", text: message });
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const filters = [
+    { value: "ALL" as const, label: "همه" },
+    ...LAWYER_DECISION_BUCKETS.map((b) => ({ value: b, label: LAWYER_DECISION_BUCKET_FA[b] })),
+  ];
 
   return (
     <div>
       <PageHeader
         title="وکلا"
-        description="صف تأیید وکلای پلتفرم. پروفایل‌هایی که فقط ارسال شده‌اند به‌عنوان تأییدشده نمایش داده نمی‌شوند."
+        description="صف بررسی وکلای پلتفرم. تصمیم‌های ثبت‌شده روی سایت عمومی LegalIR بازتاب داده می‌شوند."
       />
 
       {!canReview && (
         <InfoBanner tone="warning">
-          شما مجوز بررسی و تأیید وکلا را ندارید؛ این فهرست فقط‌خواندنی است.
+          شما مجوز بررسی و تأیید وکلا را ندارید؛ این فهرست فقط‌خواندنی است و امکان ثبت تصمیم یا ارسال پیام
+          وجود ندارد.
         </InfoBanner>
       )}
 
-      {feedback && (
-        <div
-          className={`mb-4 rounded-large border p-3 text-body-2 ${
-            feedback.tone === "error"
-              ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-          }`}
-        >
-          {feedback.text}
+      <div className="mb-4 flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+        <FilterPills options={filters} value={bucket} onChange={setBucket} />
+        <div className="w-full tablet:w-72">
+          <TextInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="جستجو: نام، پروانه، شهر، موبایل…"
+            aria-label="جستجوی وکیل"
+          />
         </div>
-      )}
-
-      <div className="mb-4">
-        <FilterPills options={filters} value={status} onChange={setStatus} />
       </div>
 
       <StateView
@@ -125,17 +94,19 @@ export default function AdminLawyersPage() {
             <DataTable
               head={
                 <tr>
-                  <Th>نام</Th>
-                  <Th>پروانه</Th>
-                  <Th>وضعیت تأیید</Th>
+                  <Th>نام وکیل</Th>
+                  <Th>موبایل</Th>
                   <Th>تخصص</Th>
-                  <Th>ثبت</Th>
-                  {canReview && <Th>عملیات</Th>}
+                  <Th>تاریخ ثبت‌نام</Th>
+                  <Th>وضعیت</Th>
+                  <Th>آخرین تغییر وضعیت</Th>
+                  <Th>تصمیم‌گیرنده</Th>
+                  <Th>عملیات</Th>
                 </tr>
               }
             >
               {data.items.map((l) => (
-                <tr key={l.id}>
+                <tr key={l.id} className="hover:bg-surface-hover">
                   <Td>
                     <div className="flex flex-col">
                       <span className="flex items-center gap-2 font-medium text-on-surface">
@@ -150,66 +121,36 @@ export default function AdminLawyersPage() {
                     </div>
                   </Td>
                   <Td>
-                    {l.licenseNumber ? (
-                      <span className="tabular-nums" dir="ltr">
-                        {l.licenseNumber}
-                        {l.licenseYear ? ` / ${toPersianNumber(l.licenseYear)}` : ""}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </Td>
-                  <Td>
-                    <Badge tone={STATUS_TONES[l.verificationStatus] ?? "neutral"}>
-                      {LAWYER_VERIFICATION_FA[
-                        l.verificationStatus as keyof typeof LAWYER_VERIFICATION_FA
-                      ] ?? l.verificationStatus}
-                    </Badge>
+                    <span dir="ltr" className="tabular-nums">
+                      {l.mobileMasked}
+                    </span>
                   </Td>
                   <Td>
                     {l.specializations.length > 0 ? (
                       <span className="text-caption text-muted">
                         {l.specializations
-                          .slice(0, 3)
+                          .slice(0, 2)
                           .map((s) => LEGAL_CATEGORY_FA[s.category] ?? s.category)
                           .join("، ")}
-                        {l.specializations.length > 3 ? " …" : ""}
+                        {l.specializations.length > 2 ? " …" : ""}
                       </span>
                     ) : (
                       "—"
                     )}
                   </Td>
                   <Td className="whitespace-nowrap">{toPersianDate(l.createdAt)}</Td>
-                  {canReview && (
-                    <Td>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          disabled={busyId === l.id || l.verificationStatus === "VERIFIED"}
-                          onClick={() => onDecide(l.id, "VERIFIED")}
-                        >
-                          تأیید
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={busyId === l.id || l.verificationStatus === "REJECTED"}
-                          onClick={() => onDecide(l.id, "REJECTED")}
-                        >
-                          رد
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busyId === l.id || l.verificationStatus === "SUSPENDED"}
-                          onClick={() => onDecide(l.id, "SUSPENDED")}
-                        >
-                          تعلیق
-                        </Button>
-                      </div>
-                    </Td>
-                  )}
+                  <Td>
+                    <Badge tone={BUCKET_TONES[l.bucket]}>{LAWYER_DECISION_BUCKET_FA[l.bucket]}</Badge>
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    {l.lastDecision ? toPersianDate(l.lastDecision.createdAt) : "—"}
+                  </Td>
+                  <Td>{l.lastDecision ? l.lastDecision.actorName : "—"}</Td>
+                  <Td>
+                    <Button size="sm" variant="secondary" onClick={() => setOpenId(l.id)}>
+                      بررسی
+                    </Button>
+                  </Td>
                 </tr>
               ))}
             </DataTable>
@@ -218,6 +159,13 @@ export default function AdminLawyersPage() {
           </>
         )}
       </StateView>
+
+      <LawyerDetailDrawer
+        lawyerId={openId}
+        open={openId !== null}
+        onClose={() => setOpenId(null)}
+        canReview={canReview}
+      />
     </div>
   );
 }
