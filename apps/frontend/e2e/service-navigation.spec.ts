@@ -63,14 +63,19 @@ async function mockAuth(page: Page, sessionId: string) {
 
 const APP_READY_TIMEOUT = 15_000;
 
-/** The six dashboard services and the page context each must produce. */
+/**
+ * The registry-backed dashboard cards and the page context each must
+ * produce. `legal_calculation` is intentionally absent: the dashboard
+ * replaced it with the calculator launcher, which navigates straight to
+ * `/calculators` and carries no `?service=` context (see
+ * `components/dashboard/quick-access.tsx`).
+ */
 const SERVICES = [
   { id: "legal_consultation", title: "مشاوره حقوقی", route: "/chat" },
   { id: "contract_review", title: "بررسی قرارداد", route: "/documents" },
   { id: "contract_drafting", title: "تنظیم قرارداد", route: "/contracts" },
   { id: "legal_notice", title: "تولید اظهارنامه", route: "/chat" },
   { id: "document_analysis", title: "تحلیل اسناد", route: "/documents" },
-  { id: "legal_calculation", title: "محاسبات حقوقی", route: "/chat" },
 ] as const;
 
 test.describe("Service navigation & page context", () => {
