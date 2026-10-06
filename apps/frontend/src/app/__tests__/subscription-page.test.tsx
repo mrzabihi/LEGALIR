@@ -292,7 +292,7 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      expect(screen.getByText("پلن فعلی")).toBeInTheDocument();
+      expect(screen.getByText("اشتراک فعلی")).toBeInTheDocument();
     });
   });
 
@@ -315,7 +315,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      const silverSelectBtn = screen.getByText("انتخاب نقره");
+      // On an active gold subscription, the silver plan is a non-upgrade
+      // selectable plan, so its CTA label is «خرید اشتراک».
+      const silverSelectBtn = screen.getByText("خرید اشتراک");
       fireEvent.click(silverSelectBtn);
 
       await waitFor(() => {
@@ -338,7 +340,7 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("انتخاب نقره"));
+      fireEvent.click(screen.getByText("خرید اشتراک"));
 
       await waitFor(() => {
         expect(screen.getByText("انتخاب پلن نقره")).toBeInTheDocument();
@@ -403,7 +405,7 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("انتخاب نقره"));
+      fireEvent.click(screen.getByText("خرید اشتراک"));
 
       await waitFor(() => {
         expect(screen.getByText("تأیید و پرداخت")).toBeInTheDocument();
