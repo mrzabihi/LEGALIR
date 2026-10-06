@@ -237,6 +237,26 @@ const config: Config = {
         onSuccess: "var(--color-on-success)",
         onInfo: "var(--color-on-info)",
         onBackground: "var(--color-on-background)",
+        // Kebab-case aliases for the SAME on-* roles. Most of the app (and
+        // @legalir/ui) writes `text-primary-on`, but a handful of surfaces
+        // write `text-on-primary`; without these keys that class emitted no
+        // CSS and silently inherited `--color-on-surface`, so e.g. the active
+        // range pill rendered dark text on the dark primary fill (invisible).
+        "on-primary": "var(--color-on-primary)",
+        "on-primary-container": "var(--color-on-primary-container)",
+        "on-secondary": "var(--color-on-secondary)",
+        "on-secondary-container": "var(--color-on-secondary-container)",
+        "on-tertiary": "var(--color-on-tertiary)",
+        "on-tertiary-container": "var(--color-on-tertiary-container)",
+        "on-error": "var(--color-on-error)",
+        "on-error-container": "var(--color-on-error-container)",
+        "on-warning": "var(--color-on-warning)",
+        "on-warning-container": "var(--color-on-warning-container)",
+        "on-success": "var(--color-on-success)",
+        "on-success-container": "var(--color-on-success-container)",
+        "on-info": "var(--color-on-info)",
+        "on-info-container": "var(--color-on-info-container)",
+        "on-background": "var(--color-on-background)",
       },
       fontFamily: {
         sans: ["Vazir", "Vazirmatn", '"Noto Sans Arabic"', "Tahoma", "sans-serif"],
