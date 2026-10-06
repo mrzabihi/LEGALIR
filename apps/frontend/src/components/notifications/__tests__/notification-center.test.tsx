@@ -17,9 +17,34 @@ import { NotificationBell } from "../notification-bell";
 import NotificationsPage from "@/app/(app)/notifications/page";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), prefetch: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: pushMock, prefetch: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/dashboard",
 }));
+
+// A stable, assertable router — the mobile bell must `push("/notifications")`.
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
+
+/**
+ * jsdom applies no media queries, so the bell's `matchMedia` probe decides
+ * which entry point is under test. `narrow = true` models a phone
+ * (< 600px → navigate); `false` models tablet/desktop (→ popover).
+ */
+function setViewport(narrow: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: narrow ? /max-width:\s*599px/.test(query) : false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 let queryClient: QueryClient;
 
@@ -35,6 +60,9 @@ beforeEach(() => {
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 0 } },
   });
+  pushMock.mockClear();
+  // Default to the desktop/tablet entry point; mobile tests opt in.
+  setViewport(false);
 });
 
 const unreadPoints = fixtureNotifications[0]!;
@@ -114,7 +142,7 @@ describe("NotificationItem", () => {
 // NotificationBell — header entry point
 // ============================================================
 
-describe("NotificationBell", () => {
+describe("NotificationBell — desktop & tablet (popover)", () => {
   it("exposes the unread count in its accessible name", async () => {
     render(
       <TestWrapper>
@@ -151,13 +179,10 @@ describe("NotificationBell", () => {
       </TestWrapper>
     );
     fireEvent.click(await screen.findByRole("button", { name: /پیام خوانده‌نشده/ }));
-    // jsdom applies no media queries, so both the desktop popover and the
-    // mobile sheet render — every instance must point at the center.
-    const links = screen.getAllByRole("link", { name: "مشاهده همه اعلان‌ها" });
-    expect(links.length).toBeGreaterThan(0);
-    for (const link of links) {
-      expect(link).toHaveAttribute("href", "/notifications");
-    }
+    // Tablet/desktop render exactly one popover, and it must point at the
+    // center.
+    const link = await screen.findByRole("link", { name: "مشاهده همه اعلان‌ها" });
+    expect(link).toHaveAttribute("href", "/notifications");
   });
 
   it("closes the preview on Escape", async () => {
@@ -174,6 +199,47 @@ describe("NotificationBell", () => {
         screen.queryByRole("dialog", { name: "پیش‌نمایش اعلان‌ها" })
       ).not.toBeInTheDocument()
     );
+  });
+});
+
+describe("NotificationBell — phone (direct navigation, no popup)", () => {
+  it("navigates straight to /notifications on tap", async () => {
+    setViewport(true);
+    render(
+      <TestWrapper>
+        <NotificationBell />
+      </TestWrapper>
+    );
+    const bell = await screen.findByRole("button", { name: /پیام خوانده‌نشده/ });
+    fireEvent.click(bell);
+    expect(pushMock).toHaveBeenCalledWith("/notifications");
+  });
+
+  it("never opens a preview popup or sheet on a phone", async () => {
+    setViewport(true);
+    render(
+      <TestWrapper>
+        <NotificationBell />
+      </TestWrapper>
+    );
+    const bell = await screen.findByRole("button", { name: /پیام خوانده‌نشده/ });
+    fireEvent.click(bell);
+    expect(
+      screen.queryByRole("dialog", { name: "پیش‌نمایش اعلان‌ها" })
+    ).not.toBeInTheDocument();
+    expect(pushMock).toHaveBeenCalledWith("/notifications");
+  });
+
+  it("does not advertise a dialog it never opens", async () => {
+    setViewport(true);
+    render(
+      <TestWrapper>
+        <NotificationBell />
+      </TestWrapper>
+    );
+    const bell = await screen.findByRole("button", { name: /پیام خوانده‌نشده/ });
+    expect(bell).not.toHaveAttribute("aria-haspopup");
+    expect(bell).not.toHaveAttribute("aria-expanded");
   });
 });
 

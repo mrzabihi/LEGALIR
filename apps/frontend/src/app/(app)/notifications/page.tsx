@@ -72,12 +72,14 @@ export default function NotificationsPage() {
         items={[{ label: "داشبورد", href: "/dashboard" }, { label: "اعلان‌ها" }]}
       />
 
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-3">
-          <IconBell size={26} className="text-on-surface" />
+      {/* Header — stacked on phones so the title + badge never squeeze the
+          mark-all action; inline on tablet and up. */}
+      <div className="mb-5 flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <IconBell size={26} className="shrink-0 text-on-surface" />
           <h1 className="text-h2 text-on-surface">اعلان‌ها</h1>
           {unreadCount > 0 && (
-            <span className="rounded-full bg-error/10 px-2.5 py-0.5 text-caption font-medium text-error">
+            <span className="shrink-0 rounded-full bg-error/10 px-2.5 py-0.5 text-caption font-medium text-error">
               {toPersianNumber(unreadCount)} خوانده‌نشده
             </span>
           )}
@@ -87,7 +89,13 @@ export default function NotificationsPage() {
           <button
             type="button"
             onClick={() => markAllRead.mutate()}
-            className="shrink-0 text-caption text-primary font-medium hover:underline"
+            className={[
+              "inline-flex items-center justify-center gap-1.5 rounded-large px-4 text-labelLarge font-medium text-primary transition-colors duration-short3",
+              // Phones: a full-width, 44px-tall button (comfortable touch target).
+              "min-h-11 w-full border border-divider bg-surface hover:bg-primary/[0.06]",
+              // Tablet+: back to the compact inline link.
+              "tablet:min-h-0 tablet:w-auto tablet:border-0 tablet:bg-transparent tablet:px-0 tablet:text-caption tablet:hover:underline",
+            ].join(" ")}
           >
             علامت‌گذاری همه به‌عنوان خوانده‌شده
           </button>

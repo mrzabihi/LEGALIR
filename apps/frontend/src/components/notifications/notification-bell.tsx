@@ -2,8 +2,9 @@
 // LEGALIR — NotificationBell
 // ============================================================
 // Header entry point to the Notification Center.
-//   Desktop → compact popover anchored to the bell
-//   Mobile  → bottom sheet (the shared Dialog already does this)
+//   Phones (< 600px) → the bell IS the link: a tap goes straight to
+//                      /notifications, never a popup/sheet.
+//   Tablet & desktop → a compact popover anchored to the bell.
 // The unread count comes from the canonical feed query, so the badge
 // can never disagree with the list it opens.
 // ============================================================
@@ -11,8 +12,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Dialog } from "@legalir/ui";
 import { IconBell } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -33,6 +34,7 @@ const PREVIEW_LIMIT = 4;
  */
 export function NotificationBell({ variant = "default" }: { variant?: "default" | "sidebar" }) {
   const isSidebar = variant === "sidebar";
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useNotifications();
@@ -41,6 +43,19 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
 
   const unreadCount = data?.unreadCount ?? 0;
   const preview = data?.items.slice(0, PREVIEW_LIMIT) ?? [];
+
+  // Phones (< `tablet`, 600px): the bell navigates straight to the
+  // Notification Center — no popup, no sheet. Tablet & desktop keep the
+  // anchored popover. Defaults to `false` so SSR/first paint matches the
+  // desktop markup; the media query corrects it before any tap.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 599px)");
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const handleClickOutside = useCallback((e: MouseEvent) => {
     if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -72,11 +87,19 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
     if (!item.read) markRead.mutate(item.id);
   };
 
+  const handleBellClick = () => {
+    if (isNarrow) {
+      router.push("/notifications");
+      return;
+    }
+    setOpen((v) => !v);
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleBellClick}
         className={[
           "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors touch-target-min shrink-0",
           isSidebar
@@ -88,8 +111,8 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
               : "text-neutral-600 hover:bg-neutral-100",
         ].join(" ")}
         aria-label={ariaLabel}
-        aria-expanded={open}
-        aria-haspopup="dialog"
+        aria-expanded={isNarrow ? undefined : open}
+        aria-haspopup={isNarrow ? undefined : "dialog"}
         title="اعلان‌ها"
       >
         <IconBell size={21} />
@@ -103,7 +126,7 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
         )}
       </button>
 
-      {/* Desktop popover */}
+      {/* Tablet & desktop popover — phones never open this; they navigate. */}
       {open && (
         <div
           className={[
@@ -125,25 +148,6 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
           />
         </div>
       )}
-
-      {/* Mobile bottom sheet — Dialog already renders as a sheet on small screens */}
-      <div className="tablet:hidden">
-        <Dialog
-          open={open}
-          onClose={() => setOpen(false)}
-          title="اعلان‌ها"
-          maxWidth="md"
-        >
-          <NotificationPreview
-            items={preview}
-            isLoading={isLoading}
-            unreadCount={unreadCount}
-            onActivate={handleActivate}
-            onMarkAll={() => markAllRead.mutate()}
-            onNavigate={() => setOpen(false)}
-          />
-        </Dialog>
-      </div>
     </div>
   );
 }
