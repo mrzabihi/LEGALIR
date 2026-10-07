@@ -48,7 +48,7 @@ interface ContractCatalogProps {
   /**
    * When `true`, drop the page hero and the page-level container so the
    * catalog can render inside a host that supplies its own header — the
-   * «به‌زودی فعال می‌شوند» panel of the unified /contracts hub.
+   * «بزودی» panel of the unified /contracts hub.
    */
   embedded?: boolean;
   /**

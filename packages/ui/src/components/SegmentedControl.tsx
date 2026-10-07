@@ -116,7 +116,7 @@ export function SegmentedControl({
             }}
             onClick={() => onChange(segment.value)}
             className={[
-              "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-center",
+              "flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-center",
               "text-labelLarge leading-tight transition-all duration-short4 ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface-container-high)]",
               "disabled:pointer-events-none disabled:opacity-[0.38]",

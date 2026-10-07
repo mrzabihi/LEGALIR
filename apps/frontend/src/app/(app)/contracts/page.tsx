@@ -6,7 +6,7 @@
 //
 //   • «قراردادهای فعال»       — the template library + the user's own
 //                              contracts and drafts (the former /contracts/my)
-//   • «به‌زودی فعال می‌شوند»   — the future contract services catalog
+//   • «بزودی»                 — the future contract services catalog
 //
 // Everything lives in the client `ContractsHub` (URL-backed view + filters),
 // so it is wrapped in a Suspense boundary to keep the route statically

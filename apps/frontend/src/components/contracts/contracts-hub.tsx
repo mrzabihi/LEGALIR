@@ -5,7 +5,7 @@
 //
 //   • «قراردادهای فعال»       — the user's own contracts + the template
 //                              library (the former /contracts/my workspace)
-//   • «به‌زودی فعال می‌شوند»   — the future contract services (the former
+//   • «بزودی»                 — the future contract services (the former
 //                              /contracts discovery catalog)
 //
 // The switcher is a real Material SegmentedControl, NOT links between two
@@ -77,7 +77,7 @@ export function ContractsHub() {
           className="w-full tablet:w-auto"
           segments={[
             { value: "active", label: "قراردادهای فعال" },
-            { value: "coming-soon", label: "به‌زودی فعال می‌شوند" },
+            { value: "coming-soon", label: "بزودی" },
           ]}
         />
       </div>

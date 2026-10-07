@@ -80,7 +80,7 @@ test.describe("Contracts hub", () => {
       "aria-selected",
       "true",
     );
-    await expect(page.getByRole("tab", { name: "به‌زودی فعال می‌شوند" })).toHaveAttribute(
+    await expect(page.getByRole("tab", { name: "بزودی" })).toHaveAttribute(
       "aria-selected",
       "false",
     );
@@ -102,7 +102,7 @@ test.describe("Contracts hub", () => {
       (window as unknown as { __hubAlive?: number }).__hubAlive = 42;
     });
 
-    await page.getByRole("tab", { name: "به‌زودی فعال می‌شوند" }).click();
+    await page.getByRole("tab", { name: "بزودی" }).click();
 
     // The URL carries the view, the path is untouched.
     await expect(page).toHaveURL(/\/contracts\?view=coming-soon/, {
@@ -119,7 +119,7 @@ test.describe("Contracts hub", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "تنظیم قرارداد" }),
     ).toBeVisible();
-    await expect(page.getByRole("tab", { name: "به‌زودی فعال می‌شوند" })).toHaveAttribute(
+    await expect(page.getByRole("tab", { name: "بزودی" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -134,7 +134,7 @@ test.describe("Contracts hub", () => {
   test("?view=coming-soon deep-links straight to the future-services view", async ({ page }) => {
     await page.goto("/contracts?view=coming-soon");
 
-    await expect(page.getByRole("tab", { name: "به‌زودی فعال می‌شوند" })).toHaveAttribute(
+    await expect(page.getByRole("tab", { name: "بزودی" })).toHaveAttribute(
       "aria-selected",
       "true",
       { timeout: APP_READY_TIMEOUT },
@@ -189,7 +189,7 @@ test.describe("Contracts hub", () => {
       expect(activeOverflow).toBeLessThanOrEqual(1);
 
       // Same guarantee on the future-services view.
-      await page.getByRole("tab", { name: "به‌زودی فعال می‌شوند" }).click();
+      await page.getByRole("tab", { name: "بزودی" }).click();
       await expect(
         page.getByRole("heading", { name: "قراردادهای در دست توسعه" }),
       ).toBeVisible();

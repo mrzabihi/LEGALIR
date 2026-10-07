@@ -4,7 +4,7 @@
 // The shared header for the unified /contracts hub. It resolves the
 // active service from the URL (the single source of truth) and is
 // rendered ABOVE the two-tab switcher, so it stays pixel-identical when
-// the user switches between «قراردادهای فعال» and «به‌زودی فعال می‌شوند».
+// the user switches between «قراردادهای فعال» and «بزودی».
 //
 // The header hosts TWO services that must never be confused:
 //
