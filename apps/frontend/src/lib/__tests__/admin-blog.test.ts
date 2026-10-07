@@ -34,7 +34,9 @@ vi.mock("node:fs", () => {
     writeFileSync: (_p: string, data: string) => {
       state.table = JSON.parse(data);
     },
-    mkdirSync: () => {},
+    mkdirSync: () => {
+      /* noop — directories are simulated by the in-memory store */
+    },
   };
   return { default: mocked, ...mocked };
 });

@@ -27,12 +27,12 @@ vi.mock("@/lib/db", () => ({
     h.tables.set(name, structuredClone(data));
   },
   findUserById: (id: string) =>
-    (h.tables.get("users") as Array<Record<string, unknown>> | undefined)?.find(
+    (h.tables.get("users") as Record<string, unknown>[] | undefined)?.find(
       (u) => u["id"] === id
     ),
   setUserRole: (id: string, role: string) => {
     const users = structuredClone(
-      (h.tables.get("users") ?? []) as Array<Record<string, unknown>>
+      (h.tables.get("users") ?? []) as Record<string, unknown>[]
     );
     const u = users.find((x) => x["id"] === id);
     if (!u) return undefined;
@@ -515,7 +515,7 @@ describe("staff administration", () => {
   it("allows demotion while another role-manager remains, then locks again", () => {
     seedStaff();
     h.tables.set("users", [
-      ...(h.tables.get("users") as Array<Record<string, unknown>>),
+      ...(h.tables.get("users") as Record<string, unknown>[]),
       { id: "u-super2", mobile: "09120000003", displayName: null, email: null, passwordHash: "x", role: "SUPER_ADMIN", createdAt: "2026-01-03T00:00:00.000Z" },
     ]);
     const demoted = changeUserRole({ userId: "u-super", role: "USER", actorUserId: "u-super2" });
@@ -532,7 +532,7 @@ describe("staff administration", () => {
     // platform of ALL role management. The guard must refuse precisely that.
     seedStaff();
     h.tables.set("users", [
-      ...(h.tables.get("users") as Array<Record<string, unknown>>),
+      ...(h.tables.get("users") as Record<string, unknown>[]),
       { id: "u-admin", mobile: "09120000003", displayName: null, email: null, passwordHash: "x", role: "ADMIN", createdAt: "2026-01-03T00:00:00.000Z" },
     ]);
     expect(changeUserRole({ userId: "u-super", role: "USER", actorUserId: "u-admin" })).toEqual({ error: "LAST_SUPERADMIN" });

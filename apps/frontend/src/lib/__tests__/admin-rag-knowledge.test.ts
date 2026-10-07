@@ -56,7 +56,9 @@ vi.mock("@/lib/law-catalog", () => ({
 
 vi.mock("@/lib/db", () => ({
   readTable: (name: string) => (name === "rag_review_overlay" ? state.overlays : []),
-  writeTable: () => {},
+  writeTable: () => {
+    /* noop — overlay writes are asserted via readTable's shared state */
+  },
 }));
 
 // Mock fs so `getRagPipelineStatus` sees a deterministic source folder.

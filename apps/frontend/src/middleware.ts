@@ -36,9 +36,6 @@ const PROTECTED_PREFIXES = [
 /** Routes accessible only to unauthenticated users (redirect to dashboard if logged in) */
 const GUEST_ONLY_PREFIXES = ["/auth/mobile", "/auth/verify", "/login", "/register"];
 
-/** Public routes accessible by anyone */
-const PUBLIC_PREFIXES = ["/", "/pricing", "/features", "/about", "/contact", "/terms", "/privacy-policy", "/blog", "/health", "/design-system", "/contracts/verify"];
-
 /**
  * The admin panel is also reachable on a dedicated subdomain — e.g.
  * `http://admin.localhost:3000` — which maps onto the `/admin` tree. Browsers
@@ -57,10 +54,6 @@ function isProtected(pathname: string): boolean {
 
 function isGuestOnly(pathname: string): boolean {
   return GUEST_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
-}
-
-function isPublic(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 export function middleware(request: NextRequest) {

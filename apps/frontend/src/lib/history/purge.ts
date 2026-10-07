@@ -18,7 +18,6 @@
 
 import {
   readTable,
-  writeTable,
   readConversations,
   writeConversations,
   removeActivity,
@@ -41,7 +40,6 @@ import {
   listParties,
 } from "@/lib/contracts/db";
 import { findContractDefinition } from "@/lib/contracts/registry";
-import { computeCompleteness } from "@/lib/contracts/completeness";
 import { todayJalali } from "@/lib/contracts/dates";
 import type { ContractParty, PropertyContract, PropertyKind } from "@legalir/types";
 

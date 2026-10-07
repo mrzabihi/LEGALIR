@@ -252,7 +252,7 @@ export function upsertBlogPost(
   };
 
   // If the slug changed, drop the stale detail key.
-  if (existing && existing.slug !== slug) delete table.details[existing.slug];
+  if (existing && existing.slug !== slug) Reflect.deleteProperty(table.details, existing.slug);
   if (idx >= 0) table.items[idx] = item;
   else table.items.unshift(item);
   table.details[slug] = detail;
@@ -288,7 +288,7 @@ export function deleteBlogPost(id: string): { ok: true } | { error: string } {
   if (idx === -1) return { error: "NOT_FOUND" };
   const slug = table.items[idx]!.slug;
   table.items.splice(idx, 1);
-  delete table.details[slug];
+  Reflect.deleteProperty(table.details, slug);
   writeBlogTable(table);
   return { ok: true };
 }

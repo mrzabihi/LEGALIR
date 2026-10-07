@@ -21,7 +21,6 @@ import {
   archiveActivity,
   archiveConversation,
   readConversations,
-  type ActivityRow,
 } from "@/lib/db";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { enforceRetentionForUser, RETENTION_MAX_ITEMS, RETENTION_MAX_AGE_DAYS } from "@/lib/history/retention";

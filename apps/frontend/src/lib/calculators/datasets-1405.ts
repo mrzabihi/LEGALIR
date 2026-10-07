@@ -34,7 +34,6 @@ import type { RateDataset } from "@legalir/types";
 const AUTHORITY_JUDICIARY = "قوه قضائیه جمهوری اسلامی ایران";
 const AUTHORITY_PARLIAMENT = "مجلس شورای اسلامی";
 const AUTHORITY_CENTRAL_BANK = "بانک مرکزی جمهوری اسلامی ایران";
-const AUTHORITY_TAX_ORG = "سازمان امور مالیاتی کشور";
 const AUTHORITY_NOTARY = "سازمان ثبت اسناد و املاک کشور";
 const AUTHORITY_REALTORS = "اتحادیه صنف مشاوران املاک";
 

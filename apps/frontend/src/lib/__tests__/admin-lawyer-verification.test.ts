@@ -20,9 +20,11 @@ import os from "node:os";
 import path from "node:path";
 import type { NextRequest } from "next/server";
 import type { LawyerProfile } from "@legalir/types";
+import type * as DbModule from "../db";
+import type * as LawyerDbModule from "../lawyer-db";
 
-type Db = typeof import("../db");
-type LawyerDb = typeof import("../lawyer-db");
+type Db = typeof DbModule;
+type LawyerDb = typeof LawyerDbModule;
 
 let db: Db;
 let lawyerDb: LawyerDb;

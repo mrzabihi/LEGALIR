@@ -37,10 +37,18 @@ function setViewport(narrow: boolean) {
       matches: narrow ? /max-width:\s*599px/.test(query) : false,
       media: query,
       onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addListener: () => {
+        /* noop — MediaQueryList listeners are unused in these tests */
+      },
+      removeListener: () => {
+        /* noop — MediaQueryList listeners are unused in these tests */
+      },
+      addEventListener: () => {
+        /* noop — MediaQueryList listeners are unused in these tests */
+      },
+      removeEventListener: () => {
+        /* noop — MediaQueryList listeners are unused in these tests */
+      },
       dispatchEvent: () => false,
     }),
   });

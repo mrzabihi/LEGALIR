@@ -13,7 +13,6 @@
 
 import { readTable, writeTable } from "@/lib/db";
 import {
-  CORPUS_VERSION,
   defaultCorpusDir,
   ingestCorpus,
   readCorpus,

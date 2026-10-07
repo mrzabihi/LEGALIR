@@ -15,7 +15,7 @@
 // Each party (buyer/seller or landlord/tenant) pays its own share.
 
 import type { CalculationResult, CalculatorDef } from "@legalir/types";
-import { money, roundTo, type Money } from "../money";
+import { money, roundTo } from "../money";
 import { formatMoney, formatPercentFa } from "../format";
 import { requireDataset } from "../datasets";
 import { num, str, type Calculator, type CalculatorInput } from "../engine";

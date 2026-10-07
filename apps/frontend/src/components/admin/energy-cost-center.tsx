@@ -668,7 +668,7 @@ function ProfileDrawer({
                           if (!d) return d;
                           const unitCosts = { ...d.unitCosts };
                           if (v > 0) unitCosts[unit] = v;
-                          else delete unitCosts[unit];
+                          else Reflect.deleteProperty(unitCosts, unit);
                           return { ...d, unitCosts };
                         });
                       }}
@@ -714,7 +714,7 @@ function ProfileDrawer({
                             setDraft((d) => {
                               if (!d) return d;
                               const modelMultipliers = { ...d.modelMultipliers };
-                              delete modelMultipliers[model];
+                              Reflect.deleteProperty(modelMultipliers, model);
                               return { ...d, modelMultipliers };
                             })
                           }
