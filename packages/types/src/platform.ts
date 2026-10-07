@@ -182,6 +182,8 @@ export type Permission =
   | "admin:content:manage"
   | "admin:reports:read"
   | "admin:reports:export"
+  | "admin:analytics:read"
+  | "admin:analytics:export"
   | "admin:staff:read"
   | "admin:staff:manage"
   | "admin:settings:read"
@@ -283,6 +285,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:rag:read",
     "admin:energy:read",
     "admin:reports:read",
+    "admin:analytics:read",
   ],
   AUDITOR: [
     "admin:overview:read",
@@ -290,6 +293,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:billing:read",
     "admin:finance:read",
     "admin:reports:read",
+    "admin:analytics:read",
     "admin:staff:read",
     "admin:settings:read",
   ],
@@ -307,6 +311,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:support:read",
     "admin:support:manage",
     "admin:reports:read",
+    "admin:analytics:read",
   ],
   ADMIN_LAWYERS: [
     "admin:overview:read",
@@ -315,6 +320,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:reports:read",
+    "admin:analytics:read",
   ],
   ADMIN_FINANCE: [
     "admin:overview:read",
@@ -331,7 +337,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:energy:read",
     "admin:energy:manage",
     "admin:reports:read",
+    "admin:analytics:read",
     "admin:reports:export",
+    "admin:analytics:export",
   ],
   ADMIN_CONTENT: [
     "admin:overview:read",
@@ -347,6 +355,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:rag:manage",
     "admin:rag:publish",
     "admin:reports:read",
+    "admin:analytics:read",
   ],
   ADMIN_AI: [
     "admin:overview:read",
@@ -358,6 +367,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:rag:publish",
     "admin:calculators:read",
     "admin:reports:read",
+    "admin:analytics:read",
   ],
   ADMIN: [
     "admin:overview:read",
@@ -395,7 +405,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:content:read",
     "admin:content:manage",
     "admin:reports:read",
+    "admin:analytics:read",
     "admin:reports:export",
+    "admin:analytics:export",
     "admin:staff:read",
     "admin:audit:read",
     "admin:settings:read",
@@ -437,7 +449,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:content:read",
     "admin:content:manage",
     "admin:reports:read",
+    "admin:analytics:read",
     "admin:reports:export",
+    "admin:analytics:export",
     "admin:staff:read",
     "admin:staff:manage",
     "admin:audit:read",

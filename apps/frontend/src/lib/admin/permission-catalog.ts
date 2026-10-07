@@ -198,6 +198,9 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   // --- Reports ---
   "admin:reports:read": { fa: "مشاهده گزارش‌ها", group: "reports" },
   "admin:reports:export": { fa: "خروجی گزارش‌ها", group: "reports" },
+  // --- Analytics (BI / product intelligence) ---
+  "admin:analytics:read": { fa: "مشاهدهٔ تحلیل‌های کسب‌وکار", group: "reports" },
+  "admin:analytics:export": { fa: "خروجی تحلیل‌های کسب‌وکار", group: "reports" },
   // --- Governance / security ---
   "admin:staff:read": { fa: "مشاهده کارکنان و نقش‌ها", group: "governance" },
   "admin:staff:manage": { fa: "مدیریت کارکنان و تخصیص نقش", group: "governance" },

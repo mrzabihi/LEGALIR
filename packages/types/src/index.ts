@@ -2871,3 +2871,8 @@ export * from "./subscription";
 // Case Management operational model (lifecycle, proceedings, members, …)
 // ---------------------------------------------------------------------------
 export * from "./case-management";
+
+// ---------------------------------------------------------------------------
+// Analytics / Business Intelligence (read-only reporting contracts)
+// ---------------------------------------------------------------------------
+export * from "./analytics";

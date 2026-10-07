@@ -1,7 +1,7 @@
 // ============================================================
 // LEGALIR — Admin panel navigation registry
 // ============================================================
-// The seventeen sections of the platform admin panel, in display order.
+// The eighteen sections of the platform admin panel, in display order.
 // This is the SINGLE source of truth for the admin menu: the shell renders
 // from it and each entry names the `Permission` that gates it. The
 // permission is a UX affordance only — every admin API re-checks the same
@@ -26,7 +26,7 @@ export interface AdminNavItem {
   permission: Permission;
 }
 
-/** The seventeen admin sections, in product order. */
+/** The eighteen admin sections, in product order. */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     key: "overview",
@@ -142,6 +142,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
     hintFa: "وبلاگ و اعلان‌ها",
     icon: "Document",
     permission: "admin:content:read",
+  },
+  {
+    key: "analytics",
+    path: "/admin/analytics",
+    titleFa: "تحلیل و هوش تجاری",
+    hintFa: "فروش، انرژی، مشتریان و مالی",
+    icon: "Grid",
+    permission: "admin:analytics:read",
   },
   {
     key: "reports",

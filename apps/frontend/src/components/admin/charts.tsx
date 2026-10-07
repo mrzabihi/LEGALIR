@@ -525,6 +525,210 @@ export function BarChart({
 }
 
 // ---------------------------------------------------------------------------
+// Grouped bar chart — compare N series across the SAME categories (per day)
+// ---------------------------------------------------------------------------
+
+export interface GroupedSeries {
+  /** Series name (e.g. «نقره‌ای»), shown in the tooltip. */
+  name: string;
+  /** One value per category, aligned to `categories` by index. */
+  values: number[];
+  /** Fill; defaults to a stable palette colour by series index. */
+  color?: string;
+}
+
+/**
+ * A dependency-free grouped-bar chart: for each category (a day) it draws one
+ * bar per series side by side, so plan-vs-plan volume is directly comparable
+ * without stacking. Everything is real input — a category with all-zero
+ * values renders an empty slot (no bar), never an interpolated height.
+ *
+ * RTL: the first category is drawn on the RIGHT, matching every other chart
+ * here; the value axis sits in the right-hand gutter. A screen-reader table
+ * mirrors every number so the comparison is reachable without colour/hover.
+ */
+export function GroupedBarChart({
+  categories,
+  series,
+  ariaLabel,
+  unit = "",
+  valueFormat,
+}: {
+  /** Category axis labels (already Persian-formatted by the caller). */
+  categories: string[];
+  series: GroupedSeries[];
+  ariaLabel: string;
+  /** Suffix appended after the numeric value in the tooltip. */
+  unit?: string;
+  /** Optional per-value text formatter (e.g. a Toman string). */
+  valueFormat?: (n: number) => string;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const fmt = valueFormat ?? ((n: number) => toPersianNumber(n));
+
+  const plotLeft = PAD_L;
+  const plotRight = VIEW_W - GUTTER_R;
+  const plotW = plotRight - plotLeft;
+  const plotH = VIEW_H - PAD_TOP - PAD_BOTTOM;
+  const baseline = PAD_TOP + plotH;
+  const n = categories.length;
+  const s = Math.max(1, series.length);
+
+  const rawMax = Math.max(0, ...series.flatMap((g) => g.values));
+  const { max: axisMax, step } = niceScale(rawMax);
+  const ticks = Array.from({ length: Math.round(axisMax / step) + 1 }, (_, k) => k * step);
+
+  // Cluster geometry: category i occupies column i; columns run right→left.
+  const colW = n > 0 ? plotW / n : plotW;
+  const clusterW = colW * 0.74;
+  const barW = clusterW / s;
+  const colCenter = (i: number) => plotRight - (i + 0.5) * colW;
+  const clusterLeft = (i: number) => colCenter(i) - clusterW / 2;
+  const barX = (i: number, j: number) => clusterLeft(i) + j * barW;
+  const yAt = (v: number) => PAD_TOP + plotH * (1 - v / axisMax);
+
+  const labelStride = Math.max(1, Math.ceil(n / 6));
+  const endIdx = n - 1;
+
+  return (
+    <div className="relative">
+      <svg
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        className="block h-auto w-full"
+        style={{ direction: "ltr" }}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {/* Gridlines + value axis (right gutter) */}
+        {ticks.map((v) => {
+          const y = yAt(v);
+          return (
+            <g key={v}>
+              <line
+                x1={plotLeft}
+                y1={y}
+                x2={plotRight}
+                y2={y}
+                stroke="var(--color-divider)"
+                strokeWidth="1"
+                strokeDasharray={v === 0 ? "0" : "6 8"}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={VIEW_W - 6}
+                y={y + AXIS_FONT * 0.34}
+                textAnchor="end"
+                fontSize={AXIS_FONT}
+                fill="var(--color-muted)"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {compactFa(v)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Bars (one cluster per category) */}
+        {categories.map((_, i) => (
+          <g key={`cluster-${i}`} opacity={hovered == null || hovered === i ? 1 : 0.55}>
+            {series.map((g, j) => {
+              const value = g.values[i] ?? 0;
+              if (value <= 0) return null;
+              const y = yAt(value);
+              const h = baseline - y;
+              return (
+                <rect
+                  key={`bar-${i}-${j}`}
+                  x={barX(i, j)}
+                  y={y}
+                  width={Math.max(1, barW - 2)}
+                  height={h}
+                  rx={3}
+                  fill={g.color ?? catColor(j)}
+                />
+              );
+            })}
+          </g>
+        ))}
+
+        {/* Category axis (right → left) */}
+        {categories.map((label, i) =>
+          i % labelStride === 0 || i === endIdx ? (
+            <text
+              key={`label-${i}`}
+              x={colCenter(i)}
+              y={VIEW_H - 8}
+              textAnchor="middle"
+              fontSize={AXIS_FONT}
+              fill="var(--color-muted)"
+            >
+              {label}
+            </text>
+          ) : null
+        )}
+
+        {/* Hover hit areas (drawn last) */}
+        {categories.map((_, i) => (
+          <rect
+            key={`hit-${i}`}
+            x={clusterLeft(i) - (colW - clusterW) / 2}
+            y={PAD_TOP}
+            width={colW}
+            height={plotH}
+            fill="transparent"
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+          />
+        ))}
+      </svg>
+
+      {/* Tooltip — every series in the hovered category */}
+      {hovered != null && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-medium border border-divider bg-surface px-2.5 py-1.5 shadow-elevation-3"
+          style={{
+            left: `${Math.min(88, Math.max(12, (colCenter(hovered) / VIEW_W) * 100))}%`,
+            top: 4,
+          }}
+        >
+          <p className="whitespace-nowrap text-caption text-muted">
+            {categories[hovered]}
+          </p>
+          <ul className="mt-0.5 space-y-0.5">
+            {series.map((g, j) => (
+              <li key={g.name} className="flex items-center gap-2 whitespace-nowrap text-body-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-small"
+                  style={{ backgroundColor: g.color ?? catColor(j) }}
+                />
+                <span className="text-on-surface-variant">{g.name}:</span>
+                <span dir="ltr" className="font-bold tabular-nums text-onSurface">
+                  {fmt(g.values[hovered] ?? 0)}
+                  {unit ? ` ${unit}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Screen-reader equivalent */}
+      <ul className="sr-only">
+        {categories.map((c, i) => (
+          <li key={i}>
+            {c}:{" "}
+            {series
+              .map((g) => `${g.name} ${fmt(g.values[i] ?? 0)}${unit ? ` ${unit}` : ""}`)
+              .join("، ")}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Donut chart — composition of a few categories
 // ---------------------------------------------------------------------------
 

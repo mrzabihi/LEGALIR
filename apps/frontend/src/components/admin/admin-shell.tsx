@@ -46,6 +46,7 @@ import {
   IconHeadset,
   IconDocument,
   IconDownload,
+  IconGrid,
   IconShield,
   IconSettings,
   IconHome,
@@ -74,6 +75,7 @@ const ICONS: Record<string, IconComponent> = {
   Headset: IconHeadset,
   Document: IconDocument,
   Download: IconDownload,
+  Grid: IconGrid,
   Shield: IconShield,
   Settings: IconSettings,
 };
