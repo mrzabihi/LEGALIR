@@ -26,6 +26,7 @@ import type * as subsModule from "../admin/analytics/subscription-analytics";
 import type * as energyModule from "../admin/analytics/energy-analytics";
 import type * as custModule from "../admin/analytics/customer-analytics";
 import type * as financeModule from "../admin/analytics/finance-analytics";
+import type * as exportModule from "../admin/analytics/export";
 
 let db: typeof dbModule;
 let metrics: typeof metricsModule;
@@ -33,6 +34,7 @@ let subs: typeof subsModule;
 let energy: typeof energyModule;
 let cust: typeof custModule;
 let finance: typeof financeModule;
+let exportMod: typeof exportModule;
 let tmpDir: string;
 let originalCwd: string;
 
@@ -111,6 +113,7 @@ beforeAll(async () => {
   energy = await import("../admin/analytics/energy-analytics");
   cust = await import("../admin/analytics/customer-analytics");
   finance = await import("../admin/analytics/finance-analytics");
+  exportMod = await import("../admin/analytics/export");
 
   const w = <T>(name: string, rows: T[]) => db.writeTable(name, rows);
 
@@ -305,6 +308,27 @@ describe("buildFinanceAnalytics", () => {
     const r = finance.buildFinanceAnalytics(RANGE);
     expect(r.refundPendingCount).toBe(1);
     expect(r.refundPendingAmount).toBe(200_000);
+  });
+});
+
+// ============================================================
+// Export — the finance kind is real (workbook bytes, no error)
+// ============================================================
+
+describe("analytics export", () => {
+  it("recognises the finance kind and rejects unknown kinds", () => {
+    expect(exportMod.isAnalyticsExportKind("finance")).toBe(true);
+    expect(exportMod.isAnalyticsExportKind("bogus")).toBe(false);
+  });
+
+  it("builds a non-empty finance workbook over the same real range", () => {
+    const res = exportMod.buildAnalyticsExport("finance", RANGE);
+    expect("error" in res).toBe(false);
+    if ("error" in res) return;
+    expect(res.fileName).toContain("analytics-finance");
+    expect(res.rowCount).toBeGreaterThan(0);
+    expect(Buffer.isBuffer(res.bytes)).toBe(true);
+    expect(res.bytes.length).toBeGreaterThan(0);
   });
 });
 

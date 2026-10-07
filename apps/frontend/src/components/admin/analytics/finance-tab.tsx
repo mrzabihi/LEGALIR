@@ -16,7 +16,7 @@ import { useAnalyticsFinance } from "@/hooks/useAnalytics";
 import { toPersianCurrency, toPersianNumber } from "@/lib/persian-utils";
 import type { AnalyticsRangeQuery } from "@/lib/api/analytics";
 import type { FinanceAnalytics } from "@legalir/types";
-import { QualityPanel, WindowCaption } from "./kit";
+import { AnalyticsExportButton, QualityPanel, WindowCaption } from "./kit";
 import { IconCheck, IconWarning } from "@/lib/icons";
 
 const KPI_GRID = "grid grid-cols-1 gap-3 mobile-l:grid-cols-3";
@@ -31,12 +31,12 @@ export function FinanceTab({ range }: { range: AnalyticsRangeQuery }) {
       isEmpty={() => false}
       emptyMessage="دادهٔ مالی در دسترس نیست."
     >
-      {(data) => <FinanceBody data={data} />}
+      {(data) => <FinanceBody data={data} range={range} />}
     </StateView>
   );
 }
 
-function FinanceBody({ data }: { data: FinanceAnalytics }) {
+function FinanceBody({ data, range }: { data: FinanceAnalytics; range: AnalyticsRangeQuery }) {
   const rec = data.reconcile;
   const pay = data.payments;
 
@@ -54,6 +54,7 @@ function FinanceBody({ data }: { data: FinanceAnalytics }) {
       <Section
         title="تطبیق مالی"
         subtitle="درآمد خالص این داشبورد باید دقیقاً با خالص مدل سفارش‌ها برابر باشد؛ این همان چیزی است که ثابت می‌کند دو بخش یک پول را گزارش می‌کنند."
+        actions={<AnalyticsExportButton kind="finance" range={range} />}
       >
         <Card
           className={`mb-4 flex flex-wrap items-center justify-between gap-3 border-s-2 p-4 ${

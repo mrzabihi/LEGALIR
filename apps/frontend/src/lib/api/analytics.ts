@@ -133,7 +133,7 @@ export function fetchAnalyticsRanking(
 // Export (POST → .xlsx bytes)
 // ---------------------------------------------------------------------------
 
-export type AnalyticsExportKind = "subscriptions" | "customers" | "energy";
+export type AnalyticsExportKind = "subscriptions" | "customers" | "energy" | "finance";
 
 /**
  * Download an analytics export. A POST is used (the range travels in the body)

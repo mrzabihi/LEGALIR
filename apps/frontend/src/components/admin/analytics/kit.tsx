@@ -479,6 +479,7 @@ const EXPORT_KIND_FA: Record<AnalyticsExportKind, string> = {
   subscriptions: "فروش اشتراک به تفکیک پلن",
   customers: "تحلیل مشتریان (LRFM)",
   energy: "انرژی کاربران",
+  finance: "تطبیق مالی",
 };
 
 /**

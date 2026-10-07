@@ -13,22 +13,25 @@ import { toPersianDate } from "@/lib/persian-utils";
 import { buildSubscriptionSalesReport } from "./subscription-analytics";
 import { listLrfmRows, buildCustomerAnalytics } from "./customer-analytics";
 import { allEnergyUsers } from "./energy-analytics";
+import { buildFinanceAnalytics } from "./finance-analytics";
 import type { ResolveRangeInput } from "./range";
 
 /** The exportable analytics surfaces. */
-export const ANALYTICS_EXPORT_KINDS = ["subscriptions", "customers", "energy"] as const;
+export const ANALYTICS_EXPORT_KINDS = ["subscriptions", "customers", "energy", "finance"] as const;
 export type AnalyticsExportKind = (typeof ANALYTICS_EXPORT_KINDS)[number];
 
 const KIND_FA: Record<AnalyticsExportKind, string> = {
   subscriptions: "فروش اشتراک به تفکیک پلن",
   customers: "تحلیل مشتریان (LRFM)",
   energy: "انرژی کاربران",
+  finance: "تطبیق مالی",
 };
 
 const FILE_BASE: Record<AnalyticsExportKind, string> = {
   subscriptions: "analytics-subscriptions",
   customers: "analytics-customers",
   energy: "analytics-energy",
+  finance: "analytics-finance",
 };
 
 export function isAnalyticsExportKind(k: string): k is AnalyticsExportKind {
@@ -168,6 +171,50 @@ function energySheet(input: ResolveRangeInput): SheetSpec {
   };
 }
 
+/** Finance summary + payment-health sheets (reconciliation view). */
+function financeSheets(input: ResolveRangeInput): SheetSpec[] {
+  const rep = buildFinanceAnalytics(input);
+
+  const summary: SheetSpec = {
+    name: "خلاصهٔ مالی",
+    columns: [
+      { key: "metric", header: "شاخص", width: 30 },
+      { key: "value", header: "مقدار", width: 22 },
+    ],
+    rows: [
+      { metric: "درآمد ناخالص (تومان)", value: rep.gross },
+      { metric: "بازگشت وجه تکمیل‌شده (تومان)", value: rep.refunds },
+      { metric: "درآمد خالص (تومان)", value: rep.net },
+      { metric: "خالص سفارش‌ها (تومان)", value: rep.ordersNet },
+      { metric: "تطبیق دو منبع", value: rep.reconcile.matches ? "برقرار" : "نابرابر" },
+      { metric: "خریداران بازه", value: rep.concentration.buyers },
+      { metric: "سهم ۱٪ بالا (٪)", value: rep.concentration.top1Pct },
+      { metric: "سهم ۵٪ بالا (٪)", value: rep.concentration.top5Pct },
+      { metric: "سهم ۱۰٪ بالا (٪)", value: rep.concentration.top10Pct },
+      { metric: "سهم ۲۰٪ بالا (٪)", value: rep.concentration.top20Pct },
+      { metric: "بازگشت در انتظار (تعداد)", value: rep.refundPendingCount },
+      { metric: "مبلغ بازگشت در انتظار (تومان)", value: rep.refundPendingAmount },
+    ],
+  };
+
+  const payments: SheetSpec = {
+    name: "وضعیت پرداخت‌ها",
+    columns: [
+      { key: "status", header: "وضعیت", width: 28 },
+      { key: "count", header: "تعداد", width: 14 },
+    ],
+    rows: [
+      { status: "پرداخت‌شده", count: rep.payments.paid },
+      { status: "در انتظار", count: rep.payments.pending },
+      { status: "ناموفق", count: rep.payments.failed },
+      { status: "از درگاه شبیه‌سازی‌شده (mock)", count: rep.payments.mock },
+      { status: "کل ردیف‌های پرداخت بازه", count: rep.payments.windowCount },
+    ],
+  };
+
+  return [summary, payments];
+}
+
 export interface AnalyticsExportResult {
   bytes: Buffer;
   fileName: string;
@@ -192,6 +239,9 @@ export function buildAnalyticsExport(
       break;
     case "energy":
       sheets = [energySheet(input)];
+      break;
+    case "finance":
+      sheets = financeSheets(input);
       break;
     default:
       return { error: "UNKNOWN_KIND" };
