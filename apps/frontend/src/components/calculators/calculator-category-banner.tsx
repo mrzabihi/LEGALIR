@@ -39,7 +39,7 @@ export function CalculatorCategoryBanner({ meta, count }: CalculatorCategoryBann
     >
       <span
         aria-hidden="true"
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium ${tone.iconBg} text-white shadow-elevation-1`}
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-gradient-to-br ${meta.gradient} text-white shadow-elevation-1`}
       >
         <Icon size={22} />
       </span>

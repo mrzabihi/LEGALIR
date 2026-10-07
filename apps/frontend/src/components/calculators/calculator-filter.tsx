@@ -22,7 +22,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { IconCheck, IconChevronDown, IconClose } from "@/lib/icons";
+import { IconCheck, IconChevronDown } from "@/lib/icons";
 import type { ControlOption } from "./types";
 
 interface CalculatorFilterProps {
@@ -162,7 +162,7 @@ export function CalculatorFilter({
             const selected = row.id === value;
             const isReset = idx === 0;
             return (
-              <li key={row.id} className="px-1">
+              <li key={row.id} role="presentation" className="px-1">
                 <button
                   type="button"
                   role="option"
@@ -192,21 +192,6 @@ export function CalculatorFilter({
               </li>
             );
           })}
-
-          {active && (
-            <li className="mt-1 border-t border-divider pt-1">
-              <button
-                type="button"
-                onClick={() => choose("all")}
-                className="flex w-full items-center gap-2 rounded-small px-2 py-1.5 text-start text-body-2 text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
-                  <IconClose size={16} />
-                </span>
-                پاک کردن {label}
-              </button>
-            </li>
-          )}
         </ul>
       )}
     </div>
