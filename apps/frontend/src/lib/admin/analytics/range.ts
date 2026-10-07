@@ -42,6 +42,18 @@ export function tehranDayKey(iso: string): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+/**
+ * A `YYYY-MM-DD` Tehran day key shifted by `delta` days. Used to align the
+ * previous window's daily series index-for-index with the current window's
+ * (both are the same `rangeDays` long), so a previous-period overlay compares
+ * like-for-like: day i of this window against the day exactly `rangeDays`
+ * earlier — which is day i of the previous window.
+ */
+export function shiftDayKey(dayKey: string, delta: number): string {
+  const base = new Date(`${dayKey}T00:00:00Z`).getTime() + delta * DAY_MS;
+  return new Date(base).toISOString().slice(0, 10);
+}
+
 export interface ResolveRangeInput {
   preset: AnalyticsRangeKey;
   /** Used by the rolling presets (defaults applied per preset). */

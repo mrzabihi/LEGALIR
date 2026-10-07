@@ -103,6 +103,14 @@ export interface SubscriptionSalesReport {
   byPlan: PlanSalesRow[];
   /** One bucket per day in the window, oldest first. */
   daily: PlanDailyBucket[];
+  /**
+   * The equal-length PREVIOUS window's net per Tehran day, aligned BY INDEX to
+   * `daily` (day i of this window ↔ day i of the previous window, which is
+   * exactly `rangeDays` earlier). `null` when the previous window is not
+   * comparably covered — the overlay has no honest basis and must not be drawn.
+   * `date` is the previous period's own calendar day, for the tooltip only.
+   */
+  previousDaily: { date: string; net: number }[] | null;
   /** The real plan catalog (for a stable chart legend even with zero sales). */
   planCatalog: { planCode: string; planNameFa: string; salePrice: number }[];
   quality: AnalyticsDataQualityFlag[];
@@ -346,6 +354,83 @@ export interface AnalyticsOverview {
   timezone: string;
   currency: string;
   kpis: AnalyticsKpiCard[];
+  quality: AnalyticsDataQualityFlag[];
+}
+
+// ---------------------------------------------------------------------------
+// Report 6 — Operations (request pipeline · lawyer review queue · audit)
+// ---------------------------------------------------------------------------
+// The operational health of the platform, over the SAME range as every other
+// tab. This is real state-machine, review-queue and audit data — never a
+// re-slice of the sales numbers. Anything an operator would have to guess is
+// reported `unavailable` with its reason rather than approximated.
+//
+// `requests` and `lawyerQueue` are live snapshots (labelled `*Now`); only the
+// audit-trail counts are window-scoped, because the audit log is the one
+// operational table with a complete timestamped history.
+
+/** A category → count row (state / action / bucket / role). */
+export interface OperationsBreakdownRow {
+  key: string;
+  labelFa: string;
+  count: number;
+}
+
+/** Live composition of the request pipeline + window-scoped intake volume. */
+export interface OperationsRequests {
+  /** Total requests in the system right now (all states). */
+  totalNow: number;
+  /** Requests in a non-terminal state right now (open pipeline). */
+  openNow: number;
+  /** The state-machine breakdown of those open requests, most-populous first. */
+  byState: OperationsBreakdownRow[];
+  /** Requests created in the window vs the equal-length previous window. */
+  created: AnalyticsComparison;
+  /** Average open age in days right now; `null` when nothing is open. */
+  avgAgeDays: number | null;
+  /** A live snapshot, not a window — stated so the UI labels it honestly. */
+  snapshotNoteFa: string;
+}
+
+/** The lawyer verification review queue — a live snapshot. */
+export interface OperationsLawyerQueue {
+  totalNow: number;
+  /** Professional profiles split by admin decision bucket. */
+  byBucket: OperationsBreakdownRow[];
+  /** The bucket a reviewing admin works first (awaiting a decision). */
+  reviewCount: number;
+  snapshotNoteFa: string;
+}
+
+/** The audit trail — the one operational table with a complete history. */
+export interface OperationsAudit {
+  /** Entries recorded in the window vs the equal-length previous window. */
+  entries: AnalyticsComparison;
+  /** Successful vs denied entries inside the window. */
+  successCount: number;
+  deniedCount: number;
+  failureCount: number;
+  /** The top actions recorded inside the window (action → count). */
+  byAction: OperationsBreakdownRow[];
+  /** Distinct admins who acted inside the window. */
+  distinctActors: number;
+  /** The newest entry's timestamp (any time), or `null` when the trail is empty. */
+  latestAt: string | null;
+  /** Hours between the newest entry and now, or `null` when the trail is empty. */
+  freshnessHours: number | null;
+}
+
+export interface OperationsReport {
+  window: AnalyticsWindowInfo;
+  requests: OperationsRequests;
+  lawyerQueue: OperationsLawyerQueue;
+  audit: OperationsAudit;
+  /**
+   * Operational metrics that cannot be derived from the current tables, each
+   * with the reason. These are rendered as explicit «ناموجود» cards — never
+   * replaced by a plausible-looking estimate.
+   */
+  unavailable: { key: string; labelFa: string; reasonFa: string }[];
   quality: AnalyticsDataQualityFlag[];
 }
 

@@ -9,8 +9,9 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
+  Button,
   Card,
   DataTable,
   Section,
@@ -94,6 +95,15 @@ function SubscriptionsBody({
   }));
   const netTotal = netPoints.reduce((s, p) => s + p.value, 0);
 
+  // Previous-period overlay. Only offered when the server deemed the previous
+  // window comparable — otherwise `previousDaily` is null and no toggle shows,
+  // because a comparison against data that does not exist would be a fiction.
+  const [showPrev, setShowPrev] = useState(false);
+  const prevNet = data.previousDaily?.map((p) => p.net) ?? null;
+  const prevHasData = prevNet != null && prevNet.some((v) => v !== 0);
+  const canOverlay = data.previousDaily != null;
+  const chartHasData = netTotal > 0 || (showPrev && prevHasData);
+
   // Per-plan daily net, one series per sold plan.
   const categories = data.daily.map((d) =>
     toPersianDate(d.date, { month: "2-digit", day: "2-digit" })
@@ -145,14 +155,31 @@ function SubscriptionsBody({
         <ChartFrame
           title="درآمد خالص روزانه"
           subtitle={`${toPersianNumber(data.window.rangeDays)} روز بازهٔ انتخابی.`}
+          action={
+            canOverlay ? (
+              <Button
+                variant={showPrev ? "tonal" : "ghost"}
+                size="sm"
+                onClick={() => setShowPrev((v) => !v)}
+                title="مقایسه با بازهٔ قبلی هم‌طول"
+              >
+                {showPrev ? "پنهان‌کردن دورهٔ قبل" : "نمایش دورهٔ قبل"}
+              </Button>
+            ) : undefined
+          }
         >
-          {netTotal > 0 ? (
+          {chartHasData ? (
             <LineChart
               points={netPoints}
               ariaLabel="نمودار روند درآمد خالص روزانه"
               seriesName="درآمد خالص"
               unit="تومان"
               color="var(--control-selected)"
+              overlay={
+                showPrev && prevNet
+                  ? { label: "دورهٔ قبل", values: prevNet }
+                  : undefined
+              }
             />
           ) : (
             <ChartEmpty message="در این بازه فروشی ثبت نشده است." />

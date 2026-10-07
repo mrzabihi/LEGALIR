@@ -244,12 +244,22 @@ function smoothPath(pts: { x: number; y: number }[]): string {
 // Line chart — trend over time
 // ---------------------------------------------------------------------------
 
+export interface LineOverlay {
+  /** Series name shown in the tooltip (e.g. «دورهٔ قبل»). */
+  label: string;
+  /** One value per point, aligned to `points` BY INDEX. */
+  values: number[];
+  /** Line colour; defaults to a muted tone so it reads as secondary. */
+  color?: string;
+}
+
 export function LineChart({
   points,
   ariaLabel,
   seriesName = "مقدار",
   unit = "",
   color = "var(--chart-cat-1)",
+  overlay,
 }: {
   points: ChartPoint[];
   ariaLabel: string;
@@ -257,6 +267,14 @@ export function LineChart({
   unit?: string;
   /** Series colour; defaults to the primary categorical token. */
   color?: string;
+  /**
+   * An optional second series drawn as a dashed line on the SAME value scale —
+   * e.g. the equal-length previous period, index-aligned to `points`. It shares
+   * the axis with the primary series (never its own scale) so the two are
+   * directly comparable. Purely presentational: the caller supplies the real
+   * numbers, and a non-comparable overlay is simply not passed.
+   */
+  overlay?: LineOverlay;
 }) {
   const gradientId = useSafeId("line-grad");
   const [hovered, setHovered] = useState<number | null>(null);
@@ -268,8 +286,14 @@ export function LineChart({
   const baseline = PAD_TOP + plotH;
   const n = points.length;
 
+  // The overlay shares the axis, so its values must be inside the scale too.
+  const overlayValues = overlay ? overlay.values.slice(0, n) : [];
+  const hasOverlay = overlay != null && overlayValues.length === n && n > 0;
+
   // A clean, rounded axis so gridline labels are whole numbers.
-  const { max: axisMax, step } = niceScale(Math.max(0, ...points.map((p) => p.value)));
+  const { max: axisMax, step } = niceScale(
+    Math.max(0, ...points.map((p) => p.value), ...overlayValues)
+  );
 
   // First index on the RIGHT so the series reads right-to-left.
   const xAt = (i: number) => plotRight - (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
@@ -283,6 +307,11 @@ export function LineChart({
           1
         )} ${baseline.toFixed(1)} Z`
       : "";
+
+  const overlayColor = overlay?.color ?? "var(--color-outline)";
+  const overlayPath = hasOverlay
+    ? smoothPath(overlayValues.map((v, i) => ({ x: xAt(i), y: yAt(v) })))
+    : "";
 
   // One gridline per rounded step, labelled in the right-hand gutter.
   const ticks = Array.from({ length: Math.round(axisMax / step) + 1 }, (_, k) => k * step);
@@ -359,6 +388,20 @@ export function LineChart({
         {n > 1 && (
           <>
             <path d={areaPath} fill={`url(#${gradientId})`} />
+            {/* Previous-period overlay — dashed, so it reads as the comparison
+                series and never as the primary trend. */}
+            {hasOverlay && (
+              <path
+                d={overlayPath}
+                fill="none"
+                stroke={overlayColor}
+                strokeWidth="2"
+                strokeDasharray="7 6"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
             <path
               d={linePath}
               fill="none"
@@ -385,15 +428,28 @@ export function LineChart({
           />
         )}
         {hovered != null && (
-          <circle
-            cx={xAt(hovered)}
-            cy={yAt(points[hovered]!.value)}
-            r="5.5"
-            fill={color}
-            stroke="var(--color-surface)"
-            strokeWidth="2.5"
-            vectorEffect="non-scaling-stroke"
-          />
+          <>
+            {hasOverlay && (
+              <circle
+                cx={xAt(hovered)}
+                cy={yAt(overlayValues[hovered] ?? 0)}
+                r="4.5"
+                fill="var(--color-surface)"
+                stroke={overlayColor}
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+            <circle
+              cx={xAt(hovered)}
+              cy={yAt(points[hovered]!.value)}
+              r="5.5"
+              fill={color}
+              stroke="var(--color-surface)"
+              strokeWidth="2.5"
+              vectorEffect="non-scaling-stroke"
+            />
+          </>
         )}
 
         {/* Date axis (right → left) */}
@@ -448,15 +504,32 @@ export function LineChart({
             </span>
             {unit ? ` ${unit}` : ""}
           </p>
+          {hasOverlay && overlay && (
+            <p className="mt-0.5 flex items-center gap-1.5 whitespace-nowrap text-body-2 text-on-surface-variant">
+              <span
+                aria-hidden="true"
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-small"
+                style={{ backgroundColor: overlayColor }}
+              />
+              {overlay.label}:{" "}
+              <span dir="ltr" className="font-bold tabular-nums text-onSurface">
+                {toPersianNumber(overlayValues[hovered] ?? 0)}
+              </span>
+              {unit ? ` ${unit}` : ""}
+            </p>
+          )}
         </div>
       )}
 
-      {/* Screen-reader equivalent of the series */}
+      {/* Screen-reader equivalent of the series (both lines when overlaid) */}
       <ul className="sr-only">
         {points.map((p, i) => (
           <li key={i}>
-            {p.tooltipLabel}: {toPersianNumber(p.value)}
+            {p.tooltipLabel}: {seriesName} {toPersianNumber(p.value)}
             {unit ? ` ${unit}` : ""}
+            {hasOverlay && overlay
+              ? `؛ ${overlay.label} ${toPersianNumber(overlayValues[i] ?? 0)}${unit ? ` ${unit}` : ""}`
+              : ""}
           </li>
         ))}
       </ul>

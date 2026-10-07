@@ -27,6 +27,7 @@ import { buildSubscriptionSalesReport } from "@/lib/admin/analytics/subscription
 import { buildEnergyReport, listEnergyUsers } from "@/lib/admin/analytics/energy-analytics";
 import { buildCustomerAnalytics, listPurchaseRanking } from "@/lib/admin/analytics/customer-analytics";
 import { buildFinanceAnalytics } from "@/lib/admin/analytics/finance-analytics";
+import { buildOperationsReport } from "@/lib/admin/analytics/operations";
 import { analyticsDataQuality } from "@/lib/admin/analytics/quality";
 import {
   listDrillOrders,
@@ -114,6 +115,9 @@ function handleGet(c: Ctx): NextResponse {
 
     case "finance":
       return ok(buildFinanceAnalytics(input));
+
+    case "operations":
+      return ok(buildOperationsReport(input));
 
     // Range-preserving drill-down: a KPI links here with the SAME window it
     // reported on, so the opened list reconciles to the number clicked. The

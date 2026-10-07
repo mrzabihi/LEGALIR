@@ -27,6 +27,7 @@ import type * as energyModule from "../admin/analytics/energy-analytics";
 import type * as custModule from "../admin/analytics/customer-analytics";
 import type * as financeModule from "../admin/analytics/finance-analytics";
 import type * as exportModule from "../admin/analytics/export";
+import type * as opsModule from "../admin/analytics/operations";
 
 let db: typeof dbModule;
 let metrics: typeof metricsModule;
@@ -35,6 +36,7 @@ let energy: typeof energyModule;
 let cust: typeof custModule;
 let finance: typeof financeModule;
 let exportMod: typeof exportModule;
+let ops: typeof opsModule;
 let tmpDir: string;
 let originalCwd: string;
 
@@ -114,6 +116,7 @@ beforeAll(async () => {
   cust = await import("../admin/analytics/customer-analytics");
   finance = await import("../admin/analytics/finance-analytics");
   exportMod = await import("../admin/analytics/export");
+  ops = await import("../admin/analytics/operations");
 
   const w = <T>(name: string, rows: T[]) => db.writeTable(name, rows);
 
@@ -148,6 +151,36 @@ beforeAll(async () => {
   // A STALE daily-usage day (not today) — must contribute 0 (the day resets).
   w("subscription_daily_usage", [
     { userId: "u1", subscriptionId: "s-u1-4", usageDate: "2026-06-12", pointsTotal: 50, pointsUsed: 10 },
+  ]);
+
+  // --- Operations (report 6) ------------------------------------------------
+  // Requests spanning the window: three created inside it (one already
+  // COMPLETED → terminal, so not "open") and one created in the PREVIOUS
+  // window (so the intake comparison has a real previous value).
+  w("legal_requests", [
+    { id: "req-1", userId: "u1", category: "family", state: "WAITING_FOR_ACCEPTANCE", selectedLawyerId: "lp-1", createdAt: "2026-06-10T00:00:00.000Z", updatedAt: "2026-06-14T00:00:00.000Z" },
+    { id: "req-2", userId: "u2", category: "property", state: "IN_PROGRESS", selectedLawyerId: "lp-2", createdAt: "2026-06-12T00:00:00.000Z", updatedAt: "2026-06-15T00:00:00.000Z" },
+    { id: "req-3", userId: "u3", category: "contracts", state: "COMPLETED", selectedLawyerId: "lp-2", createdAt: "2026-06-05T00:00:00.000Z", updatedAt: "2026-06-05T00:00:00.000Z" },
+    { id: "req-4", userId: "u1", category: "family", state: "MATCHING", selectedLawyerId: null, createdAt: "2026-05-01T00:00:00.000Z", updatedAt: "2026-05-02T00:00:00.000Z" },
+  ]);
+
+  // Audit trail: three in-window rows (2 success, 1 denied) + one in the
+  // previous window. Two distinct actors act inside the window.
+  w("admin_audit_log", [
+    { id: "a1", actorUserId: "admin-1", action: "lawyer.verify", resourceType: "lawyer", resourceId: "lp-1", result: "success", createdAt: "2026-06-10T00:00:00.000Z" },
+    { id: "a2", actorUserId: "admin-1", action: "export.download", resourceType: "analytics", resourceId: "x", result: "success", createdAt: "2026-06-11T00:00:00.000Z" },
+    { id: "a3", actorUserId: "admin-2", action: "user.role.change", resourceType: "user", resourceId: "u2", result: "denied", createdAt: "2026-06-12T00:00:00.000Z" },
+    { id: "a4", actorUserId: "admin-2", action: "lawyer.verify", resourceType: "lawyer", resourceId: "lp-2", result: "failure", createdAt: "2026-05-01T00:00:00.000Z" },
+  ]);
+
+  // Lawyer review queue: one profile per decision bucket + a DEMO row that
+  // must be excluded (the queue is about real professionals).
+  w("lawyer_profiles", [
+    { id: "lp-1", verificationStatus: "UNDER_REVIEW", isDemo: false, createdAt: "2026-06-01T00:00:00.000Z" },
+    { id: "lp-2", verificationStatus: "VERIFIED", isDemo: false, createdAt: "2026-06-01T00:00:00.000Z" },
+    { id: "lp-3", verificationStatus: "REJECTED", isDemo: false, createdAt: "2026-06-01T00:00:00.000Z" },
+    { id: "lp-4", verificationStatus: "SUSPENDED", isDemo: false, createdAt: "2026-06-01T00:00:00.000Z" },
+    { id: "lp-demo", verificationStatus: "UNDER_REVIEW", isDemo: true, createdAt: "2025-01-01T00:00:00.000Z" },
   ]);
 });
 
@@ -191,6 +224,99 @@ describe("buildSubscriptionSalesReport", () => {
     // and changePct is null (no honest % over a zero base).
     expect(r.totals.count.previous).toBe(0);
     expect(r.totals.count.changePct).toBeNull();
+  });
+
+  it("emits an index-aligned previous-period series for the overlay", () => {
+    const r = subs.buildSubscriptionSalesReport(RANGE);
+    expect(r.previousDaily).not.toBeNull();
+    const prev = r.previousDaily!;
+    // Same length as the current window's daily series → drawn on one axis.
+    expect(prev).toHaveLength(r.daily.length);
+    // The 2026-06-12 sale day compares against exactly 30 days earlier
+    // (2026-05-13), which had no sale → an explicit zero, not a gap.
+    const idx = r.daily.findIndex((d) => d.date === "2026-06-12");
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(prev[idx]).toEqual({ date: "2026-05-13", net: 0 });
+    // Every index is its current day minus `rangeDays` (30) — the alignment
+    // contract the overlay relies on.
+    for (let i = 0; i < r.daily.length; i++) {
+      const expected = new Date(
+        new Date(`${r.daily[i]!.date}T00:00:00Z`).getTime() - 30 * 86_400_000
+      )
+        .toISOString()
+        .slice(0, 10);
+      expect(prev[i]!.date).toBe(expected);
+    }
+  });
+
+  it("omits the previous-period series when the prior window predates all data", () => {
+    // A window in 2024 has no comparable predecessor (earliest data is
+    // 2025-01) → the server must return `null` so no fiction is drawn.
+    const r = subs.buildSubscriptionSalesReport({
+      preset: "custom",
+      from: "2024-12-01",
+      to: "2024-12-07",
+      now: NOW,
+    });
+    expect(r.window.comparable).toBe(false);
+    expect(r.previousDaily).toBeNull();
+  });
+});
+
+// ============================================================
+// Report 6 — operations (pipeline · review queue · audit trail)
+// ============================================================
+
+describe("buildOperationsReport", () => {
+  it("reports the live pipeline: open composition + window-scoped intake", () => {
+    const r = ops.buildOperationsReport(RANGE);
+    expect(r.requests.totalNow).toBe(4);
+    expect(r.requests.openNow).toBe(3); // req-3 is COMPLETED → terminal
+    expect(r.requests.byState.map((s) => s.key)).toEqual([
+      "IN_PROGRESS",
+      "MATCHING",
+      "WAITING_FOR_ACCEPTANCE",
+    ]);
+    expect(r.requests.created.current).toBe(3);
+    expect(r.requests.created.previous).toBe(1);
+    expect(r.requests.created.changePct).toBe(200); // (3 − 1) / 1
+    // Avg age of the 3 open requests: (1.5 + 0.5 + 44.5) / 3 = 15.5 days.
+    expect(r.requests.avgAgeDays).toBe(15.5);
+  });
+
+  it("builds the lawyer review queue, excluding seeded demo profiles", () => {
+    const r = ops.buildOperationsReport(RANGE);
+    expect(r.lawyerQueue.totalNow).toBe(4); // lp-demo excluded
+    expect(r.lawyerQueue.reviewCount).toBe(1);
+    const byKey = new Map(r.lawyerQueue.byBucket.map((b) => [b.key, b.count]));
+    expect(byKey.get("REVIEW")).toBe(1);
+    expect(byKey.get("APPROVED")).toBe(1);
+    expect(byKey.get("REJECTED")).toBe(1);
+    expect(byKey.get("SUSPENDED")).toBe(1);
+  });
+
+  it("windows the audit trail and labels each result honestly", () => {
+    const r = ops.buildOperationsReport(RANGE);
+    expect(r.audit.entries.current).toBe(3);
+    expect(r.audit.entries.previous).toBe(1);
+    expect(r.audit.successCount).toBe(2);
+    expect(r.audit.deniedCount).toBe(1);
+    expect(r.audit.failureCount).toBe(0); // the failure is in the previous window
+    expect(r.audit.distinctActors).toBe(2);
+    expect(r.audit.latestAt).toBe("2026-06-12T00:00:00.000Z");
+    expect(r.audit.freshnessHours).toBe(84); // 3.5 days
+  });
+
+  it("lists unmeasurable operational metrics as unavailable, each with a reason", () => {
+    const r = ops.buildOperationsReport(RANGE);
+    const keys = r.unavailable.map((u) => u.key);
+    expect(keys).toEqual(
+      expect.arrayContaining(["renewal_rate", "first_response_sla", "login_failures"])
+    );
+    for (const u of r.unavailable) {
+      expect(u.labelFa.length).toBeGreaterThan(0);
+      expect(u.reasonFa.length).toBeGreaterThan(0);
+    }
   });
 });
 

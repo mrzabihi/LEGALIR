@@ -104,29 +104,48 @@ stated.
   GET `overview · subscriptions · customers(/ranking) · energy(/users) · finance ·
   quality` and POST `export` (kinds: subscriptions, customers, energy, finance);
   `lib/api/analytics.ts`; `hooks/useAnalytics.ts`.
-- **Phase 4** — page `app/(admin)/admin/analytics/page.tsx` with five tabs
-  (نمای کلی · فروش اشتراک · مشتریان · انرژی کاربران · تطبیق مالی), shared
+- **Phase 4** — page `app/(admin)/admin/analytics/page.tsx` with six tabs
+  (نمای کلی · فروش اشتراک · مشتریان · انرژی کاربران · تطبیق مالی · عملیات), shared
   `RangeControl` (today/7d/30d/Jalali-month/custom); nav entry + shell icon.
 
-### Deviations from plan
-- **No dedicated «Operations» tab.** The plan's Operations tab had three jobs:
-  request volume/state mix, support SLA/lawyer-queue/audit freshness, and the gap
-  register. The **gap register is rendered on every tab** (each tab calls
-  `analyticsDataQuality()` and renders `QualityPanel`) — stricter than one tab,
-  since a metric's caveat sits beside the metric. The remaining operational items
-  overlap the existing `/admin` overview, lawyer and request console surfaces, so
-  they are **intentionally deferred** rather than duplicated here.
-  `/admin/analytics/quality` still exposes the register standalone.
-- **No previous-period overlay toggle.** Comparison is computed server-side per
-  KPI and surfaced as a trend chip; a separate overlay control was not built.
+### Previously deferred — now shipped
+- **«Operations» tab — built.** A genuinely new report (`operations.ts`,
+  `OperationsReport`, `GET .../operations`, `useAnalyticsOperations`,
+  `operations-tab.tsx`) over the SAME resolved range as every other tab, with
+  three real surfaces and no fabricated metric:
+  - the request pipeline — a **live snapshot** of open requests by state-machine
+    state (`legal_requests`, `ACTIVE_LEGAL_REQUEST_STATES`) plus the
+    **window-scoped** count of newly created requests (with a real
+    previous-window trend);
+  - the lawyer review queue — a live snapshot of non-demo `lawyer_profiles`
+    bucketed by admin decision (`lawyerDecisionBucket`);
+  - the audit trail — the one operational table with a complete, append-only
+    history, so `admin_audit_log` is the metric that is actually windowed
+    (entries trend, success/denied/failure split, distinct actors, freshness).
+  A metric that cannot be derived (renewal rate, first-response SLA, login
+  failures) is rendered as an explicit «ناموجود» card with its Persian reason.
+  The **gap register still renders on every tab** via `QualityPanel` (stricter
+  than one tab: a caveat sits beside the metric it qualifies).
+- **Previous-period overlay toggle — built.** `subscription-analytics.ts` now
+  emits `previousDaily` — the equal-length previous window's net per Tehran day,
+  **index-aligned** to `daily` (day i of this window ↔ the day exactly
+  `rangeDays` earlier) and `null` unless the previous window is genuinely
+  covered (`window.comparable`). The shared `LineChart` gained an optional
+  dashed `overlay` series drawn on the SAME value scale (never a second axis),
+  and the Subscriptions tab shows a «نمایش دورهٔ قبل» toggle **only when the
+  server actually supplied a comparable series** — no toggle, and no drawn line,
+  when the previous window is absent.
 
 ### Verification (real results)
-- `npx tsc --noEmit` — clean for every analytics file.
+- `npx tsc --noEmit` — clean for every analytics file (incl. the new operations
+  report and the `previousDaily` overlay).
 - `npx eslint` on the analytics files — 0 errors.
-- `npx vitest run` — `lib/__tests__/analytics.test.ts` **18/18** and
-  `app/__tests__/analytics-tabs.test.tsx` **6/6** (24 total).
+- `npx vitest run` — `lib/__tests__/analytics.test.ts` **24/24** and
+  `app/__tests__/analytics-tabs.test.tsx` **8/8** (32 total).
 - Scenario coverage: no-sales day, user without purchase, refund present,
-  FAILED/REVERSED energy, empty range — all asserted.
+  FAILED/REVERSED energy, empty range, previous-period index alignment
+  (present/absent), operations pipeline + review queue + windowed audit, and an
+  unavailable metric — all asserted.
 - **Access:** live `GET /api/v1/admin/analytics/*` return **401** unauthenticated;
   the route calls `requirePermission(…, "admin:analytics:read")` on GET and
   `"admin:analytics:export"` on POST, with `recordAudit` on export.

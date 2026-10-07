@@ -14,6 +14,7 @@ import {
   fetchAnalyticsEnergy,
   fetchAnalyticsCustomers,
   fetchAnalyticsFinance,
+  fetchAnalyticsOperations,
   fetchAnalyticsQuality,
   fetchAnalyticsEnergyUsers,
   fetchAnalyticsRanking,
@@ -71,6 +72,16 @@ export function useAnalyticsFinance(range: AnalyticsRangeQuery, enabled = true) 
   return useQuery({
     queryKey: ["admin", "analytics", "finance", ...keyParts(range)],
     queryFn: () => fetchAnalyticsFinance(range),
+    staleTime: 60_000,
+    retry: 1,
+    enabled,
+  });
+}
+
+export function useAnalyticsOperations(range: AnalyticsRangeQuery, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "analytics", "operations", ...keyParts(range)],
+    queryFn: () => fetchAnalyticsOperations(range),
     staleTime: 60_000,
     retry: 1,
     enabled,

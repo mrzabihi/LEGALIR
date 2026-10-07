@@ -18,11 +18,18 @@ import { SubscriptionsTab } from "@/components/admin/analytics/subscriptions-tab
 import { CustomersTab } from "@/components/admin/analytics/customers-tab";
 import { EnergyTab } from "@/components/admin/analytics/energy-tab";
 import { FinanceTab } from "@/components/admin/analytics/finance-tab";
+import { OperationsTab } from "@/components/admin/analytics/operations-tab";
 import { useAdminMe } from "@/hooks/useAdmin";
 import type { AnalyticsRangeQuery } from "@/lib/api/analytics";
 import { IconGrid } from "@/lib/icons";
 
-type AnalyticsTabKey = "overview" | "subscriptions" | "customers" | "energy" | "finance";
+type AnalyticsTabKey =
+  | "overview"
+  | "subscriptions"
+  | "customers"
+  | "energy"
+  | "finance"
+  | "operations";
 
 const TABS: TabItem<AnalyticsTabKey>[] = [
   { value: "overview", label: "نمای کلی" },
@@ -30,6 +37,7 @@ const TABS: TabItem<AnalyticsTabKey>[] = [
   { value: "customers", label: "مشتریان" },
   { value: "energy", label: "انرژی کاربران" },
   { value: "finance", label: "تطبیق مالی" },
+  { value: "operations", label: "عملیات" },
 ];
 
 export default function AdminAnalyticsPage() {
@@ -71,6 +79,7 @@ export default function AdminAnalyticsPage() {
       {tab === "customers" && <CustomersTab range={range} />}
       {tab === "energy" && <EnergyTab range={range} />}
       {tab === "finance" && <FinanceTab range={range} />}
+      {tab === "operations" && <OperationsTab range={range} />}
     </div>
   );
 }

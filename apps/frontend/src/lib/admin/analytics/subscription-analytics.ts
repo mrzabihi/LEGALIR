@@ -20,6 +20,7 @@ import {
   withinWindow,
   tehranDayBuckets,
   tehranDayKey,
+  shiftDayKey,
   changePct,
   type ResolveRangeInput,
 } from "./range";
@@ -105,6 +106,34 @@ function dailyBuckets(fromIso: string, toIso: string): PlanDailyBucket[] {
   });
 }
 
+/**
+ * The equal-length PREVIOUS window's net per Tehran day, aligned by index to
+ * `days` (the current window's day list): entry i is the net on the day exactly
+ * `days.length` earlier than `days[i]`. Computed ONLY when the previous window
+ * is genuinely covered — otherwise the caller gets `null` and draws no overlay,
+ * because a comparison against data that does not exist would be a fabrication.
+ */
+function previousDailyNet(
+  days: string[],
+  fromIso: string,
+  toIso: string,
+  rangeDays: number,
+  comparable: boolean
+): { date: string; net: number }[] | null {
+  if (!comparable || days.length === 0) return null;
+  const refunds = refundMap();
+  const byDay = new Map<string, number>();
+  for (const s of readSubscriptions()) {
+    if (!withinWindow(s.purchased_at, fromIso, toIso)) continue;
+    const day = tehranDayKey(s.purchased_at);
+    byDay.set(day, (byDay.get(day) ?? 0) + (s.amount || 0) - (refunds.get(s.id) ?? 0));
+  }
+  return days.map((day) => {
+    const prevDay = shiftDayKey(day, -rangeDays);
+    return { date: prevDay, net: byDay.get(prevDay) ?? 0 };
+  });
+}
+
 /** Build the full subscriptions report for a resolved range. */
 export function buildSubscriptionSalesReport(input: ResolveRangeInput): SubscriptionSalesReport {
   const resolved = resolveRange(input);
@@ -158,11 +187,20 @@ export function buildSubscriptionSalesReport(input: ResolveRangeInput): Subscrip
   // Sort by gross descending for the table; zero-sales plans fall to the tail.
   byPlan.sort((a, b) => b.gross - a.gross || a.planNameFa.localeCompare(b.planNameFa, "fa"));
 
+  const daily = dailyBuckets(fromIso, toIso);
+
   return {
     window,
     totals: { count: countCmp, gross: grossCmp, net: netCmp },
     byPlan,
-    daily: dailyBuckets(fromIso, toIso),
+    daily,
+    previousDaily: previousDailyNet(
+      daily.map((d) => d.date),
+      prevFromIso,
+      prevToIso,
+      window.rangeDays,
+      comparable
+    ),
     planCatalog: catalog.map((p) => ({
       planCode: p.code,
       planNameFa: p.nameFa,

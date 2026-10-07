@@ -12,7 +12,13 @@
 // ============================================================
 
 import { readTable, findUserById, normalizeStoredMobile } from "@/lib/db";
-import type { PlanEntitlementSnapshot } from "@legalir/types";
+import type {
+  PlanEntitlementSnapshot,
+  LegalRequestState,
+  LawyerVerificationStatus,
+  AuditResult,
+  PlatformRole,
+} from "@legalir/types";
 
 // ---------------------------------------------------------------------------
 // Row shapes (server-side mirrors of the stored JSON)
@@ -128,6 +134,52 @@ export interface FinancialAdjustmentRow {
 }
 
 // ---------------------------------------------------------------------------
+// Operational rows (report 6 — the pipeline, the review queue, the audit trail)
+// ---------------------------------------------------------------------------
+
+/** One row of `legal_requests` — only the fields the operations report reads. */
+export interface LegalRequestRow {
+  id: string;
+  userId: string;
+  category: string;
+  state: LegalRequestState;
+  selectedLawyerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One row of the append-only `legal_request_events` transition log. */
+export interface LegalRequestEventRow {
+  id: string;
+  requestId: string;
+  fromState: LegalRequestState | null;
+  toState: LegalRequestState;
+  actorId: string;
+  actorRole: PlatformRole | "system";
+  createdAt: string;
+}
+
+/** One row of the append-only `admin_audit_log`. */
+export interface AuditRow {
+  id: string;
+  actorUserId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  result: AuditResult;
+  createdAt: string;
+}
+
+/** One row of `lawyer_profiles` — only the verification fields. */
+export interface LawyerProfileRow {
+  id: string;
+  verificationStatus: LawyerVerificationStatus;
+  /** Seeded demo rows are excluded from the operational review queue. */
+  isDemo?: boolean;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
 // Readers
 // ---------------------------------------------------------------------------
 
@@ -142,6 +194,17 @@ export const readActivities = (): ActivityRow[] => readTable<ActivityRow>("activ
 export const readPlans = (): PlanRow[] => readTable<PlanRow>("subscription_plans");
 export const readAdjustments = (): FinancialAdjustmentRow[] =>
   readTable<FinancialAdjustmentRow>("financial_adjustments");
+
+// Operational tables (report 6). The audit log is the only operational table
+// with a complete, timestamped, append-only history, so it is the one the
+// operations report windows; the request/queue tables are read as live state.
+export const readLegalRequests = (): LegalRequestRow[] =>
+  readTable<LegalRequestRow>("legal_requests");
+export const readLegalRequestEvents = (): LegalRequestEventRow[] =>
+  readTable<LegalRequestEventRow>("legal_request_events");
+export const readAuditLog = (): AuditRow[] => readTable<AuditRow>("admin_audit_log");
+export const readLawyerProfiles = (): LawyerProfileRow[] =>
+  readTable<LawyerProfileRow>("lawyer_profiles");
 
 // ---------------------------------------------------------------------------
 // Identity helpers (shared by every report so display is consistent)
@@ -189,6 +252,9 @@ export function earliestDataIso(): string | null {
     ...readRewardLedger().map((r) => r.created_at),
     ...readUsageTransactions().map((u) => u.createdAt),
     ...readUsers().map((u) => u.createdAt),
+    // Legal requests are a fact table too — a window that predates the first
+    // request cannot honestly compare request volume, so it must count here.
+    ...readLegalRequests().map((r) => r.createdAt),
   ].filter((x) => typeof x === "string" && x.length > 0);
   if (candidates.length === 0) return null;
   return candidates.reduce((min, cur) => (cur < min ? cur : min));

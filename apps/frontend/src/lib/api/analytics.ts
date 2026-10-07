@@ -19,6 +19,7 @@ import type {
   PurchaseRankingPage,
   PurchaseRankingSort,
   FinanceAnalytics,
+  OperationsReport,
   AnalyticsDataQualityFlag,
   AnalyticsRangeKey,
   AdminOrderListResponse,
@@ -81,6 +82,10 @@ export function fetchAnalyticsCustomers(range: AnalyticsRangeQuery): Promise<Cus
 
 export function fetchAnalyticsFinance(range: AnalyticsRangeQuery): Promise<FinanceAnalytics> {
   return apiClient.get<FinanceAnalytics>(`${A}/finance${rangeQs(range)}`);
+}
+
+export function fetchAnalyticsOperations(range: AnalyticsRangeQuery): Promise<OperationsReport> {
+  return apiClient.get<OperationsReport>(`${A}/operations${rangeQs(range)}`);
 }
 
 export function fetchAnalyticsQuality(): Promise<{ items: AnalyticsDataQualityFlag[] }> {
