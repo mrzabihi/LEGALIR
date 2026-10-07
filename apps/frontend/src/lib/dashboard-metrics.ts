@@ -19,7 +19,6 @@ import {
 import {
   queryRecentActivity,
   queryActiveSubscription,
-  queryProfileUsage,
 } from "@/lib/db";
 import { tehranDateString } from "@/lib/rewards";
 import { LAW_SOURCES, type LawSourceDef } from "@/lib/law-catalog";
@@ -464,8 +463,6 @@ export interface DashboardMetrics {
   savedSourcesCount: number;
   /** Activities updated within the current Asia/Tehran day. */
   requestsToday: number;
-  dailyRequestsUsed: number;
-  dailyRequestsTotal: number;
 }
 
 export function computeDashboardMetrics(userId: string, now = new Date()): DashboardMetrics {
@@ -474,7 +471,6 @@ export function computeDashboardMetrics(userId: string, now = new Date()): Dashb
   const memories = listDemoMemories(userId);
   const conversations = readConversations().filter((c) => c.userId === userId);
   const activities = queryRecentActivity(userId, 1000);
-  const usage = queryProfileUsage(userId);
 
   const requestsToday = activities.filter((a) => isTehranToday(a.updated_at, now)).length;
 
@@ -492,8 +488,6 @@ export function computeDashboardMetrics(userId: string, now = new Date()): Dashb
     // knowledge), surfaced as a count for the dashboard overview.
     savedSourcesCount: memories.filter((m) => m.category === "legal_context").length,
     requestsToday,
-    dailyRequestsUsed: usage.dailyRequestsUsed,
-    dailyRequestsTotal: usage.dailyRequestsTotal,
   };
 }
 
