@@ -31,6 +31,7 @@ import {
   ErrorBlock,
   IdChip,
 } from "@/components/admin/ui";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { IconPerson, IconShieldCheck, IconEmail, IconPhone } from "@/lib/icons";
 
 const ACCOUNT_TYPE_FA: Record<string, string> = {
@@ -86,7 +87,6 @@ export default function AdminProfilePage() {
   const role = me.role;
 
   const displayName = data?.profile?.displayName ?? data?.user?.mobileDisplay ?? "کاربر";
-  const initial = displayName.trim().charAt(0) || "ک";
   const permissions: Permission[] = role ? [...(ROLE_PERMISSIONS[role] ?? [])] : [];
 
   return (
@@ -104,9 +104,12 @@ export default function AdminProfilePage() {
             <Section title="اطلاعات حساب">
               <Card className="p-4">
                 <div className="flex flex-wrap items-center gap-4">
-                  <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-h3 font-bold text-on-primary">
-                    {initial}
-                  </span>
+                  <UserAvatar
+                    avatarUrl={data?.profile?.avatarUrl}
+                    name={displayName}
+                    size={64}
+                    fallbackClassName="bg-primary text-on-primary text-h3 font-bold"
+                  />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-titleLarge font-bold text-on-surface">{displayName}</h2>

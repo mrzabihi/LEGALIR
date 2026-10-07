@@ -31,6 +31,7 @@ import {
 import { useAdminMe } from "@/hooks/useAdmin";
 import { useLogout } from "@/lib/auth/use-auth";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { ROLE_FA } from "@legalir/types";
 import {
   IconDashboard,
@@ -307,7 +308,15 @@ function HeaderSearch() {
 // Header — user menu
 // ---------------------------------------------------------------------------
 
-function UserMenu({ roleFa, name, initial }: { roleFa: string; name: string; initial: string }) {
+function UserMenu({
+  roleFa,
+  name,
+  avatarUrl,
+}: {
+  roleFa: string;
+  name: string;
+  avatarUrl?: string | null;
+}) {
   const router = useRouter();
   const { logout, isPending } = useLogout();
   const [open, setOpen] = useState(false);
@@ -340,9 +349,12 @@ function UserMenu({ roleFa, name, initial }: { roleFa: string; name: string; ini
           open ? "border-primary-200 bg-primary-soft" : "border-divider hover:bg-surface-hover"
         }`}
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-caption font-bold text-on-primary">
-          {initial}
-        </span>
+        <UserAvatar
+          avatarUrl={avatarUrl}
+          name={name}
+          size={32}
+          fallbackClassName="bg-primary text-on-primary text-caption font-bold"
+        />
         <span className="hidden text-start tablet:block">
           <span className="block max-w-[140px] truncate text-caption font-semibold text-on-surface">
             {name}
@@ -412,7 +424,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const roleFa = role ? (ROLE_FA[role] ?? role) : "";
 
   const displayName = me?.profile?.displayName ?? me?.user?.mobileDisplay ?? "کاربر";
-  const avatarInitial = displayName.trim().charAt(0) || "ک";
 
   if (isLoading) {
     return (
@@ -565,7 +576,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <div className="mx-1 hidden h-8 w-px bg-divider tablet:block" aria-hidden="true" />
 
-          <UserMenu roleFa={roleFa} name={displayName} initial={avatarInitial} />
+          <UserMenu roleFa={roleFa} name={displayName} avatarUrl={me?.profile?.avatarUrl} />
         </header>
 
         <main className="mx-auto max-w-[1440px] p-4 tablet:p-6">{children}</main>

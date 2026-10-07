@@ -12,6 +12,7 @@ import { getMainNavItems } from "@/lib/routes";
 import type { UserRole } from "@/lib/routes";
 import { useAppShellStore } from "@/lib/stores";
 import { useMe } from "@/hooks/useDashboard";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { useAuthStore } from "@/stores/auth-store";
 import { SubscriptionStatusBadge } from "@/components/subscription/subscription-status";
 import {
@@ -98,7 +99,6 @@ export function Sidebar({ userRole }: SidebarProps) {
 
   const profile = meData?.profile;
   const displayName = profile?.displayName ?? session?.mobileDisplay ?? "کاربر";
-  const avatarInitial = (displayName ?? "ک")[0]!;
 
   return (
     <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
@@ -153,9 +153,13 @@ export function Sidebar({ userRole }: SidebarProps) {
             ].join(" ")}
             aria-current={pathname === "/profile" ? "page" : undefined}
           >
-            <span className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 ring-1 ring-[rgba(255,249,240,0.35)] flex items-center justify-center text-white text-labelSmall font-bold shrink-0">
-              {avatarInitial}
-            </span>
+            <UserAvatar
+              avatarUrl={profile?.avatarUrl}
+              name={displayName}
+              size={32}
+              className="ring-1 ring-[rgba(255,249,240,0.35)]"
+              fallbackClassName="bg-gradient-to-br from-primary-500 to-primary-700 text-white text-labelSmall font-bold"
+            />
             <span className="text-caption font-medium truncate max-w-full">تنظیمات</span>
           </Link>
 
@@ -220,16 +224,19 @@ export function SidebarMobile({ userRole }: SidebarProps) {
 
   const profile = meData?.profile;
   const displayName = profile?.displayName ?? session?.mobileDisplay ?? "کاربر";
-  const avatarInitial = (displayName ?? "ک")[0]!;
 
   return (
     <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)]">
       {/* User header in drawer */}
       <div className="px-4 py-4 border-b border-divider">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center text-white text-h3 font-bold shadow-elevation-3 shrink-0">
-            {avatarInitial}
-          </div>
+          <UserAvatar
+            avatarUrl={profile?.avatarUrl}
+            name={displayName}
+            size={48}
+            className="shadow-elevation-3"
+            fallbackClassName="bg-gradient-to-br from-primary-600 to-primary-800 text-white text-h3 font-bold"
+          />
           <div className="min-w-0">
             <p className="text-body-1 text-on-surface font-semibold truncate">{displayName}</p>
             <p className="text-caption text-muted">{session?.mobileDisplay}</p>
