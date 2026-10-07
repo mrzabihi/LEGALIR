@@ -172,39 +172,58 @@ function parseIntSafe(s: string): number {
   return Number.isFinite(n) ? n : NaN;
 }
 
-/** Client-side validation mirroring the server rules; returns the first error. */
-function validateDraft(d: PlanDraft, isCreate: boolean): string | null {
-  if (isCreate && !d.code.trim()) return "شناسهٔ سیستمی پلن الزامی است.";
-  if (isCreate && !CODE_RE.test(d.code.trim().toLowerCase())) {
-    return "شناسهٔ سیستمی فقط با حروف کوچک لاتین/عدد/خط تیره و با حرف شروع شود.";
+/** Per-field validation errors, keyed by the draft field they belong to. */
+type PlanFieldErrors = Partial<Record<keyof PlanDraft, string>>;
+
+/** True when `v` parses to a non-negative integer. */
+function isNonNegInt(v: string): boolean {
+  const n = parseIntSafe(v);
+  return Number.isInteger(n) && n >= 0;
+}
+
+/**
+ * Client-side validation mirroring the server rules, returning a map keyed
+ * by field so each message can be shown beside the input it belongs to.
+ */
+function validateDraftFields(d: PlanDraft, isCreate: boolean): PlanFieldErrors {
+  const e: PlanFieldErrors = {};
+
+  if (isCreate) {
+    const code = d.code.trim().toLowerCase();
+    if (!code) e.code = "شناسهٔ سیستمی الزامی است.";
+    else if (!CODE_RE.test(code))
+      e.code = "قالب نامعتبر؛ با حرف کوچک شروع و فقط حروف کوچک، عدد، خط تیره یا زیرخط (۲ تا ۳۲ نویسه).";
   }
-  if (!d.nameFa.trim()) return "نام نمایشی فارسی الزامی است.";
-  if (!(parseIntSafe(d.durationDays) > 0)) return "مدت اشتراک باید عددی مثبت باشد.";
-  if (!(parseIntSafe(d.activityCostPoints) > 0)) return "هزینهٔ هر فعالیت باید عددی مثبت باشد.";
-  const limits = [
-    d.dailyRequestLimit,
-    d.tokenLimit,
-    d.aiMessageLimit,
-    d.documentAnalysisLimit,
-    d.contractDraftLimit,
-    d.contractCreationLimit,
-  ];
-  for (const l of limits) {
-    const n = parseIntSafe(l);
-    if (!Number.isInteger(n) || n < 0) return "سقف‌ها باید عدد صحیح و نامنفی باشند.";
-  }
+
+  if (!d.nameFa.trim()) e.nameFa = "نام نمایشی فارسی الزامی است.";
+  if (!(parseIntSafe(d.durationDays) > 0)) e.durationDays = "مدت اشتراک باید عددی مثبت باشد.";
+  if (!(parseIntSafe(d.activityCostPoints) > 0))
+    e.activityCostPoints = "هزینهٔ هر فعالیت باید عددی مثبت باشد.";
+
+  if (!isNonNegInt(d.dailyRequestLimit)) e.dailyRequestLimit = "عدد صحیح و نامنفی وارد کنید.";
+  if (!isNonNegInt(d.tokenLimit)) e.tokenLimit = "عدد صحیح و نامنفی وارد کنید.";
+  if (!isNonNegInt(d.aiMessageLimit)) e.aiMessageLimit = "عدد صحیح و نامنفی وارد کنید.";
+  if (!isNonNegInt(d.documentAnalysisLimit))
+    e.documentAnalysisLimit = "عدد صحیح و نامنفی وارد کنید.";
+  if (!isNonNegInt(d.contractDraftLimit)) e.contractDraftLimit = "عدد صحیح و نامنفی وارد کنید.";
+  if (!isNonNegInt(d.contractCreationLimit))
+    e.contractCreationLimit = "عدد صحیح و نامنفی وارد کنید.";
+
   const list = parseIntSafe(d.listPrice);
   const sale = parseIntSafe(d.salePrice);
-  if (!Number.isInteger(list) || list < 0) return "قیمت فهرست باید عدد صحیح و نامنفی (تومان) باشد.";
-  if (!Number.isInteger(sale) || sale < 0) return "قیمت فروش باید عدد صحیح و نامنفی (تومان) باشد.";
-  if (sale > list) return "قیمت فروش نمی‌تواند از قیمت فهرست بیشتر باشد.";
-  if (
-    d.displayOrder.trim() &&
-    !(Number.isInteger(parseIntSafe(d.displayOrder)) && parseIntSafe(d.displayOrder) >= 0)
-  ) {
-    return "ترتیب نمایش باید عدد صحیح و نامنفی باشد.";
-  }
-  return null;
+  if (!isNonNegInt(d.listPrice)) e.listPrice = "قیمت فهرست باید عدد صحیح و نامنفی (تومان) باشد.";
+  if (!isNonNegInt(d.salePrice)) e.salePrice = "قیمت فروش باید عدد صحیح و نامنفی (تومان) باشد.";
+  else if (isNonNegInt(d.listPrice) && sale > list)
+    e.salePrice = "قیمت فروش نباید از قیمت فهرست بیشتر باشد.";
+
+  if (d.displayOrder.trim() && !isNonNegInt(d.displayOrder))
+    e.displayOrder = "ترتیب نمایش باید عدد صحیح و نامنفی باشد.";
+
+  return e;
+}
+
+function hasErrors(e: PlanFieldErrors): boolean {
+  return Object.keys(e).length > 0;
 }
 
 function splitTags(s: string): string[] {
@@ -288,6 +307,9 @@ function PlanFormDialog({
 
   const existing = detail.data?.plan;
   const [draft, setDraft] = useState<PlanDraft | null>(null);
+  /** Field-level validation messages (shown beside each input). */
+  const [fieldErrors, setFieldErrors] = useState<PlanFieldErrors>({});
+  /** Top-level error (server failure or a save that could not proceed). */
   const [error, setError] = useState<string | null>(null);
   const [confirmPrice, setConfirmPrice] = useState<AdminPlanUpdate | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -299,7 +321,15 @@ function PlanFormDialog({
   }, [isCreate, existing]);
 
   const current = draft ?? base;
-  const set = (patch: Partial<PlanDraft>) => setDraft({ ...(current ?? emptyDraft()), ...patch });
+  // Apply a field edit. Once the form has been submitted (errors are on
+  // screen) re-validate the whole draft on every edit, so a message clears the
+  // moment the operator corrects it — including cross-field rules such as
+  // "sale price must not exceed list price".
+  const set = (patch: Partial<PlanDraft>) => {
+    const next = { ...(current ?? emptyDraft()), ...patch };
+    setDraft(next);
+    if (hasErrors(fieldErrors)) setFieldErrors(validateDraftFields(next, isCreate));
+  };
 
   const pending = create.isPending || update.isPending;
 
@@ -309,6 +339,7 @@ function PlanFormDialog({
 
   function reset() {
     setDraft(null);
+    setFieldErrors({});
     setError(null);
     setConfirmPrice(null);
     setConfirmDiscard(false);
@@ -384,11 +415,12 @@ function PlanFormDialog({
 
   async function doSave() {
     const d = current ?? emptyDraft();
-    const invalid = validateDraft(d, isCreate);
-    if (invalid) {
-      setError(invalid);
+    const errs = validateDraftFields(d, isCreate);
+    if (hasErrors(errs)) {
+      setFieldErrors(errs);
       return;
     }
+    setFieldErrors({});
     setError(null);
     try {
       if (isCreate) {
@@ -409,11 +441,12 @@ function PlanFormDialog({
 
   function onSaveClick() {
     const d = current ?? emptyDraft();
-    const invalid = validateDraft(d, isCreate);
-    if (invalid) {
-      setError(invalid);
+    const errs = validateDraftFields(d, isCreate);
+    if (hasErrors(errs)) {
+      setFieldErrors(errs);
       return;
     }
+    setFieldErrors({});
     // Confirm a price change on an existing plan (it does not alter history).
     if (!isCreate && existing) {
       const next = buildUpdate(d);
@@ -438,7 +471,7 @@ function PlanFormDialog({
             ? "پلن را بسازید. پس از ذخیرهٔ موفق، پلن در کاتالوگ ثبت می‌شود."
             : "ویرایش پلن اشتراک‌های فعال را تغییر نمی‌دهد؛ هر اشتراک اسنپ‌شات زمان خرید دارد."
         }
-        maxWidth="lg"
+        maxWidth="7xl"
         actions={
           <>
             <Button variant="ghost" onClick={requestClose} disabled={pending}>
@@ -455,8 +488,9 @@ function PlanFormDialog({
         ) : !isCreate && detail.isError ? (
           <p className="p-4 text-body-2 text-red-600">خطا در دریافت پلن</p>
         ) : (
-          <div className="grid gap-5 desktop:grid-cols-[minmax(0,1fr)_320px]">
-            <div>
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 desktop:grid-cols-[minmax(0,1fr)_360px]">
+            {/* ---------------- Left: the form ---------------- */}
+            <div className="min-w-0">
               {error && (
                 <div className="mb-4 rounded-large border border-red-200 bg-red-50 p-3 text-body-2 text-red-700 dark:bg-red-900/20 dark:text-red-300">
                   {error}
@@ -464,30 +498,31 @@ function PlanFormDialog({
               )}
 
               <Section title="اطلاعات عمومی">
-                <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-4 tablet:grid-cols-2">
                   {isCreate && (
-                    <Field label="شناسهٔ سیستمی (لاتین)" hint="یکتا؛ فقط حروف کوچک، عدد، خط تیره">
+                    <Field
+                      label="شناسهٔ سیستمی (لاتین)"
+                      required
+                      hint="یکتا؛ با حرف کوچک شروع و فقط حروف کوچک، عدد، خط تیره یا زیرخط (۲ تا ۳۲ نویسه)."
+                      error={fieldErrors.code}
+                    >
                       <TextInput
                         dir="ltr"
                         value={current?.code ?? ""}
                         onChange={(e) => set({ code: e.target.value })}
                         placeholder="pro-annual"
+                        aria-invalid={Boolean(fieldErrors.code)}
                       />
                     </Field>
                   )}
-                  <Field label="نام نمایشی (فارسی)">
+                  <Field label="نام نمایشی (فارسی)" required error={fieldErrors.nameFa}>
                     <TextInput
                       value={current?.nameFa ?? ""}
                       onChange={(e) => set({ nameFa: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.nameFa)}
                     />
                   </Field>
-                  <Field label="توضیح کوتاه" hint="در کارت پلن بالای توضیح کامل دیده می‌شود.">
-                    <TextInput
-                      value={current?.shortDescriptionFa ?? ""}
-                      onChange={(e) => set({ shortDescriptionFa: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="وضعیت">
+                  <Field label="وضعیت" hint="وضعیت پلن در فهرست خرید.">
                     <Select
                       value={current?.status ?? "draft"}
                       onChange={(e) => set({ status: e.target.value as PlanStatus })}
@@ -499,24 +534,39 @@ function PlanFormDialog({
                       ))}
                     </Select>
                   </Field>
-                  <Field label="ترتیب نمایش" hint="عدد کمتر، بالاتر نمایش داده می‌شود.">
+                  <Field
+                    label="ترتیب نمایش"
+                    hint="عدد کمتر، بالاتر نمایش داده می‌شود."
+                    error={fieldErrors.displayOrder}
+                  >
                     <TextInput
                       type="number"
                       value={current?.displayOrder ?? ""}
                       onChange={(e) => set({ displayOrder: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.displayOrder)}
                     />
                   </Field>
-                  <Field label="برچسب‌ها" hint="با ویرگول جدا کنید؛ مثلاً پیشنهادی، محبوب">
-                    <TextInput
-                      value={current?.tags ?? ""}
-                      onChange={(e) => set({ tags: e.target.value })}
-                    />
-                  </Field>
+                  <div className="tablet:col-span-2">
+                    <Field label="توضیح کوتاه" hint="در کارت پلن، بالای توضیح کامل دیده می‌شود.">
+                      <TextInput
+                        value={current?.shortDescriptionFa ?? ""}
+                        onChange={(e) => set({ shortDescriptionFa: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <div className="tablet:col-span-2">
+                    <Field label="برچسب‌ها" hint="با ویرگول جدا کنید؛ مثلاً پیشنهادی، محبوب">
+                      <TextInput
+                        value={current?.tags ?? ""}
+                        onChange={(e) => set({ tags: e.target.value })}
+                      />
+                    </Field>
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <Field label="توضیح کامل">
+                <div className="mt-4">
+                  <Field label="توضیح کامل" hint="شرح کامل پلن که در صفحهٔ اشتراک نمایش داده می‌شود.">
                     <TextArea
-                      rows={2}
+                      rows={3}
                       value={current?.descriptionFa ?? ""}
                       onChange={(e) => set({ descriptionFa: e.target.value })}
                     />
@@ -525,19 +575,21 @@ function PlanFormDialog({
               </Section>
 
               <Section title="قیمت و تخفیف" subtitle="مبالغ به تومان است.">
-                <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2">
-                  <Field label="قیمت فهرست (تومان)">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-4 tablet:grid-cols-2">
+                  <Field label="قیمت فهرست (تومان)" required error={fieldErrors.listPrice}>
                     <TextInput
                       type="number"
                       value={current?.listPrice ?? ""}
                       onChange={(e) => set({ listPrice: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.listPrice)}
                     />
                   </Field>
-                  <Field label="قیمت فروش (تومان)">
+                  <Field label="قیمت فروش (تومان)" required error={fieldErrors.salePrice}>
                     <TextInput
                       type="number"
                       value={current?.salePrice ?? ""}
                       onChange={(e) => set({ salePrice: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.salePrice)}
                     />
                   </Field>
                   <Field label="نوع تخفیف">
@@ -589,68 +641,81 @@ function PlanFormDialog({
               </Section>
 
               <Section title="اعتبار و سهمیه">
-                <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2">
-                  <Field label="مدت اشتراک (روز)">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-4 tablet:grid-cols-2">
+                  <Field label="مدت اشتراک (روز)" required error={fieldErrors.durationDays}>
                     <TextInput
                       type="number"
                       value={current?.durationDays ?? ""}
                       onChange={(e) => set({ durationDays: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.durationDays)}
                     />
                   </Field>
-                  <Field label="هزینهٔ هر فعالیت (امتیاز)">
+                  <Field
+                    label="هزینهٔ هر فعالیت (امتیاز)"
+                    required
+                    error={fieldErrors.activityCostPoints}
+                  >
                     <TextInput
                       type="number"
                       value={current?.activityCostPoints ?? ""}
                       onChange={(e) => set({ activityCostPoints: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.activityCostPoints)}
                     />
                   </Field>
-                  <Field label="سقف درخواست روزانه">
+                  <Field label="سقف درخواست روزانه" error={fieldErrors.dailyRequestLimit}>
                     <TextInput
                       type="number"
                       value={current?.dailyRequestLimit ?? ""}
                       onChange={(e) => set({ dailyRequestLimit: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.dailyRequestLimit)}
                     />
                   </Field>
-                  <Field label="سقف توکن">
+                  <Field label="سقف توکن" error={fieldErrors.tokenLimit}>
                     <TextInput
                       type="number"
                       value={current?.tokenLimit ?? ""}
                       onChange={(e) => set({ tokenLimit: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.tokenLimit)}
                     />
                   </Field>
-                  <Field label="سقف پیام هوش مصنوعی">
+                  <Field label="سقف پیام هوش مصنوعی" error={fieldErrors.aiMessageLimit}>
                     <TextInput
                       type="number"
                       value={current?.aiMessageLimit ?? ""}
                       onChange={(e) => set({ aiMessageLimit: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.aiMessageLimit)}
                     />
                   </Field>
-                  <Field label="سقف تحلیل سند">
+                  <Field label="سقف تحلیل سند" error={fieldErrors.documentAnalysisLimit}>
                     <TextInput
                       type="number"
                       value={current?.documentAnalysisLimit ?? ""}
                       onChange={(e) => set({ documentAnalysisLimit: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.documentAnalysisLimit)}
                     />
                   </Field>
-                  <Field label="سقف پیش‌نویس قرارداد">
+                  <Field label="سقف پیش‌نویس قرارداد" error={fieldErrors.contractDraftLimit}>
                     <TextInput
                       type="number"
                       value={current?.contractDraftLimit ?? ""}
                       onChange={(e) => set({ contractDraftLimit: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.contractDraftLimit)}
                     />
                   </Field>
-                  <Field label="سقف ایجاد قرارداد">
+                  <Field label="سقف ایجاد قرارداد" error={fieldErrors.contractCreationLimit}>
                     <TextInput
                       type="number"
                       disabled={current?.contractCreationUnlimited}
                       value={current?.contractCreationLimit ?? ""}
                       onChange={(e) => set({ contractCreationLimit: e.target.value })}
+                      aria-invalid={Boolean(fieldErrors.contractCreationLimit)}
                     />
                   </Field>
                 </div>
-                <label className="mt-3 flex items-center gap-2 text-body-2 text-on-surface-variant">
+                <label className="mt-4 inline-flex cursor-pointer items-center gap-2 text-body-2 text-on-surface-variant">
                   <input
                     type="checkbox"
+                    className="h-4 w-4 accent-brand"
                     checked={current?.contractCreationUnlimited ?? false}
                     onChange={(e) => set({ contractCreationUnlimited: e.target.checked })}
                   />
@@ -659,20 +724,30 @@ function PlanFormDialog({
               </Section>
 
               <Section title="ویژگی‌ها" subtitle="هر ویژگی در یک خط.">
-                <TextArea
-                  rows={5}
-                  value={current?.featuresText ?? ""}
-                  onChange={(e) => set({ featuresText: e.target.value })}
-                  placeholder={"۵۰ درخواست روزانه\n۳٬۰۰۰٬۰۰۰ توکن"}
-                />
+                <Field label="فهرست ویژگی‌ها">
+                  <TextArea
+                    rows={5}
+                    value={current?.featuresText ?? ""}
+                    onChange={(e) => set({ featuresText: e.target.value })}
+                    placeholder={"۵۰ درخواست روزانه\n۳٬۰۰۰٬۰۰۰ توکن"}
+                  />
+                </Field>
               </Section>
             </div>
 
-            {/* Live preview — the exact card a user will see. */}
-            <div className="desktop:sticky desktop:top-4 desktop:self-start">
-              <p className="mb-2 text-caption font-medium text-on-surface-variant">
-                پیش‌نمایش کارت پلن
-              </p>
+            {/* Live preview — the exact card a user will see, in its own rail.
+                Sticky within the dialog body's scroll port and self-scrolling
+                when the card is taller than the viewport, so it never overlaps
+                the form or its action buttons. Stacks below the form on mobile. */}
+            <div className="min-w-0 desktop:sticky desktop:top-4 desktop:self-start desktop:max-h-[calc(85vh-9rem)] desktop:overflow-y-auto">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-caption font-medium text-on-surface-variant">
+                  پیش‌نمایش زندهٔ کارت پلن
+                </p>
+                <Badge tone={STATUS_META[current?.status ?? "draft"].tone} dot>
+                  {STATUS_META[current?.status ?? "draft"].labelFa}
+                </Badge>
+              </div>
               <PlanCard
                 plan={preview}
                 isCurrent={false}

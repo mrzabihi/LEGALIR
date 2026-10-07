@@ -704,16 +704,26 @@ export function Field({
   children,
   hint,
   error,
+  required,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
   /** Error message — when set the hint is suppressed and the field reads red. */
   error?: string;
+  /** Marks the label with an asterisk so required fields read as such. */
+  required?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-caption font-medium text-on-surface-variant">{label}</span>
+      <span className="mb-1 block text-caption font-medium text-on-surface-variant">
+        {label}
+        {required && (
+          <span className="text-error-600 dark:text-error-400" aria-hidden="true">
+            {" *"}
+          </span>
+        )}
+      </span>
       {children}
       {error ? (
         <span className="mt-1 block text-caption text-error-600 dark:text-error-400">{error}</span>

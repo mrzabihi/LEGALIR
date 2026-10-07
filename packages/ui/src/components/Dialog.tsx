@@ -9,8 +9,13 @@ interface DialogProps {
   title?: string;
   description?: string;
   children?: React.ReactNode;
-  /** Dialog width constraint */
-  maxWidth?: "sm" | "md" | "lg";
+  /**
+   * Dialog width constraint. `sm`–`lg` cover the compact confirm/prompt
+   * dialogs; `xl`–`7xl` exist for wide desktop surfaces (e.g. the admin
+   * plan builder). All are `max-width`, so the dialog stays `w-full` and
+   * never exceeds the viewport.
+   */
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl" | "7xl";
   /** Prevent closing on backdrop click */
   persistent?: boolean;
   /** Footer actions */
@@ -21,6 +26,13 @@ const maxWidthClasses = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-xl",
+  "2xl": "max-w-2xl",
+  "3xl": "max-w-3xl",
+  "4xl": "max-w-4xl",
+  "5xl": "max-w-5xl",
+  "6xl": "max-w-6xl",
+  "7xl": "max-w-7xl",
 };
 
 export function Dialog({
@@ -116,20 +128,19 @@ export function Dialog({
         aria-labelledby={title ? "dialog-title" : undefined}
         aria-describedby={description ? "dialog-description" : undefined}
         className={[
-          "relative w-full bg-surface rounded-large shadow-elevation-24 ring-1 ring-black/5",
+          "relative flex w-full flex-col bg-surface rounded-large shadow-elevation-24 ring-1 ring-black/5",
           maxWidthClasses[maxWidth],
           "animate-dialog-enter",
-          "max-h-[85vh] sm:max-h-[85vh]",  // 90dvh on mobile for bottom sheet feel
-          "overflow-auto",
-          // Mobile: full-width bottom sheet
+          "max-h-[85vh]",
+          // Mobile: full-width bottom sheet (a bit taller than desktop).
           "max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0",
           "max-sm:max-w-full max-sm:rounded-b-none max-sm:max-h-[90dvh]",
           "max-sm:animate-slide-up",
         ].join(" ")}
       >
-        {/* Header */}
+        {/* Header — pinned (shrink-0) so the title/close stay visible on scroll. */}
         {(title || description) && (
-          <div className="px-6 pt-6 pb-2">
+          <div className="shrink-0 px-6 pt-6 pb-2">
             {title && (
               <h2 id="dialog-title" className="text-headlineSmall text-on-surface">
                 {title}
@@ -143,12 +154,12 @@ export function Dialog({
           </div>
         )}
 
-        {/* Body */}
-        {children && <div className="px-6 py-4">{children}</div>}
+        {/* Body — the only scroll region (min-h-0 lets a flex child shrink). */}
+        {children && <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{children}</div>}
 
-        {/* Footer */}
+        {/* Footer — pinned (shrink-0) so the primary actions stay reachable. */}
         {actions && (
-          <div className="flex items-center justify-end gap-2 px-6 pb-6 pt-2">
+          <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-6 pt-2">
             {actions}
           </div>
         )}
