@@ -83,8 +83,9 @@ import type {
   PrivacySettings,
   SessionsResponse,
   LawyerListResponse,
-  LawyerListFilters,
+  LawyerSearchFilters,
   LawyerDetail,
+  LawyerAvatarType,
   MatchCriteria,
   MatchResult,
   IntakeSchema,
@@ -121,6 +122,18 @@ export function fetchMe(): Promise<MeResponse> {
 
 export function updateProfile(data: Partial<Profile>): Promise<Profile> {
   return apiClient.patch<Profile>("/api/v1/me/profile", data);
+}
+
+/** Upload the signed-in user's portrait (multipart). Returns the stored avatarUrl. */
+export function uploadUserAvatar(file: File): Promise<{ avatarUrl: string | null }> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiClient.postForm<{ avatarUrl: string | null }>("/api/v1/me/avatar", form);
+}
+
+/** Remove the uploaded portrait and clear the profile's avatarUrl. */
+export function deleteUserAvatar(): Promise<{ avatarUrl: string | null }> {
+  return apiClient.delete<{ avatarUrl: string | null }>("/api/v1/me/avatar");
 }
 
 // ============================================================
@@ -223,6 +236,15 @@ export function createCheckoutIntent(planCode: PlanCode): Promise<CheckoutIntent
 
 export function getCheckoutIntent(id: string): Promise<CheckoutIntent> {
   return apiClient.get<CheckoutIntent>(`/api/v1/checkout/intents/${id}`);
+}
+
+/**
+ * Explicitly confirm a checkout intent. This is the client-side seam for a real
+ * gateway callback; the mock gateway "approves" on read, so this is only needed
+ * when a surface wants to force confirmation.
+ */
+export function confirmCheckoutIntent(id: string): Promise<CheckoutIntent> {
+  return apiClient.post<CheckoutIntent>(`/api/v1/checkout/intents/${id}/confirm`, {});
 }
 
 // ============================================================
@@ -841,7 +863,7 @@ export function deleteAccount(): Promise<{ deleted: boolean }> {
 // Lawyer marketplace & matching (PART 3 / PART 4)
 // ============================================================
 
-export function fetchLawyers(filters: LawyerListFilters = {}): Promise<LawyerListResponse> {
+export function fetchLawyers(filters: LawyerSearchFilters = {}): Promise<LawyerListResponse> {
   const params = new URLSearchParams();
   if (filters.category) params.set("category", filters.category);
   if (filters.province) params.set("province", filters.province);
@@ -853,6 +875,20 @@ export function fetchLawyers(filters: LawyerListFilters = {}): Promise<LawyerLis
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
+  // --- Extended taxonomy / attribute filters (comma-joined lists) ---
+  if (filters.specialtyIds?.length) params.set("specialtyIds", filters.specialtyIds.join(","));
+  if (filters.professionalRanks?.length)
+    params.set("professionalRanks", filters.professionalRanks.join(","));
+  if (filters.organizationTypes?.length)
+    params.set("organizationTypes", filters.organizationTypes.join(","));
+  if (filters.serviceIds?.length) params.set("serviceIds", filters.serviceIds.join(","));
+  if (filters.jurisdictionIds?.length)
+    params.set("jurisdictionIds", filters.jurisdictionIds.join(","));
+  if (typeof filters.minRating === "number") params.set("minRating", String(filters.minRating));
+  if (filters.experienceBand) params.set("experienceBand", filters.experienceBand);
+  if (filters.acceptingClientsOnly) params.set("acceptingClientsOnly", "true");
+  if (filters.onlineOnly) params.set("onlineOnly", "true");
+  if (filters.featuredOnly) params.set("featuredOnly", "true");
   return apiClient.get<LawyerListResponse>(`/api/v1/lawyers${qs(params)}`);
 }
 
@@ -988,4 +1024,19 @@ export function transitionLegalRequest(
 /** The lawyer's own workspace. Requires the LAWYER role (403 otherwise). */
 export function fetchLawyerWorkspace(): Promise<LawyerWorkspace> {
   return apiClient.get<LawyerWorkspace>("/api/v1/lawyer/workspace");
+}
+
+/** A lawyer changing their OWN professional portrait (upload / regenerate / URL). */
+export function setMyLawyerAvatar(input: {
+  avatarUrl?: string | null;
+  avatarType?: LawyerAvatarType;
+  regenerate?: boolean;
+  /** Base64 image bytes (no data-URI prefix) for an upload from disk. */
+  avatarData?: string;
+  /** Original file name, kept for the audit trail only. */
+  avatarFileName?: string;
+  /** The upload's MIME type (e.g. `image/png`). */
+  avatarFormat?: string;
+}): Promise<{ id: string; avatarUrl: string | null; avatarType: LawyerAvatarType }> {
+  return apiClient.patch("/api/v1/lawyer/avatar", input);
 }

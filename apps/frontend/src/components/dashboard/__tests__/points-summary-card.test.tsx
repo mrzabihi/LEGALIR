@@ -7,7 +7,7 @@
 // page reload, no second request path.
 // ============================================================
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -16,6 +16,13 @@ import { PointsSummaryCard } from "../points-summary-card";
 import { TopBar } from "@/components/app/top-bar";
 import { toPersianNumber } from "@/lib/persian-utils";
 import type { RewardsSummary, RewardsHistoryResponse } from "@legalir/types";
+
+// The bar mounts NotificationBell, which reads the app router. jsdom has no
+// router mounted, so the header tree needs the standard navigation stub.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), prefetch: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/dashboard",
+}));
 
 const API_BASE = "http://localhost:8000";
 

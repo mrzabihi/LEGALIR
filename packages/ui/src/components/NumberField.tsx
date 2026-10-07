@@ -13,7 +13,7 @@
 // ============================================================
 
 import React, { forwardRef, useId, useState } from "react";
-import { OutlinedFieldShell, FieldMessage, type FieldSize } from "./field-shell";
+import { OutlinedFieldShell, FieldMessage, extensionSafe, type FieldSize } from "./field-shell";
 import { useCaretAnchor } from "../lib/use-caret-anchor";
 import {
   formatPersianAmount,
@@ -167,6 +167,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
                 .filter(Boolean)
                 .join(" ")}
               {...rest}
+              {...extensionSafe}
             />
           </div>
           {suffix && (

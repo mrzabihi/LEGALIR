@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { toPersianDigits, fromPersianDigits, toPersianNumber } from "@/lib/persian-utils";
+import {
+  toPersianDigits,
+  fromPersianDigits,
+  toPersianNumber,
+  toPersianDate,
+} from "@/lib/persian-utils";
 
 describe("persian-utils", () => {
   describe("toPersianDigits", () => {
@@ -31,6 +36,28 @@ describe("persian-utils", () => {
     it("formats with Persian locale separators", () => {
       const result = toPersianNumber(1000000);
       expect(result).toContain("۱");
+    });
+  });
+
+  describe("toPersianDate", () => {
+    const date = new Date("2026-01-05T00:00:00Z");
+
+    it("defaults to a long Jalali date", () => {
+      const result = toPersianDate(date);
+      expect(result).toContain("۱۴۰۴");
+    });
+
+    it("honours explicit component options without throwing", () => {
+      // Regression: the default `dateStyle: "long"` used to be forced
+      // alongside caller components, which Intl rejects with a TypeError
+      // ("Can't set option month when dateStyle is used").
+      expect(() => toPersianDate(date, { month: "2-digit", day: "2-digit" })).not.toThrow();
+      expect(toPersianDate(date, { month: "2-digit", day: "2-digit" })).toContain("۱۵");
+    });
+
+    it("still allows an explicit dateStyle override", () => {
+      const result = toPersianDate(date, { dateStyle: "short" });
+      expect(result).toContain("۱۴۰۴");
     });
   });
 });

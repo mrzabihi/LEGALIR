@@ -33,7 +33,6 @@ import {
   activeFilterChips,
   applyContractFilters,
   contractTypeOptions,
-  hasActiveFilters,
   removeFilterChip,
   sortContractList,
   CONTRACT_SORT_LABELS,

@@ -26,9 +26,16 @@
 
 import Link from "next/link";
 import type { LawyerListItem } from "@legalir/types";
-import { IconCheckCircle, IconClock, IconError, IconLocation } from "@/lib/icons";
+import { LAWYER_PROFESSIONAL_RANK_SHORT_FA } from "@legalir/types";
+import {
+  IconCheckCircle,
+  IconClock,
+  IconError,
+  IconLocation,
+  IconSparkle,
+} from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { availabilityView, REJECTED_REASON_FA } from "@/lib/lawyers/availability";
+import { availabilityView, removalReason } from "@/lib/lawyers/availability";
 import { LawyerAvatar } from "./lawyer-avatar";
 import { LawyerRating } from "./lawyer-rating";
 import { LawyerAvailabilityBadge } from "./lawyer-availability-badge";
@@ -54,12 +61,17 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
     lawyer.consultationCapacity,
     lawyer.acceptingRequests
   );
-  const years = yearsOfExperience(lawyer);
+  const years = lawyer.yearsExperience ?? yearsOfExperience(lawyer);
   const location = lawyer.locations[0];
+  const rankLabel = lawyer.professionalRank
+    ? LAWYER_PROFESSIONAL_RANK_SHORT_FA[lawyer.professionalRank]
+    : null;
   const duration = lawyer.pricing.consultationDurationMinutes;
-  // A lawyer removed by LEGALIR review is shown in a red treatment so the
-  // card can never be mistaken for a bookable profile.
+  // A lawyer removed from the marketplace (rejected by the bar, or suspended
+  // by LEGALIR) is shown in a red treatment so the card can never be mistaken
+  // for a bookable profile. The copy differs per outcome.
   const rejected = view.tone === "rejected";
+  const removeReason = removalReason(view.status);
 
   return (
     <div
@@ -97,6 +109,12 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
               <h3 className="truncate text-body-1 font-semibold text-on-surface group-hover:text-primary">
                 {lawyer.fullName}
               </h3>
+              {lawyer.featured && (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-caption text-primary-700">
+                  <IconSparkle size={13} />
+                  برگزیده
+                </span>
+              )}
               {lawyer.isDemo ? (
                 <span className="shrink-0 rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-caption text-warning-700">
                   نمونه
@@ -117,8 +135,8 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
 
             <div className="mt-2">
               <LawyerRating
-                average={lawyer.performance.averageRating}
-                reviewCount={lawyer.performance.reviewCount}
+                average={lawyer.displayRating ?? lawyer.performance.averageRating}
+                reviewCount={lawyer.displayReviewCount ?? lawyer.performance.reviewCount}
               />
             </div>
           </div>
@@ -129,6 +147,11 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
 
         {/* --- Compact professional meta --- */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted">
+          {rankLabel && (
+            <span className="rounded-md bg-surface-container px-1.5 py-0.5 text-on-surface-variant">
+              {rankLabel}
+            </span>
+          )}
           {years > 0 && <span>{toPersianNumber(years)} سال سابقه</span>}
           {location && (
             <span className="inline-flex items-center gap-1">
@@ -170,7 +193,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
             className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-4 py-2.5 text-center text-button font-medium text-error-700"
           >
             <IconError size={16} className="shrink-0" aria-hidden="true" />
-            {REJECTED_REASON_FA}
+            {removeReason}
           </div>
         ) : (
           <div className="flex flex-col gap-2 mobile-l:flex-row">

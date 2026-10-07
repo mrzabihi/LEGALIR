@@ -9,6 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  CATALOG_CATEGORIES,
   CATALOG_SIZE,
   LIBRARY_CAMPAIGN,
   LIBRARY_ITEMS,
@@ -69,6 +70,37 @@ describe("SERVICE_CATALOG", () => {
   it("gives every category a unique anchor", () => {
     const anchors = SERVICE_CATEGORIES.map((c) => c.anchor);
     expect(new Set(anchors).size).toBe(anchors.length);
+  });
+});
+
+describe("SERVICE_CATEGORIES route shortcuts", () => {
+  it("gives every shortcut a real, internal destination", () => {
+    for (const category of SERVICE_CATEGORIES) {
+      expect(category.href).toMatch(/^\//);
+    }
+  });
+
+  it("routes each shortcut to the surface that owns that area", () => {
+    const href = new Map(SERVICE_CATEGORIES.map((c) => [c.id, c.href]));
+    expect(href.get("consultation")).toBe("/lawyers");
+    expect(href.get("contracts")).toBe("/contracts");
+    expect(href.get("documents")).toBe("/documents");
+    expect(href.get("calculators")).toBe("/calculators");
+    expect(href.get("cases")).toBe("/cases");
+    expect(href.get("library")).toBe("/blog");
+    expect(href.get("my-consultations")).toBe("/consultations");
+  });
+
+  it("adds the personal «مشاوره‌های من» entry point without a catalog section", () => {
+    const mine = SERVICE_CATEGORIES.find((c) => c.id === "my-consultations");
+    expect(mine).toBeTruthy();
+    expect(mine?.inCatalog).toBe(false);
+    // CATALOG_CATEGORIES is the six groups that render a section below.
+    expect(CATALOG_CATEGORIES).toHaveLength(6);
+    expect(CATALOG_CATEGORIES.map((c) => c.id)).not.toContain("my-consultations");
+    for (const category of CATALOG_CATEGORIES) {
+      expect(category.inCatalog).toBe(true);
+    }
   });
 });
 

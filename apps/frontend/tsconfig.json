@@ -8,18 +8,48 @@
     "allowJs": true,
     "noEmit": true,
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@legalir/types": ["../../packages/types/src"],
-      "@legalir/config": ["../../packages/config/src"],
-      "@legalir/validation": ["../../packages/validation/src"],
-      "@legalir/api-client": ["../../packages/api-client/src"],
-      "@legalir/ui": ["../../packages/ui/src"],
-      "@legalir/i18n": ["../../packages/i18n/src"],
-      "@legalir/testing": ["../../packages/testing/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@legalir/types": [
+        "../../packages/types/src"
+      ],
+      "@legalir/config": [
+        "../../packages/config/src"
+      ],
+      "@legalir/validation": [
+        "../../packages/validation/src"
+      ],
+      "@legalir/api-client": [
+        "../../packages/api-client/src"
+      ],
+      "@legalir/ui": [
+        "../../packages/ui/src"
+      ],
+      "@legalir/i18n": [
+        "../../packages/i18n/src"
+      ],
+      "@legalir/testing": [
+        "../../packages/testing/src"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", ".next", "dist"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    ".next-verify/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist"
+  ]
 }

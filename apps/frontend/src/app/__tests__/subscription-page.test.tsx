@@ -292,7 +292,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      expect(screen.getByText("پلن فعلی")).toBeInTheDocument();
+      // The current-plan badge lives on the plan card, which resolves on its
+      // own (delayed) query — await it rather than racing the skeletons.
+      expect(await screen.findByText("اشتراک فعلی")).toBeInTheDocument();
     });
   });
 
@@ -315,7 +317,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      const silverSelectBtn = screen.getByText("انتخاب نقره");
+      // On an active gold subscription, the silver plan is a non-upgrade
+      // selectable plan, so its CTA label is «خرید اشتراک».
+      const silverSelectBtn = screen.getByText("خرید اشتراک");
       fireEvent.click(silverSelectBtn);
 
       await waitFor(() => {
@@ -338,7 +342,7 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("انتخاب نقره"));
+      fireEvent.click(screen.getByText("خرید اشتراک"));
 
       await waitFor(() => {
         expect(screen.getByText("انتخاب پلن نقره")).toBeInTheDocument();
@@ -403,7 +407,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("انتخاب نقره"));
+      // Plans resolve on their own query (50ms delay), so await the CTA before
+      // clicking — otherwise we can race the plan-card skeletons.
+      fireEvent.click(await screen.findByText("خرید اشتراک"));
 
       await waitFor(() => {
         expect(screen.getByText("تأیید و پرداخت")).toBeInTheDocument();

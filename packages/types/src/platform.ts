@@ -10,6 +10,14 @@
 // mapped onto the richer model below via `LEGACY_ACCOUNT_TYPE_MAP`.
 // ============================================================
 
+import type {
+  LawyerProfessionalRank,
+  LawyerOrganizationType,
+  LawyerLicenseStatus,
+  LawyerMarketplaceVisibility,
+  LawyerGender,
+} from "./lawyer-taxonomy";
+
 // ---------------------------------------------------------------------------
 // Account types (PART 1)
 // ---------------------------------------------------------------------------
@@ -80,7 +88,15 @@ export type PlatformRole =
   | "COMPANY_OWNER"
   | "COMPANY_ADMIN"
   | "COMPANY_MEMBER"
+  // --- Platform staff (LEGALIR operator) ---
   | "SUPPORT"
+  | "ANALYST"
+  | "AUDITOR"
+  | "ADMIN_OPS"
+  | "ADMIN_LAWYERS"
+  | "ADMIN_FINANCE"
+  | "ADMIN_CONTENT"
+  | "ADMIN_AI"
   | "ADMIN"
   | "SUPER_ADMIN";
 
@@ -91,8 +107,15 @@ export const ROLE_FA: Record<PlatformRole, string> = {
   COMPANY_ADMIN: "مدیر سازمان",
   COMPANY_MEMBER: "عضو سازمان",
   SUPPORT: "پشتیبان",
-  ADMIN: "مدیر سیستم",
-  SUPER_ADMIN: "مدیر ارشد",
+  ANALYST: "تحلیل‌گر",
+  AUDITOR: "حسابرس",
+  ADMIN_OPS: "مدیر عملیات",
+  ADMIN_LAWYERS: "مدیر امور وکلا",
+  ADMIN_FINANCE: "مدیر مالی",
+  ADMIN_CONTENT: "مدیر حقوقی و محتوا",
+  ADMIN_AI: "مدیر هوش مصنوعی",
+  ADMIN: "مدیر پلتفرم",
+  SUPER_ADMIN: "مدیر ارشد پلتفرم",
 };
 
 /**
@@ -126,14 +149,67 @@ export type Permission =
   | "org:contract:write:all"
   | "org:billing:manage"
   | "org:settings:manage"
-  // Platform administration
+  // Platform administration — coarse (legacy keys, kept for compatibility)
   | "admin:users:read"
   | "admin:users:manage"
   | "admin:lawyer:verify"
   | "admin:knowledge:read"
   | "admin:knowledge:write"
   | "admin:audit:read"
-  | "admin:system:manage";
+  | "admin:system:manage"
+  // Platform administration — granular (admin panel sections)
+  | "admin:overview:read"
+  | "admin:requests:read"
+  | "admin:requests:manage"
+  | "admin:lawyer:read"
+  // Granular lawyer-management capabilities (Super Admin / ADMIN_LAWYERS).
+  // `admin:lawyer:verify` above covers the review decision; these cover the
+  // CRUD/lifecycle of a lawyer profile, its reviews, rating, avatar & the
+  // marketplace "featured" flag.
+  | "admin:lawyer:create"
+  | "admin:lawyer:update"
+  | "admin:lawyer:status"
+  | "admin:lawyer:suspend"
+  | "admin:lawyer:delete"
+  | "admin:lawyer:restore"
+  | "admin:lawyer:feature"
+  | "admin:lawyer:review:manage"
+  | "admin:lawyer:rating:manage"
+  | "admin:lawyer:avatar:manage"
+  | "admin:services:read"
+  | "admin:services:manage"
+  | "admin:flags:manage"
+  | "admin:plans:read"
+  | "admin:plans:manage"
+  | "admin:billing:read"
+  | "admin:billing:manage"
+  | "admin:refund:approve"
+  | "admin:finance:read"
+  | "admin:finance:manage"
+  | "admin:settlement:manage"
+  | "admin:settlement:approve"
+  | "admin:ai:read"
+  | "admin:ai:manage"
+  | "admin:ai:secret"
+  | "admin:rag:read"
+  | "admin:rag:manage"
+  | "admin:rag:publish"
+  | "admin:calculators:read"
+  | "admin:calculators:manage"
+  | "admin:energy:read"
+  | "admin:energy:manage"
+  | "admin:support:read"
+  | "admin:support:manage"
+  | "admin:content:read"
+  | "admin:content:manage"
+  | "admin:reports:read"
+  | "admin:reports:export"
+  | "admin:analytics:read"
+  | "admin:analytics:export"
+  | "admin:staff:read"
+  | "admin:staff:manage"
+  | "admin:settings:read"
+  | "admin:settings:manage";
 
 /** The permission set granted to each role. */
 export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
@@ -210,25 +286,229 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "org:billing:manage",
     "org:settings:manage",
   ],
+  // --- Platform staff ---
+  // Separation of duties: no single operations role holds every power,
+  // and financial approval is split from financial entry.
   SUPPORT: [
+    "admin:overview:read",
     "admin:users:read",
+    "admin:requests:read",
+    "admin:support:read",
+    "admin:support:manage",
     "admin:audit:read",
+  ],
+  ANALYST: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:requests:read",
+    "admin:billing:read",
+    "admin:finance:read",
+    "admin:ai:read",
+    "admin:rag:read",
+    "admin:energy:read",
+    "admin:reports:read",
+    "admin:analytics:read",
+  ],
+  AUDITOR: [
+    "admin:overview:read",
+    "admin:audit:read",
+    "admin:billing:read",
+    "admin:finance:read",
+    "admin:reports:read",
+    "admin:analytics:read",
+    "admin:staff:read",
+    "admin:settings:read",
+  ],
+  ADMIN_OPS: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:users:manage",
+    "admin:requests:read",
+    "admin:requests:manage",
+    "admin:services:read",
+    "admin:services:manage",
+    "admin:flags:manage",
+    "admin:plans:read",
+    "admin:lawyer:read",
+    "admin:support:read",
+    "admin:support:manage",
+    "admin:reports:read",
+    "admin:analytics:read",
+  ],
+  ADMIN_LAWYERS: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:requests:read",
+    "admin:lawyer:read",
+    "admin:lawyer:verify",
+    "admin:lawyer:create",
+    "admin:lawyer:update",
+    "admin:lawyer:status",
+    "admin:lawyer:suspend",
+    "admin:lawyer:delete",
+    "admin:lawyer:restore",
+    "admin:lawyer:feature",
+    "admin:lawyer:review:manage",
+    "admin:lawyer:rating:manage",
+    "admin:lawyer:avatar:manage",
+    "admin:reports:read",
+    "admin:analytics:read",
+  ],
+  ADMIN_FINANCE: [
+    "admin:overview:read",
+    "admin:users:read",
+    "admin:billing:read",
+    "admin:billing:manage",
+    "admin:refund:approve",
+    "admin:finance:read",
+    "admin:finance:manage",
+    "admin:settlement:manage",
+    "admin:settlement:approve",
+    "admin:plans:read",
+    "admin:plans:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
+    "admin:reports:read",
+    "admin:analytics:read",
+    "admin:reports:export",
+    "admin:analytics:export",
+  ],
+  ADMIN_CONTENT: [
+    "admin:overview:read",
+    "admin:knowledge:read",
+    "admin:knowledge:write",
+    "admin:content:read",
+    "admin:content:manage",
+    "admin:calculators:read",
+    "admin:calculators:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
+    "admin:reports:read",
+    "admin:analytics:read",
+  ],
+  ADMIN_AI: [
+    "admin:overview:read",
+    "admin:ai:read",
+    "admin:ai:manage",
+    "admin:ai:secret",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
+    "admin:calculators:read",
+    "admin:reports:read",
+    "admin:analytics:read",
   ],
   ADMIN: [
+    "admin:overview:read",
     "admin:users:read",
     "admin:users:manage",
+    "admin:requests:read",
+    "admin:requests:manage",
+    "admin:lawyer:read",
     "admin:lawyer:verify",
+    "admin:lawyer:create",
+    "admin:lawyer:update",
+    "admin:lawyer:status",
+    "admin:lawyer:suspend",
+    "admin:lawyer:delete",
+    "admin:lawyer:restore",
+    "admin:lawyer:feature",
+    "admin:lawyer:review:manage",
+    "admin:lawyer:rating:manage",
+    "admin:lawyer:avatar:manage",
+    "admin:services:read",
+    "admin:services:manage",
+    "admin:flags:manage",
+    "admin:plans:read",
+    "admin:plans:manage",
+    "admin:billing:read",
+    "admin:billing:manage",
+    "admin:refund:approve",
+    "admin:finance:read",
+    "admin:finance:manage",
+    "admin:settlement:manage",
+    "admin:settlement:approve",
+    "admin:ai:read",
+    "admin:ai:manage",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
     "admin:knowledge:read",
     "admin:knowledge:write",
+    "admin:calculators:read",
+    "admin:calculators:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
+    "admin:support:read",
+    "admin:support:manage",
+    "admin:content:read",
+    "admin:content:manage",
+    "admin:reports:read",
+    "admin:analytics:read",
+    "admin:reports:export",
+    "admin:analytics:export",
+    "admin:staff:read",
     "admin:audit:read",
+    "admin:settings:read",
   ],
   SUPER_ADMIN: [
+    "admin:overview:read",
     "admin:users:read",
     "admin:users:manage",
+    "admin:requests:read",
+    "admin:requests:manage",
+    "admin:lawyer:read",
     "admin:lawyer:verify",
+    "admin:lawyer:create",
+    "admin:lawyer:update",
+    "admin:lawyer:status",
+    "admin:lawyer:suspend",
+    "admin:lawyer:delete",
+    "admin:lawyer:restore",
+    "admin:lawyer:feature",
+    "admin:lawyer:review:manage",
+    "admin:lawyer:rating:manage",
+    "admin:lawyer:avatar:manage",
+    "admin:services:read",
+    "admin:services:manage",
+    "admin:flags:manage",
+    "admin:plans:read",
+    "admin:plans:manage",
+    "admin:billing:read",
+    "admin:billing:manage",
+    "admin:refund:approve",
+    "admin:finance:read",
+    "admin:finance:manage",
+    "admin:settlement:manage",
+    "admin:settlement:approve",
+    "admin:ai:read",
+    "admin:ai:manage",
+    "admin:ai:secret",
+    "admin:rag:read",
+    "admin:rag:manage",
+    "admin:rag:publish",
     "admin:knowledge:read",
     "admin:knowledge:write",
+    "admin:calculators:read",
+    "admin:calculators:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
+    "admin:support:read",
+    "admin:support:manage",
+    "admin:content:read",
+    "admin:content:manage",
+    "admin:reports:read",
+    "admin:analytics:read",
+    "admin:reports:export",
+    "admin:analytics:export",
+    "admin:staff:read",
+    "admin:staff:manage",
     "admin:audit:read",
+    "admin:settings:read",
+    "admin:settings:manage",
     "admin:system:manage",
   ],
 };
@@ -243,9 +523,38 @@ export function isOrgRole(role: PlatformRole): boolean {
   return role === "COMPANY_OWNER" || role === "COMPANY_ADMIN" || role === "COMPANY_MEMBER";
 }
 
-/** True when the role is a platform-staff role. */
+/** True when the role is a platform-staff role (may access the admin panel). */
 export function isStaffRole(role: PlatformRole): boolean {
-  return role === "SUPPORT" || role === "ADMIN" || role === "SUPER_ADMIN";
+  return STAFF_ROLES.includes(role);
+}
+
+/** Every platform-staff role. `USER`/`LAWYER`/company roles are excluded. */
+export const STAFF_ROLES: readonly PlatformRole[] = [
+  "SUPPORT",
+  "ANALYST",
+  "AUDITOR",
+  "ADMIN_OPS",
+  "ADMIN_LAWYERS",
+  "ADMIN_FINANCE",
+  "ADMIN_CONTENT",
+  "ADMIN_AI",
+  "ADMIN",
+  "SUPER_ADMIN",
+] as const;
+
+/** The full-access platform-staff roles (vendor side). */
+export const PLATFORM_SUPERADMIN_ROLES: readonly PlatformRole[] = [
+  "ADMIN",
+  "SUPER_ADMIN",
+] as const;
+
+/**
+ * True when the role may reach the admin panel at all. Used only for UX
+ * gating (hiding the panel chrome); every admin API re-checks the specific
+ * permission server-side, so this is never the authorization boundary.
+ */
+export function canAccessAdminPanel(role: PlatformRole): boolean {
+  return isStaffRole(role);
 }
 
 // ---------------------------------------------------------------------------
@@ -285,6 +594,84 @@ export function isLawyerPendingVerification(status: LawyerVerificationStatus): b
 }
 
 /**
+ * The four decision buckets an admin actually works with. The stored
+ * `LawyerVerificationStatus` has seven values (a funnel), but an admin only
+ * ever decides بين چهار حالت. Every bucket maps onto both directions:
+ *
+ *   REVIEW    → the submitted funnel (در انتظار بررسی)
+ *   APPROVED  → VERIFIED
+ *   REJECTED  → REJECTED
+ *   SUSPENDED → SUSPENDED
+ */
+export type LawyerDecisionBucket = "REVIEW" | "APPROVED" | "REJECTED" | "SUSPENDED";
+
+export const LAWYER_DECISION_BUCKET_FA: Record<LawyerDecisionBucket, string> = {
+  REVIEW: "در انتظار بررسی",
+  APPROVED: "تأیید شده",
+  REJECTED: "رد شده",
+  SUSPENDED: "تعلیق شده",
+};
+
+/** Display order of the buckets — the review queue always leads. */
+export const LAWYER_DECISION_BUCKETS: LawyerDecisionBucket[] = [
+  "REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "SUSPENDED",
+];
+
+/** Map a stored verification status onto its admin decision bucket. */
+export function lawyerDecisionBucket(status: LawyerVerificationStatus): LawyerDecisionBucket {
+  switch (status) {
+    case "VERIFIED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "SUSPENDED":
+      return "SUSPENDED";
+    default:
+      // UNVERIFIED + every submitted funnel state is awaiting review.
+      return "REVIEW";
+  }
+}
+
+/** True when a bucket represents a human decision that must carry a reason. */
+export function isLawyerDecisionTerminal(bucket: LawyerDecisionBucket): boolean {
+  return bucket === "APPROVED" || bucket === "REJECTED" || bucket === "SUSPENDED";
+}
+
+/**
+ * One append-only record of a status decision. Every change to a lawyer's
+ * verification state MUST produce one of these: without actor + reason +
+ * timestamp the decision is not considered valid.
+ */
+export interface LawyerStatusDecision {
+  id: string;
+  lawyerId: string;
+  previousStatus: LawyerVerificationStatus;
+  newStatus: LawyerVerificationStatus;
+  /** Mandatory justification supplied by the deciding admin. */
+  reason: string;
+  actorUserId: string;
+  actorName: string;
+  actorRole: string;
+  createdAt: string;
+}
+
+/** An admin → lawyer direct message, delivered via the notification feed. */
+export interface LawyerMessage {
+  id: string;
+  lawyerId: string;
+  /** The lawyer's owning user id — the notification recipient. */
+  lawyerUserId: string;
+  subject: string;
+  body: string;
+  actorUserId: string;
+  actorName: string;
+  createdAt: string;
+}
+
+/**
  * How a lawyer's portrait was obtained. `demo` marks a synthetic/generated
  * portrait used for seeded profiles — it must never be presented as a real
  * photograph of the named person. `real` is a verified, consented upload.
@@ -310,7 +697,14 @@ export type LawyerAvailabilityStatus =
    * the bar association. Terminal: a REJECTED lawyer can never accept a
    * request and is never presented as merely «غیرفعال».
    */
-  | "REJECTED";
+  | "REJECTED"
+  /**
+   * Suspended by LEGALIR review. Unlike REJECTED the profile stays visible
+   * (for transparency) but is presented as an alert and can never start a
+   * request. Derived from the lawyer's `verificationStatus` — an admin
+   * suspension is authoritative over the lawyer's self-declared status.
+   */
+  | "SUSPENDED";
 
 export const LAWYER_AVAILABILITY_FA: Record<LawyerAvailabilityStatus, string> = {
   ACTIVE: "فعال",
@@ -319,16 +713,86 @@ export const LAWYER_AVAILABILITY_FA: Record<LawyerAvailabilityStatus, string> = 
   LIMITED: "ظرفیت درخواست محدود",
   AVAILABLE_SLOTS: "ظرفیت مشاوره باز",
   REJECTED: "Rejected",
+  SUSPENDED: "معلق",
 };
 
-/** A legal specialty a lawyer practises. */
+/**
+ * A legal specialty a lawyer practises.
+ *
+ * `category` is intentionally a free string: it holds either a LEGACY
+ * `LegalCategory` slug (e.g. `family`) or a `LawyerTaxonomyNode` id from
+ * ./lawyer-taxonomy (e.g. `family.divorce.mutual`). Keeping it a string is
+ * what lets the marketplace migrate to the 4-level taxonomy WITHOUT
+ * breaking legacy rows — `LEGAL_CATEGORY_FA[category]` simply falls back to
+ * the raw id for a node that has no legacy label.
+ */
 export interface LawyerSpecialty {
-  /** Matches a LegalCategory slug where applicable. */
+  /** A LegalCategory slug OR a LawyerTaxonomyNode id. */
   category: string;
   /** Years of experience in this specialty. */
   yearsExperience: number;
   /** Optional free-text note. */
   note?: string | null;
+}
+
+/**
+ * Many-to-many expertise link between a lawyer and a taxonomy node — the
+ * structured form of `LawyerSpecialty`. A lawyer's PRIMARY specialty is the
+ * entry with `isPrimary: true`; the rest are secondary. `taxonomyNodeId`
+ * resolves through `taxonomyNode()` in ./lawyer-taxonomy.
+ */
+export interface LawyerExpertise {
+  id: string;
+  lawyerId: string;
+  /** A LawyerTaxonomyNode id, e.g. `family.divorce.mutual`. */
+  taxonomyNodeId: string;
+  /** Exactly one entry per lawyer should carry this. */
+  isPrimary: boolean;
+  yearsExperience: number;
+  /** Completed matters in this specialty (0 when unknown). */
+  caseCount: number;
+  /** Display order among the lawyer's expertises. */
+  displayOrder: number;
+  note?: string | null;
+}
+
+/** A service a lawyer offers (see LAWYER_SERVICES in ./lawyer-taxonomy). */
+export interface LawyerServiceOffer {
+  /** A LawyerService id, e.g. `online_consult`. */
+  serviceId: string;
+  /** Optional per-lawyer price override, in Toman. */
+  priceToman?: number | null;
+  /** True when the lawyer currently offers this service. */
+  enabled: boolean;
+}
+
+/** An academic / professional qualification of a lawyer. */
+export interface LawyerEducation {
+  id: string;
+  lawyerId: string;
+  /** e.g. «کارشناسی حقوق». */
+  degreeFa: string;
+  /** Institution name. */
+  institutionFa: string;
+  /** Graduation year (Jalali). */
+  graduationYear: number | null;
+  /** Field of study, when distinct from the degree. */
+  fieldFa?: string | null;
+}
+
+/** A prior professional role / position held by a lawyer. */
+export interface LawyerExperienceEntry {
+  id: string;
+  lawyerId: string;
+  /** Role title, e.g. «کارشناس حقوقی». */
+  roleFa: string;
+  /** Organization / employer. */
+  organizationFa: string;
+  startYear: number | null;
+  /** `null` = current. */
+  endYear: number | null;
+  /** Optional one-line description. */
+  descriptionFa?: string | null;
 }
 
 /** A city/region the lawyer serves. */
@@ -435,8 +899,71 @@ export interface LawyerProfile {
   isDemo: boolean;
   /** Whether the lawyer is currently accepting new requests. */
   acceptingRequests: boolean;
+  // --- Extended professional profile (all optional / additive) ---
+  /**
+   * Professional rank (پایهٔ وکالت). INDEPENDENT from the issuing
+   * organisation below — a BASE_ONE lawyer may hold a کانون or a مرکز
+   * licence. Optional so legacy rows keep working.
+   */
+  professionalRank?: LawyerProfessionalRank | null;
+  /** The organisation that issued the licence (کانون / مرکز). */
+  organizationType?: LawyerOrganizationType | null;
+  /** Lifecycle of the licence itself (معتبر / معلق / لغو شده). */
+  licenseStatus?: LawyerLicenseStatus | null;
+  /**
+   * Marketplace visibility, SEPARATE from `verificationStatus`. A VERIFIED
+   * lawyer can still be UNLISTED or HIDDEN. Defaults to PUBLIC when absent.
+   */
+  visibility?: LawyerMarketplaceVisibility | null;
+  /** Shown on the public card — display only, never used for ranking. */
+  gender?: LawyerGender | null;
+  /** Whether the lawyer appears in the marketplace "featured" rail. */
+  featured?: boolean;
+  /**
+   * Whether the lawyer currently accepts new clients (accepting/not
+   * accepting). Distinct from `acceptingRequests`, which gates the booking
+   * CTA; this is the client-facing "پذیرش موکل" signal.
+   */
+  acceptingClients?: boolean;
+  /** Approximate total years of practice (quick filter/sort). */
+  yearsExperience?: number | null;
+  /** Multi-specialty expertise links (structured form of `specializations`). */
+  expertise?: LawyerExpertise[];
+  /** Services the lawyer offers (see LAWYER_SERVICES). */
+  services?: LawyerServiceOffer[];
+  /** Academic / professional qualifications. */
+  education?: LawyerEducation[];
+  /** Prior professional roles. */
+  experience?: LawyerExperienceEntry[];
+  /** The jurisdictions/authorities the lawyer can practise before. */
+  jurisdictions?: string[];
+  /** Persisted display values controlled by the admin (rating/reviews/fees). */
+  display?: LawyerDisplaySettings | null;
+  /**
+   * Soft-delete tombstone. Set by the admin "delete" action and cleared by
+   * "restore"; a soft-deleted profile is hidden from the public marketplace
+   * but REMAINS in the admin table (so a deletion is never irreversible).
+   */
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Admin-controlled display values for a lawyer. Kept SEPARATE from the
+ * derived `LawyerPerformance` so a hand-set "displayed rating" never
+ * masquerades as the real, review-derived average. When
+ * `ratingOverride` is null the UI falls back to the computed average.
+ */
+export interface LawyerDisplaySettings {
+  /** Admin override of the displayed rating; null = use computed average. */
+  ratingOverride: number | null;
+  /** Admin override of the displayed review count; null = computed count. */
+  reviewCountOverride: number | null;
+  /** Admin override of the displayed consultation fee, in Toman. */
+  consultationFeeOverrideToman: number | null;
+  /** Free-text trust badge, e.g. «وکیل برگزیده». */
+  badgeFa?: string | null;
 }
 
 /** Public-facing lawyer card for the marketplace list. */
@@ -461,6 +988,53 @@ export interface LawyerListItem {
   acceptingRequests: boolean;
   /** Short bio excerpt for the card. */
   bioExcerpt: string;
+  // --- Extended card fields (all optional / additive) ---
+  /** Professional rank (پایه یک / پایه دو / کارآموز). */
+  professionalRank?: LawyerProfessionalRank | null;
+  /** Issuing organisation (کانون / مرکز). */
+  organizationType?: LawyerOrganizationType | null;
+  /** Display-only gender (avatar default / honorific), never for ranking. */
+  gender?: LawyerGender | null;
+  /** Shown in the marketplace "featured" rail. */
+  featured?: boolean;
+  /** Client-facing «پذیرش موکل» signal. */
+  acceptingClients?: boolean;
+  /** Approximate total years of practice. */
+  yearsExperience?: number | null;
+  /**
+   * The rating the card should DISPLAY. Equals the admin override when set,
+   * otherwise the derived `performance.averageRating`. Present so the UI
+   * never has to decide which source wins.
+   */
+  displayRating?: number | null;
+  /** The review count the card should display (override or computed). */
+  displayReviewCount?: number;
+  /** The lawyer's primary specialty node id, for chips/grouping. */
+  primarySpecialtyId?: string | null;
+  /** Ids of the services the lawyer offers, for filter chips. */
+  serviceIds?: string[];
+}
+
+/**
+ * A stored review record (the admin-manageable form of `LawyerReview`).
+ * `hidden` soft-hides a review from the public profile without deleting it,
+ * so a moderation action is reversible and auditable.
+ */
+export interface LawyerReviewRecord {
+  id: string;
+  lawyerId: string;
+  /** Display name shown publicly. */
+  authorName: string;
+  /** Owning user id when the reviewer is a platform user, else null. */
+  authorUserId: string | null;
+  rating: number;
+  comment: string;
+  /** Soft-hide flag set by a review moderator. */
+  hidden: boolean;
+  /** Reviewer is a verified client (from a completed engagement). */
+  verifiedEngagement: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LawyerListResponse {
@@ -471,6 +1045,17 @@ export interface LawyerListResponse {
     total: number;
     totalPages: number;
   };
+  /** Facet counts (how many lawyers each specialty/… has) for the filter UI. */
+  facets?: LawyerFacets;
+}
+
+/** Counts used to render the marketplace filter facets. */
+export interface LawyerFacets {
+  bySpecialty?: Record<string, number>;
+  byProvince?: Record<string, number>;
+  byRank?: Record<string, number>;
+  byOrganization?: Record<string, number>;
+  total: number;
 }
 
 /** A public review shown on a lawyer's profile. */
@@ -481,6 +1066,8 @@ export interface LawyerReview {
   rating: number;
   comment: string;
   createdAt: string;
+  /** True when the review is tied to a completed engagement. */
+  verifiedEngagement?: boolean;
 }
 
 /**
@@ -509,10 +1096,62 @@ export interface LawyerDetail {
   isDemo: boolean;
   acceptingRequests: boolean;
   reviews: LawyerReview[];
+  // --- Extended profile sections (all optional / additive) ---
+  professionalRank?: LawyerProfessionalRank | null;
+  organizationType?: LawyerOrganizationType | null;
+  licenseStatus?: LawyerLicenseStatus | null;
+  gender?: LawyerGender | null;
+  featured?: boolean;
+  acceptingClients?: boolean;
+  yearsExperience?: number | null;
+  /** Structured expertise links (primary + secondary). */
+  expertise?: LawyerExpertise[];
+  /** Services the lawyer offers. */
+  services?: LawyerServiceOffer[];
+  /** Academic / professional qualifications. */
+  education?: LawyerEducation[];
+  /** Prior professional roles. */
+  experience?: LawyerExperienceEntry[];
+  /** Ids of the jurisdictions/authorities the lawyer practises before. */
+  jurisdictions?: string[];
+  /**
+   * The rating/review totals the profile should DISPLAY (admin override or
+   * derived). Present so every surface agrees on one number.
+   */
+  displayRating?: number | null;
+  displayReviewCount?: number;
+}
+
+/**
+ * The marketplace filter set. Extends the legacy {@link LawyerListFilters}
+ * with the taxonomy-aware multi-selects. All new fields are optional so
+ * existing callers keep working.
+ */
+export interface LawyerSearchFilters extends LawyerListFilters {
+  /** Taxonomy node ids — matches a lawyer tagged on any of them OR a descendant. */
+  specialtyIds?: string[];
+  /** Professional ranks to include. */
+  professionalRanks?: LawyerProfessionalRank[];
+  /** Issuing organisations to include. */
+  organizationTypes?: LawyerOrganizationType[];
+  /** Service ids the lawyer must offer (any-of). */
+  serviceIds?: string[];
+  /** Jurisdiction ids the lawyer must be able to appear before (any-of). */
+  jurisdictionIds?: string[];
+  /** Minimum displayed rating (1–5). */
+  minRating?: number;
+  /** Experience band id (see LAWYER_EXPERIENCE_BANDS). */
+  experienceBand?: string;
+  /** Only lawyers currently accepting new clients. */
+  acceptingClientsOnly?: boolean;
+  /** Only lawyers offering online consultation. */
+  onlineOnly?: boolean;
+  /** Only featured lawyers. */
+  featuredOnly?: boolean;
 }
 
 export interface LawyerListFilters {
-  /** Legal category slug. */
+  /** Legal category slug OR taxonomy node id. */
   category?: string;
   province?: string;
   city?: string;
@@ -527,6 +1166,187 @@ export interface LawyerListFilters {
   sort?: "relevance" | "rating" | "experience" | "price_asc" | "price_desc";
   page?: number;
   pageSize?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Admin lawyer management (queue row, dossier, mutations, audit)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of the admin lawyer table. Richer than the public card: it carries
+ * the masked applicant mobile, the review bucket and the last decision so
+ * the queue is self-explanatory without opening a drawer.
+ */
+export interface AdminLawyerListItem {
+  id: string;
+  userId: string;
+  fullName: string;
+  avatarUrl: string | null;
+  avatarType: LawyerAvatarType;
+  professionalRank: LawyerProfessionalRank | null;
+  organizationType: LawyerOrganizationType | null;
+  licenseNumber: string | null;
+  licenseYear: number | null;
+  licenseAuthority: string | null;
+  activityType: LawyerActivityType | null;
+  verificationStatus: LawyerVerificationStatus;
+  verificationNote: string | null;
+  verifiedAt: string | null;
+  isDemo: boolean;
+  featured: boolean;
+  visibility: LawyerMarketplaceVisibility;
+  /** The operator-facing lifecycle derived from status + visibility + tombstone. */
+  lifecycle: AdminLawyerStatus;
+  specializations: LawyerSpecialty[];
+  primarySpecialtyId: string | null;
+  locations: LawyerLocation[];
+  cities: string;
+  yearsExperience: number | null;
+  displayRating: number | null;
+  displayReviewCount: number;
+  /** Soft-delete tombstone (null when the profile is live). */
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  mobileMasked: string;
+  bucket: LawyerDecisionBucket;
+  lastDecision: {
+    newStatus: LawyerVerificationStatus;
+    actorName: string;
+    reason: string;
+    createdAt: string;
+  } | null;
+}
+
+/** The admin dossier — the full editable lawyer record. */
+export interface AdminLawyerDetail {
+  profile: LawyerProfile;
+  /** The owning user's mobile (masked) for support context. */
+  mobileMasked: string;
+  bucket: LawyerDecisionBucket;
+  decisions: LawyerStatusDecision[];
+  reviews: LawyerReviewRecord[];
+  messages: LawyerMessage[];
+}
+
+/**
+ * The lifecycle status an admin can set. These are the DISPLAY-level states;
+ * each maps onto a `LawyerVerificationStatus` server-side:
+ *   ACTIVE   → VERIFIED
+ *   INACTIVE → VERIFIED with visibility HIDDEN
+ *   SUSPENDED→ SUSPENDED
+ *   DELETED  → soft-delete (restorable)
+ */
+export type AdminLawyerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "DELETED";
+
+export const ADMIN_LAWYER_STATUS_FA: Record<AdminLawyerStatus, string> = {
+  ACTIVE: "فعال",
+  INACTIVE: "غیرفعال",
+  SUSPENDED: "معلق",
+  DELETED: "حذف‌شده",
+};
+
+/**
+ * The audit actions recorded for lawyer-management operations. Kept as a
+ * union so the audit log, the API and the UI all agree on the vocabulary.
+ */
+export type LawyerAuditAction =
+  | "LAWYER_CREATE"
+  | "LAWYER_UPDATE"
+  | "LAWYER_SUSPEND"
+  | "LAWYER_ACTIVATE"
+  | "LAWYER_DELETE"
+  | "LAWYER_RESTORE"
+  | "LAWYER_VERIFY"
+  | "LAWYER_UNVERIFY"
+  | "LAWYER_CHANGE_AVATAR"
+  | "LAWYER_CHANGE_SPECIALTY"
+  | "LAWYER_CHANGE_STATUS"
+  | "LAWYER_FEATURE"
+  | "LAWYER_UNFEATURE"
+  | "LAWYER_RATING_SET"
+  | "LAWYER_REVIEW_HIDE"
+  | "LAWYER_REVIEW_RESTORE"
+  | "LAWYER_REVIEW_DELETE";
+
+export const LAWYER_AUDIT_ACTION_FA: Record<LawyerAuditAction, string> = {
+  LAWYER_CREATE: "ایجاد پروفایل",
+  LAWYER_UPDATE: "ویرایش پروفایل",
+  LAWYER_SUSPEND: "تعلیق",
+  LAWYER_ACTIVATE: "فعال‌سازی",
+  LAWYER_DELETE: "حذف",
+  LAWYER_RESTORE: "بازگردانی",
+  LAWYER_VERIFY: "تأیید",
+  LAWYER_UNVERIFY: "لغو تأیید",
+  LAWYER_CHANGE_AVATAR: "تغییر آواتار",
+  LAWYER_CHANGE_SPECIALTY: "تغییر تخصص",
+  LAWYER_CHANGE_STATUS: "تغییر وضعیت",
+  LAWYER_FEATURE: "برجسته‌سازی",
+  LAWYER_UNFEATURE: "لغو برجسته‌سازی",
+  LAWYER_RATING_SET: "تعیین امتیاز نمایشی",
+  LAWYER_REVIEW_HIDE: "پنهان‌سازی نظر",
+  LAWYER_REVIEW_RESTORE: "بازگردانی نظر",
+  LAWYER_REVIEW_DELETE: "حذف نظر",
+};
+
+/** The editable fields of a lawyer profile (partial update). */
+export interface AdminLawyerUpdateInput {
+  fullName?: string;
+  bio?: string;
+  professionalTitle?: string | null;
+  professionalRank?: LawyerProfessionalRank | null;
+  organizationType?: LawyerOrganizationType | null;
+  licenseNumber?: string | null;
+  licenseYear?: number | null;
+  licenseAuthority?: string | null;
+  licenseStatus?: LawyerLicenseStatus | null;
+  gender?: LawyerGender | null;
+  featured?: boolean;
+  acceptingClients?: boolean;
+  visibility?: LawyerMarketplaceVisibility;
+  yearsExperience?: number | null;
+  /** Full replacement of the expertise set (ids + primary). */
+  expertise?: { taxonomyNodeId: string; isPrimary: boolean; yearsExperience: number }[];
+  /** Full replacement of the offered services. */
+  serviceIds?: string[];
+  /** Full replacement of the jurisdictions. */
+  jurisdictionIds?: string[];
+  locations?: LawyerLocation[];
+  pricing?: LawyerPricing;
+}
+
+/** Input for a status / visibility transition. */
+export interface AdminLawyerStatusInput {
+  status: AdminLawyerStatus;
+  /** Mandatory for SUSPENDED / DELETED; optional otherwise. */
+  reason?: string;
+}
+
+/** Input for the verification decision (mirrors the existing endpoint). */
+export interface AdminLawyerDecisionInput {
+  status: "UNVERIFIED" | "VERIFIED" | "REJECTED" | "SUSPENDED";
+  reason: string;
+}
+
+/** Input for changing a lawyer's avatar (URL + provenance). */
+export interface AdminLawyerAvatarInput {
+  avatarUrl: string | null;
+  avatarType: LawyerAvatarType;
+  reason?: string;
+}
+
+/** Input for setting the admin display rating. */
+export interface AdminLawyerRatingInput {
+  ratingOverride: number | null;
+  reviewCountOverride: number | null;
+  reason?: string;
+}
+
+/** Input for moderating a single review. */
+export interface AdminLawyerReviewInput {
+  /** hide → soft-hide, restore → unhide, delete → permanent remove. */
+  action: "hide" | "restore" | "delete";
+  reason?: string;
 }
 
 // ---------------------------------------------------------------------------

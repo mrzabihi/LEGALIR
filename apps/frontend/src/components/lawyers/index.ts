@@ -3,7 +3,13 @@
 // ============================================================
 
 export { LawyerCard } from "./lawyer-card";
-export { LawyerCardSkeleton } from "./lawyer-card-skeleton";
+export { LawyerCardCompact } from "./lawyer-card-compact";
+export { LawyerCardSkeleton, LawyerCardCompactSkeleton } from "./lawyer-card-skeleton";
+export { LawyerCarousel } from "./lawyer-carousel";
+export { LawyerCategorySection } from "./lawyer-category-section";
+export { LawyerFiltersSheet, EMPTY_LAWYER_FILTERS } from "./lawyer-filters-sheet";
+export type { LawyerFilterValues, LawyerSort } from "./lawyer-filters-sheet";
+export { LawyerFilterBar } from "./lawyer-filter-bar";
 export { LawyerAvatar } from "./lawyer-avatar";
 export { LawyerRating } from "./lawyer-rating";
 export { LawyerAvailabilityBadge } from "./lawyer-availability-badge";

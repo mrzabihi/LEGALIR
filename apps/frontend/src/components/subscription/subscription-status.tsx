@@ -77,6 +77,9 @@ function PlanIcon({
 }) {
   if (!planCode) return null;
   const tier = PLAN_TIER[planCode];
+  // A custom (admin-created) plan code has no themed glyph — render nothing
+  // rather than fabricate a tier.
+  if (!tier) return null;
   const Icon = tier.icon;
   return (
     <span className={`plan-icon rounded-full ${tier.motion} ${className}`} aria-hidden="true">

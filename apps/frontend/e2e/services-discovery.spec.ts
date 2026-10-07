@@ -54,15 +54,21 @@ async function mockAuth(page: Page, sessionId: string) {
   );
 }
 
-/** The six catalog categories, in page order. */
+/**
+ * The catalog categories that own an in-page section, in page order.
+ * Each shortcut ALSO navigates to a real destination (asserted below).
+ */
 const CATEGORIES = [
-  { anchor: "cat-consultation", title: "مشاوره و وکالت" },
-  { anchor: "cat-contracts", title: "قراردادها و تنظیم اسناد" },
-  { anchor: "cat-documents", title: "بررسی و تحلیل اسناد" },
-  { anchor: "cat-calculators", title: "محاسبه‌گرهای حقوقی" },
-  { anchor: "cat-cases", title: "پرونده‌ها و پیگیری" },
-  { anchor: "cat-library", title: "منابع و آموزش حقوقی" },
+  { anchor: "cat-consultation", title: "مشاوره و وکالت", href: "/lawyers" },
+  { anchor: "cat-contracts", title: "قراردادها و تنظیم اسناد", href: "/contracts" },
+  { anchor: "cat-documents", title: "بررسی و تحلیل اسناد", href: "/documents" },
+  { anchor: "cat-calculators", title: "محاسبه‌گرهای حقوقی", href: "/calculators" },
+  { anchor: "cat-cases", title: "پرونده‌ها و پیگیری", href: "/cases" },
+  { anchor: "cat-library", title: "منابع و آموزش حقوقی", href: "/blog" },
 ] as const;
+
+/** The personal shortcut that is a destination only (no catalog section). */
+const MY_CONSULTATIONS = { title: "مشاوره‌های من", href: "/consultations" } as const;
 
 /** Viewports the brief requires the page to survive. */
 const VIEWPORTS = [
@@ -101,7 +107,7 @@ test.describe("Services discovery page", () => {
     }
   });
 
-  test("category shortcuts are anchors into the catalog sections", async ({ page }) => {
+  test("every category shortcut navigates to its own real page", async ({ page }) => {
     await page.goto("/services");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
       timeout: APP_READY_TIMEOUT,
@@ -110,9 +116,39 @@ test.describe("Services discovery page", () => {
     const nav = page.getByRole("navigation", { name: "دسترسی سریع به دسته‌بندی خدمات" });
     await expect(nav).toBeVisible();
 
+    // Each shortcut is a link to the surface that owns that area.
     for (const category of CATEGORIES) {
-      await expect(nav.locator(`a[href="#${category.anchor}"]`)).toHaveCount(1);
+      await expect(nav.locator(`a[href="${category.href}"]`)).toHaveCount(1);
     }
+    // Plus the personal entry point the brief calls out.
+    await expect(nav.locator(`a[href="${MY_CONSULTATIONS.href}"]`)).toHaveCount(1);
+    await expect(nav.getByText(MY_CONSULTATIONS.title)).toBeVisible();
+
+    // No shortcut is a dead in-page anchor any more.
+    await expect(nav.locator('a[href^="#"]')).toHaveCount(0);
+  });
+
+  test("clicking a shortcut actually navigates to its page", async ({ page }) => {
+    await page.goto("/services");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+
+    const nav = page.getByRole("navigation", { name: "دسترسی سریع به دسته‌بندی خدمات" });
+
+    // contracts → /contracts
+    await nav.locator('a[href="/contracts"]').click();
+    await page.waitForURL("**/contracts", { timeout: APP_READY_TIMEOUT });
+    expect(new URL(page.url()).pathname).toBe("/contracts");
+
+    // my consultations → /consultations
+    await page.goto("/services");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+    await nav.locator('a[href="/consultations"]').click();
+    await page.waitForURL("**/consultations", { timeout: APP_READY_TIMEOUT });
+    expect(new URL(page.url()).pathname).toBe("/consultations");
   });
 
   test("the human-lawyer campaign is visible on desktop and mobile", async ({ page }) => {
@@ -184,7 +220,7 @@ test.describe("Services discovery page", () => {
 
     // Clear via the labelled button restores the discovery layout.
     await page.getByRole("button", { name: "پاک کردن جستجو" }).click();
-    await expect(page.getByRole("heading", { name: "دسته‌بندی خدمات" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "دسترسی سریع" })).toBeVisible();
     await expect(input).toHaveValue("");
   });
 
@@ -197,7 +233,7 @@ test.describe("Services discovery page", () => {
     await expect(page.getByText(/نتیجه برای/)).toBeVisible();
     await input.press("Escape");
     await expect(input).toHaveValue("");
-    await expect(page.getByRole("heading", { name: "دسته‌بندی خدمات" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "دسترسی سریع" })).toBeVisible();
   });
 
   test("the six featured cards are one coherent system with a CTA each", async ({ page }) => {

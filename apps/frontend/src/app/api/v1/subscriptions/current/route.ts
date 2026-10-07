@@ -1,5 +1,26 @@
 import { NextResponse } from "next/server";
 import { findSessionById, queryActiveSubscription } from "@/lib/db";
+import { reconcileSubscriptionStatuses } from "@/lib/subscription/lifecycle";
+
+// One-time, idempotent data reconciliation (the §8 migration sweep). Legacy
+// stores may hold `active` rows whose `end_at` has passed, or more than one
+// `active` row for a user. Running it once per process — here, on the canonical
+// subscription read — normalises stored status WITHOUT deleting history, and
+// writes only when a row actually changes. The load-bearing guarantee is still
+// `queryActiveSubscription` picking the newest active row; this just tidies the
+// persisted state so history/status are consistent everywhere.
+let reconciled = false;
+
+function reconcileOnce(): void {
+  if (reconciled) return;
+  reconciled = true;
+  try {
+    reconcileSubscriptionStatuses();
+  } catch {
+    // A reconciliation failure must never break a read — fall through to the
+    // (already-correct) resolution below.
+  }
+}
 
 function getUserIdFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -17,6 +38,8 @@ export async function GET(request: Request) {
       { status: 401 }
     );
   }
+
+  reconcileOnce();
 
   const subscription = queryActiveSubscription(userId);
   if (!subscription) {

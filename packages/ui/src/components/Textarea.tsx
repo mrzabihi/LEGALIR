@@ -9,7 +9,7 @@
 // ============================================================
 
 import React, { forwardRef, useId, useLayoutEffect, useRef } from "react";
-import { OutlinedFieldShell, FieldMessage } from "./field-shell";
+import { OutlinedFieldShell, FieldMessage, extensionSafe } from "./field-shell";
 
 export interface TextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -118,6 +118,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
               autoResize ? "overflow-hidden" : "",
             ].join(" ")}
             {...rest}
+            {...extensionSafe}
           />
         </div>
       </OutlinedFieldShell>

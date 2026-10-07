@@ -20,8 +20,10 @@ export async function GET(
     return NextResponse.json({ code: "NOT_FOUND", message: "وکیل یافت نشد" }, { status: 404 });
   }
 
-  // An unverified lawyer must never be publicly viewable.
-  if (profile.verificationStatus !== "VERIFIED") {
+  // An unverified lawyer must never be publicly viewable. The one exception
+  // is a SUSPENDED lawyer: their profile stays reachable so the alert card
+  // (and the reason) are visible, but every CTA is disabled.
+  if (profile.verificationStatus !== "VERIFIED" && profile.verificationStatus !== "SUSPENDED") {
     return NextResponse.json({ code: "NOT_FOUND", message: "وکیل یافت نشد" }, { status: 404 });
   }
 

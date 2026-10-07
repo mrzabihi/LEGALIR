@@ -1,38 +1,41 @@
 // ============================================================
-// LEGALIR — Contracts List Page (Phase 10)
+// LEGALIR — Contracts Hub (/contracts)
 // ============================================================
+// The single, comprehensive contract-drafting surface. It hosts BOTH
+// things the user needs, switched in place by a real segmented control:
+//
+//   • «قراردادهای فعال»       — the template library + the user's own
+//                              contracts and drafts (the former /contracts/my)
+//   • «بزودی»                 — the future contract services catalog
+//
+// Everything lives in the client `ContractsHub` (URL-backed view + filters),
+// so it is wrapped in a Suspense boundary to keep the route statically
+// renderable. `/contracts/my` now redirects here with the active view
+// selected.
 
 import { Suspense } from "react";
-// Direct module import — the `@/components/contracts` barrel re-exports the
-// whole contract component set (wizard, preview, version compare, …), which
-// would pull unrelated modules into this list route's client bundle.
-import { ContractList } from "@/components/contracts/contract-list";
+import { ContractsHub } from "@/components/contracts/contracts-hub";
 
 export default function ContractsPage() {
   return (
-    <div className="p-4 tablet:p-6 max-w-[1400px] mx-auto" dir="rtl">
-      <Suspense
-        fallback={
-          <div className="space-y-3" aria-label="در حال بارگذاری">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-large bg-surface p-4 shadow-elevation-1 border border-divider animate-pulse"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-medium bg-surface-container-high" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-5 w-48 bg-surface-container-high rounded-small" />
-                    <div className="h-4 w-32 bg-surface-container-high rounded-small" />
-                  </div>
-                </div>
-              </div>
+    <Suspense
+      fallback={
+        <div
+          className="mx-auto max-w-[1400px] space-y-6 p-4 tablet:p-6"
+          dir="rtl"
+          aria-label="در حال بارگذاری"
+        >
+          <div className="h-24 animate-pulse rounded-xlarge bg-surface-container" />
+          <div className="h-12 w-full max-w-md animate-pulse rounded-full bg-surface-container" />
+          <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 laptop:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-44 animate-pulse rounded-large bg-surface-container" />
             ))}
           </div>
-        }
-      >
-        <ContractList />
-      </Suspense>
-    </div>
+        </div>
+      }
+    >
+      <ContractsHub />
+    </Suspense>
   );
 }

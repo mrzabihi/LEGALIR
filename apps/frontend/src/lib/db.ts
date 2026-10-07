@@ -29,6 +29,8 @@ import type {
   RegistrationOrigin,
   OnboardingType,
   OnboardingStatus,
+  AnnouncementAudience,
+  AnnouncementStatus,
 } from "@legalir/types";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
@@ -98,6 +100,13 @@ export type AccountType = "individual" | "legal";
 
 export interface DbUser {
   id: string;
+  /**
+   * The user's readable, public system identifier (e.g. `LG-7F3K9Q2M`).
+   * Server-generated at account creation and immutable thereafter — it never
+   * changes when the display name or mobile does. Backfilled for legacy rows
+   * by `ensureUserPublicIds()`. Absent only until that backfill runs.
+   */
+  publicId?: string;
   mobile: string;
   email: string | null;
   passwordHash: string;
@@ -317,6 +326,76 @@ export class MobileConflictError extends Error {
   }
 }
 
+// ------------------------------------------------------------
+// Public system identifier
+// ------------------------------------------------------------
+// Every user carries a readable, globally-unique system id (`LG-XXXXXXXX`).
+// It is minted server-side at account creation, stored on the row and never
+// editable — unlike the display name or the (masked) mobile, it is a stable
+// handle an operator can quote. The alphabet omits ambiguous characters
+// (0/O, 1/I) so the id can be read aloud or transcribed from a screenshot.
+
+const PUBLIC_ID_PREFIX = "LG-";
+const PUBLIC_ID_ALPHABET = "ACDEFGHJKLMNPQRTUVWXY34679";
+const PUBLIC_ID_LENGTH = 8;
+
+function generatePublicId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(PUBLIC_ID_LENGTH));
+  let out = "";
+  for (let i = 0; i < PUBLIC_ID_LENGTH; i++) {
+    out += PUBLIC_ID_ALPHABET[bytes[i]! % PUBLIC_ID_ALPHABET.length];
+  }
+  return `${PUBLIC_ID_PREFIX}${out}`;
+}
+
+/**
+ * A collision-checked id. The full users table is consulted for the check,
+ * which is what makes the DB uniqueness constraint real — a value that would
+ * repeat is discarded before it can be written.
+ */
+function generateUniquePublicId(users: { publicId?: string }[]): string {
+  const taken = new Set(users.map((u) => u.publicId).filter(Boolean));
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = generatePublicId();
+    if (!taken.has(candidate)) return candidate;
+  }
+  // Astronomically unlikely; fall back to an unambiguous full token.
+  return `${PUBLIC_ID_PREFIX}${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+}
+
+/** Resolve a user by their public system id (`LG-…`). */
+export function findUserByPublicId(publicId: string): DbUser | undefined {
+  const needle = publicId.trim().toUpperCase();
+  if (!needle) return undefined;
+  return readTable<DbUser>("users").find((u) => (u.publicId ?? "").toUpperCase() === needle);
+}
+
+/**
+ * Backfill `publicId` for rows created before the field existed. Idempotent:
+ * rows that already carry an id are left untouched, and new ids are checked
+ * against the whole table so two legacy rows can never collide. Returns the
+ * number of rows that were assigned an id.
+ *
+ * Called on the OTP path (a real signup/login), so existing accounts acquire
+ * their identifier the next time they are seen — without a data migration.
+ */
+export function ensureUserPublicIds(): number {
+  const users = readTable<DbUser>("users");
+  const taken = new Set(users.map((u) => u.publicId).filter(Boolean) as string[]);
+  let assigned = 0;
+  for (const user of users) {
+    if (user.publicId) continue;
+    let candidate = generatePublicId();
+    let guard = 0;
+    while (taken.has(candidate) && guard++ < 10) candidate = generatePublicId();
+    user.publicId = candidate;
+    taken.add(candidate);
+    assigned += 1;
+  }
+  if (assigned > 0) writeTable("users", users);
+  return assigned;
+}
+
 export function createUser(params: {
   mobile: string;
   email?: string;
@@ -351,6 +430,7 @@ export function createUser(params: {
   const intent: RegistrationIntent = params.registrationIntent ?? "PERSONAL";
   const user: DbUser = {
     id: crypto.randomUUID(),
+    publicId: generateUniquePublicId(users),
     mobile: canonical,
     email: params.email ?? null,
     passwordHash: params.passwordHash,
@@ -716,9 +796,28 @@ export function queryRecentActivity(userId: string, limit = 5): ActivityRow[] {
     .slice(0, limit);
 }
 
+/**
+ * The user's single ACTIVE subscription: status `active`, `end_at` in the
+ * future, newest first. This mirrors `resolveEntitlement` (the engine) so every
+ * reader agrees on "the current plan". Picking the FIRST active row (the old
+ * behaviour) returned a stale Gold row while a newer Diamond row was enforced —
+ * the exact reported defect.
+ */
 export function queryActiveSubscription(userId: string) {
-  const subs = readTable<StoredSubscription>("subscriptions");
-  const sub = subs.find((s) => s.user_id === userId && s.status === "active");
+  const now = Date.now();
+  const subs = readTable<StoredSubscription>("subscriptions")
+    .filter(
+      (s) =>
+        s.user_id === userId &&
+        s.status === "active" &&
+        new Date(s.end_at).getTime() > now
+    )
+    .sort(
+      (a, b) =>
+        b.start_at.localeCompare(a.start_at) ||
+        b.purchased_at.localeCompare(a.purchased_at)
+    );
+  const sub = subs[0];
   if (!sub) return null;
   return {
     id: sub.id,
@@ -1493,6 +1592,78 @@ export interface NotificationReadRow {
   read_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Admin-authored platform announcements
+// ---------------------------------------------------------------------------
+// Authored in the admin panel, persisted here, and surfaced through the SAME
+// derived feed below (category "public") — never a parallel inbox. Only
+// `published` rows are delivered, and `audience` narrows who receives them.
+// The store lib (`lib/admin/announcements`) owns writes; this module only
+// reads the table and filters it per recipient.
+
+export interface AnnouncementRow {
+  id: string;
+  title: string;
+  message: string;
+  href: string | null;
+  actionLabel: string | null;
+  audience: AnnouncementAudience;
+  status: AnnouncementStatus;
+  createdBy: string;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+/** Whether a published announcement is addressed to this user. */
+function announcementReachesUser(row: AnnouncementRow, userId: string): boolean {
+  if (row.status !== "published") return false;
+  if (row.audience === "ALL") return true;
+  if (row.audience === "LAWYERS") return findUserById(userId)?.role === "LAWYER";
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Admin → lawyer direct messages
+// ---------------------------------------------------------------------------
+// An admin message to a lawyer is a real notification, not a parallel inbox:
+// it is persisted here and surfaced through the SAME derived feed below
+// (category "personal"), so the lawyer sees it in the LegalIR notification
+// center and the unread count can never disagree with the feed.
+
+export interface LawyerMessageRow {
+  id: string;
+  lawyerId: string;
+  /** The lawyer's owning user id — the notification recipient. */
+  lawyerUserId: string;
+  subject: string;
+  body: string;
+  actorUserId: string;
+  actorName: string;
+  createdAt: string;
+}
+
+/** Persist a direct admin→lawyer message. Returns the stored row. */
+export function createLawyerMessage(row: LawyerMessageRow): LawyerMessageRow {
+  const rows = readTable<LawyerMessageRow>("lawyer_messages");
+  rows.push(row);
+  writeTable("lawyer_messages", rows);
+  return row;
+}
+
+/** Every message delivered to a lawyer (their own user id), newest first. */
+export function listLawyerMessages(userId: string): LawyerMessageRow[] {
+  return readTable<LawyerMessageRow>("lawyer_messages")
+    .filter((m) => m.lawyerUserId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Every message sent about a specific lawyer profile, newest first. */
+export function listMessagesForLawyerProfile(lawyerId: string): LawyerMessageRow[] {
+  return readTable<LawyerMessageRow>("lawyer_messages")
+    .filter((m) => m.lawyerId === lawyerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 /**
  * Product announcements. These are editorial content shipped with the
  * build — not user data — so they live here as a static catalog rather
@@ -1617,7 +1788,28 @@ export function deriveNotifications(userId: string): NotificationItem[] {
     }
   }
 
-  // --- Public announcements (static catalog) ---
+  // --- Direct admin messages (the lawyer inbox, normalized) ---
+  // Every message an admin sends to a lawyer shows up here as a personal
+  // notification — the existing center IS the delivery channel.
+  for (const msg of readTable<LawyerMessageRow>("lawyer_messages")) {
+    if (msg.lawyerUserId !== userId) continue;
+    const id = `lawyer-message:${msg.id}`;
+    items.push({
+      id,
+      category: "personal",
+      tone: "neutral",
+      title: msg.subject,
+      message: msg.body,
+      createdAt: msg.createdAt,
+      read: readIds.has(id),
+      href: "/profile",
+      actionLabel: "مشاهده پروفایل",
+    });
+  }
+
+  // --- Public announcements (static catalog + admin-authored) ---
+  // Both share the `public` category and one stable-id space, so read
+  // receipts and the unread count cover editor-written notices too.
   for (const ann of ANNOUNCEMENTS) {
     items.push({
       id: ann.id,
@@ -1629,6 +1821,21 @@ export function deriveNotifications(userId: string): NotificationItem[] {
       read: readIds.has(ann.id),
       href: ann.href,
       actionLabel: ann.actionLabel,
+    });
+  }
+  for (const ann of readTable<AnnouncementRow>("announcements")) {
+    if (!announcementReachesUser(ann, userId)) continue;
+    const id = `announcement:${ann.id}`;
+    items.push({
+      id,
+      category: "public",
+      tone: "neutral",
+      title: ann.title,
+      message: ann.message,
+      createdAt: ann.publishedAt ?? ann.createdAt,
+      read: readIds.has(id),
+      href: ann.href ?? undefined,
+      actionLabel: ann.actionLabel ?? undefined,
     });
   }
 

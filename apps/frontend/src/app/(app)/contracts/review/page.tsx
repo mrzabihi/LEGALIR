@@ -24,7 +24,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button, SelectableCard, SelectableOption, Textarea, snackbar } from "@legalir/ui";
 import { useDocuments } from "@/hooks/useDocuments";
 import { usePropertyContracts } from "@/hooks/usePropertyContracts";
@@ -43,7 +43,6 @@ import {
   isReviewContextComplete,
   reviewScopeSummary,
   buildReviewQuestion,
-  optionLabelFa,
   type ReviewStepId,
   type ReviewDocumentSource,
   type ReviewContext,
@@ -83,7 +82,6 @@ export default function ContractReviewPage() {
 
 function ContractReviewFlow() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // --- Wizard state --------------------------------------------------
   const [step, setStep] = React.useState<ReviewStepId>("document");

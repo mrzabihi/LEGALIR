@@ -8,14 +8,18 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { fetchLawyers, fetchLawyer, matchLawyers } from "@/lib/api/v1";
-import type { LawyerListFilters, MatchCriteria } from "@legalir/types";
+import type { LawyerSearchFilters, MatchCriteria } from "@legalir/types";
 
-export function useLawyers(filters: LawyerListFilters = {}) {
+export function useLawyers(
+  filters: LawyerSearchFilters = {},
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["lawyers", "list", filters],
     queryFn: () => fetchLawyers(filters),
     staleTime: 60_000,
     retry: 1,
+    enabled: options.enabled ?? true,
   });
 }
 

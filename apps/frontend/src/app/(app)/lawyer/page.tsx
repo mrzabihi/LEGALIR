@@ -11,8 +11,11 @@
 
 "use client";
 
+import { useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { useLawyerWorkspace } from "@/hooks/useLawyerWorkspace";
+import { Button, snackbar } from "@legalir/ui";
+import { useLawyerWorkspace, useSetMyLawyerAvatar } from "@/hooks/useLawyerWorkspace";
+import { LawyerAvatar } from "@/components/lawyers";
 import { ApiClientError } from "@/lib/api/errors";
 import {
   IconBalance,
@@ -23,6 +26,7 @@ import {
   IconArrowBack,
   IconCheckCircle,
   IconWarning,
+  IconUpload,
 } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -30,6 +34,7 @@ import {
   LEGAL_REQUEST_STATE_FA,
   LAWYER_VERIFICATION_FA,
   type LegalRequestState,
+  type LawyerProfile,
 } from "@legalir/types";
 
 const STATE_TONE: Partial<Record<LegalRequestState, string>> = {
@@ -58,6 +63,150 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone?:
       <div className={`mb-1 text-h3 ${tone ?? "text-on-surface"}`}>{value}</div>
       <p className="text-caption text-muted">{label}</p>
     </div>
+  );
+}
+
+// ============================================================
+// Self-service portrait
+// ============================================================
+// The lawyer's own professional avatar — the SAME portrait shown on the
+// public marketplace. A change here is written to the profile row and, once
+// the workspace + public queries refetch, appears everywhere. Uploads are
+// raster-only (PNG/JPEG/WebP, ≤2 MB); the generated option is a synthetic SVG.
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp";
+
+function LawyerSelfAvatarCard({ profile }: { profile: LawyerProfile }) {
+  const setAvatar = useSetMyLawyerAvatar();
+  const [preview, setPreview] = useState<string | null>(null);
+  const [previewName, setPreviewName] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > AVATAR_MAX_BYTES) {
+      snackbar.show({ message: "حجم تصویر باید کمتر از ۲ مگابایت باشد.", variant: "error" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPreview(typeof reader.result === "string" ? reader.result : null);
+      setPreviewName(file.name);
+    };
+    reader.onerror = () => snackbar.show({ message: "خواندن فایل ناموفق بود.", variant: "error" });
+    reader.readAsDataURL(file);
+  }
+
+  async function upload() {
+    if (!preview) return;
+    const comma = preview.indexOf(",");
+    const format = preview.slice(5, preview.indexOf(";"));
+    if (comma < 0 || !AVATAR_ACCEPT.split(",").includes(format)) {
+      snackbar.show({ message: "فقط تصاویر PNG، JPEG یا WebP پشتیبانی می‌شوند.", variant: "error" });
+      setPreview(null);
+      return;
+    }
+    try {
+      await setAvatar.mutateAsync({
+        avatarData: preview.slice(comma + 1),
+        avatarFileName: previewName,
+        avatarFormat: format,
+      });
+      snackbar.show({ message: "آواتار شما به‌روزرسانی شد و در سایت عمومی دیده می‌شود.", variant: "success" });
+      setPreview(null);
+      setPreviewName("");
+    } catch {
+      snackbar.show({ message: "آپلود آواتار ناموفق بود", variant: "error" });
+    }
+  }
+
+  async function regenerate() {
+    try {
+      await setAvatar.mutateAsync({ regenerate: true });
+      snackbar.show({ message: "آواتار نمونهٔ جدید ساخته شد.", variant: "success" });
+    } catch {
+      snackbar.show({ message: "ساخت آواتار ناموفق بود", variant: "error" });
+    }
+  }
+
+  async function clearAvatar() {
+    try {
+      await setAvatar.mutateAsync({ avatarUrl: null, avatarType: "demo" });
+      snackbar.show({ message: "آواتار حذف شد.", variant: "success" });
+    } catch {
+      snackbar.show({ message: "حذف آواتار ناموفق بود", variant: "error" });
+    }
+  }
+
+  const busy = setAvatar.isPending;
+
+  return (
+    <section className="mb-6 rounded-2xl border border-divider/60 bg-surface p-5">
+      <h2 className="mb-3 text-h3 text-on-surface">تصویر نمایهٔ حرفه‌ای</h2>
+      <div className="flex flex-col gap-4 tablet:flex-row tablet:items-center">
+        <LawyerAvatar
+          name={profile.fullName}
+          avatarUrl={preview ?? profile.avatarUrl}
+          avatarType={preview ? "real" : profile.avatarType}
+          size={72}
+        />
+        <div className="flex-1 space-y-3">
+          <p className="text-caption text-muted">
+            این تصویر همان تصویری است که در فهرست وکلای سایت و صفحهٔ عمومی شما نمایش داده می‌شود.
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={AVATAR_ACCEPT}
+            className="hidden"
+            onChange={onFileChange}
+          />
+          {preview ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="min-w-0 max-w-full truncate text-body-2 text-on-surface" dir="ltr">
+                {previewName}
+              </span>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={busy}
+                onClick={() => {
+                  setPreview(null);
+                  setPreviewName("");
+                }}
+              >
+                انصراف
+              </Button>
+              <Button variant="filled" size="small" disabled={busy} onClick={upload}>
+                {busy ? "در حال آپلود…" : "ثبت آواتار"}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="filled"
+                size="small"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                <IconUpload size={16} />
+                آپلود از سیستم
+              </Button>
+              <Button variant="outlined" size="small" disabled={busy} onClick={regenerate}>
+                {busy ? "در حال ساخت…" : "ساخت آواتار نمونه"}
+              </Button>
+              {profile.avatarUrl && (
+                <Button variant="text" size="small" disabled={busy} onClick={clearAvatar}>
+                  حذف آواتار
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -156,6 +305,9 @@ export default function LawyerWorkspacePage() {
           </span>
         </div>
       )}
+
+      {/* Self-service portrait — the same image shown on the public site */}
+      {profile && <LawyerSelfAvatarCard profile={profile} />}
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-2 gap-3 tablet:grid-cols-4">

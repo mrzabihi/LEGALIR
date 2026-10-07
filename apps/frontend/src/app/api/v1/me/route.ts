@@ -41,9 +41,11 @@ export async function GET(request: Request) {
   const data = {
     user: {
       id: user.id,
+      publicId: user.publicId ?? null,
       mobileE164: user.mobile,
       mobileDisplay: toPersianMobileDisplay(user.mobile),
       status: 'active' as const,
+      createdAt: user.createdAt,
       accountType,
       // Once legal, the account type can never change again.
       accountTypeLocked: accountType === 'legal',

@@ -94,16 +94,20 @@ async function createDraft(
 }
 
 test.describe("Draft contract delete", () => {
-  test("draft card shows Continue/Edit and Delete Draft", async ({ page, request }) => {
+  test("draft card exposes its resume action and a delete option", async ({ page, request }) => {
     const session = await createSessionFor(request, freshMobile());
     await createDraft(request, session);
     await mockAuth(page, session);
     await page.goto("/contracts");
 
-    await expect(page.getByText("ادامه / ویرایش").first()).toBeVisible({
+    // The card's primary verb is the state-derived resume action.
+    await expect(page.getByRole("link", { name: "ادامه تکمیل" }).first()).toBeVisible({
       timeout: APP_READY_TIMEOUT,
     });
-    await expect(page.getByText("حذف پیش‌نویس").first()).toBeVisible();
+
+    // Delete lives in the card's overflow menu, not as a raw button.
+    await page.getByRole("button", { name: "گزینه‌های بیشتر" }).first().click();
+    await expect(page.getByRole("menuitem", { name: "حذف پیش‌نویس" }).first()).toBeVisible();
   });
 
   test("cancel leaves the draft untouched", async ({ page, request }) => {
@@ -112,17 +116,18 @@ test.describe("Draft contract delete", () => {
     await mockAuth(page, session);
     await page.goto("/contracts");
 
-    const deleteButtons = page.getByText("حذف پیش‌نویس");
-    await expect(deleteButtons.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    const before = await deleteButtons.count();
+    const menuTriggers = page.getByRole("button", { name: "گزینه‌های بیشتر" });
+    await expect(menuTriggers.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    const before = await menuTriggers.count();
 
-    await deleteButtons.first().click();
+    await menuTriggers.first().click();
+    await page.getByRole("menuitem", { name: "حذف پیش‌نویس" }).first().click();
     await expect(page.getByText("حذف پیش‌نویس قرارداد؟")).toBeVisible();
     await page.getByRole("button", { name: "انصراف" }).click();
 
     // Dialog closed, nothing removed.
     await expect(page.getByText("حذف پیش‌نویس قرارداد؟")).toBeHidden();
-    await expect(deleteButtons).toHaveCount(before);
+    await expect(menuTriggers).toHaveCount(before);
 
     // The draft still exists server-side.
     const res = await request.get(`/api/v1/property-contracts/${draft.id}`, {
@@ -137,18 +142,19 @@ test.describe("Draft contract delete", () => {
     await mockAuth(page, session);
     await page.goto("/contracts");
 
-    const deleteButtons = page.getByText("حذف پیش‌نویس");
-    await expect(deleteButtons.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    const before = await deleteButtons.count();
+    const menuTriggers = page.getByRole("button", { name: "گزینه‌های بیشتر" });
+    await expect(menuTriggers.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
-    await deleteButtons.first().click();
+    await menuTriggers.first().click();
+    await page.getByRole("menuitem", { name: "حذف پیش‌نویس" }).first().click();
     await page.getByRole("button", { name: "حذف پیش‌نویس" }).last().click();
 
     // Success feedback + the card disappears with no reload.
     await expect(page.getByText("پیش‌نویس قرارداد با موفقیت حذف شد.")).toBeVisible({
       timeout: APP_READY_TIMEOUT,
     });
-    await expect(deleteButtons).toHaveCount(before - 1);
+    // The user had a single draft, so no card (and no menu) remains.
+    await expect(menuTriggers).toHaveCount(0);
 
     // Gone server-side too.
     const res = await request.get(`/api/v1/property-contracts/${draft.id}`, {

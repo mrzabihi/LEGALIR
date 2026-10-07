@@ -10,6 +10,8 @@ import {
   fetchUsageSummary,
   fetchRecentActivities,
   updateProfile,
+  uploadUserAvatar,
+  deleteUserAvatar,
   fetchBlogPosts,
   fetchBlogPost,
   fetchDailyQuota,
@@ -58,6 +60,45 @@ export function useUpdateProfile() {
       queryClient.invalidateQueries({ queryKey: ["points", "account"] });
       queryClient.invalidateQueries({ queryKey: ["rewards", "history"] });
       queryClient.invalidateQueries({ queryKey: ["points", "transactions"] });
+    },
+  });
+}
+
+// ============================================================
+// useUploadUserAvatar / useDeleteUserAvatar
+// ============================================================
+// Patch the avatar URL straight into the cached `["me"].profile` so the
+// summary avatar updates in the same frame, then invalidate `["me"]` so a
+// later refetch reconciles with the server (the stored URL carries a
+// cache-busting token, so no stale image is served).
+
+function patchMeAvatar(queryClient: ReturnType<typeof useQueryClient>, avatarUrl: string | null) {
+  queryClient.setQueryData(["me"], (old: unknown) => {
+    if (!old || typeof old !== "object") return old;
+    const me = old as Record<string, unknown>;
+    const profile = (me["profile"] ?? {}) as Record<string, unknown>;
+    return { ...me, profile: { ...profile, avatarUrl } };
+  });
+}
+
+export function useUploadUserAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadUserAvatar(file),
+    onSuccess: ({ avatarUrl }) => {
+      patchMeAvatar(queryClient, avatarUrl);
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
+}
+
+export function useDeleteUserAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => deleteUserAvatar(),
+    onSuccess: ({ avatarUrl }) => {
+      patchMeAvatar(queryClient, avatarUrl);
+      queryClient.invalidateQueries({ queryKey: ["me"] });
     },
   });
 }

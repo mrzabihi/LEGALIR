@@ -12,6 +12,7 @@ import { useLogout } from "@/lib/auth/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMe } from "@/hooks/useDashboard";
 import { useRewardsSummary } from "@/hooks/useRewards";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { SubscriptionStatusChip } from "@/components/subscription/subscription-status";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { toPersianNumber } from "@/lib/persian-utils";
@@ -34,7 +35,7 @@ export function TopBar() {
   const profile = meData?.profile;
   const displayName = profile?.displayName;
   const mobileFallback = meData?.user?.mobileDisplay ?? session?.mobileDisplay;
-  const avatarInitial = (displayName ?? mobileFallback)?.[0] ?? "ک";
+  const avatarName = displayName ?? mobileFallback;
   const balance = rewards?.balance ?? 0;
 
   const handleClickOutside = useCallback((e: MouseEvent) => {
@@ -121,9 +122,13 @@ export function TopBar() {
           aria-expanded={userMenuOpen}
           aria-haspopup="true"
         >
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center text-white text-labelSmall font-bold shadow-elevation-1">
-            {avatarInitial}
-          </div>
+          <UserAvatar
+            avatarUrl={profile?.avatarUrl}
+            name={avatarName}
+            size={32}
+            className="shadow-elevation-1"
+            fallbackClassName="bg-gradient-to-br from-primary-600 to-primary-800 text-white text-labelSmall font-bold"
+          />
           <span className="hidden tablet:inline text-labelLarge text-on-surface font-medium truncate max-w-[100px]">
             {displayName ?? mobileFallback ?? "کاربر"}
           </span>

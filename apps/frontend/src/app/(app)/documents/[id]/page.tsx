@@ -17,8 +17,19 @@ import {
 import { DocumentChatPanel } from "@/components/documents/document-chat-panel";
 import { DocumentPreviewCard } from "@/components/documents/document-preview-card";
 import { ReviewResult } from "@/components/documents/review-result";
-import { Button, Skeleton, ErrorState, ConfirmDialog, ProgressLinear } from "@legalir/ui";
-import { IconArrowBack, IconDelete, IconRefresh } from "@/lib/icons";
+import { TrialBadge } from "@/components/documents/trial-badge";
+import { TrialScenarioPicker } from "@/components/documents/trial-scenario-picker";
+import { DocumentLawyerSuggestions } from "@/components/documents/document-lawyer-suggestions";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { TRIAL_DISCLAIMER_FA, type TrialScenario } from "@/lib/documents/trial-scenarios";
+import {
+  Button,
+  Skeleton,
+  ErrorState,
+  ConfirmDialog,
+  ProgressLinear,
+} from "@legalir/ui";
+import { IconArrowBack, IconDelete, IconRefresh, IconWarning } from "@/lib/icons";
 import type { V1DocumentDetail } from "@legalir/types";
 
 export default function DocumentDetailPage() {
@@ -46,13 +57,34 @@ export default function DocumentDetailPage() {
 
   // --- Local UI state ---
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
-  // A question the user asked about a specific finding (spec §12). The
-  // nonce forces the chat panel to react even when the same finding is
-  // asked about twice in a row.
+  // A question the user asked about a specific finding (spec §12).
   const [pendingQuestion, setPendingQuestion] = React.useState<{
     text: string;
     nonce: number;
   } | null>(null);
+
+  // --- Real model connectivity (single source: the gateway health probe) ---
+  // The page has two clearly separated states. `aiConnected` is true only
+  // when the provider is actually configured AND answers its health probe;
+  // "unknown" is treated honestly as not-connected.
+  const { data: aiStatus, isLoading: aiStatusLoading } = useAiStatus();
+  const aiConnected = aiStatus?.configured === true && aiStatus?.healthy === true;
+
+  // --- Trial mode ---
+  // A scenario is DEMO data, never a claim about the user's own document.
+  const [scenario, setScenario] = React.useState<TrialScenario | null>(null);
+
+  const selectScenario = React.useCallback((s: TrialScenario) => {
+    setScenario(s);
+    setPendingQuestion(null);
+  }, []);
+  const exitTrial = React.useCallback(() => setScenario(null), []);
+
+  // When a real model becomes available, leave any trial demo behind so the
+  // page can never show a scenario while claiming real connectivity.
+  React.useEffect(() => {
+    if (aiConnected) setScenario(null);
+  }, [aiConnected]);
 
   // --- Status polling effect ---
   const isProcessing =
@@ -94,6 +126,18 @@ export default function DocumentDetailPage() {
       },
     });
   };
+
+  // --- Ask the chat about a specific finding (spec §12) ---
+  // The nonce forces the chat panel to react even when the same finding is
+  // asked about twice in a row.
+  const askAboutFinding = React.useCallback((finding: { title: string; locator: string }) => {
+    setPendingQuestion({
+      text: `درباره این یافته توضیح بده: «${finding.title}»${
+        finding.locator ? ` (${finding.locator})` : ""
+      }`,
+      nonce: Date.now(),
+    });
+  }, []);
 
   // --- Missing ID guard ---
   if (!id) {
@@ -198,36 +242,145 @@ export default function DocumentDetailPage() {
         sizeBytes={document.sizeBytes}
       />
 
-      {/* Structured review result — the six-tab surface (spec §11). */}
-      {document.status === "ready" && (
-        <div className="mt-6">
-          <h2 className="text-h3 text-on-surface mb-4">نتیجه بررسی</h2>
-          <ReviewResult
-            report={document.report}
-            extractedText={document.extractedText}
-            onAskAboutFinding={(finding) =>
-              setPendingQuestion({
-                text: `درباره این یافته توضیح بده: «${finding.title}»${
-                  finding.locator ? ` (${finding.locator})` : ""
-                }`,
-                nonce: Date.now(),
-              })
-            }
-          />
+      {/* ============================================================
+          Two clearly separated states: REAL analysis vs TRIAL demo.
+          A report is shown as a real result ONLY when the model is
+          actually connected; otherwise the page offers trial scenarios
+          and never fabricates a result for the user's document.
+          ============================================================ */}
+
+      {/* (A) Checking the connectivity signal */}
+      {aiStatusLoading && (
+        <div className="mt-6 flex items-center gap-2 text-muted">
+          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+          <span className="text-bodySmall">در حال بررسی وضعیت سرویس تحلیل...</span>
         </div>
       )}
 
-      {/* Merged chat + analysis — LegalIR comments on the uploaded file.
-          The analysis report is rendered as the opening assistant message. */}
-      {document.status === "ready" && (
-        <div className="mt-6">
-          <DocumentChatPanel
-            documentId={document.id}
-            documentName={document.name}
-            report={document.report}
-            pendingQuestion={pendingQuestion}
-          />
-        </div>
+      {/* (B) TRIAL mode — a demo, clearly labelled everywhere */}
+      {!aiStatusLoading && scenario && (
+        <>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <h2 className="text-h3 text-on-surface">نتیجه بررسی نمونه</h2>
+            <TrialBadge label={`نمونهٔ آزمایشی — ${scenario.titleFa}`} />
+          </div>
+          <p className="mt-1 text-caption text-muted">{TRIAL_DISCLAIMER_FA}</p>
+
+          <div className="mt-4">
+            <ReviewResult
+              report={scenario.report}
+              extractedText={scenario.extractedText}
+              trial
+              trialLabel={scenario.titleFa}
+              onAskAboutFinding={askAboutFinding}
+            />
+          </div>
+
+          <div className="mt-6">
+            <DocumentChatPanel
+              documentId={document.id}
+              documentName={scenario.docLabelFa}
+              scenario={scenario}
+              aiConnected={false}
+              pendingQuestion={pendingQuestion}
+            />
+          </div>
+
+          <DocumentLawyerSuggestions scenario={scenario} className="mt-6" />
+
+          <div className="mt-4">
+            <Button
+              variant="outlined"
+              startIcon={<IconArrowBack size={18} />}
+              onClick={exitTrial}
+            >
+              بازگشت از حالت آزمایشی
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* (C) REAL mode — the model is connected */}
+      {!aiStatusLoading && !scenario && aiConnected && (
+        document.status === "ready" ? (
+          <>
+            <div className="mt-6">
+              <h2 className="text-h3 text-on-surface mb-4">نتیجه بررسی</h2>
+              <ReviewResult
+                report={document.report}
+                extractedText={document.extractedText}
+                onAskAboutFinding={askAboutFinding}
+              />
+            </div>
+
+            <div className="mt-6">
+              <DocumentChatPanel
+                documentId={document.id}
+                documentName={document.name}
+                report={document.report}
+                aiConnected={aiConnected}
+                pendingQuestion={pendingQuestion}
+              />
+            </div>
+
+            <DocumentLawyerSuggestions className="mt-6" />
+          </>
+        ) : (
+          <div className="mt-6 rounded-large border border-divider bg-surface p-4">
+            <p className="text-bodySmall text-muted">
+              سرویس تحلیل متصل است. برای دیدن نتیجه، ابتدا تحلیل این سند را
+              آغاز کنید.
+            </p>
+          </div>
+        )
+      )}
+
+      {/* (D) NO-MODEL mode — a real document, but no model connected */}
+      {!aiStatusLoading && !scenario && !aiConnected && (
+        <>
+          <div className="mt-6 flex items-start gap-3 rounded-large border border-warning/30 bg-warning/5 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/10">
+              <IconWarning size={22} className="text-warning" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-titleMedium text-onSurface font-medium">
+                تحلیل هوشمند در دسترس نیست
+              </h2>
+              <p className="mt-1 text-bodySmall text-muted leading-relaxed">
+                در حال حاضر اتصال به سرویس تحلیل مدل برقرار نیست؛ بنابراین سند
+                شما به‌صورت واقعی تحلیل نمی‌شود و هیچ نتیجه یا منبعی برای آن
+                ساخته نشده است. می‌توانید سناریوی آزمایشی زیر را انتخاب کنید
+                تا نمونهٔ نتیجه، گفتگو و پیشنهاد وکیل را با دادهٔ نمایشی ببینید.
+              </p>
+              {aiStatus && (
+                <p className="mt-1 text-caption text-muted">
+                  وضعیت سرویس: {aiStatus.configured ? "تنظیم‌شده، اما بدون پاسخ" : "تنظیم‌نشده"}
+                  {" "}({aiStatus.provider})
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <TrialScenarioPicker onSelect={selectScenario} />
+          </div>
+
+          {/* The chat section is still present — honestly disabled, with its
+              own no-model explanation — so the page keeps its structure and
+              the user is never left wondering where the chat went. */}
+          <div className="mt-6">
+            <DocumentChatPanel
+              documentId={document.id}
+              documentName={document.name}
+              aiConnected={false}
+              pendingQuestion={pendingQuestion}
+            />
+          </div>
+
+          {/* Real marketplace lawyers — a legitimate next step, framed honestly
+              as a listing, never as an automatic match for this document. */}
+          <DocumentLawyerSuggestions className="mt-6" />
+        </>
       )}
 
       {/* Delete confirmation dialog */}

@@ -8,6 +8,27 @@
 // height and the grid does not shift when data arrives.
 // ============================================================
 
+/**
+ * Compact tile skeleton — mirrors LawyerCardCompact (centered avatar, name,
+ * specialty chip, rating, meta, CTA) so a carousel row reserves the right
+ * height while the list loads.
+ */
+export function LawyerCardCompactSkeleton() {
+  return (
+    <div className="flex h-full flex-col gap-3 rounded-2xl border border-divider/60 bg-surface p-4 shadow-sm">
+      <div className="flex flex-col items-center gap-2">
+        <div className="h-16 w-16 shrink-0 animate-pulse rounded-full bg-surface-container" />
+        <div className="h-4 w-2/3 animate-pulse rounded bg-surface-container" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-surface-container" />
+      </div>
+      <div className="mx-auto h-5 w-20 animate-pulse rounded-full bg-surface-container" />
+      <div className="mx-auto h-4 w-24 animate-pulse rounded bg-surface-container" />
+      <div className="mx-auto h-3 w-28 animate-pulse rounded bg-surface-container" />
+      <div className="mt-auto h-9 w-full animate-pulse rounded-xl bg-surface-container" />
+    </div>
+  );
+}
+
 export function LawyerCardSkeleton() {
   return (
     <div className="flex flex-col rounded-2xl border border-divider/60 bg-surface p-5 shadow-sm">

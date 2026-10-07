@@ -78,7 +78,7 @@ const APP_READY_TIMEOUT = 15_000;
 // ---------------------------------------------------------------------------
 
 test.describe("Profile page", () => {
-  test("shows the identity summary, immutable mobile and account type", async ({
+  test("shows the merged summary, immutable mobile and account type", async ({
     page,
     request,
   }) => {
@@ -90,16 +90,17 @@ test.describe("Profile page", () => {
       timeout: APP_READY_TIMEOUT,
     });
 
-    // Account identity section — mobile is read-only and explained.
-    await expect(page.getByText("هویت حساب")).toBeVisible();
+    // The intro + account-identity cards are now ONE summary. The mobile is
+    // read-only, labelled «تأییدشده» and explained.
     await expect(page.getByText("شماره موبایل")).toBeVisible();
+    await expect(page.getByText("تأییدشده")).toBeVisible();
     await expect(
       page.getByText("این شماره هنگام ثبت‌نام حساب ثبت شده و قابل تغییر نیست."),
     ).toBeVisible();
     await expect(page.getByText("نوع حساب")).toBeVisible();
   });
 
-  test("profile details are collapsible and contain the editable fields", async ({
+  test("profile details show a completion checklist with an edit button", async ({
     page,
     request,
   }) => {
@@ -107,12 +108,43 @@ test.describe("Profile page", () => {
     await mockAuth(page, sessionId);
     await page.goto("/profile");
 
-    const toggle = page.getByRole("button", { name: /جزئیات پروفایل/ });
-    await expect(toggle).toBeVisible({ timeout: APP_READY_TIMEOUT });
-
-    await toggle.click();
+    // The details are no longer a collapsed accordion — the checklist is
+    // always visible, headed by a single «ویرایش پروفایل» action.
+    await expect(page.getByText("جزئیات پروفایل")).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await expect(page.getByText("اطلاعات پایه")).toBeVisible();
     await expect(page.getByText("پروفایل حقوقی من")).toBeVisible();
+    await expect(page.getByRole("button", { name: "ویرایش پروفایل" })).toBeVisible();
+  });
+
+  test("opens the single edit dialog with the display-name field", async ({ page, request }) => {
+    const sessionId = await getOrCreateSession(request);
+    await mockAuth(page, sessionId);
+    await page.goto("/profile");
+
+    await page.getByRole("button", { name: "ویرایش پروفایل" }).click({ timeout: APP_READY_TIMEOUT });
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // The display-name input is present (access via its associated label —
+    // the floating-label shell also renders a decorative ghost span).
+    await expect(dialog.getByRole("textbox", { name: "نام نمایشی" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "ذخیره تغییرات" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "انصراف" })).toBeVisible();
+  });
+
+  test("opens the avatar picker with presets and an upload option", async ({ page, request }) => {
+    const sessionId = await getOrCreateSession(request);
+    await mockAuth(page, sessionId);
+    await page.goto("/profile");
+
+    await page.getByRole("button", { name: "تغییر تصویر پروفایل" }).click({
+      timeout: APP_READY_TIMEOUT,
+    });
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("تصاویر آماده")).toBeVisible();
+    await expect(dialog.getByText("بارگذاری تصویر")).toBeVisible();
+    // Five brand presets, each pressable.
+    await expect(dialog.getByRole("button", { name: /^تصویر / })).toHaveCount(5);
   });
 
   test("has a breadcrumb back to the dashboard", async ({ page, request }) => {

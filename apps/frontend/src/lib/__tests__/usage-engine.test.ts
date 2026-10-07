@@ -17,7 +17,7 @@
 // deterministic and independent of the on-disk JSON DB.
 // ============================================================
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // --- In-memory table store backing the mocked db ---
 const tables = new Map<string, unknown[]>();
@@ -122,9 +122,22 @@ function grantRewardPoints(points: number) {
   tables.set("reward_ledger", rows);
 }
 
+// The engine resolves an active entitlement by comparing `end_at` with the real
+// clock (`Date.now()` in engine.ts). Lock the system clock to a fixed instant
+// inside the fixtures' window so the assertion never rots as wall-clock time
+// advances: the default `end_at` (2026-10-02) stays in the future (active) while
+// the expiry fixture (2026-09-10) stays in the past (lapsed).
+const FIXED_NOW = new Date("2026-09-20T12:00:00.000Z");
+
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(FIXED_NOW);
   tables.clear();
   currentTehranDate = "2026-09-20";
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 // ============================================================

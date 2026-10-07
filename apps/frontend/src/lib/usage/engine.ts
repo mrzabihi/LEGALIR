@@ -26,6 +26,7 @@ import {
 } from "@/lib/db";
 import { tehranDateString } from "@/lib/rewards";
 import { getActivity, SERVICE_QUOTA_LABELS } from "./activities";
+import { pricedPointsFor } from "./energy";
 import {
   getPlanByCode,
   snapshotFor,
@@ -41,6 +42,7 @@ import type {
   SubscriptionDailyUsage,
   SubscriptionPeriodUsage,
   SubscriptionUsageSummary,
+  UsageCostContext,
   UsageErrorCode,
   UsageTransaction,
 } from "@legalir/types";
@@ -470,6 +472,20 @@ export function reserveUsage(params: {
   source: string;
   relatedEntityId?: string | null;
   idempotencyKey: string;
+  /**
+   * The runtime facts an admin-configured pricing profile prices against
+   * (model, token counts, RAG/tool usage, message index, …). Optional: when
+   * omitted, or when no ENABLED profile exists, the registry's flat
+   * `pointCost` is charged exactly as before.
+   */
+  costContext?: UsageCostContext;
+  /**
+   * An explicit per-call point cost that REPLACES the registry/priced cost.
+   * Used by surfaces whose price is admin-configured per item rather than per
+   * activity (e.g. a legal calculator's `energyCost`). When omitted the
+   * existing flat/priced behaviour is unchanged.
+   */
+  overridePoints?: number;
 }): ReserveResult {
   const { userId, activity, source, idempotencyKey, relatedEntityId } = params;
 
@@ -502,11 +518,25 @@ export function reserveUsage(params: {
   const ent = check.entitlement;
   const today = tehranDateString();
 
+  // --- Admin energy model (disabled-by-default) ---
+  // When an ENABLED pricing profile exists for this activity, its computed
+  // total REPLACES the registry's flat `pointCost`. Otherwise `priced` is null
+  // and the flat cost is charged — behaviour is never changed by merely
+  // shipping the energy module.
+  const priced = params.costContext ? pricedPointsFor(activity, params.costContext) : null;
+  const chargedPoints =
+    params.overridePoints !== undefined
+      ? Math.max(0, Math.round(params.overridePoints))
+      : priced
+        ? priced.points
+        : def.pointCost;
+  const breakdown = priced?.breakdown ?? null;
+
   // --- Debit the daily bucket (or the reward wallet) ---
   if (check.creditSource === "REWARD") {
     spendRewardPoints({
       userId,
-      points: def.pointCost,
+      points: chargedPoints,
       sourceType: source,
       sourceId: relatedEntityId ?? idempotencyKey,
       description: `مصرف امتیاز بابت ${def.displayNameFa}`,
@@ -514,7 +544,7 @@ export function reserveUsage(params: {
   } else {
     const bucket = resolveDailyBucket(userId, ent, today);
     if (def.countsAsDailyRequest) bucket.requestUsed += 1;
-    bucket.pointsUsed += def.pointCost;
+    bucket.pointsUsed += chargedPoints;
     saveDailyBucket(bucket);
   }
 
@@ -526,14 +556,15 @@ export function reserveUsage(params: {
   }
 
   const now = new Date().toISOString();
+  const ctx = params.costContext ?? {};
   const tx: UsageTransaction = {
     id: `utx-${crypto.randomUUID()}`,
     userId,
     subscriptionId: ent.isFree ? null : ent.subscriptionId,
     activityType: activity,
-    pointsCost: def.pointCost,
+    pointsCost: chargedPoints,
     requestCost: def.countsAsDailyRequest ? 1 : 0,
-    tokenCost: 0,
+    tokenCost: breakdown?.tokenCost ?? 0,
     serviceQuotaType: def.quotaType,
     serviceQuotaCost: def.quotaType ? 1 : 0,
     creditSource: check.creditSource,
@@ -541,6 +572,15 @@ export function reserveUsage(params: {
     relatedEntityId: relatedEntityId ?? null,
     status: "RESERVED",
     idempotencyKey,
+    // --- Energy-model attribution (only present when priced) ---
+    serviceKey: priced ? priced.profile.serviceKey : null,
+    model: ctx.model ?? null,
+    inputTokens: ctx.inputTokens ?? 0,
+    outputTokens: ctx.outputTokens ?? 0,
+    contextTokens: ctx.contextTokens ?? 0,
+    toolCalls: ctx.toolCalls ?? 0,
+    ragCalls: ctx.ragCalls ?? 0,
+    additionalCost: breakdown ? breakdown.unitCost + breakdown.ruleCost : 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -551,10 +591,23 @@ export function reserveUsage(params: {
   return { ok: true, code: null, messageFa: "", transaction: tx, replayed: false };
 }
 
-/** Mark a reservation COMPLETED and record the actual token usage. */
+/**
+ * Mark a reservation COMPLETED and record the actual token usage.
+ *
+ * `opts.tokens` records the period-quota token consumption (unchanged). The
+ * optional per-direction counts are written to the energy-ledger attribution
+ * fields ONLY — they never overwrite `pointsCost`, which was fixed at reserve
+ * time so the charge stays provably equal to what the engine reserved.
+ */
 export function completeUsage(
   transactionId: string,
-  opts: { tokens?: number } = {}
+  opts: {
+    tokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    contextTokens?: number;
+    model?: string | null;
+  } = {}
 ): UsageTransaction | null {
   const rows = readTable<UsageTransaction>(TX_TABLE);
   const tx = rows.find((t) => t.id === transactionId);
@@ -563,6 +616,12 @@ export function completeUsage(
 
   tx.status = "COMPLETED";
   tx.updatedAt = new Date().toISOString();
+
+  // Energy-ledger attribution (does not affect the already-charged amount).
+  if (opts.inputTokens !== undefined) tx.inputTokens = opts.inputTokens;
+  if (opts.outputTokens !== undefined) tx.outputTokens = opts.outputTokens;
+  if (opts.contextTokens !== undefined) tx.contextTokens = opts.contextTokens;
+  if (opts.model !== undefined) tx.model = opts.model;
 
   // Record real token usage against the period quota (never estimated when
   // the provider reports actual usage).

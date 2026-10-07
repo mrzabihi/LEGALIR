@@ -3,7 +3,7 @@
 // ============================================================
 
 import { describe, it, expect, beforeEach, beforeAll } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -175,20 +175,19 @@ describe("ProfilePage", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getByText("مریم محمدی")).toBeTruthy();
+      // The name shows in the summary hero and again as the «نام نمایشی»
+      // value in the completion checklist.
+      expect(screen.getAllByText("مریم محمدی").length).toBeGreaterThan(0);
     });
   });
 
-  it("renders city and occupation inside the collapsible details", async () => {
+  it("shows completed city and occupation in the details checklist", async () => {
     setupMe();
     render(<ProfilePage />, { wrapper: TestWrapper });
 
-    // Details are collapsed by default — open them first.
-    const toggle = await screen.findByRole("button", { name: /جزئیات پروفایل/ });
-    fireEvent.click(toggle);
-
     await waitFor(() => {
-      // "تهران" can appear for both city and province; assert at least one.
+      // The checklist marks each present field with its value; «تهران» can
+      // appear for both city and province, so assert at least one.
       expect(screen.getAllByText("تهران").length).toBeGreaterThan(0);
       expect(screen.getByText("کارشناس حقوقی")).toBeTruthy();
     });

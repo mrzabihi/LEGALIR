@@ -60,5 +60,5 @@ export function stopHistoryRetentionJob(): void {
   const state = jobState();
   if (!state) return;
   clearInterval(state.timer);
-  delete (globalThis as Record<string, unknown>)[GLOBAL_KEY];
+  Reflect.deleteProperty(globalThis, GLOBAL_KEY);
 }

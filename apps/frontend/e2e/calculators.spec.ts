@@ -73,11 +73,14 @@ test.describe("Legal calculators", () => {
     await mockAuth(page, sessionId);
     await page.goto("/calculators");
 
+    // A calculator may now appear in more than one place on the redesigned
+    // catalog (the quick-access grid and its category row), so assert the
+    // link is present with `.first()` rather than requiring a single match.
     await expect(
-      page.locator('a[href="/calculators/inheritance"]'),
+      page.locator('a[href="/calculators/inheritance"]').first(),
     ).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await expect(
-      page.locator('a[href="/calculators/regional-property-value"]'),
+      page.locator('a[href="/calculators/regional-property-value"]').first(),
     ).toBeVisible();
   });
 
@@ -89,9 +92,13 @@ test.describe("Legal calculators", () => {
     await mockAuth(page, sessionId);
     await page.goto("/calculators/inheritance");
 
-    // Default census has no heirs → unsupported. Add a wife + two sons
-    // so the engine has a supported combination to divide.
+    // The inheritance form has many groups, so it renders as a stepper.
+    // Step 1 (همسر) is active by default.
     await page.getByLabel("همسر متوفی").selectOption("wife");
+
+    // Move to the children step and add two sons so the engine has a
+    // supported combination to divide.
+    await page.getByRole("button", { name: /طبقه اول — فرزندان$/ }).click();
     await page.getByLabel("تعداد پسران", { exact: true }).fill("2");
 
     const result = page.locator('section[aria-label="نتیجه محاسبه"]');
@@ -110,6 +117,60 @@ test.describe("Legal calculators", () => {
     await expect(result.getByText("مجموع تقسیم‌شده")).toBeVisible();
   });
 
+  test("a priority calculator computes live and shows its legal basis", async ({
+    page,
+    request,
+  }) => {
+    const sessionId = await getOrCreateSession(request);
+    await mockAuth(page, sessionId);
+    await page.goto("/calculators/overtime");
+
+    const result = page.locator('section[aria-label="نتیجه محاسبه"]');
+    // The headline renders immediately from the field defaults.
+    await expect(result.getByText("جزئیات محاسبه")).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+
+    // Provenance block cites the governing instrument and the year.
+    await expect(result.getByText("منبع و اعتبار داده‌ها")).toBeVisible();
+    await expect(result.getByText("سال محاسبه")).toBeVisible();
+
+    // The annual-figures verification banner is shown while the 1405
+    // figures await official confirmation.
+    await expect(
+      page.getByText("ارقام سالانه در انتظار تأیید نهایی"),
+    ).toBeVisible();
+  });
+
+  test("detail page emits per-calculator SEO metadata and FAQ JSON-LD", async ({
+    page,
+    request,
+  }) => {
+    const sessionId = await getOrCreateSession(request);
+    await mockAuth(page, sessionId);
+    await page.goto("/calculators/court-fee");
+
+    // Title is derived from the calculator definition.
+    await expect(page).toHaveTitle(/هزینه دادرسی/);
+
+    // Canonical points at the calculator's own stable slug.
+    const canonical = page.locator('link[rel="canonical"]');
+    await expect(canonical).toHaveAttribute(
+      "href",
+      /\/calculators\/court-fee$/,
+    );
+
+    // FAQPage structured data is present and well-formed.
+    const faqLd = page.locator('script[type="application/ld+json"]');
+    const count = await faqLd.count();
+    expect(count).toBeGreaterThan(0);
+    const blocks = await faqLd.allTextContents();
+    const faq = blocks
+      .map((b) => JSON.parse(b) as { "@type"?: string })
+      .find((b) => b["@type"] === "FAQPage");
+    expect(faq).toBeTruthy();
+  });
+
   test("regional property cascades location and gates building fields", async ({
     page,
     request,
@@ -121,14 +182,19 @@ test.describe("Legal calculators", () => {
     const result = page.locator('section[aria-label="نتیجه محاسبه"]');
     const buildingArea = page.getByLabel(/مساحت اعیان/);
 
-    // Building fields are visible by default (hasBuilding defaults true).
-    await expect(buildingArea).toBeVisible({ timeout: APP_READY_TIMEOUT });
-
-    // Cascading selects: choosing a province narrows the city options.
+    // Step 1 (موقعیت ملک) is active by default. Cascading selects:
+    // choosing a province narrows the city options.
     await page.getByLabel("استان").selectOption("tehran");
     await page.getByLabel("شهر").selectOption("tehran");
     await page.getByLabel("منطقه").selectOption("district-1");
     await page.getByLabel("بلوک").selectOption("block-101");
+
+    // Move to the building step; its fields are visible by default
+    // (hasBuilding defaults true).
+    await page
+      .getByRole("button", { name: /مشخصات اعیان \(ساختمان\)/ })
+      .click();
+    await expect(buildingArea).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     // A full valuation resolves to structured sections.
     await expect(result.getByText("عرصه (زمین)")).toBeVisible({

@@ -18,7 +18,7 @@
 // ============================================================
 
 import React, { forwardRef, useId, useState } from "react";
-import { OutlinedFieldShell, FieldMessage, type FieldSize } from "./field-shell";
+import { OutlinedFieldShell, FieldMessage, extensionSafe, type FieldSize } from "./field-shell";
 
 interface SelectOption {
   value: string;
@@ -118,6 +118,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
             disabled ? "" : "cursor-pointer",
           ].join(" ")}
           {...rest}
+          {...extensionSafe}
         >
           {placeholder && (
             <option value="" disabled>

@@ -72,9 +72,13 @@ export function Drawer({
   if (!open) return null;
 
   const isEnd = position === "end";
+  // Each edge class pairs an LTR base transform with an RTL counterpart so the
+  // panel starts off its OWN edge, then the animation settles it at translateX(0).
+  // A panel anchored to `end` sits at the left in RTL, so it must enter from the
+  // left (`-100%` → 0). Leaving it at `+100%` would slide it across the screen.
   const slideClass = isEnd
-    ? "translate-x-full rtl:translate-x-[-100%] animate-slide-in-end"
-    : "-translate-x-full rtl:translate-x-full animate-slide-in-start";
+    ? "translate-x-full rtl:translate-x-[-100%] animate-drawer-slide-in"
+    : "-translate-x-full rtl:translate-x-full animate-drawer-slide-in-left";
 
   return (
     <div className="fixed inset-0 z-40" role="presentation">
@@ -97,7 +101,9 @@ export function Drawer({
           slideClass,
           isEnd ? "end-0" : "start-0",
         ].join(" ")}
-        style={{ width }}
+        // `maxWidth: 100%` caps the drawer to the viewport on narrow screens so
+        // a fixed pixel width can never cause horizontal overflow on mobile.
+        style={{ width, maxWidth: "100%" }}
       >
         {title && (
           <div className="flex items-center justify-between p-4 border-b border-divider">

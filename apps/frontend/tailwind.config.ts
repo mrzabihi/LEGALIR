@@ -98,7 +98,27 @@ const config: Config = {
           "container-low": "var(--color-surface-container-low)",
           "container-high": "var(--color-surface-container-high)",
           "container-highest": "var(--color-surface-container-highest)",
+          // `bg-surface-hover` is written all over the panel but was never
+          // mapped here, so the class emitted no CSS and every hover state
+          // silently did nothing. Alias it at the top level too (below).
+          hover: "var(--color-surface-hover)",
         },
+        "surface-hover": "var(--color-surface-hover)",
+        // `bg-scrim` (the modal/drawer/popover backdrop) is written across the
+        // app but `--color-scrim` was never exposed to Tailwind, so the class
+        // emitted no CSS and every backdrop was invisible. Alias it here.
+        scrim: "var(--color-scrim)",
+        // Explicit solid container roles. Tailwind 3.4 cannot apply an
+        // `/opacity` modifier to a `var()` colour (it silently drops the
+        // class), so pick a solid container token instead of e.g. `bg-primary/10`
+        // — those classes emit nothing. These are the safe, themeable
+        // equivalents the admin panel builds its tints from.
+        "primary-soft": "var(--color-primary-container)",
+        "secondary-soft": "var(--color-secondary-container)",
+        "success-soft": "var(--color-success-container)",
+        "warning-soft": "var(--color-warning-container)",
+        "error-soft": "var(--color-error-container)",
+        "info-soft": "var(--color-info-container)",
         "surface-container": "var(--color-surface-container)",
         surfaceVariant: "var(--color-surface-variant)",
         "on-surface": "var(--color-on-surface)",
@@ -237,6 +257,26 @@ const config: Config = {
         onSuccess: "var(--color-on-success)",
         onInfo: "var(--color-on-info)",
         onBackground: "var(--color-on-background)",
+        // Kebab-case aliases for the SAME on-* roles. Most of the app (and
+        // @legalir/ui) writes `text-primary-on`, but a handful of surfaces
+        // write `text-on-primary`; without these keys that class emitted no
+        // CSS and silently inherited `--color-on-surface`, so e.g. the active
+        // range pill rendered dark text on the dark primary fill (invisible).
+        "on-primary": "var(--color-on-primary)",
+        "on-primary-container": "var(--color-on-primary-container)",
+        "on-secondary": "var(--color-on-secondary)",
+        "on-secondary-container": "var(--color-on-secondary-container)",
+        "on-tertiary": "var(--color-on-tertiary)",
+        "on-tertiary-container": "var(--color-on-tertiary-container)",
+        "on-error": "var(--color-on-error)",
+        "on-error-container": "var(--color-on-error-container)",
+        "on-warning": "var(--color-on-warning)",
+        "on-warning-container": "var(--color-on-warning-container)",
+        "on-success": "var(--color-on-success)",
+        "on-success-container": "var(--color-on-success-container)",
+        "on-info": "var(--color-on-info)",
+        "on-info-container": "var(--color-on-info-container)",
+        "on-background": "var(--color-on-background)",
       },
       fontFamily: {
         sans: ["Vazir", "Vazirmatn", '"Noto Sans Arabic"', "Tahoma", "sans-serif"],
@@ -334,6 +374,16 @@ const config: Config = {
           "0%": { transform: "translateX(100%)" },
           "100%": { transform: "translateX(0)" },
         },
+        // Mirror of `drawer-slide-in` entering from the opposite edge. The
+        // Drawer picks between the two with the `rtl:` variant so a panel
+        // always slides in from the edge it is anchored to — never across the
+        // screen. `both` fill (below) keeps the panel settled at translateX(0)
+        // once the animation ends; without it the base transform would snap it
+        // back off-screen.
+        "drawer-slide-in-left": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(0)" },
+        },
         "heading-shine": {
           "0%": { backgroundPosition: "200% center", opacity: "0", transform: "translateY(16px)" },
           "30%": { opacity: "1", transform: "translateY(0)" },
@@ -346,6 +396,10 @@ const config: Config = {
         },
       },
       animation: {
+        // `both` = apply the 100% keyframe (translateX(0)) before AND after the
+        // run, so the drawer never snaps back to its off-screen base transform.
+        "drawer-slide-in": "drawer-slide-in 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) both",
+        "drawer-slide-in-left": "drawer-slide-in-left 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) both",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "fade-in": "fade-in 0.3s ease-out",
         "scroll-reveal": "scroll-reveal 0.6s cubic-bezier(0.4, 0.0, 0.2, 1) both",
@@ -356,7 +410,6 @@ const config: Config = {
         "skeleton-pulse": "skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "slide-up-fade": "slide-up-fade 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)",
         "sheet-up": "sheet-up var(--bottom-nav-motion-sheet) cubic-bezier(0.05, 0.7, 0.1, 1)",
-        "drawer-slide-in": "drawer-slide-in 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)",
         "heading-shine": "heading-shine 1.5s cubic-bezier(0.4, 0.0, 0.2, 1) both",
         "hover-shimmer": "hover-shimmer 1.2s ease-in-out infinite",
       },

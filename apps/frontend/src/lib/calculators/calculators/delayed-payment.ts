@@ -32,9 +32,40 @@ const def: CalculatorDef = {
   icon: "📈",
   gradient: "from-cyan-600 to-blue-500",
   legalBasisFa: "ماده ۵۲۲ قانون آیین دادرسی مدنی",
-  datasetIds: ["price-index-1404"],
+  datasetIds: ["price-index-1405"],
   confidence: "high",
   available: true,
+  status: "legal_basis",
+  aboutFa:
+    "این محاسبه‌گر خسارت تأخیر تأدیه را بر مبنای تغییر شاخص بهای کالاها و خدمات مصرفی بانک مرکزی محاسبه می‌کند. خسارت از نسبت شاخص ماه پرداخت به شاخص ماه سررسید به دست می‌آید.",
+  howItWorksFa:
+    "ابتدا نسبت شاخص پرداخت به شاخص سررسید محاسبه می‌شود. سپس این نسبت منهای یک، در مبلغ اصل دین ضرب می‌گردد تا خسارت تأخیر به دست آید. اگر شاخص افزایش نیافته باشد، خسارتی تعلق نمی‌گیرد.",
+  requiredInfoFa:
+    "مبلغ اصل دین و شاخص قیمت در تاریخ سررسید و تاریخ پرداخت.",
+  determinacyFa:
+    "روش محاسبه قانونی و قطعی است؛ اما نتیجه به صحت شاخص‌های واردشده وابسته است. شاخص باید از گزارش رسمی بانک مرکزی استخراج شود.",
+  disclaimerFa:
+    "این محاسبه بر پایه شاخص بهای کالاها و خدمات مصرفی بانک مرکزی انجام شده است. شاخص ماهانه منتشر می‌شود؛ برای محاسبه دقیق، شاخص ماه سررسید و ماه پرداخت را از آخرین گزارش رسمی وارد کنید.",
+  faq: [
+    {
+      qFa: "خسارت تأخیر تأدیه چگونه محاسبه می‌شود؟",
+      aFa: "طبق ماده ۵۲۲ قانون آیین دادرسی مدنی، خسارت تأخیر بر مبنای تغییر شاخص بهای کالاها و خدمات مصرفی بانک مرکزی از تاریخ سررسید تا تاریخ پرداخت محاسبه می‌شود.",
+    },
+    {
+      qFa: "اگر شاخص قیمت کاهش یابد چه می‌شود؟",
+      aFa: "طبق ماده ۵۲۲، خسارت تنها برای افزایش شاخص تعلق می‌گیرد؛ اگر شاخص پرداخت از شاخص سررسید بیشتر نباشد، خسارتی محاسبه نمی‌شود.",
+    },
+    {
+      qFa: "شاخص قیمت را از کجا بگیرم؟",
+      aFa: "شاخص بهای کالاها و خدمات مصرفی ماهانه توسط بانک مرکزی جمهوری اسلامی ایران منتشر می‌شود.",
+    },
+  ],
+  relatedSlugs: ["check-damages", "court-fee", "contract-penalty"],
+  nextAction: {
+    promptFa: "می‌خواهید مطالبات چک برگشتی را محاسبه کنید؟",
+    labelFa: "محاسبه مطالبات چک برگشتی",
+    href: "/calculators/check-damages",
+  },
   fields: [
     {
       key: "principal",
@@ -67,7 +98,7 @@ const def: CalculatorDef = {
 };
 
 function compute(input: CalculatorInput): CalculationResult {
-  const ds = requireDataset("price-index-1404");
+  const ds = requireDataset("price-index-1405");
   const rates = ds.rates as unknown as PriceIndexRates;
 
   const principal = money(num(input, "principal"), "IRT");
@@ -116,9 +147,18 @@ function compute(input: CalculatorInput): CalculationResult {
     headlineFa: formatMoney(damages, "IRT"),
     headlineValue: damages.rial,
     unit: "IRT",
+    headlineLabelFa: "خسارت تأخیر تأدیه",
+    status: "legal_basis",
     steps,
     warningsFa,
     source: ds.source,
+    explanationFa:
+      "خسارت تأخیر تأدیه از نسبت شاخص قیمت ماه پرداخت به شاخص ماه سررسید محاسبه می‌شود. این نسبت منهای یک، در مبلغ اصل دین ضرب می‌گردد. اگر شاخص افزایش نیافته باشد، طبق ماده ۵۲۲ خسارتی تعلق نمی‌گیرد.",
+    legalNotesFa: [
+      "ماده ۵۲۲ قانون آیین دادرسی مدنی: خسارت تأخیر تأدیه بر مبنای شاخص قیمت.",
+      "خسارت تنها برای افزایش شاخص تعلق می‌گیرد.",
+      "شاخص بهای کالاها و خدمات مصرفی ماهانه توسط بانک مرکزی منتشر می‌شود.",
+    ],
   };
 }
 

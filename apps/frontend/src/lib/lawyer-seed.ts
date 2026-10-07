@@ -1,10 +1,15 @@
 // ============================================================
 // LEGALIR — Demo Lawyer Seed (server-only)
 // ============================================================
-// Seeds 10 clearly-marked demo lawyers (isDemo: true) across the
+// Seeds 20 clearly-marked demo lawyers (isDemo: true) across the
 // LegalCategory slugs so the marketplace and the matching engine have
 // realistic data in dev. Every row is VERIFIED and carries a synthetic
 // `userId` (demo-user-*) that never collides with a real account.
+//
+// Each profile is bound to one of the 20 supplied portraits under
+// /assets/lawyers/lawyer-demo-01.png … lawyer-demo-20.png (avatarType
+// "demo" — synthetic illustrations, never real photographs of the named
+// people). The card marks every one with the «نمونه» badge.
 //
 // Idempotent: guarded by a `lawyer_meta` seed_version, and rows are
 // upserted by id so re-running the dev server never duplicates.
@@ -22,7 +27,19 @@ import type {
   LawyerPerformance,
   LawyerAvailabilityStatus,
   LawyerAvatarType,
+  LawyerExpertise,
+  LawyerServiceOffer,
+  LawyerEducation,
+  LawyerExperienceEntry,
+  LawyerProfessionalRank,
 } from "@legalir/types";
+import { LAWYER_TAXONOMY, taxonomyNode } from "@legalir/types";
+import {
+  generateDemoLawyerSpecs,
+  demoAvatarDataUri,
+  ratingsForTarget,
+  type GeneratedLawyerSpec,
+} from "./lawyers/demo-generator";
 
 /**
  * Mirrors LawyerReviewRow in lawyer-db.ts. Declared locally to keep this
@@ -39,7 +56,7 @@ interface LawyerReviewRow {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const LAWYER_SEED_VERSION = "legalir-lawyers-v6";
+export const LAWYER_SEED_VERSION = "legalir-lawyers-v9";
 
 /**
  * The demo lawyer who can actually log in. The first demo profile is
@@ -149,7 +166,7 @@ interface DemoLawyerSpec {
   acceptingRequests: boolean;
   /**
    * Synthetic demo portrait filename under /assets/lawyers/. These are
-   * generated portraits — never real photographs of the named people.
+   * generated illustrations — never real photographs of the named people.
    */
   avatarFile: string;
 }
@@ -157,19 +174,31 @@ interface DemoLawyerSpec {
 // ---------------------------------------------------------------------------
 // Demo lawyers
 // ---------------------------------------------------------------------------
-// Nine profiles chosen so every availability state is visible in the UI:
-//   علی ذبیحی      REJECTED               — rated 4.5 / 12 reviews
-//   مهدیه فرسایی   LIMITED (2)
-//   حسام ساکی      ACTIVE (unlimited)
-//   محدثه رضایی    INACTIVE
-//   ناهید عبدالهی  AVAILABLE_SLOTS (10)
-//   علی شکری       FULL (0)
-//   فربد صالح      AVAILABLE_SLOTS (8)    — criminal defence
-//   فرشین گنجی     AVAILABLE_SLOTS (6)    — immigration, rated 1.0 / 5
-//   مهدی اسمعیلی   AVAILABLE_SLOTS (5)    — labour, in-person only
+// Twenty profiles spread across the practice areas so the marketplace reads
+// like a real roster and every availability state is visible in the UI:
+//   demo-lawyer-01  علی ذبیحی       REJECTED               — rated 4.5 / 12 reviews
+//   demo-lawyer-02  مهدیه فرسایی    LIMITED (2)
+//   demo-lawyer-03  حسام ساکی       ACTIVE (unlimited)
+//   demo-lawyer-04  محدثه رضایی     INACTIVE
+//   demo-lawyer-05  ناهید عبدالهی   AVAILABLE_SLOTS (10)
+//   demo-lawyer-06  علی شکری        FULL (0)
+//   demo-lawyer-07  فربد صالح       AVAILABLE_SLOTS (8)    — criminal defence
+//   demo-lawyer-08  فرشین گنجی      AVAILABLE_SLOTS (6)    — immigration, rated 1.0 / 5
+//   demo-lawyer-09  مهدی اسمعیلی    AVAILABLE_SLOTS (5)    — labour, in-person only
+//   demo-lawyer-10  سارا کریمی      AVAILABLE_SLOTS (7)    — family / marriage
+//   demo-lawyer-11  امیرحسین رضایی  AVAILABLE_SLOTS (9)    — contracts / companies
+//   demo-lawyer-12  الهام موسوی     LIMITED (3)            — real estate
+//   demo-lawyer-13  محمدرضا احمدی   AVAILABLE_SLOTS (6)    — criminal
+//   demo-lawyer-14  پریسا شریفی     AVAILABLE_SLOTS (8)    — commerce
+//   demo-lawyer-15  بهاره قاسمی     AVAILABLE_SLOTS (4)    — checks & negotiable instruments
+//   demo-lawyer-16  مریم تهرانی     AVAILABLE_SLOTS (5)    — tax
+//   demo-lawyer-17  کاوه مرادی      AVAILABLE_SLOTS (7)    — cyber crime
+//   demo-lawyer-18  شیرین یزدانی    LIMITED (2)            — medical law
+//   demo-lawyer-19  آرش نیکنام      AVAILABLE_SLOTS (6)    — companies / commerce
+//   demo-lawyer-20  نگار سلطانی     AVAILABLE_SLOTS (9)    — immigration / contracts
 //
 // Names are real, but every professional detail (specialty, experience,
-// licence, rating) is DEMO DATA. All nine are `isDemo: true` and are never
+// licence, rating) is DEMO DATA. All twenty are `isDemo: true` and are never
 // presented as verified practitioners.
 // ---------------------------------------------------------------------------
 
@@ -199,7 +228,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "REJECTED",
     consultationCapacity: null,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-ali-zabihi.webp",
+    avatarFile: "lawyer-demo-01.png",
   },
   {
     id: "demo-lawyer-02",
@@ -224,7 +253,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "LIMITED",
     consultationCapacity: 2,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-mahdieh-farsaei.webp",
+    avatarFile: "lawyer-demo-03.png",
   },
   {
     id: "demo-lawyer-03",
@@ -250,7 +279,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "ACTIVE",
     consultationCapacity: null,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-hesam-saki.webp",
+    avatarFile: "lawyer-demo-02.png",
   },
   {
     id: "demo-lawyer-04",
@@ -275,7 +304,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "INACTIVE",
     consultationCapacity: null,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-mohadeseh-rezaei.webp",
+    avatarFile: "lawyer-demo-05.png",
   },
   {
     id: "demo-lawyer-05",
@@ -300,7 +329,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 10,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-nahid-abdollahi.webp",
+    avatarFile: "lawyer-demo-09.png",
   },
   {
     id: "demo-lawyer-06",
@@ -325,7 +354,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "FULL",
     consultationCapacity: 0,
     acceptingRequests: false,
-    avatarFile: "lawyer-demo-ali-shokri.webp",
+    avatarFile: "lawyer-demo-04.png",
   },
   {
     id: "demo-lawyer-07",
@@ -350,7 +379,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 8,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-farbod-saleh.webp",
+    avatarFile: "lawyer-demo-06.png",
   },
   {
     id: "demo-lawyer-08",
@@ -374,7 +403,7 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 6,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-farshin-ganji.webp",
+    avatarFile: "lawyer-demo-07.png",
   },
   {
     id: "demo-lawyer-09",
@@ -399,7 +428,272 @@ const DEMO_LAWYERS: DemoLawyerSpec[] = [
     availabilityStatus: "AVAILABLE_SLOTS",
     consultationCapacity: 5,
     acceptingRequests: true,
-    avatarFile: "lawyer-demo-mehdi-esmaeili.webp",
+    avatarFile: "lawyer-demo-08.png",
+  },
+  {
+    id: "demo-lawyer-10",
+    fullName: "سارا کریمی",
+    professionalTitle: "وکیل متخصص دعاوی خانواده و امور زوجین",
+    licenseNumber: "۲۴۱۸۸",
+    licenseYear: 1393,
+    bio: "وکیل دعاوی خانواده؛ طلاق توافقی و یک‌طرفه، مهریه، نفقه و حضانت فرزند. همراهی زوجین در مسیر سازش یا طرح دعاوی خانوادگی با رویکردی کم‌تنش و راه‌حل‌محور.",
+    specializations: [
+      { category: "family", yearsExperience: 9 },
+      { category: "marriage", yearsExperience: 8 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_050_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_850_000,
+    contractReviewFeeToman: 2_400_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 7,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-14.png",
+  },
+  {
+    id: "demo-lawyer-11",
+    fullName: "امیرحسین رضایی",
+    professionalTitle: "مشاور قراردادها و حقوق شرکت‌ها",
+    licenseNumber: "۱۸۷۴۲",
+    licenseYear: 1389,
+    bio: "مشاور قراردادها و حقوق شرکت‌ها؛ تنظیم و بازبینی قراردادهای تجاری، مشارکت مدنی و سرمایه‌گذاری، و همراهی در مذاکرات و ساختاردهی معاملات پیچیده.",
+    specializations: [
+      { category: "contract", yearsExperience: 13 },
+      { category: "companies", yearsExperience: 11 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_600_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_600_000,
+    contractReviewFeeToman: 4_200_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 9,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-10.png",
+  },
+  {
+    id: "demo-lawyer-12",
+    fullName: "الهام موسوی",
+    professionalTitle: "وکیل دعاوی ملکی و قراردادهای املاک",
+    licenseNumber: "۲۶۳۰۵",
+    licenseYear: 1392,
+    bio: "وکیل دعاوی ملکی؛ الزام به تنظیم سند رسمی، خلع ید، تخلیه و اختلافات مالک و مستأجر، همراه با تنظیم و بازبینی قراردادهای خرید، فروش و اجاره.",
+    specializations: [
+      { category: "real_estate", yearsExperience: 10 },
+      { category: "contract", yearsExperience: 8 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_150_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_950_000,
+    contractReviewFeeToman: 2_700_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "LIMITED",
+    consultationCapacity: 3,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-15.png",
+  },
+  {
+    id: "demo-lawyer-13",
+    fullName: "محمدرضا احمدی",
+    professionalTitle: "وکیل دعاوی کیفری",
+    licenseNumber: "۱۴۹۲۷",
+    licenseYear: 1387,
+    bio: "وکیل دعاوی کیفری با سابقه دفاع در پرونده‌های کلاهبرداری، جعل، خیانت در امانت و جرائم علیه اموال. تنظیم لایحه دفاعیه و پیگیری پرونده تا مرحله تجدیدنظر.",
+    specializations: [
+      { category: "criminal", yearsExperience: 14 },
+      { category: "checks", yearsExperience: 9 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_350_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_100_000,
+    contractReviewFeeToman: 2_900_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 6,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-11.png",
+  },
+  {
+    id: "demo-lawyer-14",
+    fullName: "پریسا شریفی",
+    professionalTitle: "مشاور معاملات تجاری و بازرگانی",
+    licenseNumber: "۲۹۵۵۰",
+    licenseYear: 1394,
+    bio: "مشاور معاملات تجاری و بازرگانی؛ تنظیم قراردادهای خرید و فروش، نمایندگی و توزیع، و پیگیری اختلافات بازرگانی در مراجع داوری و دادگاه‌های عمومی.",
+    specializations: [
+      { category: "commerce", yearsExperience: 8 },
+      { category: "contract", yearsExperience: 6 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_000_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_800_000,
+    contractReviewFeeToman: 2_500_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 8,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-16.png",
+  },
+  {
+    id: "demo-lawyer-15",
+    fullName: "بهاره قاسمی",
+    professionalTitle: "وکیل چک و اسناد تجاری",
+    licenseNumber: "۲۰۳۶۴",
+    licenseYear: 1391,
+    bio: "وکیل چک و اسناد تجاری؛ مطالبه وجه چک و سفته، دعاوی مربوط به چک برگشتی، صدور اجراییه و پیگیری پرونده‌های اسناد تجاری در دادگاه و اجرای احکام.",
+    specializations: [
+      { category: "checks", yearsExperience: 11 },
+      { category: "commerce", yearsExperience: 7 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_250_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 2_000_000,
+    contractReviewFeeToman: 2_600_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 4,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-17.png",
+  },
+  {
+    id: "demo-lawyer-16",
+    fullName: "مریم تهرانی",
+    professionalTitle: "وکیل دعاوی مالیاتی",
+    licenseNumber: "۱۷۵۸۹",
+    licenseYear: 1390,
+    bio: "وکیل دعاوی مالیاتی؛ تنظیم لایحه اعتراض به برگ تشخیص و برگ اجرایی، پیگیری پرونده در هیئت‌های حل اختلاف مالیاتی و شورای عالی مالیاتی، و مشاوره برنامه‌ریزی مالیاتی.",
+    specializations: [
+      { category: "tax", yearsExperience: 12 },
+      { category: "companies", yearsExperience: 9 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_450_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_400_000,
+    contractReviewFeeToman: 3_300_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 5,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-18.png",
+  },
+  {
+    id: "demo-lawyer-17",
+    fullName: "کاوه مرادی",
+    professionalTitle: "وکیل جرائم رایانه‌ای و فضای مجازی",
+    licenseNumber: "۳۵۲۷۱",
+    licenseYear: 1397,
+    bio: "وکیل جرائم رایانه‌ای؛ دفاع در پرونده‌های کلاهبرداری اینترنتی، هک، انتشار محتوای مجرمانه و نقض حریم خصوصی داده‌ها، همراه با مشاوره امنیت حقوقی کسب‌وکارهای آنلاین.",
+    specializations: [
+      { category: "cyber", yearsExperience: 7 },
+      { category: "criminal", yearsExperience: 5 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 950_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_700_000,
+    contractReviewFeeToman: 2_300_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 7,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-12.png",
+  },
+  {
+    id: "demo-lawyer-18",
+    fullName: "شیرین یزدانی",
+    professionalTitle: "وکیل دعاوی پزشکی و مسئولیت مدنی",
+    licenseNumber: "۲۱۸۴۶",
+    licenseYear: 1392,
+    bio: "وکیل دعاوی پزشکی؛ پیگیری پرونده‌های قصور پزشکی در کمیسیون‌های پزشکی قانونی و دادگاه، مطالبه دیه و خسارت، و مشاوره حقوقی به کادر درمان و مراکز درمانی.",
+    specializations: [
+      { category: "medical", yearsExperience: 9 },
+      { category: "contract", yearsExperience: 6 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_200_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_900_000,
+    contractReviewFeeToman: 2_500_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "LIMITED",
+    consultationCapacity: 2,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-19.png",
+  },
+  {
+    id: "demo-lawyer-19",
+    fullName: "آرش نیکنام",
+    professionalTitle: "مشاور حقوق شرکت‌ها و تجارت",
+    licenseNumber: "۱۶۹۳۲",
+    licenseYear: 1390,
+    bio: "مشاور حقوق شرکت‌ها و تجارت؛ ثبت و تغییرات شرکت، تنظیم صورت‌جلسات و اساسنامه، دعاوی سهامداران و قراردادهای تجاری. همراهی شرکت‌ها در امور روزمره حقوقی.",
+    specializations: [
+      { category: "companies", yearsExperience: 10 },
+      { category: "commerce", yearsExperience: 9 },
+      { category: "contract", yearsExperience: 8 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 1_400_000,
+    consultationDurationMinutes: 60,
+    hourlyRateToman: 2_300_000,
+    contractReviewFeeToman: 3_400_000,
+    freeFirstConsultation: false,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 6,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-13.png",
+  },
+  {
+    id: "demo-lawyer-20",
+    fullName: "نگار سلطانی",
+    professionalTitle: "وکیل مهاجرت و قراردادهای بین‌الملل",
+    licenseNumber: "۳۲۸۱۵",
+    licenseYear: 1396,
+    bio: "وکیل مهاجرت و قراردادهای بین‌الملل؛ پرونده‌های اقامت و ویزای کاری، تنظیم و بازبینی قراردادهای بین‌المللی و مشاوره به شرکت‌ها در معاملات فرامرزی.",
+    specializations: [
+      { category: "immigration", yearsExperience: 6 },
+      { category: "contract", yearsExperience: 4 },
+    ],
+    province: "تهران",
+    city: "تهران",
+    remote: true,
+    consultationFeeToman: 900_000,
+    consultationDurationMinutes: 45,
+    hourlyRateToman: 1_650_000,
+    contractReviewFeeToman: 2_300_000,
+    freeFirstConsultation: true,
+    availabilityStatus: "AVAILABLE_SLOTS",
+    consultationCapacity: 9,
+    acceptingRequests: true,
+    avatarFile: "lawyer-demo-20.png",
   },
 ];
 
@@ -418,7 +712,159 @@ const STANDARD_AVAILABILITY = [
 /** Demo portraits are synthetic — never real photographs of the named people. */
 const DEMO_AVATAR_TYPE: LawyerAvatarType = "demo";
 
+// ---------------------------------------------------------------------------
+// Legacy → taxonomy mapping (curated profiles carry legacy category slugs)
+// ---------------------------------------------------------------------------
+
+const LEGACY_CATEGORY_TO_NODE: Record<string, string> = {
+  family: "family",
+  contract: "contracts",
+  real_estate: "property_real_estate",
+  labor: "labor",
+  commerce: "commercial",
+  criminal: "criminal",
+  tax: "tax",
+  companies: "commercial.company_law",
+  checks: "criminal.economic_crimes.check_bounce",
+  immigration: "immigration",
+  cyber: "technology_cyber.cybercrime",
+  medical: "medical",
+  technology: "technology_cyber",
+  software: "technology_cyber.software_contract",
+  saas: "technology_cyber.software_contract",
+  digital: "technology_cyber.data_protection",
+  brand: "intellectual_property.trademark",
+  marriage: "family.marriage",
+};
+
+/** Resolve a legacy category slug to a taxonomy node id (fallback = input). */
+function taxonomyIdForCategory(category: string): string {
+  if (LEGACY_CATEGORY_TO_NODE[category]) return LEGACY_CATEGORY_TO_NODE[category]!;
+  if (taxonomyNode(category)) return category;
+  // Last resort: a slug that matches a node's own slug.
+  const bySlug = LAWYER_TAXONOMY.find((n) => n.slug === category);
+  return bySlug?.id ?? category;
+}
+
+/** Gender per curated id — display/avatar only, never used for ranking. */
+const CURATED_GENDER: Record<string, "MALE" | "FEMALE"> = {
+  "demo-lawyer-01": "MALE",
+  "demo-lawyer-02": "FEMALE",
+  "demo-lawyer-03": "MALE",
+  "demo-lawyer-04": "FEMALE",
+  "demo-lawyer-05": "FEMALE",
+  "demo-lawyer-06": "MALE",
+  "demo-lawyer-07": "MALE",
+  "demo-lawyer-08": "FEMALE",
+  "demo-lawyer-09": "MALE",
+  "demo-lawyer-10": "FEMALE",
+  "demo-lawyer-11": "MALE",
+  "demo-lawyer-12": "FEMALE",
+  "demo-lawyer-13": "MALE",
+  "demo-lawyer-14": "FEMALE",
+  "demo-lawyer-15": "FEMALE",
+  "demo-lawyer-16": "FEMALE",
+  "demo-lawyer-17": "MALE",
+  "demo-lawyer-18": "FEMALE",
+  "demo-lawyer-19": "MALE",
+  "demo-lawyer-20": "FEMALE",
+};
+
+/** A few curated profiles appear in the marketplace "featured" rail. */
+const CURATED_FEATURED = new Set(["demo-lawyer-03", "demo-lawyer-05", "demo-lawyer-11"]);
+
+/** Default services per DOMAIN slug. */
+const SERVICES_BY_DOMAIN: Record<string, string[]> = {
+  family: ["in_person_consult", "phone_consult", "online_consult", "petition_drafting", "legal_defense", "mediation"],
+  criminal: ["in_person_consult", "phone_consult", "petition_drafting", "legal_defense", "case_prosecution", "written_consult"],
+  property_real_estate: ["contract_review", "contract_drafting", "petition_drafting", "in_person_consult", "notary_followup", "online_consult"],
+  contracts: ["contract_review", "contract_drafting", "legal_opinion", "due_diligence", "online_consult"],
+  commercial: ["corporate_retainer", "company_registration", "contract_review", "legal_opinion", "due_diligence", "online_consult"],
+  labor: ["petition_drafting", "legal_defense", "case_prosecution", "in_person_consult", "written_consult"],
+  finance_banking: ["legal_opinion", "petition_drafting", "due_diligence", "online_consult", "case_prosecution"],
+  technology_cyber: ["contract_review", "contract_drafting", "legal_opinion", "online_consult", "written_consult"],
+  tax: ["petition_drafting", "legal_opinion", "in_person_consult", "case_prosecution"],
+  intellectual_property: ["company_registration", "legal_opinion", "contract_review", "due_diligence", "online_consult"],
+  enforcement: ["case_prosecution", "petition_drafting", "notary_followup", "in_person_consult"],
+  inheritance: ["petition_drafting", "in_person_consult", "notary_followup", "legal_opinion", "mediation"],
+  immigration: ["petition_drafting", "legal_opinion", "legal_translation", "online_consult", "written_consult"],
+  medical: ["petition_drafting", "legal_defense", "case_prosecution", "legal_opinion"],
+  insurance: ["petition_drafting", "case_prosecution", "legal_opinion", "written_consult"],
+  transportation: ["petition_drafting", "case_prosecution", "legal_defense", "legal_opinion"],
+  administrative: ["petition_drafting", "legal_opinion", "case_prosecution", "written_consult"],
+  international: ["arbitration_service", "legal_opinion", "contract_review", "due_diligence", "legal_translation"],
+  energy_resources: ["contract_review", "legal_opinion", "corporate_retainer", "due_diligence"],
+  sports_culture: ["contract_review", "legal_opinion", "mediation", "online_consult"],
+};
+
+/** Default jurisdictions per DOMAIN slug. */
+const JURISDICTIONS_BY_DOMAIN: Record<string, string[]> = {
+  family: ["family_court", "general_court_1", "appeal_court"],
+  criminal: ["prosecutor", "criminal_court_2", "criminal_court_1", "appeal_court"],
+  property_real_estate: ["general_court_1", "registration_office", "appeal_court"],
+  contracts: ["general_court_1", "arbitration_center", "appeal_court"],
+  commercial: ["general_court_1", "economic_court", "arbitration_center"],
+  labor: ["labor_dispute_board", "general_court_1", "appeal_court"],
+  finance_banking: ["general_court_1", "economic_court", "appeal_court"],
+  technology_cyber: ["prosecutor", "general_court_1", "criminal_court_2"],
+  tax: ["tax_dispute_board", "administrative_justice"],
+  intellectual_property: ["general_court_1", "registration_office", "economic_court"],
+  enforcement: ["general_court_1", "registration_office"],
+  inheritance: ["general_court_1", "registration_office"],
+  immigration: ["general_court_1", "justice_advisors"],
+  medical: ["medical_council", "general_court_1", "criminal_court_2"],
+  administrative: ["administrative_justice", "general_court_1"],
+  international: ["arbitration_center", "general_court_1"],
+  energy_resources: ["general_court_1", "arbitration_center"],
+  sports_culture: ["general_court_1", "arbitration_center"],
+};
+
+/** The DOMAIN slug a taxonomy id belongs to (first path segment). */
+function domainOf(nodeId: string): string {
+  return nodeId.split(".")[0]!;
+}
+
+/** Build the structured expertise links for a set of taxonomy node ids. */
+function buildExpertise(
+  lawyerId: string,
+  nodeIds: string[],
+  primaryYears: number
+): LawyerExpertise[] {
+  return nodeIds.map((taxonomyNodeId, i) => ({
+    id: `${lawyerId}-exp-${i + 1}`,
+    lawyerId,
+    taxonomyNodeId,
+    isPrimary: i === 0,
+    yearsExperience: i === 0 ? primaryYears : Math.max(1, primaryYears - i),
+    caseCount: 0,
+    displayOrder: i,
+    note: null,
+  }));
+}
+
+/** Build the service offers for a set of service ids. */
+function buildServiceOffers(lawyerId: string, serviceIds: string[]): LawyerServiceOffer[] {
+  return serviceIds.map((serviceId) => ({
+    serviceId,
+    priceToman: null,
+    enabled: true,
+  }));
+}
+
+/** Professional rank derived from years of practice (curated profiles). */
+function rankFromYears(years: number): LawyerProfessionalRank {
+  if (years < 3) return "TRAINEE";
+  if (years < 8) return "BASE_TWO";
+  return "BASE_ONE";
+}
+
 function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
+  const specialtyIds = spec.specializations.map((s) => taxonomyIdForCategory(s.category));
+  const primaryNodeId = specialtyIds[0]!;
+  const domain = domainOf(primaryNodeId);
+  const years = spec.specializations.reduce((m, s) => Math.max(m, s.yearsExperience), 0);
+  const gender = CURATED_GENDER[spec.id] ?? "UNSPECIFIED";
+
   return {
     id: spec.id,
     // The first demo lawyer is bound to a real, login-able user row so the
@@ -434,8 +880,8 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
     verificationStatus: "VERIFIED",
     verifiedAt: SEEDED_AT,
     verificationNote: null,
-    specializations: spec.specializations.map((s) => ({
-      category: s.category,
+    specializations: spec.specializations.map((s, i) => ({
+      category: specialtyIds[i]!,
       yearsExperience: s.yearsExperience,
       note: null,
     })),
@@ -454,6 +900,92 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
     consultationCapacity: spec.consultationCapacity,
     isDemo: true,
     acceptingRequests: spec.acceptingRequests,
+    // --- Extended profile (v9) ---
+    professionalRank: rankFromYears(years),
+    organizationType: "BAR",
+    licenseStatus: "ACTIVE",
+    visibility: "PUBLIC",
+    gender,
+    featured: CURATED_FEATURED.has(spec.id),
+    acceptingClients: spec.acceptingRequests,
+    yearsExperience: years,
+    expertise: buildExpertise(spec.id, specialtyIds, spec.specializations[0]!.yearsExperience),
+    services: buildServiceOffers(spec.id, SERVICES_BY_DOMAIN[domain] ?? ["in_person_consult", "phone_consult"]),
+    education: [],
+    experience: [],
+    jurisdictions: JURISDICTIONS_BY_DOMAIN[domain] ?? ["general_court_1", "appeal_court"],
+    display: null,
+    createdAt: SEEDED_AT,
+    updatedAt: SEEDED_AT,
+  };
+}
+
+/** Convert one generated spec into a full LawyerProfile row. */
+function buildGeneratedProfile(spec: GeneratedLawyerSpec): LawyerProfile {
+  const verificationStatus = spec.unverified ? "UNVERIFIED" : "VERIFIED";
+  return {
+    id: spec.id,
+    userId: `demo-user-${spec.id}`,
+    fullName: spec.fullName,
+    professionalTitle: spec.professionalTitle,
+    licenseNumber: spec.licenseNumber,
+    licenseYear: spec.licenseYear,
+    bio: spec.bio,
+    avatarUrl: demoAvatarDataUri(spec.avatarSeed, spec.gender),
+    avatarType: DEMO_AVATAR_TYPE,
+    verificationStatus,
+    verifiedAt: spec.unverified ? null : SEEDED_AT,
+    verificationNote: null,
+    specializations: spec.specialtyIds.map((id, i) => ({
+      category: id,
+      yearsExperience: i === 0 ? spec.yearsExperience : Math.max(1, spec.yearsExperience - i),
+      note: null,
+    })),
+    locations: [{ province: spec.province, city: spec.city, remote: spec.remote }],
+    languages: [PERSIAN_LANGUAGE, ENGLISH_LANGUAGE],
+    pricing: {
+      consultationFeeToman: spec.consultationFeeToman,
+      consultationDurationMinutes: spec.consultationDurationMinutes,
+      hourlyRateToman: spec.hourlyRateToman,
+      contractReviewFeeToman: spec.contractReviewFeeToman,
+      freeFirstConsultation: spec.freeFirstConsultation,
+    },
+    availability: STANDARD_AVAILABILITY,
+    performance: ZERO_PERFORMANCE,
+    availabilityStatus: spec.availabilityStatus,
+    consultationCapacity: spec.consultationCapacity,
+    isDemo: true,
+    acceptingRequests: spec.acceptingRequests,
+    // --- Extended profile (v9) ---
+    professionalRank: spec.professionalRank,
+    organizationType: spec.organizationType,
+    licenseStatus: spec.licenseStatus,
+    visibility: spec.unverified ? "UNLISTED" : spec.visibility,
+    gender: spec.gender,
+    featured: spec.featured,
+    acceptingClients: spec.acceptingClients,
+    yearsExperience: spec.yearsExperience,
+    expertise: buildExpertise(spec.id, spec.specialtyIds, spec.yearsExperience),
+    services: buildServiceOffers(spec.id, spec.serviceIds),
+    education: spec.education.map((e, i) => ({
+      id: `${spec.id}-edu-${i + 1}`,
+      lawyerId: spec.id,
+      degreeFa: e.degreeFa,
+      institutionFa: e.institutionFa,
+      graduationYear: e.graduationYear,
+      fieldFa: e.fieldFa,
+    })) as LawyerEducation[],
+    experience: spec.experience.map((e, i) => ({
+      id: `${spec.id}-work-${i + 1}`,
+      lawyerId: spec.id,
+      roleFa: e.roleFa,
+      organizationFa: e.organizationFa,
+      startYear: e.startYear,
+      endYear: e.endYear,
+      descriptionFa: e.descriptionFa,
+    })) as LawyerExperienceEntry[],
+    jurisdictions: spec.jurisdictionIds,
+    display: null,
     createdAt: SEEDED_AT,
     updatedAt: SEEDED_AT,
   };
@@ -462,9 +994,10 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
 // ---------------------------------------------------------------------------
 // Demo reviews
 // ---------------------------------------------------------------------------
-// علی ذبیحی carries 4.5 / 12 reviews and فرشین گنجی 1.0 / 5, so the rated,
-// low-rated AND unrated card states are all visible. These are DEMO reviews
-// — the author is a synthetic demo user, never a real account.
+// A handful of profiles carry reviews so the rated, low-rated AND unrated
+// card states are all visible: علی ذبیحی 4.5 / 12, فرشین گنجی 1.0 / 5, and
+// several mid-rated profiles. These are DEMO reviews — the author is a
+// synthetic demo user, never a real account.
 // ---------------------------------------------------------------------------
 
 interface DemoReviewSpec {
@@ -488,6 +1021,11 @@ const DEMO_REVIEWS: DemoReviewSpec[] = [
       "انتظار داشتم مدارک را دقیق‌تر بررسی کنند؛ راضی نبودم.",
     ],
   },
+  { lawyerId: "demo-lawyer-05", ratings: [5, 5, 4, 5, 4] },
+  { lawyerId: "demo-lawyer-11", ratings: [5, 4, 5, 5] },
+  { lawyerId: "demo-lawyer-13", ratings: [4, 5, 4, 4, 5] },
+  { lawyerId: "demo-lawyer-16", ratings: [5, 5, 5, 4] },
+  { lawyerId: "demo-lawyer-20", ratings: [4, 4, 5] },
 ];
 
 const DEMO_REVIEW_COMMENTS = [
@@ -515,6 +1053,36 @@ function buildDemoReviews(): LawyerReviewRow[] {
   return rows;
 }
 
+/** A tiny deterministic LCG so generated review ratings are reproducible. */
+function lcg(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/** Deterministic review rows for the generated roster (average ≈ target). */
+function buildGeneratedReviews(specs: GeneratedLawyerSpec[]): LawyerReviewRow[] {
+  const rows: LawyerReviewRow[] = [];
+  specs.forEach((spec, si) => {
+    if (spec.reviewCount <= 0) return;
+    const rng = lcg(0x51ed + (si + 1) * 2654435761);
+    const ratings = ratingsForTarget(spec.targetRating, spec.reviewCount, rng);
+    ratings.forEach((rating, i) => {
+      rows.push({
+        id: `demo-review-${spec.id}-${i + 1}`,
+        lawyerId: spec.id,
+        authorUserId: `demo-user-reviewer-${((si + i) % 50) + 1}`,
+        rating,
+        comment: DEMO_REVIEW_COMMENTS[(si + i) % DEMO_REVIEW_COMMENTS.length]!,
+        createdAt: SEEDED_AT,
+      });
+    });
+  });
+  return rows;
+}
+
 /**
  * Seed the demo lawyers. Upserts by id (never clobbers a real lawyer row
  * that happens to share an id — demo ids are namespaced `demo-lawyer-*`).
@@ -523,19 +1091,23 @@ export function seedDemoLawyers(): void {
   const meta = getLawyerMeta();
   if (meta && meta.version === LAWYER_SEED_VERSION) return;
 
+  // Generate the large roster deterministically, then combine it with the 20
+  // curated profiles (curated ids are lower, so they win on any collision).
+  const generated = generateDemoLawyerSpecs();
+
   // Drop stale demo rows from an earlier seed version, then upsert the
   // current set. Real (non-demo) profiles are never touched.
   const existing = readTable<LawyerProfile>("lawyer_profiles");
   const byId = new Map(existing.filter((l) => !l.isDemo).map((l) => [l.id, l]));
-  for (const spec of DEMO_LAWYERS) {
-    byId.set(spec.id, buildProfile(spec));
-  }
+  for (const spec of generated) byId.set(spec.id, buildGeneratedProfile(spec));
+  for (const spec of DEMO_LAWYERS) byId.set(spec.id, buildProfile(spec));
   writeTable<LawyerProfile>("lawyer_profiles", [...byId.values()]);
 
   // Demo reviews are upserted by id so re-seeding never duplicates them.
   const existingReviews = readTable<LawyerReviewRow>("lawyer_reviews");
   const reviewsById = new Map(existingReviews.map((r) => [r.id, r]));
   for (const row of buildDemoReviews()) reviewsById.set(row.id, row);
+  for (const row of buildGeneratedReviews(generated)) reviewsById.set(row.id, row);
   writeTable<LawyerReviewRow>("lawyer_reviews", [...reviewsById.values()]);
 
   seedDemoLawyerUser();

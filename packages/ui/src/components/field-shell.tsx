@@ -27,6 +27,26 @@ import React from "react";
 
 export type FieldSize = "small" | "medium";
 
+/**
+ * Spread onto every raw form control in this package (`input` /
+ * `textarea` / `select`).
+ *
+ * Browser extensions — password managers, autofill, grammar and
+ * page-zoom tools — inject their own inline `style` (typically a
+ * `background-image: url("chrome-extension://…")` icon) and `data-*`
+ * attributes onto form controls *after* the server HTML is sent but
+ * *before* React hydrates. The server payload can never contain those
+ * client-only attributes, so React reports a hydration attribute
+ * mismatch on every such control, even though nothing in our code is
+ * wrong.
+ *
+ * `suppressHydrationWarning` is the documented escape hatch for exactly
+ * this case. It is scoped to the element's *own* attributes — it does
+ * not hide mismatches in children or text — so it silences only the
+ * extension-induced noise and keeps genuine mismatches visible.
+ */
+export const extensionSafe = { suppressHydrationWarning: true } as const;
+
 /** Height per size. Single-line fields are 56px (MD3). */
 export const fieldSizeClasses: Record<FieldSize, string> = {
   small: "min-h-[48px]",

@@ -59,9 +59,13 @@ export interface OtpResult {
 
 export interface UserSummary {
   id: string;
+  /** Readable, server-generated system id (`LG-…`). Absent on legacy payloads. */
+  publicId?: string | null;
   mobileE164: string;
   mobileDisplay: string;
   status: AccountStatus;
+  /** Account creation time (ISO). Absent on legacy payloads. */
+  createdAt?: string;
   /** Absent on legacy payloads — treat as "individual". */
   accountType?: AccountType;
   /** True once the account is `legal` — the type can no longer change. */
@@ -138,11 +142,19 @@ export interface Plan {
   id: string;
   code: PlanCode;
   nameFa: string;
+  /** Optional one-line teaser shown above the full description. */
+  shortDescriptionFa?: string;
   descriptionFa: string;
   durationDays: number;
   listPrice: number;
   salePrice: number;
   currency: string;
+  /** Whole-percent discount derived from listPrice/salePrice (0 = none). */
+  discountPercent?: number;
+  /** Admin-defined ordering; lower shows first. */
+  displayOrder?: number;
+  /** Free-form badges such as «پیشنهادی» / «محبوب». */
+  tags?: string[];
   features: string[];
   dailyRequestLimit: number;
   totalTokenLimit: number;
@@ -156,7 +168,13 @@ export interface PlanUsageLimit {
   limit: number;
 }
 
-export type PlanCode = "silver" | "gold" | "diamond";
+/**
+ * A plan's system id. Historically the closed set `silver|gold|diamond`, but
+ * plans are now admin-created so any validated slug is possible. Kept as an
+ * alias (not a union) so every existing `PlanCode` consumer keeps compiling;
+ * the well-known shipped codes are `PLAN_ORDER` in the frontend.
+ */
+export type PlanCode = string;
 
 export interface Subscription {
   id: string;
@@ -168,7 +186,17 @@ export interface Subscription {
   status: SubscriptionStatus;
 }
 
-export type SubscriptionStatus = "pending" | "active" | "expired" | "cancelled";
+export type SubscriptionStatus =
+  | "pending"
+  | "active"
+  | "expired"
+  | "cancelled"
+  /**
+   * Replaced by a newer subscription before its term ended (upgrade/downgrade/
+   * re-purchase). Terminal — a superseded row is never reactivated; history is
+   * preserved for audit.
+   */
+  | "superseded";
 
 export interface Entitlement {
   featureKey: string;
@@ -2211,7 +2239,31 @@ export type ApiEndpoints = {
 export type MoneyUnit = "IRR" | "IRT";
 
 /** Which family a calculator belongs to (drives grouping in the UI). */
-export type CalculatorCategory = "judicial" | "employment" | "family" | "civil";
+export type CalculatorCategory =
+  | "employment"
+  | "property"
+  | "judicial"
+  | "family"
+  | "injury"
+  | "contracts"
+  // Legacy categories kept so existing calculators keep their grouping.
+  | "civil";
+
+/**
+ * The legal standing of a calculator's output, shown as a badge. This is
+ * a *legal* claim, not a confidence score:
+ *   • legal_basis  — the amount follows a statutory formula/tariff.
+ *   • official_tariff — the amount follows a published official tariff.
+ *   • estimate     — the amount is an initial estimate; the final figure
+ *                    depends on an expert, court, contract or custom.
+ *   • not_determinable — no reliable number can be produced; the tool
+ *                    explains the factors instead.
+ */
+export type CalculatorStatus =
+  | "legal_basis"
+  | "official_tariff"
+  | "estimate"
+  | "not_determinable";
 
 /** How confident we are that the dataset reflects current law. */
 export type CalculatorConfidence = "high" | "medium" | "low";
@@ -2241,6 +2293,14 @@ export interface CalculatorSource {
   version: string;
   /** Gregorian date a human last verified the rates against the source. */
   verifiedAt: string;
+  /**
+   * Whether the rates have been confirmed against the issuing authority
+   * for their stated year. `pending` means the figures are carried
+   * forward from the last verified year and MUST be replaced with the
+   * official annual figure before the result is relied upon. The UI
+   * shows a prominent banner for `pending` datasets.
+   */
+  verificationStatus?: "verified" | "pending";
   /** Free-form caveats shown to the user alongside the result. */
   notes: string | null;
 }
@@ -2335,6 +2395,17 @@ export interface CalculationResult {
   /** Raw numeric primary output in `unit`. */
   headlineValue: number;
   unit: MoneyUnit;
+  /**
+   * Label above the headline, e.g. «حقوق خالص ماهانه». Defaults to
+   * «مبلغ نهایی» when omitted.
+   */
+  headlineLabelFa?: string;
+  /**
+   * Overrides the calculator's declared `status` for this particular
+   * input (e.g. a calculator that is normally `legal_basis` downgrades
+   * to `estimate` when the user supplies an expert-dependent figure).
+   */
+  status?: CalculatorStatus;
   /** Ordered breakdown lines. */
   steps: CalculationStep[];
   /** Non-fatal warnings (e.g. value clamped to a statutory ceiling). */
@@ -2376,6 +2447,44 @@ export interface CalculatorDef {
   confidence: CalculatorConfidence;
   /** True when the calculator is fully implemented and shippable. */
   available: boolean;
+  /**
+   * The legal standing of the output, shown as a badge. Optional for
+   * backward compatibility; when omitted the UI falls back to
+   * `confidence`. New calculators should always set it.
+   */
+  status?: CalculatorStatus;
+  /** Short «این محاسبه‌گر چیست؟» paragraph for the SEO content block. */
+  aboutFa?: string;
+  /** «چگونه محاسبه می‌شود؟» — plain-Persian method summary. */
+  howItWorksFa?: string;
+  /** «چه اطلاعاتی نیاز است؟» — required inputs summary. */
+  requiredInfoFa?: string;
+  /** «آیا نتیجه قطعی است؟» — determinacy statement. */
+  determinacyFa?: string;
+  /**
+   * Per-calculator legal disclaimer shown at the foot of the page. When
+   * omitted the UI shows the shared default disclaimer.
+   */
+  disclaimerFa?: string;
+  /** Frequently asked questions rendered as structured content. */
+  faq?: { qFa: string; aFa: string }[];
+  /** Slugs of related calculators, for cross-linking. */
+  relatedSlugs?: string[];
+  /**
+   * The next legal step offered after a result, e.g. «بررسی پرونده با
+   * Legalir». Rendered as a CTA; never a dead end.
+   */
+  nextAction?: CalculatorNextAction;
+}
+
+/** A post-result call to action that routes the user into a Legalir service. */
+export interface CalculatorNextAction {
+  /** Prompt shown above the button, e.g. «می‌خواهید بدانید چه اقدامی…». */
+  promptFa: string;
+  /** Button label, e.g. «بررسی پرونده با Legalir». */
+  labelFa: string;
+  /** In-app route the button navigates to. */
+  href: string;
 }
 
 /** A versioned rate dataset with provenance. */
@@ -2453,12 +2562,31 @@ export interface PlanEntitlementSnapshot {
   contractCreationLimit: number;
 }
 
+/**
+ * A plan's editorial lifecycle. `active` is the only status purchasable by
+ * users; `inactive`/`archived` stop NEW purchases but never touch existing
+ * subscriptions (which keep their frozen snapshot). `draft` is a plan still
+ * being prepared and is likewise not purchasable.
+ */
+export type PlanStatus = "draft" | "active" | "inactive" | "archived";
+
 /** The admin-editable plan catalog row (template, not an instance). */
 export interface SubscriptionPlan {
   id: string;
   code: PlanCode;
   nameFa: string;
+  /** Optional one-line teaser shown above the full description. */
+  shortDescriptionFa?: string;
   descriptionFa: string;
+  /**
+   * Editorial lifecycle. Optional for backward compatibility: a legacy row
+   * without it is treated as `active` when `isActive`, else `inactive`.
+   */
+  status?: PlanStatus;
+  /** Admin-defined ordering; lower shows first. Falls back to insertion order. */
+  displayOrder?: number;
+  /** Free-form badges such as «پیشنهادی» / «محبوب». */
+  tags?: string[];
   durationDays: number;
   /** Points charged per billable activity. */
   activityCostPoints: number;
@@ -2543,6 +2671,18 @@ export interface UsageTransaction {
   relatedEntityId: string | null;
   status: UsageTransactionStatus;
   idempotencyKey: string;
+  // --- Energy-model attribution (additive; absent on legacy rows) ------------
+  /** Pricing profile slug the charge came from (e.g. "ai-legal-assistant"). */
+  serviceKey?: string | null;
+  /** Model id the request ran on. */
+  model?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  contextTokens?: number;
+  toolCalls?: number;
+  ragCalls?: number;
+  /** Energy contributed by matched pricing rules + auxiliary units. */
+  additionalCost?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -2747,6 +2887,32 @@ export * from "./property-contract";
 export * from "./platform";
 
 // ---------------------------------------------------------------------------
+// Admin panel (audit, flags, orders, settlements, AI/RAG, support)
+// ---------------------------------------------------------------------------
+export * from "./admin";
+
+// ---------------------------------------------------------------------------
+// Energy & service-cost model (pricing profiles, rules, usage ledger)
+// ---------------------------------------------------------------------------
+export * from "./energy";
+
+// ---------------------------------------------------------------------------
+// Subscription & Entitlement platform (payments, subscription lifecycle,
+// unified energy ledger, admin subscription/energy management)
+// ---------------------------------------------------------------------------
+export * from "./subscription";
+
+// ---------------------------------------------------------------------------
 // Case Management operational model (lifecycle, proceedings, members, …)
 // ---------------------------------------------------------------------------
 export * from "./case-management";
+
+// ---------------------------------------------------------------------------
+// Analytics / Business Intelligence (read-only reporting contracts)
+// ---------------------------------------------------------------------------
+export * from "./analytics";
+
+// ---------------------------------------------------------------------------
+// Lawyer taxonomy (4-level expertise tree), services, jurisdictions & geography
+// ---------------------------------------------------------------------------
+export * from "./lawyer-taxonomy";

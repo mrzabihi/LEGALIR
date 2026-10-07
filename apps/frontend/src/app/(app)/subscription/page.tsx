@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useCurrentSubscription,
   useEntitlements,
@@ -13,6 +13,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSubscriptionHistory } from "@/lib/api/v1";
 import { SkeletonCard, Button, ProgressLinear, ConfirmDialog } from "@legalir/ui";
 import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
+import { PLAN_ORDER, planDiscountPercent, planGradient } from "@/lib/subscription/plan-visuals";
+import { PlanCarousel } from "@/components/subscription/plan-carousel";
 import type { Plan, PlanCode, PaymentStatus, V1SubscriptionHistoryItem } from "@legalir/types";
 
 // ============================================================
@@ -35,20 +37,6 @@ const PAYMENT_STATUS_VARIANTS: Record<PaymentStatus, string> = {
   paid: "bg-success/10 text-success",
   failed: "bg-error/10 text-error",
   cancelled: "bg-surfaceVariant text-muted",
-};
-
-const PLAN_ORDER: PlanCode[] = ["silver", "gold", "diamond"];
-
-const PLAN_GRADIENTS: Record<PlanCode, string> = {
-  silver: "from-slate-400 to-gray-500",
-  gold: "from-amber-400 to-yellow-500",
-  diamond: "from-blue-400 to-cyan-500",
-};
-
-const PLAN_BG_GRADIENTS: Record<PlanCode, string> = {
-  silver: "from-slate-50 to-gray-50",
-  gold: "from-amber-50 to-yellow-50",
-  diamond: "from-blue-50 to-cyan-50",
 };
 
 // ============================================================
@@ -172,12 +160,12 @@ function CurrentSubscriptionCard({
       : "bg-surfaceVariant text-muted border-divider/60";
 
   const daysLeft = Math.max(0, Math.ceil((new Date(sub.endAt).getTime() - Date.now()) / 86_400_000));
-  const planGradient = PLAN_GRADIENTS[sub.planCode] ?? "from-primary-500 to-primary-700";
+  const accent = planGradient(sub.planCode);
 
   return (
     <div className="relative rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 mb-6 overflow-hidden">
       {/* Gradient accent top bar */}
-      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${planGradient}`} />
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${accent}`} />
 
       <div className="flex flex-col tablet:flex-row tablet:items-center tablet:justify-between gap-4 mb-4 pt-0.5">
         <div>
@@ -459,104 +447,6 @@ function PaymentHistoryList({
   );
 }
 
-function PlanSelectionCard({
-  plan,
-  isCurrent,
-  onSelect,
-  isLoading,
-}: {
-  plan: Plan;
-  isCurrent: boolean;
-  isLocked: boolean;
-  onSelect: (plan: Plan) => void;
-  isLoading: boolean;
-}) {
-  const gradient = PLAN_GRADIENTS[plan.code] ?? "from-primary-500 to-primary-700";
-  const bgGradient = PLAN_BG_GRADIENTS[plan.code] ?? "from-primary-50 to-blue-50";
-
-  return (
-    <div
-      className={[
-        "relative rounded-2xl p-6 border flex flex-col transition-all duration-200 overflow-hidden",
-        isCurrent
-          ? `bg-gradient-to-br ${bgGradient} border-primary/30 shadow-md ring-1 ring-primary/20`
-          : "bg-surface border-divider/60 shadow-sm hover:shadow-elevation-2",
-      ].join(" ")}
-    >
-      {/* Gradient accent top bar */}
-      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient}`} />
-
-      <div className="pt-0.5">
-        <h3 className="text-h3 text-on-surface mb-1 font-bold">{plan.nameFa}</h3>
-        <p className="text-body-2 text-muted mb-4">{plan.descriptionFa}</p>
-      </div>
-
-      {/* Pricing */}
-      <div className="mb-4">
-        <span className="text-body-2 text-muted line-through ml-2">
-          {toPersianNumber(plan.listPrice)}
-        </span>
-        <div className="flex items-baseline gap-1 mt-1">
-          <span className={`text-h2 font-bold bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}>
-            {toPersianNumber(plan.salePrice)}
-          </span>
-          <span className="text-body-2 text-muted">تومان</span>
-        </div>
-        <p className="text-caption text-muted mt-1">{plan.durationDays} روز</p>
-      </div>
-
-      {/* Usage limits summary */}
-      <div className="mb-4 space-y-1.5 p-3 rounded-xl bg-surface-container/50 border border-divider/30">
-        <div className="flex justify-between text-caption">
-          <span className="text-muted">درخواست روزانه</span>
-          <span className="text-on-surface font-medium">{toPersianNumber(plan.dailyRequestLimit)}</span>
-        </div>
-        <div className="flex justify-between text-caption">
-          <span className="text-muted">توکن ماهانه</span>
-          <span className="text-on-surface font-medium">{toPersianNumber(plan.totalTokenLimit)}</span>
-        </div>
-        {plan.usageLimits.map((ul) => (
-          <div key={ul.featureKey} className="flex justify-between text-caption">
-            <span className="text-muted">{ul.nameFa}</span>
-            <span className="text-on-surface font-medium">{toPersianNumber(ul.limit)}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Features */}
-      <ul className="space-y-2 mb-6 flex-1">
-        {plan.features.map((f) => (
-          <li key={f} className="text-body-2 text-on-surface flex items-start gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-success mt-0.5 shrink-0" aria-hidden="true">
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* Action */}
-      {isCurrent ? (
-        <div className={`rounded-xl bg-gradient-to-r ${gradient} text-white text-center py-3 text-button font-medium shadow-sm`}>
-          پلن فعلی
-        </div>
-      ) : (
-        <Button
-          variant="filled"
-          onClick={() => onSelect(plan)}
-          loading={isLoading}
-          disabled={isLoading}
-          className="w-full rounded-xl"
-        >
-          {PLAN_ORDER.indexOf(plan.code) > (plan.code === "silver" ? 0 : 1)
-            ? "ارتقا به " + plan.nameFa
-            : "انتخاب " + plan.nameFa}
-        </Button>
-      )}
-    </div>
-  );
-}
-
 // ============================================================
 // ConfirmDialog
 // ============================================================
@@ -692,6 +582,20 @@ export default function SubscriptionPage() {
 
   const paymentStatus: PaymentStatus = checkoutStatus?.status ?? "idle";
 
+  // When the payment settles (the mock gateway confirms it while we poll), the
+  // activation has already happened server-side. Pull every dependent surface
+  // so the current plan, entitlements, usage and history reflect it immediately
+  // — no manual refresh. Keyed on the intent so it runs exactly once per
+  // confirmation.
+  useEffect(() => {
+    if (checkoutStatus?.status !== "paid") return;
+    refetchSub();
+    refetchEnt();
+    refetchUsage();
+    refetchHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutStatus?.status, checkoutIntentId]);
+
   const handleSelectPlan = (plan: Plan) => {
     setSelectedPlan(plan);
     setConfirmOpen(true);
@@ -714,6 +618,32 @@ export default function SubscriptionPage() {
   };
 
   const currentPlanCode = subscription?.planCode ?? null;
+
+  // ── Presentation-only derivations (no data or behaviour change) ──
+  // The highlighted plan is the real best-value plan by its own discount %;
+  // nothing is highlighted when no plan carries a discount. Never fabricated.
+  const recommendedCode = useMemo<PlanCode | null>(() => {
+    if (!plans || plans.length === 0) return null;
+    let best: Plan | null = null;
+    for (const p of plans) {
+      const pct = planDiscountPercent(p.listPrice, p.salePrice);
+      if (pct <= 0) continue;
+      if (!best || pct > planDiscountPercent(best.listPrice, best.salePrice)) best = p;
+    }
+    return best?.code ?? null;
+  }, [plans]);
+
+  const hasActiveSubscription = subscription?.status === "active";
+  const currentTier = currentPlanCode ? PLAN_ORDER.indexOf(currentPlanCode) : -1;
+
+  // An "upgrade" is a plan above the user's current tier. Without an active
+  // subscription every available plan is a fresh pick, never an upgrade.
+  const isUpgrade = (plan: Plan) =>
+    hasActiveSubscription && currentTier >= 0 && PLAN_ORDER.indexOf(plan.code) > currentTier;
+
+  // CTA copy from real state: pick when unsubscribed, buy when already
+  // subscribed (upgrades override the label inside the card).
+  const ctaLabel = hasActiveSubscription ? "خرید اشتراک" : "انتخاب اشتراک";
 
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto" dir="rtl">
@@ -760,26 +690,26 @@ export default function SubscriptionPage() {
       <h2 className="text-h3 text-on-surface mb-4 font-bold">پلن‌ها</h2>
 
       {plansLoading ? (
-        <div className="grid tablet:grid-cols-3 gap-4">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scrollbar-hide tablet:grid tablet:grid-cols-3 tablet:gap-4 tablet:overflow-visible tablet:pb-0">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl bg-surface p-6 border border-divider/60">
+            <div
+              key={i}
+              className="w-[82%] shrink-0 snap-center rounded-2xl border border-divider/60 bg-surface p-6 tablet:w-auto tablet:shrink"
+            >
               <SkeletonCard lines={4} />
             </div>
           ))}
         </div>
       ) : plans && plans.length > 0 ? (
-        <div className="grid tablet:grid-cols-3 gap-4">
-          {plans.map((plan) => (
-            <PlanSelectionCard
-              key={plan.id}
-              plan={plan}
-              isCurrent={plan.code === currentPlanCode}
-              isLocked={false}
-              onSelect={handleSelectPlan}
-              isLoading={checkoutMutation.isPending}
-            />
-          ))}
-        </div>
+        <PlanCarousel
+          plans={plans}
+          currentPlanCode={currentPlanCode}
+          recommendedCode={recommendedCode}
+          onSelect={handleSelectPlan}
+          isLoading={checkoutMutation.isPending}
+          ctaLabel={ctaLabel}
+          isUpgrade={isUpgrade}
+        />
       ) : null}
 
       {/* Confirmation Dialog */}
