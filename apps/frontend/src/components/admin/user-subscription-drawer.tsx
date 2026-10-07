@@ -23,6 +23,7 @@ import {
   Badge,
   Button,
   Field,
+  IdChip,
   InfoBanner,
   LoadingBlock,
   ErrorBlock,
@@ -155,6 +156,10 @@ export function UserSubscriptionDrawer({
             <div className="flex items-center justify-between">
               <span className="font-semibold text-on-surface">{data.displayName ?? "بدون نام"}</span>
               <span className="text-caption text-muted tabular-nums">{data.mobileMasked}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="text-caption text-muted">شناسهٔ سیستمی:</span>
+              <IdChip id={data.publicId ?? "—"} />
             </div>
             <div className="mt-2 flex items-center gap-2">
               <Badge tone={data.current.isFree ? "neutral" : "brand"}>

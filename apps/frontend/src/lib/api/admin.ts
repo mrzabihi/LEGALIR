@@ -109,6 +109,8 @@ export interface AdminUsersQuery {
 
 export interface AdminUserRow {
   id: string;
+  /** Readable, server-generated system id (`LG-…`), or null. */
+  publicId: string | null;
   displayName: string | null;
   mobileMasked: string;
   email: string | null;

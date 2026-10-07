@@ -61,6 +61,8 @@ export interface PaymentRow {
 
 export interface UserRow {
   id: string;
+  /** Readable, server-generated system id (`LG-…`). Absent on un-backfilled rows. */
+  publicId?: string;
   mobile: string;
   email: string | null;
   displayName: string | null;

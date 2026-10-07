@@ -100,6 +100,13 @@ export type AccountType = "individual" | "legal";
 
 export interface DbUser {
   id: string;
+  /**
+   * The user's readable, public system identifier (e.g. `LG-7F3K9Q2M`).
+   * Server-generated at account creation and immutable thereafter — it never
+   * changes when the display name or mobile does. Backfilled for legacy rows
+   * by `ensureUserPublicIds()`. Absent only until that backfill runs.
+   */
+  publicId?: string;
   mobile: string;
   email: string | null;
   passwordHash: string;
@@ -319,6 +326,76 @@ export class MobileConflictError extends Error {
   }
 }
 
+// ------------------------------------------------------------
+// Public system identifier
+// ------------------------------------------------------------
+// Every user carries a readable, globally-unique system id (`LG-XXXXXXXX`).
+// It is minted server-side at account creation, stored on the row and never
+// editable — unlike the display name or the (masked) mobile, it is a stable
+// handle an operator can quote. The alphabet omits ambiguous characters
+// (0/O, 1/I) so the id can be read aloud or transcribed from a screenshot.
+
+const PUBLIC_ID_PREFIX = "LG-";
+const PUBLIC_ID_ALPHABET = "ACDEFGHJKLMNPQRTUVWXY34679";
+const PUBLIC_ID_LENGTH = 8;
+
+function generatePublicId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(PUBLIC_ID_LENGTH));
+  let out = "";
+  for (let i = 0; i < PUBLIC_ID_LENGTH; i++) {
+    out += PUBLIC_ID_ALPHABET[bytes[i]! % PUBLIC_ID_ALPHABET.length];
+  }
+  return `${PUBLIC_ID_PREFIX}${out}`;
+}
+
+/**
+ * A collision-checked id. The full users table is consulted for the check,
+ * which is what makes the DB uniqueness constraint real — a value that would
+ * repeat is discarded before it can be written.
+ */
+function generateUniquePublicId(users: { publicId?: string }[]): string {
+  const taken = new Set(users.map((u) => u.publicId).filter(Boolean));
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = generatePublicId();
+    if (!taken.has(candidate)) return candidate;
+  }
+  // Astronomically unlikely; fall back to an unambiguous full token.
+  return `${PUBLIC_ID_PREFIX}${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+}
+
+/** Resolve a user by their public system id (`LG-…`). */
+export function findUserByPublicId(publicId: string): DbUser | undefined {
+  const needle = publicId.trim().toUpperCase();
+  if (!needle) return undefined;
+  return readTable<DbUser>("users").find((u) => (u.publicId ?? "").toUpperCase() === needle);
+}
+
+/**
+ * Backfill `publicId` for rows created before the field existed. Idempotent:
+ * rows that already carry an id are left untouched, and new ids are checked
+ * against the whole table so two legacy rows can never collide. Returns the
+ * number of rows that were assigned an id.
+ *
+ * Called on the OTP path (a real signup/login), so existing accounts acquire
+ * their identifier the next time they are seen — without a data migration.
+ */
+export function ensureUserPublicIds(): number {
+  const users = readTable<DbUser>("users");
+  const taken = new Set(users.map((u) => u.publicId).filter(Boolean) as string[]);
+  let assigned = 0;
+  for (const user of users) {
+    if (user.publicId) continue;
+    let candidate = generatePublicId();
+    let guard = 0;
+    while (taken.has(candidate) && guard++ < 10) candidate = generatePublicId();
+    user.publicId = candidate;
+    taken.add(candidate);
+    assigned += 1;
+  }
+  if (assigned > 0) writeTable("users", users);
+  return assigned;
+}
+
 export function createUser(params: {
   mobile: string;
   email?: string;
@@ -353,6 +430,7 @@ export function createUser(params: {
   const intent: RegistrationIntent = params.registrationIntent ?? "PERSONAL";
   const user: DbUser = {
     id: crypto.randomUUID(),
+    publicId: generateUniquePublicId(users),
     mobile: canonical,
     email: params.email ?? null,
     passwordHash: params.passwordHash,

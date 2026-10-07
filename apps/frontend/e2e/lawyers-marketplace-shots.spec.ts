@@ -156,7 +156,7 @@ test.describe("Lawyer marketplace responsive", () => {
     const viewAll = page.getByRole("button", { name: "مشاهده همه" }).first();
     await expect(viewAll).toBeVisible({ timeout: 15_000 });
     await viewAll.click();
-    await expect(page.getByText(/وکیل یافت شد/)).toBeVisible();
+    await expect(page.getByText(/وکیل پیدا شد/)).toBeVisible();
 
     // Clearing returns to the grouped marketplace.
     await page.getByRole("button", { name: "پاک کردن فیلترها" }).first().click();

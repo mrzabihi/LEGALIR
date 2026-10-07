@@ -95,6 +95,7 @@ export function getAdminUserSubscriptionView(
 
   return {
     userId,
+    publicId: user.publicId ?? null,
     displayName: user.displayName ?? null,
     mobileMasked: mask(user.mobile),
     current: active

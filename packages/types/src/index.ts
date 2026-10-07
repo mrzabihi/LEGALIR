@@ -59,6 +59,8 @@ export interface OtpResult {
 
 export interface UserSummary {
   id: string;
+  /** Readable, server-generated system id (`LG-…`). Absent on legacy payloads. */
+  publicId?: string | null;
   mobileE164: string;
   mobileDisplay: string;
   status: AccountStatus;

@@ -9,6 +9,7 @@ export { LawyerCarousel } from "./lawyer-carousel";
 export { LawyerCategorySection } from "./lawyer-category-section";
 export { LawyerFiltersSheet, EMPTY_LAWYER_FILTERS } from "./lawyer-filters-sheet";
 export type { LawyerFilterValues, LawyerSort } from "./lawyer-filters-sheet";
+export { LawyerFilterBar } from "./lawyer-filter-bar";
 export { LawyerAvatar } from "./lawyer-avatar";
 export { LawyerRating } from "./lawyer-rating";
 export { LawyerAvailabilityBadge } from "./lawyer-availability-badge";

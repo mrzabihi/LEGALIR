@@ -124,6 +124,18 @@ export function updateProfile(data: Partial<Profile>): Promise<Profile> {
   return apiClient.patch<Profile>("/api/v1/me/profile", data);
 }
 
+/** Upload the signed-in user's portrait (multipart). Returns the stored avatarUrl. */
+export function uploadUserAvatar(file: File): Promise<{ avatarUrl: string | null }> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiClient.postForm<{ avatarUrl: string | null }>("/api/v1/me/avatar", form);
+}
+
+/** Remove the uploaded portrait and clear the profile's avatarUrl. */
+export function deleteUserAvatar(): Promise<{ avatarUrl: string | null }> {
+  return apiClient.delete<{ avatarUrl: string | null }>("/api/v1/me/avatar");
+}
+
 // ============================================================
 // Dashboard
 // ============================================================

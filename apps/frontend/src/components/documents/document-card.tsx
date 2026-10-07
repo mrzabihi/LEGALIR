@@ -6,8 +6,8 @@
 "use client";
 
 import type { V1DocumentListItem } from "@legalir/types";
-import { IconButton, ProgressLinear } from "@legalir/ui";
-import { IconDocument, IconFile, IconChevronRight, IconDelete } from "@/lib/icons";
+import { IconButton, ProgressLinear, Tooltip } from "@legalir/ui";
+import { IconDocument, IconFile, IconDelete, IconOpenInNew } from "@/lib/icons";
 import { StatusBadge } from "./status-badge";
 
 // ============================================================
@@ -82,15 +82,16 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
   const processing = isProcessing(status);
 
   return (
-    // The root is a plain container (not a button) so the delete action
-    // can live beside the open target without nesting interactive
-    // elements — which would be invalid HTML and break a11y.
-    <div className="group relative flex w-full flex-col gap-3 rounded-xl border border-divider/60 bg-surface p-4 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3">
-      {/* Open target — covers the card body. */}
+    // The root is a plain container (not a button) so the actions can live
+    // beside the open target without nesting interactive elements — which
+    // would be invalid HTML and break a11y.
+    <div className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-divider/60 bg-surface text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3">
+      {/* Open target — the card body. Clicking anywhere here opens the
+          document; the actions live in a separate footer row below. */}
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full flex-col gap-3 text-start focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded-medium"
+        className="flex w-full flex-1 flex-col gap-3 rounded-t-xl p-4 text-start focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
         aria-label={`سند ${name}`}
       >
         {/* Top row: icon + name + status */}
@@ -117,10 +118,6 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
               )}
             </div>
           </div>
-          <IconChevronRight
-            size={18}
-            className="shrink-0 text-muted transition-transform duration-short3 group-hover:-translate-x-0.5"
-          />
         </div>
 
         {/* Meta row: size, date, findings */}
@@ -153,22 +150,35 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
         )}
       </button>
 
-      {/* Delete action — always visible on touch, revealed on hover for
-          pointer devices. Opens a confirmation dialog; never deletes
-          directly. */}
-      {onDelete && (
-        <div className="absolute top-3 end-3 opacity-100 tablet:opacity-0 tablet:group-hover:opacity-100 tablet:group-focus-within:opacity-100 transition-opacity duration-short3">
-          <IconButton
-            label={`حذف سند ${name}`}
-            variant="standard"
-            size="small"
-            className="!text-error hover:!bg-error/10"
-            onClick={() => onDelete(document)}
-          >
-            <IconDelete size={16} />
-          </IconButton>
-        </div>
-      )}
+      {/* Action group — a real flex row (NOT absolutely positioned), so the
+          buttons can never overlap the card body or each other. «مشاهده» is
+          the primary and leads the row at the START edge (the right in RTL),
+          with «حذف» as the destructive action beside it — the same edge the
+          history cards use for their primary action. */}
+      <div className="mt-auto flex items-center justify-start gap-1.5 border-t border-divider/60 px-3 py-2">
+        <button
+          type="button"
+          onClick={onClick}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-labelSmall font-medium text-primary transition-colors duration-short3 hover:bg-primary/[0.08] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        >
+          <IconOpenInNew size={16} />
+          مشاهده
+        </button>
+
+        {onDelete && (
+          <Tooltip content={`حذف سند ${name}`}>
+            <IconButton
+              label={`حذف سند ${name}`}
+              variant="standard"
+              size="small"
+              className="!text-error hover:!bg-error/10"
+              onClick={() => onDelete(document)}
+            >
+              <IconDelete size={16} />
+            </IconButton>
+          </Tooltip>
+        )}
+      </div>
     </div>
   );
 }

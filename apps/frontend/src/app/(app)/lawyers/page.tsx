@@ -1,11 +1,14 @@
 // ============================================================
 // LEGALIR — Lawyer Marketplace
 // ============================================================
-// Browse verified lawyers. On mobile the page reads like a professional
-// marketplace: a search bar, a horizontal domain rail, a "recommended"
-// carousel, then one carousel per legal DOMAIN — so a ~250-lawyer roster
-// never becomes one exhausting vertical list. From `desktop` up the same
-// sections render as wider carousels and a full grid.
+// Browse verified lawyers. At the top a single filter bar gathers the search
+// box, the domain rail and the quick controls (specialty, province,
+// consultation type) plus the active-filter chips and the result count; the
+// remaining attributes live in the advanced bottom sheet. Below it the page
+// reads like a professional marketplace — a "recommended" carousel, then one
+// carousel per legal DOMAIN — so a ~250-lawyer roster never becomes one
+// exhausting vertical list. From `desktop` up the same sections render as
+// wider carousels and a full grid.
 //
 // Every filter maps 1:1 onto the /api/v1/lawyers query string (the same
 // `LawyerSearchFilters` the backend honours), and the categories are the
@@ -15,34 +18,22 @@
 
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLawyers } from "@/hooks/useLawyers";
-import {
-  IconSearch,
-  IconInfo,
-  IconRefresh,
-  IconChevronLeft,
-  IconChevronRightSmall,
-  IconHandshake,
-  IconFilter,
-  IconSparkle,
-} from "@/lib/icons";
+import { IconInfo, IconRefresh, IconHandshake, IconSparkle } from "@/lib/icons";
 import {
   LawyerCard,
   LawyerCarousel,
   LawyerCategorySection,
   LawyerFiltersSheet,
+  LawyerFilterBar,
   EMPTY_LAWYER_FILTERS,
   type LawyerFilterValues,
 } from "@/components/lawyers";
 import { PromoPanel } from "@/components/shared";
-import { taxonomyDomains, type LawyerSearchFilters } from "@legalir/types";
-import { toPersianNumber } from "@/lib/persian-utils";
+import { type LawyerSearchFilters } from "@legalir/types";
 import { groupByPrimaryDomain, featuredLawyers } from "@/lib/lawyers/grouping";
-import { TextField } from "@legalir/ui";
-
-const DOMAINS = taxonomyDomains();
 
 /** Short, factual one-liners for the canonical practice domains. */
 const DOMAIN_DESCRIPTION_FA: Record<string, string> = {
@@ -127,18 +118,6 @@ export default function LawyersPage() {
       filters.acceptingClientsOnly ||
       filters.sort !== "relevance"
   );
-  const activeFilterCount =
-    (filters.specialtyIds.length ? 1 : 0) +
-    (filters.professionalRanks.length ? 1 : 0) +
-    (filters.organizationTypes.length ? 1 : 0) +
-    (filters.province ? 1 : 0) +
-    (filters.city ? 1 : 0) +
-    (filters.experienceBand ? 1 : 0) +
-    (filters.minRating !== null ? 1 : 0) +
-    (filters.serviceIds.length ? 1 : 0) +
-    (filters.onlineOnly ? 1 : 0) +
-    (filters.acceptingClientsOnly ? 1 : 0) +
-    (filters.sort !== "relevance" ? 1 : 0);
 
   const groups = useMemo(() => groupByPrimaryDomain(items), [items]);
   const featured = useMemo(() => featuredLawyers(items), [items]);
@@ -148,51 +127,6 @@ export default function LawyersPage() {
     setSearch("");
     setFilters(EMPTY_LAWYER_FILTERS);
   };
-
-  // --- Domain rail scroller ---
-  // On touch widths the row is a plain horizontal scroller. From `tablet`
-  // up the native scrollbar is hidden and two arrow buttons page through
-  // the categories instead, so a mouse user can reach the overflow.
-  const chipsRef = useRef<HTMLDivElement>(null);
-  const [canScrollStart, setCanScrollStart] = useState(false);
-  const [canScrollEnd, setCanScrollEnd] = useState(false);
-
-  const syncChipScroll = useCallback(() => {
-    const el = chipsRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    // RTL: scrollLeft runs 0 → -max, so compare magnitudes.
-    const pos = Math.abs(el.scrollLeft);
-    setCanScrollStart(pos > 1);
-    setCanScrollEnd(pos < max - 1);
-  }, []);
-
-  useEffect(() => {
-    syncChipScroll();
-    const el = chipsRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(syncChipScroll);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [syncChipScroll]);
-
-  const scrollChips = (dir: "start" | "end") => {
-    const el = chipsRef.current;
-    if (!el) return;
-    const step = Math.max(el.clientWidth * 0.7, 160);
-    // RTL: negative `left` advances toward the end of the list.
-    el.scrollBy({ left: dir === "end" ? -step : step, behavior: "smooth" });
-  };
-
-  const selectedDomain = filters.specialtyIds.length === 1 ? filters.specialtyIds[0] : "";
-
-  const chipClass = (selected: boolean) =>
-    [
-      "shrink-0 rounded-full border px-4 py-2 text-caption font-medium transition-all touch-target-min",
-      selected
-        ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-        : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
-    ].join(" ");
 
   return (
     <div className="mx-auto max-w-6xl p-4 tablet:p-6" dir="rtl">
@@ -204,87 +138,22 @@ export default function LawyersPage() {
         </p>
       </div>
 
-      {/* --- Search + filter trigger --- */}
-      <div className="mb-4 flex items-center gap-2">
-        <div className="min-w-0 flex-1 tablet:max-w-xl">
-          <TextField
-            type="search"
-            label="جستجوی وکیل"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="نام وکیل، تخصص یا موضوع پرونده…"
-            leadingIcon={<IconSearch size={20} />}
-            fullWidth
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setFiltersOpen(true)}
-          aria-label="فیلترها"
-          className="relative flex h-12 shrink-0 items-center gap-1.5 rounded-xl border border-divider/60 bg-surface px-3 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 desktop:hidden"
-        >
-          <IconFilter size={18} />
-          <span className="hidden mobile-l:inline">فیلترها</span>
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
-              {toPersianNumber(activeFilterCount)}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* --- Domain rail --- */}
-      <div className="mb-4 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => scrollChips("start")}
-          disabled={!canScrollStart}
-          aria-label="نمایش تخصص‌های قبلی"
-          className="hidden shrink-0 items-center justify-center rounded-full border border-divider/60 bg-surface p-2 text-on-surface transition-colors hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-30 tablet:inline-flex"
-        >
-          <IconChevronRightSmall size={18} />
-        </button>
-
-        <div
-          ref={chipsRef}
-          onScroll={syncChipScroll}
-          role="tablist"
-          aria-label="دسته‌بندی تخصص‌ها"
-          className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 scrollbar-hide"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={selectedDomain === ""}
-            onClick={() => setFilters((s) => ({ ...s, specialtyIds: [] }))}
-            className={chipClass(selectedDomain === "")}
-          >
-            همه
-          </button>
-          {DOMAINS.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              role="tab"
-              aria-selected={selectedDomain === d.id}
-              onClick={() => setFilters((s) => ({ ...s, specialtyIds: [d.id] }))}
-              className={chipClass(selectedDomain === d.id)}
-            >
-              {d.nameFa}
-            </button>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => scrollChips("end")}
-          disabled={!canScrollEnd}
-          aria-label="نمایش تخصص‌های بعدی"
-          className="hidden shrink-0 items-center justify-center rounded-full border border-divider/60 bg-surface p-2 text-on-surface transition-colors hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-30 tablet:inline-flex"
-        >
-          <IconChevronLeft size={18} />
-        </button>
-      </div>
+      {/* --- Search + quick filters --- */}
+      <LawyerFilterBar
+        search={search}
+        searchInput={searchInput}
+        onSearchInputChange={setSearchInput}
+        onClearSearch={() => {
+          setSearchInput("");
+          setSearch("");
+        }}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onOpenAdvanced={() => setFiltersOpen(true)}
+        onClearAll={clearFilters}
+        resultCount={items.length}
+        showResultCount={!isLoading && !isError}
+      />
 
       {/* --- Loading --- */}
       {isLoading && (
@@ -339,10 +208,7 @@ export default function LawyersPage() {
       {/* --- Filtered results (flat grid) --- */}
       {!isLoading && !isError && items.length > 0 && isFiltering && (
         <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-body-2 text-muted">
-              {toPersianNumber(items.length)} وکیل یافت شد
-            </p>
+          <div className="mb-3 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={clearFilters}

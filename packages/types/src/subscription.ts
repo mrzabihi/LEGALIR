@@ -146,6 +146,8 @@ export interface EnergyLedgerResponse {
 /** The full subscription + energy dossier an admin sees for one user. */
 export interface AdminUserSubscriptionView {
   userId: string;
+  /** The user's readable, server-generated system id (`LG-…`), or null. */
+  publicId: string | null;
   displayName: string | null;
   mobileMasked: string;
   current: {

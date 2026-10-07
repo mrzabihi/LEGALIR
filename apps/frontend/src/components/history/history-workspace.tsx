@@ -342,53 +342,59 @@ function HistoryCard({
         </div>
       </div>
 
-      {/* Actions — primary carries text; secondary are labelled icon buttons.
-          The card itself is not a link, so an icon click can never open it. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-divider">
-        {primary ? (
-          primary.href ? (
-            <Link
-              href={primary.href}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark transition-colors touch-target"
-            >
-              {actionIcon(primary.key, 15)}
-              {primary.labelFa}
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onAction(primary, item)}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors touch-target"
-            >
-              {actionIcon(primary.key, 15)}
-              {primary.labelFa}
-            </button>
-          )
-        ) : (
-          <span />
-        )}
-
-        <div className="flex items-center gap-1">
-          {secondary.map((action) => (
-            <Tooltip key={action.key} content={action.hintFa ?? action.labelFa}>
+      {/* Actions — the primary action leads its own row (at the START edge,
+          i.e. the right in RTL), then a divider, then the secondary
+          archive / delete actions on the row below. The card itself is not
+          a link, so an action click can never open it, and the two rows can
+          never overlap or fall off the card. */}
+      <div className="mt-3 border-t border-divider pt-3">
+        {primary && (
+          <div className="flex flex-wrap items-center justify-start">
+            {primary.href ? (
+              <Link
+                href={primary.href}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                {actionIcon(primary.key, 15)}
+                {primary.labelFa}
+              </Link>
+            ) : (
               <button
                 type="button"
-                onClick={() => onAction(action, item)}
+                onClick={() => onAction(primary, item)}
                 disabled={busy}
-                aria-label={action.labelFa}
-                className={[
-                  "inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors touch-target disabled:opacity-50",
-                  action.destructive
-                    ? "border-error/30 text-error hover:bg-error/10"
-                    : "border-border text-muted hover:bg-onSurface/[0.06] hover:text-on-surface",
-                ].join(" ")}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
-                {actionIcon(action.key, 16)}
+                {actionIcon(primary.key, 15)}
+                {primary.labelFa}
               </button>
-            </Tooltip>
-          ))}
-        </div>
+            )}
+          </div>
+        )}
+
+        {secondary.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-divider/60 pt-2.5">
+            {secondary.map((action) => (
+              <Tooltip key={action.key} content={action.hintFa ?? action.labelFa}>
+                <button
+                  type="button"
+                  onClick={() => onAction(action, item)}
+                  disabled={busy}
+                  aria-label={action.labelFa}
+                  className={[
+                    "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-labelSmall font-medium transition-colors touch-target disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                    action.destructive
+                      ? "border-error/30 text-error hover:bg-error/10"
+                      : "border-border text-muted hover:bg-onSurface/[0.06] hover:text-on-surface",
+                  ].join(" ")}
+                >
+                  {actionIcon(action.key, 16)}
+                  {action.labelFa}
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   );

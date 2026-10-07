@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { findUserByMobile, createUser, createSession, cleanupExpiredSessions, MobileConflictError } from '@/lib/db';
+import { findUserByMobile, createUser, createSession, cleanupExpiredSessions, MobileConflictError, ensureUserPublicIds } from '@/lib/db';
 import { clientIpFromHeaders } from '@/lib/user-agent';
 import { toNationalMobile } from '@legalir/validation';
 
@@ -99,6 +99,10 @@ export async function POST(request: Request) {
         if (!user) throw err;
       }
     }
+
+    // Existing accounts acquire their public system id the next time they log
+    // in (idempotent — a no-op once every row is assigned).
+    if (!user.publicId) ensureUserPublicIds();
 
     const session = createSession(user.id, {
       userAgent: request.headers.get('user-agent'),

@@ -93,6 +93,7 @@ export type DrillUserSort = "recent" | "oldest";
 /** The user projection the drill returns — the exact shape the users panel lists. */
 export interface DrillUserRow {
   id: string;
+  publicId: string | null;
   displayName: string | null;
   mobileMasked: string;
   email: string | null;
@@ -129,6 +130,7 @@ function activeUserIds(): Set<string> {
 function toDrillUser(u: UserRow, active: Set<string>): DrillUserRow {
   return {
     id: u.id,
+    publicId: u.publicId ?? null,
     displayName: u.displayName,
     mobileMasked: maskMobile(u.mobile),
     email: u.email,
@@ -164,7 +166,8 @@ export function listDrillUsers(
       (u) =>
         (u.displayName ?? "").toLowerCase().includes(q) ||
         maskMobile(u.mobile).includes(q) ||
-        u.id.toLowerCase().includes(q)
+        u.id.toLowerCase().includes(q) ||
+        (u.publicId ?? "").toLowerCase().includes(q)
     );
   }
 

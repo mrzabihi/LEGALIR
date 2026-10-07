@@ -171,7 +171,13 @@ function AdminUsersView() {
                       <span className="font-medium text-on-surface">
                         {u.displayName ?? "بدون نام"}
                       </span>
-                      <IdChip id={u.id} />
+                      {/* The readable system id (LG-…) is the user-facing
+                          identifier and the one the search matches; fall back
+                          to the internal id for legacy rows not yet backfilled. */}
+                      <span className="mt-0.5 flex items-center gap-1.5">
+                        <span className="text-caption text-muted">شناسهٔ سیستمی:</span>
+                        <IdChip id={u.publicId ?? u.id} />
+                      </span>
                     </div>
                   </Td>
                   <Td className="tabular-nums">{u.mobileMasked}</Td>

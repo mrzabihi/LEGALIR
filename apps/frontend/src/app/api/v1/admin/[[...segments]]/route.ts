@@ -161,6 +161,7 @@ type AdminBlogStatus = AdminBlogPost["status"];
 
 interface UserRow {
   id: string;
+  publicId?: string;
   mobile: string;
   email: string | null;
   displayName: string | null;
@@ -245,13 +246,15 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         (u) =>
           (u.displayName ?? "").toLowerCase().includes(q) ||
           mask(u.mobile).includes(q) ||
-          u.id.toLowerCase().includes(q)
+          u.id.toLowerCase().includes(q) ||
+          (u.publicId ?? "").toLowerCase().includes(q)
       );
     }
     const items = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((u) => ({
         id: u.id,
+        publicId: u.publicId ?? null,
         displayName: u.displayName,
         mobileMasked: mask(u.mobile),
         email: u.email,
@@ -459,6 +462,7 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       }
       return ok({
         id: user.id,
+        publicId: user.publicId ?? null,
         displayName: user.displayName,
         mobileMasked: mask(user.mobile),
         email: user.email,

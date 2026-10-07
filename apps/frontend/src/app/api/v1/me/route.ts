@@ -41,6 +41,7 @@ export async function GET(request: Request) {
   const data = {
     user: {
       id: user.id,
+      publicId: user.publicId ?? null,
       mobileE164: user.mobile,
       mobileDisplay: toPersianMobileDisplay(user.mobile),
       status: 'active' as const,
