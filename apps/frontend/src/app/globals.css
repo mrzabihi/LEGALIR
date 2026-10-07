@@ -77,6 +77,10 @@
   --color-surface: #FFFFFF;
   --color-surface-container: #F3F4F6;
   --color-surface-variant: #F3F4F6;
+  /* Interactive hover surface — used by `hover:bg-surface-hover` across the
+     admin panel (table rows, nav rows, list items). Previously referenced but
+     never defined, so every one of those hover states emitted no CSS. */
+  --color-surface-hover: #F3F4F6;
   --color-on-surface: #111827;
   --color-on-surface-variant: #4B5563;
 
@@ -404,6 +408,7 @@
   --color-surface: #0F172A;
   --color-surface-container: #1E293B;
   --color-surface-variant: #162033;
+  --color-surface-hover: #16233B;
   --color-on-surface: #F3F4F6;
   --color-on-surface-variant: #9CA3AF;
 

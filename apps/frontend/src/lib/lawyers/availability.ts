@@ -52,7 +52,9 @@ const STATUS_TONE: Record<LawyerAvailabilityStatus, AvailabilityTone> = {
   FULL: "neutral",
   INACTIVE: "muted",
   REJECTED: "rejected",
-  SUSPENDED: "caution",
+  // A suspended lawyer is shown in the SAME red terminal treatment as a
+  // rejected one — the profile stays visible, but no booking may be invited.
+  SUSPENDED: "rejected",
 };
 
 /**

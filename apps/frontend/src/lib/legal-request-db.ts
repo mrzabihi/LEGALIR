@@ -89,6 +89,49 @@ export function appendRequestEvent(event: LegalRequestEvent): LegalRequestEvent 
   return event;
 }
 
+/**
+ * Assign or replace the lawyer on a request. This is a field change, not a
+ * state transition, so it does not consult the state machine — but it is
+ * refused on a terminal request (CLOSED/CANCELLED) and always appends an
+ * event so the assignment is visible in the very same history the client
+ * and lawyer read. The caller additionally records a platform audit entry.
+ */
+export function assignRequestLawyer(params: {
+  requestId: string;
+  /** The lawyer's profile id, or null to unassign. */
+  lawyerId: string | null;
+  actorId: string;
+  actorRole: PlatformRole | "system";
+  note?: string | null;
+}): { ok: true; request: LegalRequest } | { ok: false; reason: "not_found" | "terminal" } {
+  const rows = readTable<LegalRequest>("legal_requests");
+  const idx = rows.findIndex((r) => r.id === params.requestId);
+  if (idx === -1) return { ok: false, reason: "not_found" };
+
+  const prev = rows[idx]!;
+  if (prev.state === "CLOSED" || prev.state === "CANCELLED") {
+    return { ok: false, reason: "terminal" };
+  }
+
+  const now = new Date().toISOString();
+  const next: LegalRequest = { ...prev, selectedLawyerId: params.lawyerId, updatedAt: now };
+  rows[idx] = next;
+  writeTable("legal_requests", rows);
+
+  appendRequestEvent({
+    id: `lre-${crypto.randomUUID()}`,
+    requestId: params.requestId,
+    fromState: null,
+    toState: prev.state,
+    actorId: params.actorId,
+    actorRole: params.actorRole,
+    note: params.note ?? null,
+    createdAt: now,
+  });
+
+  return { ok: true, request: next };
+}
+
 // ---------------------------------------------------------------------------
 // Transition (the authoritative gate)
 // ---------------------------------------------------------------------------

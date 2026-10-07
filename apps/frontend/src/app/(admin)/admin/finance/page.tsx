@@ -45,6 +45,7 @@ import {
   FilterPills,
   IdChip,
   Section,
+  ExportButton,
 } from "@/components/admin/ui";
 
 const STATUS_TONES: Record<
@@ -532,6 +533,7 @@ export default function AdminFinancePage() {
       <PageHeader
         title="مالی و تسویه وکلا"
         description="قواعد کمیسیون و دفتر تسویه‌حساب وکلای پلتفرم. تأیید نهایی تسویه نیازمند تأییدکننده دوم است."
+        actions={<ExportButton kind="settlements" label="خروجی تسویه‌حساب‌ها" />}
       />
 
       <InfoBanner tone="info">

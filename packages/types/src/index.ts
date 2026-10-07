@@ -62,6 +62,8 @@ export interface UserSummary {
   mobileE164: string;
   mobileDisplay: string;
   status: AccountStatus;
+  /** Account creation time (ISO). Absent on legacy payloads. */
+  createdAt?: string;
   /** Absent on legacy payloads — treat as "individual". */
   accountType?: AccountType;
   /** True once the account is `legal` — the type can no longer change. */
@@ -2624,6 +2626,18 @@ export interface UsageTransaction {
   relatedEntityId: string | null;
   status: UsageTransactionStatus;
   idempotencyKey: string;
+  // --- Energy-model attribution (additive; absent on legacy rows) ------------
+  /** Pricing profile slug the charge came from (e.g. "ai-legal-assistant"). */
+  serviceKey?: string | null;
+  /** Model id the request ran on. */
+  model?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  contextTokens?: number;
+  toolCalls?: number;
+  ragCalls?: number;
+  /** Energy contributed by matched pricing rules + auxiliary units. */
+  additionalCost?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -2831,6 +2845,11 @@ export * from "./platform";
 // Admin panel (audit, flags, orders, settlements, AI/RAG, support)
 // ---------------------------------------------------------------------------
 export * from "./admin";
+
+// ---------------------------------------------------------------------------
+// Energy & service-cost model (pricing profiles, rules, usage ledger)
+// ---------------------------------------------------------------------------
+export * from "./energy";
 
 // ---------------------------------------------------------------------------
 // Case Management operational model (lifecycle, proceedings, members, …)

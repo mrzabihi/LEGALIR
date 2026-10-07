@@ -27,6 +27,8 @@ import {
   fetchAdminUser,
   fetchAdminRequests,
   fetchAdminRequest,
+  assignRequestLawyer,
+  changeRequestState,
   fetchAdminFlags,
   updateAdminFlag,
   type UpdateFlagInput,
@@ -59,7 +61,19 @@ import {
   fetchRagSources,
   updateRagReview,
   type UpdateRagReviewInput,
+  fetchRagPipeline,
+  fetchRagSourceDetail,
+  testRagRetrieval,
+  reingestRagCorpus,
+  fetchAdminBlog,
+  createBlogPost,
+  updateBlogPost,
+  setBlogPostStatus,
+  deleteBlogPost,
+  generateBlogDraft,
   fetchCalculatorsInventory,
+  updateCalculatorSetting,
+  type UpdateCalculatorSettingInput,
   fetchSupportTickets,
   fetchSupportTicket,
   createSupportTicket,
@@ -69,6 +83,7 @@ import {
   type UpdateTicketInput,
   fetchAdminContent,
   fetchAdminStaff,
+  fetchAdminStaffMember,
   fetchAdminRoles,
   changeStaffRole,
   fetchAdminAudit,
@@ -82,9 +97,22 @@ import {
   fetchAdminPlan,
   updateAdminPlan,
   type AdminPlanUpdate,
+  fetchCostProfiles,
+  fetchCostProfile,
+  saveCostProfile,
+  type SaveCostProfileInput,
+  saveCostRule,
+  type SaveCostRuleInput,
+  deleteCostRule,
+  fetchUsageLedger,
+  type AdminLedgerQuery,
+  fetchUsageSummary,
   type AdminUsersQuery,
   type AdminRequestsQuery,
   type AdminOrdersQuery,
+  fetchAdminAnnouncements,
+  createAdminAnnouncement,
+  setAdminAnnouncementStatus,
 } from "@/lib/api/admin";
 import type {
   SettlementStatus,
@@ -93,6 +121,16 @@ import type {
   RagReviewState,
   LawyerDecisionBucket,
   LawyerVerificationStatus,
+  ServiceCostProfile,
+  ServiceCostRule,
+  LegalRequestState,
+  AnnouncementStatus,
+  CreateAnnouncementInput,
+  AdminAnnouncement,
+  AdminBlogPost,
+  UpsertBlogPostInput,
+  GenerateBlogDraftInput,
+  GeneratedBlogDraft,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -227,6 +265,30 @@ export function useAdminRequest(id: string | null) {
     enabled: Boolean(id),
     staleTime: 30_000,
     retry: 1,
+  });
+}
+
+export function useAssignRequestLawyer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lawyerId }: { id: string; lawyerId: string | null }) =>
+      assignRequestLawyer(id, lawyerId),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    },
+  });
+}
+
+export function useChangeRequestState() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, state, note }: { id: string; state: LegalRequestState; note?: string }) =>
+      changeRequestState(id, state, note),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    },
   });
 }
 
@@ -486,7 +548,128 @@ export function useUpdateRagReview() {
       updateRagReview(id, input),
     onSuccess: (updated: RagSource) => {
       qc.invalidateQueries({ queryKey: ["admin", "rag", "sources"] });
+      qc.invalidateQueries({ queryKey: ["admin", "rag", "pipeline"] });
       void updated;
+    },
+  });
+}
+
+/** §1 — the pipeline status card (corpus stats + catalog coverage). */
+export function useRagPipeline() {
+  return useQuery({
+    queryKey: ["admin", "rag", "pipeline"],
+    queryFn: fetchRagPipeline,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** §1 — per-source detail (the searchable chunks). */
+export function useRagSourceDetail(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "rag", "source", id],
+    queryFn: () => fetchRagSourceDetail(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** §1 — live retrieval test through the existing pipeline (mutation, not cached). */
+export function useTestRagRetrieval() {
+  return useMutation({
+    mutationFn: ({ query, maxResults }: { query: string; maxResults?: number }) =>
+      testRagRetrieval(query, maxResults),
+  });
+}
+
+/** §1 — re-run ingestion; refreshes sources + counts + pipeline afterwards. */
+export function useReingestRagCorpus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: reingestRagCorpus,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "rag"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Blog management + AI content generation (§2)
+// ---------------------------------------------------------------------------
+
+const BLOG_KEY = ["admin", "blog"] as const;
+
+/** The admin blog list + categories (the SAME store the public site reads). */
+export function useAdminBlog() {
+  return useQuery({
+    queryKey: BLOG_KEY,
+    queryFn: fetchAdminBlog,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** Create a post (created as a draft unless a status is supplied). */
+export function useCreateBlogPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpsertBlogPostInput) => createBlogPost(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BLOG_KEY });
+      qc.invalidateQueries({ queryKey: ["admin", "content"] });
+    },
+  });
+}
+
+/** Update a post's fields (leaves status untouched unless passed). */
+export function useUpdateBlogPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpsertBlogPostInput }) =>
+      updateBlogPost(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BLOG_KEY });
+      qc.invalidateQueries({ queryKey: ["admin", "content"] });
+    },
+  });
+}
+
+/** Publish / unpublish / schedule — a status-only transition. */
+export function useSetBlogPostStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: AdminBlogPost["status"] }) =>
+      setBlogPostStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BLOG_KEY });
+      qc.invalidateQueries({ queryKey: ["admin", "content"] });
+    },
+  });
+}
+
+export function useDeleteBlogPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteBlogPost(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BLOG_KEY });
+      qc.invalidateQueries({ queryKey: ["admin", "content"] });
+    },
+  });
+}
+
+/** §2 — generate an AI draft (never auto-published). */
+export function useGenerateBlogDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: GenerateBlogDraftInput) => generateBlogDraft(input),
+    onSuccess: (res) => {
+      // Only a saved draft changes the list.
+      if (res.savedPostId) {
+        qc.invalidateQueries({ queryKey: BLOG_KEY });
+        qc.invalidateQueries({ queryKey: ["admin", "content"] });
+      }
     },
   });
 }
@@ -501,6 +684,18 @@ export function useCalculatorsInventory() {
     queryFn: fetchCalculatorsInventory,
     staleTime: 5 * 60_000,
     retry: 1,
+  });
+}
+
+/** §5 — save one calculator's operational policy (enabled / tier / energy). */
+export function useUpdateCalculatorSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ slug, input }: { slug: string; input: UpdateCalculatorSettingInput }) =>
+      updateCalculatorSetting(slug, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "calculators"] });
+    },
   });
 }
 
@@ -575,14 +770,65 @@ export function useAdminContent() {
 }
 
 // ---------------------------------------------------------------------------
+// Platform announcements
+// ---------------------------------------------------------------------------
+
+export function useAdminAnnouncements() {
+  return useQuery({
+    queryKey: ["admin", "announcements"],
+    queryFn: fetchAdminAnnouncements,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useCreateAdminAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateAnnouncementInput) => createAdminAnnouncement(input),
+    onSuccess: (created: AdminAnnouncement) => {
+      // Prepend the new row so the composer's list updates in the same frame.
+      qc.setQueryData<{ items: AdminAnnouncement[] }>(["admin", "announcements"], (old) =>
+        old ? { items: [created, ...old.items] } : { items: [created] }
+      );
+    },
+  });
+}
+
+export function useSetAdminAnnouncementStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: AnnouncementStatus }) =>
+      setAdminAnnouncementStatus(id, status),
+    onSuccess: (updated: AdminAnnouncement) => {
+      qc.setQueryData<{ items: AdminAnnouncement[] }>(["admin", "announcements"], (old) =>
+        old ? { items: old.items.map((a) => (a.id === updated.id ? updated : a)) } : old
+      );
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Staff, roles & audit
 // ---------------------------------------------------------------------------
 
-export function useAdminStaff() {
+export function useAdminStaff(params: { search?: string; role?: string } = {}) {
   return useQuery({
-    queryKey: ["admin", "staff"],
-    queryFn: fetchAdminStaff,
+    queryKey: ["admin", "staff", params.search ?? null, params.role ?? null],
+    queryFn: () => fetchAdminStaff(params),
     staleTime: 60_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** One staff member's dossier for the detail drawer. */
+export function useAdminStaffMember(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "staff", "detail", id],
+    queryFn: () => fetchAdminStaffMember(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
     retry: 1,
   });
 }
@@ -601,10 +847,13 @@ export function useChangeStaffRole() {
   return useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: PlatformRole }) =>
       changeStaffRole(userId, role),
-    onSuccess: (updated: StaffMember) => {
-      qc.setQueryData<{ items: StaffMember[] }>(["admin", "staff"], (old) =>
-        old ? { items: old.items.map((m) => (m.id === updated.id ? updated : m)) } : old
-      );
+    // A role change moves a user into or out of the staff set, so the whole
+    // staff slice (list under any filter + the detail query) and the users
+    // directory must refetch — a targeted setQueryData cannot cover the
+    // now-parameterised list keys.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "staff"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
@@ -674,5 +923,87 @@ export function useSendLawyerMessage() {
     onSuccess: (_result, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", id] });
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Energy & service-cost model (§6)
+// ---------------------------------------------------------------------------
+
+export function useCostProfiles() {
+  return useQuery({
+    queryKey: ["admin", "energy", "profiles"],
+    queryFn: fetchCostProfiles,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useCostProfile(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "energy", "profiles", "detail", id],
+    queryFn: () => fetchCostProfile(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+export function useSaveCostProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveCostProfileInput) => saveCostProfile(input),
+    onSuccess: (saved: ServiceCostProfile) => {
+      qc.setQueryData<{ items: ServiceCostProfile[] }>(["admin", "energy", "profiles"], (old) =>
+        old
+          ? {
+              items: old.items.some((p) => p.id === saved.id)
+                ? old.items.map((p) => (p.id === saved.id ? saved : p))
+                : [...old.items, saved],
+            }
+          : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "energy", "profiles", "detail", saved.id] });
+    },
+  });
+}
+
+export function useSaveCostRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveCostRuleInput) => saveCostRule(input),
+    onSuccess: (saved: ServiceCostRule) => {
+      qc.invalidateQueries({
+        queryKey: ["admin", "energy", "profiles", "detail", saved.profileId],
+      });
+    },
+  });
+}
+
+export function useDeleteCostRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string; profileId: string }) => deleteCostRule(id),
+    onSuccess: (_res, { profileId }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "energy", "profiles", "detail", profileId] });
+    },
+  });
+}
+
+export function useUsageLedger(query: AdminLedgerQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "energy", "ledger", query],
+    queryFn: () => fetchUsageLedger(query),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUsageSummary(rangeDays = 30) {
+  return useQuery({
+    queryKey: ["admin", "energy", "summary", rangeDays],
+    queryFn: () => fetchUsageSummary(rangeDays),
+    staleTime: 60_000,
+    retry: 1,
   });
 }

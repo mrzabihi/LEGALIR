@@ -1,7 +1,7 @@
 // ============================================================
 // LEGALIR — Admin panel navigation registry
 // ============================================================
-// The sixteen sections of the platform admin panel, in display order.
+// The seventeen sections of the platform admin panel, in display order.
 // This is the SINGLE source of truth for the admin menu: the shell renders
 // from it and each entry names the `Permission` that gates it. The
 // permission is a UX affordance only — every admin API re-checks the same
@@ -26,7 +26,7 @@ export interface AdminNavItem {
   permission: Permission;
 }
 
-/** The sixteen admin sections, in product order. */
+/** The seventeen admin sections, in product order. */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     key: "overview",
@@ -70,6 +70,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
     hintFa: "خدمات فعال و کنترل انتشار",
     icon: "Services",
     permission: "admin:services:read",
+  },
+  {
+    key: "energy",
+    path: "/admin/energy",
+    titleFa: "انرژی و هزینهٔ خدمات",
+    hintFa: "مدل هزینه، قواعد و دفتر مصرف",
+    icon: "Bolt",
+    permission: "admin:energy:read",
   },
   {
     key: "plans",
@@ -163,11 +171,16 @@ export const ADMIN_NAV: AdminNavItem[] = [
 
 /** The nav item whose `path` owns `pathname` (longest-prefix match). */
 export function activeAdminNavKey(pathname: string): string | null {
-  // `/admin` is a prefix of every other admin path, so match the most
-  // specific path first: the longest path that the pathname starts with.
+  // Match the most specific path first: the longest path the pathname starts
+  // with, so nested pages (/admin/staff/roles) resolve to their section
+  // (/admin/staff). The overview is a LEAF at exactly "/admin" — it must not
+  // act as a prefix parent, or every unmapped admin route (/admin/profile,
+  // /admin/health …) would misleadingly report the overview section.
   const sorted = [...ADMIN_NAV].sort((a, b) => b.path.length - a.path.length);
-  const match = sorted.find(
-    (item) => pathname === item.path || pathname.startsWith(item.path + "/")
+  const match = sorted.find((item) =>
+    item.path === "/admin"
+      ? pathname === "/admin"
+      : pathname === item.path || pathname.startsWith(item.path + "/")
   );
   return match ? match.key : null;
 }
@@ -175,4 +188,32 @@ export function activeAdminNavKey(pathname: string): string | null {
 /** The nav item for a section key, if any. */
 export function adminNavByKey(key: string): AdminNavItem | undefined {
   return ADMIN_NAV.find((i) => i.key === key);
+}
+
+// Admin surfaces that exist as real routes but are intentionally unlinked from
+// the sidebar (deep-link / operational pages). They are NOT in ADMIN_NAV, so
+// `activeAdminNavKey` correctly returns null for them; without this list the
+// shell header and breadcrumb would fall back to a generic label. Each entry
+// mirrors the page's own `PageHeader` title so the chrome agrees with the page.
+const HIDDEN_ADMIN_TITLES: { path: string; titleFa: string }[] = [
+  { path: "/admin/knowledge", titleFa: "پایگاه دانش حقوقی" },
+  { path: "/admin/health", titleFa: "وضعیت سامانه" },
+  { path: "/admin/profile", titleFa: "پروفایل من" },
+];
+
+/**
+ * The section title for `pathname` — the nav item that owns the route, or, for
+ * a hidden admin surface, its real page title. Falls back to "مدیریت" only for
+ * genuinely unmapped paths. Use this for the shell header + breadcrumb so a
+ * hidden route never mislabels itself as «نمای کلی».
+ */
+export function adminSectionTitle(pathname: string): string {
+  const key = activeAdminNavKey(pathname);
+  const navItem = key ? adminNavByKey(key) : undefined;
+  if (navItem) return navItem.titleFa;
+
+  const hidden = [...HIDDEN_ADMIN_TITLES]
+    .sort((a, b) => b.path.length - a.path.length)
+    .find((h) => pathname === h.path || pathname.startsWith(h.path + "/"));
+  return hidden?.titleFa ?? "مدیریت";
 }

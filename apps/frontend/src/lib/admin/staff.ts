@@ -9,7 +9,14 @@
 // No secrets are read or returned here — only identity + role metadata.
 // ============================================================
 
-import { readTable, findUserById, setUserRole, normalizeStoredMobile } from "@/lib/db";
+import {
+  readTable,
+  findUserById,
+  setUserRole,
+  normalizeStoredMobile,
+  listSessionsForUser,
+} from "@/lib/db";
+import { getOrganizationById } from "@/lib/org-db";
 import {
   STAFF_ROLES,
   PLATFORM_SUPERADMIN_ROLES,
@@ -19,14 +26,16 @@ import {
   type Permission,
   type PlatformRole,
   type StaffMember,
+  type StaffDetail,
   type RoleDescriptor,
 } from "@legalir/types";
 
-export type { StaffMember, RoleDescriptor };
+export type { StaffMember, StaffDetail, RoleDescriptor };
 
 interface UserRow {
   id: string;
   mobile: string;
+  email: string | null;
   displayName: string | null;
   role?: PlatformRole;
   orgId?: string | null;
@@ -40,20 +49,66 @@ function mask(mobile: string): string {
   return `${m.slice(0, 4)}•••${m.slice(-4)}`;
 }
 
-/** Every user holding a platform-staff role. */
-export function listStaff(): StaffMember[] {
+/**
+ * The most recent activity across the user's sessions — the truthful "last
+ * login / last activity" signal (there is no dedicated column, so this reads
+ * the same session table the auth layer already maintains). Returns null when
+ * the user has no recorded session.
+ */
+function lastActiveAt(userId: string): string | null {
+  const sessions = listSessionsForUser(userId);
+  if (sessions.length === 0) return null;
+  // listSessionsForUser is already sorted newest-first by lastActiveAt.
+  const top = sessions[0]!;
+  return top.lastActiveAt ?? top.createdAt;
+}
+
+/** The shared, client-safe projection of one user row into a staff listing. */
+function toStaffMember(u: UserRow): StaffMember {
+  const role = u.role as PlatformRole;
+  return {
+    id: u.id,
+    displayName: u.displayName,
+    mobileMasked: mask(u.mobile),
+    email: u.email ?? null,
+    role,
+    roleFa: ROLE_FA[role] ?? String(role),
+    orgId: u.orgId ?? null,
+    createdAt: u.createdAt,
+    lastActiveAt: lastActiveAt(u.id),
+  };
+}
+
+/** Every user holding a platform-staff role, optionally filtered. */
+export function listStaff(filter: { search?: string; role?: string } = {}): StaffMember[] {
+  const search = filter.search?.trim().toLowerCase();
   return readTable<UserRow>("users")
     .filter((u) => u.role && STAFF_ROLES.includes(u.role))
-    .map((u) => ({
-      id: u.id,
-      displayName: u.displayName,
-      mobileMasked: mask(u.mobile),
-      role: u.role as PlatformRole,
-      roleFa: ROLE_FA[u.role as PlatformRole] ?? String(u.role),
-      orgId: u.orgId ?? null,
-      createdAt: u.createdAt,
-    }))
+    .filter((u) => (filter.role ? u.role === filter.role : true))
+    .map(toStaffMember)
+    .filter((m) =>
+      search
+        ? (m.displayName ?? "").toLowerCase().includes(search) ||
+          (m.email ?? "").toLowerCase().includes(search) ||
+          m.id.toLowerCase().includes(search)
+        : true
+    )
     .sort((a, b) => a.roleFa.localeCompare(b.roleFa, "fa"));
+}
+
+/** The full dossier for one staff member, or undefined when not staff/found. */
+export function getStaffMember(id: string): StaffDetail | undefined {
+  const u = readTable<UserRow>("users").find((row) => row.id === id);
+  if (!u || !u.role || !STAFF_ROLES.includes(u.role)) return undefined;
+  const role = u.role as PlatformRole;
+  const org = u.orgId ? getOrganizationById(u.orgId) : undefined;
+  return {
+    ...toStaffMember(u),
+    permissions: [...(ROLE_PERMISSIONS[role] ?? [])] as Permission[],
+    isStaff: STAFF_ROLES.includes(role),
+    isSuperAdmin: PLATFORM_SUPERADMIN_ROLES.includes(role),
+    orgName: org?.name ?? null,
+  };
 }
 
 /**
@@ -97,15 +152,7 @@ export function changeUserRole(input: ChangeRoleInput): StaffMember | { error: s
 
   const updated = setUserRole(input.userId, input.role);
   if (!updated) return { error: "USER_NOT_FOUND" };
-  return {
-    id: updated.id,
-    displayName: updated.displayName,
-    mobileMasked: mask(updated.mobile),
-    role: input.role,
-    roleFa: ROLE_FA[input.role] ?? input.role,
-    orgId: updated.orgId ?? null,
-    createdAt: updated.createdAt,
-  };
+  return toStaffMember(updated);
 }
 
 /** The full role → permission matrix for the roles/security admin page. */

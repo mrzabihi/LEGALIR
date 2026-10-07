@@ -35,6 +35,14 @@ import type {
   AiUsageMetrics,
   RagSource,
   RagReviewState,
+  RagPipelineStatus,
+  RagRetrievalTestResult,
+  RagIngestReport,
+  AdminBlogPost,
+  AdminBlogCategory,
+  UpsertBlogPostInput,
+  GenerateBlogDraftInput,
+  GeneratedBlogDraft,
   SupportTicket,
   SupportTicketStatus,
   SupportTicketPriority,
@@ -45,6 +53,7 @@ import type {
   AdminOverviewComparison,
   AdminRecentRequest,
   StaffMember,
+  StaffDetail,
   RoleDescriptor,
   PlatformRole,
   SubscriptionPlan,
@@ -52,6 +61,22 @@ import type {
   LawyerVerificationStatus,
   LawyerDecisionBucket,
   LawyerStatusDecision,
+  AdminExportKind,
+  ServiceCostProfile,
+  ServiceCostRule,
+  ServiceCostUnit,
+  ServiceCostRuleCondition,
+  UsageLedgerEntry,
+  UsageLedgerSummary,
+  ActivityType,
+  LegalRequest,
+  LegalRequestEvent,
+  LegalRequestState,
+  AdminAnnouncement,
+  AnnouncementStatus,
+  CreateAnnouncementInput,
+  CalculatorSetting,
+  CalculatorAccessTier,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -148,6 +173,10 @@ export interface AdminCalculatorRow {
   available: boolean;
   datasetIds: string[];
   warningsFa: string[];
+  /** §5 — admin operational policy. */
+  enabled: boolean;
+  accessTier: CalculatorAccessTier;
+  energyCost: number;
 }
 
 export interface AdminDatasetRow {
@@ -173,7 +202,12 @@ export interface AdminCalculatorsInventory {
   currentYear: number;
   totalCalculators: number;
   availableCalculators: number;
+  /** §5 — calculators switched off / charging energy. */
+  disabledCalculators: number;
+  chargedCalculators: number;
   staleDatasets: string[];
+  /** §5 — the editable per-calculator policy rows. */
+  settings: CalculatorSetting[];
 }
 
 export interface AdminSupportResponse {
@@ -278,6 +312,53 @@ function qs(params: Record<string, string | number | undefined>): string {
 const A = "/api/v1/admin";
 
 // ---------------------------------------------------------------------------
+// Excel export (§7)
+// ---------------------------------------------------------------------------
+
+/**
+ * The admin surfaces that can be exported to Excel. Re-exported from
+ * `@legalir/types`, which both the server adapters and the endpoint's
+ * authorization read — the three can never drift.
+ */
+export type { AdminExportKind };
+
+/**
+ * Download the complete Excel export for one admin surface. Fetches the raw
+ * bytes from the server (never the current UI page) and triggers a browser
+ * save with the server-supplied filename. Throws when the response is not a
+ * workbook (e.g. a 403), so callers can surface an error toast.
+ */
+export async function downloadAdminExport(kind: AdminExportKind): Promise<void> {
+  const res = await fetch(`${A}/exports/${kind}`, {
+    method: "GET",
+    credentials: "include",
+    headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  });
+  if (!res.ok) {
+    let message = "خروجی گرفتن ناموفق بود";
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body?.message) message = body.message;
+    } catch {
+      /* non-JSON error body — keep the default message */
+    }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  const fileName = match?.[1] ? decodeURIComponent(match[1]) : `export-${kind}.xlsx`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
 // Overview & reports
 // ---------------------------------------------------------------------------
 
@@ -326,8 +407,60 @@ export function fetchAdminRequests(query: AdminRequestsQuery = {}): Promise<Admi
   );
 }
 
-export function fetchAdminRequest(id: string): Promise<AdminRequestRow> {
-  return apiClient.get<AdminRequestRow>(`${A}/requests/${encodeURIComponent(id)}`);
+/** A lawyer eligible for assignment (only APPROVED profiles are offered). */
+export interface AdminAssignableLawyer {
+  id: string;
+  fullName: string;
+  professionalTitle: string | null;
+}
+
+/** The full editable view of one request: state, history and assignable lawyers. */
+export interface AdminRequestDetail {
+  request: {
+    id: string;
+    title: string;
+    category: string;
+    state: LegalRequestState;
+    userId: string;
+    userDisplayName: string | null;
+    selectedLawyerId: string | null;
+    selectedLawyerName: string | null;
+    orgId: string | null;
+    caseId: string | null;
+    conversationId: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  /** Legal next states for the current state — from the server state machine. */
+  allowedTransitions: LegalRequestState[];
+  events: LegalRequestEvent[];
+  assignableLawyers: AdminAssignableLawyer[];
+}
+
+export function fetchAdminRequest(id: string): Promise<AdminRequestDetail> {
+  return apiClient.get<AdminRequestDetail>(`${A}/requests/${encodeURIComponent(id)}`);
+}
+
+/** Assign or replace the lawyer on a request (PATCH). */
+export function assignRequestLawyer(
+  id: string,
+  lawyerId: string | null
+): Promise<LegalRequest> {
+  return apiClient.patch<LegalRequest>(`${A}/requests/${encodeURIComponent(id)}`, {
+    selectedLawyerId: lawyerId,
+  });
+}
+
+/** Change the request's state through the authoritative state machine (PATCH). */
+export function changeRequestState(
+  id: string,
+  state: LegalRequestState,
+  note?: string
+): Promise<LegalRequest> {
+  return apiClient.patch<LegalRequest>(`${A}/requests/${encodeURIComponent(id)}`, {
+    state,
+    note,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -596,12 +729,212 @@ export function updateRagReview(id: string, input: UpdateRagReviewInput): Promis
   return apiClient.patch<RagSource>(`${A}/rag/sources/${encodeURIComponent(id)}`, input);
 }
 
+/** §1 — the ONE knowledge pipeline's real status (corpus + catalog coverage). */
+export function fetchRagPipeline(): Promise<{
+  status: RagPipelineStatus;
+  coverage: { curated: number; ingested: number };
+}> {
+  return apiClient.get<{
+    status: RagPipelineStatus;
+    coverage: { curated: number; ingested: number };
+  }>(`${A}/rag/pipeline`);
+}
+
+/** One source plus the actual searchable chunks the pipeline will match. */
+export function fetchRagSourceDetail(id: string): Promise<{
+  source: RagSource;
+  chunks: { id: string; locator: string | null; text: string }[];
+}> {
+  return apiClient.get<{
+    source: RagSource;
+    chunks: { id: string; locator: string | null; text: string }[];
+  }>(`${A}/rag/sources/${encodeURIComponent(id)}`);
+}
+
+/** §1 — run a live query through the existing retrieval pipeline (read-only). */
+export function testRagRetrieval(
+  query: string,
+  maxResults?: number
+): Promise<RagRetrievalTestResult> {
+  return apiClient.post<RagRetrievalTestResult>(`${A}/rag/retrieval-test`, { query, maxResults });
+}
+
+/** §1 — re-run ingestion so newly added law files enter the SAME pipeline. */
+export function reingestRagCorpus(): Promise<RagIngestReport> {
+  return apiClient.post<RagIngestReport>(`${A}/rag/reingest`, {});
+}
+
+// ---------------------------------------------------------------------------
+// Blog management + AI content generation (§2)
+// ---------------------------------------------------------------------------
+
+/** The full admin blog list + categories (the SAME store the public site reads). */
+export function fetchAdminBlog(): Promise<{
+  items: AdminBlogPost[];
+  categories: AdminBlogCategory[];
+}> {
+  return apiClient.get<{ items: AdminBlogPost[]; categories: AdminBlogCategory[] }>(`${A}/blog`);
+}
+
+/** One post by id. */
+export function fetchAdminBlogPost(id: string): Promise<AdminBlogPost> {
+  return apiClient.get<AdminBlogPost>(`${A}/blog/${encodeURIComponent(id)}`);
+}
+
+export function createBlogPost(input: UpsertBlogPostInput): Promise<AdminBlogPost> {
+  return apiClient.post<AdminBlogPost>(`${A}/blog`, input);
+}
+
+export function updateBlogPost(id: string, input: UpsertBlogPostInput): Promise<AdminBlogPost> {
+  return apiClient.patch<AdminBlogPost>(`${A}/blog/${encodeURIComponent(id)}`, input);
+}
+
+/** Status-only transition (publish/draft/schedule). */
+export function setBlogPostStatus(
+  id: string,
+  status: AdminBlogPost["status"]
+): Promise<AdminBlogPost> {
+  return apiClient.patch<AdminBlogPost>(`${A}/blog/${encodeURIComponent(id)}`, { status });
+}
+
+export function deleteBlogPost(id: string): Promise<{ ok: true }> {
+  return apiClient.post<{ ok: true }>(`${A}/blog/${encodeURIComponent(id)}/delete`, {});
+}
+
+/** §2 — generate an AI draft (never auto-published; saved as DRAFT when requested). */
+export function generateBlogDraft(input: GenerateBlogDraftInput): Promise<GeneratedBlogDraft> {
+  return apiClient.post<GeneratedBlogDraft>(`${A}/blog/generate`, input);
+}
+
+// ---------------------------------------------------------------------------
+// Energy & service-cost model (§6)
+// ---------------------------------------------------------------------------
+
+/** All pricing profiles (seeded disabled on first read). */
+export function fetchCostProfiles(): Promise<{ items: ServiceCostProfile[] }> {
+  return apiClient.get<{ items: ServiceCostProfile[] }>(`${A}/energy/profiles`);
+}
+
+/** One profile plus its rules, sorted by priority. */
+export function fetchCostProfile(
+  id: string
+): Promise<{ profile: ServiceCostProfile; rules: ServiceCostRule[] }> {
+  return apiClient.get<{ profile: ServiceCostProfile; rules: ServiceCostRule[] }>(
+    `${A}/energy/profiles/${encodeURIComponent(id)}`
+  );
+}
+
+export interface SaveCostProfileInput {
+  id?: string;
+  serviceKey: string;
+  nameFa: string;
+  descriptionFa?: string;
+  activity: ActivityType;
+  enabled: boolean;
+  baseRequestCost: number;
+  inputTokenPer1k: number;
+  outputTokenPer1k: number;
+  contextTokenPer1k: number;
+  unitCosts: Partial<Record<ServiceCostUnit, number>>;
+  modelMultipliers: Record<string, number>;
+}
+
+export function saveCostProfile(input: SaveCostProfileInput): Promise<ServiceCostProfile> {
+  return apiClient.post<ServiceCostProfile>(`${A}/energy/profiles`, input);
+}
+
+export interface SaveCostRuleInput {
+  id?: string;
+  profileId: string;
+  activity: ActivityType;
+  labelFa: string;
+  enabled: boolean;
+  priority: number;
+  condition: ServiceCostRuleCondition;
+  min: number | null;
+  max: number | null;
+  models: string[];
+  addEnergy: number;
+  multiply: number | null;
+}
+
+export function saveCostRule(input: SaveCostRuleInput): Promise<ServiceCostRule> {
+  return apiClient.post<ServiceCostRule>(`${A}/energy/rules`, input);
+}
+
+export function deleteCostRule(id: string): Promise<{ ok: true }> {
+  return apiClient.post<{ ok: true }>(`${A}/energy/rules/${encodeURIComponent(id)}/delete`);
+}
+
+export interface AdminLedgerQuery {
+  userId?: string;
+  serviceKey?: string;
+  from?: string;
+  to?: string;
+}
+
+/** The queryable consumption ledger, newest first. */
+export function fetchUsageLedger(query: AdminLedgerQuery = {}): Promise<{ items: UsageLedgerEntry[] }> {
+  return apiClient.get<{ items: UsageLedgerEntry[] }>(
+    `${A}/energy/ledger${qs({ userId: query.userId, serviceKey: query.serviceKey, from: query.from, to: query.to })}`
+  );
+}
+
+/** Aggregated energy totals for the admin dashboard. */
+export function fetchUsageSummary(rangeDays = 30): Promise<UsageLedgerSummary> {
+  return apiClient.get<UsageLedgerSummary>(`${A}/energy/summary${qs({ rangeDays })}`);
+}
+
 // ---------------------------------------------------------------------------
 // Calculators inventory (read-only)
 // ---------------------------------------------------------------------------
 
 export function fetchCalculatorsInventory(): Promise<AdminCalculatorsInventory> {
   return apiClient.get<AdminCalculatorsInventory>(`${A}/calculators`);
+}
+
+/** §5 — the editable policy for one calculator (defaults when unset). */
+export function fetchCalculatorSetting(slug: string): Promise<CalculatorSetting> {
+  return apiClient.get<CalculatorSetting>(`${A}/calculators/${slug}`);
+}
+
+export interface UpdateCalculatorSettingInput {
+  enabled?: boolean;
+  accessTier?: CalculatorAccessTier;
+  energyCost?: number;
+  allowedPlans?: string[];
+  allowedUserIds?: string[];
+}
+
+/** §5 — save one calculator's operational policy. */
+export function updateCalculatorSetting(
+  slug: string,
+  input: UpdateCalculatorSettingInput
+): Promise<CalculatorSetting> {
+  return apiClient.patch<CalculatorSetting>(`${A}/calculators/${slug}`, input);
+}
+
+// ---------------------------------------------------------------------------
+// Platform announcements (content panel)
+// ---------------------------------------------------------------------------
+
+export function fetchAdminAnnouncements(): Promise<{ items: AdminAnnouncement[] }> {
+  return apiClient.get<{ items: AdminAnnouncement[] }>(`${A}/announcements`);
+}
+
+export function createAdminAnnouncement(
+  input: CreateAnnouncementInput
+): Promise<AdminAnnouncement> {
+  return apiClient.post<AdminAnnouncement>(`${A}/announcements`, input);
+}
+
+export function setAdminAnnouncementStatus(
+  id: string,
+  status: AnnouncementStatus
+): Promise<AdminAnnouncement> {
+  return apiClient.patch<AdminAnnouncement>(`${A}/announcements/${encodeURIComponent(id)}`, {
+    status,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -669,8 +1002,17 @@ export function fetchAdminContent(): Promise<AdminContentResponse> {
 // Staff, roles & audit
 // ---------------------------------------------------------------------------
 
-export function fetchAdminStaff(): Promise<{ items: StaffMember[] }> {
-  return apiClient.get<{ items: StaffMember[] }>(`${A}/staff`);
+export function fetchAdminStaff(
+  params: { search?: string; role?: string } = {}
+): Promise<{ items: StaffMember[] }> {
+  return apiClient.get<{ items: StaffMember[] }>(
+    `${A}/staff${qs({ search: params.search, role: params.role })}`
+  );
+}
+
+/** The full dossier for one staff member (identity + effective permissions). */
+export function fetchAdminStaffMember(id: string): Promise<StaffDetail> {
+  return apiClient.get<StaffDetail>(`${A}/staff/${encodeURIComponent(id)}`);
 }
 
 export function fetchAdminRoles(): Promise<{ items: RoleDescriptor[] }> {
@@ -814,10 +1156,26 @@ export type {
   AiUsageMetrics,
   RagSource,
   RagReviewState,
+  RagPipelineStatus,
+  RagRetrievalTestResult,
+  RagIngestReport,
+  AdminBlogPost,
+  AdminBlogCategory,
+  UpsertBlogPostInput,
+  GenerateBlogDraftInput,
+  GeneratedBlogDraft,
   SupportTicket,
   SupportTicketStatus,
   SupportTicketPriority,
   StaffMember,
+  StaffDetail,
   RoleDescriptor,
   PlatformRole,
+  ServiceCostProfile,
+  ServiceCostRule,
+  ServiceCostUnit,
+  ServiceCostRuleCondition,
+  UsageLedgerEntry,
+  UsageLedgerSummary,
+  ActivityType,
 };

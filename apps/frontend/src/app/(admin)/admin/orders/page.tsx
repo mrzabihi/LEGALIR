@@ -10,8 +10,9 @@
 
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Drawer } from "@legalir/ui";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useAdminOrders,
   useAdminOrder,
@@ -20,12 +21,7 @@ import {
   useDecideAdminRefund,
   useAdminMe,
 } from "@/hooks/useAdmin";
-import {
-  toPersianNumber,
-  toPersianDate,
-  toPersianCurrency,
-  toRelativeTime,
-} from "@/lib/persian-utils";
+import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
 import { adminOrderReceiptPdfUrl } from "@/lib/api/admin";
 import type { AdminOrder, OrderStatus } from "@/lib/api/admin";
 import {
@@ -60,6 +56,7 @@ import {
   InfoBanner,
   FilterPills,
   IdChip,
+  ExportButton,
 } from "@/components/admin/ui";
 
 const ORDER_STATUS_TONES: Record<
@@ -447,7 +444,16 @@ export default function AdminOrdersPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [receiptId, setReceiptId] = useState<string | null>(null);
 
-  const query = useAdminOrders({ search, status: status || undefined, page, pageSize: 20 });
+  // Debounce the search box so the list re-queries on a pause, not per key.
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  useEffect(() => setPage(1), [debouncedSearch]);
+
+  const query = useAdminOrders({
+    search: debouncedSearch,
+    status: status || undefined,
+    page,
+    pageSize: 20,
+  });
   const totalPages = query.data
     ? Math.max(1, Math.ceil(query.data.total / query.data.pageSize))
     : 1;
@@ -462,6 +468,7 @@ export default function AdminOrdersPage() {
       <PageHeader
         title="فروش، پرداخت و بازگشت"
         description="دفتر سفارش‌ها و گردش کار بازگشت دو‌مرحله‌ای. ثبت و تأیید عملیات مالی تفکیک شده‌اند و درگاه در این محیط شبیه‌سازی می‌شود."
+        actions={<ExportButton kind="orders" />}
       />
 
       <InfoBanner tone="info">
@@ -471,10 +478,7 @@ export default function AdminOrdersPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <TextInput
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="جستجو در شناسه، کاربر یا پلن"
           className="min-w-[240px] flex-1"
         />

@@ -10,8 +10,9 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAdminUsers, useChangeStaffRole, useAdminMe } from "@/hooks/useAdmin";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { ROLE_FA, STAFF_ROLES } from "@legalir/types";
 import type { PlatformRole } from "@legalir/types";
@@ -26,6 +27,7 @@ import {
   Button,
   IdChip,
   InfoBanner,
+  ExportButton,
 } from "@/components/admin/ui";
 import { IconSearch, IconWarning } from "@/lib/icons";
 
@@ -52,7 +54,12 @@ export default function AdminUsersPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
-  const query = useAdminUsers({ search, page, pageSize: 25 });
+  // Server-side search: debounce the raw input so typing stays instant while
+  // the list re-queries only once the operator pauses.
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  useEffect(() => setPage(1), [debouncedSearch]);
+
+  const query = useAdminUsers({ search: debouncedSearch, page, pageSize: 25 });
   const changeRole = useChangeStaffRole();
 
   const totalPages = query.data
@@ -84,6 +91,7 @@ export default function AdminUsersPage() {
       <PageHeader
         title="کاربران و سازمان‌ها"
         description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت پوشیده نمایش داده می‌شوند."
+        actions={<ExportButton kind="users" />}
       />
 
       {!canManage && (
@@ -111,10 +119,7 @@ export default function AdminUsersPage() {
           </span>
           <TextInput
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="جستجو در نام، شماره پوشیده یا شناسه"
             className="ps-9"
           />

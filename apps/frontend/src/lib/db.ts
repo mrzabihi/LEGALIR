@@ -29,6 +29,8 @@ import type {
   RegistrationOrigin,
   OnboardingType,
   OnboardingStatus,
+  AnnouncementAudience,
+  AnnouncementStatus,
 } from "@legalir/types";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
@@ -1494,6 +1496,36 @@ export interface NotificationReadRow {
 }
 
 // ---------------------------------------------------------------------------
+// Admin-authored platform announcements
+// ---------------------------------------------------------------------------
+// Authored in the admin panel, persisted here, and surfaced through the SAME
+// derived feed below (category "public") — never a parallel inbox. Only
+// `published` rows are delivered, and `audience` narrows who receives them.
+// The store lib (`lib/admin/announcements`) owns writes; this module only
+// reads the table and filters it per recipient.
+
+export interface AnnouncementRow {
+  id: string;
+  title: string;
+  message: string;
+  href: string | null;
+  actionLabel: string | null;
+  audience: AnnouncementAudience;
+  status: AnnouncementStatus;
+  createdBy: string;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+/** Whether a published announcement is addressed to this user. */
+function announcementReachesUser(row: AnnouncementRow, userId: string): boolean {
+  if (row.status !== "published") return false;
+  if (row.audience === "ALL") return true;
+  if (row.audience === "LAWYERS") return findUserById(userId)?.role === "LAWYER";
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Admin → lawyer direct messages
 // ---------------------------------------------------------------------------
 // An admin message to a lawyer is a real notification, not a parallel inbox:
@@ -1678,7 +1710,9 @@ export function deriveNotifications(userId: string): NotificationItem[] {
     });
   }
 
-  // --- Public announcements (static catalog) ---
+  // --- Public announcements (static catalog + admin-authored) ---
+  // Both share the `public` category and one stable-id space, so read
+  // receipts and the unread count cover editor-written notices too.
   for (const ann of ANNOUNCEMENTS) {
     items.push({
       id: ann.id,
@@ -1690,6 +1724,21 @@ export function deriveNotifications(userId: string): NotificationItem[] {
       read: readIds.has(ann.id),
       href: ann.href,
       actionLabel: ann.actionLabel,
+    });
+  }
+  for (const ann of readTable<AnnouncementRow>("announcements")) {
+    if (!announcementReachesUser(ann, userId)) continue;
+    const id = `announcement:${ann.id}`;
+    items.push({
+      id,
+      category: "public",
+      tone: "neutral",
+      title: ann.title,
+      message: ann.message,
+      createdAt: ann.publishedAt ?? ann.createdAt,
+      read: readIds.has(id),
+      href: ann.href ?? undefined,
+      actionLabel: ann.actionLabel ?? undefined,
     });
   }
 

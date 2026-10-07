@@ -1,23 +1,25 @@
 // ============================================================
-// LEGALIR — Admin · Admins, Roles & Security Events
-//              (مدیران، نقش‌ها و رویدادهای امنیتی)
+// LEGALIR — Admin · Staff (مدیران، نقش‌ها و رویدادهای امنیتی)
 // ============================================================
-// Three related surfaces on one page:
-//   • Staff           — platform staff and their role. A super-admin
-//                       (admin:staff:manage) can change a role; the LAST
-//                       super-admin is protected server-side.
-//   • Role matrix     — every role and the permissions it grants, straight
-//                       from the shared ROLE_PERMISSIONS map.
-//   • Security events — the append-only audit log, filterable by actor,
-//                       action key and result (success / failure / denied).
+// The staff surface: the directory of platform staff, and the append-only
+// security-event log. The role→permission matrix and the permission catalog
+// live on the sibling sub-pages (/admin/staff/roles, /admin/staff/permissions)
+// reached through the shared StaffNav.
 //
-// Mobiles are shown MASKED (server-owned). The audit log never carries
-// secrets, passwords, OTPs or full bank data — only redacted field diffs.
+//   • Staff           — searchable directory. Opening a row shows the full
+//                       dossier (identity, org, access, activity) in a drawer.
+//                       A super-admin (admin:staff:manage) can reassign a role
+//                       inline or from the drawer; the LAST role manager is
+//                       protected server-side.
+//   • Security events — every sensitive action, filterable by actor, action
+//                       key and result, with the real before → after diff.
+//
+// Mobiles are shown MASKED. The audit log never carries secrets.
 // ============================================================
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAdminStaff,
   useAdminRoles,
@@ -25,9 +27,10 @@ import {
   useAdminAudit,
   useAdminMe,
 } from "@/hooks/useAdmin";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { toPersianNumber, toRelativeTime } from "@/lib/persian-utils";
 import { ROLE_FA, STAFF_ROLES } from "@legalir/types";
-import type { PlatformRole, AdminAuditEntry } from "@legalir/types";
+import type { PlatformRole, AdminAuditEntry, StaffMember } from "@legalir/types";
 import {
   PageHeader,
   Card,
@@ -39,10 +42,15 @@ import {
   StateView,
   Select,
   TextInput,
+  SearchInput,
   InfoBanner,
   Section,
   IdChip,
+  ExportButton,
 } from "@/components/admin/ui";
+import { StaffNav } from "@/components/admin/staff-nav";
+import { StaffDetailDrawer } from "@/components/admin/staff-detail-drawer";
+import { AddStaffDialog } from "@/components/admin/add-staff-dialog";
 
 const ASSIGNABLE_ROLES: PlatformRole[] = [
   "USER",
@@ -53,10 +61,7 @@ const ASSIGNABLE_ROLES: PlatformRole[] = [
   ...STAFF_ROLES,
 ];
 
-const RESULT_TONES: Record<
-  AdminAuditEntry["result"],
-  "success" | "danger" | "warning"
-> = {
+const RESULT_TONES: Record<AdminAuditEntry["result"], "success" | "danger" | "warning"> = {
   success: "success",
   failure: "danger",
   denied: "warning",
@@ -74,15 +79,47 @@ function errMessage(err: unknown, fallback: string): string {
     : fallback;
 }
 
+/** Renders the redacted before → after diff of an audit entry, compactly. */
+function AuditDiff({
+  before,
+  after,
+}: {
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}) {
+  const parts: string[] = [];
+  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
+  for (const k of keys) {
+    const bStr = before?.[k] === undefined ? "—" : String(before[k]);
+    const aStr = after?.[k] === undefined ? "—" : String(after[k]);
+    parts.push(bStr === aStr ? `${k}: ${aStr}` : `${k}: ${bStr} → ${aStr}`);
+  }
+  if (parts.length === 0) return <span className="text-outline">—</span>;
+  return (
+    <span dir="ltr" className="block max-w-[260px] font-mono text-caption">
+      {parts.join(" · ")}
+    </span>
+  );
+}
+
 export default function AdminStaffPage() {
   const { can } = useAdminMe();
   const canManage = can("admin:staff:manage");
 
-  const staff = useAdminStaff();
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+
+  const staff = useAdminStaff({
+    search: debouncedSearch || undefined,
+    role: roleFilter || undefined,
+  });
   const roles = useAdminRoles();
   const changeRole = useChangeStaffRole();
 
   const [editing, setEditing] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   // Audit filters
@@ -91,9 +128,13 @@ export default function AdminStaffPage() {
   const [result, setResult] = useState<string>("");
   const [page, setPage] = useState(1);
 
+  const debouncedActor = useDebouncedValue(actor.trim(), 300);
+  const debouncedAction = useDebouncedValue(action.trim(), 300);
+  useEffect(() => setPage(1), [debouncedActor, debouncedAction]);
+
   const audit = useAdminAudit({
-    actorUserId: actor || undefined,
-    action: action || undefined,
+    actorUserId: debouncedActor || undefined,
+    action: debouncedAction || undefined,
     result: (result || undefined) as AdminAuditEntry["result"] | undefined,
     page,
     pageSize: 25,
@@ -123,19 +164,15 @@ export default function AdminStaffPage() {
     <div>
       <PageHeader
         title="مدیران، نقش‌ها و رویدادهای امنیتی"
-        description="کارکنان پلتفرم، ماتریس دسترسی نقش‌ها و گزارش رویدادهای امنیتی. تغییر نقش نیازمند مجوز مدیریت کارکنان است و سرور آن را مجوزسنجی می‌کند."
+        description="کارکنان پلتفرم، سطح دسترسی نقش‌ها و گزارش رویدادهای امنیتی. تغییر نقش نیازمند مجوز مدیریت کارکنان است و سرور آن را مجوزسنجی می‌کند."
+        actions={<ExportButton kind="audit" />}
       />
+      <StaffNav />
 
       {feedback && (
-        <div
-          className={`mb-4 rounded-large border p-3 text-body-2 ${
-            feedback.tone === "error"
-              ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-          }`}
-        >
+        <InfoBanner tone={feedback.tone === "error" ? "warning" : "success"}>
           {feedback.text}
-        </div>
+        </InfoBanner>
       )}
 
       {!canManage && (
@@ -145,33 +182,67 @@ export default function AdminStaffPage() {
       )}
 
       {/* ----- Staff ----- */}
-      <Section title="کارکنان پلتفرم" subtitle="کاربرانی با نقش کارمندی و نقش فعلی آن‌ها.">
+      <Section
+        title="کارکنان پلتفرم"
+        subtitle="کاربرانی با نقش کارمندی، و نقش فعلی آن‌ها."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput value={search} onChange={setSearch} placeholder="جست‌وجوی نام یا ایمیل…" />
+            <Select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="min-w-[160px]"
+            >
+              <option value="">همه نقش‌ها</option>
+              {STAFF_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_FA[r] ?? r}
+                </option>
+              ))}
+            </Select>
+            {canManage && (
+              <Button variant="primary" size="sm" onClick={() => setAddOpen(true)}>
+                افزودن کارمند
+              </Button>
+            )}
+          </div>
+        }
+      >
         <StateView
           query={staff}
           loadingRows={4}
           isEmpty={(d) => d.items.length === 0}
-          emptyMessage="کارمندی ثبت نشده است."
+          emptyMessage="کارمندی با این فیلتر یافت نشد."
         >
           {(data) => (
             <DataTable
               head={
                 <tr>
                   <Th>نام</Th>
-                  <Th>شماره</Th>
+                  <Th>شماره موبایل</Th>
                   <Th>نقش</Th>
                   <Th>سازمان</Th>
-                  {canManage && <Th>عملیات</Th>}
+                  <Th>آخرین فعالیت</Th>
+                  <Th>عملیات</Th>
                 </tr>
               }
             >
-              {data.items.map((m) => (
+              {data.items.map((m: StaffMember) => (
                 <tr key={m.id}>
                   <Td>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-on-surface">
-                        {m.displayName ?? "بدون نام"}
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-body-2 font-bold text-primary"
+                      >
+                        {(m.displayName ?? "ک").trim().charAt(0)}
                       </span>
-                      <IdChip id={m.id} />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium text-on-surface">
+                          {m.displayName ?? "بدون نام"}
+                        </span>
+                        <IdChip id={m.id} />
+                      </div>
                     </div>
                   </Td>
                   <Td className="tabular-nums" dir="ltr">
@@ -199,13 +270,21 @@ export default function AdminStaffPage() {
                   <Td className="text-caption text-muted" dir="ltr">
                     {m.orgId ?? "—"}
                   </Td>
-                  {canManage && (
-                    <Td>
-                      <Button size="sm" variant="secondary" onClick={() => setEditing(m.id)}>
-                        تغییر نقش
+                  <Td className="whitespace-nowrap text-caption text-muted">
+                    {m.lastActiveAt ? toRelativeTime(m.lastActiveAt) : "بدون سابقه"}
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button size="sm" variant="secondary" onClick={() => setDetailId(m.id)}>
+                        مشاهده
                       </Button>
-                    </Td>
-                  )}
+                      {canManage && (
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(m.id)}>
+                          تغییر نقش
+                        </Button>
+                      )}
+                    </div>
+                  </Td>
                 </tr>
               ))}
             </DataTable>
@@ -213,10 +292,10 @@ export default function AdminStaffPage() {
         </StateView>
       </Section>
 
-      {/* ----- Role matrix ----- */}
+      {/* ----- Role matrix (summary) ----- */}
       <Section
         title="ماتریس نقش و دسترسی"
-        subtitle="هر نقش و مجوزهایی که سرور برای آن اعمال می‌کند."
+        subtitle="خلاصهٔ هر نقش و تعداد مجوزها؛ برای جزئیات کامل به «نقش‌ها» و «مجوزها» در بالای صفحه بروید."
       >
         <StateView
           query={roles}
@@ -231,7 +310,6 @@ export default function AdminStaffPage() {
                   <Th>نقش</Th>
                   <Th>نوع</Th>
                   <Th>تعداد مجوز</Th>
-                  <Th>مجوزها</Th>
                 </tr>
               }
             >
@@ -248,23 +326,6 @@ export default function AdminStaffPage() {
                     )}
                   </Td>
                   <Td className="tabular-nums">{toPersianNumber(r.permissions.length)}</Td>
-                  <Td className="max-w-[420px]">
-                    <div className="flex flex-wrap gap-1">
-                      {r.permissions.length === 0 ? (
-                        <span className="text-caption text-muted">—</span>
-                      ) : (
-                        r.permissions.map((p) => (
-                          <span
-                            key={p}
-                            dir="ltr"
-                            className="rounded-full border border-divider px-2 py-0.5 font-mono text-caption text-muted"
-                          >
-                            {p}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </Td>
                 </tr>
               ))}
             </DataTable>
@@ -275,24 +336,18 @@ export default function AdminStaffPage() {
       {/* ----- Audit / security events ----- */}
       <Section
         title="رویدادهای امنیتی (ممیزی)"
-        subtitle="گزارش فقط‌افزودنی همه عملیات حساس. فیلدهای حساس هرگز در این گزارش ثبت نمی‌شوند."
+        subtitle="گزارش فقط‌افزودنی همه عملیات حساس، همراه با مقدار قبلی و جدید. فیلدهای حساس هرگز ثبت نمی‌شوند."
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <TextInput
             value={actor}
-            onChange={(e) => {
-              setActor(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setActor(e.target.value)}
             placeholder="شناسه کنشگر"
             className="min-w-[200px]"
           />
           <TextInput
             value={action}
-            onChange={(e) => {
-              setAction(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setAction(e.target.value)}
             placeholder="کلید عمل (مثلاً plan.update)"
             className="min-w-[200px]"
           />
@@ -326,6 +381,7 @@ export default function AdminStaffPage() {
                     <Th>کنشگر</Th>
                     <Th>عمل</Th>
                     <Th>منبع</Th>
+                    <Th>تغییر</Th>
                     <Th>نتیجه</Th>
                     <Th>دلیل</Th>
                   </tr>
@@ -349,6 +405,9 @@ export default function AdminStaffPage() {
                       <span dir="ltr">
                         {e.resourceType}:{e.resourceId}
                       </span>
+                    </Td>
+                    <Td className="text-caption text-muted">
+                      <AuditDiff before={e.before} after={e.after} />
                     </Td>
                     <Td>
                       <Badge tone={RESULT_TONES[e.result]}>{RESULT_FA[e.result]}</Badge>
@@ -392,9 +451,17 @@ export default function AdminStaffPage() {
       </Section>
 
       <Card className="p-4 text-caption text-muted">
-        توجه: آخرین مدیر ارشد پلتفرم قابل تنزل نیست؛ این محدودیت سمت سرور اعمال می‌شود تا
-        دسترسی مدیریتی از دست نرود.
+        توجه: آخرین مدیر ارشد پلتفرم قابل تنزل نیست؛ این محدودیت سمت سرور اعمال می‌شود تا دسترسی
+        مدیریتی از دست نرود.
       </Card>
+
+      <StaffDetailDrawer
+        staffId={detailId}
+        open={detailId !== null}
+        onClose={() => setDetailId(null)}
+      />
+
+      <AddStaffDialog open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

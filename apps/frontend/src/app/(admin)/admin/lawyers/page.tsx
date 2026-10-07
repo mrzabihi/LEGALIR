@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { useAdminLawyers, useAdminMe } from "@/hooks/useAdmin";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
   LAWYER_DECISION_BUCKETS,
@@ -34,6 +35,7 @@ import {
   FilterPills,
   InfoBanner,
   TextInput,
+  ExportButton,
 } from "@/components/admin/ui";
 import { LawyerDetailDrawer, BUCKET_TONES } from "@/components/admin/lawyer-detail-drawer";
 
@@ -47,9 +49,12 @@ export default function AdminLawyersPage() {
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
+  // Debounce the input so the queue re-queries on a pause, not per key.
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+
   const query = useAdminLawyers({
     bucket: bucket === "ALL" ? undefined : bucket,
-    search: search.trim() || undefined,
+    search: debouncedSearch || undefined,
   });
 
   const filters = [
@@ -62,6 +67,7 @@ export default function AdminLawyersPage() {
       <PageHeader
         title="وکلا"
         description="صف بررسی وکلای پلتفرم. تصمیم‌های ثبت‌شده روی سایت عمومی LegalIR بازتاب داده می‌شوند."
+        actions={<ExportButton kind="lawyers" />}
       />
 
       {!canReview && (

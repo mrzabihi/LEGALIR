@@ -46,6 +46,7 @@ import {
   FilterPills,
   Section,
   StatCard,
+  ExportButton,
 } from "@/components/admin/ui";
 
 const KIND_OPTIONS: AiProviderKind[] = ["openai", "anthropic", "azure", "openrouter", "custom"];
@@ -559,6 +560,12 @@ export default function AdminAiPage() {
       <PageHeader
         title="هوش مصنوعی و مدل‌ها"
         description="پیکربندی ارائه‌دهنده‌ها، نسخه‌های پرامپت و شاخص‌های مصرف. کلیدها فقط ذخیره می‌شوند و هرگز بازنمایش داده نمی‌شوند."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportButton kind="ai-providers" />
+            <ExportButton kind="energy-usage" label="خروجی مصرف" />
+          </div>
+        }
       />
 
       {!canManage && (

@@ -31,9 +31,9 @@ const RULE = rgb(0.85, 0.86, 0.89);
 
 // --- Bidi: keep digit/ASCII runs LTR, reverse the RTL run order -------------
 
-const LTR_TOKEN = /^[\d\u06F0-\u06F9\u0660-\u0669A-Za-z][\d\u06F0-\u06F9\u0660-\u0669A-Za-z._/@:\-]*$/;
+const LTR_TOKEN = /^[\d\u06F0-\u06F9\u0660-\u0669A-Za-z][\d\u06F0-\u06F9\u0660-\u0669A-Za-z._/@:-]*$/;
 const TOKEN_SPLIT =
-  /[\d\u06F0-\u06F9\u0660-\u0669A-Za-z][\d\u06F0-\u06F9\u0660-\u0669A-Za-z._/@:\-]*|[^\d\u06F0-\u06F9\u0660-\u0669A-Za-z]+/g;
+  /[\d\u06F0-\u06F9\u0660-\u0669A-Za-z][\d\u06F0-\u06F9\u0660-\u0669A-Za-z._/@:-]*|[^\d\u06F0-\u06F9\u0660-\u0669A-Za-z]+/g;
 
 /**
  * Prepare a logical string for a left-to-right pdf-lib draw so that an RTL

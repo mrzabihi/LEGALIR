@@ -377,7 +377,7 @@ describe("contract scoping", () => {
 describe("lawyer verification (RBAC)", () => {
   it("a plain USER cannot verify a lawyer — 403", async () => {
     const res = await verifyLawyer(
-      req("http://localhost/api/v1/admin/lawyers/law-1/verification", "sess-A", { method: "POST", body: JSON.stringify({ status: "VERIFIED" }) }),
+      req("http://localhost/api/v1/admin/lawyers/law-1/verification", "sess-A", { method: "POST", body: JSON.stringify({ status: "VERIFIED", reason: "مدارک بررسی شد" }) }),
       params("law-1")
     );
     expect(res.status).toBe(403);
@@ -386,19 +386,28 @@ describe("lawyer verification (RBAC)", () => {
 
   it("an unauthenticated caller cannot verify a lawyer — 401", async () => {
     const res = await verifyLawyer(
-      new Request("http://localhost/api/v1/admin/lawyers/law-1/verification", { method: "POST", body: JSON.stringify({ status: "VERIFIED" }) }) as unknown as NextRequest,
+      new Request("http://localhost/api/v1/admin/lawyers/law-1/verification", { method: "POST", body: JSON.stringify({ status: "VERIFIED", reason: "مدارک بررسی شد" }) }) as unknown as NextRequest,
       params("law-1")
     );
     expect(res.status).toBe(401);
   });
 
-  it("an ADMIN passes the permission gate", async () => {
+  it("an ADMIN cannot record a decision without a reason — 400", async () => {
     const res = await verifyLawyer(
       req("http://localhost/api/v1/admin/lawyers/law-1/verification", "sess-admin", { method: "POST", body: JSON.stringify({ status: "VERIFIED" }) }),
       params("law-1")
     );
-    // The mocked setVerificationStatus returns undefined → 404, which proves
-    // the request cleared the 401/403 gates and reached the handler body.
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("REASON_REQUIRED");
+  });
+
+  it("an ADMIN passes the permission + reason gates", async () => {
+    const res = await verifyLawyer(
+      req("http://localhost/api/v1/admin/lawyers/law-1/verification", "sess-admin", { method: "POST", body: JSON.stringify({ status: "VERIFIED", reason: "مدارک پروانه تأیید شد" }) }),
+      params("law-1")
+    );
+    // The mocked getLawyerProfileById returns undefined → 404, which proves
+    // the request cleared the 401/403 + reason gates and reached the handler.
     expect(res.status).toBe(404);
   });
 });

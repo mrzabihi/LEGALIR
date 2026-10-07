@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TextField, Select, Checkbox, MoneyField } from "@legalir/ui";
 import {
@@ -23,6 +23,11 @@ import {
   CALCULATOR_STATUS_FA,
   type CalculatorInput,
 } from "@/lib/calculators";
+import {
+  fetchCalculatorPolicy,
+  runCalculatorOnServer,
+  type CalculatorPolicy,
+} from "@/lib/api/calculators";
 import type {
   CalculationResult,
   CalculatorDef,
@@ -30,6 +35,13 @@ import type {
   FieldVisibility,
 } from "@legalir/types";
 import { toPersianDigits } from "@/lib/persian-utils";
+
+/** Read a user-facing message off an API error object. */
+function errMessage(err: unknown, fallback: string): string {
+  return err && typeof err === "object" && "message" in err
+    ? String((err as { message: unknown }).message)
+    : fallback;
+}
 
 const CONFIDENCE_TONE: Record<string, string> = {
   high: "bg-success-50 text-success-700 border-success-200",
@@ -110,27 +122,87 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
+  const [policy, setPolicy] = useState<CalculatorPolicy | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Recompute on every keystroke. The engine is pure and cheap, so a
-  // memo over the input object is all the caching we need.
-  const result = useMemo<CalculationResult | null>(() => {
+  // §5 — the server-owned operational policy. The client uses it only to pick
+  // the UX (local preview vs. charged server run + disabled notice); the SERVER
+  // is still the sole authority that enforces the tier, the enabled flag and
+  // the energy charge.
+  useEffect(() => {
+    let alive = true;
+    fetchCalculatorPolicy(slug)
+      .then((p) => {
+        if (alive) setPolicy(p);
+      })
+      .catch(() => {
+        // Policy is advisory to the client; a fetch failure must not block a
+        // free calculator, so fall back to the free default.
+        if (alive) setPolicy({ slug, enabled: true, accessTier: "free", energyCost: 0 });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [slug]);
+
+  const disabled = policy ? !policy.enabled : false;
+  const charged = (policy?.energyCost ?? 0) > 0;
+
+  // Free calculators preview live on every keystroke; a CHARGED run must go
+  // through the server (which charges exactly once), so it is not previewed.
+  const liveResult = useMemo<CalculationResult | null>(() => {
+    if (charged || disabled) return null;
     try {
       const r = runCalculator(slug, input);
-      setError(null);
       return r;
-    } catch (e) {
-      if (e instanceof CalculatorInputError) {
-        setError(e.message);
-        return null;
-      }
-      setError("خطا در محاسبه");
+    } catch {
       return null;
     }
-  }, [slug, input]);
+  }, [slug, input, charged, disabled]);
+
+  // Validate locally (for the error message) without exposing a result on a
+  // charged calculator — validation is pure and never bills.
+  useEffect(() => {
+    if (charged || disabled) {
+      setError(null);
+      return;
+    }
+    try {
+      runCalculator(slug, input);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof CalculatorInputError ? e.message : "خطا در محاسبه");
+    }
+  }, [slug, input, charged, disabled]);
+
+  const [result, setResult] = useState<CalculationResult | null>(null);
+  const [chargedCost, setChargedCost] = useState<number | null>(null);
 
   const setField = (key: string, value: number | string | boolean | undefined) => {
     setInput((prev) => ({ ...prev, [key]: value }));
   };
+
+  async function computeCharged() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await runCalculatorOnServer(
+        slug,
+        input as Record<string, unknown>
+      );
+      setResult(res.result);
+      setChargedCost(res.energyCost);
+    } catch (e) {
+      setError(errMessage(e, "اجرای محاسبه ناموفق بود"));
+      setResult(null);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // What the result panel shows: the live preview (free) or the server result
+  // (charged). A charged calculator shows nothing until the user runs it.
+  const displayResult = charged ? result : liveResult;
 
   // Visible groups, in declaration order. A group whose fields are all
   // hidden by progressive disclosure drops out entirely.
@@ -201,7 +273,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
 
       {/* Verification banner — shown when the annual figures are not yet
           confirmed against the issuing authority for the calculation year. */}
-      {result?.source.verificationStatus === "pending" && (
+      {displayResult?.source.verificationStatus === "pending" && (
         <div className="mb-6 rounded-large bg-warning-50 border border-warning-200 p-4 flex items-start gap-3">
           <span className="text-lg shrink-0" aria-hidden="true">🔔</span>
           <div className="min-w-0">
@@ -210,7 +282,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
             </p>
             <p className="text-caption text-warning-700 mt-1 leading-relaxed">
               ارقام سالانه این محاسبه‌گر (مانند حداقل مزد، سقف معافیت یا تعرفه) در
-              زمان تدوین از منبع رسمی سال {result.source.calculationYear} تأیید نشده و
+              زمان تدوین از منبع رسمی سال {displayResult.source.calculationYear} تأیید نشده و
               بر مبنای آخرین مقدار تأییدشده نگه داشته شده است. پیش از اتکا، مقدار
               رسمی سال جاری را بررسی کنید.
             </p>
@@ -333,12 +405,42 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
         >
           <h2 className="text-h3 text-on-surface font-bold mb-4">نتیجه</h2>
 
-          {error ? (
+          {disabled ? (
+            <div className="rounded-medium bg-surface-container-high border border-[color:var(--color-outline-variant)] p-4 text-body-2 text-on-surface-variant">
+              این محاسبه‌گر موقتاً توسط مدیر غیرفعال شده است.
+            </div>
+          ) : error ? (
             <div className="rounded-medium bg-error-50 border border-error-200 p-4 text-body-2 text-error-700">
               {error}
             </div>
-          ) : result ? (
-            <ResultView result={result} />
+          ) : displayResult ? (
+            <>
+              {charged && chargedCost !== null && (
+                <div className="mb-3 rounded-medium bg-primary/5 border border-primary-200 p-3 text-caption text-on-surface-variant">
+                  {chargedCost > 0
+                    ? `هزینهٔ این اجرا: ${toPersianDigits(chargedCost)} امتیاز انرژی کسر شد.`
+                    : "این اجرا بدون هزینهٔ اضافی ثبت شد (پیش‌تر همین امروز محاسبه شده است)."}
+                </div>
+              )}
+              <ResultView result={displayResult} />
+            </>
+          ) : charged ? (
+            <div className="space-y-4">
+              <p className="text-body-2 text-on-surface-variant leading-relaxed">
+                این محاسبه‌گر دارای هزینهٔ انرژی است و هنگام اجرا از اعتبار شما کسر
+                می‌شود. با زدن دکمهٔ زیر محاسبه انجام و نتیجه نمایش داده می‌شود.
+              </p>
+              <button
+                type="button"
+                onClick={computeCharged}
+                disabled={submitting}
+                className="w-full rounded-medium bg-primary text-white px-4 py-2.5 text-button font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {submitting
+                  ? "در حال محاسبه…"
+                  : `محاسبه (${toPersianDigits(policy?.energyCost ?? 0)} امتیاز انرژی)`}
+              </button>
+            </div>
           ) : null}
         </section>
       </div>

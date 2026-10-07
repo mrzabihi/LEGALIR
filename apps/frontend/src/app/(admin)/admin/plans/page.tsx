@@ -14,7 +14,6 @@
 import { useState } from "react";
 import { useAdminPlans, useAdminPlan, useUpdateAdminPlan, useAdminMe } from "@/hooks/useAdmin";
 import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
-import type { SubscriptionPlan } from "@legalir/types";
 import type { AdminPlanUpdate } from "@/lib/api/admin";
 import {
   PageHeader,
@@ -29,6 +28,7 @@ import {
   Field,
   InfoBanner,
   Section,
+  ExportButton,
 } from "@/components/admin/ui";
 
 type NumericField =
@@ -219,6 +219,7 @@ export default function AdminPlansPage() {
       <PageHeader
         title="پلن‌ها، اشتراک و سهمیه"
         description="کاتالوگ پلن‌ها و سهمیه‌ها. ویرایش پلن تاریخچه ثبت می‌کند و اشتراک‌های فعال را تغییر نمی‌دهد."
+        actions={<ExportButton kind="plans" label="خروجی پلن‌ها" />}
       />
 
       {!canEdit && (

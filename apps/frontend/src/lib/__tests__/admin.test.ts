@@ -41,6 +41,7 @@ vi.mock("@/lib/db", () => ({
     return u;
   },
   normalizeStoredMobile: (m: string) => m,
+  listSessionsForUser: () => [],
   getAccountType: () => "individual",
 }));
 

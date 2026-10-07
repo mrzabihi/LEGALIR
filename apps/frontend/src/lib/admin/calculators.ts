@@ -13,7 +13,8 @@
 // ============================================================
 
 import { listCalculators, RATE_DATASETS } from "@/lib/calculators";
-import type { RateDataset } from "@legalir/types";
+import { listCalculatorSettings } from "@/lib/admin/calculator-settings";
+import type { CalculatorAccessTier, RateDataset } from "@legalir/types";
 
 export interface AdminCalculatorRow {
   id: string;
@@ -26,6 +27,12 @@ export interface AdminCalculatorRow {
   datasetIds: string[];
   /** Data-quality flags derived from the calculator + its datasets. */
   warningsFa: string[];
+  /** Admin operational policy (§5): whether the calculator is runnable. */
+  enabled: boolean;
+  /** Who may run it (free / subscription / purchase / restricted). */
+  accessTier: CalculatorAccessTier;
+  /** Energy charged per run (0 = free), enforced by the run endpoint. */
+  energyCost: number;
 }
 
 export interface AdminDatasetRow {
@@ -54,6 +61,10 @@ export interface CalculatorsInventory {
   currentYear: number;
   totalCalculators: number;
   availableCalculators: number;
+  /** Calculators switched OFF by an admin (§5). */
+  disabledCalculators: number;
+  /** Calculators that charge energy per run (§5). */
+  chargedCalculators: number;
   /** Datasets whose year trails the current year. */
   staleDatasets: string[];
 }
@@ -82,6 +93,7 @@ export function buildCalculatorsInventory(): CalculatorsInventory {
   }));
 
   const byId = new Map(datasets.map((d) => [d.id, d]));
+  const settingsBySlug = new Map(listCalculatorSettings().map((s) => [s.slug, s]));
   const calculators: AdminCalculatorRow[] = listCalculators().map((c) => {
     const warnings: string[] = [];
     if (!c.def.available) warnings.push("پیاده‌سازی کامل نشده است");
@@ -89,6 +101,7 @@ export function buildCalculatorsInventory(): CalculatorsInventory {
     if (stale.length > 0) warnings.push(`مجموعه‌داده قدیمی: ${stale.join("، ")}`);
     const missing = c.def.datasetIds.filter((id) => !byId.has(id));
     if (missing.length > 0) warnings.push(`مجموعه‌داده یافت‌نشده: ${missing.join("، ")}`);
+    const setting = settingsBySlug.get(c.def.slug);
     return {
       id: c.def.id,
       slug: c.def.slug,
@@ -99,6 +112,9 @@ export function buildCalculatorsInventory(): CalculatorsInventory {
       available: c.def.available,
       datasetIds: c.def.datasetIds,
       warningsFa: warnings,
+      enabled: setting?.enabled ?? true,
+      accessTier: setting?.accessTier ?? "free",
+      energyCost: setting?.energyCost ?? 0,
     };
   });
 
@@ -112,6 +128,8 @@ export function buildCalculatorsInventory(): CalculatorsInventory {
     currentYear,
     totalCalculators: calculators.length,
     availableCalculators: calculators.filter((c) => c.available).length,
+    disabledCalculators: calculators.filter((c) => !c.enabled).length,
+    chargedCalculators: calculators.filter((c) => c.energyCost > 0).length,
     staleDatasets: datasets.filter((d) => d.needsAnnualUpdate).map((d) => d.id),
   };
 }

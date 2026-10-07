@@ -25,18 +25,43 @@ export function fromPersianDigits(s: string): string {
 }
 
 /**
- * Format a date as Persian/Jalali locale string
+ * The individual date/time style components `Intl.DateTimeFormat` treats as
+ * mutually exclusive with `dateStyle`/`timeStyle` — supplying any of them
+ * alongside `dateStyle` throws `TypeError` at construction.
+ */
+const DATE_TIME_COMPONENT_KEYS = [
+  "weekday",
+  "era",
+  "year",
+  "month",
+  "day",
+  "hour",
+  "minute",
+  "second",
+  "fractionalSecondDigits",
+  "dayPeriod",
+  "timeZoneName",
+] as const;
+
+/**
+ * Format a date as Persian/Jalali locale string.
+ *
+ * `dateStyle: "long"` is only applied as a DEFAULT: when the caller asks for
+ * individual components (e.g. `{ month: "2-digit", day: "2-digit" }`) the
+ * default is dropped, because Intl forbids `dateStyle` together with any
+ * component option. Forcing both made such calls throw at runtime.
  */
 export function toPersianDate(
   date: Date | number | string,
   options?: Intl.DateTimeFormatOptions
 ): string {
   const d = date instanceof Date ? date : new Date(date);
-  return new Intl.DateTimeFormat("fa-IR", {
-    calendar: "persian",
-    dateStyle: "long",
-    ...options,
-  }).format(d);
+  const resolved: Intl.DateTimeFormatOptions = { calendar: "persian", ...options };
+  const usesComponents = DATE_TIME_COMPONENT_KEYS.some((k) => resolved[k] !== undefined);
+  if (!usesComponents && resolved.dateStyle === undefined && resolved.timeStyle === undefined) {
+    resolved.dateStyle = "long";
+  }
+  return new Intl.DateTimeFormat("fa-IR", resolved).format(d);
 }
 
 /**

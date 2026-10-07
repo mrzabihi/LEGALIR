@@ -392,7 +392,7 @@ function OverviewBody({
   // --- Trend series (single axis; the two measures are switched, not overlaid) ---
   const revenuePoints: ChartPoint[] =
     reports.data?.daily.map((d) => ({
-      label: toPersianDate(d.date, { dateStyle: undefined, month: "2-digit", day: "2-digit" }),
+      label: toPersianDate(d.date, { month: "2-digit", day: "2-digit" }),
       tooltipLabel: toPersianDate(d.date),
       value: d.amount,
     })) ?? [];

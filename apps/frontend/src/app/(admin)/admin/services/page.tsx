@@ -32,6 +32,7 @@ import {
   TextInput,
   InfoBanner,
   Section,
+  ExportButton,
 } from "@/components/admin/ui";
 
 const FLAG_STATUS_FA = FEATURE_FLAG_STATUS_FA;
@@ -101,6 +102,7 @@ export default function AdminServicesPage() {
       <PageHeader
         title="خدمات و پرچم‌های ویژگی"
         description="کنترل انتشار قابلیت‌ها بر پایه پرچم ویژگی. تغییر وضعیت، درصد انتشار و فهرست مجاز به‌صورت سمت سرور مجوزسنجی و ثبت می‌شود."
+        actions={<ExportButton kind="services" />}
       />
 
       {!canManage && (

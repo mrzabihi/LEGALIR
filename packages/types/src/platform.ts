@@ -174,6 +174,8 @@ export type Permission =
   | "admin:rag:publish"
   | "admin:calculators:read"
   | "admin:calculators:manage"
+  | "admin:energy:read"
+  | "admin:energy:manage"
   | "admin:support:read"
   | "admin:support:manage"
   | "admin:content:read"
@@ -279,6 +281,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:finance:read",
     "admin:ai:read",
     "admin:rag:read",
+    "admin:energy:read",
     "admin:reports:read",
   ],
   AUDITOR: [
@@ -325,6 +328,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:settlement:approve",
     "admin:plans:read",
     "admin:plans:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
     "admin:reports:read",
     "admin:reports:export",
   ],
@@ -336,6 +341,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:content:manage",
     "admin:calculators:read",
     "admin:calculators:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
     "admin:rag:read",
     "admin:rag:manage",
     "admin:rag:publish",
@@ -381,6 +388,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:knowledge:write",
     "admin:calculators:read",
     "admin:calculators:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
     "admin:support:read",
     "admin:support:manage",
     "admin:content:read",
@@ -421,6 +430,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:knowledge:write",
     "admin:calculators:read",
     "admin:calculators:manage",
+    "admin:energy:read",
+    "admin:energy:manage",
     "admin:support:read",
     "admin:support:manage",
     "admin:content:read",

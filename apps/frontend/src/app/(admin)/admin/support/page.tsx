@@ -38,6 +38,7 @@ import {
   InfoBanner,
   FilterPills,
   IdChip,
+  ExportButton,
 } from "@/components/admin/ui";
 
 const STATUS_TONES: Record<
@@ -293,6 +294,7 @@ export default function AdminSupportPage() {
       <PageHeader
         title="پشتیبانی و گزارش مشکلات"
         description="تیکت‌های کاربران با اولویت و مهلت SLA. تیکت‌های خارج از SLA به‌صورت واقعی از مهلت و زمان کنونی محاسبه می‌شوند."
+        actions={<ExportButton kind="support-tickets" label="خروجی تیکت‌ها" />}
       />
 
       {!canManage && (

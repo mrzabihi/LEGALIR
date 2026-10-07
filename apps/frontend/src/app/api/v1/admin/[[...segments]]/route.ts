@@ -19,7 +19,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requirePermission } from "@/lib/rbac";
 import { readTable, findUserById, normalizeStoredMobile } from "@/lib/db";
-import type { Permission, PlatformRole, LegalRequestState } from "@legalir/types";
+import {
+  ADMIN_EXPORT_PERMISSION,
+  lawyerDecisionBucket,
+  LEGAL_REQUEST_TRANSITIONS,
+  ANNOUNCEMENT_STATUSES,
+  type Permission,
+  type PlatformRole,
+  type LegalRequestState,
+  type AnnouncementAudience,
+} from "@legalir/types";
 
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
 import { buildOverview, revenueByPlan, dailySales, resolvedRangeDays } from "@/lib/admin/metrics";
@@ -53,8 +62,47 @@ import {
   getAiUsageMetrics,
   isSecretStorageReady,
 } from "@/lib/admin/ai-providers";
-import { listRagSources, ragReviewCounts, updateRagReview } from "@/lib/admin/rag";
+import {
+  listRagSources,
+  ragReviewCounts,
+  updateRagReview,
+  getRagPipelineStatus,
+  getRagSourceDetail,
+  testRagRetrieval,
+  reingestRagCorpus,
+  lawCatalogCoverage,
+} from "@/lib/admin/rag";
+import {
+  listAdminBlogPosts,
+  getAdminBlogPost,
+  listBlogCategories,
+  upsertBlogPost,
+  setBlogStatus,
+  deleteBlogPost,
+  generateBlogDraft,
+} from "@/lib/admin/blog";
 import { buildCalculatorsInventory } from "@/lib/admin/calculators";
+import {
+  listCalculatorSettings,
+  getCalculatorSetting,
+  saveCalculatorSetting,
+} from "@/lib/admin/calculator-settings";
+import {
+  listCostProfiles,
+  getCostProfile,
+  saveCostProfile,
+  listCostRules,
+  saveCostRule,
+  deleteCostRule,
+  readLedger,
+  getLedgerSummary,
+} from "@/lib/usage/energy";
+import { buildAdminExport, isAdminExportKind, type AdminExportKind } from "@/lib/admin/export";
+import {
+  listAnnouncements,
+  createAnnouncement,
+  setAnnouncementStatus,
+} from "@/lib/admin/announcements";
 import {
   listTickets,
   getTicket,
@@ -64,21 +112,30 @@ import {
   supportCounts,
   isOverdue,
 } from "@/lib/admin/support";
-import { listStaff, changeUserRole, listRoles } from "@/lib/admin/staff";
+import { listStaff, getStaffMember, changeUserRole, listRoles } from "@/lib/admin/staff";
 import { listAudit, recordAudit } from "@/lib/admin/audit";
 import { readPlans } from "@/lib/usage/plans";
 import { listOrganizations } from "@/lib/org-db";
 import { readBlog } from "@/lib/legal-library-db";
 import { listLawyerProfiles } from "@/lib/lawyer-db";
+import { getRequestById, listRequestEvents, assignRequestLawyer, transitionRequest } from "@/lib/legal-request-db";
 import type {
   AiProviderKind,
   AdjustmentKind,
   SettlementStatus,
   RagReviewState,
+  AdminBlogPost,
+  CalculatorAccessTier,
   SupportTicketStatus,
   SupportTicketPriority,
   OrderStatus,
 } from "@legalir/types";
+
+/**
+ * Blog lifecycle as declared on the admin row. Derived from the row type
+ * because `@legalir/types` also re-exports a WIDER, public `BlogPostStatus`.
+ */
+type AdminBlogStatus = AdminBlogPost["status"];
 
 // ---------------------------------------------------------------------------
 // Shared row shapes (local — keep this module self-contained)
@@ -246,7 +303,9 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       }),
     }),
 
-  calculators: () => ok(buildCalculatorsInventory()),
+  // §5 — inventory (read-only datasets) PLUS the operational settings rows the
+  // /admin/calculators page edits (enabled / accessTier / energyCost).
+  calculators: () => ok({ ...buildCalculatorsInventory(), settings: listCalculatorSettings() }),
 
   support: ({ url }) =>
     ok({
@@ -258,18 +317,38 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
     }),
 
   content: () => {
+    // §2 — the admin blog surface reports the real publish state from the ONE
+    // blog store (lib/admin/blog reads the same .data/blog.json the public
+    // site does). `readBlog` remains for the categories + legacy shape.
+    const posts = listAdminBlogPosts();
     const blog = readBlog();
-    const items = blog.items;
     return ok({
       blog: {
-        total: items.length,
-        published: items.filter((p) => p.publishedAt).length,
-        items: items.slice(0, 50),
+        total: posts.length,
+        published: posts.filter((p) => p.status === "PUBLISHED").length,
+        items: posts.slice(0, 100),
+        categories: listBlogCategories(),
+        legacyCategoryCount: blog.categories.length,
       },
     });
   },
 
-  staff: () => ok({ items: listStaff() }),
+  blog: ({ url }) =>
+    ok({
+      items: listAdminBlogPosts(),
+      categories: listBlogCategories(),
+      status: url.searchParams.get("status") ?? undefined,
+    }),
+
+  announcements: () => ok({ items: listAnnouncements() }),
+
+  staff: ({ url }) =>
+    ok({
+      items: listStaff({
+        search: url.searchParams.get("search") ?? undefined,
+        role: url.searchParams.get("role") ?? undefined,
+      }),
+    }),
 
   roles: () => ok({ items: listRoles() }),
 
@@ -316,6 +395,24 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
   const [a, b, d] = c.segments;
   switch (a) {
+    case "calculators": {
+      // §5 — one calculator's editable operational policy (defaults when unset).
+      if (!b) return adminError(400, "BAD_PATH", "شناسهٔ محاسبه‌گر لازم است");
+      return ok(getCalculatorSetting(b));
+    }
+    case "blog": {
+      // §2 — blog categories + per-post detail.
+      if (b === "categories") return ok({ items: listBlogCategories() });
+      const post = b ? getAdminBlogPost(b) : undefined;
+      if (!post) return adminError(404, "NOT_FOUND", "مطلب یافت نشد");
+      return ok(post);
+    }
+    case "staff": {
+      // One staff member's dossier (identity + effective permissions + org).
+      const member = b ? getStaffMember(b) : undefined;
+      if (!member) return adminError(404, "STAFF_NOT_FOUND", "کارمند یافت نشد");
+      return ok(member);
+    }
     case "users": {
       const user = b ? findUserById(b) : undefined;
       if (!user) return adminError(404, "USER_NOT_FOUND", "کاربر یافت نشد");
@@ -331,9 +428,45 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       });
     }
     case "requests": {
-      const req = b ? readTable<LegalRequestRow>("legal_requests").find((r) => r.id === b) : undefined;
+      const req = b ? getRequestById(b) : undefined;
       if (!req) return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
-      return ok(req);
+      const user = findUserById(req.userId);
+      const lawyer = req.selectedLawyerId
+        ? listLawyerProfiles().find((l) => l.id === req.selectedLawyerId)
+        : undefined;
+      // The auditable history the client and lawyer themselves see.
+      const events = listRequestEvents(req.id);
+      // Assignable lawyers: only APPROVED profiles — an operator must never be
+      // able to route a live request to a suspended or unverified lawyer.
+      const assignableLawyers = listLawyerProfiles()
+        .filter((l) => lawyerDecisionBucket(l.verificationStatus) === "APPROVED")
+        .map((l) => ({
+          id: l.id,
+          fullName: l.fullName,
+          professionalTitle: l.professionalTitle ?? null,
+        }));
+      return ok({
+        request: {
+          id: req.id,
+          title: req.title,
+          category: req.category,
+          state: req.state,
+          userId: req.userId,
+          userDisplayName: user?.displayName ?? null,
+          selectedLawyerId: req.selectedLawyerId,
+          selectedLawyerName: lawyer?.fullName ?? null,
+          orgId: req.orgId,
+          caseId: req.caseId,
+          conversationId: req.conversationId,
+          createdAt: req.createdAt,
+          updatedAt: req.updatedAt,
+        },
+        // Legal next states for the CURRENT state, taken from the authoritative
+        // state machine — the UI never invents a transition the server rejects.
+        allowedTransitions: LEGAL_REQUEST_TRANSITIONS[req.state],
+        events,
+        assignableLawyers,
+      });
     }
     case "orders": {
       if (!b) return adminError(400, "BAD_PATH", "درخواست نامعتبر");
@@ -398,6 +531,13 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
     }
     case "rag": {
       if (b === "sources") {
+        // §1 — source detail includes the actual searchable chunks, so an
+        // operator can verify WHAT the retrieval pipeline will match.
+        if (d) {
+          const detail = getRagSourceDetail(d);
+          if (!detail) return adminError(404, "NOT_FOUND", "منبع یافت نشد");
+          return ok(detail);
+        }
         return ok({
           items: listRagSources({
             reviewState: (c.url.searchParams.get("reviewState") as RagReviewState | null) ?? undefined,
@@ -406,7 +546,67 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
           counts: ragReviewCounts(),
         });
       }
+      if (b === "pipeline") {
+        return ok({ status: getRagPipelineStatus(), coverage: lawCatalogCoverage() });
+      }
       return adminError(400, "BAD_PATH", "درخواست نامعتبر");
+    }
+    case "energy": {
+      // §6 — Service Cost / Energy model + the queryable usage ledger.
+      if (b === "profiles") {
+        if (!d) return ok({ items: listCostProfiles() });
+        const profile = getCostProfile(d);
+        if (!profile) return adminError(404, "NOT_FOUND", "مدل هزینه یافت نشد");
+        return ok({ profile, rules: listCostRules(profile.id) });
+      }
+      if (b === "ledger") {
+        return ok({
+          items: readLedger({
+            userId: c.url.searchParams.get("userId") ?? undefined,
+            serviceKey: c.url.searchParams.get("serviceKey") ?? undefined,
+            from: c.url.searchParams.get("from") ?? undefined,
+            to: c.url.searchParams.get("to") ?? undefined,
+          }),
+        });
+      }
+      if (b === "summary") {
+        return ok(getLedgerSummary(intParam(c.url, "rangeDays", 30)));
+      }
+      return adminError(400, "BAD_PATH", "درخواست نامعتبر");
+    }
+    case "exports": {
+      // §7 — server-side Excel export of a complete admin surface.
+      if (!b || !isAdminExportKind(b)) {
+        return adminError(404, "NOT_FOUND", "نوع خروجی پشتیبانی نمی‌شود");
+      }
+      const kind: AdminExportKind = b;
+      const result = buildAdminExport(kind);
+      if ("error" in result) {
+        return adminError(500, "EXPORT_FAILED", "تولید فایل خروجی ناموفق بود");
+      }
+      // Audited like every other sensitive operator action (§9).
+      const meta = requestMeta(c.request);
+      recordAudit({
+        actorUserId: c.ctx.userId,
+        actorRole: c.ctx.role,
+        orgId: c.ctx.orgId,
+        action: "export.download",
+        resourceType: "export",
+        resourceId: kind,
+        after: { rows: result.rowCount },
+        ...meta,
+      });
+      return new NextResponse(new Uint8Array(result.bytes), {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Length": String(result.bytes.length),
+          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`,
+          "Cache-Control": "private, no-store, max-age=0",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
     }
     default:
       return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
@@ -427,9 +627,50 @@ function num(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * §5 — narrow a raw admin body to only the calculator-setting fields that are
+ * actually present, so a PATCH-style partial save never blanks a field the
+ * operator did not touch.
+ */
+function parseCalculatorSetting(body: Body): {
+  enabled?: boolean;
+  accessTier?: CalculatorAccessTier;
+  energyCost?: number;
+  allowedPlans?: string[];
+  allowedUserIds?: string[];
+} {
+  const out: {
+    enabled?: boolean;
+    accessTier?: CalculatorAccessTier;
+    energyCost?: number;
+    allowedPlans?: string[];
+    allowedUserIds?: string[];
+  } = {};
+  if ("enabled" in body) out.enabled = Boolean(body["enabled"]);
+  if ("accessTier" in body) out.accessTier = body["accessTier"] as CalculatorAccessTier;
+  if ("energyCost" in body) out.energyCost = num(body["energyCost"]);
+  if (Array.isArray(body["allowedPlans"])) out.allowedPlans = body["allowedPlans"] as string[];
+  if (Array.isArray(body["allowedUserIds"])) out.allowedUserIds = body["allowedUserIds"] as string[];
+  return out;
+}
+
 async function handlePost(request: NextRequest, segments: string[], actor: Actor): Promise<NextResponse> {
   const [a, b, c, d] = segments;
   const meta = requestMeta(request);
+
+  if (a === "calculators" && b) {
+    // §5 — save one calculator's operational policy (save-as-create; the
+    // surface has no separate create form).
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = saveCalculatorSetting(b, parseCalculatorSetting(body), actor.userId);
+    if ("error" in res) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, after: { enabled: res.enabled, accessTier: res.accessTier, energyCost: res.energyCost }, ...meta });
+    return ok(res);
+  }
 
   if (a === "orders" && b && c === "refunds") {
     const body = (await readJson(request)) as Body | null;
@@ -594,6 +835,58 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
+  if (a === "energy" && b === "profiles" && !c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = saveCostProfile({
+      id: typeof body["id"] === "string" ? (body["id"] as string) : undefined,
+      serviceKey: str(body["serviceKey"]),
+      nameFa: str(body["nameFa"]),
+      descriptionFa: typeof body["descriptionFa"] === "string" ? (body["descriptionFa"] as string) : undefined,
+      activity: body["activity"] as never,
+      enabled: Boolean(body["enabled"]),
+      baseRequestCost: num(body["baseRequestCost"]),
+      inputTokenPer1k: num(body["inputTokenPer1k"]),
+      outputTokenPer1k: num(body["outputTokenPer1k"]),
+      contextTokenPer1k: num(body["contextTokenPer1k"]),
+      unitCosts: (body["unitCosts"] as never) ?? {},
+      modelMultipliers: (body["modelMultipliers"] as Record<string, number>) ?? {},
+      updatedBy: actor.userId,
+    });
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.profile.save", resourceType: "service_cost_profile", resourceId: res.id, after: { serviceKey: res.serviceKey, enabled: res.enabled, baseRequestCost: res.baseRequestCost }, ...meta });
+    return NextResponse.json({ data: res }, { status: 201 });
+  }
+
+  if (a === "energy" && b === "rules" && !c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = saveCostRule({
+      id: typeof body["id"] === "string" ? (body["id"] as string) : undefined,
+      profileId: str(body["profileId"]),
+      activity: body["activity"] as never,
+      labelFa: str(body["labelFa"]),
+      enabled: Boolean(body["enabled"]),
+      priority: num(body["priority"], 100),
+      condition: body["condition"] as never,
+      min: body["min"] === null || body["min"] === undefined ? null : num(body["min"]),
+      max: body["max"] === null || body["max"] === undefined ? null : num(body["max"]),
+      models: Array.isArray(body["models"]) ? (body["models"] as string[]) : [],
+      addEnergy: num(body["addEnergy"]),
+      multiply: body["multiply"] === null || body["multiply"] === undefined ? null : num(body["multiply"]),
+    });
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.rule.save", resourceType: "service_cost_rule", resourceId: res.id, after: { profileId: res.profileId, condition: res.condition, addEnergy: res.addEnergy, enabled: res.enabled }, ...meta });
+    return NextResponse.json({ data: res }, { status: 201 });
+  }
+
+  if (a === "energy" && b === "rules" && c && d === "delete") {
+    const res = deleteCostRule(c);
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.rule.delete", resourceType: "service_cost_rule", resourceId: c, ...meta });
+    return ok(res);
+  }
+
   if (a === "support" && b && c === "messages") {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
@@ -609,6 +902,149 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     return ok(res);
   }
 
+  if (a === "announcements" && !b) {
+    // Compose a platform announcement. Publishing delivers it through the
+    // user's real notification feed; a draft is stored but withheld.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = createAnnouncement(
+      {
+        title: str(body["title"]),
+        message: str(body["message"]),
+        href: body["href"] === undefined || body["href"] === null ? null : str(body["href"]),
+        actionLabel:
+          body["actionLabel"] === undefined || body["actionLabel"] === null
+            ? null
+            : str(body["actionLabel"]),
+        audience: body["audience"] as AnnouncementAudience,
+        publish: Boolean(body["publish"]),
+      },
+      actor.userId
+    );
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "announcement.create",
+      resourceType: "announcement",
+      resourceId: res.id,
+      after: { status: res.status, audience: res.audience },
+      ...meta,
+    });
+    return NextResponse.json({ data: res }, { status: 201 });
+  }
+
+  if (a === "rag" && b === "retrieval-test") {
+    // §1 — run a REAL query through the one retrieval pipeline so an operator
+    // can verify a source is reachable. Read-only, so never audited as a change.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = testRagRetrieval(str(body["query"]), num(body["maxResults"]));
+    if ("error" in res) return mapDataError(res.error);
+    return ok(res);
+  }
+
+  if (a === "rag" && b === "reingest") {
+    // §1 — re-run ingestion over the source folder. Idempotent (hash-deduped);
+    // newly added law files enter the SAME pipeline that chat retrieval uses.
+    const report = reingestRagCorpus();
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "rag.corpus.reingest",
+      resourceType: "rag_corpus",
+      resourceId: report.corpusDir,
+      after: { sources: report.sources, chunks: report.chunks, tokens: report.tokens },
+      ...meta,
+    });
+    return ok(report);
+  }
+
+  if (a === "blog") {
+    // §2 — AI content generation. Produces a draft from the configured provider
+    // (honestly reporting the mock); saving keeps it as a DRAFT — publishing is
+    // a separate, explicit step.
+    if (b === "generate") {
+      const body = (await readJson(request)) as Body | null;
+      if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+      const res = await generateBlogDraft(
+        {
+          topic: str(body["topic"]),
+          category: body["category"] === undefined ? null : str(body["category"]),
+          keywords: Array.isArray(body["keywords"]) ? (body["keywords"] as string[]) : [],
+          tone: body["tone"] === undefined ? null : str(body["tone"]),
+          titleHint: body["titleHint"] === undefined ? null : str(body["titleHint"]),
+          save: Boolean(body["save"]),
+        },
+        actor.userId
+      );
+      if ("error" in res) return mapDataError(res.error);
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "blog.generate",
+        resourceType: "blog_post",
+        resourceId: res.savedPostId ?? res.slug,
+        after: { provider: res.provider, mock: res.mock, saved: Boolean(res.savedPostId) },
+        ...meta,
+      });
+      return NextResponse.json({ data: res }, { status: 201 });
+    }
+
+    // Delete a post.
+    if (b && c === "delete") {
+      const res = deleteBlogPost(b);
+      if ("error" in res) return mapDataError(res.error);
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "blog.delete",
+        resourceType: "blog_post",
+        resourceId: b,
+        ...meta,
+      });
+      return ok(res);
+    }
+
+    // Create a post (always created as a draft unless a status is supplied).
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = upsertBlogPost(
+      {
+        titleFa: str(body["titleFa"]),
+        slug: body["slug"] === undefined ? null : str(body["slug"]),
+        excerpt: body["excerpt"] === undefined ? null : str(body["excerpt"]),
+        body: body["body"] === undefined ? null : str(body["body"]),
+        category: body["category"] === undefined ? null : str(body["category"]),
+        tags: Array.isArray(body["tags"]) ? (body["tags"] as string[]) : undefined,
+        author: body["author"] === undefined ? null : str(body["author"]),
+        coverImage: body["coverImage"] === undefined ? null : str(body["coverImage"]),
+        readingTime: body["readingTime"] === undefined ? null : num(body["readingTime"]),
+        featured: Boolean(body["featured"]),
+        seoTitle: body["seoTitle"] === undefined ? null : str(body["seoTitle"]),
+        seoDescription: body["seoDescription"] === undefined ? null : str(body["seoDescription"]),
+        status: (body["status"] as AdminBlogStatus | undefined) ?? "DRAFT",
+      },
+      actor.userId
+    );
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "blog.create",
+      resourceType: "blog_post",
+      resourceId: res.id,
+      after: { status: res.status, slug: res.slug },
+      ...meta,
+    });
+    return NextResponse.json({ data: res }, { status: 201 });
+  }
+
   return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
 }
 
@@ -619,12 +1055,14 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
   if (a === "users" && b) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    // Snapshot the prior role so the trail records the full before → after diff.
+    const priorStaff = getStaffMember(b);
     const res = changeUserRole({ userId: b, role: body["role"] as PlatformRole, actorUserId: actor.userId });
     if ("error" in res) {
       recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "user.role.change", resourceType: "user", resourceId: b, result: "denied", reason: res.error, ...meta });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "user.role.change", resourceType: "user", resourceId: b, after: { role: res.role }, ...meta });
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "user.role.change", resourceType: "user", resourceId: b, before: priorStaff ? { role: priorStaff.role } : null, after: { role: res.role }, ...meta });
     return ok(res);
   }
 
@@ -661,6 +1099,195 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
     return ok(res);
   }
 
+  if (a === "calculators" && b) {
+    // §5 — partial save of one calculator's operational policy.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const before = getCalculatorSetting(b);
+    const res = saveCalculatorSetting(b, parseCalculatorSetting(body), actor.userId);
+    if ("error" in res) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, before: { enabled: before.enabled, accessTier: before.accessTier, energyCost: before.energyCost }, after: { enabled: res.enabled, accessTier: res.accessTier, energyCost: res.energyCost }, ...meta });
+    return ok(res);
+  }
+
+  if (a === "blog" && b) {
+    // §2 — update a post, or change only its status. Publishing is explicit;
+    // a status change away from `published` removes it from the public list.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    // A status-only change (no other fields) routes through setBlogStatus.
+    const keys = Object.keys(body);
+    if (keys.length === 1 && "status" in body) {
+      const before = getAdminBlogPost(b);
+      if (!before) return adminError(404, "NOT_FOUND", "مطلب یافت نشد");
+      const res = setBlogStatus(b, body["status"] as AdminBlogStatus);
+      if ("error" in res) return mapDataError(res.error);
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: res.status === "PUBLISHED" ? "blog.publish" : "blog.status.change",
+        resourceType: "blog_post",
+        resourceId: b,
+        before: { status: before.status },
+        after: { status: res.status },
+        ...meta,
+      });
+      return ok(res);
+    }
+
+    const before = getAdminBlogPost(b);
+    if (!before) return adminError(404, "NOT_FOUND", "مطلب یافت نشد");
+    const res = upsertBlogPost(
+      {
+        id: b,
+        titleFa: body["titleFa"] === undefined ? before.titleFa : str(body["titleFa"]),
+        slug: body["slug"] === undefined ? before.slug : str(body["slug"]),
+        excerpt: body["excerpt"] === undefined ? before.excerpt : str(body["excerpt"]),
+        body: body["body"] === undefined ? before.body : str(body["body"]),
+        category: body["category"] === undefined ? before.category : str(body["category"]),
+        tags: Array.isArray(body["tags"]) ? (body["tags"] as string[]) : before.tags,
+        author: body["author"] === undefined ? before.author : str(body["author"]),
+        coverImage: body["coverImage"] === undefined ? before.coverImage : str(body["coverImage"]),
+        readingTime: body["readingTime"] === undefined ? before.readingTime : num(body["readingTime"]),
+        featured: body["featured"] === undefined ? before.featured : Boolean(body["featured"]),
+        seoTitle: body["seoTitle"] === undefined ? before.seoTitle : str(body["seoTitle"]),
+        seoDescription:
+          body["seoDescription"] === undefined ? before.seoDescription : str(body["seoDescription"]),
+        status: (body["status"] as AdminBlogStatus | undefined) ?? before.status,
+      },
+      actor.userId
+    );
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "blog.update",
+      resourceType: "blog_post",
+      resourceId: b,
+      before: { status: before.status },
+      after: { status: res.status },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  if (a === "requests" && b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    // --- Assign / change the lawyer (a field change, not a transition) ---
+    if ("selectedLawyerId" in body) {
+      const raw = body["selectedLawyerId"];
+      const lawyerId = raw === null || raw === "" ? null : String(raw);
+      if (lawyerId) {
+        const profile = listLawyerProfiles().find((l) => l.id === lawyerId);
+        if (!profile) return adminError(404, "LAWYER_NOT_FOUND", "وکیل یافت نشد");
+        if (lawyerDecisionBucket(profile.verificationStatus) !== "APPROVED") {
+          return adminError(409, "LAWYER_NOT_ELIGIBLE", "این وکیل برای تخصیص مجاز نیست (تأییدنشده).");
+        }
+      }
+      const before = getRequestById(b);
+      const res = assignRequestLawyer({
+        requestId: b,
+        lawyerId,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        note: lawyerId ? "تخصیص وکیل توسط پشتیبانی" : "حذف وکیل توسط پشتیبانی",
+      });
+      if (!res.ok) {
+        if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+        return adminError(409, "TERMINAL_REQUEST", "درخواست بسته یا لغو‌شده قابل ویرایش نیست.");
+      }
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "request.lawyer.assign",
+        resourceType: "legal_request",
+        resourceId: b,
+        before: { selectedLawyerId: before?.selectedLawyerId ?? null },
+        after: { selectedLawyerId: lawyerId },
+        ...meta,
+      });
+      return ok(res.request);
+    }
+
+    // --- Change the status via the authoritative state machine ---
+    if ("state" in body) {
+      const to = body["state"] as LegalRequestState;
+      const before = getRequestById(b);
+      if (!before) return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+      const res = transitionRequest({
+        requestId: b,
+        to,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        note: typeof body["note"] === "string" ? (body["note"] as string) : "تغییر وضعیت توسط پشتیبانی",
+      });
+      if (!res.ok) {
+        if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+        recordAudit({
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          orgId: actor.orgId,
+          action: "request.state.change",
+          resourceType: "legal_request",
+          resourceId: b,
+          result: "denied",
+          reason: "illegal_transition",
+          before: { state: before.state },
+          after: { state: to },
+          ...meta,
+        });
+        return adminError(409, "ILLEGAL_TRANSITION", "این تغییر وضعیت مجاز نیست.");
+      }
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "request.state.change",
+        resourceType: "legal_request",
+        resourceId: b,
+        before: { state: before.state },
+        after: { state: res.request!.state },
+        ...meta,
+      });
+      return ok(res.request!);
+    }
+
+    return adminError(400, "INVALID_BODY", "هیچ تغییری برای اعمال ارسال نشده است");
+  }
+
+  if (a === "announcements" && b) {
+    // Publish or retract an announcement. Only `status` is editable; the
+    // body text is immutable once written (compose a new one instead).
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const status = body["status"];
+    if (typeof status !== "string" || !(ANNOUNCEMENT_STATUSES as readonly string[]).includes(status)) {
+      return adminError(400, "INVALID_STATUS", "وضعیت نامعتبر است");
+    }
+    const res = setAnnouncementStatus(b, status as (typeof ANNOUNCEMENT_STATUSES)[number], actor.userId);
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: status === "published" ? "announcement.publish" : "announcement.retract",
+      resourceType: "announcement",
+      resourceId: b,
+      after: { status: res.status },
+      ...meta,
+    });
+    return ok(res);
+  }
+
   if (a === "rag" && b === "sources" && c) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
@@ -689,6 +1316,12 @@ function permissionFor(method: string, segments: string[]): Permission {
   switch (a) {
     case "overview": return "admin:overview:read";
     case "reports": return method === "GET" ? "admin:reports:read" : "admin:reports:export";
+    case "exports":
+      // §9 — exporting a surface requires the READ permission of that very
+      // surface (audit export → admin:audit:read, …), never a generic one.
+      return b && isAdminExportKind(b)
+        ? ADMIN_EXPORT_PERMISSION[b]
+        : "admin:reports:export";
     case "users": return method === "GET" ? "admin:users:read" : "admin:users:manage";
     case "requests": return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
     case "flags": return "admin:flags:manage";
@@ -699,9 +1332,13 @@ function permissionFor(method: string, segments: string[]): Permission {
     case "settlements": return b && method === "GET" ? "admin:finance:read" : "admin:settlement:manage";
     case "ai": return method === "GET" ? "admin:ai:read" : "admin:ai:manage";
     case "rag": return method === "GET" ? "admin:rag:read" : "admin:rag:manage";
-    case "calculators": return "admin:calculators:read";
+    case "calculators": return method === "GET" ? "admin:calculators:read" : "admin:calculators:manage";
+    case "energy": return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
     case "support": return method === "GET" ? "admin:support:read" : "admin:support:manage";
     case "content": return "admin:content:read";
+    case "blog": return method === "GET" ? "admin:content:read" : "admin:content:manage";
+    case "announcements":
+      return method === "GET" ? "admin:content:read" : "admin:content:manage";
     case "staff": return method === "GET" ? "admin:staff:read" : "admin:staff:manage";
     case "roles": return "admin:staff:read";
     case "audit": return "admin:audit:read";
