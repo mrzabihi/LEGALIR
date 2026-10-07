@@ -7,6 +7,7 @@
 // ============================================================
 
 import type { PlanCode } from "@legalir/types";
+import { computeDiscountPercent } from "@/lib/usage/plan-pricing";
 
 /** Lowest → highest tier. Used to label an upgrade vs. a plain selection. */
 export const PLAN_ORDER: PlanCode[] = ["silver", "gold", "diamond"];
@@ -42,6 +43,5 @@ export function planBgGradient(code: PlanCode): string {
  * badge is shown for a full-price plan.
  */
 export function planDiscountPercent(listPrice: number, salePrice: number): number {
-  if (!listPrice || listPrice <= 0 || salePrice >= listPrice) return 0;
-  return Math.round(((listPrice - salePrice) / listPrice) * 100);
+  return computeDiscountPercent(listPrice, salePrice);
 }

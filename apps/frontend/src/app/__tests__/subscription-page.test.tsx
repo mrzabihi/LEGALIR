@@ -292,7 +292,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      expect(screen.getByText("اشتراک فعلی")).toBeInTheDocument();
+      // The current-plan badge lives on the plan card, which resolves on its
+      // own (delayed) query — await it rather than racing the skeletons.
+      expect(await screen.findByText("اشتراک فعلی")).toBeInTheDocument();
     });
   });
 
@@ -405,7 +407,9 @@ describe("Subscription Page", () => {
         { timeout: 5000 }
       );
 
-      fireEvent.click(screen.getByText("خرید اشتراک"));
+      // Plans resolve on their own query (50ms delay), so await the CTA before
+      // clicking — otherwise we can race the plan-card skeletons.
+      fireEvent.click(await screen.findByText("خرید اشتراک"));
 
       await waitFor(() => {
         expect(screen.getByText("تأیید و پرداخت")).toBeInTheDocument();

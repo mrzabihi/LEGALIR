@@ -21,7 +21,9 @@ import type {
   FinanceAnalytics,
   AnalyticsDataQualityFlag,
   AnalyticsRangeKey,
+  AdminOrderListResponse,
 } from "@legalir/types";
+import type { AdminUserRow } from "./admin";
 
 const A = "/api/v1/admin/analytics";
 
@@ -127,6 +129,105 @@ export function fetchAnalyticsRanking(
     pageSize: query.pageSize,
   });
   return apiClient.get<PurchaseRankingPage>(`${A}/customers/ranking${rangeQs(range)}${extra}`);
+}
+
+// ---------------------------------------------------------------------------
+// Range-preserving drill-down (KPI → the ledger/user list it explains)
+// ---------------------------------------------------------------------------
+
+/**
+ * A resolved drill window: the exact ISO instants a KPI reported on. Both
+ * bounds are required — a half-specified window is not a window.
+ */
+export interface AnalyticsDrillWindow {
+  fromIso: string;
+  toIso: string;
+}
+
+/**
+ * Read a drill window from the URL query. Both ISO bounds must be present and
+ * form a real, forward interval, else `null` — a malformed link degrades to
+ * the unfiltered list rather than producing a nonsensical filtered one.
+ */
+export function drillWindowFromParams(sp: URLSearchParams): AnalyticsDrillWindow | null {
+  const fromIso = sp.get("fromIso");
+  const toIso = sp.get("toIso");
+  if (!fromIso || !toIso) return null;
+  const f = new Date(fromIso).getTime();
+  const t = new Date(toIso).getTime();
+  if (!Number.isFinite(f) || !Number.isFinite(t) || t <= f) return null;
+  return { fromIso, toIso };
+}
+
+function drillQs(
+  window: AnalyticsDrillWindow | null,
+  params: Record<string, string | number | undefined>
+): string {
+  const sp = new URLSearchParams();
+  if (window) {
+    sp.set("fromIso", window.fromIso);
+    sp.set("toIso", window.toIso);
+  }
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
+export interface DrillOrdersQuery {
+  search?: string;
+  status?: string;
+  planCode?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** The order ledger scoped to a drill window (or unfiltered when `null`). */
+export function fetchDrillOrders(
+  window: AnalyticsDrillWindow | null,
+  query: DrillOrdersQuery = {}
+): Promise<AdminOrderListResponse> {
+  return apiClient.get<AdminOrderListResponse>(
+    `${A}/drill/orders${drillQs(window, {
+      search: query.search,
+      status: query.status,
+      planCode: query.planCode,
+      page: query.page,
+      pageSize: query.pageSize,
+    })}`
+  );
+}
+
+export interface DrillUsersQuery {
+  search?: string;
+  role?: string;
+  sort?: "recent" | "oldest";
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DrillUsersResponse {
+  items: AdminUserRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** The user list scoped to a drill window (or unfiltered when `null`). */
+export function fetchDrillUsers(
+  window: AnalyticsDrillWindow | null,
+  query: DrillUsersQuery = {}
+): Promise<DrillUsersResponse> {
+  return apiClient.get<DrillUsersResponse>(
+    `${A}/drill/users${drillQs(window, {
+      search: query.search,
+      role: query.role,
+      sort: query.sort,
+      page: query.page,
+      pageSize: query.pageSize,
+    })}`
+  );
 }
 
 // ---------------------------------------------------------------------------

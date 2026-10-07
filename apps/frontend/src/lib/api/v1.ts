@@ -83,7 +83,7 @@ import type {
   PrivacySettings,
   SessionsResponse,
   LawyerListResponse,
-  LawyerListFilters,
+  LawyerSearchFilters,
   LawyerDetail,
   MatchCriteria,
   MatchResult,
@@ -850,7 +850,7 @@ export function deleteAccount(): Promise<{ deleted: boolean }> {
 // Lawyer marketplace & matching (PART 3 / PART 4)
 // ============================================================
 
-export function fetchLawyers(filters: LawyerListFilters = {}): Promise<LawyerListResponse> {
+export function fetchLawyers(filters: LawyerSearchFilters = {}): Promise<LawyerListResponse> {
   const params = new URLSearchParams();
   if (filters.category) params.set("category", filters.category);
   if (filters.province) params.set("province", filters.province);
@@ -862,6 +862,20 @@ export function fetchLawyers(filters: LawyerListFilters = {}): Promise<LawyerLis
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
+  // --- Extended taxonomy / attribute filters (comma-joined lists) ---
+  if (filters.specialtyIds?.length) params.set("specialtyIds", filters.specialtyIds.join(","));
+  if (filters.professionalRanks?.length)
+    params.set("professionalRanks", filters.professionalRanks.join(","));
+  if (filters.organizationTypes?.length)
+    params.set("organizationTypes", filters.organizationTypes.join(","));
+  if (filters.serviceIds?.length) params.set("serviceIds", filters.serviceIds.join(","));
+  if (filters.jurisdictionIds?.length)
+    params.set("jurisdictionIds", filters.jurisdictionIds.join(","));
+  if (typeof filters.minRating === "number") params.set("minRating", String(filters.minRating));
+  if (filters.experienceBand) params.set("experienceBand", filters.experienceBand);
+  if (filters.acceptingClientsOnly) params.set("acceptingClientsOnly", "true");
+  if (filters.onlineOnly) params.set("onlineOnly", "true");
+  if (filters.featuredOnly) params.set("featuredOnly", "true");
   return apiClient.get<LawyerListResponse>(`/api/v1/lawyers${qs(params)}`);
 }
 

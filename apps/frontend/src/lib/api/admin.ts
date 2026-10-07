@@ -58,6 +58,7 @@ import type {
   PlatformRole,
   SubscriptionPlan,
   PlanAuditEntry,
+  PlanStatus,
   LawyerVerificationStatus,
   LawyerDecisionBucket,
   LawyerStatusDecision,
@@ -80,6 +81,19 @@ import type {
   AdminUserSubscriptionView,
   AdminSubscriptionActionInput,
   AdminEnergyActionInput,
+  AdminLawyerListItem,
+  AdminLawyerStatus,
+  LawyerProfile,
+  LawyerReviewRecord,
+  LawyerExpertise,
+  LawyerLocation,
+  LawyerPricing,
+  LawyerMarketplaceVisibility,
+  LawyerProfessionalRank,
+  LawyerOrganizationType,
+  LawyerLicenseStatus,
+  LawyerGender,
+  LawyerAvatarType,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -218,26 +232,12 @@ export interface AdminSupportResponse {
   counts: { byStatus: Record<string, number>; overdue: number };
 }
 
-export interface AdminLawyerRow {
-  id: string;
-  userId: string;
-  fullName: string;
-  licenseNumber: string | null;
-  licenseYear: number | null;
-  licenseAuthority: string | null;
-  verificationStatus: LawyerVerificationStatus;
-  verificationNote: string | null;
-  verifiedAt: string | null;
-  isDemo: boolean;
-  specializations: { category: string; yearsExperience: number }[];
-  locations: { province: string; city: string }[];
-  activityType: string | null;
-  mobileMasked: string;
-  bucket: LawyerDecisionBucket;
-  lastDecision: AdminLawyerDecision | null;
-  createdAt: string;
-  updatedAt: string;
-}
+/**
+ * The admin lawyer table row. This is the canonical `AdminLawyerListItem`
+ * from @legalir/types (the exact shape the API route emits) — the alias is
+ * kept so existing page imports keep working.
+ */
+export type AdminLawyerRow = AdminLawyerListItem;
 
 /** A single recorded admin decision (previous → new, actor, reason, time). */
 export interface AdminLawyerDecision {
@@ -259,31 +259,13 @@ export interface AdminLawyerMessageRow {
   createdAt: string;
 }
 
-/** The full registration dossier returned by GET /admin/lawyers/[id]. */
+/**
+ * The full registration dossier returned by GET /admin/lawyers/[id]. The
+ * profile is the WHOLE LawyerProfile (the same editable record the public
+ * site reads), so the drawer can render and edit every field.
+ */
 export interface AdminLawyerDetail {
-  profile: {
-    id: string;
-    userId: string;
-    fullName: string;
-    bio: string;
-    professionalTitle: string | null;
-    avatarUrl: string | null;
-    licenseNumber: string | null;
-    licenseYear: number | null;
-    licenseAuthority: string | null;
-    activityType: string | null;
-    verificationStatus: LawyerVerificationStatus;
-    verificationNote: string | null;
-    verifiedAt: string | null;
-    availabilityStatus: string;
-    isDemo: boolean;
-    specializations: { category: string; yearsExperience: number }[];
-    locations: { province: string; city: string; remote: boolean }[];
-    languages: { code: string; labelFa: string; proficiency: string }[];
-    performance: unknown;
-    createdAt: string;
-    updatedAt: string;
-  };
+  profile: LawyerProfile;
   contact: { mobileMasked: string; email: string | null };
   user: {
     id: string;
@@ -293,10 +275,14 @@ export interface AdminLawyerDetail {
     createdAt: string;
   };
   bucket: LawyerDecisionBucket;
+  /** The operator-facing lifecycle (فعال/غیرفعال/معلق/حذف‌شده). */
+  lifecycle: AdminLawyerStatus;
   history: (LawyerStatusDecision & { id: string })[];
   lastDecision: (LawyerStatusDecision & { id: string }) | null;
   messages: AdminLawyerMessageRow[];
-  stats: { messagesSent: number; decisions: number };
+  /** Every review row (including hidden) for in-drawer moderation. */
+  reviews: LawyerReviewRecord[];
+  stats: { messagesSent: number; decisions: number; reviews: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -530,8 +516,15 @@ export function updateAdminFlag(key: string, input: UpdateFlagInput): Promise<Fe
   return apiClient.patch<FeatureFlag>(`${A}/flags/${encodeURIComponent(key)}`, input);
 }
 
-export function fetchAdminPlans(): Promise<{ items: SubscriptionPlan[] }> {
-  return apiClient.get<{ items: SubscriptionPlan[] }>(`${A}/plans`);
+/** An admin catalog row: the plan plus its effective status + derived discount. */
+export type AdminPlanRow = SubscriptionPlan & {
+  status: PlanStatus;
+  purchasable: boolean;
+  discountPercent: number;
+};
+
+export function fetchAdminPlans(): Promise<{ items: AdminPlanRow[] }> {
+  return apiClient.get<{ items: AdminPlanRow[] }>(`${A}/plans`);
 }
 
 export interface AdminPlanDetail {
@@ -548,6 +541,39 @@ export type AdminPlanUpdate = Partial<Omit<SubscriptionPlan, "id" | "code" | "cr
 
 export function updateAdminPlan(code: string, input: AdminPlanUpdate): Promise<SubscriptionPlan> {
   return apiClient.patch<SubscriptionPlan>(`${A}/plans/${encodeURIComponent(code)}`, input);
+}
+
+/** The create payload — every field the catalog row needs, minus derived ones. */
+export interface AdminPlanCreateInput {
+  code: string;
+  nameFa: string;
+  shortDescriptionFa?: string;
+  descriptionFa: string;
+  status: PlanStatus;
+  displayOrder?: number;
+  tags?: string[];
+  durationDays: number;
+  activityCostPoints: number;
+  dailyRequestLimit: number;
+  tokenLimit: number;
+  aiMessageLimit: number;
+  documentAnalysisLimit: number;
+  contractDraftLimit: number;
+  contractCreationLimit: number;
+  contractCreationUnlimited: boolean;
+  listPrice: number;
+  salePrice: number;
+  currency?: string;
+  features: string[];
+}
+
+export function createAdminPlan(input: AdminPlanCreateInput): Promise<SubscriptionPlan> {
+  return apiClient.post<SubscriptionPlan>(`${A}/plans`, input);
+}
+
+/** Change only a plan's lifecycle status (publish/deactivate/archive). */
+export function setAdminPlanStatus(code: string, status: PlanStatus): Promise<SubscriptionPlan> {
+  return apiClient.patch<SubscriptionPlan>(`${A}/plans/${encodeURIComponent(code)}`, { status });
 }
 
 export interface AdminOrdersQuery {
@@ -1107,15 +1133,24 @@ export function fetchAdminSettings(): Promise<AdminSettingsResponse> {
 // Lawyers (verification queue)
 // ---------------------------------------------------------------------------
 
-/** List the review queue. `bucket` is the 4-way admin filter; `search`
- *  matches name / licence / city / masked mobile. Pass no args for "همه". */
+/** List the management table. `bucket` is the 4-way review filter, `lifecycle`
+ *  the operator status, `search` matches name / licence / specialty / city /
+ *  masked mobile. Pass no args for "همه". */
 export function fetchAdminLawyers(params: {
   bucket?: LawyerDecisionBucket;
   status?: LawyerVerificationStatus;
+  lifecycle?: AdminLawyerStatus;
+  featured?: boolean;
   search?: string;
 } = {}): Promise<{ items: AdminLawyerRow[]; total: number }> {
   return apiClient.get<{ items: AdminLawyerRow[]; total: number }>(
-    `${A}/lawyers${qs({ bucket: params.bucket, status: params.status, search: params.search })}`
+    `${A}/lawyers${qs({
+      bucket: params.bucket,
+      status: params.status,
+      lifecycle: params.lifecycle,
+      featured: params.featured === undefined ? undefined : String(params.featured),
+      search: params.search,
+    })}`
   );
 }
 
@@ -1146,6 +1181,100 @@ export function sendLawyerMessage(
 ): Promise<AdminLawyerMessageRow> {
   return apiClient.post<AdminLawyerMessageRow>(
     `${A}/lawyers/${encodeURIComponent(id)}/messages`,
+    input
+  );
+}
+
+/** The editable fields of a profile PATCH (mirrors AdminLawyerUpdateInput). */
+export interface AdminLawyerPatchInput {
+  fullName?: string;
+  bio?: string;
+  professionalTitle?: string | null;
+  professionalRank?: LawyerProfessionalRank | null;
+  organizationType?: LawyerOrganizationType | null;
+  licenseNumber?: string | null;
+  licenseYear?: number | null;
+  licenseAuthority?: string | null;
+  licenseStatus?: LawyerLicenseStatus | null;
+  gender?: LawyerGender | null;
+  featured?: boolean;
+  acceptingClients?: boolean;
+  visibility?: LawyerMarketplaceVisibility;
+  yearsExperience?: number | null;
+  expertise?: LawyerExpertise[];
+  serviceIds?: string[];
+  jurisdictionIds?: string[];
+  locations?: LawyerLocation[];
+  pricing?: LawyerPricing;
+  reason?: string;
+}
+
+/** Apply a partial profile edit. The public site reflects it immediately. */
+export function updateAdminLawyer(
+  id: string,
+  patch: AdminLawyerPatchInput
+): Promise<{ id: string; profile: LawyerProfile }> {
+  return apiClient.patch<{ id: string; profile: LawyerProfile }>(
+    `${A}/lawyers/${encodeURIComponent(id)}`,
+    patch
+  );
+}
+
+/** Set the operator lifecycle status (ACTIVE/INACTIVE/SUSPENDED/DELETED). */
+export function setAdminLawyerStatus(
+  id: string,
+  input: { status: AdminLawyerStatus; reason?: string }
+): Promise<unknown> {
+  return apiClient.post(`${A}/lawyers/${encodeURIComponent(id)}/status`, input);
+}
+
+/** Set (or clear) the admin display rating / review count / fee. */
+export function setAdminLawyerRating(
+  id: string,
+  input: {
+    ratingOverride: number | null;
+    reviewCountOverride: number | null;
+    consultationFeeOverrideToman?: number | null;
+    badgeFa?: string | null;
+    reason?: string;
+  }
+): Promise<unknown> {
+  return apiClient.patch(`${A}/lawyers/${encodeURIComponent(id)}/rating`, input);
+}
+
+/** Change a lawyer's avatar (explicit URL, or `regenerate` for a demo SVG). */
+export function setAdminLawyerAvatar(
+  id: string,
+  input: {
+    avatarUrl?: string | null;
+    avatarType?: LawyerAvatarType;
+    regenerate?: boolean;
+    reason?: string;
+  }
+): Promise<{ id: string; avatarUrl: string | null; avatarType: LawyerAvatarType }> {
+  return apiClient.patch(`${A}/lawyers/${encodeURIComponent(id)}/avatar`, input);
+}
+
+/** Toggle the marketplace "featured" flag. */
+export function setAdminLawyerFeatured(
+  id: string,
+  featured: boolean,
+  reason?: string
+): Promise<unknown> {
+  return apiClient.patch(`${A}/lawyers/${encodeURIComponent(id)}/feature`, {
+    featured,
+    reason,
+  });
+}
+
+/** Moderate a single review: hide (soft) / restore (undo hide) / delete. */
+export function moderateAdminLawyerReview(
+  id: string,
+  reviewId: string,
+  input: { action: "hide" | "restore" | "delete"; reason?: string }
+): Promise<unknown> {
+  return apiClient.post(
+    `${A}/lawyers/${encodeURIComponent(id)}/reviews/${encodeURIComponent(reviewId)}`,
     input
   );
 }

@@ -104,6 +104,15 @@ export interface OrderQuery {
   search?: string;
   status?: OrderStatus | "";
   planCode?: string;
+  /**
+   * Inclusive ISO window bounds (`[fromIso, toIso)`). When both are set, only
+   * orders *purchased* inside the window are returned. The analytics drill-down
+   * passes the exact window it reported on so the ledger it opens reconciles to
+   * the KPI that produced it. The half-open test is identical to the analytics
+   * `withinWindow` helper, so the two never disagree at a boundary instant.
+   */
+  fromIso?: string;
+  toIso?: string;
   page?: number;
   pageSize?: number;
 }
@@ -114,6 +123,11 @@ export function listOrders(query: OrderQuery = {}): AdminOrderListResponse {
   const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
 
   let orders = readTable<StoredSubscription>("subscriptions").map(toOrder);
+  if (query.fromIso && query.toIso) {
+    const from = query.fromIso;
+    const to = query.toIso;
+    orders = orders.filter((o) => o.purchasedAt >= from && o.purchasedAt < to);
+  }
   if (query.status) orders = orders.filter((o) => o.status === query.status);
   if (query.planCode) orders = orders.filter((o) => o.planCode === query.planCode);
   if (query.search) {

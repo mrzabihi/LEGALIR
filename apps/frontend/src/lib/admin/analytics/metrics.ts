@@ -26,6 +26,19 @@ import { analyticsDataQuality } from "./quality";
 const TIMEZONE = "Asia/Tehran";
 const CURRENCY = "IRT";
 
+/** Destination pages a KPI can open, carrying the exact window it reported on. */
+const DRILL_ORDERS = "/admin/orders";
+const DRILL_USERS = "/admin/users";
+
+/**
+ * Append the resolved window to a drill link as ISO instants. The destination
+ * page scopes its list to this window, so what the operator opens reconciles
+ * to the KPI value they clicked — the whole point of "preserve the range".
+ */
+function drillHrefWithWindow(href: string, fromIso: string, toIso: string): string {
+  return `${href}?fromIso=${encodeURIComponent(fromIso)}&toIso=${encodeURIComponent(toIso)}`;
+}
+
 /** A real KPI card. */
 export function kpi(
   key: string,
@@ -189,18 +202,18 @@ export function buildAnalyticsOverview(input: ResolveRangeInput): AnalyticsOverv
       { drillHref: "/admin/plans" }
     ),
     comparableKpi("sales_count", "تعداد فروش", cur.count, pSales, "خریدهای بازهٔ انتخاب‌شده از جدول اشتراک‌ها", {
-      drillHref: "/admin/orders",
+      drillHref: drillHrefWithWindow(DRILL_ORDERS, fromIso, toIso),
     }),
     comparableKpi("gross_revenue", "درآمد ناخالص", cur.gross, pGross, "مجموع مبلغ خریدها در بازه", {
-      drillHref: "/admin/orders",
+      drillHref: drillHrefWithWindow(DRILL_ORDERS, fromIso, toIso),
       unitFa: "تومان",
     }),
     comparableKpi("net_revenue", "درآمد خالص", curNet, pNet, "درآمد ناخالص منهای بازگشت وجه تکمیل‌شده", {
-      drillHref: "/admin/orders",
+      drillHref: drillHrefWithWindow(DRILL_ORDERS, fromIso, toIso),
       unitFa: "تومان",
     }),
     comparableKpi("refunds", "بازگشت وجه", curRefund, pRefund, "مجموع تعدیل‌های مالی «تکمیل‌شده» در بازه", {
-      drillHref: "/admin/orders",
+      drillHref: drillHrefWithWindow(DRILL_ORDERS, fromIso, toIso),
       unitFa: "تومان",
       trend: "inverse",
     }),
@@ -208,7 +221,7 @@ export function buildAnalyticsOverview(input: ResolveRangeInput): AnalyticsOverv
       drillHref: "/admin/analytics",
     }),
     comparableKpi("new_users", "کاربران جدید", curNewUsers, pNewUsers, "کاربران با تاریخ عضویت در بازه", {
-      drillHref: "/admin/users",
+      drillHref: drillHrefWithWindow(DRILL_USERS, fromIso, toIso),
     }),
     comparableKpi("points_issued", "امتیاز صادرشده", curPoints, pPoints, "مجموع امتیازهای مثبت دفتر پاداش در بازه", {
       drillHref: "/admin/analytics",

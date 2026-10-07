@@ -27,7 +27,19 @@ import type {
   LawyerPerformance,
   LawyerAvailabilityStatus,
   LawyerAvatarType,
+  LawyerExpertise,
+  LawyerServiceOffer,
+  LawyerEducation,
+  LawyerExperienceEntry,
+  LawyerProfessionalRank,
 } from "@legalir/types";
+import { LAWYER_TAXONOMY, taxonomyNode } from "@legalir/types";
+import {
+  generateDemoLawyerSpecs,
+  demoAvatarDataUri,
+  ratingsForTarget,
+  type GeneratedLawyerSpec,
+} from "./lawyers/demo-generator";
 
 /**
  * Mirrors LawyerReviewRow in lawyer-db.ts. Declared locally to keep this
@@ -44,7 +56,7 @@ interface LawyerReviewRow {
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 
-export const LAWYER_SEED_VERSION = "legalir-lawyers-v8";
+export const LAWYER_SEED_VERSION = "legalir-lawyers-v9";
 
 /**
  * The demo lawyer who can actually log in. The first demo profile is
@@ -700,7 +712,159 @@ const STANDARD_AVAILABILITY = [
 /** Demo portraits are synthetic — never real photographs of the named people. */
 const DEMO_AVATAR_TYPE: LawyerAvatarType = "demo";
 
+// ---------------------------------------------------------------------------
+// Legacy → taxonomy mapping (curated profiles carry legacy category slugs)
+// ---------------------------------------------------------------------------
+
+const LEGACY_CATEGORY_TO_NODE: Record<string, string> = {
+  family: "family",
+  contract: "contracts",
+  real_estate: "property_real_estate",
+  labor: "labor",
+  commerce: "commercial",
+  criminal: "criminal",
+  tax: "tax",
+  companies: "commercial.company_law",
+  checks: "criminal.economic_crimes.check_bounce",
+  immigration: "immigration",
+  cyber: "technology_cyber.cybercrime",
+  medical: "medical",
+  technology: "technology_cyber",
+  software: "technology_cyber.software_contract",
+  saas: "technology_cyber.software_contract",
+  digital: "technology_cyber.data_protection",
+  brand: "intellectual_property.trademark",
+  marriage: "family.marriage",
+};
+
+/** Resolve a legacy category slug to a taxonomy node id (fallback = input). */
+function taxonomyIdForCategory(category: string): string {
+  if (LEGACY_CATEGORY_TO_NODE[category]) return LEGACY_CATEGORY_TO_NODE[category]!;
+  if (taxonomyNode(category)) return category;
+  // Last resort: a slug that matches a node's own slug.
+  const bySlug = LAWYER_TAXONOMY.find((n) => n.slug === category);
+  return bySlug?.id ?? category;
+}
+
+/** Gender per curated id — display/avatar only, never used for ranking. */
+const CURATED_GENDER: Record<string, "MALE" | "FEMALE"> = {
+  "demo-lawyer-01": "MALE",
+  "demo-lawyer-02": "FEMALE",
+  "demo-lawyer-03": "MALE",
+  "demo-lawyer-04": "FEMALE",
+  "demo-lawyer-05": "FEMALE",
+  "demo-lawyer-06": "MALE",
+  "demo-lawyer-07": "MALE",
+  "demo-lawyer-08": "FEMALE",
+  "demo-lawyer-09": "MALE",
+  "demo-lawyer-10": "FEMALE",
+  "demo-lawyer-11": "MALE",
+  "demo-lawyer-12": "FEMALE",
+  "demo-lawyer-13": "MALE",
+  "demo-lawyer-14": "FEMALE",
+  "demo-lawyer-15": "FEMALE",
+  "demo-lawyer-16": "FEMALE",
+  "demo-lawyer-17": "MALE",
+  "demo-lawyer-18": "FEMALE",
+  "demo-lawyer-19": "MALE",
+  "demo-lawyer-20": "FEMALE",
+};
+
+/** A few curated profiles appear in the marketplace "featured" rail. */
+const CURATED_FEATURED = new Set(["demo-lawyer-03", "demo-lawyer-05", "demo-lawyer-11"]);
+
+/** Default services per DOMAIN slug. */
+const SERVICES_BY_DOMAIN: Record<string, string[]> = {
+  family: ["in_person_consult", "phone_consult", "online_consult", "petition_drafting", "legal_defense", "mediation"],
+  criminal: ["in_person_consult", "phone_consult", "petition_drafting", "legal_defense", "case_prosecution", "written_consult"],
+  property_real_estate: ["contract_review", "contract_drafting", "petition_drafting", "in_person_consult", "notary_followup", "online_consult"],
+  contracts: ["contract_review", "contract_drafting", "legal_opinion", "due_diligence", "online_consult"],
+  commercial: ["corporate_retainer", "company_registration", "contract_review", "legal_opinion", "due_diligence", "online_consult"],
+  labor: ["petition_drafting", "legal_defense", "case_prosecution", "in_person_consult", "written_consult"],
+  finance_banking: ["legal_opinion", "petition_drafting", "due_diligence", "online_consult", "case_prosecution"],
+  technology_cyber: ["contract_review", "contract_drafting", "legal_opinion", "online_consult", "written_consult"],
+  tax: ["petition_drafting", "legal_opinion", "in_person_consult", "case_prosecution"],
+  intellectual_property: ["company_registration", "legal_opinion", "contract_review", "due_diligence", "online_consult"],
+  enforcement: ["case_prosecution", "petition_drafting", "notary_followup", "in_person_consult"],
+  inheritance: ["petition_drafting", "in_person_consult", "notary_followup", "legal_opinion", "mediation"],
+  immigration: ["petition_drafting", "legal_opinion", "legal_translation", "online_consult", "written_consult"],
+  medical: ["petition_drafting", "legal_defense", "case_prosecution", "legal_opinion"],
+  insurance: ["petition_drafting", "case_prosecution", "legal_opinion", "written_consult"],
+  transportation: ["petition_drafting", "case_prosecution", "legal_defense", "legal_opinion"],
+  administrative: ["petition_drafting", "legal_opinion", "case_prosecution", "written_consult"],
+  international: ["arbitration_service", "legal_opinion", "contract_review", "due_diligence", "legal_translation"],
+  energy_resources: ["contract_review", "legal_opinion", "corporate_retainer", "due_diligence"],
+  sports_culture: ["contract_review", "legal_opinion", "mediation", "online_consult"],
+};
+
+/** Default jurisdictions per DOMAIN slug. */
+const JURISDICTIONS_BY_DOMAIN: Record<string, string[]> = {
+  family: ["family_court", "general_court_1", "appeal_court"],
+  criminal: ["prosecutor", "criminal_court_2", "criminal_court_1", "appeal_court"],
+  property_real_estate: ["general_court_1", "registration_office", "appeal_court"],
+  contracts: ["general_court_1", "arbitration_center", "appeal_court"],
+  commercial: ["general_court_1", "economic_court", "arbitration_center"],
+  labor: ["labor_dispute_board", "general_court_1", "appeal_court"],
+  finance_banking: ["general_court_1", "economic_court", "appeal_court"],
+  technology_cyber: ["prosecutor", "general_court_1", "criminal_court_2"],
+  tax: ["tax_dispute_board", "administrative_justice"],
+  intellectual_property: ["general_court_1", "registration_office", "economic_court"],
+  enforcement: ["general_court_1", "registration_office"],
+  inheritance: ["general_court_1", "registration_office"],
+  immigration: ["general_court_1", "justice_advisors"],
+  medical: ["medical_council", "general_court_1", "criminal_court_2"],
+  administrative: ["administrative_justice", "general_court_1"],
+  international: ["arbitration_center", "general_court_1"],
+  energy_resources: ["general_court_1", "arbitration_center"],
+  sports_culture: ["general_court_1", "arbitration_center"],
+};
+
+/** The DOMAIN slug a taxonomy id belongs to (first path segment). */
+function domainOf(nodeId: string): string {
+  return nodeId.split(".")[0]!;
+}
+
+/** Build the structured expertise links for a set of taxonomy node ids. */
+function buildExpertise(
+  lawyerId: string,
+  nodeIds: string[],
+  primaryYears: number
+): LawyerExpertise[] {
+  return nodeIds.map((taxonomyNodeId, i) => ({
+    id: `${lawyerId}-exp-${i + 1}`,
+    lawyerId,
+    taxonomyNodeId,
+    isPrimary: i === 0,
+    yearsExperience: i === 0 ? primaryYears : Math.max(1, primaryYears - i),
+    caseCount: 0,
+    displayOrder: i,
+    note: null,
+  }));
+}
+
+/** Build the service offers for a set of service ids. */
+function buildServiceOffers(lawyerId: string, serviceIds: string[]): LawyerServiceOffer[] {
+  return serviceIds.map((serviceId) => ({
+    serviceId,
+    priceToman: null,
+    enabled: true,
+  }));
+}
+
+/** Professional rank derived from years of practice (curated profiles). */
+function rankFromYears(years: number): LawyerProfessionalRank {
+  if (years < 3) return "TRAINEE";
+  if (years < 8) return "BASE_TWO";
+  return "BASE_ONE";
+}
+
 function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
+  const specialtyIds = spec.specializations.map((s) => taxonomyIdForCategory(s.category));
+  const primaryNodeId = specialtyIds[0]!;
+  const domain = domainOf(primaryNodeId);
+  const years = spec.specializations.reduce((m, s) => Math.max(m, s.yearsExperience), 0);
+  const gender = CURATED_GENDER[spec.id] ?? "UNSPECIFIED";
+
   return {
     id: spec.id,
     // The first demo lawyer is bound to a real, login-able user row so the
@@ -716,8 +880,8 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
     verificationStatus: "VERIFIED",
     verifiedAt: SEEDED_AT,
     verificationNote: null,
-    specializations: spec.specializations.map((s) => ({
-      category: s.category,
+    specializations: spec.specializations.map((s, i) => ({
+      category: specialtyIds[i]!,
       yearsExperience: s.yearsExperience,
       note: null,
     })),
@@ -736,6 +900,92 @@ function buildProfile(spec: DemoLawyerSpec): LawyerProfile {
     consultationCapacity: spec.consultationCapacity,
     isDemo: true,
     acceptingRequests: spec.acceptingRequests,
+    // --- Extended profile (v9) ---
+    professionalRank: rankFromYears(years),
+    organizationType: "BAR",
+    licenseStatus: "ACTIVE",
+    visibility: "PUBLIC",
+    gender,
+    featured: CURATED_FEATURED.has(spec.id),
+    acceptingClients: spec.acceptingRequests,
+    yearsExperience: years,
+    expertise: buildExpertise(spec.id, specialtyIds, spec.specializations[0]!.yearsExperience),
+    services: buildServiceOffers(spec.id, SERVICES_BY_DOMAIN[domain] ?? ["in_person_consult", "phone_consult"]),
+    education: [],
+    experience: [],
+    jurisdictions: JURISDICTIONS_BY_DOMAIN[domain] ?? ["general_court_1", "appeal_court"],
+    display: null,
+    createdAt: SEEDED_AT,
+    updatedAt: SEEDED_AT,
+  };
+}
+
+/** Convert one generated spec into a full LawyerProfile row. */
+function buildGeneratedProfile(spec: GeneratedLawyerSpec): LawyerProfile {
+  const verificationStatus = spec.unverified ? "UNVERIFIED" : "VERIFIED";
+  return {
+    id: spec.id,
+    userId: `demo-user-${spec.id}`,
+    fullName: spec.fullName,
+    professionalTitle: spec.professionalTitle,
+    licenseNumber: spec.licenseNumber,
+    licenseYear: spec.licenseYear,
+    bio: spec.bio,
+    avatarUrl: demoAvatarDataUri(spec.avatarSeed, spec.gender),
+    avatarType: DEMO_AVATAR_TYPE,
+    verificationStatus,
+    verifiedAt: spec.unverified ? null : SEEDED_AT,
+    verificationNote: null,
+    specializations: spec.specialtyIds.map((id, i) => ({
+      category: id,
+      yearsExperience: i === 0 ? spec.yearsExperience : Math.max(1, spec.yearsExperience - i),
+      note: null,
+    })),
+    locations: [{ province: spec.province, city: spec.city, remote: spec.remote }],
+    languages: [PERSIAN_LANGUAGE, ENGLISH_LANGUAGE],
+    pricing: {
+      consultationFeeToman: spec.consultationFeeToman,
+      consultationDurationMinutes: spec.consultationDurationMinutes,
+      hourlyRateToman: spec.hourlyRateToman,
+      contractReviewFeeToman: spec.contractReviewFeeToman,
+      freeFirstConsultation: spec.freeFirstConsultation,
+    },
+    availability: STANDARD_AVAILABILITY,
+    performance: ZERO_PERFORMANCE,
+    availabilityStatus: spec.availabilityStatus,
+    consultationCapacity: spec.consultationCapacity,
+    isDemo: true,
+    acceptingRequests: spec.acceptingRequests,
+    // --- Extended profile (v9) ---
+    professionalRank: spec.professionalRank,
+    organizationType: spec.organizationType,
+    licenseStatus: spec.licenseStatus,
+    visibility: spec.unverified ? "UNLISTED" : spec.visibility,
+    gender: spec.gender,
+    featured: spec.featured,
+    acceptingClients: spec.acceptingClients,
+    yearsExperience: spec.yearsExperience,
+    expertise: buildExpertise(spec.id, spec.specialtyIds, spec.yearsExperience),
+    services: buildServiceOffers(spec.id, spec.serviceIds),
+    education: spec.education.map((e, i) => ({
+      id: `${spec.id}-edu-${i + 1}`,
+      lawyerId: spec.id,
+      degreeFa: e.degreeFa,
+      institutionFa: e.institutionFa,
+      graduationYear: e.graduationYear,
+      fieldFa: e.fieldFa,
+    })) as LawyerEducation[],
+    experience: spec.experience.map((e, i) => ({
+      id: `${spec.id}-work-${i + 1}`,
+      lawyerId: spec.id,
+      roleFa: e.roleFa,
+      organizationFa: e.organizationFa,
+      startYear: e.startYear,
+      endYear: e.endYear,
+      descriptionFa: e.descriptionFa,
+    })) as LawyerExperienceEntry[],
+    jurisdictions: spec.jurisdictionIds,
+    display: null,
     createdAt: SEEDED_AT,
     updatedAt: SEEDED_AT,
   };
@@ -803,6 +1053,36 @@ function buildDemoReviews(): LawyerReviewRow[] {
   return rows;
 }
 
+/** A tiny deterministic LCG so generated review ratings are reproducible. */
+function lcg(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/** Deterministic review rows for the generated roster (average ≈ target). */
+function buildGeneratedReviews(specs: GeneratedLawyerSpec[]): LawyerReviewRow[] {
+  const rows: LawyerReviewRow[] = [];
+  specs.forEach((spec, si) => {
+    if (spec.reviewCount <= 0) return;
+    const rng = lcg(0x51ed + (si + 1) * 2654435761);
+    const ratings = ratingsForTarget(spec.targetRating, spec.reviewCount, rng);
+    ratings.forEach((rating, i) => {
+      rows.push({
+        id: `demo-review-${spec.id}-${i + 1}`,
+        lawyerId: spec.id,
+        authorUserId: `demo-user-reviewer-${((si + i) % 50) + 1}`,
+        rating,
+        comment: DEMO_REVIEW_COMMENTS[(si + i) % DEMO_REVIEW_COMMENTS.length]!,
+        createdAt: SEEDED_AT,
+      });
+    });
+  });
+  return rows;
+}
+
 /**
  * Seed the demo lawyers. Upserts by id (never clobbers a real lawyer row
  * that happens to share an id — demo ids are namespaced `demo-lawyer-*`).
@@ -811,19 +1091,23 @@ export function seedDemoLawyers(): void {
   const meta = getLawyerMeta();
   if (meta && meta.version === LAWYER_SEED_VERSION) return;
 
+  // Generate the large roster deterministically, then combine it with the 20
+  // curated profiles (curated ids are lower, so they win on any collision).
+  const generated = generateDemoLawyerSpecs();
+
   // Drop stale demo rows from an earlier seed version, then upsert the
   // current set. Real (non-demo) profiles are never touched.
   const existing = readTable<LawyerProfile>("lawyer_profiles");
   const byId = new Map(existing.filter((l) => !l.isDemo).map((l) => [l.id, l]));
-  for (const spec of DEMO_LAWYERS) {
-    byId.set(spec.id, buildProfile(spec));
-  }
+  for (const spec of generated) byId.set(spec.id, buildGeneratedProfile(spec));
+  for (const spec of DEMO_LAWYERS) byId.set(spec.id, buildProfile(spec));
   writeTable<LawyerProfile>("lawyer_profiles", [...byId.values()]);
 
   // Demo reviews are upserted by id so re-seeding never duplicates them.
   const existingReviews = readTable<LawyerReviewRow>("lawyer_reviews");
   const reviewsById = new Map(existingReviews.map((r) => [r.id, r]));
   for (const row of buildDemoReviews()) reviewsById.set(row.id, row);
+  for (const row of buildGeneratedReviews(generated)) reviewsById.set(row.id, row);
   writeTable<LawyerReviewRow>("lawyer_reviews", [...reviewsById.values()]);
 
   seedDemoLawyerUser();

@@ -3,30 +3,68 @@
 // ============================================================
 // LEGALIR — Lawyer Filters Bottom Sheet
 // ============================================================
-// The mobile home for the advanced filters (category, sort, remote-only).
-// It is a bottom sheet — not the side `Drawer` — because on a phone the
-// thumb reaches the bottom edge, and the sheet rises from there.
+// The mobile home for the FULL marketplace filter set: taxonomy specialties
+// (multi-select, with a dependent sub-specialty row), professional rank,
+// issuing organisation, province + city (dependent), experience band, rating,
+// offered services, and the availability toggles (online / accepting clients).
 //
-// The sheet is a controlled draft: edits are local until «اعمال فیلترها»
-// is pressed, so the list never re-queries on every tap. «پاک کردن» resets
-// the draft to the defaults. Only filters the backend actually supports
-// are exposed (category / sort / remoteOnly).
+// It is a bottom sheet — not the side `Drawer` — because on a phone the thumb
+// reaches the bottom edge. The sheet is a controlled draft: edits are local
+// until «اعمال فیلترها» is pressed, so the list never re-queries on every tap.
+//
+// Only filters the backend actually supports are exposed (every field here
+// maps 1:1 onto `LawyerSearchFilters`, which `queryLawyers` honours).
 // ============================================================
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LawyerListFilters } from "@legalir/types";
-import { LEGAL_CATEGORY_FA } from "@legalir/types";
+import {
+  LAWYER_PROFESSIONAL_RANKS,
+  LAWYER_PROFESSIONAL_RANK_FA,
+  LAWYER_ORGANIZATION_TYPES,
+  LAWYER_ORGANIZATION_TYPE_FA,
+  LAWYER_EXPERIENCE_BANDS,
+  LAWYER_SERVICES,
+  IRAN_PROVINCES,
+  taxonomyDomains,
+  taxonomyChildren,
+  type LawyerProfessionalRank,
+  type LawyerOrganizationType,
+} from "@legalir/types";
 import { IconClose, IconFilter } from "@/lib/icons";
 import { Select, Checkbox } from "@legalir/ui";
 
 export type LawyerSort = NonNullable<LawyerListFilters["sort"]>;
 
 export interface LawyerFilterValues {
-  category: string;
+  /** Taxonomy node ids (domains, specialties or deeper) — any-of. */
+  specialtyIds: string[];
+  professionalRanks: LawyerProfessionalRank[];
+  organizationTypes: LawyerOrganizationType[];
+  province: string;
+  city: string;
+  experienceBand: string;
+  minRating: number | null;
+  serviceIds: string[];
+  onlineOnly: boolean;
+  acceptingClientsOnly: boolean;
   sort: LawyerSort;
-  remoteOnly: boolean;
 }
+
+export const EMPTY_LAWYER_FILTERS: LawyerFilterValues = {
+  specialtyIds: [],
+  professionalRanks: [],
+  organizationTypes: [],
+  province: "",
+  city: "",
+  experienceBand: "",
+  minRating: null,
+  serviceIds: [],
+  onlineOnly: false,
+  acceptingClientsOnly: false,
+  sort: "relevance",
+};
 
 interface LawyerFiltersSheetProps {
   open: boolean;
@@ -43,10 +81,48 @@ const SORT_OPTIONS: { value: LawyerSort; label: string }[] = [
   { value: "price_desc", label: "گران‌ترین" },
 ];
 
-const CATEGORY_OPTIONS = [
-  { value: "", label: "همه تخصص‌ها" },
-  ...Object.entries(LEGAL_CATEGORY_FA).map(([value, label]) => ({ value, label })),
+const RATING_OPTIONS = [
+  { value: "", label: "همه امتیازها" },
+  { value: "3", label: "۳ ستاره و بالاتر" },
+  { value: "4", label: "۴ ستاره و بالاتر" },
+  { value: "4.5", label: "۴.۵ ستاره و بالاتر" },
 ];
+
+const EXPERIENCE_OPTIONS = [
+  { value: "", label: "همه سوابق" },
+  ...LAWYER_EXPERIENCE_BANDS.map((b) => ({ value: b.id, label: b.nameFa })),
+];
+
+/** Toggle one value in/out of a list (immutably). */
+function toggle<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
+function Chip({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={[
+        "shrink-0 rounded-full border px-3 py-1.5 text-caption font-medium transition-all",
+        selected
+          ? "border-control-selected-border bg-control-selected-surface text-control-selected"
+          : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function LawyerFiltersSheet({
   open,
@@ -77,6 +153,15 @@ export function LawyerFiltersSheet({
 
   if (!open) return null;
 
+  const domains = taxonomyDomains();
+  // The dependent sub-specialty row: children (SPECIALTY level) of every
+  // selected domain. A user who picks «خانواده» then narrows to «طلاق».
+  const dependentSpecialties = draft.specialtyIds.flatMap((id) => taxonomyChildren(id));
+  const province = IRAN_PROVINCES.find((p) => p.nameFa === draft.province);
+  const cityOptions = province
+    ? [{ value: "", label: "همه شهرها" }, ...province.cities.map((c) => ({ value: c, label: c }))]
+    : [{ value: "", label: "ابتدا استان را انتخاب کنید" }];
+
   return createPortal(
     <div className="fixed inset-0 z-[60]" role="presentation">
       <div
@@ -89,7 +174,7 @@ export function LawyerFiltersSheet({
         role="dialog"
         aria-modal="true"
         aria-label="فیلترهای وکلا"
-        className="animate-sheet-up absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border-x border-t border-divider bg-surface shadow-elevation-24"
+        className="animate-sheet-up absolute inset-x-0 bottom-0 mx-auto flex max-h-[90dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border-x border-t border-divider bg-surface shadow-elevation-24"
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-divider px-5 py-4">
@@ -107,29 +192,174 @@ export function LawyerFiltersSheet({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex flex-col gap-5 px-5 py-5">
-          <Select
-            label="حوزه تخصصی"
-            value={draft.category}
-            onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
-            options={CATEGORY_OPTIONS}
-            fullWidth
-          />
+        {/* Body — scrollable */}
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
+          {/* Specialties (domain → dependent specialty) */}
+          <section>
+            <h3 className="mb-2 text-body-2 font-semibold text-on-surface">حوزه تخصصی</h3>
+            <div className="flex flex-wrap gap-2">
+              {domains.map((d) => (
+                <Chip
+                  key={d.id}
+                  selected={draft.specialtyIds.includes(d.id)}
+                  onClick={() =>
+                    setDraft((s) => ({ ...s, specialtyIds: toggle(s.specialtyIds, d.id) }))
+                  }
+                >
+                  {d.nameFa}
+                </Chip>
+              ))}
+            </div>
 
+            {dependentSpecialties.length > 0 && (
+              <div className="mt-3 rounded-xl border border-divider/60 bg-surface-container/40 p-3">
+                <p className="mb-2 text-caption text-muted">زیرتخصص</p>
+                <div className="flex flex-wrap gap-2">
+                  {dependentSpecialties.map((s) => (
+                    <Chip
+                      key={s.id}
+                      selected={draft.specialtyIds.includes(s.id)}
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          specialtyIds: toggle(prev.specialtyIds, s.id),
+                        }))
+                      }
+                    >
+                      {s.nameFa}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Rank */}
+          <section>
+            <h3 className="mb-2 text-body-2 font-semibold text-on-surface">نوع پروانه</h3>
+            <div className="flex flex-wrap gap-2">
+              {LAWYER_PROFESSIONAL_RANKS.map((r) => (
+                <Chip
+                  key={r}
+                  selected={draft.professionalRanks.includes(r)}
+                  onClick={() =>
+                    setDraft((s) => ({ ...s, professionalRanks: toggle(s.professionalRanks, r) }))
+                  }
+                >
+                  {LAWYER_PROFESSIONAL_RANK_FA[r]}
+                </Chip>
+              ))}
+            </div>
+          </section>
+
+          {/* Organisation */}
+          <section>
+            <h3 className="mb-2 text-body-2 font-semibold text-on-surface">سازمان صدور پروانه</h3>
+            <div className="flex flex-wrap gap-2">
+              {LAWYER_ORGANIZATION_TYPES.map((o) => (
+                <Chip
+                  key={o}
+                  selected={draft.organizationTypes.includes(o)}
+                  onClick={() =>
+                    setDraft((s) => ({ ...s, organizationTypes: toggle(s.organizationTypes, o) }))
+                  }
+                >
+                  {LAWYER_ORGANIZATION_TYPE_FA[o]}
+                </Chip>
+              ))}
+            </div>
+          </section>
+
+          {/* Geography */}
+          <section className="flex flex-col gap-3">
+            <h3 className="text-body-2 font-semibold text-on-surface">موقعیت</h3>
+            <Select
+              label="استان"
+              value={draft.province}
+              onChange={(e) => setDraft((s) => ({ ...s, province: e.target.value, city: "" }))}
+              options={[
+                { value: "", label: "همه استان‌ها" },
+                ...IRAN_PROVINCES.map((p) => ({ value: p.nameFa, label: p.nameFa })),
+              ]}
+              fullWidth
+            />
+            <Select
+              label="شهر"
+              value={draft.city}
+              onChange={(e) => setDraft((s) => ({ ...s, city: e.target.value }))}
+              options={cityOptions}
+              disabled={!province}
+              fullWidth
+            />
+          </section>
+
+          {/* Experience + rating */}
+          <section className="flex flex-col gap-3">
+            <Select
+              label="سابقه کار"
+              value={draft.experienceBand}
+              onChange={(e) => setDraft((s) => ({ ...s, experienceBand: e.target.value }))}
+              options={EXPERIENCE_OPTIONS}
+              fullWidth
+            />
+            <Select
+              label="حداقل امتیاز"
+              value={draft.minRating === null ? "" : String(draft.minRating)}
+              onChange={(e) =>
+                setDraft((s) => ({
+                  ...s,
+                  minRating: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              options={RATING_OPTIONS}
+              fullWidth
+            />
+          </section>
+
+          {/* Services */}
+          <section>
+            <h3 className="mb-2 text-body-2 font-semibold text-on-surface">خدمات</h3>
+            <div className="flex flex-wrap gap-2">
+              {LAWYER_SERVICES.map((svc) => (
+                <Chip
+                  key={svc.id}
+                  selected={draft.serviceIds.includes(svc.id)}
+                  onClick={() =>
+                    setDraft((s) => ({ ...s, serviceIds: toggle(s.serviceIds, svc.id) }))
+                  }
+                >
+                  {svc.nameFa}
+                </Chip>
+              ))}
+            </div>
+          </section>
+
+          {/* Availability */}
+          <section className="flex flex-col gap-3">
+            <h3 className="text-body-2 font-semibold text-on-surface">دسترس‌پذیری</h3>
+            <Checkbox
+              label="پذیرش موکل جدید"
+              checked={draft.acceptingClientsOnly}
+              onChange={(e) =>
+                setDraft((s) => ({ ...s, acceptingClientsOnly: e.target.checked }))
+              }
+              className="text-body-2 text-on-surface"
+            />
+            <Checkbox
+              label="ارائه مشاوره آنلاین"
+              checked={draft.onlineOnly}
+              onChange={(e) => setDraft((s) => ({ ...s, onlineOnly: e.target.checked }))}
+              className="text-body-2 text-on-surface"
+            />
+          </section>
+
+          {/* Sort */}
           <Select
             label="ترتیب نمایش"
             value={draft.sort}
-            onChange={(e) => setDraft((d) => ({ ...d, sort: e.target.value as LawyerSort }))}
+            onChange={(e) => setDraft((s) => ({ ...s, sort: e.target.value as LawyerSort }))}
             options={SORT_OPTIONS}
             fullWidth
-          />
-
-          <Checkbox
-            label="فقط مشاوره آنلاین"
-            checked={draft.remoteOnly}
-            onChange={(e) => setDraft((d) => ({ ...d, remoteOnly: e.target.checked }))}
-            className="text-body-2 text-on-surface"
           />
         </div>
 
@@ -140,7 +370,7 @@ export function LawyerFiltersSheet({
         >
           <button
             type="button"
-            onClick={() => setDraft({ category: "", sort: "relevance", remoteOnly: false })}
+            onClick={() => setDraft(EMPTY_LAWYER_FILTERS)}
             className="flex-1 rounded-xl border border-divider/60 bg-surface px-4 py-3 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             پاک کردن

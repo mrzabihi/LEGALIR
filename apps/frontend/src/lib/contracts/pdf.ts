@@ -15,8 +15,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
 import type { PropertyContractVersion, PropertyContract } from "@legalir/types";
+import { drawRtl, measureRtl, orientedFontkit } from "@/lib/pdf/rtl";
 import { renderContract } from "./template";
 import { formatIsoJalali } from "./dates";
 import { qrMatrix } from "./qr";
@@ -25,6 +25,7 @@ const PAGE_WIDTH = 595.28; // A4 portrait, points
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 48;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const RIGHT = PAGE_WIDTH - MARGIN;
 
 /** Locate the Vazirmatn TTF, searching up from the app directory. */
 function findFontPath(fileName: string): string | null {
@@ -39,11 +40,6 @@ function findFontPath(fileName: string): string | null {
   return null;
 }
 
-/** Reverse a string for RTL rendering (pdf-lib draws LTR). */
-function rtl(text: string): string {
-  return Array.from(text).reverse().join("");
-}
-
 interface Fonts {
   regular: PDFFont;
   bold: PDFFont;
@@ -56,7 +52,7 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   let current = "";
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+    if (measureRtl(font, candidate, size) <= maxWidth) {
       current = candidate;
     } else {
       if (current) lines.push(current);
@@ -89,12 +85,11 @@ class Layout {
 
   heading(text: string, size = 13): void {
     this.ensure(size + 14);
-    this.page.drawText(rtl(text), {
-      x: MARGIN,
+    drawRtl(this.page, this.fonts.bold, text, {
       y: this.y - size,
       size,
-      font: this.fonts.bold,
       color: rgb(0.1, 0.1, 0.15),
+      right: RIGHT,
     });
     this.y -= size + 10;
   }
@@ -103,12 +98,11 @@ class Layout {
     const lines = wrapText(text, this.fonts.regular, size, CONTENT_WIDTH);
     for (const line of lines) {
       this.ensure(size + 6);
-      this.page.drawText(rtl(line), {
-        x: MARGIN,
+      drawRtl(this.page, this.fonts.regular, line, {
         y: this.y - size,
         size,
-        font: this.fonts.regular,
         color: rgb(0.15, 0.15, 0.2),
+        right: RIGHT,
       });
       this.y -= size + 5;
     }
@@ -142,16 +136,14 @@ class Layout {
       }
     }
 
-    const textX = originX + boxSize + 16;
     const lines = wrapText(caption, this.fonts.regular, 9, CONTENT_WIDTH - boxSize - 16);
     let ty = this.y - 12;
     for (const line of lines) {
-      this.page.drawText(rtl(line), {
-        x: textX,
+      drawRtl(this.page, this.fonts.regular, line, {
         y: ty,
         size: 9,
-        font: this.fonts.regular,
         color: rgb(0.25, 0.25, 0.3),
+        right: RIGHT,
       });
       ty -= 12;
     }
@@ -181,7 +173,7 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   }
 
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
+  doc.registerFontkit(orientedFontkit);
   const fonts: Fonts = {
     regular: await doc.embedFont(fs.readFileSync(regularPath), { subset: true }),
     bold: await doc.embedFont(fs.readFileSync(boldPath), { subset: true }),

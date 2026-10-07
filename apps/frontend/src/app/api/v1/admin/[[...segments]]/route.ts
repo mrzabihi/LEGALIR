@@ -120,7 +120,16 @@ import {
   getAdminUserUsage,
 } from "@/lib/admin/subscription";
 import { listAudit, recordAudit } from "@/lib/admin/audit";
-import { readPlans } from "@/lib/usage/plans";
+import {
+  auditPlanCreated,
+  createPlan,
+  isPurchasable,
+  planToPublic,
+  readPlans,
+  sortPlans,
+} from "@/lib/usage/plans";
+import type { CreatePlanInput } from "@/lib/usage/plans";
+import type { PlanStatus } from "@legalir/types";
 import { listOrganizations } from "@/lib/org-db";
 import { readBlog } from "@/lib/legal-library-db";
 import { listLawyerProfiles } from "@/lib/lawyer-db";
@@ -287,7 +296,17 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 
   flags: () => ok({ items: listFlags() }),
 
-  plans: () => ok({ items: readPlans() }),
+  plans: () =>
+    ok({
+      items: sortPlans(readPlans()).map((p) => ({
+        ...p,
+        // Surface the effective status + whether it is purchasable so the
+        // admin table never has to re-derive legacy `isActive` rows itself.
+        status: p.status ?? (p.isActive ? "active" : "inactive"),
+        purchasable: isPurchasable(p),
+        discountPercent: planToPublic(p).discountPercent,
+      })),
+    }),
 
   orders: ({ url }) =>
     ok(
@@ -680,9 +699,57 @@ function parseCalculatorSetting(body: Body): {
   return out;
 }
 
+/** Narrow a raw create body to the typed plan fields (numbers stay raw for
+ *  `createPlan` to validate, so a bad value yields a precise Persian error). */
+function parseCreatePlan(body: Body): CreatePlanInput {
+  const s = (k: string): string | undefined =>
+    typeof body[k] === "string" ? (body[k] as string) : undefined;
+  return {
+    code: s("code") ?? "",
+    nameFa: s("nameFa") ?? "",
+    descriptionFa: s("descriptionFa") ?? "",
+    shortDescriptionFa: s("shortDescriptionFa"),
+    durationDays: num(body["durationDays"]),
+    activityCostPoints: num(body["activityCostPoints"]),
+    dailyRequestLimit: num(body["dailyRequestLimit"]),
+    tokenLimit: num(body["tokenLimit"]),
+    aiMessageLimit: num(body["aiMessageLimit"]),
+    documentAnalysisLimit: num(body["documentAnalysisLimit"]),
+    contractDraftLimit: num(body["contractDraftLimit"]),
+    contractCreationLimit: num(body["contractCreationLimit"]),
+    contractCreationUnlimited: Boolean(body["contractCreationUnlimited"]),
+    listPrice: num(body["listPrice"]),
+    salePrice: num(body["salePrice"]),
+    currency: s("currency"),
+    features: Array.isArray(body["features"]) ? (body["features"] as string[]) : [],
+    status: (body["status"] as PlanStatus | undefined) ?? "draft",
+    displayOrder: body["displayOrder"] === undefined ? undefined : num(body["displayOrder"]),
+    tags: Array.isArray(body["tags"]) ? (body["tags"] as string[]) : undefined,
+  };
+}
+
 async function handlePost(request: NextRequest, segments: string[], actor: Actor): Promise<NextResponse> {
   const [a, b, c, d] = segments;
   const meta = requestMeta(request);
+
+  // Plans — CREATE a new plan (POST /admin/plans). Status transitions and
+  // edits go through PATCH on the concrete /admin/plans/[code] route.
+  if (a === "plans" && !b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = createPlan(parseCreatePlan(body));
+    if ("error" in res) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "plan.create", resourceType: "plan", resourceId: str(body["code"]), result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    auditPlanCreated(res.plan, actor.userId);
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "plan.create", resourceType: "plan", resourceId: res.plan.code, after: { code: res.plan.code, nameFa: res.plan.nameFa, status: res.plan.status, listPrice: res.plan.listPrice, salePrice: res.plan.salePrice }, ...meta });
+    return NextResponse.json({ data: res.plan }, { status: 201 });
+  }
+
+  if (a === "plans" && b) {
+    return adminError(405, "METHOD_NOT_ALLOWED", "برای ویرایش پلن از PATCH استفاده کنید");
+  }
 
   if (a === "calculators" && b) {
     // §5 — save one calculator's operational policy (save-as-create; the
@@ -1396,7 +1463,10 @@ function permissionFor(method: string, segments: string[]): Permission {
       return method === "GET" ? "admin:users:read" : "admin:users:manage";
     case "requests": return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
     case "flags": return "admin:flags:manage";
-    case "plans": return method === "GET" ? "admin:plans:read" : "admin:plans:manage";
+    // Reading the catalog is a plans-read capability; CREATE/EDIT/PUBLISH a
+    // plan is a system-level change, reserved to the super-admin (matches the
+    // concrete /admin/plans/[code] route and the page's edit gate).
+    case "plans": return method === "GET" ? "admin:plans:read" : "admin:system:manage";
     case "orders": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
     case "refunds": return "admin:refund:approve";
     case "finance": return method === "GET" ? "admin:finance:read" : "admin:finance:manage";

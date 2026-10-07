@@ -15,7 +15,7 @@
 // ============================================================
 
 import { readTable, writeTable, claimPurchaseReward, recordActivity } from "@/lib/db";
-import { getPlanByCode } from "@/lib/usage/plans";
+import { getPlanByCode, isPurchasable } from "@/lib/usage/plans";
 import {
   createPendingSubscription,
   activateSubscription,
@@ -128,6 +128,10 @@ export function createPaymentIntent(params: {
 }): PaymentIntentResult | null {
   const plan = getPlanByCode(params.planCode);
   if (!plan) return null;
+  // A non-active plan (draft/inactive/archived) cannot start a purchase. This
+  // is the enforcement of «غیرفعال کردن پلن، خریدهای جدید را متوقف میکند»;
+  // existing subscriptions keep their frozen snapshot and are unaffected.
+  if (!isPurchasable(plan)) return null;
   const now = params.now ?? new Date();
 
   const existing = findReusablePending(params.userId, plan.code);

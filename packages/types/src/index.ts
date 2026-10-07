@@ -140,11 +140,19 @@ export interface Plan {
   id: string;
   code: PlanCode;
   nameFa: string;
+  /** Optional one-line teaser shown above the full description. */
+  shortDescriptionFa?: string;
   descriptionFa: string;
   durationDays: number;
   listPrice: number;
   salePrice: number;
   currency: string;
+  /** Whole-percent discount derived from listPrice/salePrice (0 = none). */
+  discountPercent?: number;
+  /** Admin-defined ordering; lower shows first. */
+  displayOrder?: number;
+  /** Free-form badges such as «پیشنهادی» / «محبوب». */
+  tags?: string[];
   features: string[];
   dailyRequestLimit: number;
   totalTokenLimit: number;
@@ -158,7 +166,13 @@ export interface PlanUsageLimit {
   limit: number;
 }
 
-export type PlanCode = "silver" | "gold" | "diamond";
+/**
+ * A plan's system id. Historically the closed set `silver|gold|diamond`, but
+ * plans are now admin-created so any validated slug is possible. Kept as an
+ * alias (not a union) so every existing `PlanCode` consumer keeps compiling;
+ * the well-known shipped codes are `PLAN_ORDER` in the frontend.
+ */
+export type PlanCode = string;
 
 export interface Subscription {
   id: string;
@@ -2546,12 +2560,31 @@ export interface PlanEntitlementSnapshot {
   contractCreationLimit: number;
 }
 
+/**
+ * A plan's editorial lifecycle. `active` is the only status purchasable by
+ * users; `inactive`/`archived` stop NEW purchases but never touch existing
+ * subscriptions (which keep their frozen snapshot). `draft` is a plan still
+ * being prepared and is likewise not purchasable.
+ */
+export type PlanStatus = "draft" | "active" | "inactive" | "archived";
+
 /** The admin-editable plan catalog row (template, not an instance). */
 export interface SubscriptionPlan {
   id: string;
   code: PlanCode;
   nameFa: string;
+  /** Optional one-line teaser shown above the full description. */
+  shortDescriptionFa?: string;
   descriptionFa: string;
+  /**
+   * Editorial lifecycle. Optional for backward compatibility: a legacy row
+   * without it is treated as `active` when `isActive`, else `inactive`.
+   */
+  status?: PlanStatus;
+  /** Admin-defined ordering; lower shows first. Falls back to insertion order. */
+  displayOrder?: number;
+  /** Free-form badges such as «پیشنهادی» / «محبوب». */
+  tags?: string[];
   durationDays: number;
   /** Points charged per billable activity. */
   activityCostPoints: number;
@@ -2876,3 +2909,8 @@ export * from "./case-management";
 // Analytics / Business Intelligence (read-only reporting contracts)
 // ---------------------------------------------------------------------------
 export * from "./analytics";
+
+// ---------------------------------------------------------------------------
+// Lawyer taxonomy (4-level expertise tree), services, jurisdictions & geography
+// ---------------------------------------------------------------------------
+export * from "./lawyer-taxonomy";

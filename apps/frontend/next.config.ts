@@ -12,6 +12,19 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
 
+  // The receipt and contract PDF renderers read the Vazirmatn TTFs from disk at
+  // request time (`fs.readFileSync`). Next's output tracing cannot see a
+  // runtime path built from `process.cwd()`, so without this the standalone
+  // Docker image ships WITHOUT the fonts and every PDF endpoint 500s with
+  // "Vazirmatn font files are missing". Force the TTFs into the standalone
+  // bundle (npm hoists the package to the repo root node_modules).
+  outputFileTracingIncludes: {
+    // The receipt is served by the admin catch-all route; the contract PDF by
+    // its own handler. Both must carry the fonts into the standalone output.
+    "/api/v1/admin/[[...segments]]": ["../../node_modules/vazirmatn/fonts/ttf/*.ttf"],
+    "/api/v1/property-contracts/[id]/pdf": ["../../node_modules/vazirmatn/fonts/ttf/*.ttf"],
+  },
+
   // The admin panel is reachable at http://admin.localhost:3000 (the
   // middleware rewrites that host onto the /admin tree). Dev-only: allow the
   // subdomain origin so Next does not reject cross-origin dev requests.

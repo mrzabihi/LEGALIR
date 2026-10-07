@@ -13,7 +13,7 @@
 // ============================================================
 
 import type { ComponentType, SVGProps } from "react";
-import { LEGAL_CATEGORY_FA } from "@legalir/types";
+import { LEGAL_CATEGORY_FA, taxonomyNode, taxonomyDomainOf } from "@legalir/types";
 import {
   IconUsers,
   IconHome,
@@ -87,10 +87,27 @@ const EXTRA_LABEL: Record<string, string> = {
  */
 export function specialtyIcon(category: string | null | undefined): IconComponent {
   if (!category) return IconScale;
-  return SPECIALTY_ICON[category] ?? EXTRA_ICON[category] ?? IconScale;
+  if (SPECIALTY_ICON[category] || EXTRA_ICON[category]) {
+    return SPECIALTY_ICON[category] ?? EXTRA_ICON[category]!;
+  }
+  // A taxonomy node id — use its domain's glyph (a 4-level node inherits the
+  // glyph of the top-level domain it belongs to).
+  const domain = taxonomyDomainOf(category);
+  if (domain && SPECIALTY_ICON[domain.id]) return SPECIALTY_ICON[domain.id]!;
+  return IconScale;
 }
 
-/** Resolve the Persian label for a specialty slug. */
+/**
+ * Resolve the Persian label for a specialty slug OR a taxonomy node id.
+ * A `category` may hold either a legacy {@link LegalCategory} slug or a
+ * 4-level taxonomy node id (e.g. `family.divorce.mutual`); both resolve to a
+ * human label here.
+ */
 export function specialtyLabel(category: string): string {
-  return LEGAL_CATEGORY_FA[category] ?? EXTRA_LABEL[category] ?? category;
+  return (
+    LEGAL_CATEGORY_FA[category] ??
+    taxonomyNode(category)?.nameFa ??
+    EXTRA_LABEL[category] ??
+    category
+  );
 }

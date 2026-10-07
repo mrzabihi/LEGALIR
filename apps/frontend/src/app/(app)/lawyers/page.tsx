@@ -2,14 +2,15 @@
 // LEGALIR — Lawyer Marketplace
 // ============================================================
 // Browse verified lawyers. On mobile the page reads like a professional
-// marketplace: a search bar, a scrollable category rail, a "recommended"
-// carousel, then one horizontal carousel per practice area — so a long
-// roster never becomes one exhausting vertical list. From `desktop` up the
-// same sections render as wider carousels and a full grid.
+// marketplace: a search bar, a horizontal domain rail, a "recommended"
+// carousel, then one carousel per legal DOMAIN — so a ~250-lawyer roster
+// never becomes one exhausting vertical list. From `desktop` up the same
+// sections render as wider carousels and a full grid.
 //
-// Filters (category, sort, remote, search) map 1:1 onto the
-// /api/v1/lawyers query string. Demo lawyers are clearly badged «نمونه» —
-// they are never presented as real practitioners.
+// Every filter maps 1:1 onto the /api/v1/lawyers query string (the same
+// `LawyerSearchFilters` the backend honours), and the categories are the
+// twenty top-level taxonomy domains — not a hard-coded list. Demo lawyers
+// are clearly badged «نمونه»; they are never presented as real practitioners.
 // ============================================================
 
 "use client";
@@ -32,30 +33,39 @@ import {
   LawyerCarousel,
   LawyerCategorySection,
   LawyerFiltersSheet,
+  EMPTY_LAWYER_FILTERS,
   type LawyerFilterValues,
 } from "@/components/lawyers";
 import { PromoPanel } from "@/components/shared";
-import { LEGAL_CATEGORY_FA, type LawyerListFilters } from "@legalir/types";
+import { taxonomyDomains, type LawyerSearchFilters } from "@legalir/types";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { groupByPrimarySpecialty, featuredLawyers } from "@/lib/lawyers/grouping";
+import { groupByPrimaryDomain, featuredLawyers } from "@/lib/lawyers/grouping";
 import { TextField } from "@legalir/ui";
 
-const CATEGORY_OPTIONS = Object.entries(LEGAL_CATEGORY_FA);
+const DOMAINS = taxonomyDomains();
 
-/** Short, factual one-liners for the canonical practice areas. */
-const CATEGORY_DESCRIPTION_FA: Record<string, string> = {
+/** Short, factual one-liners for the canonical practice domains. */
+const DOMAIN_DESCRIPTION_FA: Record<string, string> = {
   family: "دعاوی خانواده، طلاق، مهریه و نفقه",
-  contract: "تنظیم، بازبینی و دعاوی قراردادها",
-  real_estate: "خرید، فروش، اجاره و دعاوی ملکی",
-  labor: "روابط کار، بیمه و تأمین اجتماعی",
-  commerce: "معاملات تجاری و اختلافات بازرگانی",
   criminal: "دفاع در پرونده‌های کیفری و جرائم",
+  property_real_estate: "خرید، فروش، اجاره و دعاوی ملکی",
+  finance_banking: "بانک، تسهیلات و دعاوی مالی",
+  commercial: "معاملات تجاری و اختلافات بازرگانی",
+  contracts: "تنظیم، بازبینی و دعاوی قراردادها",
+  labor: "روابط کار، بیمه و تأمین اجتماعی",
+  medical: "قصور پزشکی و دعاوی درمان",
   tax: "دعاوی مالیاتی و پرونده‌های مالیاتی",
-  companies: "ثبت، تغییرات و دعاوی شرکت‌های تجاری",
-  checks: "چک، سفته و اسناد تجاری",
+  administrative: "دعاوی اداری و دیوان عدالت",
+  intellectual_property: "مالکیت فکری، برند و حق تألیف",
+  technology_cyber: "جرائم رایانه‌ای و حقوق فناوری",
   immigration: "مهاجرت، اقامت و امور کنسولی",
-  cyber: "جرائم رایانه‌ای و دعاوی فضای مجازی",
-  other: "سایر حوزه‌های حقوقی",
+  inheritance: "ارث، انحصار وراثت و تقسیم ترکه",
+  international: "دعاوی بین‌الملل و قراردادهای فرامرزی",
+  insurance: "دعاوی بیمه و خسارت",
+  transportation: "حمل‌ونقل و دعاوی رانندگی",
+  energy_resources: "انرژی، معدن و منابع طبیعی",
+  sports_culture: "ورزش، فرهنگ و رسانه",
+  enforcement: "اجرای احکام و تأمین خواسته",
 };
 
 export default function LawyersPage() {
@@ -70,45 +80,76 @@ export default function LawyersPage() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Seed the category filter from ?category= so links from chat land
+  // Seed the specialty filter from ?category= so links from chat land
   // pre-filtered on the topic the user was discussing.
-  const [category, setCategory] = useState<string>(() => searchParams.get("category") ?? "");
-  const [sort, setSort] = useState<LawyerFilterValues["sort"]>("relevance");
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const seededCategory = searchParams.get("category") ?? "";
+  const [filters, setFilters] = useState<LawyerFilterValues>(() => ({
+    ...EMPTY_LAWYER_FILTERS,
+    specialtyIds: seededCategory ? [seededCategory] : [],
+  }));
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const filters = useMemo<LawyerListFilters>(
+  const query = useMemo<LawyerSearchFilters>(
     () => ({
       search: search || undefined,
-      category: category || undefined,
-      sort,
-      remoteOnly: remoteOnly || undefined,
+      specialtyIds: filters.specialtyIds.length ? filters.specialtyIds : undefined,
+      professionalRanks: filters.professionalRanks.length ? filters.professionalRanks : undefined,
+      organizationTypes: filters.organizationTypes.length ? filters.organizationTypes : undefined,
+      province: filters.province || undefined,
+      city: filters.city || undefined,
+      experienceBand: filters.experienceBand || undefined,
+      minRating: filters.minRating ?? undefined,
+      serviceIds: filters.serviceIds.length ? filters.serviceIds : undefined,
+      onlineOnly: filters.onlineOnly || undefined,
+      acceptingClientsOnly: filters.acceptingClientsOnly || undefined,
+      sort: filters.sort,
       pageSize: 60,
     }),
-    [search, category, sort, remoteOnly]
+    [search, filters]
   );
 
-  const { data, isLoading, isError, refetch } = useLawyers(filters);
+  const { data, isLoading, isError, refetch } = useLawyers(query);
   const items = useMemo(() => data?.items ?? [], [data]);
 
   // A filter is "active" when the user has narrowed the roster — the page
   // then shows a flat result grid instead of the grouped marketplace.
-  const isFiltering = Boolean(search || category || remoteOnly || sort !== "relevance");
+  const isFiltering = Boolean(
+    search ||
+      filters.specialtyIds.length ||
+      filters.professionalRanks.length ||
+      filters.organizationTypes.length ||
+      filters.province ||
+      filters.city ||
+      filters.experienceBand ||
+      filters.minRating !== null ||
+      filters.serviceIds.length ||
+      filters.onlineOnly ||
+      filters.acceptingClientsOnly ||
+      filters.sort !== "relevance"
+  );
   const activeFilterCount =
-    (category ? 1 : 0) + (remoteOnly ? 1 : 0) + (sort !== "relevance" ? 1 : 0);
+    (filters.specialtyIds.length ? 1 : 0) +
+    (filters.professionalRanks.length ? 1 : 0) +
+    (filters.organizationTypes.length ? 1 : 0) +
+    (filters.province ? 1 : 0) +
+    (filters.city ? 1 : 0) +
+    (filters.experienceBand ? 1 : 0) +
+    (filters.minRating !== null ? 1 : 0) +
+    (filters.serviceIds.length ? 1 : 0) +
+    (filters.onlineOnly ? 1 : 0) +
+    (filters.acceptingClientsOnly ? 1 : 0) +
+    (filters.sort !== "relevance" ? 1 : 0);
 
-  const groups = useMemo(() => groupByPrimarySpecialty(items), [items]);
+  const groups = useMemo(() => groupByPrimaryDomain(items), [items]);
   const featured = useMemo(() => featuredLawyers(items), [items]);
 
   const clearFilters = () => {
     setSearchInput("");
     setSearch("");
-    setCategory("");
-    setSort("relevance");
-    setRemoteOnly(false);
+    setFilters(EMPTY_LAWYER_FILTERS);
   };
 
-  // --- Category rail scroller ---
+  // --- Domain rail scroller ---
   // On touch widths the row is a plain horizontal scroller. From `tablet`
   // up the native scrollbar is hidden and two arrow buttons page through
   // the categories instead, so a mouse user can reach the overflow.
@@ -143,6 +184,8 @@ export default function LawyersPage() {
     el.scrollBy({ left: dir === "end" ? -step : step, behavior: "smooth" });
   };
 
+  const selectedDomain = filters.specialtyIds.length === 1 ? filters.specialtyIds[0] : "";
+
   const chipClass = (selected: boolean) =>
     [
       "shrink-0 rounded-full border px-4 py-2 text-caption font-medium transition-all touch-target-min",
@@ -157,7 +200,7 @@ export default function LawyersPage() {
       <div className="mb-5">
         <h1 className="mb-2 text-h2 text-on-surface">وکلای LEGALIR</h1>
         <p className="text-body-2 text-muted">
-          وکلای تأییدشده را بر اساس تخصص، شهر و بودجه مرور کنید و خودتان انتخاب کنید.
+          وکلای تأییدشده را بر اساس تخصص، شهر، سابقه و بودجه مرور کنید و خودتان انتخاب کنید.
         </p>
       </div>
 
@@ -169,7 +212,7 @@ export default function LawyersPage() {
             label="جستجوی وکیل"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="نام وکیل، تخصص یا حوزه حقوقی..."
+            placeholder="نام وکیل، تخصص یا موضوع پرونده…"
             leadingIcon={<IconSearch size={20} />}
             fullWidth
           />
@@ -190,7 +233,7 @@ export default function LawyersPage() {
         </button>
       </div>
 
-      {/* --- Category rail --- */}
+      {/* --- Domain rail --- */}
       <div className="mb-4 flex items-center gap-2">
         <button
           type="button"
@@ -212,22 +255,22 @@ export default function LawyersPage() {
           <button
             type="button"
             role="tab"
-            aria-selected={category === ""}
-            onClick={() => setCategory("")}
-            className={chipClass(category === "")}
+            aria-selected={selectedDomain === ""}
+            onClick={() => setFilters((s) => ({ ...s, specialtyIds: [] }))}
+            className={chipClass(selectedDomain === "")}
           >
             همه
           </button>
-          {CATEGORY_OPTIONS.map(([code, label]) => (
+          {DOMAINS.map((d) => (
             <button
-              key={code}
+              key={d.id}
               type="button"
               role="tab"
-              aria-selected={category === code}
-              onClick={() => setCategory(code)}
-              className={chipClass(category === code)}
+              aria-selected={selectedDomain === d.id}
+              onClick={() => setFilters((s) => ({ ...s, specialtyIds: [d.id] }))}
+              className={chipClass(selectedDomain === d.id)}
             >
-              {label}
+              {d.nameFa}
             </button>
           ))}
         </div>
@@ -335,32 +378,28 @@ export default function LawyersPage() {
             </section>
           )}
 
-          {/* همه وکلا — 4 tiles per row on desktop, 2 on mobile */}
+          {/* همه وکلا */}
           <section className="mb-8">
             <h2 className="mb-3 text-h3 text-on-surface">همه وکلا</h2>
             <LawyerCarousel lawyers={items} ariaLabel="همه وکلا" />
           </section>
 
-          {/* One carousel per practice area */}
+          {/* One carousel per legal domain */}
           {groups.map((group) => (
             <LawyerCategorySection
               key={group.category}
               title={`وکلای ${group.label}`}
-              description={CATEGORY_DESCRIPTION_FA[group.category]}
+              description={DOMAIN_DESCRIPTION_FA[group.category]}
               lawyers={group.lawyers}
-              onViewAll={() => setCategory(group.category)}
+              onViewAll={() =>
+                setFilters((s) => ({ ...s, specialtyIds: [group.category] }))
+              }
             />
           ))}
         </div>
       )}
 
-      {/* Supporting visual for the human-lawyer journey.
-          Deliberately placed *after* the results: search, filtering and
-          lawyer selection are the page's job, so nothing promotional may
-          sit between the user and the list. It renders in both the
-          populated and the empty state, so the human-lawyer path is
-          always offered — without ever implying the AI chat connects to
-          a human lawyer. */}
+      {/* Supporting visual for the human-lawyer journey. */}
       <PromoPanel
         art="four"
         eyebrow="مشاوره با وکیل انسانی"
@@ -378,12 +417,8 @@ export default function LawyersPage() {
       <LawyerFiltersSheet
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
-        value={{ category, sort, remoteOnly }}
-        onApply={(next) => {
-          setCategory(next.category);
-          setSort(next.sort);
-          setRemoteOnly(next.remoteOnly);
-        }}
+        value={filters}
+        onApply={setFilters}
       />
     </div>
   );

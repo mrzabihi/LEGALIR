@@ -172,6 +172,24 @@ describe("getOrder — tracking_id is read from the real subscription row", () =
   });
 });
 
+/** Extract the text layer of a rendered PDF (logical order, as pdfjs reads it). */
+async function extractText(bytes: Uint8Array): Promise<string> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({
+    data: bytes,
+    disableFontFace: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  }).promise;
+  let out = "";
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    out += tc.items.map((i) => ("str" in i && typeof i.str === "string" ? i.str : "")).join(" ") + "\n";
+  }
+  return out;
+}
+
 describe("renderOrderReceiptPdf", () => {
   it("renders a non-empty, valid PDF from the descriptor", async () => {
     const bytes = await renderOrderReceiptPdf(buildOrderReceipt(withStatus("SUCCESS")));
@@ -180,6 +198,17 @@ describe("renderOrderReceiptPdf", () => {
     // Every PDF begins with the %PDF- magic header.
     const header = String.fromCharCode(...bytes.slice(0, 5));
     expect(header).toBe("%PDF-");
+  });
+
+  it("formats the full ISO timestamps as real Jalali dates, never the '—' fallback", async () => {
+    // Regression: `buildOrderReceipt` sets `paidAt`/`generatedAt` to FULL ISO
+    // timestamps, while `formatIsoJalali` accepts `YYYY-MM-DD` only. Passing
+    // the timestamp through unmodified printed "—" for every date.
+    const bytes = await renderOrderReceiptPdf(buildOrderReceipt(withStatus("SUCCESS")));
+    const text = await extractText(bytes);
+    expect(text).not.toContain("\u2014"); // em-dash = the "no date" fallback
+    expect(text).toMatch(/[\u06F0-\u06F9]{4}/); // a 4-digit Persian year is present
+    expect(text).toContain("تاریخ پرداخت"); // the payment-date label
   });
 
   it("renders without a tracking id or service name (nulls are omitted, not thrown on)", async () => {

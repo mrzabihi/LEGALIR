@@ -10,11 +10,12 @@
 
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Drawer } from "@legalir/ui";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useOrdersList } from "@/hooks/useAnalyticsDrill";
+import { DrillWindowBanner } from "@/components/admin/drill-window-banner";
 import {
-  useAdminOrders,
   useAdminOrder,
   useAdminOrderReceipt,
   useCreateAdminRefund,
@@ -438,6 +439,14 @@ function OrderDetail({ id }: { id: string }) {
 }
 
 export default function AdminOrdersPage() {
+  return (
+    <Suspense fallback={<LoadingBlock rows={6} />}>
+      <AdminOrdersView />
+    </Suspense>
+  );
+}
+
+function AdminOrdersView() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("");
   const [page, setPage] = useState(1);
@@ -448,7 +457,9 @@ export default function AdminOrdersPage() {
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   useEffect(() => setPage(1), [debouncedSearch]);
 
-  const query = useAdminOrders({
+  // When opened from a BI KPI (`?fromIso&toIso`) this scopes to that window;
+  // otherwise it is the ordinary full ledger — one code path either way.
+  const query = useOrdersList({
     search: debouncedSearch,
     status: status || undefined,
     page,
@@ -470,6 +481,8 @@ export default function AdminOrdersPage() {
         description="دفتر سفارش‌ها و گردش کار بازگشت دو‌مرحله‌ای. ثبت و تأیید عملیات مالی تفکیک شده‌اند و درگاه در این محیط شبیه‌سازی می‌شود."
         actions={<ExportButton kind="orders" />}
       />
+
+      <DrillWindowBanner subjectFa="سفارش‌ها" />
 
       <InfoBanner tone="info">
         درگاه پرداخت در این محیط شبیه‌سازی‌شده است و هیچ تراکنش واقعی انجام نمی‌شود.

@@ -21,10 +21,12 @@
 
 import { readTable, writeTable } from "@/lib/db";
 import { BASE_ACTIVITY_COST } from "./activities";
+import { computeDiscountPercent } from "./plan-pricing";
 import type {
   PlanAuditEntry,
   PlanCode,
   PlanEntitlementSnapshot,
+  PlanStatus,
   SubscriptionPlan,
 } from "@legalir/types";
 
@@ -124,8 +126,10 @@ export function readPlans(): SubscriptionPlan[] {
   const rows = readTable<SubscriptionPlan>(TABLE);
   if (rows.length > 0) return rows;
   const now = new Date().toISOString();
-  const seeded: SubscriptionPlan[] = DEFAULT_PLANS.map((p) => ({
+  const seeded: SubscriptionPlan[] = DEFAULT_PLANS.map((p, i) => ({
     ...p,
+    status: "active",
+    displayOrder: i,
     createdAt: now,
     updatedAt: now,
   }));
@@ -139,6 +143,63 @@ export function getPlanByCode(code: string): SubscriptionPlan | undefined {
 
 export function getPlanById(id: string): SubscriptionPlan | undefined {
   return readPlans().find((p) => p.id === id);
+}
+
+/** A plan's effective status, deriving one for legacy rows that lack `status`. */
+export function planStatus(plan: SubscriptionPlan): PlanStatus {
+  if (plan.status) return plan.status;
+  return plan.isActive ? "active" : "inactive";
+}
+
+/** True when a plan may be purchased by users (only `active` plans are). */
+export function isPurchasable(plan: SubscriptionPlan): boolean {
+  return planStatus(plan) === "active" && plan.isActive;
+}
+
+/** The catalog order shown everywhere: displayOrder first, then creation. */
+export function sortPlans(plans: SubscriptionPlan[]): SubscriptionPlan[] {
+  return [...plans].sort((a, b) => {
+    const ao = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+}
+
+/** The public `PlanUsageLimit` rows a plan exposes (shared by every surface). */
+function usageLimitsFor(plan: SubscriptionPlan) {
+  return [
+    { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", period: "month" as const, limit: plan.aiMessageLimit },
+    { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", period: "month" as const, limit: plan.documentAnalysisLimit },
+    { featureKey: "CONTRACT_GENERATION", nameFa: "تولید قرارداد", period: "month" as const, limit: plan.contractCreationLimit },
+  ];
+}
+
+/**
+ * Project a catalog row onto the public `Plan` shape every customer surface
+ * consumes. ONE projection so the pricing page, the plan cards and the admin
+ * preview can never drift. `discountPercent` is derived from the shared
+ * formula, never stored.
+ */
+export function planToPublic(plan: SubscriptionPlan) {
+  return {
+    id: plan.id,
+    code: plan.code,
+    nameFa: plan.nameFa,
+    shortDescriptionFa: plan.shortDescriptionFa,
+    descriptionFa: plan.descriptionFa,
+    durationDays: plan.durationDays,
+    listPrice: plan.listPrice,
+    salePrice: plan.salePrice,
+    currency: plan.currency,
+    discountPercent: computeDiscountPercent(plan.listPrice, plan.salePrice),
+    displayOrder: plan.displayOrder,
+    tags: plan.tags,
+    features: plan.features,
+    dailyRequestLimit: plan.dailyRequestLimit,
+    totalTokenLimit: plan.tokenLimit,
+    usageLimits: usageLimitsFor(plan),
+  };
 }
 
 /** The daily points a plan grants: requests × activity cost. */
@@ -186,9 +247,181 @@ export function updatePlan(
     ...updates,
     updatedAt: new Date().toISOString(),
   };
+  // `isActive` is a DERIVED mirror of `status` — keep the legacy boolean in
+  // step so older consumers that read `isActive` never disagree with the
+  // lifecycle state.
+  if (updates.status !== undefined) {
+    merged.isActive = updates.status === "active";
+  }
   rows[idx] = merged;
   writeTable(TABLE, rows);
   return merged;
+}
+
+// ============================================================
+// Create / lifecycle (admin)
+// ============================================================
+
+/** The codes/labels a plan may not collide with. */
+const CODE_RE = /^[a-z][a-z0-9_-]{1,31}$/;
+
+export interface CreatePlanInput {
+  code: string;
+  nameFa: string;
+  descriptionFa: string;
+  shortDescriptionFa?: string;
+  durationDays: number;
+  activityCostPoints: number;
+  dailyRequestLimit: number;
+  tokenLimit: number;
+  aiMessageLimit: number;
+  documentAnalysisLimit: number;
+  contractDraftLimit: number;
+  contractCreationLimit: number;
+  contractCreationUnlimited: boolean;
+  listPrice: number;
+  salePrice: number;
+  currency?: string;
+  features: string[];
+  status: PlanStatus;
+  displayOrder?: number;
+  tags?: string[];
+}
+
+export type PlanWriteResult =
+  | { ok: true; plan: SubscriptionPlan }
+  | { error: string };
+
+function isNonNegInt(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n >= 0;
+}
+function isPosInt(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n > 0;
+}
+
+const PLAN_STATUSES: PlanStatus[] = ["draft", "active", "inactive", "archived"];
+
+/**
+ * Create a new plan. Validates every field and rejects a duplicate code/id.
+ * The new row is only written when it is fully valid — a partially-built plan
+ * never lands in the catalog. `isActive` is derived from `status`.
+ */
+export function createPlan(input: CreatePlanInput): PlanWriteResult {
+  const code = (input.code ?? "").trim().toLowerCase();
+  if (!code) return { error: "CODE_REQUIRED" };
+  if (!CODE_RE.test(code)) return { error: "INVALID_CODE" };
+  if (readPlans().some((p) => p.code === code || p.id === `plan-${code}`)) {
+    return { error: "CODE_EXISTS" };
+  }
+  if (!input.nameFa?.trim()) return { error: "NAME_REQUIRED" };
+  if (!isPosInt(input.durationDays)) return { error: "INVALID_DURATION" };
+  if (!isPosInt(input.activityCostPoints)) return { error: "INVALID_ACTIVITY_COST" };
+  for (const n of [
+    input.dailyRequestLimit,
+    input.tokenLimit,
+    input.aiMessageLimit,
+    input.documentAnalysisLimit,
+    input.contractDraftLimit,
+    input.contractCreationLimit,
+  ]) {
+    if (!isNonNegInt(n)) return { error: "INVALID_LIMIT" };
+  }
+  if (!isNonNegInt(input.listPrice)) return { error: "INVALID_PRICE" };
+  if (!isNonNegInt(input.salePrice)) return { error: "INVALID_PRICE" };
+  if (input.salePrice > input.listPrice) return { error: "SALE_ABOVE_LIST" };
+  if (!PLAN_STATUSES.includes(input.status)) return { error: "INVALID_STATUS" };
+  if (input.displayOrder !== undefined && !isNonNegInt(input.displayOrder)) {
+    return { error: "INVALID_ORDER" };
+  }
+
+  const now = new Date().toISOString();
+  const plan: SubscriptionPlan = {
+    id: `plan-${code}`,
+    code,
+    nameFa: input.nameFa.trim(),
+    descriptionFa: input.descriptionFa ?? "",
+    ...(input.shortDescriptionFa ? { shortDescriptionFa: input.shortDescriptionFa } : {}),
+    status: input.status,
+    isActive: input.status === "active",
+    durationDays: input.durationDays,
+    activityCostPoints: input.activityCostPoints,
+    dailyRequestLimit: input.dailyRequestLimit,
+    tokenLimit: input.tokenLimit,
+    aiMessageLimit: input.aiMessageLimit,
+    documentAnalysisLimit: input.documentAnalysisLimit,
+    contractDraftLimit: input.contractDraftLimit,
+    contractCreationLimit: input.contractCreationLimit,
+    contractCreationUnlimited: input.contractCreationUnlimited,
+    listPrice: input.listPrice,
+    salePrice: input.salePrice,
+    currency: input.currency ?? "IRT",
+    features: Array.isArray(input.features) ? input.features.filter((f) => typeof f === "string") : [],
+    ...(input.displayOrder !== undefined ? { displayOrder: input.displayOrder } : {}),
+    ...(Array.isArray(input.tags) ? { tags: input.tags.filter((t) => typeof t === "string") } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const rows = readPlans();
+  rows.push(plan);
+  writeTable(TABLE, rows);
+  return { ok: true, plan };
+}
+
+/**
+ * Change a plan's lifecycle status (publish → `active`, deactivate →
+ * `inactive`, archive → `archived`). Never touches a purchased subscription —
+ * each subscription keeps its frozen snapshot.
+ */
+export function setPlanStatus(
+  code: string,
+  status: PlanStatus,
+  changedBy: string
+): SubscriptionPlan | undefined {
+  if (!PLAN_STATUSES.includes(status)) return undefined;
+  const before = getPlanByCode(code);
+  if (!before) return undefined;
+  const after = updatePlan(code as PlanCode, { status });
+  if (!after) return undefined;
+  if (planStatus(before) !== status) {
+    writePlanAudit([
+      {
+        id: `pa-${crypto.randomUUID()}`,
+        planId: after.id,
+        planCode: after.code,
+        changedBy,
+        field: "status",
+        oldValue: planStatus(before),
+        newValue: status,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }
+  return after;
+}
+
+/** Append plan-edit audit rows (shared by create, edit and status changes). */
+export function writePlanAudit(entries: PlanAuditEntry[]): void {
+  if (entries.length === 0) return;
+  const rows = readTable<PlanAuditEntry>(AUDIT_TABLE);
+  rows.push(...entries);
+  writeTable(AUDIT_TABLE, rows);
+}
+
+/** Record the creation of a plan as a single audit row. */
+export function auditPlanCreated(plan: SubscriptionPlan, changedBy: string): void {
+  writePlanAudit([
+    {
+      id: `pa-${crypto.randomUUID()}`,
+      planId: plan.id,
+      planCode: plan.code,
+      changedBy,
+      field: "created",
+      oldValue: null,
+      newValue: JSON.stringify({ code: plan.code, nameFa: plan.nameFa, status: planStatus(plan) }),
+      createdAt: new Date().toISOString(),
+    },
+  ]);
 }
 
 /** Read the plan-edit audit trail, newest first. */
@@ -231,10 +464,6 @@ export function updatePlanWithAudit(
       createdAt: now,
     });
   }
-  if (entries.length > 0) {
-    const rows = readTable<PlanAuditEntry>(AUDIT_TABLE);
-    rows.push(...entries);
-    writeTable(AUDIT_TABLE, rows);
-  }
+  writePlanAudit(entries);
   return after;
 }

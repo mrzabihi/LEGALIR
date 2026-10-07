@@ -28,7 +28,12 @@ import { buildEnergyReport, listEnergyUsers } from "@/lib/admin/analytics/energy
 import { buildCustomerAnalytics, listPurchaseRanking } from "@/lib/admin/analytics/customer-analytics";
 import { buildFinanceAnalytics } from "@/lib/admin/analytics/finance-analytics";
 import { analyticsDataQuality } from "@/lib/admin/analytics/quality";
-import type { AnalyticsRangeKey, PurchaseRankingSort } from "@legalir/types";
+import {
+  listDrillOrders,
+  listDrillUsers,
+  resolveDrillWindow,
+} from "@/lib/admin/analytics/drill";
+import type { AnalyticsRangeKey, OrderStatus, PurchaseRankingSort } from "@legalir/types";
 import type { ResolveRangeInput } from "@/lib/admin/analytics/range";
 
 const RANGE_KEYS: readonly AnalyticsRangeKey[] = ["today", "7d", "30d", "jalali_month", "custom"];
@@ -110,6 +115,47 @@ function handleGet(c: Ctx): NextResponse {
     case "finance":
       return ok(buildFinanceAnalytics(input));
 
+    // Range-preserving drill-down: a KPI links here with the SAME window it
+    // reported on, so the opened list reconciles to the number clicked. The
+    // window travels as resolved ISO bounds; a bare preset is honoured only
+    // when a hand-typed URL supplies one (absent → the full ledger, no window).
+    case "drill": {
+      const presetRaw = c.url.searchParams.get("preset");
+      const preset = RANGE_KEYS.includes(presetRaw as AnalyticsRangeKey)
+        ? (presetRaw as AnalyticsRangeKey)
+        : undefined;
+      const window = resolveDrillWindow({
+        fromIso: c.url.searchParams.get("fromIso"),
+        toIso: c.url.searchParams.get("toIso"),
+        preset,
+        rangeDays: intParam(c.url, "rangeDays", 0) || undefined,
+      });
+
+      if (b === "orders") {
+        return ok(
+          listDrillOrders(window, {
+            search: c.url.searchParams.get("search") ?? undefined,
+            status: (c.url.searchParams.get("status") as OrderStatus | null) ?? undefined,
+            planCode: c.url.searchParams.get("planCode") ?? undefined,
+            page: intParam(c.url, "page", 1),
+            pageSize: intParam(c.url, "pageSize", 20),
+          })
+        );
+      }
+      if (b === "users") {
+        return ok(
+          listDrillUsers(window, {
+            search: c.url.searchParams.get("search") ?? undefined,
+            role: c.url.searchParams.get("role") ?? undefined,
+            sort: c.url.searchParams.get("sort") === "oldest" ? "oldest" : "recent",
+            page: intParam(c.url, "page", 1),
+            pageSize: intParam(c.url, "pageSize", 25),
+          })
+        );
+      }
+      return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
+    }
+
     case "quality":
       return ok({ items: analyticsDataQuality() });
 
@@ -122,6 +168,19 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
   const { segments = [] } = await params;
   const auth = requirePermission(request, "admin:analytics:read");
   if (!auth.ok) return auth.response;
+
+  // The drill-down reads the destination surface's rows, so it additionally
+  // requires that surface's own read permission — a user who cannot open
+  // /admin/orders must not reach the same ledger through the analytics link.
+  const [a, b] = segments;
+  if (a === "drill") {
+    const needed =
+      b === "orders" ? "admin:billing:read" : b === "users" ? "admin:users:read" : null;
+    if (!needed) return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
+    const gate = requirePermission(request, needed);
+    if (!gate.ok) return gate.response;
+  }
+
   return handleGet({ request, url: new URL(request.url), segments });
 }
 

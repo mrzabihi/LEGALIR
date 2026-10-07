@@ -10,8 +10,10 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useAdminUsers, useChangeStaffRole, useAdminMe } from "@/hooks/useAdmin";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useChangeStaffRole, useAdminMe } from "@/hooks/useAdmin";
+import { useUsersList } from "@/hooks/useAnalyticsDrill";
+import { DrillWindowBanner } from "@/components/admin/drill-window-banner";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { UserSubscriptionDrawer } from "@/components/admin/user-subscription-drawer";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
@@ -24,6 +26,7 @@ import {
   Td,
   Badge,
   StateView,
+  LoadingBlock,
   TextInput,
   Button,
   IdChip,
@@ -47,6 +50,14 @@ function RoleBadge({ role }: { role: PlatformRole }) {
 }
 
 export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={<LoadingBlock rows={6} />}>
+      <AdminUsersView />
+    </Suspense>
+  );
+}
+
+function AdminUsersView() {
   const { can } = useAdminMe();
   const canManage = can("admin:users:manage");
 
@@ -61,7 +72,9 @@ export default function AdminUsersPage() {
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   useEffect(() => setPage(1), [debouncedSearch]);
 
-  const query = useAdminUsers({ search: debouncedSearch, page, pageSize: 25 });
+  // When opened from a BI KPI (`?fromIso&toIso`) this scopes to that window;
+  // otherwise it is the ordinary full user list — one code path either way.
+  const query = useUsersList({ search: debouncedSearch, page, pageSize: 25 });
   const changeRole = useChangeStaffRole();
 
   const totalPages = query.data
@@ -95,6 +108,8 @@ export default function AdminUsersPage() {
         description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت پوشیده نمایش داده می‌شوند."
         actions={<ExportButton kind="users" />}
       />
+
+      <DrillWindowBanner subjectFa="کاربران" />
 
       {!canManage && (
         <InfoBanner tone="warning">

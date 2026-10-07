@@ -97,10 +97,20 @@ import {
   fetchAdminLawyer,
   decideLawyerVerification,
   sendLawyerMessage,
+  updateAdminLawyer,
+  setAdminLawyerStatus,
+  setAdminLawyerRating,
+  setAdminLawyerAvatar,
+  setAdminLawyerFeatured,
+  moderateAdminLawyerReview,
+  type AdminLawyerPatchInput,
   fetchAdminPlans,
   fetchAdminPlan,
   updateAdminPlan,
+  createAdminPlan,
+  setAdminPlanStatus,
   type AdminPlanUpdate,
+  type AdminPlanCreateInput,
   fetchCostProfiles,
   fetchCostProfile,
   saveCostProfile,
@@ -119,12 +129,15 @@ import {
   setAdminAnnouncementStatus,
 } from "@/lib/api/admin";
 import type {
+  PlanStatus,
   SettlementStatus,
   SupportTicketStatus,
   SupportTicketPriority,
   RagReviewState,
   LawyerDecisionBucket,
   LawyerVerificationStatus,
+  AdminLawyerStatus,
+  LawyerAvatarType,
   ServiceCostProfile,
   ServiceCostRule,
   LegalRequestState,
@@ -280,6 +293,30 @@ export function useUpdateAdminPlan() {
   return useMutation({
     mutationFn: ({ code, input }: { code: string; input: AdminPlanUpdate }) =>
       updateAdminPlan(code, input),
+    onSuccess: (updated) => {
+      qc.setQueryData(["admin", "plans", "detail", updated.code], (old: unknown) =>
+        old && typeof old === "object" ? { ...(old as object), plan: updated } : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "plans"] });
+    },
+  });
+}
+
+export function useCreateAdminPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AdminPlanCreateInput) => createAdminPlan(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "plans"] });
+    },
+  });
+}
+
+export function useSetAdminPlanStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, status }: { code: string; status: PlanStatus }) =>
+      setAdminPlanStatus(code, status),
     onSuccess: (updated) => {
       qc.setQueryData(["admin", "plans", "detail", updated.code], (old: unknown) =>
         old && typeof old === "object" ? { ...(old as object), plan: updated } : old
@@ -914,10 +951,24 @@ export function useAdminAudit(query: AdminAuditQuery = {}) {
 // ---------------------------------------------------------------------------
 
 export function useAdminLawyers(
-  params: { bucket?: LawyerDecisionBucket; status?: LawyerVerificationStatus; search?: string } = {}
+  params: {
+    bucket?: LawyerDecisionBucket;
+    status?: LawyerVerificationStatus;
+    lifecycle?: AdminLawyerStatus;
+    featured?: boolean;
+    search?: string;
+  } = {}
 ) {
   return useQuery({
-    queryKey: ["admin", "lawyers", params.bucket ?? null, params.status ?? null, params.search ?? null],
+    queryKey: [
+      "admin",
+      "lawyers",
+      params.bucket ?? null,
+      params.status ?? null,
+      params.lifecycle ?? null,
+      params.featured ?? null,
+      params.search ?? null,
+    ],
     queryFn: () => fetchAdminLawyers(params),
     staleTime: 30_000,
     retry: 1,
@@ -964,6 +1015,113 @@ export function useSendLawyerMessage() {
     onSuccess: (_result, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", id] });
     },
+  });
+}
+
+/**
+ * Invalidate the lawyer queue + the affected dossier. Every lawyer mutation
+ * funnels through here so the table, the drawer and (via the public query's
+ * own refetch) the marketplace all agree after a change.
+ */
+function invalidateLawyer(qc: ReturnType<typeof useQueryClient>, id?: string) {
+  void qc.invalidateQueries({ queryKey: ["admin", "lawyers"] });
+  if (id) void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", id] });
+}
+
+/** Apply a partial profile edit; refreshes the queue + dossier. */
+export function useUpdateAdminLawyer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: AdminLawyerPatchInput }) =>
+      updateAdminLawyer(id, patch),
+    onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
+  });
+}
+
+/** Set the operator lifecycle status (فعال/غیرفعال/معلق/حذف‌شده). */
+export function useSetAdminLawyerStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      status,
+      reason,
+    }: {
+      id: string;
+      status: AdminLawyerStatus;
+      reason?: string;
+    }) => setAdminLawyerStatus(id, { status, reason }),
+    onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
+  });
+}
+
+/** Set (or clear) the display rating / review count / fee. */
+export function useSetAdminLawyerRating() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: {
+        ratingOverride: number | null;
+        reviewCountOverride: number | null;
+        consultationFeeOverrideToman?: number | null;
+        badgeFa?: string | null;
+        reason?: string;
+      };
+    }) => setAdminLawyerRating(id, input),
+    onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
+  });
+}
+
+/** Change a lawyer's avatar (URL or demo regeneration). */
+export function useSetAdminLawyerAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: {
+        avatarUrl?: string | null;
+        avatarType?: LawyerAvatarType;
+        regenerate?: boolean;
+        reason?: string;
+      };
+    }) => setAdminLawyerAvatar(id, input),
+    onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
+  });
+}
+
+/** Toggle the marketplace "featured" flag. */
+export function useSetAdminLawyerFeatured() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, featured }: { id: string; featured: boolean }) =>
+      setAdminLawyerFeatured(id, featured),
+    onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
+  });
+}
+
+/** Moderate a single review (hide / restore / delete). */
+export function useModerateAdminLawyerReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      reviewId,
+      action,
+      reason,
+    }: {
+      id: string;
+      reviewId: string;
+      action: "hide" | "restore" | "delete";
+      reason?: string;
+    }) => moderateAdminLawyerReview(id, reviewId, { action, reason }),
+    onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
   });
 }
 

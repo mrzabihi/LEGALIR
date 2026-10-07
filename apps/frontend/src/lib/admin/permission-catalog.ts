@@ -158,6 +158,16 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   // --- Lawyers ---
   "admin:lawyer:read": { fa: "مشاهده وکلا", group: "lawyers" },
   "admin:lawyer:verify": { fa: "تأیید / رد وکیل", group: "lawyers" },
+  "admin:lawyer:create": { fa: "ایجاد پروفایل وکیل", group: "lawyers" },
+  "admin:lawyer:update": { fa: "ویرایش پروفایل وکیل", group: "lawyers" },
+  "admin:lawyer:status": { fa: "تغییر وضعیت وکیل (فعال/غیرفعال)", group: "lawyers" },
+  "admin:lawyer:suspend": { fa: "تعلیق وکیل", group: "lawyers" },
+  "admin:lawyer:delete": { fa: "حذف وکیل", group: "lawyers" },
+  "admin:lawyer:restore": { fa: "بازگردانی وکیل حذف‌شده", group: "lawyers" },
+  "admin:lawyer:feature": { fa: "برجسته‌سازی وکیل", group: "lawyers" },
+  "admin:lawyer:review:manage": { fa: "مدیریت نظرات وکلا", group: "lawyers" },
+  "admin:lawyer:rating:manage": { fa: "مدیریت امتیاز نمایشی وکلا", group: "lawyers" },
+  "admin:lawyer:avatar:manage": { fa: "مدیریت آواتار وکلا", group: "lawyers" },
   // --- Requests ---
   "admin:requests:read": { fa: "مشاهده درخواست‌ها", group: "requests" },
   "admin:requests:manage": { fa: "مدیریت درخواست‌ها و ارجاع", group: "requests" },
