@@ -1019,13 +1019,18 @@ export function useSendLawyerMessage() {
 }
 
 /**
- * Invalidate the lawyer queue + the affected dossier. Every lawyer mutation
- * funnels through here so the table, the drawer and (via the public query's
- * own refetch) the marketplace all agree after a change.
+ * Invalidate the lawyer queue, the affected dossier AND the public surfaces.
+ * Every lawyer mutation funnels through here. The public marketplace list and
+ * the public profile read the SAME profile row the admin panel edits, so they
+ * must be refreshed too — otherwise a same-origin view (e.g. the operator
+ * opening /lawyers) keeps serving the cached portrait until its own
+ * staleTime (up to 60s) lapses. `["lawyers"]` is a prefix of both
+ * `["lawyers","list",*]` and `["lawyers","detail",*]`.
  */
 function invalidateLawyer(qc: ReturnType<typeof useQueryClient>, id?: string) {
   void qc.invalidateQueries({ queryKey: ["admin", "lawyers"] });
   if (id) void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", id] });
+  void qc.invalidateQueries({ queryKey: ["lawyers"] });
 }
 
 /** Apply a partial profile edit; refreshes the queue + dossier. */

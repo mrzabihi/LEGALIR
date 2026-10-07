@@ -85,6 +85,7 @@ import type {
   LawyerListResponse,
   LawyerSearchFilters,
   LawyerDetail,
+  LawyerAvatarType,
   MatchCriteria,
   MatchResult,
   IntakeSchema,
@@ -1011,4 +1012,19 @@ export function transitionLegalRequest(
 /** The lawyer's own workspace. Requires the LAWYER role (403 otherwise). */
 export function fetchLawyerWorkspace(): Promise<LawyerWorkspace> {
   return apiClient.get<LawyerWorkspace>("/api/v1/lawyer/workspace");
+}
+
+/** A lawyer changing their OWN professional portrait (upload / regenerate / URL). */
+export function setMyLawyerAvatar(input: {
+  avatarUrl?: string | null;
+  avatarType?: LawyerAvatarType;
+  regenerate?: boolean;
+  /** Base64 image bytes (no data-URI prefix) for an upload from disk. */
+  avatarData?: string;
+  /** Original file name, kept for the audit trail only. */
+  avatarFileName?: string;
+  /** The upload's MIME type (e.g. `image/png`). */
+  avatarFormat?: string;
+}): Promise<{ id: string; avatarUrl: string | null; avatarType: LawyerAvatarType }> {
+  return apiClient.patch("/api/v1/lawyer/avatar", input);
 }
