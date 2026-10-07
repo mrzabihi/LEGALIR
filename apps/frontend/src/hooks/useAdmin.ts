@@ -15,7 +15,6 @@ import type {
   AiProviderConfig,
   RagSource,
   SupportTicket,
-  StaffMember,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -130,7 +129,6 @@ import type {
   AdminBlogPost,
   UpsertBlogPostInput,
   GenerateBlogDraftInput,
-  GeneratedBlogDraft,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
