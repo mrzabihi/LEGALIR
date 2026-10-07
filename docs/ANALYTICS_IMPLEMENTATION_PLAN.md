@@ -146,8 +146,17 @@ stated.
   FAILED/REVERSED energy, empty range, previous-period index alignment
   (present/absent), operations pipeline + review queue + windowed audit, and an
   unavailable metric — all asserted.
-- **Access:** live `GET /api/v1/admin/analytics/*` return **401** unauthenticated;
-  the route calls `requirePermission(…, "admin:analytics:read")` on GET and
-  `"admin:analytics:export"` on POST, with `recordAudit` on export.
+- **Access (live gate matrix):** every one of the nine GET endpoints
+  (`overview · subscriptions · operations · customers · energy · finance ·
+  quality · customers/ranking · energy/users`) was called with three sessions —
+  anonymous → **401**, a signed-in non-admin → **403**, the dev admin → **200**.
+  All nine pass, so the gate is enforced server-side on every route (not just
+  hidden in the UI). The route calls `requirePermission(…,
+  "admin:analytics:read")` on GET and `"admin:analytics:export"` on POST, with
+  `recordAudit` on export.
+- **Honest payload (live):** `GET .../operations` returns real counts and the
+  three `unavailable` keys (`renewal_rate`, `first_response_sla`,
+  `login_failures`); `GET .../subscriptions` returns a `previousDaily` series
+  index-aligned to `daily` (30 ↔ 30) when the previous window is comparable.
 - **Reconcile:** `finance.buildFinanceAnalytics().reconcile.matches === true`
   asserts analytics net equals the `/admin/orders` model net (covered by a test).
