@@ -58,7 +58,6 @@ import {
   IconAdd,
   IconBolt,
   IconCheckCircle,
-  IconRefresh,
   IconDocument,
   IconBell,
 } from "@/lib/icons";

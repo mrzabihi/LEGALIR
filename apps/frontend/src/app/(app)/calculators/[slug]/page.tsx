@@ -12,7 +12,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCalculator, CALCULATOR_CATEGORY_FA } from "@/lib/calculators";
+import { getCalculator } from "@/lib/calculators";
 import { CalculatorWorkspace } from "./calculator-workspace";
 
 interface PageProps {
