@@ -86,3 +86,49 @@ Read-only over `readTable`; one memoized read per table per request.
 - **Non-goal:** changing the transaction spine, activation path, or energy rules.
 - **Risk:** small datasets make shares noisy → every share carries a small-n caveat.
 - **Risk:** Jalali↔ISO conversion correctness → covered by unit tests with known fixed dates before any UI depends on it.
+
+---
+
+## As-built status (2026-10-07)
+
+What actually shipped — reconciled against the plan above, with every deviation
+stated.
+
+### Shipped
+- **Phase 1** — `admin:analytics:read` / `admin:analytics:export` in `platform.ts`
+  + `permission-catalog.ts`; Jalali ⇄ ISO helpers in `persian-utils.ts`;
+  `GroupedBarChart` in `charts.tsx`.
+- **Phase 2** — `lib/admin/analytics/{range,quality,metrics,subscription-analytics,
+  energy-analytics,customer-analytics,finance-analytics,export,sources}.ts`.
+- **Phase 3** — route `app/api/v1/admin/analytics/[[...segments]]/route.ts` with
+  GET `overview · subscriptions · customers(/ranking) · energy(/users) · finance ·
+  quality` and POST `export` (kinds: subscriptions, customers, energy, finance);
+  `lib/api/analytics.ts`; `hooks/useAnalytics.ts`.
+- **Phase 4** — page `app/(admin)/admin/analytics/page.tsx` with five tabs
+  (نمای کلی · فروش اشتراک · مشتریان · انرژی کاربران · تطبیق مالی), shared
+  `RangeControl` (today/7d/30d/Jalali-month/custom); nav entry + shell icon.
+
+### Deviations from plan
+- **No dedicated «Operations» tab.** The plan's Operations tab had three jobs:
+  request volume/state mix, support SLA/lawyer-queue/audit freshness, and the gap
+  register. The **gap register is rendered on every tab** (each tab calls
+  `analyticsDataQuality()` and renders `QualityPanel`) — stricter than one tab,
+  since a metric's caveat sits beside the metric. The remaining operational items
+  overlap the existing `/admin` overview, lawyer and request console surfaces, so
+  they are **intentionally deferred** rather than duplicated here.
+  `/admin/analytics/quality` still exposes the register standalone.
+- **No previous-period overlay toggle.** Comparison is computed server-side per
+  KPI and surfaced as a trend chip; a separate overlay control was not built.
+
+### Verification (real results)
+- `npx tsc --noEmit` — clean for every analytics file.
+- `npx eslint` on the analytics files — 0 errors.
+- `npx vitest run` — `lib/__tests__/analytics.test.ts` **18/18** and
+  `app/__tests__/analytics-tabs.test.tsx` **6/6** (24 total).
+- Scenario coverage: no-sales day, user without purchase, refund present,
+  FAILED/REVERSED energy, empty range — all asserted.
+- **Access:** live `GET /api/v1/admin/analytics/*` return **401** unauthenticated;
+  the route calls `requirePermission(…, "admin:analytics:read")` on GET and
+  `"admin:analytics:export"` on POST, with `recordAudit` on export.
+- **Reconcile:** `finance.buildFinanceAnalytics().reconcile.matches === true`
+  asserts analytics net equals the `/admin/orders` model net (covered by a test).
