@@ -64,6 +64,7 @@ const STATUS_LABEL_FA: Record<SubscriptionStatus, string> = {
   expired: "منقضی شده",
   cancelled: "لغو شده",
   pending: "در انتظار پرداخت",
+  superseded: "جایگزین شده",
 };
 
 /**

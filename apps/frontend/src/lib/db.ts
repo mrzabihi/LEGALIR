@@ -718,9 +718,28 @@ export function queryRecentActivity(userId: string, limit = 5): ActivityRow[] {
     .slice(0, limit);
 }
 
+/**
+ * The user's single ACTIVE subscription: status `active`, `end_at` in the
+ * future, newest first. This mirrors `resolveEntitlement` (the engine) so every
+ * reader agrees on "the current plan". Picking the FIRST active row (the old
+ * behaviour) returned a stale Gold row while a newer Diamond row was enforced —
+ * the exact reported defect.
+ */
 export function queryActiveSubscription(userId: string) {
-  const subs = readTable<StoredSubscription>("subscriptions");
-  const sub = subs.find((s) => s.user_id === userId && s.status === "active");
+  const now = Date.now();
+  const subs = readTable<StoredSubscription>("subscriptions")
+    .filter(
+      (s) =>
+        s.user_id === userId &&
+        s.status === "active" &&
+        new Date(s.end_at).getTime() > now
+    )
+    .sort(
+      (a, b) =>
+        b.start_at.localeCompare(a.start_at) ||
+        b.purchased_at.localeCompare(a.purchased_at)
+    );
+  const sub = subs[0];
   if (!sub) return null;
   return {
     id: sub.id,

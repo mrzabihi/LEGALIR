@@ -77,6 +77,9 @@ import type {
   CreateAnnouncementInput,
   CalculatorSetting,
   CalculatorAccessTier,
+  AdminUserSubscriptionView,
+  AdminSubscriptionActionInput,
+  AdminEnergyActionInput,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -399,6 +402,51 @@ export function fetchAdminUsers(query: AdminUsersQuery = {}): Promise<AdminUsers
 
 export function fetchAdminUser(id: string): Promise<AdminUserDetail> {
   return apiClient.get<AdminUserDetail>(`${A}/users/${encodeURIComponent(id)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Per-user subscription & energy (billing dossier + audited actions)
+// ---------------------------------------------------------------------------
+
+/** One user's full billing dossier: plan, energy, history, payments, ledger. */
+export function fetchAdminUserSubscription(
+  userId: string
+): Promise<AdminUserSubscriptionView> {
+  return apiClient.get<AdminUserSubscriptionView>(
+    `${A}/users/${encodeURIComponent(userId)}/subscription`
+  );
+}
+
+export interface AdminSubscriptionActionResponse {
+  subscriptionId: string | null;
+  supersededIds: string[];
+}
+
+/** Apply an admin subscription action (activate / extend / deactivate / change_plan). */
+export function adminSubscriptionAction(
+  userId: string,
+  input: AdminSubscriptionActionInput
+): Promise<AdminSubscriptionActionResponse> {
+  return apiClient.post<AdminSubscriptionActionResponse>(
+    `${A}/users/${encodeURIComponent(userId)}/subscription`,
+    input
+  );
+}
+
+export interface AdminEnergyActionResponse {
+  balance: number;
+  delta: number;
+}
+
+/** Grant or adjust a user's reward energy (audited). */
+export function adminEnergyAction(
+  userId: string,
+  input: AdminEnergyActionInput
+): Promise<AdminEnergyActionResponse> {
+  return apiClient.post<AdminEnergyActionResponse>(
+    `${A}/users/${encodeURIComponent(userId)}/energy`,
+    input
+  );
 }
 
 export function fetchAdminRequests(query: AdminRequestsQuery = {}): Promise<AdminRequestsResponse> {

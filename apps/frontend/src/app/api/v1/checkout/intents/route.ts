@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
-import { findSessionById, createSubscription, claimPurchaseReward, recordActivity } from "@/lib/db";
-import { getPlanByCode, snapshotFor } from "@/lib/usage/plans";
-import type { CheckoutIntent } from "@legalir/types";
-
-declare global {
-  var __v1CheckoutIntents: Map<string, CheckoutIntent> | undefined;
-}
-
-function getStore(): Map<string, CheckoutIntent> {
-  if (!globalThis.__v1CheckoutIntents) globalThis.__v1CheckoutIntents = new Map();
-  return globalThis.__v1CheckoutIntents;
-}
+import { findSessionById } from "@/lib/db";
+import { createPaymentIntent } from "@/lib/payments";
+import type { CheckoutIntent, PlanCode } from "@legalir/types";
 
 function getUserIdFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -37,47 +28,34 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const plan = getPlanByCode(planCode);
-    if (!plan) {
+    const now = new Date();
+    // Create (or reuse) a PENDING payment + PENDING subscription. No plan is
+    // activated here — only a verified payment confirmation does that. The
+    // price is resolved server-side from the catalog; the client sends only a
+    // planCode.
+    const result = createPaymentIntent({ userId, planCode: planCode as PlanCode, now });
+    if (!result) {
       return NextResponse.json(
         { code: "PLAN_NOT_FOUND", message: "پلن مورد نظر یافت نشد", correlationId: crypto.randomUUID(), retryable: false },
         { status: 404 }
       );
     }
-    const now = new Date();
-    const subscription = createSubscription({
-      userId, planCode: plan.code, planNameFa: plan.nameFa,
-      amount: plan.salePrice, status: "active", statusFa: "فعال",
-      startAt: now.toISOString(),
-      // Duration is started_at + duration_days (31), not "end of month".
-      endAt: new Date(now.getTime() + plan.durationDays * 86400000).toISOString(),
-      // Freeze the entitlements so a later admin edit cannot change this
-      // subscription's terms mid-period.
-      planSnapshot: snapshotFor(plan),
-    });
-    // Award purchase reward only after a confirmed successful purchase.
-    // Idempotent by subscription id (`purchase:${id}`), so a duplicate
-    // checkout can never award the same points twice.
-    claimPurchaseReward(userId, plan.code, subscription.id);
-    recordActivity({
-      userId,
-      type: "subscription",
-      title: `خرید اشتراک ${plan.nameFa}`,
-      status: "active",
-      statusFa: "فعال",
-      description: `اشتراک ${plan.nameFa} با ${plan.dailyRequestLimit} درخواست روزانه فعال شد`,
-      category: null,
-      categoryFa: null,
-      sourceId: subscription.id,
-    });
     const intent: CheckoutIntent = {
-      id: crypto.randomUUID(), planCode: plan.code, amount: plan.salePrice, currency: "IRT",
-      status: "paid", paymentUrl: null,
-      createdAt: now.toISOString(),
+      id: result.payment.id,
+      planCode: result.payment.planCode,
+      amount: result.payment.amount,
+      currency: result.payment.currency,
+      status: "pending",
+      paymentUrl: `/checkout/mock-gateway?intent=${result.payment.id}`,
+      createdAt: result.payment.createdAt,
       expiresAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
-      metadata: { planNameFa: plan.nameFa, durationDays: plan.durationDays, dailyRequests: plan.dailyRequestLimit, totalTokens: plan.tokenLimit },
+      metadata: {
+        planNameFa: result.subscription.plan_name_fa,
+        durationDays: 31,
+        dailyRequests: 0,
+        totalTokens: 0,
+      },
     };
-    getStore().set(intent.id, intent);
     return NextResponse.json({ data: intent }, { status: 201 });
   } catch {
     return NextResponse.json(

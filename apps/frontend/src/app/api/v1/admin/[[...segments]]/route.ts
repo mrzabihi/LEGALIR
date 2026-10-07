@@ -113,6 +113,12 @@ import {
   isOverdue,
 } from "@/lib/admin/support";
 import { listStaff, getStaffMember, changeUserRole, listRoles } from "@/lib/admin/staff";
+import {
+  getAdminUserSubscriptionView,
+  applyAdminSubscriptionAction,
+  grantAdminEnergy,
+  getAdminUserUsage,
+} from "@/lib/admin/subscription";
 import { listAudit, recordAudit } from "@/lib/admin/audit";
 import { readPlans } from "@/lib/usage/plans";
 import { listOrganizations } from "@/lib/org-db";
@@ -129,6 +135,9 @@ import type {
   SupportTicketStatus,
   SupportTicketPriority,
   OrderStatus,
+  PlanCode,
+  AdminSubscriptionActionInput,
+  AdminEnergyActionInput,
 } from "@legalir/types";
 
 /**
@@ -416,6 +425,19 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
     case "users": {
       const user = b ? findUserById(b) : undefined;
       if (!user) return adminError(404, "USER_NOT_FOUND", "کاربر یافت نشد");
+      // §30 — the per-user subscription + energy dossier. A sub-path
+      // `users/:id/subscription` reads the full billing view; the bare
+      // `users/:id` remains the identity record.
+      if (d === "subscription") {
+        const view = getAdminUserSubscriptionView(b!);
+        if (!view) return adminError(404, "USER_NOT_FOUND", "کاربر یافت نشد");
+        return ok(view);
+      }
+      // `users/:id/energy` reads today's credit + period quotas (the live
+      // counters behind the subscription). Read-only; mutations are POST-only.
+      if (d === "energy") {
+        return ok(getAdminUserUsage(b!));
+      }
       return ok({
         id: user.id,
         displayName: user.displayName,
@@ -617,7 +639,11 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
 // Mutations
 // ---------------------------------------------------------------------------
 
-type Actor = { userId: string; role: PlatformRole; orgId: string | null };
+interface Actor {
+  userId: string;
+  role: PlatformRole;
+  orgId: string | null;
+}
 
 function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
@@ -1045,6 +1071,45 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
+  // §31 — admin subscription actions for one user (activate / extend /
+  // deactivate / change_plan). Every branch reuses the lifecycle module so the
+  // one-active invariant can never be bypassed from the admin surface.
+  if (a === "users" && b && c === "subscription") {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const input: AdminSubscriptionActionInput = {
+      action: body["action"] as AdminSubscriptionActionInput["action"],
+      planCode: body["planCode"] as PlanCode | undefined,
+      days: body["days"] === undefined ? undefined : num(body["days"]),
+      reason: str(body["reason"]),
+    };
+    const res = applyAdminSubscriptionAction({ userId: b, input });
+    if ("error" in res) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "subscription.admin.action", resourceType: "user", resourceId: b, result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "subscription.admin.action", resourceType: "user", resourceId: b, after: { action: input.action, planCode: input.planCode ?? null, days: input.days ?? null, subscriptionId: res.result.subscriptionId, supersededIds: res.result.supersededIds }, reason: input.reason, ...meta });
+    return ok(res.result);
+  }
+
+  // §31 — admin energy grant / adjust for one user (audited).
+  if (a === "users" && b && c === "energy") {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const input: AdminEnergyActionInput = {
+      action: body["action"] === "adjust" ? "adjust" : "grant",
+      amount: num(body["amount"]),
+      reason: str(body["reason"]),
+    };
+    const res = grantAdminEnergy(b, input, actor.userId);
+    if ("error" in res) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.admin.adjust", resourceType: "user", resourceId: b, result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.admin.adjust", resourceType: "user", resourceId: b, after: { action: input.action, delta: res.result.delta, balance: res.result.balance }, reason: input.reason, ...meta });
+    return ok(res.result);
+  }
+
   return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
 }
 
@@ -1322,7 +1387,13 @@ function permissionFor(method: string, segments: string[]): Permission {
       return b && isAdminExportKind(b)
         ? ADMIN_EXPORT_PERMISSION[b]
         : "admin:reports:export";
-    case "users": return method === "GET" ? "admin:users:read" : "admin:users:manage";
+    case "users":
+      // `users/:id/energy` is an energy mutation → its own permission; the
+      // subscription sub-route stays under users:manage.
+      if (segments[2] === "energy") {
+        return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
+      }
+      return method === "GET" ? "admin:users:read" : "admin:users:manage";
     case "requests": return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
     case "flags": return "admin:flags:manage";
     case "plans": return method === "GET" ? "admin:plans:read" : "admin:plans:manage";
@@ -1347,7 +1418,9 @@ function permissionFor(method: string, segments: string[]): Permission {
   }
 }
 
-type RouteParams = { params: Promise<{ segments?: string[] }> };
+interface RouteParams {
+  params: Promise<{ segments?: string[] }>;
+}
 
 async function dispatch(request: NextRequest, method: string, params: RouteParams["params"]): Promise<NextResponse> {
   const { segments = [] } = await params;

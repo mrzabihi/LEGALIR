@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useCurrentSubscription,
   useEntitlements,
@@ -581,6 +581,20 @@ export default function SubscriptionPage() {
   });
 
   const paymentStatus: PaymentStatus = checkoutStatus?.status ?? "idle";
+
+  // When the payment settles (the mock gateway confirms it while we poll), the
+  // activation has already happened server-side. Pull every dependent surface
+  // so the current plan, entitlements, usage and history reflect it immediately
+  // — no manual refresh. Keyed on the intent so it runs exactly once per
+  // confirmation.
+  useEffect(() => {
+    if (checkoutStatus?.status !== "paid") return;
+    refetchSub();
+    refetchEnt();
+    refetchUsage();
+    refetchHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutStatus?.status, checkoutIntentId]);
 
   const handleSelectPlan = (plan: Plan) => {
     setSelectedPlan(plan);

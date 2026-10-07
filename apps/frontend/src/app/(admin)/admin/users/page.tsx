@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAdminUsers, useChangeStaffRole, useAdminMe } from "@/hooks/useAdmin";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { UserSubscriptionDrawer } from "@/components/admin/user-subscription-drawer";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { ROLE_FA, STAFF_ROLES } from "@legalir/types";
 import type { PlatformRole } from "@legalir/types";
@@ -52,6 +53,7 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<string | null>(null);
+  const [billingUserId, setBillingUserId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   // Server-side search: debounce the raw input so typing stays instant while
@@ -188,16 +190,21 @@ export default function AdminUsersPage() {
                   <Td className="whitespace-nowrap">{toPersianDate(u.createdAt)}</Td>
                   {canManage && (
                     <Td>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setFeedback(null);
-                          setEditing(u.id);
-                        }}
-                      >
-                        تغییر نقش
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setFeedback(null);
+                            setEditing(u.id);
+                          }}
+                        >
+                          تغییر نقش
+                        </Button>
+                        <Button size="sm" variant="tonal" onClick={() => setBillingUserId(u.id)}>
+                          اشتراک و انرژی
+                        </Button>
+                      </div>
                     </Td>
                   )}
                 </tr>
@@ -238,6 +245,12 @@ export default function AdminUsersPage() {
           </>
         )}
       </StateView>
+
+      <UserSubscriptionDrawer
+        userId={billingUserId}
+        open={Boolean(billingUserId)}
+        onClose={() => setBillingUserId(null)}
+      />
     </div>
   );
 }

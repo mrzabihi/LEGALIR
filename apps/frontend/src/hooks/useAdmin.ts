@@ -15,6 +15,8 @@ import type {
   AiProviderConfig,
   RagSource,
   SupportTicket,
+  AdminSubscriptionActionInput,
+  AdminEnergyActionInput,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -24,6 +26,9 @@ import {
   type AdminWindow,
   fetchAdminUsers,
   fetchAdminUser,
+  fetchAdminUserSubscription,
+  adminSubscriptionAction,
+  adminEnergyAction,
   fetchAdminRequests,
   fetchAdminRequest,
   assignRequestLawyer,
@@ -210,6 +215,44 @@ export function useAdminUser(id: string | null) {
     enabled: Boolean(id),
     staleTime: 30_000,
     retry: 1,
+  });
+}
+
+/**
+ * One user's full billing dossier: current plan, energy summary, subscription
+ * history, payments and the unified ledger.
+ */
+export function useAdminUserSubscription(userId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "users", "subscription", userId],
+    queryFn: () => fetchAdminUserSubscription(userId as string),
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/** Apply an audited admin subscription action (activate/extend/deactivate/change_plan). */
+export function useAdminSubscriptionAction(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AdminSubscriptionActionInput) =>
+      adminSubscriptionAction(userId, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "users", "subscription", userId] });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+}
+
+/** Grant or adjust a user's reward energy (audited). */
+export function useAdminEnergyAction(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AdminEnergyActionInput) => adminEnergyAction(userId, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "users", "subscription", userId] });
+    },
   });
 }
 

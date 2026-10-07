@@ -225,6 +225,15 @@ export function getCheckoutIntent(id: string): Promise<CheckoutIntent> {
   return apiClient.get<CheckoutIntent>(`/api/v1/checkout/intents/${id}`);
 }
 
+/**
+ * Explicitly confirm a checkout intent. This is the client-side seam for a real
+ * gateway callback; the mock gateway "approves" on read, so this is only needed
+ * when a surface wants to force confirmation.
+ */
+export function confirmCheckoutIntent(id: string): Promise<CheckoutIntent> {
+  return apiClient.post<CheckoutIntent>(`/api/v1/checkout/intents/${id}/confirm`, {});
+}
+
 // ============================================================
 // Conversations (Phase 7)
 // ============================================================

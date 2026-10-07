@@ -53,6 +53,11 @@ const ERROR_MAP: Record<string, { status: number; message: string }> = {
   NOT_APPROVED: { status: 409, message: "پیش از پرداخت، تسویه باید تأیید شود" },
   LOCKED: { status: 409, message: "این تسویه دیگر قابل ویرایش نیست" },
   LAST_SUPERADMIN: { status: 409, message: "آخرین مدیر ارشد را نمی‌توان تنزل داد" },
+  PLAN_REQUIRED: { status: 400, message: "انتخاب پلن الزامی است" },
+  NO_ACTIVE_SUBSCRIPTION: { status: 409, message: "کاربر اشتراک فعالی ندارد" },
+  INVALID_DAYS: { status: 400, message: "تعداد روز نامعتبر است" },
+  INSUFFICIENT_BALANCE: { status: 409, message: "موجودی انرژی برای این کاهش کافی نیست" },
+  UNKNOWN_ACTION: { status: 400, message: "عملیات ناشناخته است" },
   SECRET_STORAGE_UNCONFIGURED: {
     status: 503,
     message: "ذخیره‌سازی امن کلیدها پیکربندی نشده است؛ برای ذخیره کلید، LEGALIR_ADMIN_SECRET_KEY را تنظیم کنید",

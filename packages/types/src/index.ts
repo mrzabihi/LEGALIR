@@ -170,7 +170,17 @@ export interface Subscription {
   status: SubscriptionStatus;
 }
 
-export type SubscriptionStatus = "pending" | "active" | "expired" | "cancelled";
+export type SubscriptionStatus =
+  | "pending"
+  | "active"
+  | "expired"
+  | "cancelled"
+  /**
+   * Replaced by a newer subscription before its term ended (upgrade/downgrade/
+   * re-purchase). Terminal — a superseded row is never reactivated; history is
+   * preserved for audit.
+   */
+  | "superseded";
 
 export interface Entitlement {
   featureKey: string;
@@ -2850,6 +2860,12 @@ export * from "./admin";
 // Energy & service-cost model (pricing profiles, rules, usage ledger)
 // ---------------------------------------------------------------------------
 export * from "./energy";
+
+// ---------------------------------------------------------------------------
+// Subscription & Entitlement platform (payments, subscription lifecycle,
+// unified energy ledger, admin subscription/energy management)
+// ---------------------------------------------------------------------------
+export * from "./subscription";
 
 // ---------------------------------------------------------------------------
 // Case Management operational model (lifecycle, proceedings, members, …)

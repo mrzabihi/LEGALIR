@@ -15,7 +15,11 @@ export type RewardEventType =
   | "SUBSCRIPTION_DIAMOND_PURCHASED"
   // Spend event — carries a negative points_delta. Deliberately NOT part of
   // REWARD_RULES, so it never shows up in the "ways to earn" list.
-  | "REQUEST_CONSUMED";
+  | "REQUEST_CONSUMED"
+  // Admin ledger events (grant / adjust). Written only by an audited,
+  // permission-gated admin action; also NOT part of REWARD_RULES.
+  | "ADMIN_GRANT"
+  | "ADMIN_ADJUSTMENT";
 
 export type RewardFrequency = "once_per_account" | "once_per_day" | "once_per_purchase";
 
