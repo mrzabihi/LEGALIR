@@ -73,11 +73,14 @@ test.describe("Legal calculators", () => {
     await mockAuth(page, sessionId);
     await page.goto("/calculators");
 
+    // A calculator may now appear in more than one place on the redesigned
+    // catalog (the quick-access grid and its category row), so assert the
+    // link is present with `.first()` rather than requiring a single match.
     await expect(
-      page.locator('a[href="/calculators/inheritance"]'),
+      page.locator('a[href="/calculators/inheritance"]').first(),
     ).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await expect(
-      page.locator('a[href="/calculators/regional-property-value"]'),
+      page.locator('a[href="/calculators/regional-property-value"]').first(),
     ).toBeVisible();
   });
 
