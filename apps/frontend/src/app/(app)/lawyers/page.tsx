@@ -5,10 +5,11 @@
 // box, the domain rail and the quick controls (specialty, province,
 // consultation type) plus the active-filter chips and the result count; the
 // remaining attributes live in the advanced bottom sheet. Below it the page
-// reads like a professional marketplace — a "recommended" carousel, then one
-// carousel per legal DOMAIN — so a ~250-lawyer roster never becomes one
-// exhausting vertical list. From `desktop` up the same sections render as
-// wider carousels and a full grid.
+// reads like a professional marketplace — a "recommended" carousel, then the
+// remaining lawyers («سایر وکلا», minus the recommended faces so nothing shows
+// twice), then one carousel per legal DOMAIN — so a ~250-lawyer roster never
+// becomes one exhausting vertical list. From `desktop` up the same sections
+// render as wider carousels and a full grid.
 //
 // Every filter maps 1:1 onto the /api/v1/lawyers query string (the same
 // `LawyerSearchFilters` the backend honours), and the categories are the
@@ -121,6 +122,15 @@ export default function LawyersPage() {
 
   const groups = useMemo(() => groupByPrimaryDomain(items), [items]);
   const featured = useMemo(() => featuredLawyers(items), [items]);
+
+  // The «سایر وکلا» row excludes the faces already shown in «وکلای پیشنهادی»,
+  // so the same lawyer never appears twice on one screen. When nothing is
+  // featured the whole roster is shown unchanged.
+  const rest = useMemo(() => {
+    const featuredIds = new Set(featured.map((l) => l.id));
+    return items.filter((l) => !featuredIds.has(l.id));
+  }, [items, featured]);
+  const restLabel = featured.length > 0 ? "سایر وکلا" : "همه وکلا";
 
   const clearFilters = () => {
     setSearchInput("");
@@ -244,11 +254,13 @@ export default function LawyersPage() {
             </section>
           )}
 
-          {/* همه وکلا */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-h3 text-on-surface">همه وکلا</h2>
-            <LawyerCarousel lawyers={items} ariaLabel="همه وکلا" />
-          </section>
+          {/* سایر وکلا — everyone not already shown in «وکلای پیشنهادی» */}
+          {rest.length > 0 && (
+            <section className="mb-8">
+              <h2 className="mb-3 text-h3 text-on-surface">{restLabel}</h2>
+              <LawyerCarousel lawyers={rest} ariaLabel={restLabel} />
+            </section>
+          )}
 
           {/* One carousel per legal domain */}
           {groups.map((group) => (
