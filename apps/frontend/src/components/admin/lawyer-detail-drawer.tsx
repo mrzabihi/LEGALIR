@@ -26,7 +26,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Drawer, snackbar } from "@legalir/ui";
 import {
   useAdminLawyer,
@@ -83,6 +83,8 @@ import {
 } from "@legalir/types";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
+import { demoAvatarDataUri } from "@/lib/lawyers/demo-generator";
+import { IconUpload } from "@/lib/icons";
 import type { AdminLawyerDetail, AdminLawyerPatchInput } from "@/lib/api/admin";
 
 // ---------------------------------------------------------------------------
@@ -315,18 +317,105 @@ function errMessage(err: unknown, fallback: string): string {
 // Avatar tab
 // ---------------------------------------------------------------------------
 
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp";
+const AVATAR_GALLERY_SEEDS = [12, 56, 100, 156, 210, 276];
+
 function AvatarPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage: boolean }) {
   const setAvatar = useSetAdminLawyerAvatar();
   const [url, setUrl] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
+  const [previewName, setPreviewName] = useState("");
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const current = detail.profile.avatarUrl;
+  const gender = (detail.profile.gender ?? "UNSPECIFIED") as LawyerGender;
+
+  const gallery = useMemo(
+    () => AVATAR_GALLERY_SEEDS.map((seed) => ({ seed, url: demoAvatarDataUri(seed, gender) })),
+    [gender]
+  );
+
+  function fail(err: unknown, fallback: string) {
+    snackbar.show({ message: errMessage(err, fallback), variant: "error" });
+  }
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset the input so picking the same file again still fires `change`.
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > AVATAR_MAX_BYTES) {
+      snackbar.show({ message: "حجم تصویر باید کمتر از ۲ مگابایت باشد.", variant: "error" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPreview(typeof reader.result === "string" ? reader.result : null);
+      setPreviewName(file.name);
+    };
+    reader.onerror = () => snackbar.show({ message: "خواندن فایل ناموفق بود.", variant: "error" });
+    reader.readAsDataURL(file);
+  }
+
+  async function upload() {
+    if (!preview) return;
+    const comma = preview.indexOf(",");
+    const format = preview.slice(5, preview.indexOf(";"));
+    if (comma < 0 || !AVATAR_ACCEPT.split(",").includes(format)) {
+      snackbar.show({ message: "فقط تصاویر PNG، JPEG یا WebP پشتیبانی می‌شوند.", variant: "error" });
+      setPreview(null);
+      return;
+    }
+    try {
+      await setAvatar.mutateAsync({
+        id: detail.profile.id,
+        input: {
+          avatarData: preview.slice(comma + 1),
+          avatarFileName: previewName,
+          avatarFormat: format,
+        },
+      });
+      snackbar.show({ message: "آواتار آپلود و ثبت شد.", variant: "success" });
+      setPreview(null);
+      setPreviewName("");
+    } catch (err) {
+      fail(err, "آپلود آواتار ناموفق بود");
+    }
+  }
+
+  async function chooseGallery(value: string) {
+    try {
+      await setAvatar.mutateAsync({
+        id: detail.profile.id,
+        input: { avatarUrl: value, avatarType: "demo" },
+      });
+      snackbar.show({ message: "آواتار نمونه انتخاب شد.", variant: "success" });
+      setGalleryOpen(false);
+    } catch (err) {
+      fail(err, "تغییر آواتار ناموفق بود");
+    }
+  }
+
+  async function clearAvatar() {
+    try {
+      await setAvatar.mutateAsync({
+        id: detail.profile.id,
+        input: { avatarUrl: null, avatarType: "demo" },
+      });
+      snackbar.show({ message: "آواتار حذف شد.", variant: "success" });
+    } catch (err) {
+      fail(err, "حذف آواتار ناموفق بود");
+    }
+  }
 
   async function regenerate() {
     try {
       await setAvatar.mutateAsync({ id: detail.profile.id, input: { regenerate: true } });
       snackbar.show({ message: "آواتار نمونه بازتولید شد.", variant: "success" });
     } catch (err) {
-      snackbar.show({ message: errMessage(err, "تغییر آواتار ناموفق بود"), variant: "error" });
+      fail(err, "تغییر آواتار ناموفق بود");
     }
   }
 
@@ -341,7 +430,7 @@ function AvatarPanel({ detail, canManage }: { detail: AdminLawyerDetail; canMana
       snackbar.show({ message: "آواتار به‌روزرسانی شد.", variant: "success" });
       setUrl("");
     } catch (err) {
-      snackbar.show({ message: errMessage(err, "تغییر آواتار ناموفق بود"), variant: "error" });
+      fail(err, "تغییر آواتار ناموفق بود");
     }
   }
 
@@ -365,10 +454,100 @@ function AvatarPanel({ detail, canManage }: { detail: AdminLawyerDetail; canMana
             </div>
           </div>
         </div>
+        {canManage && current && (
+          <div className="mt-3 flex justify-end">
+            <Button variant="ghost" size="sm" disabled={setAvatar.isPending} onClick={clearAvatar}>
+              حذف آواتار
+            </Button>
+          </div>
+        )}
       </Block>
 
       {canManage ? (
         <>
+          <Block title="آپلود تصویر از سیستم">
+            <p className="mb-2 text-caption text-muted">
+              یک تصویر از رایانهٔ خود انتخاب کنید (PNG، JPEG یا WebP، حداکثر ۲ مگابایت). پس از ثبت،
+              بلافاصله در سایت عمومی دیده می‌شود.
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept={AVATAR_ACCEPT}
+              className="hidden"
+              onChange={onFileChange}
+            />
+            {preview ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <LawyerAvatar
+                  name={detail.profile.fullName}
+                  avatarUrl={preview}
+                  avatarType="real"
+                  size={56}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-body-2 text-on-surface" dir="ltr">
+                    {previewName}
+                  </div>
+                  <div className="text-caption text-muted">پیش‌نمایش پیش از ثبت</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    disabled={setAvatar.isPending}
+                    onClick={() => {
+                      setPreview(null);
+                      setPreviewName("");
+                    }}
+                  >
+                    انصراف
+                  </Button>
+                  <Button variant="primary" disabled={setAvatar.isPending} onClick={upload}>
+                    {setAvatar.isPending ? "در حال آپلود…" : "ثبت آواتار"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                disabled={setAvatar.isPending}
+                onClick={() => fileRef.current?.click()}
+              >
+                <IconUpload size={16} />
+                انتخاب فایل از سیستم
+              </Button>
+            )}
+          </Block>
+
+          <Block title="انتخاب از گالری نمونه">
+            <p className="mb-2 text-caption text-muted">
+              یک پرترهٔ نمونهٔ آمادهٔ سازگار با جنسیت وکیل را انتخاب کنید.
+            </p>
+            <Button
+              variant="secondary"
+              disabled={setAvatar.isPending}
+              onClick={() => setGalleryOpen((v) => !v)}
+            >
+              {galleryOpen ? "بستن گالری" : "نمایش گالری"}
+            </Button>
+            {galleryOpen && (
+              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {gallery.map((g) => (
+                  <button
+                    key={g.seed}
+                    type="button"
+                    disabled={setAvatar.isPending}
+                    onClick={() => chooseGallery(g.url)}
+                    title="انتخاب این آواتار"
+                    className="flex items-center justify-center rounded-large border border-divider p-1 transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+                  >
+                    <LawyerAvatar name="آواتار نمونه" avatarUrl={g.url} avatarType="demo" size={44} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </Block>
+
           <Block title="بازتولید آواتار نمونه">
             <p className="mb-2 text-caption text-muted">
               یک پرترهٔ SVG جدید و سازگار با جنسیت و نام وکیل ساخته می‌شود. این تغییر بلافاصله در سایت

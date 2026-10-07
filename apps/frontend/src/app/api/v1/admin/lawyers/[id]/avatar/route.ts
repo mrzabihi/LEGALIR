@@ -19,6 +19,12 @@ import { getLawyerProfileById, setAvatar } from "@/lib/lawyer-db";
 import { recordAudit } from "@/lib/admin/audit";
 import { requestMeta, readJson } from "@/lib/admin/http";
 import { demoAvatarDataUri } from "@/lib/lawyers/demo-generator";
+import {
+  AVATAR_MAX_BYTES,
+  deleteLawyerAvatar,
+  isAllowedAvatarFormat,
+  saveLawyerAvatar,
+} from "@/lib/lawyer-avatar-storage";
 import type { LawyerAvatarType, LawyerGender } from "@legalir/types";
 
 const AVATAR_TYPES: LawyerAvatarType[] = ["demo", "real"];
@@ -36,6 +42,9 @@ export async function PATCH(
     avatarType?: LawyerAvatarType;
     avatarUrl?: string | null;
     reason?: string;
+    avatarData?: string;
+    avatarFileName?: string;
+    avatarFormat?: string;
   } | null;
   if (!body) {
     return NextResponse.json(
@@ -49,10 +58,50 @@ export async function PATCH(
     return NextResponse.json({ code: "NOT_FOUND", message: "وکیل یافت نشد" }, { status: 404 });
   }
 
+  // A change that is NOT itself the stored upload replaces (and thus should
+  // delete) any previously uploaded portrait, so exactly one source remains.
+  const storedUrl = `/api/v1/lawyers/${encodeURIComponent(id)}/avatar`;
+
   let avatarUrl: string | null;
   let avatarType: LawyerAvatarType;
 
-  if (body.regenerate === true) {
+  if (typeof body.avatarData === "string" && body.avatarData.length > 0) {
+    // An uploaded portrait. Trust the declared MIME type — the client reads
+    // it from the picked File, and only raster types are accepted (SVG is
+    // refused, since it would be served from our own origin).
+    const format = typeof body.avatarFormat === "string" ? body.avatarFormat : "";
+    if (!isAllowedAvatarFormat(format)) {
+      return NextResponse.json(
+        {
+          code: "VALIDATION_ERROR",
+          message: "فرمت تصویر پشتیبانی نمی‌شود (فقط PNG، JPEG یا WebP)",
+        },
+        { status: 400 }
+      );
+    }
+    const bytes = Buffer.from(body.avatarData, "base64");
+    if (bytes.length === 0) {
+      return NextResponse.json(
+        { code: "VALIDATION_ERROR", message: "تصویر خالی است" },
+        { status: 400 }
+      );
+    }
+    if (bytes.length > AVATAR_MAX_BYTES) {
+      return NextResponse.json(
+        { code: "VALIDATION_ERROR", message: "حجم تصویر بیش از حد مجاز است (حداکثر ۲ مگابایت)" },
+        { status: 413 }
+      );
+    }
+    try {
+      avatarUrl = saveLawyerAvatar(id, format, bytes);
+    } catch {
+      return NextResponse.json(
+        { code: "STORAGE_ERROR", message: "ذخیرهٔ تصویر ناموفق بود" },
+        { status: 500 }
+      );
+    }
+    avatarType = "real";
+  } else if (body.regenerate === true) {
     // A fresh synthetic portrait — never a real photograph. Seed from the
     // current time so repeated regenerations differ.
     const gender = (before.gender ?? "MALE") as LawyerGender;
@@ -79,6 +128,9 @@ export async function PATCH(
       );
     }
   }
+
+  // Drop the stored upload when this change no longer references it.
+  if (avatarUrl !== storedUrl) deleteLawyerAvatar(id);
 
   const updated = setAvatar(id, avatarUrl, avatarType);
   if (!updated) {

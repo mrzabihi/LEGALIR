@@ -1242,7 +1242,7 @@ export function setAdminLawyerRating(
   return apiClient.patch(`${A}/lawyers/${encodeURIComponent(id)}/rating`, input);
 }
 
-/** Change a lawyer's avatar (explicit URL, or `regenerate` for a demo SVG). */
+/** Change a lawyer's avatar (explicit URL, a regenerated demo SVG, or an uploaded image). */
 export function setAdminLawyerAvatar(
   id: string,
   input: {
@@ -1250,6 +1250,12 @@ export function setAdminLawyerAvatar(
     avatarType?: LawyerAvatarType;
     regenerate?: boolean;
     reason?: string;
+    /** Base64 image bytes (no data-URI prefix) for an upload from disk. */
+    avatarData?: string;
+    /** Original file name, kept for the audit trail only. */
+    avatarFileName?: string;
+    /** The upload's MIME type (e.g. `image/png`). */
+    avatarFormat?: string;
   }
 ): Promise<{ id: string; avatarUrl: string | null; avatarType: LawyerAvatarType }> {
   return apiClient.patch(`${A}/lawyers/${encodeURIComponent(id)}/avatar`, input);

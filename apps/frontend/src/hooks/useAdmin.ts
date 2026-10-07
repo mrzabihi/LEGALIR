@@ -1090,6 +1090,9 @@ export function useSetAdminLawyerAvatar() {
         avatarType?: LawyerAvatarType;
         regenerate?: boolean;
         reason?: string;
+        avatarData?: string;
+        avatarFileName?: string;
+        avatarFormat?: string;
       };
     }) => setAdminLawyerAvatar(id, input),
     onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
