@@ -2,14 +2,15 @@
  * ============================================================
  * LEGALIR — Document Chat Panel E2E
  * ============================================================
- * Covers the "chat with LegalIR about this document" panel on the
- * document detail page:
- *   - The panel renders on a ready document
- *   - Suggested prompts (rental-contract scenario) are shown
- *   - Sending a message creates a conversation and streams a reply
+ * The chat panel is HONESTLY gated on real model connectivity:
+ *   • When the analysis service is NOT connected (the default in this
+ *     environment), the panel renders in its no-model state — it explains
+ *     that legal answers are unavailable and never fabricates a reply.
+ *   • When a model IS connected, the panel offers intent selection,
+ *     tailored follow-ups and streaming replies (assertions below run
+ *     only under that precondition).
  *
- * Uses the seeded demo user (09120000003) who owns the rental
- * contract document (doc-rent-001).
+ * Uses the seeded demo user (09120000003) who owns doc-rent-001.
  */
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
@@ -18,6 +19,7 @@ const OTP_CODE = "405405";
 const SESSION_COOKIE = "legalir-session";
 const DEMO_MOBILE = "09120000003";
 const RENT_DOC_ID = "doc-rent-001";
+const CHAT_HEADER = "گفتگو با لیگالیر درباره این سند";
 
 interface SessionInfo {
   sessionId: string;
@@ -71,10 +73,22 @@ async function mockAuth(page: Page, session: SessionInfo) {
   );
 }
 
+/** True only when the gateway reports a real, responsive provider. */
+async function modelConnected(request: APIRequestContext): Promise<boolean> {
+  const res = await request.get("/api/v1/ai/stream");
+  const body = (await res.json()) as { configured?: boolean; healthy?: boolean };
+  return body.configured === true && body.healthy === true;
+}
+
 const APP_READY_TIMEOUT = 15_000;
 
 test.describe("Document Chat Panel", () => {
-  test("renders on a ready document with intent selection", async ({ page, request }) => {
+  test("honest no-model state when the analysis service is unavailable", async ({
+    page,
+    request,
+  }) => {
+    test.skip(await modelConnected(request), "A model is connected — covered by the gated tests");
+
     const session = await createSessionFor(request, DEMO_MOBILE);
     await mockAuth(page, session);
     await page.goto(`/documents/${RENT_DOC_ID}`);
@@ -84,29 +98,38 @@ test.describe("Document Chat Panel", () => {
       timeout: APP_READY_TIMEOUT,
     });
 
-    // Chat panel header appears.
-    await expect(page.getByText("گفتگو با لیگالیر درباره این سند")).toBeVisible({
-      timeout: APP_READY_TIMEOUT,
-    });
+    // The chat section is present, in its honest disabled state.
+    await expect(page.getByText(CHAT_HEADER)).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    await expect(page.getByText("گفتگو با مدل ممکن نیست")).toBeVisible();
 
-    // Intent selection is shown BEFORE the analysis.
-    await expect(page.getByText("با این سند چه کاری می‌خواهید انجام دهید؟")).toBeVisible();
-    await expect(page.getByText("بررسی مشکلات حقوقی طبق قانون اساسی")).toBeVisible();
-    await expect(page.getByText("اصلاح قرارداد")).toBeVisible();
-    await expect(page.getByText("ویرایش قرارداد")).toBeVisible();
+    // No intent selection and no fabricated assistant reply are offered.
+    await expect(page.getByText("با این سند چه کاری می‌خواهید انجام دهید؟")).toHaveCount(0);
+    await expect(page.getByText("بررسی مشکلات حقوقی")).toHaveCount(0);
   });
 
-  test("selecting an intent reveals tailored follow-up questions", async ({ page, request }) => {
+  test("with a connected model: intent selection reveals tailored follow-ups", async ({
+    page,
+    request,
+  }) => {
+    test.skip(
+      !(await modelConnected(request)),
+      "Analysis model is not connected in this environment",
+    );
+
     const session = await createSessionFor(request, DEMO_MOBILE);
     await mockAuth(page, session);
     await page.goto(`/documents/${RENT_DOC_ID}`);
 
-    await expect(page.getByText("گفتگو با لیگالیر درباره این سند")).toBeVisible({
-      timeout: APP_READY_TIMEOUT,
-    });
+    await expect(page.getByText(CHAT_HEADER)).toBeVisible({ timeout: APP_READY_TIMEOUT });
+
+    // Intent selection is shown once a model is available.
+    await expect(page.getByText("با این سند چه کاری می‌خواهید انجام دهید؟")).toBeVisible();
+    await expect(page.getByText("بررسی مشکلات حقوقی")).toBeVisible();
+    await expect(page.getByText("اصلاح قرارداد")).toBeVisible();
+    await expect(page.getByText("ویرایش قرارداد")).toBeVisible();
 
     // Pick the "review" intent.
-    await page.getByText("بررسی مشکلات حقوقی طبق قانون اساسی").click();
+    await page.getByText("بررسی مشکلات حقوقی").click();
 
     // Tailored follow-up questions for a rental contract appear.
     await expect(page.getByText("من موجر هستم، چه نکاتی را باید رعایت کنم؟")).toBeVisible();
@@ -114,17 +137,20 @@ test.describe("Document Chat Panel", () => {
     await expect(page.getByText("آیا شرط فسخ یک‌طرفه در این قرارداد قانونی است؟")).toBeVisible();
   });
 
-  test("sending a message streams a reply", async ({ page, request }) => {
+  test("with a connected model: sending a message streams a reply", async ({ page, request }) => {
+    test.skip(
+      !(await modelConnected(request)),
+      "Analysis model is not connected in this environment",
+    );
+
     const session = await createSessionFor(request, DEMO_MOBILE);
     await mockAuth(page, session);
     await page.goto(`/documents/${RENT_DOC_ID}`);
 
-    await expect(page.getByText("گفتگو با لیگالیر درباره این سند")).toBeVisible({
-      timeout: APP_READY_TIMEOUT,
-    });
+    await expect(page.getByText(CHAT_HEADER)).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     // Select an intent, then click a tailored follow-up to send a message.
-    await page.getByText("بررسی مشکلات حقوقی طبق قانون اساسی").click();
+    await page.getByText("بررسی مشکلات حقوقی").click();
     await page.getByText("من موجر هستم، چه نکاتی را باید رعایت کنم؟").click();
 
     // The user message appears.

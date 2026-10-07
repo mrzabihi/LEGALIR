@@ -38,6 +38,7 @@ import {
 } from "@/lib/contracts/review-flow";
 import { RiskSummary } from "./risk-summary";
 import { FindingCard } from "./finding-card";
+import { TrialBadge } from "./trial-badge";
 import {
   IconChat,
   IconDocument,
@@ -144,12 +145,22 @@ interface ReviewResultProps {
   extractedText?: string | null;
   /** Called when the user asks about a specific finding (spec §12). */
   onAskAboutFinding?: (finding: DocumentFinding) => void;
+  /**
+   * True when the report is a trial scenario, not a real analysis of the
+   * user's document. Adds a persistent «نمونهٔ آزمایشی» marker to the
+   * whole surface so a demo result is never mistaken for a real one.
+   */
+  trial?: boolean;
+  /** The scenario name, shown in the trial marker when present. */
+  trialLabel?: string | null;
 }
 
 export function ReviewResult({
   report,
   extractedText = null,
   onAskAboutFinding,
+  trial = false,
+  trialLabel = null,
 }: ReviewResultProps) {
   const [tab, setTab] = useState<ReviewResultTab>(DEFAULT_REVIEW_RESULT_TAB);
 
@@ -183,6 +194,18 @@ export function ReviewResult({
 
   return (
     <section aria-label="نتیجه بررسی" dir="rtl" className="flex flex-col gap-4">
+      {trial && (
+        <div className="flex items-start gap-2 rounded-medium border border-secondary/30 bg-secondary/5 p-3">
+          <TrialBadge
+            label={trialLabel ? `نمونهٔ آزمایشی — ${trialLabel}` : undefined}
+            className="shrink-0"
+          />
+          <p className="text-caption text-muted leading-relaxed">
+            این نتیجه به سند شما مربوط نیست و یک دادهٔ نمایشی برای تست محصول
+            است. برای تحلیل واقعی سند، اتصال به سرویس تحلیل لازم است.
+          </p>
+        </div>
+      )}
       <Tabs tabs={tabs} value={tab} onChange={(v) => setTab(v as ReviewResultTab)} />
 
       {activeDescriptor && (
