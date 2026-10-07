@@ -565,6 +565,7 @@ function OverviewBody({
                   ariaLabel={`روند درآمد فروش روزانه در ${toPersianNumber(rangeDays)} روز گذشته`}
                   seriesName="درآمد"
                   unit="تومان"
+                  color="var(--control-selected)"
                 />
               ) : (
                 <ChartEmpty message="در این بازه فروشی ثبت نشده است." />

@@ -145,12 +145,99 @@ const GUTTER_R = 92; // right-hand gutter for the value axis (RTL: values on the
 const PAD_L = 12;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 30;
-const AXIS_FONT = 30; // large in viewBox units so it stays legible when scaled
+const AXIS_FONT = 26; // large in viewBox units so it stays legible when scaled
 
 /** Sanitize a React `useId` value into an id safe for `url(#…)`. */
 function useSafeId(prefix: string): string {
   const raw = useId();
   return `${prefix}-${raw.replace(/[:]/g, "")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Trend-chart helpers (smooth geometry · clean scale · compact axis labels)
+// ---------------------------------------------------------------------------
+
+/** A "nice" round step (1 · 2 · 2.5 · 5 · 10 × 10ⁿ) at or above `rough`. */
+function niceStep(rough: number): number {
+  if (!(rough > 0)) return 1;
+  const base = Math.pow(10, Math.floor(Math.log10(rough)));
+  const f = rough / base;
+  const nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return nf * base;
+}
+
+/**
+ * A value axis whose step is rounded up so every gridline label is a whole,
+ * human number and the top line sits just above the peak. This is what turns a
+ * raw maximum like ۱۴٬۵۸۰٬۰۰۰ into a clean `۰ / ۵م / ۱۰م / ۱۵م` axis.
+ */
+function niceScale(rawMax: number, intervals = 4): { max: number; step: number } {
+  if (!(rawMax > 0)) return { max: 1, step: 1 };
+  const step = niceStep(rawMax / intervals);
+  return { max: step * intervals, step };
+}
+
+/** Compact Persian axis label — ۱۵٬۰۰۰٬۰۰۰ → «۱۵م», ۷٬۵۰۰ → «۸ه». */
+function compactFa(v: number): string {
+  const abs = Math.abs(v);
+  const round = (n: number, unit: number) =>
+    toPersianNumber(Number((n / unit).toFixed(abs % unit === 0 ? 0 : 1)));
+  if (abs >= 1_000_000_000) return `${round(v, 1_000_000_000)}میلیارد`;
+  if (abs >= 1_000_000) return `${round(v, 1_000_000)}م`;
+  if (abs >= 1_000) return `${round(v, 1_000)}ه`;
+  return toPersianNumber(v);
+}
+
+/**
+ * A monotone cubic (Fritsch–Carlson) smooth path through `pts` in ascending-x
+ * order. Unlike a vanilla Catmull-Rom, tangents are clamped so the curve never
+ * overshoots — a flat run stays perfectly flat and the line can never dip below
+ * zero between two points. That is the difference between a "fake" interpolated
+ * value and a faithful, smoothed read of the real one.
+ */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  const n = pts.length;
+  if (n === 0) return "";
+  const first = pts[0]!;
+  if (n === 1) return `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`;
+
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const h = b.x - a.x;
+    dx[i] = h;
+    slope[i] = h === 0 ? 0 : (b.y - a.y) / h;
+  }
+
+  const tan: number[] = new Array<number>(n).fill(0);
+  tan[0] = slope[0] ?? 0;
+  tan[n - 1] = slope[n - 2] ?? 0;
+  for (let i = 1; i < n - 1; i++) {
+    const m0 = slope[i - 1] ?? 0;
+    const m1 = slope[i] ?? 0;
+    if (m0 * m1 <= 0) {
+      tan[i] = 0;
+    } else {
+      const w1 = 2 * dx[i]! + dx[i - 1]!;
+      const w2 = dx[i]! + 2 * dx[i - 1]!;
+      tan[i] = (w1 + w2) / (w1 / m0 + w2 / m1);
+    }
+  }
+
+  let d = `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const h = dx[i]!;
+    const c1x = a.x + h / 3;
+    const c1y = a.y + (tan[i]! * h) / 3;
+    const c2x = b.x - h / 3;
+    const c2y = b.y - (tan[i + 1]! * h) / 3;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+  }
+  return d;
 }
 
 // ---------------------------------------------------------------------------
@@ -162,11 +249,14 @@ export function LineChart({
   ariaLabel,
   seriesName = "مقدار",
   unit = "",
+  color = "var(--chart-cat-1)",
 }: {
   points: ChartPoint[];
   ariaLabel: string;
   seriesName?: string;
   unit?: string;
+  /** Series colour; defaults to the primary categorical token. */
+  color?: string;
 }) {
   const gradientId = useSafeId("line-grad");
   const [hovered, setHovered] = useState<number | null>(null);
@@ -175,28 +265,31 @@ export function LineChart({
   const plotRight = VIEW_W - GUTTER_R;
   const plotW = plotRight - plotLeft;
   const plotH = VIEW_H - PAD_TOP - PAD_BOTTOM;
-  const maxValue = Math.max(1, ...points.map((p) => p.value));
+  const baseline = PAD_TOP + plotH;
   const n = points.length;
+
+  // A clean, rounded axis so gridline labels are whole numbers.
+  const { max: axisMax, step } = niceScale(Math.max(0, ...points.map((p) => p.value)));
 
   // First index on the RIGHT so the series reads right-to-left.
   const xAt = (i: number) => plotRight - (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
-  const yAt = (v: number) => PAD_TOP + plotH * (1 - v / maxValue);
+  const yAt = (v: number) => PAD_TOP + plotH * (1 - v / axisMax);
 
-  const linePath = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(p.value).toFixed(1)}`)
-    .join(" ");
+  const geom = points.map((p, i) => ({ x: xAt(i), y: yAt(p.value) }));
+  const linePath = smoothPath(geom);
   const areaPath =
-    points.length > 1
-      ? `${linePath} L ${xAt(n - 1).toFixed(1)} ${(PAD_TOP + plotH).toFixed(1)} L ${xAt(
-          0
-        ).toFixed(1)} ${(PAD_TOP + plotH).toFixed(1)} Z`
+    geom.length > 1
+      ? `${linePath} L ${geom[geom.length - 1]!.x.toFixed(1)} ${baseline.toFixed(1)} L ${geom[0]!.x.toFixed(
+          1
+        )} ${baseline.toFixed(1)} Z`
       : "";
 
-  // Five horizontal gridlines at 25% steps, labelled with their value.
-  const gridFractions = [0, 0.25, 0.5, 0.75, 1];
+  // One gridline per rounded step, labelled in the right-hand gutter.
+  const ticks = Array.from({ length: Math.round(axisMax / step) + 1 }, (_, k) => k * step);
+
   // Show roughly six axis labels so dense windows stay legible.
   const labelStride = Math.max(1, Math.ceil(n / 6));
-
+  const endIdx = n - 1;
   const active = hovered != null ? points[hovered] : undefined;
 
   return (
@@ -204,21 +297,26 @@ export function LineChart({
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         className="block h-auto w-full"
+        // The geometry is placed right-to-left by hand (index 0 on the right),
+        // so the canvas itself is LTR. Without this the SVG inherits the RTL
+        // page direction, which flips `text-anchor="end"` to the left and
+        // pushes the value-axis labels out past the viewBox.
+        style={{ direction: "ltr" }}
         role="img"
         aria-label={ariaLabel}
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--chart-cat-1)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--chart-cat-1)" stopOpacity="0" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
 
         {/* Gridlines + value axis (right gutter) */}
-        {gridFractions.map((f) => {
-          const y = PAD_TOP + plotH * (1 - f);
+        {ticks.map((v) => {
+          const y = yAt(v);
           return (
-            <g key={f}>
+            <g key={v}>
               <line
                 x1={plotLeft}
                 y1={y}
@@ -226,7 +324,7 @@ export function LineChart({
                 y2={y}
                 stroke="var(--color-divider)"
                 strokeWidth="1"
-                strokeDasharray={f === 0 ? "0" : "6 8"}
+                strokeDasharray={v === 0 ? "0" : "6 8"}
                 vectorEffect="non-scaling-stroke"
               />
               <text
@@ -237,20 +335,34 @@ export function LineChart({
                 fill="var(--color-muted)"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
-                {toPersianNumber(Math.round(maxValue * f))}
+                {compactFa(v)}
               </text>
             </g>
           );
         })}
 
+        {/* Hover guide — a vertical rule at the active index */}
+        {hovered != null && (
+          <line
+            x1={xAt(hovered)}
+            y1={PAD_TOP}
+            x2={xAt(hovered)}
+            y2={baseline}
+            stroke="var(--color-divider)"
+            strokeWidth="1"
+            strokeDasharray="4 6"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+
         {/* Series */}
-        {points.length > 1 && (
+        {n > 1 && (
           <>
             <path d={areaPath} fill={`url(#${gradientId})`} />
             <path
               d={linePath}
               fill="none"
-              stroke="var(--chart-cat-1)"
+              stroke={color}
               strokeWidth="2.5"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -259,23 +371,34 @@ export function LineChart({
           </>
         )}
 
-        {/* Points */}
-        {points.map((p, i) => (
+        {/* Marks: a single end-of-series dot, plus the hovered point — no dot
+            per day, so a flat run reads as a clean line instead of a bead row. */}
+        {n > 0 && (
           <circle
-            key={i}
-            cx={xAt(i)}
-            cy={yAt(p.value)}
-            r={hovered === i ? 6 : 4}
+            cx={xAt(endIdx)}
+            cy={yAt(points[endIdx]!.value)}
+            r="4"
             fill="var(--color-surface)"
-            stroke="var(--chart-cat-1)"
+            stroke={color}
             strokeWidth="2"
             vectorEffect="non-scaling-stroke"
           />
-        ))}
+        )}
+        {hovered != null && (
+          <circle
+            cx={xAt(hovered)}
+            cy={yAt(points[hovered]!.value)}
+            r="5.5"
+            fill={color}
+            stroke="var(--color-surface)"
+            strokeWidth="2.5"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
 
         {/* Date axis (right → left) */}
         {points.map((p, i) =>
-          i % labelStride === 0 || i === n - 1 ? (
+          i % labelStride === 0 || i === endIdx ? (
             <text
               key={`label-${i}`}
               x={xAt(i)}
