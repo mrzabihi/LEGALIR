@@ -846,6 +846,7 @@ function OverviewBody({
                   seriesName="درآمد"
                   unit="تومان"
                   color="var(--control-selected)"
+                  axisFont={18}
                 />
               ) : (
                 <ChartEmpty message="در این بازه فروشی ثبت نشده است." />
@@ -856,6 +857,7 @@ function OverviewBody({
                 ariaLabel={`روند ثبت درخواست‌ها در ${toPersianNumber(rangeDays)} روز گذشته`}
                 seriesName="درخواست"
                 unit="درخواست"
+                axisFont={18}
               />
             ) : (
               <ChartEmpty message="در این بازه درخواستی ثبت نشده است." />

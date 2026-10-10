@@ -58,6 +58,7 @@ import {
   IconChevronRight,
   IconPerson,
   IconLogout,
+  IconLibrary,
 } from "@/lib/icons";
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
@@ -72,6 +73,7 @@ const ICONS: Record<string, IconComponent> = {
   Coin: IconCoin,
   Bolt: IconBolt,
   Database: IconDatabase,
+  Library: IconLibrary,
   Calculator: IconCalculator,
   Headset: IconHeadset,
   Document: IconDocument,
@@ -565,7 +567,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="hidden text-caption text-muted tablet:block">پنل مدیریت LEGALIR</p>
+            <p className="hidden text-caption text-muted tablet:block">ادمین پنل لیــــــــــــگالیــر</p>
             <h1 className="truncate text-body-1 font-bold text-onSurface">
               {sectionTitle}
             </h1>

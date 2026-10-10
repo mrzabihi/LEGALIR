@@ -16,7 +16,7 @@ import Link from "next/link";
 import { TextField, Select, Checkbox, MoneyField } from "@legalir/ui";
 import {
   getCalculator,
-  runCalculator,
+  runCalculatorWithRules,
   CalculatorInputError,
   CALCULATOR_CATEGORY_FA,
   CALCULATOR_CONFIDENCE_FA,
@@ -27,11 +27,13 @@ import {
   fetchCalculatorPolicy,
   runCalculatorOnServer,
   type CalculatorPolicy,
+  type CalculatorRuleOverride,
 } from "@/lib/api/calculators";
 import type {
   CalculationResult,
   CalculatorDef,
   CalculatorField,
+  CalculatorRuleRef,
   FieldVisibility,
 } from "@legalir/types";
 import { toPersianDigits } from "@/lib/persian-utils";
@@ -124,6 +126,15 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
   const [step, setStep] = useState(0);
   const [policy, setPolicy] = useState<CalculatorPolicy | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // §5-rules — the DB-backed rule versions in force. Empty when the verified
+  // CODE seed is the effective source. Shown as the version label on a result.
+  const [appliedRules, setAppliedRules] = useState<CalculatorRuleRef[]>([]);
+
+  // The same in-force sparse rate patches the SERVER primes. Applied to the
+  // in-memory overlay around a free calculator's LOCAL preview so its number
+  // matches the server run (and the version label). Empty when the seed is in
+  // force. Charged calculators never preview locally, so this is unused there.
+  const [ruleOverrides, setRuleOverrides] = useState<CalculatorRuleOverride[]>([]);
 
   // §5 — the server-owned operational policy. The client uses it only to pick
   // the UX (local preview vs. charged server run + disabled notice); the SERVER
@@ -133,12 +144,24 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
     let alive = true;
     fetchCalculatorPolicy(slug)
       .then((p) => {
-        if (alive) setPolicy(p);
+        if (!alive) return;
+        setPolicy(p);
+        setAppliedRules(p.rules ?? []);
+        setRuleOverrides(p.ruleOverrides ?? []);
       })
       .catch(() => {
         // Policy is advisory to the client; a fetch failure must not block a
         // free calculator, so fall back to the free default.
-        if (alive) setPolicy({ slug, enabled: true, accessTier: "free", energyCost: 0 });
+        if (alive) {
+          setPolicy({
+            slug,
+            enabled: true,
+            accessTier: "free",
+            energyCost: 0,
+            rules: [],
+            ruleOverrides: [],
+          });
+        }
       });
     return () => {
       alive = false;
@@ -153,12 +176,11 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
   const liveResult = useMemo<CalculationResult | null>(() => {
     if (charged || disabled) return null;
     try {
-      const r = runCalculator(slug, input);
-      return r;
+      return runCalculatorWithRules(slug, input, ruleOverrides);
     } catch {
       return null;
     }
-  }, [slug, input, charged, disabled]);
+  }, [slug, input, charged, disabled, ruleOverrides]);
 
   // Validate locally (for the error message) without exposing a result on a
   // charged calculator — validation is pure and never bills.
@@ -168,12 +190,12 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
       return;
     }
     try {
-      runCalculator(slug, input);
+      runCalculatorWithRules(slug, input, ruleOverrides);
       setError(null);
     } catch (e) {
       setError(e instanceof CalculatorInputError ? e.message : "خطا در محاسبه");
     }
-  }, [slug, input, charged, disabled]);
+  }, [slug, input, charged, disabled, ruleOverrides]);
 
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [chargedCost, setChargedCost] = useState<number | null>(null);
@@ -192,6 +214,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
       );
       setResult(res.result);
       setChargedCost(res.energyCost);
+      setAppliedRules(res.rules ?? []);
     } catch (e) {
       setError(errMessage(e, "اجرای محاسبه ناموفق بود"));
       setResult(null);
@@ -422,7 +445,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
                     : "این اجرا بدون هزینهٔ اضافی ثبت شد (پیش‌تر همین امروز محاسبه شده است)."}
                 </div>
               )}
-              <ResultView result={displayResult} />
+              <ResultView result={displayResult} rules={appliedRules} />
             </>
           ) : charged ? (
             <div className="space-y-4">
@@ -714,7 +737,13 @@ function FieldControl({
 // Result view — headline, breakdown, warnings, provenance
 // ============================================================
 
-function ResultView({ result }: { result: CalculationResult }) {
+function ResultView({
+  result,
+  rules,
+}: {
+  result: CalculationResult;
+  rules: CalculatorRuleRef[];
+}) {
   // A combination the engine will not guess at: show the honest message
   // instead of a number, and skip the headline entirely.
   if (result.unsupportedFa) {
@@ -736,6 +765,7 @@ function ResultView({ result }: { result: CalculationResult }) {
           <LegalNotesBlock notes={result.legalNotesFa} />
         )}
         <ProvenanceBlock source={result.source} />
+        <RuleVersionsBlock rules={rules} />
       </div>
     );
   }
@@ -902,6 +932,45 @@ function ResultView({ result }: { result: CalculationResult }) {
 
       {/* Provenance */}
       <ProvenanceBlock source={result.source} />
+
+      {/* §5-rules — the DB-backed rule versions actually applied. Shown only
+          when the server reports one; the verified code seed is the default
+          and is already labelled by the provenance block above. */}
+      <RuleVersionsBlock rules={rules} />
+    </div>
+  );
+}
+
+/**
+ * The DB-backed rule versions the backend applied for this result. Empty when
+ * the verified code seed is the effective source, in which case nothing is
+ * rendered — the provenance block already names the seed version.
+ */
+function RuleVersionsBlock({ rules }: { rules: CalculatorRuleRef[] }) {
+  if (rules.length === 0) return null;
+  return (
+    <div className="rounded-medium bg-surface border border-[color:var(--color-outline-variant)] p-4">
+      <h3 className="text-caption text-on-surface-variant font-medium mb-2 flex items-center gap-1.5">
+        <span aria-hidden="true">🗂️</span>
+        نسخهٔ قاعدهٔ در جریان
+      </h3>
+      <ul className="space-y-1.5" role="list">
+        {rules.map((r) => (
+          <li key={r.versionId} className="flex flex-wrap items-center gap-2 text-caption">
+            <span className="text-on-surface" dir="ltr">
+              {r.version}
+            </span>
+            <span className="text-on-surface-variant">
+              (اعمال از <span dir="ltr">{r.effectiveFrom}</span>)
+            </span>
+            {r.verificationStatus === "pending" && (
+              <span className="rounded-full border border-warning-200 bg-warning-50 text-warning-700 px-2 py-0.5">
+                نیازمند بازبینی
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

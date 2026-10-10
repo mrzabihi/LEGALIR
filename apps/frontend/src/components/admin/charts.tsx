@@ -260,6 +260,7 @@ export function LineChart({
   unit = "",
   color = "var(--chart-cat-1)",
   overlay,
+  axisFont = AXIS_FONT,
 }: {
   points: ChartPoint[];
   ariaLabel: string;
@@ -267,6 +268,12 @@ export function LineChart({
   unit?: string;
   /** Series colour; defaults to the primary categorical token. */
   color?: string;
+  /**
+   * Font size (in viewBox units) for the x and y axis labels. Defaults to the
+   * shared `AXIS_FONT`; a caller with a dense window may shrink it so the
+   * labels stay legible. Purely presentational.
+   */
+  axisFont?: number;
   /**
    * An optional second series drawn as a dashed line on the SAME value scale —
    * e.g. the equal-length previous period, index-aligned to `points`. It shares
@@ -358,9 +365,9 @@ export function LineChart({
               />
               <text
                 x={VIEW_W - 6}
-                y={y + AXIS_FONT * 0.34}
+                y={y + axisFont * 0.34}
                 textAnchor="end"
-                fontSize={AXIS_FONT}
+                fontSize={axisFont}
                 fill="var(--color-muted)"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
@@ -460,7 +467,7 @@ export function LineChart({
               x={xAt(i)}
               y={VIEW_H - 8}
               textAnchor="middle"
-              fontSize={AXIS_FONT}
+              fontSize={axisFont}
               fill="var(--color-muted)"
             >
               {p.label}

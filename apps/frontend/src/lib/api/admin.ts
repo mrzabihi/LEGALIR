@@ -43,6 +43,9 @@ import type {
   UpsertBlogPostInput,
   GenerateBlogDraftInput,
   GeneratedBlogDraft,
+  AdminLegalSource,
+  AdminLegalTopic,
+  UpsertLegalSourceInput,
   SupportTicket,
   SupportTicketStatus,
   SupportTicketPriority,
@@ -78,6 +81,11 @@ import type {
   CreateAnnouncementInput,
   CalculatorSetting,
   CalculatorAccessTier,
+  CalculatorRuleSummary,
+  CalculatorRuleDetail,
+  CalculatorRuleVersion,
+  CalculatorRuleSourceOverride,
+  RulePublishPreview,
   AdminUserSubscriptionView,
   AdminSubscriptionActionInput,
   AdminEnergyActionInput,
@@ -883,6 +891,52 @@ export function generateBlogDraft(input: GenerateBlogDraftInput): Promise<Genera
 }
 
 // ---------------------------------------------------------------------------
+// Legal-library management (کتابخانه لیگالیر)
+// ---------------------------------------------------------------------------
+// A product section of its OWN — a separate store, lifecycle and permission
+// pair (`admin:library:*`). Deliberately not folded into the blog surface.
+
+/** The full admin library list + topics (the SAME store the public library reads). */
+export function fetchAdminLegalLibrary(): Promise<{
+  items: AdminLegalSource[];
+  topics: AdminLegalTopic[];
+}> {
+  return apiClient.get<{ items: AdminLegalSource[]; topics: AdminLegalTopic[] }>(
+    `${A}/legal-library`
+  );
+}
+
+/** One source by id. */
+export function fetchAdminLegalSource(id: string): Promise<AdminLegalSource> {
+  return apiClient.get<AdminLegalSource>(`${A}/legal-library/${encodeURIComponent(id)}`);
+}
+
+export function createLegalSource(input: UpsertLegalSourceInput): Promise<AdminLegalSource> {
+  return apiClient.post<AdminLegalSource>(`${A}/legal-library`, input);
+}
+
+export function updateLegalSource(
+  id: string,
+  input: UpsertLegalSourceInput
+): Promise<AdminLegalSource> {
+  return apiClient.patch<AdminLegalSource>(`${A}/legal-library/${encodeURIComponent(id)}`, input);
+}
+
+/** Status-only transition (draft/published/archived). */
+export function setLegalSourceStatus(
+  id: string,
+  status: AdminLegalSource["status"]
+): Promise<AdminLegalSource> {
+  return apiClient.patch<AdminLegalSource>(`${A}/legal-library/${encodeURIComponent(id)}`, {
+    status,
+  });
+}
+
+export function deleteLegalSource(id: string): Promise<{ ok: true }> {
+  return apiClient.post<{ ok: true }>(`${A}/legal-library/${encodeURIComponent(id)}/delete`, {});
+}
+
+// ---------------------------------------------------------------------------
 // Energy & service-cost model (§6)
 // ---------------------------------------------------------------------------
 
@@ -988,6 +1042,80 @@ export function updateCalculatorSetting(
   input: UpdateCalculatorSettingInput
 ): Promise<CalculatorSetting> {
   return apiClient.patch<CalculatorSetting>(`${A}/calculators/${slug}`, input);
+}
+
+// ---------------------------------------------------------------------------
+// Calculator rule versions (DB-backed, versioned rate overrides)
+// ---------------------------------------------------------------------------
+
+/** Every dataset's rule layer status (seed, active version, open draft). */
+export function fetchCalculatorRules(): Promise<{ items: CalculatorRuleSummary[] }> {
+  return apiClient.get<{ items: CalculatorRuleSummary[] }>(`${A}/calculators/rules`);
+}
+
+/** One dataset's full rule view: seed, effective rates, schema, history. */
+export function fetchCalculatorRuleDetail(datasetId: string): Promise<CalculatorRuleDetail> {
+  return apiClient.get<CalculatorRuleDetail>(`${A}/calculators/rules/${datasetId}`);
+}
+
+export interface SaveCalculatorRuleDraftInput {
+  rates: Record<string, unknown>;
+  source?: CalculatorRuleSourceOverride;
+  changeNoteFa?: string;
+  effectiveFrom?: string;
+  verificationStatus?: "verified" | "pending";
+}
+
+/** Create/update the open draft of one dataset (never affects users). */
+export function saveCalculatorRuleDraft(
+  datasetId: string,
+  input: SaveCalculatorRuleDraftInput
+): Promise<CalculatorRuleVersion> {
+  return apiClient.post<CalculatorRuleVersion>(`${A}/calculators/rules/${datasetId}`, input);
+}
+
+/** Validate + test a draft against sample inputs before publishing. */
+export function previewCalculatorRuleDraft(
+  datasetId: string,
+  rates: Record<string, unknown>
+): Promise<RulePublishPreview> {
+  return apiClient.post<RulePublishPreview>(
+    `${A}/calculators/rules/${datasetId}/preview`,
+    { rates }
+  );
+}
+
+/** Publish a draft; archives the previously-active version. */
+export function publishCalculatorRule(
+  datasetId: string,
+  versionId: string
+): Promise<CalculatorRuleVersion> {
+  return apiClient.post<CalculatorRuleVersion>(
+    `${A}/calculators/rules/${datasetId}/publish`,
+    { versionId }
+  );
+}
+
+/** Create a new draft copying a prior version's figures (rollback). */
+export function rollbackCalculatorRule(
+  datasetId: string,
+  versionId: string
+): Promise<CalculatorRuleVersion> {
+  return apiClient.post<CalculatorRuleVersion>(
+    `${A}/calculators/rules/${datasetId}/rollback`,
+    { versionId }
+  );
+}
+
+/** Discard the open draft of one dataset. */
+export function deleteCalculatorRuleDraft(
+  datasetId: string,
+  versionId: string
+): Promise<{ ok: boolean }> {
+  return apiClient.post<{ ok: boolean }>(
+    `${A}/calculators/rules/${datasetId}/discard`,
+    { versionId }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1349,6 +1477,9 @@ export type {
   UpsertBlogPostInput,
   GenerateBlogDraftInput,
   GeneratedBlogDraft,
+  AdminLegalSource,
+  AdminLegalTopic,
+  UpsertLegalSourceInput,
   SupportTicket,
   SupportTicketStatus,
   SupportTicketPriority,

@@ -11,6 +11,7 @@
 // ============================================================
 
 import type { PlatformRole, Permission, LegalRequestState } from "./platform";
+import type { LegalContentType, LegalReviewStatus, VerificationStatus } from "./index";
 
 // ---------------------------------------------------------------------------
 // Audit log (append-only)
@@ -511,6 +512,206 @@ export interface CalculatorSetting {
   updatedAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Calculator rule versions (DB-backed, admin-managed rate overrides)
+// ---------------------------------------------------------------------------
+// Every rate a calculator multiplies by lives in a versioned CODE dataset
+// (`lib/calculators/datasets*.ts`) that remains the verified seed and the
+// fallback. An admin can layer a *versioned override* on top of one dataset:
+// a sparse, schema-validated patch of the dataset's `rates` plus provenance
+// and a validity window. Drafts never affect users; only a PUBLISHED version
+// whose `effectiveFrom` has arrived is applied, and it is applied in the
+// Backend (the run endpoint) as well as the client preview. Nothing is ever
+// deleted — a version's full history is preserved.
+
+/** Lifecycle of one DB-backed rule version. */
+export type CalculatorRuleStatus = "draft" | "published" | "archived";
+
+export const CALCULATOR_RULE_STATUS_FA: Record<CalculatorRuleStatus, string> = {
+  draft: "پیش‌نویس",
+  published: "منتشرشده",
+  archived: "بایگانی‌شده",
+};
+
+/**
+ * Provenance overrides an admin may attach to a rule version. A subset of
+ * the dataset's `CalculatorSource` — every field optional so the version
+ * inherits the code seed's provenance for anything it does not restate.
+ */
+export interface CalculatorRuleSourceOverride {
+  sourceTitle?: string;
+  sourceAuthority?: string;
+  sourceUrl?: string | null;
+  publicationDate?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  jurisdiction?: string;
+  calculationYear?: number;
+  verifiedAt?: string;
+  verificationStatus?: "verified" | "pending";
+  notes?: string | null;
+}
+
+/** One DB-backed, versioned override of a rate dataset. */
+export interface CalculatorRuleVersion {
+  /** Stable version id, e.g. `court-fee-1405@2`. */
+  id: string;
+  /** The dataset this version overrides (e.g. `court-fee-1405`). */
+  datasetId: string;
+  /** Monotonic sequence within the dataset (the code seed is 1). */
+  seq: number;
+  /** Human version label, e.g. `court-fee-1405.2`. */
+  version: string;
+  status: CalculatorRuleStatus;
+  /** Gregorian date (YYYY-MM-DD) the version takes effect. */
+  effectiveFrom: string;
+  /** Gregorian date the version stops applying; null = still in force. */
+  effectiveTo: string | null;
+  /** Sparse patch over the code dataset's `rates` (only changed keys). */
+  rates: Record<string, unknown>;
+  /** Provenance overrides for this version. */
+  source: CalculatorRuleSourceOverride;
+  /** Human description of what changed and why (required on publish). */
+  changeNoteFa: string;
+  /** Whether the figures are confirmed against the issuing authority. */
+  verificationStatus: "verified" | "pending";
+  createdBy: string | null;
+  createdAt: string;
+  publishedBy: string | null;
+  publishedAt: string | null;
+  archivedAt: string | null;
+}
+
+/** The structured kind of one node in a dataset's rate schema. */
+export type RuleFieldKind =
+  | "number"
+  | "string"
+  | "boolean"
+  | "group"
+  | "map"
+  | "brackets"
+  | "list";
+
+/**
+ * One node of a dataset's rate schema, derived from the code seed so the
+ * admin editor is structure-aware and constrained per dataset — never a
+ * free-form JSON blob and never executable code.
+ */
+export interface RuleField {
+  key: string;
+  labelFa: string;
+  kind: RuleFieldKind;
+  /** For `number`: inclusive bounds the value must respect. */
+  min?: number;
+  max?: number;
+  /** For `group`: nested members. */
+  children?: RuleField[];
+  /** For `map`: the shared shape of every value in the record. */
+  valueField?: RuleField;
+  /** For `brackets` / `list`: the shape of one element. */
+  itemFields?: RuleField[];
+  /** The current effective value (code seed merged with the active version). */
+  value: unknown;
+}
+
+/** A one-line status of one dataset's rule layer, for the admin list. */
+export interface CalculatorRuleSummary {
+  datasetId: string;
+  titleFa: string;
+  calculationYear: number;
+  /** The code seed's version label. */
+  seedVersion: string;
+  /** The active published version, or null when the code seed is in force. */
+  active: CalculatorRuleVersion | null;
+  /** The single open draft, or null. */
+  draft: CalculatorRuleVersion | null;
+  /** How many versions exist beyond the seed (published + archived + drafts). */
+  historyCount: number;
+  /** True when the effective figures are still unconfirmed for their year. */
+  needsReview: boolean;
+}
+
+/** The provenance shape returned to the admin UI (mirrors CalculatorSource). */
+export interface CalculatorSourceView {
+  sourceTitle: string;
+  sourceAuthority: string;
+  sourceUrl: string | null;
+  publicationDate: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  jurisdiction: string;
+  calculationYear: number;
+  version: string;
+  verifiedAt: string;
+  verificationStatus?: "verified" | "pending";
+  notes: string | null;
+}
+
+/** Full rule-management view of one dataset. */
+export interface CalculatorRuleDetail {
+  datasetId: string;
+  titleFa: string;
+  calculationYear: number;
+  /** The code seed (the fallback / base of every patch). */
+  seed: { version: string; rates: Record<string, unknown>; source: CalculatorSourceView };
+  /** The figures actually in force right now (seed merged with the active version). */
+  effective: {
+    version: string;
+    rates: Record<string, unknown>;
+    source: CalculatorSourceView;
+    fromRule: boolean;
+  };
+  /** The structure-aware schema the editor renders. */
+  schema: RuleField[];
+  active: CalculatorRuleVersion | null;
+  drafts: CalculatorRuleVersion[];
+  /** Every version ever created, newest first (published + archived). */
+  history: CalculatorRuleVersion[];
+  /** The calculators that consume this dataset. */
+  usedBy: { slug: string; titleFa: string }[];
+}
+
+/** One problem found while validating a draft's rates against its schema. */
+export interface RuleValidationIssue {
+  /** Dotted path of the offending field, e.g. `brackets[2].rate`. */
+  fieldPath: string;
+  messageFa: string;
+  severity: "error" | "warning";
+}
+
+export interface RuleValidationResult {
+  ok: boolean;
+  issues: RuleValidationIssue[];
+}
+
+/** Before/after of one calculator run under the draft vs. the active rules. */
+export interface RuleSampleResult {
+  slug: string;
+  titleFa: string;
+  input: Record<string, unknown>;
+  beforeHeadlineFa: string;
+  afterHeadlineFa: string;
+  changed: boolean;
+  errorFa?: string;
+}
+
+/** The result of validating + test-running a draft before publishing. */
+export interface RulePublishPreview {
+  validation: RuleValidationResult;
+  samples: RuleSampleResult[];
+  /** How many sample runs change output under the draft. */
+  changedCount: number;
+}
+
+/** The rule-version facts the run/policy responses carry to the caller. */
+export interface CalculatorRuleRef {
+  datasetId: string;
+  versionId: string;
+  version: string;
+  effectiveFrom: string;
+  verificationStatus: "verified" | "pending";
+}
+
 /** Blog publication lifecycle. */
 export type BlogPostStatus = "DRAFT" | "PUBLISHED" | "SCHEDULED";
 
@@ -756,6 +957,94 @@ export interface UpsertBlogPostInput {
   status?: BlogPostStatus;
   /** True when an AI generation produced the body (set on save). */
   aiAssisted?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Legal-library management (کتابخانه لیگالیر)
+// ---------------------------------------------------------------------------
+// The public legal library is a product section of its own — separate routes,
+// separate store (`.data/legal-library.json`), separate admin surface. It is
+// deliberately NOT fused with the blog: distinct row/lifecycle types, distinct
+// admin routes, distinct permission pair (`admin:library:*`).
+//
+// The distribution lifecycle mirrors the blog's (draft → published → archived)
+// so the public list can show only published sources while drafts stay private.
+
+/** Legal-library publication lifecycle. */
+export type LegalSourceStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+export const LEGAL_SOURCE_STATUS_FA: Record<LegalSourceStatus, string> = {
+  DRAFT: "پیش‌نویس",
+  PUBLISHED: "منتشرشده",
+  ARCHIVED: "بایگانی‌شده",
+};
+
+/**
+ * An admin-managed legal-library source — a superset of the public list item
+ * (`V1LegalLibraryListItem`) and detail (`V1LegalSourceDetail`). The admin row
+ * carries the publish lifecycle and authorship metadata the public shape omits.
+ */
+export interface AdminLegalSource {
+  id: string;
+  slug: string;
+  title: string;
+  sourceType: LegalContentType;
+  sourceTypeFa: string;
+  topic: string | null;
+  topicSlug: string | null;
+  summary: string;
+  /** The full article text shown on the detail page. */
+  body: string;
+  authority: string;
+  verificationStatus: VerificationStatus;
+  legalReviewStatus: LegalReviewStatus;
+  publishedDate: string | null;
+  updatedAt: string;
+  readingTime: number;
+  popular: boolean;
+  featured: boolean;
+  status: LegalSourceStatus;
+  /** ISO publish time (stamped on publish, cleared otherwise). */
+  publishedAt: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+  /** Primary reference link for the source (rendered as «مشاهده منبع» when set). */
+  sourceUrl: string | null;
+  /** The authoritative/official link, preferred over `sourceUrl` when present. */
+  officialSourceUrl: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/** A library topic as the admin selector needs it (id-free — slug is the key). */
+export interface AdminLegalTopic {
+  slug: string;
+  titleFa: string;
+  category: string;
+  contentCount: number;
+}
+
+export interface UpsertLegalSourceInput {
+  id?: string;
+  slug?: string | null;
+  title: string;
+  sourceType?: LegalContentType;
+  topic?: string | null;
+  topicSlug?: string | null;
+  summary?: string | null;
+  body?: string | null;
+  authority?: string | null;
+  readingTime?: number | null;
+  popular?: boolean;
+  featured?: boolean;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  /** Reference + official links (the detail model's own `sourceUrl` fields). */
+  sourceUrl?: string | null;
+  officialSourceUrl?: string | null;
+  status?: LegalSourceStatus;
 }
 
 // ---------------------------------------------------------------------------

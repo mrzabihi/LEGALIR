@@ -7,7 +7,18 @@
 // result locally (free) or must submit the run for a charge.
 
 import { apiClient } from "./client";
-import type { CalculationResult, CalculatorAccessTier } from "@legalir/types";
+import type {
+  CalculationResult,
+  CalculatorAccessTier,
+  CalculatorRuleRef,
+} from "@legalir/types";
+
+/** A DB-backed rule version's sparse rate patch, primed into the client overlay. */
+export interface CalculatorRuleOverride {
+  datasetId: string;
+  versionId: string;
+  rates: Record<string, unknown>;
+}
 
 /** The non-sensitive public slice of a calculator's operational policy. */
 export interface CalculatorPolicy {
@@ -15,6 +26,17 @@ export interface CalculatorPolicy {
   enabled: boolean;
   accessTier: CalculatorAccessTier;
   energyCost: number;
+  /**
+   * The DB-backed rule versions currently in force for this calculator's
+   * datasets. Empty when the verified CODE seed is the effective source. Used
+   * to LABEL a local preview.
+   */
+  rules: CalculatorRuleRef[];
+  /**
+   * The in-force sparse rate patches (published versions only) so a FREE
+   * calculator's local preview can apply them and match the server run.
+   */
+  ruleOverrides: CalculatorRuleOverride[];
 }
 
 export function fetchCalculatorPolicy(slug: string): Promise<CalculatorPolicy> {
@@ -26,6 +48,8 @@ export interface RunCalculatorResponse {
   /** Energy actually charged for this run (0 when free / already charged today). */
   energyCost: number;
   transactionId: string | null;
+  /** The DB-backed rule versions the server actually applied for this run. */
+  rules: CalculatorRuleRef[];
 }
 
 /**

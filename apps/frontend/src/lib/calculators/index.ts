@@ -9,7 +9,9 @@
 // same input always produces the same output for a given dataset
 // version.
 
-import { registerCalculator } from "./engine";
+import type { CalculationResult } from "@legalir/types";
+import { registerCalculator, runCalculator, type CalculatorInput } from "./engine";
+import { primeRuleOverride, clearRuleOverrides } from "./datasets";
 import { courtFeeCalculator } from "./calculators/court-fee";
 import { diyehCalculator } from "./calculators/diyeh";
 import { delayedPaymentCalculator } from "./calculators/delayed-payment";
@@ -81,6 +83,34 @@ const ALL = [
 
 for (const calc of ALL) registerCalculator(calc);
 
+/** A DB-backed rule version's sparse rate patch, for priming the overlay. */
+export interface CalculatorRuleOverride {
+  datasetId: string;
+  versionId: string;
+  rates: Record<string, unknown>;
+}
+
+/**
+ * Run a calculator with a set of DB-backed rule overrides applied through the
+ * in-memory rate overlay. Primes the overlay, runs the SYNCHRONOUS compute, and
+ * always clears it, so an override can never leak into another call. The CLIENT
+ * uses this so a free calculator's local preview matches the server run; with
+ * an empty override list it is just `runCalculator`.
+ */
+export function runCalculatorWithRules(
+  slug: string,
+  raw: CalculatorInput,
+  overrides: CalculatorRuleOverride[]
+): CalculationResult {
+  if (overrides.length === 0) return runCalculator(slug, raw);
+  for (const o of overrides) primeRuleOverride(o.versionId, o.datasetId, o.rates);
+  try {
+    return runCalculator(slug, raw);
+  } finally {
+    clearRuleOverrides();
+  }
+}
+
 // ---- Engine ----
 export {
   registerCalculator,
@@ -128,6 +158,9 @@ export {
   getDataset,
   requireDataset,
   DIYEH_FRACTIONS,
+  primeRuleOverride,
+  clearRuleOverrides,
+  activeRuleVersionId,
 } from "./datasets";
 export type { DiyehFraction } from "./datasets";
 

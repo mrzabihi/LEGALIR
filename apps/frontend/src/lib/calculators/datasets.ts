@@ -323,9 +323,58 @@ export const RATE_DATASETS: RateDataset[] = [
   ...RATE_DATASETS_1405,
 ];
 
-/** Look up a dataset by id. Returns undefined for unknown ids. */
+/** The dataset a code registry can ever hold, frozen, so the DB overlay below
+ *  can never be defeated by a caller mutating a by-reference return value. */
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value as object)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
+for (const ds of RATE_DATASETS) deepFreeze(ds);
+
+// ---------------------------------------------------------------------------
+// Active rule overlay (server-only)
+// ---------------------------------------------------------------------------
+// The seed datasets above are the default. On the SERVER, a DB-backed
+// published rule version may override some of a dataset's `rates` — applied
+// by `lib/admin/calculator-rules`. Both that writer and the client share this
+// module, so the overlay is a plain registry-level map the server primes once
+// per request (to stay compatible with the synchronous `compute` seam) and
+// clears afterwards. On the client the map is never primed, so this is a
+// zero-cost no-op. The seed objects are frozen, so a patch is overlaid by
+// shallow-cloning the dataset and merging only the changed top-level keys.
+const ACTIVE_RULE_OVERRIDES = new Map<string, { versionId: string; rates: Record<string, unknown> }>();
+
+/** Install one active rule version's sparse rate patch for the request. */
+export function primeRuleOverride(versionId: string, datasetId: string, rates: Record<string, unknown>): void {
+  ACTIVE_RULE_OVERRIDES.set(datasetId, { versionId, rates });
+}
+
+/** Remove every primed override (called once per server request, after use). */
+export function clearRuleOverrides(): void {
+  ACTIVE_RULE_OVERRIDES.clear();
+}
+
+/** The active rule version id for a dataset, or null when the seed is in force. */
+export function activeRuleVersionId(id: string): string | null {
+  return ACTIVE_RULE_OVERRIDES.get(id)?.versionId ?? null;
+}
+
+/**
+ * Look up a dataset by id, applying any active DB rule overlay. Returns
+ * undefined for unknown ids.
+ */
 export function getDataset(id: string): RateDataset | undefined {
-  return RATE_DATASETS.find((d) => d.id === id);
+  const base = RATE_DATASETS.find((d) => d.id === id);
+  if (!base) return undefined;
+  const overlay = ACTIVE_RULE_OVERRIDES.get(id);
+  if (!overlay) return base;
+  return { ...base, rates: { ...base.rates, ...overlay.rates } };
 }
 
 /**

@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { getCalculatorSetting } from "@/lib/admin/calculator-settings";
+import { activeRuleOverrides, activeRuleRefs } from "@/lib/admin/calculator-rules";
 import { getCalculator } from "@/lib/calculators";
 
 export async function GET(
@@ -16,7 +17,8 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  if (!getCalculator(slug)) {
+  const calc = getCalculator(slug);
+  if (!calc) {
     return NextResponse.json(
       { code: "NOT_FOUND", message: "محاسبه‌گر یافت نشد" },
       { status: 404 }
@@ -29,6 +31,13 @@ export async function GET(
       enabled: setting.enabled,
       accessTier: setting.accessTier,
       energyCost: setting.energyCost,
+      // The published rule versions currently in force — so the client can
+      // label a local preview with the same version the server would use.
+      rules: activeRuleRefs(calc.def.datasetIds),
+      // The same in-force sparse rate patches the server primes, so a FREE
+      // calculator's local preview can apply them and match the server number.
+      // Only published versions in force — a draft is never exposed here.
+      ruleOverrides: activeRuleOverrides(calc.def.datasetIds),
     },
   });
 }

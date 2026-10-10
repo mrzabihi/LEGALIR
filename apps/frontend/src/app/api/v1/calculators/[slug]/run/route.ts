@@ -10,7 +10,13 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import { authorizeCalculatorRun } from "@/lib/admin/calculator-settings";
-import { CalculatorInputError, coerceInput, getCalculator } from "@/lib/calculators";
+import { activeRuleRefs, primeActiveRules } from "@/lib/admin/calculator-rules";
+import {
+  CalculatorInputError,
+  clearRuleOverrides,
+  coerceInput,
+  getCalculator,
+} from "@/lib/calculators";
 import type { CalculatorInput } from "@/lib/calculators";
 
 export async function POST(
@@ -54,11 +60,18 @@ export async function POST(
     );
   }
 
+  // Apply the active published rule versions in the BACKEND: prime the
+  // in-memory overlay, run the synchronous compute, then clear it. The prime
+  // + clear must bracket the synchronous compute and hold NO await, so an
+  // overlay can never leak into another request's response.
+  primeActiveRules();
   try {
     const input = coerceInput(calc.def.fields, raw);
     const result = calc.compute(input);
+    // The rule versions actually used, so the caller can cite them.
+    const rules = activeRuleRefs(calc.def.datasetIds);
     return NextResponse.json({
-      data: { result, energyCost: auth.energyCost, transactionId: auth.transactionId },
+      data: { result, energyCost: auth.energyCost, transactionId: auth.transactionId, rules },
     });
   } catch (err) {
     if (err instanceof CalculatorInputError) {
@@ -68,5 +81,7 @@ export async function POST(
       );
     }
     throw err;
+  } finally {
+    clearRuleOverrides();
   }
 }

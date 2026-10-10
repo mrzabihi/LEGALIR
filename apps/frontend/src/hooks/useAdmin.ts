@@ -17,6 +17,8 @@ import type {
   SupportTicket,
   AdminSubscriptionActionInput,
   AdminEnergyActionInput,
+  AdminLegalSource,
+  UpsertLegalSourceInput,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -75,9 +77,22 @@ import {
   setBlogPostStatus,
   deleteBlogPost,
   generateBlogDraft,
+  fetchAdminLegalLibrary,
+  createLegalSource,
+  updateLegalSource,
+  setLegalSourceStatus,
+  deleteLegalSource,
   fetchCalculatorsInventory,
   updateCalculatorSetting,
   type UpdateCalculatorSettingInput,
+  fetchCalculatorRules,
+  fetchCalculatorRuleDetail,
+  saveCalculatorRuleDraft,
+  type SaveCalculatorRuleDraftInput,
+  previewCalculatorRuleDraft,
+  publishCalculatorRule,
+  rollbackCalculatorRule,
+  deleteCalculatorRuleDraft,
   fetchSupportTickets,
   fetchSupportTicket,
   createSupportTicket,
@@ -768,6 +783,69 @@ export function useGenerateBlogDraft() {
 }
 
 // ---------------------------------------------------------------------------
+// Legal-library management (کتابخانه لیگالیر)
+// ---------------------------------------------------------------------------
+// Its own cache namespace — never shared with the blog slice, so a library
+// mutation can never accidentally refresh the blog list (or vice-versa).
+
+const LIBRARY_KEY = ["admin", "legal-library"] as const;
+
+/** The admin library list + topics (the SAME store the public library reads). */
+export function useAdminLegalLibrary() {
+  return useQuery({
+    queryKey: LIBRARY_KEY,
+    queryFn: fetchAdminLegalLibrary,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** Create a source (created as a draft unless a status is supplied). */
+export function useCreateLegalSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpsertLegalSourceInput) => createLegalSource(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: LIBRARY_KEY });
+    },
+  });
+}
+
+/** Update a source's fields (leaves status untouched unless passed). */
+export function useUpdateLegalSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpsertLegalSourceInput }) =>
+      updateLegalSource(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: LIBRARY_KEY });
+    },
+  });
+}
+
+/** Publish / unpublish / archive — a status-only transition. */
+export function useSetLegalSourceStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: AdminLegalSource["status"] }) =>
+      setLegalSourceStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: LIBRARY_KEY });
+    },
+  });
+}
+
+export function useDeleteLegalSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteLegalSource(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: LIBRARY_KEY });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Calculators
 // ---------------------------------------------------------------------------
 
@@ -789,6 +867,84 @@ export function useUpdateCalculatorSetting() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "calculators"] });
     },
+  });
+}
+
+// §5-rules — the DB-backed, versioned rate-override layer. A draft never
+// affects users; publishing a valid version is what changes real results.
+
+/** Every dataset's rule-layer status (seed, active version, open draft). */
+export function useCalculatorRules() {
+  return useQuery({
+    queryKey: ["admin", "calculators", "rules"],
+    queryFn: fetchCalculatorRules,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** One dataset's full rule view: seed, effective rates, schema, history. */
+export function useCalculatorRuleDetail(datasetId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "calculators", "rules", datasetId],
+    queryFn: () => fetchCalculatorRuleDetail(datasetId as string),
+    enabled: Boolean(datasetId),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** Invalidate both the rule list and one dataset's detail. */
+function invalidateRule(qc: ReturnType<typeof useQueryClient>, datasetId: string): void {
+  qc.invalidateQueries({ queryKey: ["admin", "calculators", "rules"] });
+  qc.invalidateQueries({ queryKey: ["admin", "calculators", "rules", datasetId] });
+}
+
+/** Save (create or update) the single open draft of one dataset. */
+export function useSaveCalculatorRuleDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ datasetId, input }: { datasetId: string; input: SaveCalculatorRuleDraftInput }) =>
+      saveCalculatorRuleDraft(datasetId, input),
+    onSuccess: (res) => invalidateRule(qc, res.datasetId),
+  });
+}
+
+/** Validate + test a draft against sample inputs before publishing. */
+export function usePreviewCalculatorRuleDraft() {
+  return useMutation({
+    mutationFn: ({ datasetId, rates }: { datasetId: string; rates: Record<string, unknown> }) =>
+      previewCalculatorRuleDraft(datasetId, rates),
+  });
+}
+
+/** Publish a draft; archives the previously-active version. */
+export function usePublishCalculatorRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ datasetId, versionId }: { datasetId: string; versionId: string }) =>
+      publishCalculatorRule(datasetId, versionId),
+    onSuccess: (res) => invalidateRule(qc, res.datasetId),
+  });
+}
+
+/** Create a new draft copying a prior version's figures (rollback). */
+export function useRollbackCalculatorRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ datasetId, versionId }: { datasetId: string; versionId: string }) =>
+      rollbackCalculatorRule(datasetId, versionId),
+    onSuccess: (res) => invalidateRule(qc, res.datasetId),
+  });
+}
+
+/** Discard the open draft of one dataset (published history is untouched). */
+export function useDeleteCalculatorRuleDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ datasetId, versionId }: { datasetId: string; versionId: string }) =>
+      deleteCalculatorRuleDraft(datasetId, versionId),
+    onSuccess: (_res, v) => invalidateRule(qc, v.datasetId),
   });
 }
 
