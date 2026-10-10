@@ -189,7 +189,10 @@ describe("PATCH /api/v1/lawyer/avatar (self-service)", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { avatarUrl: string | null; avatarType: string } };
     expect(body.data.avatarType).toBe("real");
-    expect(body.data.avatarUrl).toBe(`/api/v1/lawyers/${LAWYER_ID}/avatar`);
+    // The stored URL is content-versioned so a replacement busts the cache.
+    expect(body.data.avatarUrl ?? "").toMatch(
+      new RegExp(`^/api/v1/lawyers/${LAWYER_ID}/avatar\\?v=[0-9a-f]+$`)
+    );
 
     // The bytes really landed on disk under the private root.
     const stored = path.resolve(tmpDir, ".data", "lawyer-avatars", `${LAWYER_ID}.png`);
@@ -204,7 +207,9 @@ describe("PATCH /api/v1/lawyer/avatar (self-service)", () => {
     );
     expect(pub.status).toBe(200);
     const pubBody = (await pub.json()) as { data: { avatarUrl: string | null; avatarType: string } };
-    expect(pubBody.data.avatarUrl).toBe(`/api/v1/lawyers/${LAWYER_ID}/avatar`);
+    expect(pubBody.data.avatarUrl ?? "").toMatch(
+      new RegExp(`^/api/v1/lawyers/${LAWYER_ID}/avatar\\?v=[0-9a-f]+$`)
+    );
     expect(pubBody.data.avatarType).toBe("real");
   });
 });

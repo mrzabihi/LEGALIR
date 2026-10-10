@@ -19,6 +19,8 @@ import {
   AVATAR_ROOT,
   deleteLawyerAvatar,
   isAllowedAvatarFormat,
+  isStoredLawyerAvatar,
+  lawyerAvatarPath,
   resolveLawyerAvatar,
   saveLawyerAvatar,
 } from "../lawyer-avatar-storage";
@@ -64,12 +66,41 @@ describe("saveLawyerAvatar / resolveLawyerAvatar", () => {
     const url = saveLawyerAvatar("avatar-test-roundtrip", "image/png", bytes);
     const absolutePath = track("avatar-test-roundtrip");
 
-    expect(url).toBe("/api/v1/lawyers/avatar-test-roundtrip/avatar");
+    expect(url).toMatch(/^\/api\/v1\/lawyers\/avatar-test-roundtrip\/avatar\?v=[0-9a-f]+$/);
     expect(absolutePath).not.toBeNull();
     expect(fs.readFileSync(absolutePath as string)).toEqual(bytes);
 
     const found = resolveLawyerAvatar("avatar-test-roundtrip");
     expect(found?.contentType).toBe("image/png");
+  });
+
+  it("versions the URL by content so a NEW portrait is a NEW url", () => {
+    // The served file path is stable and replaced in place, so only the `?v=`
+    // token distinguishes a changed portrait. Without it the browser's cached
+    // response (max-age) and React's reconciled <img> keep the OLD image —
+    // the exact "previous avatar comes back" bug.
+    const first = saveLawyerAvatar("avatar-test-version", "image/png", Buffer.from("first-portrait"));
+    track("avatar-test-version");
+    const second = saveLawyerAvatar(
+      "avatar-test-version",
+      "image/png",
+      Buffer.from("second-portrait")
+    );
+    track("avatar-test-version");
+
+    expect(first).not.toBe(second);
+    expect(first.split("?")[0]).toBe(second.split("?")[0]);
+    expect(isStoredLawyerAvatar("avatar-test-version", first)).toBe(true);
+    expect(isStoredLawyerAvatar("avatar-test-version", second)).toBe(true);
+  });
+
+  it("keeps the URL stable when the SAME bytes are re-uploaded (no pointless refetch)", () => {
+    const bytes = Buffer.from("identical-bytes");
+    const a = saveLawyerAvatar("avatar-test-same", "image/png", bytes);
+    track("avatar-test-same");
+    const b = saveLawyerAvatar("avatar-test-same", "image/png", bytes);
+    track("avatar-test-same");
+    expect(a).toBe(b);
   });
 
   it("keeps exactly one file per lawyer when the extension changes", () => {
@@ -101,6 +132,22 @@ describe("saveLawyerAvatar / resolveLawyerAvatar", () => {
 
     expect(found).not.toBeNull();
     expect(found?.absolutePath.startsWith(AVATAR_ROOT + path.sep)).toBe(true);
+  });
+});
+
+describe("lawyerAvatarPath / isStoredLawyerAvatar", () => {
+  it("builds the served path and recognizes the stored upload (bare or versioned)", () => {
+    expect(lawyerAvatarPath("abc")).toBe("/api/v1/lawyers/abc/avatar");
+    expect(isStoredLawyerAvatar("abc", "/api/v1/lawyers/abc/avatar")).toBe(true);
+    expect(isStoredLawyerAvatar("abc", "/api/v1/lawyers/abc/avatar?v=deadbeef00")).toBe(true);
+  });
+
+  it("rejects another lawyer's URL, an external URL, a demo SVG and null", () => {
+    expect(isStoredLawyerAvatar("abc", "/api/v1/lawyers/other/avatar?v=x")).toBe(false);
+    expect(isStoredLawyerAvatar("abc", "https://example.com/a.png")).toBe(false);
+    expect(isStoredLawyerAvatar("abc", "data:image/svg+xml;utf8,<svg/>")).toBe(false);
+    expect(isStoredLawyerAvatar("abc", "/api/v1/lawyers/abc/avatar-other")).toBe(false);
+    expect(isStoredLawyerAvatar("abc", null)).toBe(false);
   });
 });
 

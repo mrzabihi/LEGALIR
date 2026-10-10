@@ -36,9 +36,18 @@ let lawyerUserId: string;
 const LAWYER_ID = "law-admin-1";
 const ADMIN_URL = "http://localhost/api/v1/admin/lawyers";
 const PUBLIC_URL = "http://localhost/api/v1/lawyers";
-const EXPECTED_URL = `/api/v1/lawyers/${LAWYER_ID}/avatar`;
+const EXPECTED_PATH = `/api/v1/lawyers/${LAWYER_ID}/avatar`;
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+// A different 1×1 PNG so a re-upload changes the bytes (and thus the version).
+const PNG_BASE64_ALT =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/** The stored URL is content-versioned; assert the path + version token. */
+function expectStoredUrl(url: string | null | undefined) {
+  expect(typeof url).toBe("string");
+  expect(url!.startsWith(`${EXPECTED_PATH}?v=`)).toBe(true);
+}
 
 let tmpDir: string;
 let originalCwd: string;
@@ -186,7 +195,7 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { avatarUrl: string | null; avatarType: string } };
     expect(body.data.avatarType).toBe("real");
-    expect(body.data.avatarUrl).toBe(EXPECTED_URL);
+    expectStoredUrl(body.data.avatarUrl);
 
     // Bytes really landed on disk under the private root.
     const stored = path.resolve(tmpDir, ".data", "lawyer-avatars", `${LAWYER_ID}.png`);
@@ -210,7 +219,7 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     const { data } = (await res.json()) as { data: { items: Record<string, unknown>[] } };
     const row = data.items.find((i) => i["id"] === LAWYER_ID);
     expect(row).toBeDefined();
-    expect(row!["avatarUrl"]).toBe(EXPECTED_URL);
+    expectStoredUrl(row!["avatarUrl"] as string | null);
     expect(row!["avatarType"]).toBe("real");
   });
 
@@ -220,7 +229,7 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     const { data } = (await res.json()) as {
       data: { profile: { avatarUrl: string | null; avatarType: string } };
     };
-    expect(data.profile.avatarUrl).toBe(EXPECTED_URL);
+    expectStoredUrl(data.profile.avatarUrl);
     expect(data.profile.avatarType).toBe("real");
   });
 
@@ -230,7 +239,7 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     const { data } = (await res.json()) as { data: { items: Record<string, unknown>[] } };
     const row = data.items.find((i) => i["id"] === LAWYER_ID);
     expect(row).toBeDefined();
-    expect(row!["avatarUrl"]).toBe(EXPECTED_URL);
+    expectStoredUrl(row!["avatarUrl"] as string | null);
     expect(row!["avatarType"]).toBe("real");
   });
 
@@ -240,7 +249,7 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     const { data } = (await res.json()) as {
       data: { avatarUrl: string | null; avatarType: string };
     };
-    expect(data.avatarUrl).toBe(EXPECTED_URL);
+    expectStoredUrl(data.avatarUrl);
     expect(data.avatarType).toBe("real");
   });
 
@@ -252,6 +261,19 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/image\/png/);
     expect(Number(res.headers.get("content-length"))).toBeGreaterThan(0);
+  });
+
+  it("the exact versioned URL stored on the row serves the image (the <img src> the UI renders)", async () => {
+    // What the admin table / drawer will put in `<img src={avatarUrl}>` — the
+    // versioned URL must resolve to real bytes, not 404, or the fallback chips.
+    const storedUrl = lawyerDb.getLawyerProfileById(LAWYER_ID)!.avatarUrl;
+    expectStoredUrl(storedUrl);
+    const res = await getPublicAvatarBytes(
+      anonReq(`http://localhost${storedUrl}`),
+      params(LAWYER_ID)
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/image\/png/);
   });
 
   it("regenerate mints a demo portrait that also reaches the public surfaces", async () => {
@@ -291,6 +313,77 @@ describe("admin-set lawyer avatar reaches every surface", () => {
     const pub = await getPublicLawyer(anonReq(`${PUBLIC_URL}/${LAWYER_ID}`), params(LAWYER_ID));
     const { data } = (await pub.json()) as { data: { avatarUrl: string | null } };
     expect(data.avatarUrl).toBeNull();
+  });
+
+  it("re-uploading a DIFFERENT portrait yields a NEW versioned URL and replaces the file", async () => {
+    // Upload #1 …
+    const first = await patchAvatar(
+      adminReq(`${ADMIN_URL}/${LAWYER_ID}/avatar`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          avatarData: PNG_BASE64,
+          avatarFileName: "a.png",
+          avatarFormat: "image/png",
+        }),
+      }),
+      params(LAWYER_ID)
+    );
+    const firstUrl = ((await first.json()) as { data: { avatarUrl: string } }).data.avatarUrl;
+    expectStoredUrl(firstUrl);
+    const storedPath = path.resolve(tmpDir, ".data", "lawyer-avatars", `${LAWYER_ID}.png`);
+    const firstBytes = fs.readFileSync(storedPath);
+
+    // … upload #2 with DIFFERENT bytes.
+    const second = await patchAvatar(
+      adminReq(`${ADMIN_URL}/${LAWYER_ID}/avatar`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          avatarData: PNG_BASE64_ALT,
+          avatarFileName: "b.png",
+          avatarFormat: "image/png",
+        }),
+      }),
+      params(LAWYER_ID)
+    );
+    const secondUrl = ((await second.json()) as { data: { avatarUrl: string } }).data.avatarUrl;
+    expectStoredUrl(secondUrl);
+
+    // The URL CHANGED — this is what stops the browser cache / a reconciled
+    // <img> from showing the old portrait ("آواتار قبلی برمی‌گردد").
+    expect(secondUrl).not.toBe(firstUrl);
+    // … and the row now stores the NEW url on every read surface.
+    const detail = await getAdminDetail(adminReq(`${ADMIN_URL}/${LAWYER_ID}`), params(LAWYER_ID));
+    const detailUrl = ((await detail.json()) as { data: { profile: { avatarUrl: string } } }).data
+      .profile.avatarUrl;
+    expect(detailUrl).toBe(secondUrl);
+    // … and the file on disk was actually replaced (not left stale), with one file.
+    expect(fs.existsSync(storedPath)).toBe(true);
+    expect(fs.readFileSync(storedPath)).not.toEqual(firstBytes);
+    expect(
+      fs.readdirSync(path.resolve(tmpDir, ".data", "lawyer-avatars")).filter((f) =>
+        f.startsWith(LAWYER_ID)
+      ).length
+    ).toBe(1);
+  });
+
+  it("re-uploading the SAME bytes keeps the same URL (idempotent)", async () => {
+    const a = await patchAvatar(
+      adminReq(`${ADMIN_URL}/${LAWYER_ID}/avatar`, {
+        method: "PATCH",
+        body: JSON.stringify({ avatarData: PNG_BASE64, avatarFormat: "image/png" }),
+      }),
+      params(LAWYER_ID)
+    );
+    const urlA = ((await a.json()) as { data: { avatarUrl: string } }).data.avatarUrl;
+    const b = await patchAvatar(
+      adminReq(`${ADMIN_URL}/${LAWYER_ID}/avatar`, {
+        method: "PATCH",
+        body: JSON.stringify({ avatarData: PNG_BASE64, avatarFormat: "image/png" }),
+      }),
+      params(LAWYER_ID)
+    );
+    const urlB = ((await b.json()) as { data: { avatarUrl: string } }).data.avatarUrl;
+    expect(urlB).toBe(urlA);
   });
 
   it("refuses an SVG upload (400) and leaves the profile untouched", async () => {

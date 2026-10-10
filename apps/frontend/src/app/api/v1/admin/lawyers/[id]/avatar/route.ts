@@ -23,6 +23,7 @@ import {
   AVATAR_MAX_BYTES,
   deleteLawyerAvatar,
   isAllowedAvatarFormat,
+  isStoredLawyerAvatar,
   saveLawyerAvatar,
 } from "@/lib/lawyer-avatar-storage";
 import type { LawyerAvatarType, LawyerGender } from "@legalir/types";
@@ -60,7 +61,8 @@ export async function PATCH(
 
   // A change that is NOT itself the stored upload replaces (and thus should
   // delete) any previously uploaded portrait, so exactly one source remains.
-  const storedUrl = `/api/v1/lawyers/${encodeURIComponent(id)}/avatar`;
+  // The stored URL is content-versioned, so match by prefix rather than by an
+  // exact string that the save path just changed.
 
   let avatarUrl: string | null;
   let avatarType: LawyerAvatarType;
@@ -130,7 +132,7 @@ export async function PATCH(
   }
 
   // Drop the stored upload when this change no longer references it.
-  if (avatarUrl !== storedUrl) deleteLawyerAvatar(id);
+  if (!isStoredLawyerAvatar(id, avatarUrl)) deleteLawyerAvatar(id);
 
   const updated = setAvatar(id, avatarUrl, avatarType);
   if (!updated) {

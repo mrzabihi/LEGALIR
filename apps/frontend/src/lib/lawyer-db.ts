@@ -278,6 +278,20 @@ export function resolveDisplay(
   };
 }
 
+/**
+ * Whether a profile may be served on the PUBLIC site. The single gate the
+ * public detail route uses: a profile must be VERIFIED (or SUSPENDED, whose
+ * profile stays reachable for transparency) AND actually published — a HIDDEN
+ * (deactivated) or soft-deleted row is never public, even by direct id. This
+ * mirrors the list filter in `queryLawyers` so the listing and the direct URL
+ * can never disagree.
+ */
+export function isPubliclyViewable(profile: LawyerProfile): boolean {
+  if ((profile.visibility ?? "PUBLIC") === "HIDDEN") return false;
+  if (profile.deletedAt) return false;
+  return profile.verificationStatus === "VERIFIED" || profile.verificationStatus === "SUSPENDED";
+}
+
 /** The lawyer's primary specialty node id (expertise first, else specializations). */
 export function primarySpecialtyIdOf(profile: LawyerProfile): string | null {
   const primary = profile.expertise?.find((e) => e.isPrimary);
@@ -631,11 +645,20 @@ export function resolveAdminLifecycle(profile: LawyerProfile): AdminLawyerStatus
  */
 export function adminStatusPatch(
   status: AdminLawyerStatus,
-  now: string = new Date().toISOString()
+  now: string = new Date().toISOString(),
+  /** The current row, so a reactivation can restore a suspended profile. */
+  profile?: LawyerProfile
 ): Partial<LawyerProfile> {
   switch (status) {
     case "ACTIVE":
       return {
+        // Reactivating restores public availability. A SUSPENDED lawyer is put
+        // back to VERIFIED so the "activate" action actually takes effect (the
+        // marketplace and the alert card both read verificationStatus, not just
+        // availability) — otherwise the profile would stay permanently
+        // suspended despite a successful-looking restore. A lawyer who was
+        // never verified is left untouched here.
+        ...(profile?.verificationStatus === "SUSPENDED" ? { verificationStatus: "VERIFIED" as const } : {}),
         visibility: "PUBLIC",
         deletedAt: null,
         availabilityStatus: "ACTIVE",

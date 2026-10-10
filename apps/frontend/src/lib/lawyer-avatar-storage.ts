@@ -11,6 +11,7 @@
 // Only raster formats are accepted (PNG/JPEG/WebP). SVG is deliberately
 // refused: it can carry script and would be served from our own origin.
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -44,10 +45,35 @@ function safeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+/** The public URL that serves a lawyer's stored upload. */
+export function lawyerAvatarPath(id: string): string {
+  return `/api/v1/lawyers/${encodeURIComponent(id)}/avatar`;
+}
+
+/**
+ * Does `url` point at THIS lawyer's stored upload? Accepts the versioned form
+ * (`…/avatar?v=<hash>`) the save path returns as well as the bare path, so a
+ * caller can tell "still the stored portrait" from "an external URL / demo SVG
+ * / cleared" without string-matching an exact value.
+ */
+export function isStoredLawyerAvatar(id: string, url: string | null): boolean {
+  if (!url) return false;
+  const base = lawyerAvatarPath(id);
+  return url === base || url.startsWith(`${base}?`);
+}
+
 /**
  * Persist an uploaded portrait and return the URL to store on the profile.
  * Any previously stored file for this id (under a different extension) is
  * removed so exactly one upload exists per lawyer.
+ *
+ * The returned URL carries a short content hash (`?v=<hash>`) because the
+ * served file path is stable per lawyer and replaced in place. Without a
+ * version token the URL would be byte-identical after a re-upload, so the
+ * browser's cached `Cache-Control: max-age` response (and React's reconciled
+ * `<img>` node) would keep showing the OLD portrait even though the row was
+ * updated — i.e. "the previous avatar comes back". Hashing the bytes makes a
+ * changed portrait a changed URL (fetch fresh) and an unchanged one a no-op.
  */
 export function saveLawyerAvatar(id: string, format: string, bytes: Buffer): string {
   const ext = EXT_BY_FORMAT[format];
@@ -70,7 +96,8 @@ export function saveLawyerAvatar(id: string, format: string, bytes: Buffer): str
   if (!target.startsWith(AVATAR_ROOT + path.sep)) throw new Error("invalid avatar path");
   fs.writeFileSync(target, bytes);
 
-  return `/api/v1/lawyers/${encodeURIComponent(id)}/avatar`;
+  const version = createHash("sha1").update(bytes).digest("hex").slice(0, 10);
+  return `${lawyerAvatarPath(id)}?v=${version}`;
 }
 
 /** Resolve a stored portrait for a profile id, or null when none exists. */

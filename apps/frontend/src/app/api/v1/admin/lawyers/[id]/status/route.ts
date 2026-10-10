@@ -118,21 +118,26 @@ export async function POST(
   }
 
   const previousStatus = before.verificationStatus;
-  const updated = updateLawyerProfile(id, adminStatusPatch(target));
+  const updated = updateLawyerProfile(id, adminStatusPatch(target, undefined, before));
   if (!updated) return mapDataError("NOT_FOUND");
 
   // Suspension is a public, transparency-bearing state — record it in the
   // lawyer's decision history exactly like a verification decision, so the
-  // same timeline shows why the profile is flagged.
+  // same timeline shows why the profile is flagged. A reactivation of a
+  // previously-suspended lawyer is recorded the same way, so the timeline
+  // shows the suspension was lifted (and by whom).
   const actor = findUserById(auth.ctx.userId);
   const actorName = actor?.displayName ?? "مدیر پلتفرم";
-  if (target === "SUSPENDED") {
+  const liftedSuspension = target === "ACTIVE" && previousStatus === "SUSPENDED";
+  if (target === "SUSPENDED" || liftedSuspension) {
     recordStatusDecision({
       id: `lsd-${crypto.randomUUID()}`,
       lawyerId: id,
       previousStatus,
-      newStatus: "SUSPENDED" as LawyerVerificationStatus,
-      reason: reason || "تعلیق توسط مدیر پلتفرم",
+      newStatus: (target === "SUSPENDED" ? "SUSPENDED" : "VERIFIED") as LawyerVerificationStatus,
+      reason:
+        reason ||
+        (target === "SUSPENDED" ? "تعلیق توسط مدیر پلتفرم" : "رفع تعلیق توسط مدیر پلتفرم"),
       actorUserId: auth.ctx.userId,
       actorName,
       actorRole: auth.ctx.role,
