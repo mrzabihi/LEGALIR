@@ -70,6 +70,9 @@ import type {
   UsageHistoryResponse,
   V1BlogListResponse,
   V1BlogPostDetail,
+  V1LegalLibraryListResponse,
+  V1LegalSourceDetail,
+  V1LegalLibraryTopic,
   RewardsSummary,
   RewardsHistoryResponse,
   DailyVisitClaimResponse,
@@ -634,6 +637,52 @@ export function fetchBlogPosts(
 
 export function fetchBlogPost(slug: string): Promise<V1BlogPostDetail> {
   return apiClient.get<V1BlogPostDetail>(`/api/v1/blog/${slug}`);
+}
+
+// ============================================================
+// Legal Library (کتابخانه لیگالیر)
+// ============================================================
+// A product section of its OWN — separate routes and store from the blog.
+// Public reads return PUBLISHED sources only.
+
+export function fetchLegalLibraryItems(params: {
+  search?: string;
+  topic?: string;
+  sourceType?: string;
+  sort?: "newest" | "oldest" | "title" | "popular";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<V1LegalLibraryListResponse> {
+  const p = new URLSearchParams();
+  if (params.search) p.set("search", params.search);
+  if (params.topic) p.set("topic", params.topic);
+  if (params.sourceType) p.set("sourceType", params.sourceType);
+  if (params.sort) p.set("sort", params.sort);
+  p.set("page", String(params.page ?? 1));
+  p.set("pageSize", String(params.pageSize ?? 20));
+  return apiClient.get<V1LegalLibraryListResponse>(`/api/v1/legal-library${qs(p)}`);
+}
+
+export function fetchLegalLibrarySource(id: string): Promise<V1LegalSourceDetail> {
+  return apiClient.get<V1LegalSourceDetail>(`/api/v1/legal-library/${encodeURIComponent(id)}`);
+}
+
+export function fetchLegalLibraryTopics(): Promise<V1LegalLibraryTopic[]> {
+  return apiClient.get<V1LegalLibraryTopic[]>("/api/v1/legal-library/topics");
+}
+
+/**
+ * Toggle the signed-in user's bookmark on a library source. Requires a session;
+ * the public library pages surface the button only when a user is signed in.
+ */
+export function setLegalLibraryBookmark(
+  id: string,
+  bookmarked: boolean
+): Promise<{ bookmarked: boolean }> {
+  const path = `/api/v1/legal-library/${encodeURIComponent(id)}/bookmark`;
+  return bookmarked
+    ? apiClient.post<{ bookmarked: boolean }>(path)
+    : apiClient.delete<{ bookmarked: boolean }>(path);
 }
 
 // ============================================================

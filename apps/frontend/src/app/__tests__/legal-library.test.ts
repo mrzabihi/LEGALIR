@@ -257,16 +257,18 @@ describe("Legal Library route handlers", () => {
     mockFindSession.mockReturnValue(authenticatedSession());
   });
 
-  it("returns 401 when unauthenticated", async () => {
+  it("serves the library list publicly, without a session", async () => {
+    // The public library API is unauthenticated — only PUBLISHED sources are
+    // ever returned (a draft/archived source must never leak here).
     mockFindSession.mockReturnValue(undefined);
     const res = await getLibrary(new Request("http://localhost/api/v1/legal-library"));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.code).toBe("UNAUTHORIZED");
+    expect(Array.isArray(body.data.items)).toBe(true);
   });
 
   it("returns paginated list items", async () => {
-    const res = await getLibrary(authedRequest("http://localhost/api/v1/legal-library?page=1&pageSize=5"));
+    const res = await getLibrary(new Request("http://localhost/api/v1/legal-library?page=1&pageSize=5"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.items).toHaveLength(5);
@@ -291,7 +293,7 @@ describe("Legal Library route handlers", () => {
   });
 
   it("returns topics", async () => {
-    const res = await getTopics(authedRequest("http://localhost/api/v1/legal-library/topics"));
+    const res = await getTopics();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.length).toBeGreaterThan(0);
@@ -319,6 +321,21 @@ describe("Legal Library route handlers", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.code).toBe("NOT_FOUND");
+  });
+
+  it("serves a published source without a stored detail row from its list item", async () => {
+    // `src-guide-contract` has a published card but no detail row — the detail
+    // endpoint must resolve it from the real list item, never 404 (so a card
+    // never dead-ends) and never invent a body.
+    const res = await getSourceDetail(
+      new Request("http://localhost/api/v1/legal-library/src-guide-contract"),
+      { params: Promise.resolve({ id: "src-guide-contract" }) }
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.id).toBe("src-guide-contract");
+    expect(body.data.title).toBeTruthy();
+    expect(body.data.body).toBeNull();
   });
 
   it("bookmarks and un-bookmarks a source", async () => {
