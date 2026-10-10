@@ -119,7 +119,10 @@ function emptyDraft(): PlanDraft {
     nameFa: "",
     shortDescriptionFa: "",
     descriptionFa: "",
-    status: "draft",
+    // New plans go live by default so a plan the operator just created is
+    // immediately purchasable on /subscription. A draft is still one click
+    // away in the status select (and status transitions stay audited).
+    status: "active",
     displayOrder: "",
     tags: "",
     durationDays: "31",

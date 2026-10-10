@@ -278,6 +278,18 @@ export function useAdminPlans() {
   });
 }
 
+/**
+ * Refresh the PUBLIC plan catalog after an admin plan write. `/subscription`
+ * and `/pricing` read the SAME catalog (queryKey `["v1","plans"]`, 10-min
+ * staleTime) the admin edits — so without this a freshly created or published
+ * plan would not appear there until that cache expired. `["plans"]` covers the
+ * legacy `usePlans` key too. One helper, shared by every plan mutation.
+ */
+function invalidatePublicPlans(qc: ReturnType<typeof useQueryClient>): void {
+  void qc.invalidateQueries({ queryKey: ["v1", "plans"] });
+  void qc.invalidateQueries({ queryKey: ["plans"] });
+}
+
 export function useAdminPlan(code: string | null) {
   return useQuery({
     queryKey: ["admin", "plans", "detail", code],
@@ -298,6 +310,7 @@ export function useUpdateAdminPlan() {
         old && typeof old === "object" ? { ...(old as object), plan: updated } : old
       );
       qc.invalidateQueries({ queryKey: ["admin", "plans"] });
+      invalidatePublicPlans(qc);
     },
   });
 }
@@ -308,6 +321,7 @@ export function useCreateAdminPlan() {
     mutationFn: (input: AdminPlanCreateInput) => createAdminPlan(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "plans"] });
+      invalidatePublicPlans(qc);
     },
   });
 }
@@ -322,6 +336,7 @@ export function useSetAdminPlanStatus() {
         old && typeof old === "object" ? { ...(old as object), plan: updated } : old
       );
       qc.invalidateQueries({ queryKey: ["admin", "plans"] });
+      invalidatePublicPlans(qc);
     },
   });
 }
