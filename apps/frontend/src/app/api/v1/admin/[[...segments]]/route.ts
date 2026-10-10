@@ -97,6 +97,7 @@ import {
 } from "@/lib/admin/calculator-settings";
 import {
   listRuleSummaries,
+  listCalculatorRuleBoard,
   getRuleDetail,
   saveRuleDraft,
   previewDraft,
@@ -462,6 +463,10 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       // dataset; `calculators/rules/:datasetId` returns one dataset's full
       // rule view. Everything else under `calculators/:slug` is the §5 policy.
       if (b === "rules") {
+        // The calculator-centric rule board: every calculator with its service
+        // status, active rule version, last change and legal source. Powers the
+        // «مدیریت فرمول‌ها» surface. Super-Admin-gated (see permissionFor).
+        if (d === "board") return ok({ items: listCalculatorRuleBoard() });
         if (!d) return ok({ items: listRuleSummaries() });
         const detail = getRuleDetail(d);
         if (!detail) return adminError(404, "DATASET_NOT_FOUND", "مجموعه‌داده یافت نشد");
@@ -1731,7 +1736,16 @@ function permissionFor(method: string, segments: string[]): Permission {
     case "settlements": return b && method === "GET" ? "admin:finance:read" : "admin:settlement:manage";
     case "ai": return method === "GET" ? "admin:ai:read" : "admin:ai:manage";
     case "rag": return method === "GET" ? "admin:rag:read" : "admin:rag:manage";
-    case "calculators": return method === "GET" ? "admin:calculators:read" : "admin:calculators:manage";
+    case "calculators":
+      // The RULE layer (`calculators/rules*`) is a system-level, publish-gated
+      // surface gated by its OWN Super-Admin-only permissions; the calc's
+      // operational policy (`calculators/:slug`) stays under the manager pair.
+      if (b === "rules") {
+        return method === "GET"
+          ? "admin:calculators:rules:read"
+          : "admin:calculators:rules:manage";
+      }
+      return method === "GET" ? "admin:calculators:read" : "admin:calculators:manage";
     case "energy": return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
     case "support": return method === "GET" ? "admin:support:read" : "admin:support:manage";
     case "content": return "admin:content:read";

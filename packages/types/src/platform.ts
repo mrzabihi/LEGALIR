@@ -196,6 +196,12 @@ export type Permission =
   | "admin:rag:publish"
   | "admin:calculators:read"
   | "admin:calculators:manage"
+  // Calculator RULE management (formulas/rates/versions) is a system-level
+  // capability reserved to the Super Admin — a normal platform manager may run
+  // and configure a calculator's operational policy (enabled / tier / energy)
+  // but must NOT view or change the rule layer that produces user results.
+  | "admin:calculators:rules:read"
+  | "admin:calculators:rules:manage"
   | "admin:energy:read"
   | "admin:energy:manage"
   | "admin:support:read"
@@ -503,6 +509,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:knowledge:write",
     "admin:calculators:read",
     "admin:calculators:manage",
+    // Rule-layer management is Super-Admin-only; only this role holds these.
+    "admin:calculators:rules:read",
+    "admin:calculators:rules:manage",
     "admin:energy:read",
     "admin:energy:manage",
     "admin:support:read",

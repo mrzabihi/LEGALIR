@@ -196,6 +196,9 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   "admin:flags:manage": { fa: "مدیریت پرچم‌های ویژگی", group: "plans" },
   "admin:calculators:read": { fa: "مشاهده محاسبه‌گرها", group: "plans" },
   "admin:calculators:manage": { fa: "مدیریت محاسبه‌گرها", group: "plans" },
+  // Rule-layer (formula/rate/version) management — Super-Admin-only.
+  "admin:calculators:rules:read": { fa: "مشاهدهٔ قواعد محاسبه", group: "plans" },
+  "admin:calculators:rules:manage": { fa: "مدیریت و انتشار قواعد محاسبه", group: "plans" },
   // --- Finance ---
   "admin:billing:read": { fa: "مشاهده فروش و سفارش‌ها", group: "finance" },
   "admin:billing:manage": { fa: "مدیریت فروش و سفارش‌ها", group: "finance" },

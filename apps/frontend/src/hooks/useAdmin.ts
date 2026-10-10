@@ -86,6 +86,7 @@ import {
   updateCalculatorSetting,
   type UpdateCalculatorSettingInput,
   fetchCalculatorRules,
+  fetchCalculatorRuleBoard,
   fetchCalculatorRuleDetail,
   saveCalculatorRuleDraft,
   type SaveCalculatorRuleDraftInput,
@@ -874,10 +875,26 @@ export function useUpdateCalculatorSetting() {
 // affects users; publishing a valid version is what changes real results.
 
 /** Every dataset's rule-layer status (seed, active version, open draft). */
-export function useCalculatorRules() {
+export function useCalculatorRules(enabled = true) {
   return useQuery({
     queryKey: ["admin", "calculators", "rules"],
     queryFn: fetchCalculatorRules,
+    enabled,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/**
+ * The calculator-centric rule board (every calculator: service status, in-force
+ * version, open draft, last change, legal source). Backs «مدیریت فرمول‌ها».
+ * Super-Admin-only — callers gate it on `admin:calculators:rules:read`.
+ */
+export function useCalculatorRuleBoard(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "calculators", "rules", "board"],
+    queryFn: fetchCalculatorRuleBoard,
+    enabled,
     staleTime: 30_000,
     retry: 1,
   });

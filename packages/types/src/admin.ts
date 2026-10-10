@@ -703,6 +703,57 @@ export interface RulePublishPreview {
   changedCount: number;
 }
 
+/**
+ * The most recent rule change recorded for a calculator's datasets — a
+ * published version or a saved draft, whichever happened last.
+ */
+export interface CalculatorRuleLastChange {
+  /** ISO timestamp of the change. */
+  at: string;
+  /** The acting admin's user id, or null for a system/seed change. */
+  by: string | null;
+  /** The admin's change note (farsi). */
+  noteFa: string;
+  /** Human version label, e.g. `court-fee-1405.2`. */
+  version: string;
+  action: "draft" | "published";
+}
+
+/**
+ * One calculator's rule-layer status, for the «مدیریت فرمول‌ها» board. The
+ * operational policy (enabled/access/energy) rides along so the board shows
+ * the full picture per calculator, but it is edited in the settings drawer —
+ * never here.
+ */
+export interface CalculatorRuleBoardRow {
+  slug: string;
+  titleFa: string;
+  category: string;
+  /** The versioned datasets this calculator multiplies by (may be empty). */
+  datasetIds: string[];
+  /** Operational policy (edited elsewhere; shown for context). */
+  enabled: boolean;
+  accessTier: CalculatorAccessTier;
+  energyCost: number;
+  /**
+   * Which source produces the calculator's figures:
+   *   none       → no versioned dataset (a fixed code formula);
+   *   code-seed  → a versioned dataset, but the checked-in seed is in force;
+   *   published  → a published, in-force DB rule override is applied.
+   */
+  rulesState: "none" | "code-seed" | "published";
+  /** The version label in force (seed or published rule), or null. */
+  effectiveVersion: string | null;
+  /** The open draft version label, if one exists. */
+  draftVersion: string | null;
+  /** Verification of the effective figures (pending = needs legal review). */
+  verificationStatus: "verified" | "pending";
+  /** The governing instrument(s), e.g. «قوه قضائیه — …». */
+  legalSourceFa: string;
+  /** The most recent rule change, or null when the seed has never been touched. */
+  lastChange: CalculatorRuleLastChange | null;
+}
+
 /** The rule-version facts the run/policy responses carry to the caller. */
 export interface CalculatorRuleRef {
   datasetId: string;

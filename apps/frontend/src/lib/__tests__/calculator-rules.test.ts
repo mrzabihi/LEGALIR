@@ -34,6 +34,7 @@ import {
   getRuleVersion,
   listRuleSummaries,
   getRuleDetail,
+  listCalculatorRuleBoard,
   buildRuleSchema,
   validateDraftRates,
   saveRuleDraft,
@@ -47,6 +48,7 @@ import {
 } from "@/lib/admin/calculator-rules";
 import {
   getDataset,
+  listCalculators,
   runCalculator,
   runCalculatorWithRules,
   clearRuleOverrides,
@@ -366,6 +368,46 @@ describe("admin read models", () => {
   it("returns null for an unknown dataset", () => {
     expect(getRuleDetail("nope")).toBeNull();
     expect(buildRuleSchema("nope")).toEqual([]);
+  });
+});
+
+describe("calculator rule board — every calculator, real rule state", () => {
+  it("lists every registered calculator with an effective version", () => {
+    const board = listCalculatorRuleBoard();
+    const slugs = board.map((b) => b.slug).sort();
+    const registered = listCalculators().map((c) => c.def.slug).sort();
+    expect(slugs).toEqual(registered);
+    expect(board.length).toBeGreaterThanOrEqual(25);
+    // Every calculator carries the seed version in force and a legal source.
+    for (const row of board) {
+      expect(row.rulesState).toBe("code-seed");
+      expect(row.effectiveVersion).not.toBeNull();
+      expect(row.legalSourceFa.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("a draft shows as a draft WITHOUT flipping the row to published", () => {
+    saveRuleDraft(DS, { rates: { nonMonetaryFlatRial: 3_000_000 }, changeNoteFa: "d" }, "a");
+    const row = listCalculatorRuleBoard().find((b) => b.slug === SLUG)!;
+    expect(row.draftVersion).not.toBeNull();
+    expect(row.rulesState).toBe("code-seed");
+    expect(row.lastChange?.action).toBe("draft");
+  });
+
+  it("publishing flips the row to `published` with the new version label", () => {
+    const d = saveRuleDraft(
+      DS,
+      { rates: { nonMonetaryFlatRial: 3_000_000 }, changeNoteFa: "publish" },
+      "a"
+    );
+    if ("error" in d) throw new Error("unexpected error");
+    publishDraft(d.id, "a");
+    const row = listCalculatorRuleBoard().find((b) => b.slug === SLUG)!;
+    expect(row.rulesState).toBe("published");
+    expect(row.effectiveVersion).toContain("court-fee-1405.2");
+    expect(row.draftVersion).toBeNull();
+    expect(row.lastChange?.action).toBe("published");
+    expect(row.lastChange?.version).toBe("court-fee-1405.2");
   });
 });
 

@@ -83,6 +83,7 @@ import type {
   CalculatorAccessTier,
   CalculatorRuleSummary,
   CalculatorRuleDetail,
+  CalculatorRuleBoardRow,
   CalculatorRuleVersion,
   CalculatorRuleSourceOverride,
   RulePublishPreview,
@@ -1051,6 +1052,16 @@ export function updateCalculatorSetting(
 /** Every dataset's rule layer status (seed, active version, open draft). */
 export function fetchCalculatorRules(): Promise<{ items: CalculatorRuleSummary[] }> {
   return apiClient.get<{ items: CalculatorRuleSummary[] }>(`${A}/calculators/rules`);
+}
+
+/**
+ * The calculator-centric rule board — every calculator with its service status,
+ * in-force rule version, open draft, last change and legal source. This is the
+ * read model behind «مدیریت فرمول‌ها». Super-Admin-only (enforced server-side by
+ * `admin:calculators:rules:read`).
+ */
+export function fetchCalculatorRuleBoard(): Promise<{ items: CalculatorRuleBoardRow[] }> {
+  return apiClient.get<{ items: CalculatorRuleBoardRow[] }>(`${A}/calculators/rules/board`);
 }
 
 /** One dataset's full rule view: seed, effective rates, schema, history. */
