@@ -13,6 +13,7 @@ import type {
   BlogCategory,
   LegalBookmark,
   LegalContentType,
+  LegalSourceStatus,
   V1BlogListItem,
   V1BlogPostDetail,
   V1LegalLibraryListItem,
@@ -64,10 +65,72 @@ function writeJsonFile<T>(fileName: string, data: T): void {
 // Table shapes
 // ============================================================
 
-interface LegalLibraryTable {
-  items: V1LegalLibraryListItem[];
+/**
+ * A stored list item — the public shape plus the admin publish lifecycle. The
+ * pre-existing seed fixtures carry neither `slug` (they never needed a
+ * human-facing URL) nor `status`, so both are optional and derived/back-filled
+ * on read and on first admin write.
+ */
+export type StoredLegalListItem = V1LegalLibraryListItem & {
+  slug?: string;
+  status?: LegalSourceStatus;
+  /** ISO publish time — stamped on publish, cleared on any other status. */
+  publishedAt?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  createdBy?: string | null;
+  createdAt?: string;
+};
+
+/**
+ * A stored detail row — the public detail plus admin authorship. NOTE: it does
+ * NOT carry the publish lifecycle: `V1LegalSourceDetail.status` is already the
+ * Persian *validity* string («معتبر»), so the draft/published/archived status
+ * lives only on the list item (which is what the public list filters on).
+ */
+export type StoredLegalDetail = V1LegalSourceDetail & {
+  createdBy?: string | null;
+};
+
+export interface LegalLibraryTable {
+  items: StoredLegalListItem[];
   topics: V1LegalLibraryTopic[];
-  details: Record<string, V1LegalSourceDetail>;
+  details: Record<string, StoredLegalDetail>;
+}
+
+/**
+ * The stored status when present. A source with NO `status` field is a legacy
+ * row that predates the lifecycle — it was in the live catalog, so it reads as
+ * PUBLISHED (this is what keeps the existing library cards public rather than
+ * silently hiding them). Every source written by the admin authoring layer
+ * carries an explicit `status` (a new source is always DRAFT until published),
+ * so only genuinely admin-set DRAFT/ARCHIVED rows are ever hidden.
+ */
+export function legalSourceStatusOf(item: StoredLegalListItem): LegalSourceStatus {
+  return item.status ?? "PUBLISHED";
+}
+
+/** True when a stored item is visible on the public site (published only). */
+export function isPubliclyVisible(item: StoredLegalListItem): boolean {
+  return legalSourceStatusOf(item) === "PUBLISHED";
+}
+
+/**
+ * True when a stored blog post is visible on the public site. Unlike the
+ * library (whose lifecycle lives on the list item), a blog post's status lives
+ * on the DETAIL row — the list item only carries `publishedAt`. So the guard
+ * needs both halves. Legacy rows that predate the lifecycle carry no status and
+ * fall back to `publishedAt`, which keeps the seeded posts public while a
+ * DRAFT/ARCHIVED (or never-published) post is hidden.
+ */
+export function isBlogPostPubliclyVisible(
+  item: V1BlogListItem | undefined,
+  detail: V1BlogPostDetail | undefined
+): boolean {
+  const status = (detail as { status?: string } | undefined)?.status;
+  if (status) return status === "PUBLISHED";
+  return Boolean(item?.publishedAt ?? detail?.publishedAt);
 }
 
 interface BlogTable {
@@ -104,6 +167,14 @@ export function readLegalLibrary(): LegalLibraryTable {
     return seeded;
   }
   return table;
+}
+
+/**
+ * Persist the library table. Used ONLY by the admin authoring layer
+ * (lib/admin/legal-library) — the public site never writes reference content.
+ */
+export function writeLegalLibrary(table: LegalLibraryTable): void {
+  writeJsonFile(LEGAL_LIBRARY_FILE, table);
 }
 
 export function readBlog(): BlogTable {

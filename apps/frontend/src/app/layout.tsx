@@ -3,8 +3,12 @@ import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { InstallBanner } from "@/components/pwa/install-banner";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
+import { SITE_URL, absoluteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
+  // Resolves every relative URL in metadata (canonical, openGraph, icons) to an
+  // absolute one. Env-driven via NEXT_PUBLIC_SITE_URL — no hard-coded domain.
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "لیگالیر | دستیار هوشمند حقوقی ایران",
     template: "%s | لیگالیر",
@@ -12,6 +16,25 @@ export const metadata: Metadata = {
   description: "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
   applicationName: "لیگالیر",
   manifest: "/manifest.json",
+  // Public pages opt in explicitly; private groups (app/admin/auth) override
+  // this with `robots: { index: false }` on their own layouts/pages.
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    siteName: "لیگالیر",
+    locale: "fa_IR",
+    url: absoluteUrl("/"),
+    title: "لیگالیر | دستیار هوشمند حقوقی ایران",
+    description: "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "لیگالیر | دستیار هوشمند حقوقی ایران",
+    description: "پلتفرم هوشمند قوانین و قراردادهای حقوقی ایران",
+  },
   // iOS standalone chrome — Safari ignores the manifest's display mode for
   // the status bar and home-screen title, so these meta tags are required.
   appleWebApp: {
