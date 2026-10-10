@@ -32,6 +32,7 @@ import {
   IconHistory,
   IconRefresh,
   IconStar,
+  IconLibrary,
 } from "@/lib/icons";
 import { PointsSummaryCard } from "./points-summary-card";
 import { TextField } from "@legalir/ui";
@@ -278,8 +279,24 @@ function WidgetEmpty({ message }: { message: string }) {
 }
 
 // ============================================================
-// HeroSection — gradient hero with greeting, stats, and input
+// HeroSection — image hero with greeting + key stats
 // ============================================================
+// A wide, photographic hero (the LEGALIR editorial — brass scales, law
+// volumes and the Tehran skyline) carries the greeting and the five key
+// operational numbers. The bitmap is the only decoration: text legibility
+// comes from a two-layer navy scrim (a flat tint plus a diagonal wash that
+// is darkest where the greeting sits), never from a gradient background.
+//
+// The image is one asset, cropped two ways: on a phone the focal point is
+// pinned to the scales/books cluster (object-position ~72%) so the crop
+// stays meaningful; from `tablet` up the full frame is shown. `object-cover`
+// is the picture equivalent of `background-size: cover`, and `object-position`
+// of `background-position` — both are applied responsively instead of via an
+// inline `background-image` on a media-query-less element.
+//
+// Every stat sits in its own soft frosted card so the numbers stay readable
+// over any part of the photo. All values remain real (see the page and
+// /api/v1/dashboard/summary) — nothing here is hard-coded.
 
 interface HeroSectionProps {
   displayName: string | null;
@@ -291,6 +308,51 @@ interface HeroSectionProps {
     activeReqCount: number;
     daysRemaining: number;
   };
+}
+
+/**
+ * One shared surface for the hero's stat cards: a soft frosted panel in the
+ * warm frosted-glass material so the cards read as one family while each
+ * keeps its own accent glow. White text on the navy scrim clears WCAG AA
+ * comfortably at every breakpoint.
+ */
+const HERO_STAT_CARD =
+  "group relative overflow-hidden rounded-large border border-white/15 bg-white/10 backdrop-blur-md p-3.5 tablet:p-4 flex flex-col gap-2 text-white transition-colors duration-short4 ease-standard hover:bg-white/15 hover:border-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
+
+/**
+ * Photographic hero backdrop: one image, responsively cropped, sitting under a
+ * two-layer navy scrim. The scrim — not a background gradient — is what keeps
+ * the greeting legible, and it is darkest at the reading start (RTL: the
+ * right, where the greeting sits), easing toward the artwork on the far side.
+ */
+function HeroBackdrop() {
+  return (
+    <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/assets/legalir-dashboard-hero.webp"
+        alt=""
+        fetchPriority="high"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-[72%_center] tablet:object-center"
+      />
+      {/* Layer 1 — flat tint: a baseline contrast lift across the whole frame. */}
+      <div className="absolute inset-0 bg-[rgba(11,18,32,0.5)]" />
+      {/* Layer 2 — directional wash: darkest at the greeting, easing out. */}
+      <div className="absolute inset-0 bg-[linear-gradient(255deg,rgba(11,18,32,0.72)_0%,rgba(11,18,32,0.5)_45%,rgba(11,18,32,0.18)_100%)]" />
+    </div>
+  );
+}
+
+/** Soft per-card accent wash so each stat is instantly distinguishable. */
+function HeroAccentGlow({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute -top-8 -end-8 h-24 w-24 rounded-full blur-2xl transition-opacity duration-long2 opacity-70 group-hover:opacity-100"
+      style={{ background: color }}
+    />
+  );
 }
 
 export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps) {
@@ -320,48 +382,48 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
 
   if (isLoading) {
     return (
-      <div className="rounded-large bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 animate-pulse">
-        <div className="h-9 w-56 rounded-medium bg-white/10 mb-3" />
-        <div className="h-5 w-40 rounded-medium bg-white/10 mb-8" />
-        <div className="grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-20 rounded-medium bg-white/10" />
-          ))}
+      <div className="relative rounded-large overflow-hidden mb-6 animate-pulse" data-hero>
+        <HeroBackdrop />
+        <div className="relative p-6 tablet:p-8 laptop:p-10">
+          <div className="h-9 w-56 rounded-medium bg-white/15 mb-3" />
+          <div className="h-5 w-40 rounded-medium bg-white/15 mb-8" />
+          <div className="grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-20 rounded-large bg-white/10" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative rounded-large bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 p-6 tablet:p-8 mb-6 overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-[rgba(96,165,250,0.10)] blur-3xl" />
-        <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[rgba(176,141,87,0.12)] blur-3xl" />
-      </div>
+    <div className="relative rounded-large overflow-hidden mb-6" data-hero>
+      {/* ── Backdrop: photographic hero + navy legibility scrim ── */}
+      <HeroBackdrop />
 
-      {/* Greeting */}
-      <div className="relative">
-        <h1 className="text-h2 tablet:text-h1 text-white font-bold">
-          سلام، {name}
-          <span className="inline-block ml-2 animate-bounce-gentle">👋</span>
-        </h1>
-        <p className="text-body-1 text-primary-200 mt-1">به محیط کار LEGALIR خوش آمدید</p>
-      </div>
+      {/* ── Content ── */}
+      <div className="relative p-5 tablet:p-8 laptop:p-10">
+        {/* Greeting */}
+        <div className="max-w-2xl">
+          <h1 className="text-h2 tablet:text-h1 text-white font-bold drop-shadow-[0_1px_8px_rgba(11,18,32,0.55)]">
+            سلام، {name}
+            <span className="inline-block ms-2 animate-bounce-gentle">👋</span>
+          </h1>
+          <p className="text-body-1 text-white/80 mt-1 drop-shadow-[0_1px_6px_rgba(11,18,32,0.55)]">
+            به محیط کار LEGALIR خوش آمدید
+          </p>
+        </div>
 
-      {/* Stat cards — RTL: the points card is first in DOM, so it renders
-          as the right-most card. */}
-      <div className="relative grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3 mt-6">
+        {/* Stat cards — RTL: the points card is first in DOM, so it renders
+            as the right-most card. */}
+        <div className="relative grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3 mt-6 tablet:mt-8">
         {/* امتیاز من — balance + mini consumption chart (shared rewards source) */}
         <PointsSummaryCard />
 
         {/* درخواست امروز — donut: consumed vs remaining */}
-        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.10))] text-info-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(147,197,253,0.30)]">
-          {/* soft glow that intensifies on hover */}
-          <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(96,165,250,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
-            aria-hidden="true"
-          />
+        <div className={HERO_STAT_CARD}>
+          <HeroAccentGlow color="rgba(96,165,250,0.30)" />
           <div className="relative flex items-center gap-3">
             <div
               className="relative w-11 h-11 shrink-0"
@@ -376,7 +438,7 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
                   </linearGradient>
                 </defs>
                 {/* track = consumed portion */}
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
                 {/* remaining allowance sweeps from 12 o'clock */}
                 <circle
                   cx="18" cy="18" r="15.915" fill="none"
@@ -394,57 +456,49 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
               <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">
                 {dailyUsed}/{dailyTotal}
               </p>
-              <p className="text-caption text-primary-200 mt-0.5">درخواست امروز</p>
+              <p className="text-caption text-white/75 mt-0.5">درخواست امروز</p>
             </div>
           </div>
           {/* legend: consumed vs remaining */}
-          <div className="relative flex items-center gap-3 text-[10px] text-[color:color-mix(in_srgb,var(--color-primary-200)_90%,transparent)]">
+          <div className="relative flex items-center gap-3 text-[10px] text-white/75">
             <span className="inline-flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-info-300" aria-hidden="true" />
               {dailyRemaining.toLocaleString("fa-IR")} مانده
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-white/25" aria-hidden="true" />
+              <span className="w-2 h-2 rounded-full bg-white/30" aria-hidden="true" />
               {dailyUsed.toLocaleString("fa-IR")} مصرف
             </span>
           </div>
         </div>
 
-        {/* اسناد — gradient icon ring + count badge */}
-        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(34,197,94,0.22),rgba(22,163,74,0.10))] text-success-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(134,239,172,0.30)]">
-          {/* soft glow that intensifies on hover */}
-          <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(74,222,128,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
-            aria-hidden="true"
-          />
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-[rgba(74,222,128,0.20)] text-success-200 ring-1 ring-inset ring-[rgba(134,239,172,0.20)] transition-transform duration-short4 ease-standard group-hover:scale-105">
+        {/* اسناد — icon chip + count badge */}
+        <div className={HERO_STAT_CARD}>
+          <HeroAccentGlow color="rgba(74,222,128,0.30)" />
+          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-white/15 text-white ring-1 ring-inset ring-white/20 transition-transform duration-short4 ease-standard group-hover:scale-105">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-success-400 text-success-900 text-[10px] font-bold tabular-nums ring-2 ring-[color-mix(in_srgb,var(--color-success-500)_20%,transparent)]">
+            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-success-400 text-success-900 text-[10px] font-bold tabular-nums ring-2 ring-white/20">
               {stats.docCount.toLocaleString("fa-IR")}
             </span>
           </span>
           <div className="relative">
             <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.docCount.toLocaleString("fa-IR")}</p>
-            <p className="text-caption text-primary-200 mt-0.5">اسناد</p>
+            <p className="text-caption text-white/75 mt-0.5">اسناد</p>
           </div>
         </div>
 
         {/* درخواست فعال — blinking light-sweep effect */}
-        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.10))] text-info-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(147,197,253,0.30)]">
+        <div className={HERO_STAT_CARD}>
           <span className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-            <span className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-light-sweep" />
+            <span className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-light-sweep" />
           </span>
-          {/* soft glow that intensifies on hover */}
-          <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(96,165,250,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
-            aria-hidden="true"
-          />
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-[rgba(96,165,250,0.20)] text-info-200 ring-1 ring-inset ring-[rgba(147,197,253,0.20)] transition-transform duration-short4 ease-standard group-hover:scale-105">
+          <HeroAccentGlow color="rgba(96,165,250,0.30)" />
+          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-white/15 text-white ring-1 ring-inset ring-white/20 transition-transform duration-short4 ease-standard group-hover:scale-105">
             <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-info-300 animate-status-blink" aria-hidden="true" />
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -452,17 +506,13 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
           </span>
           <div className="relative">
             <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.activeReqCount.toLocaleString("fa-IR")}</p>
-            <p className="text-caption text-primary-200 mt-0.5">درخواست فعال</p>
+            <p className="text-caption text-white/75 mt-0.5">درخواست فعال</p>
           </div>
         </div>
 
         {/* روز باقی‌مانده — pie chart + 30-day strip */}
-        <div className="group relative overflow-hidden rounded-medium bg-[linear-gradient(135deg,rgba(245,158,11,0.22),rgba(217,119,6,0.10))] text-warning-100 border border-white/10 backdrop-blur p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(252,211,77,0.30)]">
-          {/* soft glow that intensifies on hover */}
-          <span
-            className="pointer-events-none absolute -top-8 -end-8 w-24 h-24 rounded-full bg-[rgba(251,191,36,0.20)] blur-2xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100"
-            aria-hidden="true"
-          />
+        <div className={HERO_STAT_CARD}>
+          <HeroAccentGlow color="rgba(251,191,36,0.30)" />
           <div className="relative flex items-center gap-3">
             <div className="relative w-11 h-11 shrink-0" role="img" aria-label={`${daysLeft} روز باقی‌مانده از ${daysTotal} روز`}>
               <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -472,7 +522,7 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
                     <stop offset="100%" stopColor="#f59e0b" />
                   </linearGradient>
                 </defs>
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
                 <circle
                   cx="18" cy="18" r="15.915" fill="none"
                   stroke="url(#daysLeftGrad)" strokeWidth="4" strokeLinecap="round"
@@ -487,7 +537,7 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
             </div>
             <div>
               <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.daysRemaining.toLocaleString("fa-IR")}</p>
-              <p className="text-caption text-primary-200 mt-0.5">روز باقی‌مانده</p>
+              <p className="text-caption text-white/75 mt-0.5">روز باقی‌مانده</p>
             </div>
           </div>
           {/* 30-day strip: elapsed red, remaining green */}
@@ -498,15 +548,69 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
                 className={[
                   "h-1.5 rounded-full transition-colors duration-short4 ease-standard",
                   elapsed
-                    ? "bg-[color-mix(in_srgb,var(--color-error-400)_70%,transparent)]"
-                    : "bg-[color-mix(in_srgb,var(--color-success-400)_70%,transparent)]",
+                    ? "bg-[color-mix(in_srgb,var(--color-error-400)_85%,transparent)]"
+                    : "bg-[color-mix(in_srgb,var(--color-success-400)_85%,transparent)]",
                 ].join(" ")}
               />
             ))}
           </div>
         </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// LibraryBanner — image entry point to the Legal Library
+// ============================================================
+// A wide, image-driven band into «کتابخانه حقوقی LEGALIR». The backdrop is
+// the shared brand editorial cropped hard onto the law volumes with the
+// reading side (RTL: the right) darkened, so the copy clears contrast while
+// the artwork still reads as a photograph. Destination and copy are
+// unchanged from the previous inline banner — `/legal-library` only.
+
+export function LibraryBanner() {
+  return (
+    <section
+      aria-label="کتابخانه حقوقی LEGALIR"
+      className="relative mb-6 overflow-hidden rounded-large border border-[color:var(--color-outline-variant)] shadow-elevation-1"
+    >
+      <div className="absolute inset-0" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/legalir-dashboard-hero.webp"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover object-[88%_center]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(255deg,rgba(11,18,32,0.92)_0%,rgba(11,18,32,0.68)_55%,rgba(11,18,32,0.34)_100%)]" />
+      </div>
+
+      <div className="relative flex flex-col items-center gap-4 p-5 text-center tablet:flex-row tablet:p-6 tablet:text-right">
+        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-large bg-white/15 text-secondary-300 ring-1 ring-inset ring-white/20 backdrop-blur-md">
+          <IconLibrary size={24} />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="text-titleMedium font-semibold text-white drop-shadow-[0_1px_6px_rgba(11,18,32,0.6)]">
+            کتابخانه حقوقی LEGALIR
+          </h3>
+          <p className="mt-0.5 text-caption text-white/80 drop-shadow-[0_1px_5px_rgba(11,18,32,0.6)]">
+            دسترسی رایگان به قوانین، آرای وحدت رویه، راهنماها و منابع آموزشی حقوقی
+          </p>
+        </div>
+
+        <Link
+          href="/legal-library"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary-600 px-5 py-2.5 text-button font-semibold text-white shadow-elevation-1 transition-colors duration-short3 ease-standard hover:bg-secondary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent touch-target"
+        >
+          مشاهده
+          <IconChevronRight size={15} />
+        </Link>
+      </div>
+    </section>
   );
 }
 

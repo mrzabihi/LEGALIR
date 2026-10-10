@@ -3,6 +3,7 @@ export {
   DashboardSection,
   StatusChip,
   HeroSection,
+  LibraryBanner,
   PromoBanner,
   ProfileCompletionCard,
   RecentActivities,
