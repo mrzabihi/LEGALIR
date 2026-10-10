@@ -39,6 +39,7 @@ import {
   IconOpenInNew,
   IconChevronUp,
   IconChevronDown,
+  IconChevronLeft,
   IconSearch,
   IconClose,
   IconDownload,
@@ -266,6 +267,38 @@ const STAT_TONES = {
   danger: { value: "text-error-600", tile: "bg-error-soft text-error-700" },
 } as const;
 
+/**
+ * Metric-family accent. Applied to a KPI card in exactly two restrained,
+ * token-derived places — the leading icon tile and a thin bar on the card's
+ * start edge — so the cards of one family (users · lawyers · sales) read as a
+ * group without a loud fill. The number keeps its semantic `tone`, so colour is
+ * never the only carrier of meaning.
+ */
+export type StatAccent = "brand" | "info" | "success" | "warning";
+
+export const ACCENT_TOKENS: Record<StatAccent, { tile: string; bar: string; hover: string }> = {
+  brand: {
+    tile: "bg-primary-soft text-primary",
+    bar: "bg-primary",
+    hover: "hover:border-primary-300",
+  },
+  info: {
+    tile: "bg-info-soft text-info-700",
+    bar: "bg-info-500",
+    hover: "hover:border-info-300",
+  },
+  success: {
+    tile: "bg-success-soft text-success-700",
+    bar: "bg-success-500",
+    hover: "hover:border-success-300",
+  },
+  warning: {
+    tile: "bg-warning-soft text-warning-700",
+    bar: "bg-warning-500",
+    hover: "hover:border-warning-300",
+  },
+};
+
 export function StatCard({
   label,
   value,
@@ -274,9 +307,14 @@ export function StatCard({
   tone = "default",
   icon,
   accent = false,
+  accentTone,
   trend,
   href,
   valueTitle,
+  unavailable = false,
+  unavailableLabel = "قابل محاسبه نیست",
+  chart,
+  moreLabel,
 }: {
   label: string;
   value: string | number;
@@ -288,14 +326,34 @@ export function StatCard({
   icon?: ReactNode;
   /** Emphasise the card with a brand-tinted surface (a section lead KPI). */
   accent?: boolean;
+  /**
+   * Tint the icon tile and add a thin start-edge bar in the metric family's
+   * colour. Unlike `accent` this keeps a flat surface, so a row of cards reads
+   * as one calm family with a controlled per-group hue.
+   */
+  accentTone?: StatAccent;
   /** Change-vs-previous-period indicator. Omitted when no honest comparison. */
   trend?: StatTrend;
   /** When set the whole card becomes a link to its detail report. */
   href?: string;
   /** Tooltip on the value (e.g. the exact figure behind a compact display). */
   valueTitle?: string;
+  /**
+   * A metric that cannot be derived from available data (e.g. AI error rate
+   * with no provider telemetry). Renders `unavailableLabel` in a muted tone
+   * instead of a value that could be misread as a real zero, and suppresses the
+   * unit, trend and chart entirely. `hint` carries the reason.
+   */
+  unavailable?: boolean;
+  /** Placeholder text for an `unavailable` metric. */
+  unavailableLabel?: string;
+  /** An optional compact glyph under the value (e.g. a `Sparkline`). */
+  chart?: ReactNode;
+  /** Visible link text shown inside a linked card (e.g. «مشاهدهٔ جزئیات»). */
+  moreLabel?: string;
 }) {
   const t = STAT_TONES[tone];
+  const isUnavailable = unavailable === true;
 
   const trendClass =
     trend?.tone === "good"
@@ -310,9 +368,9 @@ export function StatCard({
         {icon && (
           <span
             aria-hidden="true"
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium transition-transform duration-200 motion-reduce:transition-none ${t.tile} ${
-              href ? "group-hover:scale-105" : ""
-            }`}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium transition-transform duration-200 motion-reduce:transition-none ${
+              accentTone ? ACCENT_TOKENS[accentTone].tile : t.tile
+            } ${href ? "group-hover:scale-105" : ""}`}
           >
             {icon}
           </span>
@@ -329,13 +387,23 @@ export function StatCard({
 
       <div className="mt-3 flex items-end justify-between gap-2">
         <p
-          className={`text-h2 font-bold leading-none tabular-nums ${t.value}`}
+          className={
+            isUnavailable
+              ? "text-h4 font-semibold leading-snug text-muted"
+              : `text-h2 font-bold leading-none tabular-nums ${t.value}`
+          }
           title={valueTitle}
         >
-          {typeof value === "number" ? toPersianNumber(value) : value}
-          {unit && <span className="ms-1 text-caption font-medium text-muted">{unit}</span>}
+          {isUnavailable
+            ? unavailableLabel
+            : typeof value === "number"
+              ? toPersianNumber(value)
+              : value}
+          {unit && !isUnavailable && (
+            <span className="ms-1 text-caption font-medium text-muted">{unit}</span>
+          )}
         </p>
-        {trend && (
+        {trend && !isUnavailable && (
           <span
             className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-caption font-semibold tabular-nums ${trendClass}`}
             title={trend.titleFa}
@@ -352,36 +420,64 @@ export function StatCard({
         )}
       </div>
 
-      {(hint || trend) && (
+      {chart && !isUnavailable && <div className="mt-3">{chart}</div>}
+
+      {(hint || (trend && !isUnavailable)) && (
         <p className="mt-2 text-caption leading-relaxed text-muted">
           {hint}
-          {hint && trend && <span aria-hidden="true"> · </span>}
-          {trend && <span className="text-muted">نسبت به بازهٔ قبل</span>}
+          {hint && trend && !isUnavailable && <span aria-hidden="true"> · </span>}
+          {trend && !isUnavailable && <span className="text-muted">نسبت به بازهٔ قبل</span>}
         </p>
+      )}
+
+      {href && moreLabel && (
+        <span className="mt-3 inline-flex items-center gap-1 text-caption font-medium text-primary">
+          {moreLabel}
+          <IconChevronLeft size={13} aria-hidden="true" />
+        </span>
       )}
     </>
   );
 
+  const accentCls = accentTone ? ACCENT_TOKENS[accentTone] : null;
+
   // Accent KPI cards get a restrained brand sheen (top-to-bottom wash) instead
-  // of a flat tint — a controlled gradient that keeps the value legible.
-  const shell = `${CARD_BASE} p-4 ${CARD_REST} ${
-    accent
-      ? "border-primary-200 bg-gradient-to-b from-primary-soft to-surface"
-      : ""
+  // of a flat tint — a controlled gradient that keeps the value legible. A
+  // family `accentTone` instead keeps a flat surface and marks the group with a
+  // thin start-edge bar, so a row of cards stays calm and uniform. Only that
+  // edge-bar variant needs `relative overflow-hidden`; every other card keeps
+  // its exact previous shell.
+  const shell = `${CARD_BASE} ${CARD_REST} ${accentCls ? "relative overflow-hidden" : ""} p-4 ${
+    accent ? "border-primary-200 bg-gradient-to-b from-primary-soft to-surface" : ""
   }`;
+
+  const edgeBar = accentCls ? (
+    <span
+      aria-hidden="true"
+      className={`absolute inset-y-0 start-0 w-1 ${accentCls.bar}`}
+    />
+  ) : null;
+
+  const hoverCls = accentCls ? accentCls.hover : "hover:border-primary-300";
 
   if (href) {
     return (
       <Link
         href={href}
-        className={`group block ${shell} ${CARD_LIFT} hover:border-primary-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
-        aria-label={`${label} — مشاهدهٔ جزئیات`}
+        className={`group block ${shell} ${CARD_LIFT} ${hoverCls} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`}
+        aria-label={moreLabel ? `${label} — ${moreLabel}` : `${label} — مشاهدهٔ جزئیات`}
       >
+        {edgeBar}
         {body}
       </Link>
     );
   }
-  return <div className={shell}>{body}</div>;
+  return (
+    <div className={shell}>
+      {edgeBar}
+      {body}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

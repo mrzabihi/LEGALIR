@@ -802,6 +802,84 @@ export function GroupedBarChart({
 }
 
 // ---------------------------------------------------------------------------
+// Sparkline — a compact trend glyph for KPI cards
+// ---------------------------------------------------------------------------
+
+const SPARK_W = 100;
+const SPARK_H = 32;
+const SPARK_PAD = 5;
+
+/**
+ * One smoothed line over the real values handed in — no axis, no labels, no
+ * tooltip — so it stays legible inside a small KPI card and never competes with
+ * the number above it. Returns `null` for fewer than two points (a single value
+ * has no trend to draw). A flat series (every value identical) draws a level
+ * mid-line rather than collapsing onto an edge.
+ *
+ * RTL: matches every other chart here — the first (oldest) index is drawn on the
+ * RIGHT so the series reads right-to-left; the SVG is consequently LTR so the
+ * geometry is not mirrored by the RTL page.
+ */
+export function Sparkline({
+  values,
+  ariaLabel,
+  color = "var(--chart-cat-1)",
+  height = 40,
+  className = "",
+}: {
+  values: number[];
+  ariaLabel: string;
+  color?: string;
+  /** Rendered pixel height of the glyph. */
+  height?: number;
+  className?: string;
+}) {
+  const gradientId = useSafeId("spark-grad");
+  if (values.length < 2) return null;
+
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const flat = hi === lo;
+  const span = hi - lo || 1;
+  const n = values.length;
+  const xAt = (i: number) => (n <= 1 ? SPARK_W / 2 : SPARK_W - (i * SPARK_W) / (n - 1));
+  const yAt = (v: number) =>
+    flat ? SPARK_H / 2 : SPARK_H - SPARK_PAD - ((v - lo) / span) * (SPARK_H - 2 * SPARK_PAD);
+
+  const geom = values.map((v, i) => ({ x: xAt(i), y: yAt(v) }));
+  const linePath = smoothPath(geom);
+  const areaPath = `${linePath} L ${geom[geom.length - 1]!.x.toFixed(1)} ${SPARK_H} L ${geom[0]!.x.toFixed(1)} ${SPARK_H} Z`;
+
+  return (
+    <svg
+      viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+      className={`block w-full ${className}`}
+      style={{ height, direction: "ltr" }}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={ariaLabel}
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradientId})`} />
+      <path
+        d={linePath}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Donut chart — composition of a few categories
 // ---------------------------------------------------------------------------
 
@@ -826,6 +904,7 @@ export function DonutChart({
   centerLabel,
   size = 168,
   thickness = 22,
+  layout = "auto",
 }: {
   slices: DonutSlice[];
   ariaLabel: string;
@@ -833,6 +912,12 @@ export function DonutChart({
   centerLabel: string;
   size?: number;
   thickness?: number;
+  /**
+   * `auto` (default) lays the ring and legend side-by-side from tablet up.
+   * `stack` keeps them in one column — for a narrow container (e.g. a KPI grid
+   * cell) where a side-by-side legend would not fit.
+   */
+  layout?: "auto" | "stack";
 }) {
   const total = slices.reduce((s, x) => s + x.value, 0);
   if (total <= 0) return null;
@@ -851,7 +936,11 @@ export function DonutChart({
   });
 
   return (
-    <div className="flex flex-col items-center gap-4 tablet:flex-row tablet:items-center tablet:justify-center">
+    <div
+      className={`flex flex-col items-center ${
+        layout === "stack" ? "gap-3" : "gap-4 tablet:flex-row tablet:items-center tablet:justify-center"
+      }`}
+    >
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg
           viewBox={`0 0 ${size} ${size}`}

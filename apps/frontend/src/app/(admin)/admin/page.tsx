@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { SegmentedControl } from "@legalir/ui";
 import { useAdminOverview, useAdminReports, useAdminMe } from "@/hooks/useAdmin";
@@ -43,7 +43,9 @@ import {
   Section,
   FilterPills,
   Badge,
+  ACCENT_TOKENS,
   type StatTrend,
+  type StatAccent,
 } from "@/components/admin/ui";
 import {
   ChartFrame,
@@ -52,6 +54,7 @@ import {
   LineChart,
   BarChart,
   DonutChart,
+  Sparkline,
   catColor,
   type ChartPoint,
   type BarDatum,
@@ -78,6 +81,8 @@ import {
   IconHeadset,
   IconHandshake,
   IconFileText,
+  IconChevronLeft,
+  IconCategory,
 } from "@/lib/icons";
 import type { AdminKpi, AdminOverview } from "@legalir/types";
 
@@ -144,6 +149,26 @@ const KPI_ICONS: Record<string, IconComponent> = {
 };
 
 const CURRENCY_KEYS = new Set(["sales_amount", "refunded_amount"]);
+
+/**
+ * One restrained accent per metric family — drawn from the design-system
+ * semantic ramps, never a hand-picked colour. It tints the icon tile and a thin
+ * bar on each card's start edge so a group reads as a family; the value keeps
+ * its own semantic colour, so hue is never the only signal.
+ */
+const GROUP_ACCENT: Record<string, StatAccent> = {
+  users: "info",
+  lawyers: "success",
+  sales: "brand",
+  other: "warning",
+};
+
+/** The icon-tile accent for the hero row, keyed by KPI (revenue = brand lead). */
+const HERO_ACCENT: Record<string, StatAccent> = {
+  sales_amount: "brand",
+  requests_in_range: "success",
+  new_users: "info",
+};
 
 /** Renders the mapped icon for a KPI key, or nothing when the key is unknown. */
 function KpiIcon({ kpiKey }: { kpiKey: string }) {
@@ -247,7 +272,186 @@ function groupKpis(kpis: AdminKpi[]): { group: KpiGroup; items: AdminKpi[] }[] {
   return result;
 }
 
-const KPI_GRID = "grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-4 desktop:grid-cols-4";
+// Column count follows the real content width: one column on a phone, two once
+// there is room, three at tablet (a 256px rail plus four columns crushed the
+// labels), and four only at desktop.
+const KPI_GRID = "grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-3 desktop:grid-cols-4";
+
+/**
+ * One KPI card, wired straight from the returned metric. Presentational only —
+ * `value`, `trend` and `unavailable` all come from the server value; a metric
+ * flagged `unavailable` shows «قابل محاسبه نیست» (with its reason as the hint)
+ * instead of a number that could be mistaken for a real zero, and never gets a
+ * unit, trend or chart it cannot honestly have.
+ */
+function KpiStatCard({
+  k,
+  comparisonLabel,
+  accent,
+  chart,
+  moreLabel = "مشاهدهٔ جزئیات",
+}: {
+  k: AdminKpi;
+  comparisonLabel: string;
+  accent?: StatAccent;
+  /** A real-data glyph (e.g. a `Sparkline`); omit when no honest history exists. */
+  chart?: ReactNode;
+  moreLabel?: string;
+}) {
+  return (
+    <StatCard
+      label={k.labelFa}
+      value={valueText(k)}
+      unit={k.unitFa}
+      hint={k.formulaFa}
+      icon={<KpiIcon kpiKey={k.key} />}
+      accentTone={accent}
+      href={k.drillHref}
+      valueTitle={
+        !k.unavailable && CURRENCY_KEYS.has(k.key) ? toPersianCurrency(k.value) : undefined
+      }
+      trend={buildTrend(k, comparisonLabel)}
+      unavailable={k.unavailable}
+      unavailableLabel="قابل محاسبه نیست"
+      chart={chart}
+      moreLabel={k.drillHref ? moreLabel : undefined}
+    />
+  );
+}
+
+/**
+ * A composition donut, shown as the last cell of a KPI group. It sits inside the
+ * same card family (accent tint, edge bar, hover lift) and renders the group's
+ * REAL "state" — every slice is a server-supplied count. When there is nothing
+ * to compose it says so, rather than drawing an empty ring.
+ */
+function KpiDonutCard({
+  title,
+  hint,
+  accent,
+  slices,
+  ariaLabel,
+  centerLabel,
+  emptyMessage,
+  href,
+  moreLabel = "مشاهدهٔ جزئیات",
+}: {
+  title: string;
+  hint?: string;
+  accent: StatAccent;
+  slices: { label: string; value: number }[];
+  ariaLabel: string;
+  centerLabel: string;
+  emptyMessage: string;
+  href?: string;
+  moreLabel?: string;
+}) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  const body = (
+    <>
+      <span
+        aria-hidden="true"
+        className={`absolute inset-y-0 start-0 w-1 ${ACCENT_TOKENS[accent].bar}`}
+      />
+      <div className="flex items-center gap-2.5">
+        <span
+          aria-hidden="true"
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${ACCENT_TOKENS[accent].tile}`}
+        >
+          <IconCategory size={16} />
+        </span>
+        <p className="min-w-0 flex-1 text-caption font-medium text-muted">{title}</p>
+      </div>
+
+      <div className="mt-3 flex flex-1 items-center justify-center">
+        {total > 0 ? (
+          <DonutChart
+            slices={slices}
+            ariaLabel={ariaLabel}
+            centerLabel={centerLabel}
+            size={132}
+            thickness={18}
+            layout="stack"
+          />
+        ) : (
+          <p className="py-4 text-center text-caption text-muted">{emptyMessage}</p>
+        )}
+      </div>
+
+      {hint && <p className="mt-2 text-caption leading-relaxed text-muted">{hint}</p>}
+      {href && (
+        <span className="mt-3 inline-flex items-center gap-1 text-caption font-medium text-primary">
+          {moreLabel}
+          <IconChevronLeft size={13} aria-hidden="true" />
+        </span>
+      )}
+    </>
+  );
+
+  const cls = `relative flex flex-col overflow-hidden p-4 ${ACCENT_TOKENS[accent].hover}`;
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        aria-label={`${title} — ${moreLabel}`}
+        className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+      >
+        <Card interactive className={cls}>
+          {body}
+        </Card>
+      </Link>
+    );
+  }
+  return <Card className={cls}>{body}</Card>;
+}
+
+// Accent bar/tile colours come from the shared `ACCENT_TOKENS` map (ui.tsx),
+// so the group marker and the card family can never drift apart.
+
+/**
+ * A titled block of KPI cards. The heading (accent marker + title + subtitle)
+ * sits clear of the cards and the whole block carries a faint container fill,
+ * so the four metric families never read as one continuous mass of cards.
+ */
+function KpiGroupSection({
+  title,
+  subtitle,
+  infoFa,
+  accent,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  infoFa?: string;
+  accent?: StatAccent;
+  children: ReactNode;
+}) {
+  return (
+    <section className="mb-6 rounded-large border border-divider bg-surface-container p-3 tablet:p-4">
+      <div className="mb-3 flex items-start gap-2.5">
+        {accent && (
+          <span
+            aria-hidden="true"
+            className={`mt-1.5 h-5 w-1.5 shrink-0 rounded-full ${ACCENT_TOKENS[accent].bar}`}
+          />
+        )}
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-1.5 text-h3 font-bold text-onSurface">
+            {title}
+            {infoFa && (
+              <span title={infoFa} className="text-muted" aria-label={infoFa} role="img">
+                <IconInfo size={15} />
+              </span>
+            )}
+          </h2>
+          {subtitle && <p className="mt-0.5 text-body-2 text-muted">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 const SEVERITY: Record<
   "info" | "warning" | "error",
@@ -405,6 +609,10 @@ function OverviewBody({
   }));
   const requestsTotal = data.dailyRequests.reduce((s, d) => s + d.count, 0);
 
+  // Real per-day request counts over the SAME resolved window — the only honest
+  // history the overview exposes, so it is the only KPI that gets a sparkline.
+  const requestSparkValues = data.dailyRequests.map((d) => d.count);
+
   // --- Comparison charts (stable per-index colour) ---
   const planBars: BarDatum[] =
     reports.data?.byPlan.map((p, i) => ({
@@ -425,6 +633,73 @@ function OverviewBody({
 
   // Range-independent KPI groups below the fold.
   const groups = groupKpis(data.kpis);
+
+  // --- Per-section composition (real slices only — never a fabricated split) ---
+  const kpiValue = (key: string) => data.kpis.find((k) => k.key === key)?.value ?? 0;
+
+  // Users: growth share of the window against the lifetime base.
+  const totalUsers = kpiValue("total_users");
+  const newUsers = kpiValue("new_users");
+  const userSlices = [
+    { label: "کاربران جدید در بازه", value: newUsers },
+    { label: "سایر کاربران", value: Math.max(0, totalUsers - newUsers) },
+  ];
+
+  // Lawyers: the three headings of the section, so the donut IS their ratio.
+  const lawyersTotal = kpiValue("lawyers_total");
+  const lawyersVerified = kpiValue("lawyers_verified");
+  const lawyersPending = kpiValue("lawyers_pending");
+  const lawyerSlices = [
+    { label: "تأییدشده", value: lawyersVerified },
+    { label: "در انتظار بررسی", value: lawyersPending },
+    { label: "سایر وضعیت‌ها", value: Math.max(0, lawyersTotal - lawyersVerified - lawyersPending) },
+  ];
+
+  // Sales: real purchase counts per plan over the resolved window (reports query).
+  const planSlices =
+    reports.data?.byPlan.map((p) => ({ label: p.planNameFa, value: p.count })) ?? [];
+
+  // Only the sections that have an honest composition get a donut card.
+  const donutForGroup: Record<
+    string,
+    {
+      title: string;
+      hint: string;
+      ariaLabel: string;
+      centerLabel: string;
+      emptyMessage: string;
+      href: string;
+      slices: { label: string; value: number }[];
+    }
+  > = {
+    users: {
+      title: "ترکیب کاربران",
+      hint: "سهم کاربران جدید بازه در برابر سایر کاربران.",
+      ariaLabel: "ترکیب کاربران: سهم کاربران جدید بازه در برابر سایر کاربران.",
+      centerLabel: "کاربر",
+      emptyMessage: "داده‌ای برای ترکیب کاربران در دسترس نیست.",
+      href: "/admin/users",
+      slices: userSlices,
+    },
+    lawyers: {
+      title: "وضعیت تأیید وکلا",
+      hint: "نسبت وکلای تأییدشده، در انتظار بررسی و سایر وضعیت‌ها.",
+      ariaLabel: "ترکیب وضعیت وکلا: تأییدشده، در انتظار بررسی و سایر وضعیت‌ها.",
+      centerLabel: "وکیل",
+      emptyMessage: "وکیلی برای نمایش ترکیب ثبت نشده است.",
+      href: "/admin/lawyers",
+      slices: lawyerSlices,
+    },
+    sales: {
+      title: "تعداد فروش بر اساس پلن",
+      hint: "سهم هر پلن از خریدهای بازهٔ انتخاب‌شده.",
+      ariaLabel: "ترکیب تعداد فروش بر اساس پلن در بازهٔ انتخاب‌شده.",
+      centerLabel: "خرید",
+      emptyMessage: "خریدی در این بازه ثبت نشده است.",
+      href: "/admin/orders",
+      slices: planSlices,
+    },
+  };
 
   return (
     <>
@@ -454,24 +729,27 @@ function OverviewBody({
       </div>
 
       {/* 1 · Key indicators */}
-      <Section
+      <KpiGroupSection
         title="شاخص‌های کلیدی"
         subtitle={`مقایسه هر شاخص با ${comparisonLabel}. هر کارت به گزارش تفصیلی خود پیوند دارد.`}
         infoFa="درآمد فروش بر اساس تاریخ خرید، درخواست‌ها بر اساس تاریخ ثبت و کاربران بر اساس تاریخ عضویت محاسبه می‌شوند. ارزش کل (نه بازه‌ای) با «—» نشان داده می‌شود."
       >
         <div className={KPI_GRID}>
           {heroKpis.map((k) => (
-            <StatCard
+            <KpiStatCard
               key={k.key}
-              label={k.labelFa}
-              value={valueText(k)}
-              unit={k.unitFa}
-              hint={k.formulaFa}
-              icon={<KpiIcon kpiKey={k.key} />}
-              accent={k.key === "sales_amount"}
-              href={k.drillHref}
-              valueTitle={CURRENCY_KEYS.has(k.key) ? toPersianCurrency(k.value) : undefined}
-              trend={buildTrend(k, comparisonLabel)}
+              k={k}
+              comparisonLabel={comparisonLabel}
+              accent={HERO_ACCENT[k.key]}
+              chart={
+                k.key === "requests_in_range" && requestSparkValues.length >= 2 ? (
+                  <Sparkline
+                    values={requestSparkValues}
+                    ariaLabel={`روند تعداد درخواست‌های ثبت‌شده در هر روز، ${toPersianNumber(rangeDays)} روز گذشته؛ از راست (قدیمی‌تر) به چپ (امروز).`}
+                    color="var(--color-info-500)"
+                  />
+                ) : undefined
+              }
             />
           ))}
           <StatCard
@@ -479,10 +757,12 @@ function OverviewBody({
             value={toPersianNumber(data.openRequestsTotal)}
             hint="درخواست‌های غیرپایانی در زمان تولید گزارش؛ با «درخواست‌های ثبت‌شده در بازه» اشتباه نشود."
             icon={<IconClock size={16} />}
+            accentTone="info"
             href="/admin/requests"
+            moreLabel="مشاهدهٔ جزئیات"
           />
         </div>
-      </Section>
+      </KpiGroupSection>
 
       {/* 2 · Needs attention */}
       <Section
@@ -707,29 +987,43 @@ function OverviewBody({
         </div>
       </div>
 
-      {/* 6 · Supplemental indicators (below the fold) */}
-      {data.attention.length >= 0 &&
-        groups.map(({ group, items }) => (
-          <div key={group.key} className="mt-6">
-            <Section title={group.titleFa} subtitle={group.subtitleFa}>
+      {/* 6 · Supplemental indicators (below the fold) — one block per family */}
+      <div className="mt-6">
+        {groups.map(({ group, items }) => {
+          const donut = donutForGroup[group.key];
+          return (
+            <KpiGroupSection
+              key={group.key}
+              title={group.titleFa}
+              subtitle={group.subtitleFa}
+              accent={GROUP_ACCENT[group.key]}
+            >
               <div className={KPI_GRID}>
                 {items.map((k) => (
-                  <StatCard
+                  <KpiStatCard
                     key={k.key}
-                    label={k.labelFa}
-                    value={valueText(k)}
-                    unit={k.unitFa}
-                    hint={k.formulaFa}
-                    icon={<KpiIcon kpiKey={k.key} />}
-                    href={k.drillHref}
-                    valueTitle={CURRENCY_KEYS.has(k.key) ? toPersianCurrency(k.value) : undefined}
-                    trend={buildTrend(k, comparisonLabel)}
+                    k={k}
+                    comparisonLabel={comparisonLabel}
+                    accent={GROUP_ACCENT[group.key]}
                   />
                 ))}
+                {donut && (
+                  <KpiDonutCard
+                    title={donut.title}
+                    hint={donut.hint}
+                    accent={GROUP_ACCENT[group.key] ?? "brand"}
+                    slices={donut.slices}
+                    ariaLabel={donut.ariaLabel}
+                    centerLabel={donut.centerLabel}
+                    emptyMessage={donut.emptyMessage}
+                    href={donut.href}
+                  />
+                )}
               </div>
-            </Section>
-          </div>
-        ))}
+            </KpiGroupSection>
+          );
+        })}
+      </div>
     </>
   );
 }
