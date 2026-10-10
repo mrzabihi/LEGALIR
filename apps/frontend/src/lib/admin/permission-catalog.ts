@@ -32,6 +32,7 @@ export type PermissionGroup =
   | "lawyers"
   | "requests"
   | "content"
+  | "library"
   | "ai"
   | "finance"
   | "plans"
@@ -47,6 +48,7 @@ export const PERMISSION_GROUP_ORDER: { group: PermissionGroup; labelFa: string }
   { group: "requests", labelFa: "درخواست‌ها و پرونده‌ها" },
   { group: "lawyers", labelFa: "وکلا" },
   { group: "content", labelFa: "محتوا و پایگاه دانش" },
+  { group: "library", labelFa: "کتابخانه لیگالیر" },
   { group: "ai", labelFa: "هوش مصنوعی و RAG" },
   { group: "plans", labelFa: "پلن‌ها و خدمات" },
   { group: "finance", labelFa: "مالی، فروش و تسویه" },
@@ -176,6 +178,9 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   "admin:content:manage": { fa: "مدیریت محتوا و وبلاگ", group: "content" },
   "admin:knowledge:read": { fa: "مشاهده پایگاه دانش حقوقی", group: "content" },
   "admin:knowledge:write": { fa: "ویرایش پایگاه دانش حقوقی", group: "content" },
+  // --- Legal library (a product section of its own, distinct from the blog) ---
+  "admin:library:read": { fa: "مشاهده کتابخانه لیگالیر", group: "library" },
+  "admin:library:manage": { fa: "مدیریت و انتشار کتابخانه لیگالیر", group: "library" },
   // --- AI & RAG ---
   "admin:ai:read": { fa: "مشاهده پیکربندی هوش مصنوعی", group: "ai" },
   "admin:ai:manage": { fa: "مدیریت ارائه‌دهنده‌ها و پرامپت‌ها", group: "ai" },

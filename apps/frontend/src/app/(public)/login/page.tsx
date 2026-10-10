@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { LoginForm } from "./LoginForm";
+import { NOINDEX_ROBOTS } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "ورود به LEGALIR",
   description: "ورود به پلتفرم هوشمند حقوقی LEGALIR",
   alternates: { canonical: "/login" },
+  // Auth entry point — never indexable.
+  ...NOINDEX_ROBOTS,
 };
 
 export default function LoginPage() {

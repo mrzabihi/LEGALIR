@@ -4,7 +4,8 @@ import Link from "next/link";
 import { CTASection } from "@/components/public/CTASection";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
 import { PromoPanel } from "@/components/shared";
-import { readBlog } from "@/lib/legal-library-db";
+import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
+import { SITE_URL, absoluteUrl } from "@/lib/site";
 import { toPersianDate, toPersianDigits } from "@/lib/persian-utils";
 import {
   IconChat,
@@ -24,7 +25,9 @@ import {
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
-  title: "لیگالیر | دستیار هوشمند حقوقی ایران",
+  // `absolute` opts out of the root `%s | لیگالیر` template — without it the
+  // brand is appended twice ("… | لیگالیر | لیگالیر").
+  title: { absolute: "لیگالیر | دستیار هوشمند حقوقی ایران" },
   description:
     "دستیار هوشمند حقوقی ایران — پلتفرم تخصصی تحلیل حقوقی با هوش مصنوعی، آموزش‌دیده بر نظام حقوقی ایران شامل قانون اساسی، مدنی، کیفری، تجارت، خانواده، کار، مالیات و هزاران پرونده واقعی",
   alternates: { canonical: "/" },
@@ -240,17 +243,58 @@ const keySources = [
 // ================================================================
 // Blog preview — pulled from the real Legal Library / Blog JSON-DB
 // ================================================================
-const blogPreviewPosts = readBlog()
-  .items.slice()
-  .sort((a, b) => {
-    if (a.featured !== b.featured) return a.featured ? -1 : 1;
-    return (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
-  })
-  .slice(0, 3);
+const blogPreviewPosts = (() => {
+  const { items, details } = readBlog();
+  return items
+    .filter((i) => isBlogPostPubliclyVisible(i, details[i.slug]))
+    .sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      return (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
+    })
+    .slice(0, 3);
+})();
+
+// Organization + WebSite structured data. Only verifiable facts are emitted —
+// brand name, canonical URL, logo and the public support email (as used on
+// /contact). No address, phone, rating or social profile is invented; add
+// those once the real values are confirmed.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: "لیگالیر",
+      alternateName: "LEGALIR",
+      url: SITE_URL,
+      logo: absoluteUrl("/legalir-logo.png"),
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: "info@legalir.ir",
+        availableLanguage: ["fa"],
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: "لیگالیر",
+      url: SITE_URL,
+      inLanguage: "fa-IR",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+  ],
+};
 
 export default function LandingPage() {
   return (
     <div id="main-content">
+      <script
+        type="application/ld+json"
+        // JSON.stringify escapes the object; the only free-text values are the
+        // brand name and email, which contain no "<" or ">".
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       {/* ============================================================
           HERO — Dramatic Navy Gradient with Geometric Pattern
           ============================================================ */}

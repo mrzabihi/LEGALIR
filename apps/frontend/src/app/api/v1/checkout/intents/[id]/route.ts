@@ -12,7 +12,14 @@
 import { NextResponse } from "next/server";
 import { findSessionById } from "@/lib/db";
 import { getPayment, confirmPayment, subscriptionForPayment } from "@/lib/payments";
+import { getPlanByCode } from "@/lib/usage/plans";
 import type { CheckoutIntent, Payment } from "@legalir/types";
+
+/** Whole days between two ISO timestamps (the real activated term). */
+function termDays(startAt: string, endAt: string): number {
+  const ms = new Date(endAt).getTime() - new Date(startAt).getTime();
+  return ms > 0 ? Math.round(ms / 86_400_000) : 0;
+}
 
 function getUserIdFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -65,6 +72,8 @@ export async function GET(
   }
 
   const subscription = subscriptionForPayment(payment);
+  // Report the REAL plan terms from the catalog (never a hard-coded 31 days).
+  const plan = getPlanByCode(payment.planCode);
   const intent: CheckoutIntent = {
     id: payment.id,
     planCode: payment.planCode,
@@ -75,10 +84,12 @@ export async function GET(
     createdAt: payment.createdAt,
     expiresAt: payment.paidAt ?? payment.updatedAt,
     metadata: {
-      planNameFa: subscription?.plan_name_fa ?? "",
-      durationDays: 31,
-      dailyRequests: 0,
-      totalTokens: 0,
+      planNameFa: subscription?.plan_name_fa ?? plan?.nameFa ?? "",
+      durationDays: subscription
+        ? termDays(subscription.start_at, subscription.end_at)
+        : plan?.durationDays ?? 0,
+      dailyRequests: plan?.dailyRequestLimit ?? 0,
+      totalTokens: plan?.tokenLimit ?? 0,
     },
   };
 

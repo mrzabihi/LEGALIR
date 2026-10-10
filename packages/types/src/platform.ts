@@ -202,6 +202,11 @@ export type Permission =
   | "admin:support:manage"
   | "admin:content:read"
   | "admin:content:manage"
+  // The public legal library is a product section in its own right (distinct
+  // from the blog). Its authoring surface is gated by its own permission pair
+  // so the two content workflows can be delegated independently.
+  | "admin:library:read"
+  | "admin:library:manage"
   | "admin:reports:read"
   | "admin:reports:export"
   | "admin:analytics:read"
@@ -379,6 +384,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:knowledge:write",
     "admin:content:read",
     "admin:content:manage",
+    "admin:library:read",
+    "admin:library:manage",
     "admin:calculators:read",
     "admin:calculators:manage",
     "admin:energy:read",
@@ -446,6 +453,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:support:manage",
     "admin:content:read",
     "admin:content:manage",
+    "admin:library:read",
+    "admin:library:manage",
     "admin:reports:read",
     "admin:analytics:read",
     "admin:reports:export",
@@ -500,6 +509,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:support:manage",
     "admin:content:read",
     "admin:content:manage",
+    "admin:library:read",
+    "admin:library:manage",
     "admin:reports:read",
     "admin:analytics:read",
     "admin:reports:export",

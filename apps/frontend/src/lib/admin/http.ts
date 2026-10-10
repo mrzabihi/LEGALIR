@@ -47,6 +47,7 @@ const ERROR_MAP: Record<string, { status: number; message: string }> = {
   CONTENT_REQUIRED: { status: 400, message: "متن دستور الزامی است" },
   QUERY_REQUIRED: { status: 400, message: "عبارت جستجو الزامی است" },
   BLOG_TITLE_REQUIRED: { status: 400, message: "عنوان مقاله الزامی است" },
+  LIBRARY_TITLE_REQUIRED: { status: 400, message: "عنوان منبع کتابخانه الزامی است" },
   TOPIC_REQUIRED: { status: 400, message: "موضوع مقاله الزامی است" },
   CALCULATOR_NOT_FOUND: { status: 404, message: "محاسبه‌گر یافت نشد" },
   INVALID_ACCESS_TIER: { status: 400, message: "سطح دسترسی محاسبه‌گر نامعتبر است" },
