@@ -563,6 +563,7 @@ export function Button({
   endIcon,
   loading = false,
   className = "",
+  ariaLabel,
 }: {
   children?: ReactNode;
   onClick?: () => void;
@@ -575,11 +576,14 @@ export function Button({
   endIcon?: ReactNode;
   loading?: boolean;
   className?: string;
+  /** Accessible name for icon-only buttons (no visible text child). */
+  ariaLabel?: string;
 }) {
   return (
     <button
       type={type}
       title={title}
+      aria-label={ariaLabel}
       onClick={onClick}
       disabled={disabled || loading}
       className={`inline-flex items-center justify-center gap-1.5 rounded-medium border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_SIZES[size]} ${BUTTON_VARIANTS[variant]} ${className}`}

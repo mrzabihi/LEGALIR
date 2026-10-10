@@ -16,14 +16,14 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { snackbar } from "@legalir/ui";
 import {
   useAdminLawyers,
   useAdminMe,
   useSetAdminLawyerFeatured,
 } from "@/hooks/useAdmin";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { IconSearch } from "@/lib/icons";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
   LAWYER_DECISION_BUCKET_FA,
@@ -61,23 +61,51 @@ const LIFECYCLE_TONES: Record<
   DELETED: "danger",
 };
 
+// How long typing must pause before the list auto-searches. Long enough to
+// finish a word, short enough to feel eager. Enter / the button bypass it.
+const SEARCH_DEBOUNCE_MS = 600;
+
 export default function AdminLawyersPage() {
   const { can } = useAdminMe();
   const canReview = can("admin:lawyer:verify");
   const canFeature = can("admin:lawyer:feature");
 
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>("ALL");
-  const [search, setSearch] = useState("");
+  // `searchInput` is what the operator is typing; `appliedSearch` is the term
+  // actually sent to the API. They are kept separate on purpose: typing only
+  // moves the input, and the query changes solely on a debounce, an Enter or
+  // the search button — never on every keystroke.
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Debounce the input so the queue re-queries on a pause, not per key.
-  const debouncedSearch = useDebouncedValue(search.trim(), 300);
-
+  // Each applied term gets its own cache key, so a late response for an old
+  // term can never overwrite the results of the newer one.
   const query = useAdminLawyers({
     lifecycle: lifecycle === "ALL" ? undefined : lifecycle,
-    search: debouncedSearch || undefined,
+    search: appliedSearch || undefined,
   });
   const feature = useSetAdminLawyerFeatured();
+
+  // Auto-run once the operator pauses typing. A term already applied is
+  // skipped, so the pause that follows a confirmed Enter — or a keystroke that
+  // cancels a pending term back to the applied value — sends nothing.
+  useEffect(() => {
+    const term = searchInput.trim();
+    if (term === appliedSearch) return;
+    const timer = setTimeout(() => setAppliedSearch(term), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchInput, appliedSearch]);
+
+  // Enter in the field, or the search button: commit now and short-circuit the
+  // pending debounce. Repeating the applied term is a no-op. (This list is
+  // unpaginated — a single full page — so a new term simply replaces results
+  // rather than needing a page reset.)
+  function commitSearch() {
+    const term = searchInput.trim();
+    if (term === appliedSearch) return;
+    setAppliedSearch(term);
+  }
 
   const filters = [
     { value: "ALL" as const, label: "همه" },
@@ -115,14 +143,38 @@ export default function AdminLawyersPage() {
 
       <div className="mb-4 flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
         <FilterPills options={filters} value={lifecycle} onChange={setLifecycle} />
-        <div className="w-full tablet:w-72">
-          <TextInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجو: نام، پروانه، تخصص، شهر، موبایل…"
-            aria-label="جستجوی وکیل"
+        <form
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            commitSearch();
+          }}
+          className="flex w-full items-center gap-2 tablet:w-80"
+        >
+          <div className="relative flex-1">
+            <IconSearch
+              size={16}
+              className="pointer-events-none absolute inset-y-0 start-3 my-auto text-outline"
+              aria-hidden="true"
+            />
+            <TextInput
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="جستجو: نام، پروانه، تخصص، شهر، موبایل…"
+              aria-label="جستجوی وکیل"
+              className="ps-9"
+            />
+          </div>
+          <Button
+            type="submit"
+            variant="secondary"
+            ariaLabel="اعمال جستجو"
+            title="اعمال جستجو"
+            className="px-2.5"
+            startIcon={<IconSearch size={16} aria-hidden="true" />}
+            loading={query.isFetching}
           />
-        </div>
+        </form>
       </div>
 
       <StateView
