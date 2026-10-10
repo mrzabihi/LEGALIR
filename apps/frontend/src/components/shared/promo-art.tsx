@@ -207,30 +207,58 @@ export function PromoModule({
   return (
     <section
       className={[
-        "rounded-2xl border border-[color:var(--color-outline-variant)] bg-surface",
+        "group relative isolate overflow-hidden rounded-2xl",
+        // Brand hairline + a brand wash behind the content. The wash and the
+        // glow are decorative layers (`-z-10`) so every foreground keeps its
+        // normal token colour and WCAG contrast in both themes.
+        "border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] bg-surface",
         "p-4 tablet:p-5 shadow-elevation-1",
+        "transition-[transform,box-shadow,border-color] duration-medium1 ease-standard",
+        "hover:-translate-y-0.5 hover:shadow-elevation-4 hover:border-[color:color-mix(in_srgb,var(--brand-green)_45%,transparent)]",
         className,
       ].join(" ")}
     >
+      {/* Brand wash — a green→teal→ivory diagonal that reads as a tinted
+          surface, never a saturated block. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(120deg,color-mix(in_srgb,var(--brand-green)_12%,transparent)_0%,color-mix(in_srgb,var(--brand-teal)_6%,transparent)_45%,color-mix(in_srgb,var(--brand-ivory)_40%,transparent)_100%)]"
+      />
+      {/* Light effect — a soft gold bloom in the corner that warms on hover. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -end-10 -top-12 -z-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--brand-gold)_45%,transparent)_0%,transparent_70%)] opacity-50 blur-2xl transition-opacity duration-medium1 ease-standard group-hover:opacity-90"
+      />
+      {/* Secondary green bloom, bottom-start, so the light wraps the panel. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-12 -start-8 -z-10 h-36 w-36 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--brand-green)_40%,transparent)_0%,transparent_70%)] opacity-40 blur-2xl"
+      />
+
       <div className="flex items-center gap-4">
         <div className="w-20 shrink-0 tablet:w-24">
-          <PromoArt art={art} alt="" sizes="96px" />
+          <div className="overflow-hidden rounded-large transition-transform duration-medium1 ease-standard group-hover:scale-[1.04]">
+            <PromoArt art={art} alt="" sizes="96px" />
+          </div>
         </div>
 
         <div className="min-w-0 flex-1">
-          <span className="inline-flex items-center gap-1.5 text-caption font-medium text-on-surface-variant">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-2.5 py-0.5 text-caption font-medium text-[var(--brand-green)]">
             <Icon size={14} />
             {title}
           </span>
-          <p className="mt-1 text-caption leading-relaxed text-muted line-clamp-2">
+          <p className="mt-1.5 text-caption leading-relaxed text-muted line-clamp-2">
             {message}
           </p>
           <Link
             href={href}
-            className="mt-2 inline-flex items-center gap-1 rounded-small text-caption font-semibold text-primary-700 transition-colors hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="mt-2 inline-flex items-center gap-1 rounded-small text-caption font-semibold text-[var(--brand-green)] transition-colors hover:text-[var(--brand-gold-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2"
           >
             {cta}
-            <IconChevronLeft size={14} />
+            <IconChevronLeft
+              size={14}
+              className="transition-transform duration-short4 ease-standard group-hover:-translate-x-1"
+            />
           </Link>
         </div>
       </div>

@@ -159,7 +159,7 @@ function ViewAllLink({ href }: { href: string }) {
       className="group inline-flex items-center gap-0.5 text-caption text-primary font-medium hover:underline touch-target"
     >
       مشاهده همه
-      <IconChevronRight size={14} className="transition-transform duration-short4 ease-standard group-hover:-translate-x-0.5" />
+      <IconChevronRight size={14} />
     </Link>
   );
 }
@@ -1144,28 +1144,34 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
   );
 
   return (
-    <section className={`mb-6 ${className}`}>
+    <section className={`mb-5 ${className}`}>
       <div className="max-w-2xl mx-auto">
         <TextField
+          // Label = the field's accessible name (also the resting hint);
+          // placeholder = a short *example*, so the two never repeat the same
+          // sentence and the placeholder can never be mistaken for the label.
           label="مسئله حقوقی خود را توضیح دهید"
-          type="text"
+          type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="مسئله حقوقی خود را توضیح دهید..."
+          placeholder="مثلاً: قرارداد من را بررسی کن"
+          maxLength={500}
+          aria-label="مسئله حقوقی خود را توضیح دهید"
           disabled={isRouting}
+          className="brand-search-field"
           endAdornment={
             <button
               type="button"
               onClick={() => handleSubmit(query)}
               disabled={!query.trim() || isRouting}
-              className="h-10 w-10 rounded-full bg-primary text-primary-on flex items-center justify-center hover:state-hover transition-colors duration-short3 ease-standard disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green)] text-[var(--brand-ivory)] shadow-[0_2px_8px_color-mix(in_srgb,var(--brand-green)_45%,transparent)] transition-[transform,filter,background-color] duration-short3 ease-standard hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:bg-[var(--brand-teal)] disabled:opacity-35 disabled:shadow-none touch-target"
               aria-label="ارسال پرسش"
             >
               {isRouting ? (
-                <span className="text-xs">...</span>
+                <span className="text-xs leading-none">…</span>
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip">
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               )}
@@ -1177,29 +1183,30 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
         {isRouting && (
           <div className="mt-3 text-center animate-fade-in">
             <span className="inline-flex items-center gap-2 text-caption text-on-surface-variant">
-              <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="inline-block h-2 w-2 rounded-full bg-[var(--brand-green)] animate-pulse" />
               در حال تشخیص...
             </span>
           </div>
         )}
 
         {!isRouting && (
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
             <span className="text-caption text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_60%,transparent)]">برای نمونه:</span>
             {EXAMPLE_CHIPS.map((chip) => (
               <button
                 key={chip.label}
                 type="button"
                 onClick={() => handleChipClick(chip.query)}
-                className="rounded-full bg-surface-container-high border border-[color:var(--color-outline-variant)] px-3 py-1 text-caption text-on-surface hover:bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] hover:text-primary transition-colors active:scale-[0.97] touch-target"
+                className="group inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_7%,transparent)] px-3 py-[5px] text-caption leading-none text-[var(--brand-green)] transition-colors duration-short4 ease-standard hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] hover:border-[var(--brand-green)] active:scale-[0.97]"
               >
+                <span className="h-1 w-1 rounded-full bg-[var(--brand-green)] transition-colors duration-short4 group-hover:bg-[var(--brand-ivory)]" aria-hidden="true" />
                 {chip.label}
               </button>
             ))}
           </div>
         )}
 
-        <p className="mt-4 text-center text-caption text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_50%,transparent)]">
+        <p className="mt-3 text-center text-caption text-[color:color-mix(in_srgb,var(--color-on-surface-variant)_50%,transparent)]">
           با هوش مصنوعی قانون‌مدار ایران
         </p>
       </div>
