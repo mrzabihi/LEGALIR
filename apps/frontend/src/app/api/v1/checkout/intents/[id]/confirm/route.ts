@@ -8,7 +8,14 @@
 import { NextResponse } from "next/server";
 import { findSessionById } from "@/lib/db";
 import { confirmPayment } from "@/lib/payments";
+import { getPlanByCode } from "@/lib/usage/plans";
 import type { CheckoutIntent } from "@legalir/types";
+
+/** Whole days between two ISO timestamps (the real activated term). */
+function termDays(startAt: string, endAt: string): number {
+  const ms = new Date(endAt).getTime() - new Date(startAt).getTime();
+  return ms > 0 ? Math.round(ms / 86_400_000) : 0;
+}
 
 function getUserIdFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -39,7 +46,11 @@ export async function POST(
     );
   }
 
-  const { payment } = result;
+  const { payment, subscription } = result;
+  // Report the REAL plan terms. The activated subscription's own start/end are
+  // the authoritative term (they were stamped from the frozen snapshot at
+  // purchase); the catalog fills the limit figures. Nothing is hard-coded.
+  const plan = getPlanByCode(payment.planCode);
   const intent: CheckoutIntent = {
     id: payment.id,
     planCode: payment.planCode,
@@ -50,10 +61,12 @@ export async function POST(
     createdAt: payment.createdAt,
     expiresAt: payment.paidAt ?? payment.updatedAt,
     metadata: {
-      planNameFa: result.subscription?.plan_name_fa ?? "",
-      durationDays: 31,
-      dailyRequests: 0,
-      totalTokens: 0,
+      planNameFa: subscription?.plan_name_fa ?? plan?.nameFa ?? "",
+      durationDays: subscription
+        ? termDays(subscription.start_at, subscription.end_at)
+        : plan?.durationDays ?? 0,
+      dailyRequests: plan?.dailyRequestLimit ?? 0,
+      totalTokens: plan?.tokenLimit ?? 0,
     },
   };
 
