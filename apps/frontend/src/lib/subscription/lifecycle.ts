@@ -18,35 +18,16 @@
 import { readTable, writeTable } from "@/lib/db";
 import { snapshotFor } from "@/lib/usage/plans";
 import type {
-  PlanEntitlementSnapshot,
+  StoredSubscription,
   SubscriptionPlan,
   SubscriptionStatus,
 } from "@legalir/types";
 
-const TABLE = "subscriptions";
+// The row shape lives in @legalir/types (one declaration). Re-exported here so
+// existing importers (`@/lib/subscription/lifecycle`) keep resolving it.
+export type { StoredSubscription };
 
-/** The subscription row as persisted (snake_case, legacy-compatible). */
-export interface StoredSubscription {
-  id: string;
-  user_id: string;
-  plan_code: string;
-  plan_name_fa: string;
-  amount: number;
-  currency: string;
-  status: string;
-  status_fa: string;
-  start_at: string;
-  end_at: string;
-  purchased_at: string;
-  auto_renew: number;
-  /** Frozen entitlements — absent on legacy rows (derived from the catalog). */
-  plan_snapshot?: PlanEntitlementSnapshot;
-  /** The payment that produced this subscription (absent on legacy rows). */
-  payment_id?: string | null;
-  /** When a newer subscription replaced this one (terminal). */
-  superseded_at?: string | null;
-  updated_at?: string | null;
-}
+const TABLE = "subscriptions";
 
 export const SUBSCRIPTION_STATUS_FA: Record<SubscriptionStatus, string> = {
   pending: "در انتظار پرداخت",

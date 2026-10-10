@@ -39,6 +39,7 @@ import type {
   PeriodQuotaView,
   PlanEntitlementSnapshot,
   ServiceQuotaType,
+  StoredSubscription,
   SubscriptionDailyUsage,
   SubscriptionPeriodUsage,
   SubscriptionUsageSummary,
@@ -50,24 +51,8 @@ import type {
 // ============================================================
 // Stored rows
 // ============================================================
-
-/** The subscription row as persisted (snake_case, legacy-compatible). */
-interface StoredSubscription {
-  id: string;
-  user_id: string;
-  plan_code: string;
-  plan_name_fa: string;
-  amount: number;
-  currency: string;
-  status: string;
-  status_fa: string;
-  start_at: string;
-  end_at: string;
-  purchased_at: string;
-  auto_renew: number;
-  /** Frozen entitlements — absent on legacy rows (derived from the catalog). */
-  plan_snapshot?: PlanEntitlementSnapshot;
-}
+// `StoredSubscription` (the persisted `subscriptions` row) is declared once in
+// @legalir/types and imported above.
 
 const DAILY_TABLE = "subscription_daily_usage";
 const PERIOD_TABLE = "subscription_period_usage";

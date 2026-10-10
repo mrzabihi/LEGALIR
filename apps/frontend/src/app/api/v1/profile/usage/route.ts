@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { findSessionById, queryProfileUsage, queryDailyQuota } from "@/lib/db";
+import { findSessionById } from "@/lib/db";
+import { getUsageSummary } from "@/lib/usage/engine";
+import { profileUsageFromSummary, dailyQuotaFromSummary } from "@/lib/usage/views";
 
 function getUserFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -18,9 +20,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const usage = queryProfileUsage(userId);
-  const quota = queryDailyQuota(userId);
-  // The plan-derived allowance is authoritative for the daily counter.
-  const data = { ...usage, dailyRequestsTotal: quota.total, dailyRequestsUsed: quota.used };
-  return NextResponse.json({ data, quota });
+  // Both the flat usage counters and the daily quota come from the usage
+  // engine — the single source of truth.
+  const summary = getUsageSummary(userId);
+  const data = profileUsageFromSummary(summary);
+  return NextResponse.json({ data, quota: dailyQuotaFromSummary(summary) });
 }

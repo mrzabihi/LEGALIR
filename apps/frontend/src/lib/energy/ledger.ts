@@ -28,6 +28,7 @@ import type {
   EnergySource,
   EnergyTransactionType,
   PlanEntitlementSnapshot,
+  StoredSubscription,
   UsageTransaction,
 } from "@legalir/types";
 import type { RewardEventType } from "@/lib/rewards";
@@ -35,19 +36,6 @@ import type { RewardEventType } from "@/lib/rewards";
 const SUBSCRIPTIONS_TABLE = "subscriptions";
 const REWARD_TABLE = "reward_ledger";
 const TX_TABLE = "usage_transactions";
-
-/** The persisted subscription row (legacy-compatible). */
-interface StoredSubscriptionRow {
-  id: string;
-  user_id: string;
-  plan_code: string;
-  plan_name_fa: string;
-  status: string;
-  start_at: string;
-  end_at: string;
-  purchased_at: string;
-  plan_snapshot?: PlanEntitlementSnapshot;
-}
 
 interface RewardLedgerRow {
   id: string;
@@ -82,7 +70,7 @@ function grantFor(snapshot: PlanEntitlementSnapshot | undefined): number {
 type Draft = Omit<EnergyLedgerEntry, "balanceBefore" | "balanceAfter">;
 
 function subscriptionGrants(userId: string): Draft[] {
-  const rows = readTable<StoredSubscriptionRow>(SUBSCRIPTIONS_TABLE).filter(
+  const rows = readTable<StoredSubscription>(SUBSCRIPTIONS_TABLE).filter(
     (s) => s.user_id === userId && Boolean(s.start_at)
   );
   return rows.map((row) => {

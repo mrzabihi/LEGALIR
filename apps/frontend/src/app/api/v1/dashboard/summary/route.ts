@@ -13,10 +13,10 @@ import {
   findUserById,
   getProfile,
   queryRecentActivity,
-  queryProfileUsage,
   queryActiveSubscription,
-  queryDailyQuota,
 } from "@/lib/db";
+import { getUsageSummary } from "@/lib/usage/engine";
+import { entitlementsFromSummary, dailyQuotaFromSummary } from "@/lib/usage/views";
 import {
   computeDashboardMetrics,
   subscriptionDaysRemaining,
@@ -35,19 +35,13 @@ export async function GET(request: Request) {
   const user = findUserById(userId);
   const profile = getProfile(userId);
   const subscription = queryActiveSubscription(userId);
-  const usage = queryProfileUsage(userId);
   const recentActivity = queryRecentActivity(userId, 5);
   const metrics = computeDashboardMetrics(userId);
   const daysRemaining = subscriptionDaysRemaining(userId);
-  const quota = queryDailyQuota(userId);
-
-  const entitlements = [
-    { featureKey: "AI_CHAT_MESSAGE", nameFa: "پیام هوش مصنوعی", limit: usage.dailyRequestsTotal, period: "month", used: usage.dailyRequestsUsed, isBoolean: false, isEnabled: true },
-    { featureKey: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", limit: usage.documentAnalysesTotal, period: "month", used: usage.documentAnalysesUsed, isBoolean: false, isEnabled: true },
-    { featureKey: "CONTRACT_GENERATION", nameFa: "ایجاد قرارداد", limit: usage.contractsTotal, period: "month", used: usage.contractsGenerated, isBoolean: false, isEnabled: true },
-    { featureKey: "ADVANCED_REFERENCE", nameFa: "منابع پیشرفته", limit: null, period: "forever", used: 0, isBoolean: true, isEnabled: true },
-    { featureKey: "PRIORITY_PROCESSING", nameFa: "اولویت پردازش", limit: null, period: "forever", used: 0, isBoolean: true, isEnabled: false },
-  ];
+  // Usage counters come from the usage engine — the single source of truth.
+  const summary = getUsageSummary(userId);
+  const quota = dailyQuotaFromSummary(summary);
+  const entitlements = entitlementsFromSummary(summary);
 
   const data = {
     user: user ? {

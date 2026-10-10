@@ -27,6 +27,7 @@ import type {
   AdminOverviewComparison,
   AdminRecentRequest,
   LegalRequestState,
+  StoredSubscription,
 } from "@legalir/types";
 import { supportCounts } from "./support";
 import { ragReviewCounts } from "./rag";
@@ -34,17 +35,6 @@ import { listAiProviders } from "./ai-providers";
 
 const TIMEZONE = "Asia/Tehran";
 const CURRENCY = "IRT";
-
-interface StoredSubscription {
-  id: string;
-  plan_code: string;
-  plan_name_fa: string;
-  amount: number;
-  currency: string;
-  status: string;
-  status_fa: string;
-  purchased_at: string;
-}
 
 interface LawyerProfileRow {
   id: string;

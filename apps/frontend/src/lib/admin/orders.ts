@@ -14,28 +14,11 @@ import type {
   AdminOrderReceipt,
   OrderStatus,
   FinancialAdjustment,
+  StoredSubscription,
 } from "@legalir/types";
 import { ORDER_STATUS_FA } from "@legalir/types";
 
 const ADJ_TABLE = "financial_adjustments";
-
-interface StoredSubscription {
-  id: string;
-  user_id: string;
-  plan_code: string;
-  plan_name_fa: string;
-  amount: number;
-  currency: string;
-  status: string;
-  status_fa: string;
-  start_at: string;
-  end_at: string;
-  purchased_at: string;
-  auto_renew: number;
-  plan_snapshot?: { listPrice?: number; salePrice?: number } | undefined;
-  /** The gateway tracking code, when the source stored one. */
-  tracking_id?: string | null;
-}
 
 /** Mask a stored mobile for admin display: keep first 4 + last 4. */
 export function maskMobile(mobile: string): string {

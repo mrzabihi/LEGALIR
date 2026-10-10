@@ -176,10 +176,12 @@ export const fixturePlans: Plan[] = [
     listPrice: 5000000,
     salePrice: 2500000,
     currency: "IRT",
-    dailyRequestLimit: 100,
+    // Mirrors the catalog (`apps/frontend/src/lib/usage/plans.ts` DEFAULT_PLANS):
+    // silver is 50 req/day, not 100.
+    dailyRequestLimit: 50,
     totalTokenLimit: 3000000,
     features: [
-      "۱۰۰ درخواست روزانه",
+      "۵۰ درخواست روزانه",
       "۳٬۰۰۰٬۰۰۰ توکن ماهانه",
       "دسترسی پایه به منابع حقوقی",
       "پشتیبانی پیامکی",

@@ -27,6 +27,7 @@ import type {
   PlanEntitlementSnapshot,
   RegistrationIntent,
   RegistrationOrigin,
+  StoredSubscription,
   OnboardingType,
   OnboardingStatus,
   AnnouncementAudience,
@@ -196,22 +197,8 @@ export interface SubscriptionRow {
   autoRenew: boolean;
 }
 
-interface StoredSubscription {
-  id: string;
-  user_id: string;
-  plan_code: string;
-  plan_name_fa: string;
-  amount: number;
-  currency: string;
-  status: string;
-  status_fa: string;
-  start_at: string;
-  end_at: string;
-  purchased_at: string;
-  auto_renew: number;
-  /** Entitlements frozen at purchase time (absent on legacy rows). */
-  plan_snapshot?: PlanEntitlementSnapshot;
-}
+// `StoredSubscription` (the persisted `subscriptions` row) is declared once in
+// @legalir/types and imported above.
 
 interface UsageStatsRow {
   user_id: string;
@@ -835,32 +822,6 @@ export function queryActiveSubscription(userId: string) {
 }
 
 // ============================================================
-// Profile Usage
-// ============================================================
-
-export function queryProfileUsage(userId: string) {
-  const row = readTable<UsageStatsRow>("usage_stats").find((r) => r.user_id === userId);
-  if (!row) {
-    return {
-      dailyRequestsUsed: 0, dailyRequestsTotal: 300,
-      tokensUsed: 0, tokensTotal: 1300000,
-      documentAnalysesUsed: 0, documentAnalysesTotal: 10,
-      contractsGenerated: 0, contractsTotal: 8,
-    };
-  }
-  return {
-    dailyRequestsUsed: row.daily_requests_used,
-    dailyRequestsTotal: row.daily_requests_total,
-    tokensUsed: row.tokens_used,
-    tokensTotal: row.tokens_total,
-    documentAnalysesUsed: row.document_analyses_used,
-    documentAnalysesTotal: row.document_analyses_total,
-    contractsGenerated: row.contracts_generated,
-    contractsTotal: row.contracts_total,
-  };
-}
-
-// ============================================================
 // Daily request quota
 // ============================================================
 // The daily allowance is derived from the user's ACTIVE plan (not a
@@ -919,38 +880,6 @@ export function nextTehranMidnight(now: Date = new Date()): string {
   const dayMs = 24 * 3600_000;
   const nextMidnightTehran = Math.floor(tehranMs / dayMs) * dayMs + dayMs;
   return new Date(nextMidnightTehran - 3.5 * 3600_000).toISOString();
-}
-
-/**
- * Read the user's daily quota, resetting the counter when the stored
- * `usage_day` differs from the current Tehran day.
- */
-export function queryDailyQuota(userId: string): DailyQuota {
-  const rows = readTable<UsageStatsRow>("usage_stats");
-  const idx = rows.findIndex((r) => r.user_id === userId);
-  const today = tehranDateString();
-  const total = dailyRequestAllowance(userId);
-
-  let used = 0;
-  if (idx !== -1) {
-    const row = rows[idx]!;
-    if (row.usage_day !== today) {
-      row.daily_requests_used = 0;
-      row.usage_day = today;
-      writeTable("usage_stats", rows);
-    }
-    used = row.daily_requests_used;
-  }
-
-  const remaining = Math.max(0, total - used);
-  return {
-    used,
-    total,
-    remaining,
-    resetAt: nextTehranMidnight(),
-    exhausted: remaining <= 0,
-    subscriptionExpired: hasExpiredSubscription(userId),
-  };
 }
 
 /**

@@ -2563,6 +2563,40 @@ export interface PlanEntitlementSnapshot {
 }
 
 /**
+ * The subscription row as persisted in the `subscriptions` table (snake_case,
+ * legacy-compatible). THE single declaration of the row shape — every reader
+ * (db, engine, lifecycle, ledger, metrics) imports this instead of re-declaring
+ * a local copy that could silently drift.
+ *
+ * Optional fields are absent on legacy rows: `plan_snapshot` on pre-snapshot
+ * rows, and `payment_id`/`superseded_at`/`updated_at` on rows written before
+ * the payment-lifecycle refactor.
+ */
+export interface StoredSubscription {
+  id: string;
+  user_id: string;
+  plan_code: string;
+  plan_name_fa: string;
+  amount: number;
+  currency: string;
+  status: string;
+  status_fa: string;
+  start_at: string;
+  end_at: string;
+  purchased_at: string;
+  auto_renew: number;
+  /** Frozen entitlements — absent on legacy rows (derived from the catalog). */
+  plan_snapshot?: PlanEntitlementSnapshot;
+  /** The payment that produced this subscription (absent on legacy rows). */
+  payment_id?: string | null;
+  /** When a newer subscription replaced this one (terminal). */
+  superseded_at?: string | null;
+  updated_at?: string | null;
+  /** The payment gateway's tracking code, when the source row stored one. */
+  tracking_id?: string | null;
+}
+
+/**
  * A plan's editorial lifecycle. `active` is the only status purchasable by
  * users; `inactive`/`archived` stop NEW purchases but never touch existing
  * subscriptions (which keep their frozen snapshot). `draft` is a plan still

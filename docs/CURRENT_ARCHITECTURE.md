@@ -273,3 +273,78 @@ on read.
 - Subscription **history is never deleted**.
 - Subscription energy and reward energy stay **separate assets**.
 - Admin mutations are **audited** and **permission-gated**.
+
+---
+
+## 11. As-built reconciliation (2026-10-07, post-refactor)
+
+This section records which §8/§9 problems are resolved in the shipped code, so
+the "Current Problems" above are read as the *pre-refactor* baseline.
+
+### Fixed
+
+1. **Purchase does not change the active plan (§8.1)** — fixed. Activation runs
+   through `lib/subscription/lifecycle.ts`; `queryActiveSubscription` returns the
+   newest `active` row with `end_at > now` (agreeing with `resolveEntitlement`),
+   and activation supersedes every other `active` row. See
+   `SUBSCRIPTION_PLATFORM_API_AND_QA.md §1`.
+
+2. **No payment record / no pending state / no idempotency (§8.2)** — fixed. A
+   persisted `payments` table exists; `POST /api/v1/checkout/intents` creates a
+   *pending* payment + subscription; `POST .../intents/:id/confirm` is the only
+   activation path and is idempotent on `idempotencyKey`.
+
+3. **Legacy `usage_stats` read path — frozen counters (§3 System B).** The routes
+   `/api/v1/entitlements`, `/usage`, `/usage/summary`, `/quota`, `/profile/usage`,
+   and `/dashboard/summary` used to derive every counter from `usage_stats` — a
+   table written **only** by `consumeDailyRequest`, which has no production
+   caller. The counters were therefore frozen while real consumption landed in
+   the engine (`usage_transactions` / `subscription_daily_usage` /
+   `subscription_period_usage`). All six routes now project the usage engine's
+   canonical `SubscriptionUsageSummary` through the pure mappers in
+   **`apps/frontend/src/lib/usage/views.ts`** (`entitlementsFromSummary`,
+   `usageCountersFromSummary`, `profileUsageFromSummary`, `dailyQuotaFromSummary`).
+   Response shapes are **unchanged**; only the source moved. Follow-up cleanup:
+   the now-dead `queryProfileUsage` / `queryDailyQuota` helpers and the unversioned
+   `/api/profile/usage` route were deleted, and `computeDashboardMetrics` no longer
+   reads the table. `usage_stats` is left in place — no data migration — and is
+   still written by `lib/ai/store.ts` and read by the admin AI-provider aggregate
+   (`lib/admin/ai-providers.ts`), but **no per-user usage route reads it any more**.
+
+4. **Dead legacy checkout (§8.8) — removed.** `/api/checkout` and
+   `/api/checkout/[id]` (which priced from `@legalir/testing.fixturePlans` and
+   kept intents in the in-memory `globalThis.__checkoutIntents` Map) had **zero
+   callers** — the live client (`lib/api/v1.ts`) hits `/api/v1/checkout/intents*`,
+   a separate tree. Both files are deleted; the `__checkoutIntents` Map and the
+   divergent fixture pricing are gone. `fixturePlans` itself stays (the MSW
+   handlers and one component test still use it).
+
+5. **`fixturePlans` silver divergence (§9) — aligned.** `packages/testing`
+   carried `dailyRequestLimit: 100` for silver vs the catalog's `50`
+   (`lib/usage/plans.ts` `DEFAULT_PLANS`). The fixture now mirrors the catalog
+   (`dailyRequestLimit: 50`, and the matching `"۵۰ درخواست روزانه"` feature
+   string), so the MSW handlers and the plan-card component test no longer serve
+   numbers the real catalog would never produce.
+
+6. **Duplicate `StoredSubscription` interface (§9) — consolidated.** The
+   `subscriptions` row shape was declared independently in `db.ts`,
+   `usage/engine.ts`, `subscription/lifecycle.ts`, `admin/orders.ts`,
+   `admin/metrics.ts` and (as `StoredSubscriptionRow`) `energy/ledger.ts`. It is
+   now declared **once** in `@legalir/types` (`packages/types/src/index.ts`) and
+   imported everywhere. The canonical shape is the superset: the shared fields
+   plus the optional `plan_snapshot`, `payment_id`, `superseded_at`,
+   `updated_at` and `tracking_id` (the last read by `admin/orders.ts`).
+   `lifecycle.ts` re-exports the type so `@/lib/subscription/lifecycle` importers
+   are untouched. **Type-only — the persisted JSON row and every runtime path are
+   unchanged.** Verified with `tsc --noEmit` (frontend + types) and the 62
+   subscription/payment/energy/admin/orders tests.
+
+### Still open (unchanged by choice)
+
+_None that this pass scoped._ The `usage_stats` table stays in place (no data
+migration); it is still written by `lib/ai/store.ts` and read by the admin
+AI-provider aggregate, but no per-user usage route reads it any more.
+`db.FREE_DAILY_REQUESTS` (10) still mirrors `FREE_TIER_SNAPSHOT.dailyRequestLimit`
+(also 10) — both agree, and deriving one from the other would introduce a
+`db.ts → plans.ts → db.ts` import cycle for a constant read only by the dead
+`consumeDailyRequest` path, so the duplication is left deliberately.

@@ -8,7 +8,8 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
-import { queryDailyQuota } from "@/lib/db";
+import { getUsageSummary } from "@/lib/usage/engine";
+import { dailyQuotaFromSummary } from "@/lib/usage/views";
 
 export async function GET(request: Request) {
   const userId = getUserIdFromRequest(request);
@@ -19,5 +20,7 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ data: queryDailyQuota(userId) });
+  // The daily counter lives in the usage engine (today's subscription credit),
+  // not the frozen `usage_stats` table.
+  return NextResponse.json({ data: dailyQuotaFromSummary(getUsageSummary(userId)) });
 }

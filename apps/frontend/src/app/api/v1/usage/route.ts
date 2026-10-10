@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { findSessionById, queryProfileUsage } from "@/lib/db";
+import { findSessionById } from "@/lib/db";
+import { getUsageSummary } from "@/lib/usage/engine";
+import { usageCountersFromSummary } from "@/lib/usage/views";
 
 function getUserIdFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get('cookie') ?? '';
@@ -18,7 +20,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const usage = queryProfileUsage(userId);
+  // Counters come from the usage engine (today's daily credit + period quotas),
+  // not the frozen `usage_stats` table.
+  const summary = getUsageSummary(userId);
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
@@ -26,11 +30,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     data: {
-      usageCounters: [
-        { featureKey: "AI_CHAT_MESSAGE", periodStart, periodEnd, used: usage.dailyRequestsUsed, limit: usage.dailyRequestsTotal },
-        { featureKey: "DOCUMENT_ANALYSIS", periodStart, periodEnd, used: usage.documentAnalysesUsed, limit: usage.documentAnalysesTotal },
-        { featureKey: "CONTRACT_GENERATION", periodStart, periodEnd, used: usage.contractsGenerated, limit: usage.contractsTotal },
-      ],
+      usageCounters: usageCountersFromSummary(summary, periodStart, periodEnd),
       periodStart,
       periodEnd,
       daysRemaining,
