@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CTASection } from "@/components/public/CTASection";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
+import { LegalTopicsSection, type LegalTopic } from "@/components/public/LegalTopicsSection";
 import { PromoPanel } from "@/components/shared";
 import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
 import { SITE_URL, absoluteUrl } from "@/lib/site";
@@ -129,7 +130,7 @@ const distinctions = [
 // ================================================================
 // Real Legal Topic Examples (نمونه موضوعات پرکاربرد حقوقی)
 // ================================================================
-const legalTopics = [
+const legalTopics: LegalTopic[] = [
   {
     icon: "🏠",
     title: "مالک و مستأجر",
@@ -548,61 +549,11 @@ export default function LandingPage() {
 
       {/* ============================================================
           LEGAL TOPICS — "موضوعات پرکاربرد حقوقی"
+          The section (blurred photographic backdrop + frosted-glass topic
+          cards with a pointer/scroll light) lives in its own client
+          component; the copy stays here as the single source of truth.
           ============================================================ */}
-      <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 rounded-full bg-info-50 border border-info-100 px-4 py-1.5 text-caption font-medium text-info-700 mb-4">
-            <IconCategory size={16} className="text-info-600" />
-            موضوعات حقوقی
-          </div>
-          <h2 className="text-h2 text-primary-800 mb-3">موضوعات پرکاربرد حقوقی</h2>
-          <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
-            لیگالیر در حوزه‌های متنوع حقوقی آموزش دیده است. هر حوزه شامل منابع قانونی،
-            آرای قضایی و تحلیل تخصصی مرتبط می‌باشد.
-          </p>
-        </div>
-
-        <div className="grid tablet:grid-cols-2 desktop:grid-cols-3 gap-5">
-          {legalTopics.map((topic) => (
-            <Link
-              key={topic.title}
-              href="/auth/mobile?intent=chat"
-              className="group rounded-large bg-surface p-6 border border-divider shadow-elevation-1 card-lift card-press relative overflow-hidden transition-all duration-300 hover:border-primary-200"
-            >
-              {/* Decorative gradient accent */}
-              <div
-                className="absolute top-0 end-0 w-24 h-24 rounded-bl-[100%] bg-gradient-to-bl from-secondary-100/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                aria-hidden="true"
-              />
-
-              <div className="flex items-start gap-4 mb-3">
-                <span className="text-[32px] leading-none shrink-0" aria-hidden="true">
-                  {topic.icon}
-                </span>
-                <div>
-                  <h3 className="text-h3 text-primary-800 mb-1.5 group-hover:text-primary-600 transition-colors">
-                    {topic.title}
-                  </h3>
-                  <p className="text-body-2 text-neutral-500 leading-relaxed">
-                    {topic.description}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {topic.keywords.map((kw) => (
-                  <span
-                    key={kw}
-                    className="text-caption text-neutral-400 bg-neutral-50 border border-neutral-200 rounded-full px-2.5 py-0.5"
-                  >
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <LegalTopicsSection topics={legalTopics} />
 
       {/* ============================================================
           HOW IT WORKS — 3-Step Connected Diagram
