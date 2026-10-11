@@ -15,11 +15,12 @@
 // user hears "ذخیره شد" without the header stealing focus.
 //
 // SURFACE — the header floats above the white contract form, so it sits
-// on a soft light-blue control surface (`--contract-sticky-*`) rather
-// than plain white. That is what makes "this is the persistent status
-// area" legible at a glance while the form scrolls underneath. Elevation
-// is scroll-aware: flat at the top of the page, lifted once content
-// slides under it.
+// on the LEGALIR brand ivory (`--contract-sticky-bg`, #FCF6E8) rather
+// than plain white: the deep brand teal is the text, the brand green is
+// the progress fill, and the gold is rationed to a single hairline. That
+// is what makes "this is the persistent status area" legible at a glance
+// while the form scrolls underneath. Elevation is scroll-aware: flat at
+// the top of the page, lifted once content slides under it.
 // ============================================================
 
 "use client";
@@ -29,7 +30,7 @@ import Link from "next/link";
 import type { ContractCompletenessSection } from "@legalir/types";
 import type { SaveStatus } from "./wizard-context";
 import {
-  IconArrowForward,
+  IconArrowBack,
   IconCopy,
   IconRefresh,
   IconWarning,
@@ -156,9 +157,12 @@ export function ContractWorkspaceHeader({
         <div className="flex items-center justify-between gap-3">
           <Link
             href="/contracts"
-            className="inline-flex items-center gap-1 text-caption text-[var(--contract-sticky-muted)] transition-colors hover:text-[var(--contract-sticky-text)]"
+            className="inline-flex items-center gap-1 text-caption text-[var(--brand-fg)] transition-colors hover:text-[var(--brand-fg-hover)]"
           >
-            <IconArrowForward className="h-3.5 w-3.5" />
+            {/* RTL: the back arrow must point toward the reading start
+                (right). The workspace is always `dir="rtl"`, so the glyph is
+                mirrored unconditionally — no dependency on a global helper. */}
+            <IconArrowBack className="h-3.5 w-3.5 -scale-x-100" />
             بازگشت به مرکز قراردادها
           </Link>
 
@@ -173,11 +177,19 @@ export function ContractWorkspaceHeader({
         </div>
 
         <div className="mt-0.5 flex items-center gap-2">
-          <h1 className="truncate text-h4 text-[var(--contract-sticky-text)] max-mobile-l:line-clamp-2 max-mobile-l:whitespace-normal">
+          {/* Phone: clamp the title to two readable lines (a long Persian
+              title must not collapse to a single truncation). Tablet and
+              up: one truncating line. */}
+          <h1 className="line-clamp-2 min-w-0 text-h4 text-[var(--contract-sticky-text)] tablet:line-clamp-none tablet:truncate">
             {title}
           </h1>
-          {/* Lifecycle state — the one bronze accent in the header. */}
-          <span className="shrink-0 rounded-full border border-[var(--contract-sticky-accent)] bg-secondary-container px-2.5 py-0.5 text-labelSmall text-on-secondary-container">
+          {/* Lifecycle state — a distinct green chip, never competing with
+              the title: a whisper of brand green with a readable dark-green
+              label and a hairline border. */}
+          <span
+            className="shrink-0 rounded-full border px-2.5 py-0.5 text-labelSmall bg-[var(--contract-sticky-badge-bg)] text-[var(--contract-sticky-badge-text)]"
+            style={{ borderColor: "var(--contract-sticky-badge-border)" }}
+          >
             {stateFa}
           </span>
         </div>
@@ -190,7 +202,7 @@ export function ContractWorkspaceHeader({
             type="button"
             onClick={onCopyId}
             aria-label="کپی شناسه قرارداد"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--contract-sticky-muted)] transition-colors hover:bg-[var(--contract-sticky-chip)]"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--contract-sticky-muted)] transition-colors hover:bg-[var(--contract-sticky-chip)] hover:text-[var(--contract-sticky-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--contract-sticky-fill)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--contract-sticky-bg)]"
           >
             <IconCopy size={14} />
           </button>
@@ -204,7 +216,8 @@ export function ContractWorkspaceHeader({
               <span className="text-labelLarge text-[var(--contract-sticky-text)]">
                 تکمیل قرارداد
               </span>
-              {/* Current step — the "you are here" anchor, navy emphasis. */}
+              {/* Current step — the "you are here" anchor on a pale-green
+                  chip with dark text. */}
               <span className="shrink-0 rounded-full bg-[var(--contract-sticky-chip-strong)] px-2 py-0.5 text-labelSmall text-[var(--contract-sticky-text)]">
                 مرحله {stepIndex + 1} از {stepCount}
               </span>
@@ -222,17 +235,17 @@ export function ContractWorkspaceHeader({
             aria-label="پیشرفت تکمیل قرارداد"
             className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--contract-sticky-track)]"
           >
+            {/* Fill is always the brand green — it never doubles as the
+                text colour. */}
             <div
-              className={`h-full rounded-full transition-all duration-medium2 ease-standard ${
-                progress === 100 ? "bg-success" : "bg-[var(--contract-sticky-text)]"
-              }`}
+              className="h-full rounded-full bg-[var(--contract-sticky-fill)] transition-all duration-medium2 ease-standard"
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {/* Completed count + the remaining section chips — what is left,
-              at a glance. On mobile the chips ride a single horizontal rail
-              so the sticky header never grows to two rows; from `mobile-l`
+              at a glance. On phones the chips ride a single horizontal rail
+              so the sticky header never grows to two rows; from `tablet`
               up they wrap normally. */}
           <div className="relative mt-1.5 flex items-center gap-2">
             <span className="shrink-0 text-caption text-[var(--contract-sticky-muted)]">
@@ -241,7 +254,9 @@ export function ContractWorkspaceHeader({
             {remaining.length > 0 && (
               <div
                 ref={railRef}
-                className="scrollbar-hide flex min-w-0 flex-1 gap-1.5 overflow-x-auto mobile-l:flex-wrap mobile-l:overflow-visible"
+                tabIndex={railScrollable ? 0 : undefined}
+                aria-label={railScrollable ? "بخش‌های باقی‌مانده قرارداد" : undefined}
+                className="scrollbar-hide flex min-w-0 flex-1 gap-1.5 overflow-x-auto rounded-small focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--contract-sticky-fill)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--contract-sticky-bg)] tablet:flex-wrap tablet:overflow-visible"
               >
                 {remaining.slice(0, 6).map((section) => (
                   <span
@@ -262,21 +277,26 @@ export function ContractWorkspaceHeader({
             {railScrollable && (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 end-0 w-6 bg-gradient-to-l from-[var(--contract-sticky-bg)] to-transparent mobile-l:hidden"
+                className="pointer-events-none absolute inset-y-0 end-0 w-6 bg-gradient-to-l from-[var(--contract-sticky-bg)] to-transparent tablet:hidden"
               />
             )}
           </div>
 
           {blockers.length > 0 && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-caption text-warning-700">
-              <IconWarning size={14} />
-              {blockers.length} مورد مانع امضا: {blockers.map((b) => b.labelFa).join("، ")}
+            /* Warning band — a soft gold wash tuned to the ivory surface,
+               with the dark warning ink. Never a saturated red. `items-start`
+               keeps the icon on the first line when the label wraps. */
+            <p className="mt-1.5 flex items-start gap-1.5 rounded-small border border-warning-200 bg-warning-50 px-2 py-1 text-caption text-warning-700">
+              <IconWarning size={14} className="mt-0.5 shrink-0" />
+              <span className="min-w-0">
+                {blockers.length} مورد مانع امضا: {blockers.map((b) => b.labelFa).join("، ")}
+              </span>
             </p>
           )}
         </div>
       </div>
 
-      {/* Bronze hairline — a single premium accent at the start edge. */}
+      {/* Gold hairline — a single premium accent at the start edge. */}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute bottom-0 start-0 h-px w-16 bg-[var(--contract-sticky-accent)] opacity-70"
@@ -311,7 +331,7 @@ function SaveStatusLabel({
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex items-center gap-1.5 text-caption text-error hover:underline"
+        className="inline-flex items-center gap-1.5 rounded-small text-caption text-error hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--contract-sticky-fill)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--contract-sticky-bg)]"
       >
         <IconRefresh size={14} />
         ذخیره انجام نشد — تلاش مجدد
@@ -321,11 +341,11 @@ function SaveStatusLabel({
 
   if (status === "saved" && lastSavedAt) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-caption text-success">
+      <span className="inline-flex items-center gap-1.5 text-caption text-[var(--brand-fg)]">
         {/* Brand-green dot — the fill colour, kept off the text so the
-            label itself stays at WCAG AA on the blue surface. */}
+            label itself stays at WCAG AA on the ivory surface. */}
         <span
-          className="inline-block h-1.5 w-1.5 rounded-full bg-control-selected"
+          className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--contract-sticky-fill)]"
           aria-hidden="true"
         />
         همه تغییرات ذخیره شده‌اند

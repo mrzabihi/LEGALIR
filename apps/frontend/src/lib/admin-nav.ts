@@ -144,6 +144,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
     permission: "admin:content:read",
   },
   {
+    key: "legal-library",
+    path: "/admin/legal-library",
+    titleFa: "کتابخانه لیگالیر",
+    hintFa: "منابع حقوقی، انتشار و بایگانی",
+    icon: "Library",
+    permission: "admin:library:read",
+  },
+  {
     key: "analytics",
     path: "/admin/analytics",
     titleFa: "تحلیل و هوش تجاری",

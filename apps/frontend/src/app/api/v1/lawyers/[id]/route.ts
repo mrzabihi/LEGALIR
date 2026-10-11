@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getLawyerProfileById, toLawyerDetail } from "@/lib/lawyer-db";
+import { getLawyerProfileById, isPubliclyViewable, toLawyerDetail } from "@/lib/lawyer-db";
 
 export async function GET(
   _req: NextRequest,
@@ -20,10 +20,12 @@ export async function GET(
     return NextResponse.json({ code: "NOT_FOUND", message: "وکیل یافت نشد" }, { status: 404 });
   }
 
-  // An unverified lawyer must never be publicly viewable. The one exception
-  // is a SUSPENDED lawyer: their profile stays reachable so the alert card
-  // (and the reason) are visible, but every CTA is disabled.
-  if (profile.verificationStatus !== "VERIFIED" && profile.verificationStatus !== "SUSPENDED") {
+  // An unverified, deactivated (HIDDEN) or deleted lawyer must never be
+  // publicly viewable — even by direct id. The one exception is a SUSPENDED
+  // lawyer: their profile stays reachable so the alert card (and the reason)
+  // are visible, but every CTA is disabled. `isPubliclyViewable` is the same
+  // gate the marketplace listing uses, so the two can never disagree.
+  if (!isPubliclyViewable(profile)) {
     return NextResponse.json({ code: "NOT_FOUND", message: "وکیل یافت نشد" }, { status: 404 });
   }
 

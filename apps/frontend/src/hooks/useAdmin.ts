@@ -86,6 +86,7 @@ import {
   updateCalculatorSetting,
   type UpdateCalculatorSettingInput,
   fetchCalculatorRules,
+  fetchCalculatorRuleBoard,
   fetchCalculatorRuleDetail,
   saveCalculatorRuleDraft,
   type SaveCalculatorRuleDraftInput,
@@ -874,10 +875,26 @@ export function useUpdateCalculatorSetting() {
 // affects users; publishing a valid version is what changes real results.
 
 /** Every dataset's rule-layer status (seed, active version, open draft). */
-export function useCalculatorRules() {
+export function useCalculatorRules(enabled = true) {
   return useQuery({
     queryKey: ["admin", "calculators", "rules"],
     queryFn: fetchCalculatorRules,
+    enabled,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/**
+ * The calculator-centric rule board (every calculator: service status, in-force
+ * version, open draft, last change, legal source). Backs «مدیریت فرمول‌ها».
+ * Super-Admin-only — callers gate it on `admin:calculators:rules:read`.
+ */
+export function useCalculatorRuleBoard(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "calculators", "rules", "board"],
+    queryFn: fetchCalculatorRuleBoard,
+    enabled,
     staleTime: 30_000,
     retry: 1,
   });
@@ -1383,5 +1400,82 @@ export function useUsageSummary(rangeDays = 30) {
     queryFn: () => fetchUsageSummary(rangeDays),
     staleTime: 60_000,
     retry: 1,
+  });
+}
+  fetchAdminCoupons,
+  fetchAdminCoupon,
+  createAdminCoupon,
+  updateAdminCoupon,
+  setAdminCouponStatus,
+  type AdminCouponDraft,
+  type AdminCouponRow,
+  CouponStatus,
+
+// ---------------------------------------------------------------------------
+// Discount coupons (billing)
+// ---------------------------------------------------------------------------
+
+const COUPON_KEY = ["admin", "coupons"] as const;
+
+/** The coupon catalog with live usage counts. */
+export function useAdminCoupons() {
+  return useQuery({
+    queryKey: COUPON_KEY,
+    queryFn: fetchAdminCoupons,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** One coupon's detail (used when a row opens for editing). */
+export function useAdminCoupon(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "coupons", "detail", id],
+    queryFn: () => fetchAdminCoupon(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+export function useCreateAdminCoupon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AdminCouponDraft) => createAdminCoupon(input),
+    onSuccess: (created: AdminCouponRow) => {
+      // Prepend so the list reflects the new coupon in the same frame.
+      qc.setQueryData<{ items: AdminCouponRow[] }>(COUPON_KEY, (old) =>
+        old ? { items: [created, ...old.items] } : { items: [created] }
+      );
+    },
+  });
+}
+
+export function useUpdateAdminCoupon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AdminCouponDraft }) =>
+      updateAdminCoupon(id, input),
+    onSuccess: (updated: AdminCouponRow) => {
+      qc.setQueryData<{ items: AdminCouponRow[] }>(COUPON_KEY, (old) =>
+        old ? { items: old.items.map((c) => (c.id === updated.id ? updated : c)) } : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "coupons", "detail", updated.id] });
+    },
+  });
+}
+
+/** Enable / disable / archive — a status-only transition (never a delete). */
+export function useSetAdminCouponStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: CouponStatus }) =>
+      setAdminCouponStatus(id, status),
+    onSuccess: (updated: AdminCouponRow) => {
+      qc.setQueryData<{ items: AdminCouponRow[] }>(COUPON_KEY, (old) =>
+        old ? { items: old.items.map((c) => (c.id === updated.id ? updated : c)) } : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "coupons", "detail", updated.id] });
+    },
   });
 }

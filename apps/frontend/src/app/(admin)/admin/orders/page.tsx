@@ -304,10 +304,14 @@ function OrderDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 tablet:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 tablet:grid-cols-5">
         <div className="rounded-medium border border-divider p-3">
           <p className="text-caption text-muted">قیمت فهرست</p>
           <p className="tabular-nums">{toPersianCurrency(order.listPrice)}</p>
+        </div>
+        <div className="rounded-medium border border-divider p-3">
+          <p className="text-caption text-muted">تخفیف</p>
+          <p className="tabular-nums">{toPersianCurrency(order.discountAmount)}</p>
         </div>
         <div className="rounded-medium border border-divider p-3">
           <p className="text-caption text-muted">مبلغ فروش</p>

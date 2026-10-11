@@ -95,7 +95,7 @@ describe("Public Footer", () => {
 
   it("renders tagline", () => {
     render(wrapInRtl(<Footer />));
-    expect(screen.getByText(/سویه یک برند مستقل/)).toBeInTheDocument();
+    expect(screen.getByText(/دسترسی‌پذیر کردن اطلاعات و خدمات حقوقی/)).toBeInTheDocument();
   });
 
   it("contains disclaimer about AI", () => {

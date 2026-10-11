@@ -22,7 +22,9 @@
 // shared `readTable`/`writeTable` primitive. No I/O beyond that, no network.
 
 import type {
+  CalculatorRuleBoardRow,
   CalculatorRuleDetail,
+  CalculatorRuleLastChange,
   CalculatorRuleRef,
   CalculatorRuleSourceOverride,
   CalculatorRuleSummary,
@@ -36,6 +38,7 @@ import type {
   RuleValidationResult,
 } from "@legalir/types";
 import { readTable, writeTable } from "@/lib/db";
+import { getCalculatorSetting } from "@/lib/admin/calculator-settings";
 import {
   RATE_DATASETS,
   clearRuleOverrides,
@@ -655,6 +658,77 @@ export function listRuleSummaries(): CalculatorRuleSummary[] {
   }).sort(
     (a, b) => b.calculationYear - a.calculationYear || a.datasetId.localeCompare(b.datasetId)
   );
+}
+
+/**
+ * The calculator-centric rule board: EVERY registered calculator with its
+ * service status, the rule version in force, the open draft (if any), the last
+ * change and the legal source. Derived entirely from the registry + the rule
+ * store, so no calculator can be missing and none is invented. The operational
+ * policy is read (not owned) here — it is edited in the settings drawer.
+ */
+export function listCalculatorRuleBoard(): CalculatorRuleBoardRow[] {
+  return listCalculators().map((c) => {
+    const { def } = c;
+    const setting = getCalculatorSetting(def.slug);
+
+    let sawPublished = false;
+    let sawSeed = false;
+    const versionLabels: string[] = [];
+    const sources: string[] = [];
+    let verificationStatus: "verified" | "pending" = "verified";
+    let lastChange: CalculatorRuleLastChange | null = null;
+
+    for (const id of def.datasetIds) {
+      const eff = effectiveFor(id);
+      if (eff) {
+        if (eff.fromRule) sawPublished = true;
+        else sawSeed = true;
+        versionLabels.push(eff.version);
+        sources.push(`${eff.source.sourceAuthority} — ${eff.source.sourceTitle}`);
+        if (eff.source.verificationStatus === "pending") verificationStatus = "pending";
+      }
+      // The most recent change (any version, incl. archived) across datasets.
+      for (const v of listRuleVersions(id)) {
+        const at = (v.status === "published" ? v.publishedAt : v.createdAt) ?? v.createdAt;
+        const by = (v.status === "published" ? v.publishedBy : v.createdBy) ?? v.createdBy;
+        const action: "draft" | "published" = v.status === "published" ? "published" : "draft";
+        if (!lastChange || at > lastChange.at) {
+          lastChange = { at, by: by ?? null, noteFa: v.changeNoteFa, version: v.version, action };
+        }
+      }
+    }
+
+    // Any open draft (published + archived are history, not a work-in-progress).
+    const draft =
+      def.datasetIds
+        .map((id) => openDraft(id))
+        .find((d): d is CalculatorRuleVersion => Boolean(d)) ?? null;
+
+    const rulesState: CalculatorRuleBoardRow["rulesState"] = sawPublished
+      ? "published"
+      : sawSeed
+        ? "code-seed"
+        : "none";
+
+    const distinctSources = Array.from(new Set(sources));
+
+    return {
+      slug: def.slug,
+      titleFa: def.titleFa,
+      category: def.category,
+      datasetIds: [...def.datasetIds],
+      enabled: setting.enabled,
+      accessTier: setting.accessTier,
+      energyCost: setting.energyCost,
+      rulesState,
+      effectiveVersion: versionLabels.length ? versionLabels.join(" ، ") : null,
+      draftVersion: draft?.version ?? null,
+      verificationStatus: def.datasetIds.length === 0 ? "verified" : verificationStatus,
+      legalSourceFa: distinctSources.length ? distinctSources.join(" ؛ ") : def.legalBasisFa,
+      lastChange,
+    };
+  });
 }
 
 export function getRuleDetail(datasetId: string): CalculatorRuleDetail | null {

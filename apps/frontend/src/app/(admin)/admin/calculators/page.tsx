@@ -19,9 +19,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Drawer, Switch, snackbar } from "@legalir/ui";
 import {
+  useAdminMe,
   useCalculatorsInventory,
   useUpdateCalculatorSetting,
   useCalculatorRules,
+  useCalculatorRuleBoard,
   useCalculatorRuleDetail,
   useSaveCalculatorRuleDraft,
   usePreviewCalculatorRuleDraft,
@@ -38,6 +40,7 @@ import type {
   CalculatorAccessTier,
   CalculatorSetting,
   CalculatorRuleSummary,
+  CalculatorRuleBoardRow,
   CalculatorRuleDetail,
   CalculatorRuleVersion,
   RuleField,
@@ -62,7 +65,7 @@ import {
   TextArea,
   Select,
 } from "@/components/admin/ui";
-import { IconSettings } from "@/lib/icons";
+import { IconSettings, IconShieldCheck, IconHistory } from "@/lib/icons";
 
 const ACCESS_TIERS: CalculatorAccessTier[] = ["free", "subscription", "purchase", "restricted"];
 
@@ -98,13 +101,24 @@ const CATEGORY_FA: Record<string, string> = {
   property: "اموال و املاک",
 };
 
+const RULE_STATE_FA: Record<CalculatorRuleBoardRow["rulesState"], string> = {
+  none: "فرمول کد ثابت",
+  "code-seed": "پایهٔ کد نسخه‌دار",
+  published: "نسخهٔ منتشرشدهٔ پایگاه‌داده",
+};
+
 type Scope = "" | "available" | "unavailable";
 
 export default function AdminCalculatorsPage() {
   const query = useCalculatorsInventory();
+  const { can } = useAdminMe();
+  // The rule layer (formulas / rates / versions) is a Super-Admin-only
+  // capability. A normal admin sees and edits the operational policy only.
+  const canManageRules = can("admin:calculators:rules:read");
   const [scope, setScope] = useState<Scope>("");
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [editingRulesId, setEditingRulesId] = useState<string | null>(null);
+  const [showBoard, setShowBoard] = useState(false);
 
   const filters = useMemo(
     () => [
@@ -125,7 +139,8 @@ export default function AdminCalculatorsPage() {
     return map;
   }, [query.data]);
 
-  const rulesQuery = useCalculatorRules();
+  const rulesQuery = useCalculatorRules(canManageRules);
+  const boardQuery = useCalculatorRuleBoard(canManageRules);
   const ruleByDataset = useMemo(() => {
     const map = new Map<string, CalculatorRuleSummary>();
     for (const r of rulesQuery.data?.items ?? []) map.set(r.datasetId, r);
@@ -139,6 +154,158 @@ export default function AdminCalculatorsPage() {
         description="سیاههٔ ماشین‌حساب‌های حقوقی و مجموعه‌داده‌های نرخ. نرخ‌ها از ماژول‌های نسخه‌دار کد می‌آیند و از طریق بازبینی کد به‌روزرسانی می‌شوند؛ اما سیاست عملیاتی هر ماشین‌حساب (فعال/غیرفعال، سطح دسترسی و هزینهٔ انرژی) از همین‌جا مدیریت و در سرور اعمال می‌شود."
         actions={<ExportButton kind="calculators" />}
       />
+
+      {canManageRules && (
+        <Card className="mb-5 flex flex-wrap items-center justify-between gap-4 p-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-soft text-primary"
+            >
+              <IconShieldCheck size={20} />
+            </span>
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 font-medium text-on-surface">
+                مدیریت فرمول‌ها
+                <Badge tone="info">ویژهٔ Super Admin</Badge>
+              </p>
+              <p className="mt-0.5 text-caption text-muted">
+                ویرایش، آزمون با ورودی نمونه، انتشار و بازگردانی قواعد محاسبهٔ هر
+                سرویس. پیش‌نویس تا پیش از انتشار بر نتیجهٔ کاربران اثری ندارد.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant={showBoard ? "ghost" : "secondary"}
+            startIcon={showBoard ? undefined : <IconHistory size={15} />}
+            onClick={() => setShowBoard((v) => !v)}
+          >
+            {showBoard ? "بستن مدیریت فرمول‌ها" : "ورود به مدیریت فرمول‌ها"}
+          </Button>
+        </Card>
+      )}
+
+      {canManageRules && showBoard && (
+        <Section
+          title="مدیریت فرمول‌ها"
+          subtitle="همهٔ ماشین‌حساب‌ها؛ وضعیت سرویس، نسخهٔ فعال قواعد، آخرین تغییر و مرجع حقوقی هر قاعده."
+        >
+          <StateView
+            query={boardQuery}
+            loadingRows={8}
+            isEmpty={(d) => d.items.length === 0}
+            emptyMessage="ماشین‌حسابی یافت نشد."
+          >
+            {(data) => (
+              <DataTable
+                head={
+                  <tr>
+                    <Th>ماشین‌حساب</Th>
+                    <Th>سرویس</Th>
+                    <Th>منبع قواعد</Th>
+                    <Th>نسخهٔ فعال</Th>
+                    <Th>پیش‌نویس</Th>
+                    <Th>آخرین تغییر</Th>
+                    <Th>مرجع حقوقی</Th>
+                    <Th className="text-end">قواعد</Th>
+                  </tr>
+                }
+              >
+                {data.items.map((row) => {
+                  const datasets = row.datasetIds
+                    .map((id) => ruleByDataset.get(id))
+                    .filter((x): x is CalculatorRuleSummary => Boolean(x));
+                  return (
+                    <tr key={row.slug}>
+                      <Td className="max-w-[240px]">
+                        <span className="block truncate font-medium text-on-surface" title={row.titleFa}>
+                          {row.titleFa}
+                        </span>
+                        <span className="text-caption text-muted" dir="ltr">
+                          {row.slug}
+                        </span>
+                      </Td>
+                      <Td>
+                        {!row.enabled ? (
+                          <Badge tone="neutral" dot>
+                            غیرفعال
+                          </Badge>
+                        ) : (
+                          <Badge tone="success" dot>
+                            فعال
+                          </Badge>
+                        )}
+                      </Td>
+                      <Td>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge tone={row.rulesState === "published" ? "info" : "neutral"}>
+                            {RULE_STATE_FA[row.rulesState]}
+                          </Badge>
+                          {row.verificationStatus === "pending" && (
+                            <Badge tone="warning">نیازمند بازبینی</Badge>
+                          )}
+                        </div>
+                      </Td>
+                      <Td dir="ltr" className="text-caption text-muted">
+                        {row.effectiveVersion ?? "—"}
+                      </Td>
+                      <Td>
+                        {row.draftVersion ? (
+                          <Badge tone="warning">{row.draftVersion}</Badge>
+                        ) : (
+                          <span className="text-caption text-muted">—</span>
+                        )}
+                      </Td>
+                      <Td className="max-w-[220px]">
+                        {row.lastChange ? (
+                          <>
+                            <span className="block truncate text-caption text-muted" title={row.lastChange.noteFa}>
+                              {row.lastChange.noteFa || "بدون توضیح"}
+                            </span>
+                            <span className="mt-0.5 flex items-center gap-1.5 text-caption text-muted">
+                              <Badge tone={row.lastChange.action === "published" ? "success" : "neutral"}>
+                                {row.lastChange.action === "published" ? "منتشرشده" : "پیش‌نویس"}
+                              </Badge>
+                              <span dir="ltr">{row.lastChange.version}</span>
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-caption text-muted">تغییری ثبت نشده</span>
+                        )}
+                      </Td>
+                      <Td className="max-w-[220px]">
+                        <span className="block truncate text-caption text-muted" title={row.legalSourceFa}>
+                          {row.legalSourceFa || "—"}
+                        </span>
+                      </Td>
+                      <Td className="text-end">
+                        {datasets.length === 0 ? (
+                          <span className="text-caption text-muted">قاعدهٔ نسخه‌دار ندارد</span>
+                        ) : (
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {datasets.map((d) => (
+                              <Button
+                                key={d.datasetId}
+                                variant="ghost"
+                                size="sm"
+                                startIcon={<IconSettings size={15} />}
+                                onClick={() => setEditingRulesId(d.datasetId)}
+                                title={d.datasetId}
+                              >
+                                {d.titleFa}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </DataTable>
+            )}
+          </StateView>
+        </Section>
+      )}
 
       {query.data && (
         <>
@@ -306,7 +473,7 @@ export default function AdminCalculatorsPage() {
                   <Th>اعتبار</Th>
                   <Th>بازبینی</Th>
                   <Th>وضعیت سالانه</Th>
-                  <Th className="text-end">قواعد</Th>
+                  {canManageRules && <Th className="text-end">قواعد</Th>}
                 </tr>
               }
             >
@@ -351,20 +518,22 @@ export default function AdminCalculatorsPage() {
                       <Badge tone="neutral">—</Badge>
                     )}
                   </Td>
-                  <Td className="text-end">
-                    <div className="flex items-center justify-end gap-2">
-                      {ruleByDataset.get(d.id)?.active && <Badge tone="info">بازنویسی فعال</Badge>}
-                      {ruleByDataset.get(d.id)?.draft && <Badge tone="warning">پیش‌نویس</Badge>}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        startIcon={<IconSettings size={15} />}
-                        onClick={() => setEditingRulesId(d.id)}
-                      >
-                        قواعد
-                      </Button>
-                    </div>
-                  </Td>
+                  {canManageRules && (
+                    <Td className="text-end">
+                      <div className="flex items-center justify-end gap-2">
+                        {ruleByDataset.get(d.id)?.active && <Badge tone="info">بازنویسی فعال</Badge>}
+                        {ruleByDataset.get(d.id)?.draft && <Badge tone="warning">پیش‌نویس</Badge>}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          startIcon={<IconSettings size={15} />}
+                          onClick={() => setEditingRulesId(d.id)}
+                        >
+                          قواعد
+                        </Button>
+                      </div>
+                    </Td>
+                  )}
                 </tr>
               ))}
             </DataTable>
@@ -400,19 +569,21 @@ export default function AdminCalculatorsPage() {
         )}
       </Drawer>
 
-      <Drawer
-        open={editingRulesId !== null}
-        onClose={() => setEditingRulesId(null)}
-        width={720}
-        title="قواعد محاسبه — نسخه‌دار"
-      >
-        {editingRulesId && (
-          <CalculatorRuleEditor
-            datasetId={editingRulesId}
-            onClose={() => setEditingRulesId(null)}
-          />
-        )}
-      </Drawer>
+      {canManageRules && (
+        <Drawer
+          open={editingRulesId !== null}
+          onClose={() => setEditingRulesId(null)}
+          width={720}
+          title="قواعد محاسبه — نسخه‌دار"
+        >
+          {editingRulesId && (
+            <CalculatorRuleEditor
+              datasetId={editingRulesId}
+              onClose={() => setEditingRulesId(null)}
+            />
+          )}
+        </Drawer>
+      )}
     </div>
   );
 }

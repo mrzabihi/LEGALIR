@@ -48,63 +48,83 @@ export function Dialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
 
-  // Trap focus and handle escape
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !persistent) {
-        onClose();
-        return;
-      }
-
-      // Focus trap: Tab/Shift+Tab cycle within dialog
-      if (e.key === "Tab" && dialogRef.current) {
-        const focusable = Array.from(
-          dialogRef.current.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
-
-        if (focusable.length === 0) return;
-
-        const first = focusable[0]!;
-        const last = focusable[focusable.length - 1]!;
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    },
-    [onClose, persistent]
-  );
-
+  // Latest `onClose`/`persistent` reachable from the stable keydown listener
+  // below without making them dependencies. A changing `onClose` identity (the
+  // usual inline arrow prop) must NOT re-run the focus effects while the dialog
+  // is open — otherwise focus is re-stolen and restored on every parent render
+  // (e.g. on each keystroke in a field of the dialog), which is exactly the
+  // "typing jumps to another field" defect.
+  const onCloseRef = useRef(onClose);
+  const persistentRef = useRef(persistent);
   useEffect(() => {
-    if (open) {
-      previousFocus.current = document.activeElement as HTMLElement;
-      document.addEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "hidden";
+    onCloseRef.current = onClose;
+    persistentRef.current = persistent;
+  });
 
-      // Focus first focusable element
-      requestAnimationFrame(() => {
-        const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        firstFocusable?.focus();
-      });
+  // Trap focus and handle escape. Identity is stable (empty deps) on purpose.
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape" && !persistentRef.current) {
+      onCloseRef.current();
+      return;
     }
 
+    // Focus trap: Tab/Shift+Tab cycle within dialog
+    if (e.key === "Tab" && dialogRef.current) {
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
+
+      if (focusable.length === 0) return;
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
+  // Body scroll lock + key listener — tied ONLY to `open`.
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
-      // Restore focus on close
+    };
+  }, [open, handleKeyDown]);
+
+  // Focus management — tied ONLY to `open`, never to parent re-renders, so
+  // typing inside a dialog field cannot move focus.
+  useEffect(() => {
+    if (!open) return;
+
+    previousFocus.current = document.activeElement as HTMLElement;
+
+    // Focus the first focusable element once, on open.
+    const raf = requestAnimationFrame(() => {
+      const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      // Restore focus on close.
       if (previousFocus.current instanceof HTMLElement) {
         previousFocus.current.focus();
       }
     };
-  }, [open, handleKeyDown]);
+  }, [open]);
 
   if (!open) return null;
 

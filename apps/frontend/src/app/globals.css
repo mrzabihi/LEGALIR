@@ -225,31 +225,56 @@
   --color-inverse-on-surface: #F9FAFB;
   --color-inverse-primary: #94A3B8;
 
+  /* --- LEGALIR brand palette (navigation chrome) ---
+     The single source of truth for the brand surfaces. Deep teal is the base
+     material, brand green is the live/active surface, gold is the complement
+     and ivory is the foreground. Every nav token below aliases one of these. */
+  --brand-teal: #222E2D;
+  --brand-green: #1D624E;
+  --brand-gold: #C69B38;
+  --brand-gold-deep: #A37C3C;
+  --brand-ivory: #FCF6E8;
+
+  /* Theme-aware brand *foregrounds*. The base palette above is tuned for
+     fills and navigation chrome; on the dark page surface the raw green and
+     teal drop below the 4.5:1 AA floor when used as small text, so every
+     brand-coloured LINK, LABEL and CAPTION reads from these instead. Fills,
+     strokes and gradients keep using the base tokens. Light values clear AA
+     on white (green 7.5:1, warm gold 4.8:1). */
+  --brand-fg: #1D624E;        /* primary brand text — links & labels */
+  --brand-fg-hover: #8A6A33;  /* hover / emphasis — warm gold */
+  --brand-fg-gold: #8A6A33;   /* gold text on a light surface */
+
+  /* Dashboard hero/usage card surface. The light theme uses the brand ivory
+     directly; the dark theme (below) substitutes a deep teal so the card
+     never turns into a bright block on a dark page. */
+  --dashboard-card-bg: #FCF6E8;
+
   /* --- Warm Smoked Glass navigation surfaces ---
      Shared material language for the desktop sidebar and the mobile
-     bottom navigation. A desaturated warm taupe (not brown) that reads
-     as smoked glass over the light page while keeping ivory foregrounds
-     at WCAG AA. Foreground opacities are tuned against the *composited*
-     surface (base over the page), not the raw base colour. */
-  --warm-glass-base: #4E4339;
-  --warm-glass-surface: rgba(78, 67, 57, 0.86);
-  --warm-glass-surface-strong: rgba(78, 67, 57, 0.94);
-  --warm-glass-border: rgba(255, 248, 238, 0.14);
-  --warm-glass-ivory: #FFF9F0;
-  --warm-glass-ivory-muted: rgba(255, 249, 240, 0.82);
-  --warm-glass-state-layer: rgba(255, 248, 238, 0.14);
-  --warm-glass-state-layer-strong: rgba(255, 248, 238, 0.20);
-  --warm-glass-shadow: 0 8px 30px rgba(35, 29, 22, 0.16);
+     bottom navigation. A deep desaturated teal that reads as smoked brand
+     glass over the light page while keeping ivory foregrounds at WCAG AA.
+     Foreground opacities are tuned against the *composited* surface (base
+     over the page), not the raw base colour. */
+  --warm-glass-base: #222E2D;
+  --warm-glass-surface: rgba(34, 46, 45, 0.86);
+  --warm-glass-surface-strong: rgba(34, 46, 45, 0.94);
+  --warm-glass-border: rgba(252, 246, 232, 0.14);
+  --warm-glass-ivory: #FCF6E8;
+  --warm-glass-ivory-muted: rgba(252, 246, 232, 0.80);
+  --warm-glass-state-layer: rgba(252, 246, 232, 0.12);
+  --warm-glass-state-layer-strong: rgba(29, 98, 78, 0.62);
+  --warm-glass-shadow: 0 8px 30px rgba(9, 20, 18, 0.28);
 
-  /* Sidebar premium gradient — a vertical tonal drift *inside* the same
-     warm-taupe family. The top edge catches a little ambient light and the
-     base settles into the flat surface colour; the two endpoints average to
-     --warm-glass-surface-strong, so the identity is unchanged. The delta is
-     deliberately tiny (~4% luminance) so it reads as depth, never as a hue
-     shift. Ivory foregrounds stay at 6.7:1 (active) / 5.2:1 (muted) against
-     the lightest point — both pass WCAG AA. */
-  --warm-glass-gradient-top: rgba(88, 76, 65, 0.94);
-  --warm-glass-gradient-bottom: rgba(70, 60, 51, 0.94);
+  /* Sidebar premium gradient — a vertical tonal drift *inside* the brand
+     family. The top edge catches the brand green and the base settles into
+     the flat teal surface colour; the two endpoints average to a teal-green
+     that stays close to --warm-glass-surface-strong, so the light
+     over-the-page composite is unchanged while the material reads as depth,
+     never a random hue. Ivory foregrounds stay at 6.8:1 (active) / 5.3:1
+     (muted) against the lightest point — both pass WCAG AA. */
+  --warm-glass-gradient-top: rgba(29, 98, 78, 0.94);
+  --warm-glass-gradient-bottom: rgba(34, 46, 45, 0.94);
   --sidebar-gradient: linear-gradient(
     180deg,
     var(--warm-glass-gradient-top) 0%,
@@ -261,17 +286,17 @@
 
   /* Bottom navigation — Persian capsule bar (v0.6 redesign).
      The body stays on the shared warm-glass surface so the bar can never
-     drift from the sidebar. The centre action is the brand navy with a soft
+     drift from the sidebar. The centre action is the brand green with a soft
      gold hairline. The active destination draws no box at all: only its icon
-     takes the brand colour and a soft glow settles under its label. Every
-     value aliases an existing family — no new raw colours. */
+     takes the gold complement and a soft glow settles under its label. Every
+     value aliases the brand palette — no ad-hoc raw colours. */
   --bottom-nav-body: var(--warm-glass-surface-strong);
-  --bottom-nav-center-bg: var(--color-primary-600);
-  --bottom-nav-accent: var(--color-secondary-300);
+  --bottom-nav-center-bg: var(--brand-green);
+  --bottom-nav-accent: var(--brand-gold);
   --bottom-nav-icon: var(--warm-glass-ivory);
   --bottom-nav-icon-muted: var(--warm-glass-ivory-muted);
-  --bottom-nav-active-icon: var(--control-selected);
-  --bottom-nav-badge-text: var(--color-primary-700);
+  --bottom-nav-active-icon: var(--brand-gold);
+  --bottom-nav-badge-text: var(--brand-teal);
   /* Motion — colour shift, press feedback, sheet reveal. Kept as tokens so
      the bar's timing is tuned in one place. */
   --bottom-nav-motion-color: 180ms;
@@ -287,28 +312,39 @@
   --sidebar-icon-inactive: var(--warm-glass-ivory-muted);
   --sidebar-text-active: var(--warm-glass-ivory);
   --sidebar-text-inactive: var(--warm-glass-ivory-muted);
-  --sidebar-profile-bg: rgba(255, 248, 238, 0.08);
+  --sidebar-profile-bg: rgba(252, 246, 232, 0.08);
+  /* Brand-gold rail mark that flags the active desktop destination. */
+  --sidebar-active-mark: var(--brand-gold);
 
   /* --- Contract workspace sticky header ---
      The sticky status surface of the contract draft workspace. It floats
      above the white contract form, so it must read as a distinct control
-     surface without becoming a saturated blue bar: the base is a whisper
-     of the brand navy (#DAE3F3), the text is the deep navy, and the bronze
-     accent is reserved for the small lifecycle chip and a hairline — never
-     used as a surface. Elevation is scroll-aware: the header is flat at the
-     top of the page and lifts once content slides underneath it. */
-  --contract-sticky-bg: #DAE3F3;
-  --contract-sticky-text: #172B4E;
-  /* Navy-tinted secondary text — reads better on the blue surface than the
-     neutral gray `--color-muted`, and still clears WCAG AA (5.0:1). */
-  --contract-sticky-muted: rgba(23, 43, 78, 0.72);
-  --contract-sticky-accent: #C3B18A;
-  --contract-sticky-border: rgba(23, 43, 78, 0.10);
-  --contract-sticky-shadow: 0 6px 18px rgba(23, 43, 78, 0.08);
+     surface without becoming a saturated bar: the base is the brand ivory
+     (#FCF6E8), the text is the deep brand teal (#222E2D), and the gold
+     accent is rationed to a hairline — never a surface. The progress fill
+     is the brand green (#1D624E) and the lifecycle badge sits on a whisper
+     of that green. Elevation is scroll-aware: the header is flat at the top
+     of the page and lifts once content slides underneath it.
+     Contrast on the #FCF6E8 surface: teal 13.0:1 (AAA), muted 6.6:1 (AA),
+     badge green 6.1:1 (AA), back-link green 6.7:1 (AA). */
+  --contract-sticky-bg: #FCF6E8;
+  --contract-sticky-text: #222E2D;
+  /* Teal-tinted secondary text — a warm green-grey that clears WCAG AA
+     (6.6:1) on the ivory surface. */
+  --contract-sticky-muted: #4C5B57;
+  --contract-sticky-accent: #C69B38;
+  --contract-sticky-border: rgba(34, 46, 45, 0.12);
+  --contract-sticky-shadow: 0 6px 18px rgba(34, 46, 45, 0.08);
   /* Tonal fills that sit *on* the sticky surface. */
-  --contract-sticky-chip: rgba(23, 43, 78, 0.06);
-  --contract-sticky-chip-strong: rgba(23, 43, 78, 0.12);
-  --contract-sticky-track: rgba(23, 43, 78, 0.14);
+  --contract-sticky-chip: rgba(34, 46, 45, 0.07);
+  --contract-sticky-chip-strong: #E4EEE8;
+  --contract-sticky-track: rgba(34, 46, 45, 0.14);
+  /* Filled part of the progress bar — always the brand green. */
+  --contract-sticky-fill: #1D624E;
+  /* Lifecycle state badge — a whisper of brand green with readable text. */
+  --contract-sticky-badge-bg: #E4EEE8;
+  --contract-sticky-badge-text: #1D624E;
+  --contract-sticky-badge-border: rgba(29, 98, 78, 0.24);
 
   /* Scrim & Shadow */
   --color-scrim: rgba(0, 0, 0, 0.5);
@@ -530,43 +566,60 @@
   --chart-neg: #F87171;
   --chart-track: #374151;
 
-  /* Warm Smoked Glass — dark theme. The page is deep navy, so the glass
-     lifts to a lighter warm taupe to stay distinguishable while keeping
-     the same ivory foregrounds. */
-  --warm-glass-base: #6B5D4F;
-  --warm-glass-surface: rgba(107, 93, 79, 0.72);
-  --warm-glass-surface-strong: rgba(107, 93, 79, 0.86);
-  --warm-glass-border: rgba(255, 248, 238, 0.16);
-  --warm-glass-ivory: #FFF9F0;
-  --warm-glass-ivory-muted: rgba(255, 249, 240, 0.80);
-  --warm-glass-state-layer: rgba(255, 248, 238, 0.14);
-  --warm-glass-state-layer-strong: rgba(255, 248, 238, 0.20);
-  --warm-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.42);
-  --sidebar-profile-bg: rgba(255, 248, 238, 0.08);
+  /* Warm Smoked Glass — dark theme. The page is deep navy (#0B1220), so the
+     brand teal glass lifts to a lighter teal-green to stay distinguishable
+     while keeping the same ivory foregrounds. */
+  --warm-glass-base: #3A4E48;
+  --warm-glass-surface: rgba(58, 78, 72, 0.72);
+  --warm-glass-surface-strong: rgba(58, 78, 72, 0.88);
+  --warm-glass-border: rgba(252, 246, 232, 0.16);
+  --warm-glass-ivory: #FCF6E8;
+  --warm-glass-ivory-muted: rgba(252, 246, 232, 0.80);
+  --warm-glass-state-layer: rgba(252, 246, 232, 0.12);
+  --warm-glass-state-layer-strong: rgba(60, 138, 110, 0.50);
+  --warm-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.46);
+  --sidebar-profile-bg: rgba(252, 246, 232, 0.08);
+
+  /* Dashboard hero/usage card surface — dark counterpart of the brand ivory:
+     a deep desaturated teal so the card reads as an elevated brand panel. */
+  --dashboard-card-bg: #16211F;
+
+  /* Brand foregrounds on the dark page surface. The base #1D624E green only
+     reaches 2.1:1 on the deep navy, so links/labels switch to a lifted
+     brand-green mint (9.3:1) and the warm-gold emphasis to the tertiary
+     light tone (9.9:1). Fills and gradients still use the base palette. */
+  --brand-fg: #34D399;
+  --brand-fg-hover: #D5BE97;
+  --brand-fg-gold: #D5BE97;
 
   /* Sidebar premium gradient — dark theme. Same tiny vertical drift, lifted
-     to the dark-theme taupe so the glass stays distinguishable over the deep
-     navy page. Endpoints average to --warm-glass-surface-strong. */
-  --warm-glass-gradient-top: rgba(118, 103, 88, 0.86);
-  --warm-glass-gradient-bottom: rgba(96, 83, 70, 0.86);
+     to the dark-theme teal-green so the glass stays distinguishable over the
+     deep navy page. Endpoints average to --warm-glass-surface-strong. */
+  --warm-glass-gradient-top: rgba(60, 138, 110, 0.88);
+  --warm-glass-gradient-bottom: rgba(52, 68, 63, 0.88);
   --sidebar-gradient: linear-gradient(
     180deg,
     var(--warm-glass-gradient-top) 0%,
     var(--warm-glass-gradient-bottom) 100%
   );
 
-  /* Contract workspace sticky header — dark counterpart. The light-blue
-     surface becomes a lifted navy panel; the bronze accent is brightened
-     so it still reads as an accent on a dark base. */
-  --contract-sticky-bg: #16233C;
-  --contract-sticky-text: #E8EDF5;
-  --contract-sticky-muted: rgba(232, 237, 245, 0.72);
+  /* Contract workspace sticky header — dark counterpart. The ivory surface
+     becomes a lifted deep-teal panel; the gold accent is brightened so it
+     still reads as an accent, and the progress fill lifts to the readable
+     brand-green mint. */
+  --contract-sticky-bg: #16211F;
+  --contract-sticky-text: #F2EDE0;
+  --contract-sticky-muted: rgba(242, 237, 224, 0.68);
   --contract-sticky-accent: #D5BE97;
-  --contract-sticky-border: rgba(255, 255, 255, 0.10);
+  --contract-sticky-border: rgba(252, 246, 232, 0.12);
   --contract-sticky-shadow: 0 6px 18px rgba(0, 0, 0, 0.40);
-  --contract-sticky-chip: rgba(255, 255, 255, 0.06);
-  --contract-sticky-chip-strong: rgba(255, 255, 255, 0.12);
-  --contract-sticky-track: rgba(255, 255, 255, 0.16);
+  --contract-sticky-chip: rgba(252, 246, 232, 0.08);
+  --contract-sticky-chip-strong: rgba(252, 246, 232, 0.16);
+  --contract-sticky-track: rgba(252, 246, 232, 0.16);
+  --contract-sticky-fill: #34D399;
+  --contract-sticky-badge-bg: rgba(52, 211, 153, 0.16);
+  --contract-sticky-badge-text: #6EE7B7;
+  --contract-sticky-badge-border: rgba(110, 231, 183, 0.32);
 
   --color-scrim: rgba(0, 0, 0, 0.7);
   --color-shadow: rgba(0, 0, 0, 0.3);
@@ -792,6 +845,83 @@ html:not([data-theme]) {
   .bottom-nav-sheet[data-state="closed"] {
     animation: none;
   }
+}
+
+/* ============================================================
+   BRAND SEARCH FIELD — dashboard «مسئله حقوقی» input
+   ============================================================
+   Retints the shared MD3 outlined TextField to the LEGALIR brand
+   palette *inside* the dashboard search only (opt-in via the
+   `.brand-search-field` wrapper class). The shared component and
+   every other field keep the default MD3 tokens — this block is a
+   scoped skin, never a global override. The wrapper itself draws the
+   resting surface; the fieldset only carries the border. */
+.brand-search-field {
+  border-radius: 18px;
+  background: rgba(34, 46, 45, 0.045);
+  border: 1px solid color-mix(in srgb, var(--brand-teal) 18%, transparent);
+  box-shadow: 0 1px 2px rgba(9, 20, 18, 0.06);
+  transition:
+    background var(--motion-duration-short4) var(--motion-easing-standard),
+    border-color var(--motion-duration-short4) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short4) var(--motion-easing-standard);
+}
+.brand-search-field:hover {
+  border-color: color-mix(in srgb, var(--brand-teal) 30%, transparent);
+}
+.brand-search-field:focus-within {
+  background: var(--color-surface);
+  border-color: var(--brand-green);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--brand-green) 16%, transparent),
+    0 1px 2px rgba(9, 20, 18, 0.06);
+}
+/* Neutralise the shared fieldset border — the wrapper now owns the look. */
+.brand-search-field fieldset {
+  border-color: transparent !important;
+}
+
+/* Real notch for the branded skin.
+   Zeroing the fieldset border above removes the shared MD3 <legend> notch —
+   the only thing that stopped the wrapper's own 1px border running straight
+   through the floated label. Rather than fight the border, give the floated
+   label the field's *own* background (`inherit`) plus a little horizontal
+   padding, so it genuinely interrupts the border exactly like the shared
+   field does. The patch is never painted in the resting state (the label sits
+   inside the field there), so it can't read as a stray rectangle behind the
+   centred text. `inherit` tracks the state-aware wrapper background, so the
+   notch matches the translucent resting surface when filled and the solid
+   surface colour once focused — in both themes, without a hard-coded colour. */
+.brand-search-field:focus-within label[for],
+.brand-search-field:has(input:not(:placeholder-shown)) label[for] {
+  inset-inline-start: 6px;
+  padding-inline: 6px;
+  border-radius: 6px;
+  background: inherit;
+}
+/* Resting label = the theme-aware muted on-surface tone (AA in both themes);
+   the focused/filled floating label lifts to the theme-aware brand fg.
+   `label[for]` matches the shared field's own utility specificity so the
+   brand colour actually wins over `group-focus-within/field:text-primary`. */
+.brand-search-field label[for] {
+  color: var(--color-on-surface-variant);
+}
+.brand-search-field label[for],
+.brand-search-field:focus-within label[for] {
+  transition: color var(--motion-duration-short4) var(--motion-easing-standard);
+}
+.brand-search-field:focus-within label[for] {
+  color: var(--brand-fg);
+}
+/* Dark theme: lift the resting surface off the deep page. */
+:root[data-theme="dark"] .brand-search-field {
+  background: rgba(252, 246, 232, 0.06);
+  border-color: color-mix(in srgb, var(--brand-ivory) 16%, transparent);
+}
+:root[data-theme="dark"] .brand-search-field:focus-within {
+  background: color-mix(in srgb, var(--brand-ivory) 8%, transparent);
+  border-color: var(--brand-gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-gold) 22%, transparent);
 }
 
 /* Full height viewport for mobile */

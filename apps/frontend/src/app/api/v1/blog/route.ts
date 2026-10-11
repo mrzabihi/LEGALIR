@@ -3,7 +3,7 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
-import { filterBlogItems, paginate, readBlog } from "@/lib/legal-library-db";
+import { filterBlogItems, isBlogPostPubliclyVisible, paginate, readBlog } from "@/lib/legal-library-db";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -12,8 +12,11 @@ export async function GET(request: Request) {
   const page = parseInt(url.searchParams.get("page") ?? "1", 10);
   const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20", 10);
 
-  const { items } = readBlog();
-  const filtered = filterBlogItems(items, { category, tag });
+  // Only published posts reach the public list — a DRAFT/ARCHIVED post stays
+  // in the admin store but is never served here (see isBlogPostPubliclyVisible).
+  const { items, details } = readBlog();
+  const published = items.filter((i) => isBlogPostPubliclyVisible(i, details[i.slug]));
+  const filtered = filterBlogItems(published, { category, tag });
 
   const { items: paged, pagination } = paginate(filtered, page, pageSize);
 

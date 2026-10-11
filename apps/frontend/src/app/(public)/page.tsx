@@ -3,8 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { CTASection } from "@/components/public/CTASection";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
+import { LegalTopicsSection, type LegalTopic } from "@/components/public/LegalTopicsSection";
 import { PromoPanel } from "@/components/shared";
-import { readBlog } from "@/lib/legal-library-db";
+import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
+import { SITE_URL, absoluteUrl } from "@/lib/site";
 import { toPersianDate, toPersianDigits } from "@/lib/persian-utils";
 import {
   IconChat,
@@ -24,7 +26,9 @@ import {
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
-  title: "لیگالیر | دستیار هوشمند حقوقی ایران",
+  // `absolute` opts out of the root `%s | لیگالیر` template — without it the
+  // brand is appended twice ("… | لیگالیر | لیگالیر").
+  title: { absolute: "لیگالیر | دستیار هوشمند حقوقی ایران" },
   description:
     "دستیار هوشمند حقوقی ایران — پلتفرم تخصصی تحلیل حقوقی با هوش مصنوعی، آموزش‌دیده بر نظام حقوقی ایران شامل قانون اساسی، مدنی، کیفری، تجارت، خانواده، کار، مالیات و هزاران پرونده واقعی",
   alternates: { canonical: "/" },
@@ -126,7 +130,7 @@ const distinctions = [
 // ================================================================
 // Real Legal Topic Examples (نمونه موضوعات پرکاربرد حقوقی)
 // ================================================================
-const legalTopics = [
+const legalTopics: LegalTopic[] = [
   {
     icon: "🏠",
     title: "مالک و مستأجر",
@@ -240,21 +244,78 @@ const keySources = [
 // ================================================================
 // Blog preview — pulled from the real Legal Library / Blog JSON-DB
 // ================================================================
-const blogPreviewPosts = readBlog()
-  .items.slice()
-  .sort((a, b) => {
-    if (a.featured !== b.featured) return a.featured ? -1 : 1;
-    return (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
-  })
-  .slice(0, 3);
+const blogPreviewPosts = (() => {
+  const { items, details } = readBlog();
+  return items
+    .filter((i) => isBlogPostPubliclyVisible(i, details[i.slug]))
+    .sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      return (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
+    })
+    .slice(0, 3);
+})();
+
+// Organization + WebSite structured data. Only verifiable facts are emitted —
+// brand name, canonical URL, logo and the public support email (as used on
+// /contact). No address, phone, rating or social profile is invented; add
+// those once the real values are confirmed.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: "لیگالیر",
+      alternateName: "LEGALIR",
+      url: SITE_URL,
+      logo: absoluteUrl("/legalir-logo.png"),
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: "info@legalir.ir",
+        availableLanguage: ["fa"],
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: "لیگالیر",
+      url: SITE_URL,
+      inLanguage: "fa-IR",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+  ],
+};
 
 export default function LandingPage() {
   return (
     <div id="main-content">
+      <script
+        type="application/ld+json"
+        // JSON.stringify escapes the object; the only free-text values are the
+        // brand name and email, which contain no "<" or ">".
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       {/* ============================================================
           HERO — Dramatic Navy Gradient with Geometric Pattern
           ============================================================ */}
       <section className="relative overflow-hidden bg-gradient-to-b from-primary-700 via-primary-600 to-primary-500">
+        {/* Photographic backdrop — the brand editorial (balance scales and a
+            gavel on brand-green) under a green→navy scrim. The scrim, not the
+            gradient, is what keeps the white hero copy at WCAG AA while the
+            artwork still reads as a photograph. */}
+        <div className="absolute inset-0" aria-hidden="true">
+          <Image
+            src="/assets/legalir-landing-hero.webp"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(29,98,78,0.62)_0%,rgba(17,34,44,0.68)_55%,rgba(11,18,32,0.80)_100%)]" />
+        </div>
+
         {/* Geometric dot-grid pattern overlay */}
         <div
           className="absolute inset-0 pointer-events-none opacity-50"
@@ -488,61 +549,11 @@ export default function LandingPage() {
 
       {/* ============================================================
           LEGAL TOPICS — "موضوعات پرکاربرد حقوقی"
+          The section (blurred photographic backdrop + frosted-glass topic
+          cards with a pointer/scroll light) lives in its own client
+          component; the copy stays here as the single source of truth.
           ============================================================ */}
-      <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 rounded-full bg-info-50 border border-info-100 px-4 py-1.5 text-caption font-medium text-info-700 mb-4">
-            <IconCategory size={16} className="text-info-600" />
-            موضوعات حقوقی
-          </div>
-          <h2 className="text-h2 text-primary-800 mb-3">موضوعات پرکاربرد حقوقی</h2>
-          <p className="text-body-1 text-neutral-500 max-w-2xl mx-auto leading-relaxed">
-            لیگالیر در حوزه‌های متنوع حقوقی آموزش دیده است. هر حوزه شامل منابع قانونی،
-            آرای قضایی و تحلیل تخصصی مرتبط می‌باشد.
-          </p>
-        </div>
-
-        <div className="grid tablet:grid-cols-2 desktop:grid-cols-3 gap-5">
-          {legalTopics.map((topic) => (
-            <Link
-              key={topic.title}
-              href="/auth/mobile?intent=chat"
-              className="group rounded-large bg-surface p-6 border border-divider shadow-elevation-1 card-lift card-press relative overflow-hidden transition-all duration-300 hover:border-primary-200"
-            >
-              {/* Decorative gradient accent */}
-              <div
-                className="absolute top-0 end-0 w-24 h-24 rounded-bl-[100%] bg-gradient-to-bl from-secondary-100/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                aria-hidden="true"
-              />
-
-              <div className="flex items-start gap-4 mb-3">
-                <span className="text-[32px] leading-none shrink-0" aria-hidden="true">
-                  {topic.icon}
-                </span>
-                <div>
-                  <h3 className="text-h3 text-primary-800 mb-1.5 group-hover:text-primary-600 transition-colors">
-                    {topic.title}
-                  </h3>
-                  <p className="text-body-2 text-neutral-500 leading-relaxed">
-                    {topic.description}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {topic.keywords.map((kw) => (
-                  <span
-                    key={kw}
-                    className="text-caption text-neutral-400 bg-neutral-50 border border-neutral-200 rounded-full px-2.5 py-0.5"
-                  >
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <LegalTopicsSection topics={legalTopics} />
 
       {/* ============================================================
           HOW IT WORKS — 3-Step Connected Diagram

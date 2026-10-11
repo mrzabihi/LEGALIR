@@ -81,12 +81,31 @@ import {
   deleteBlogPost,
   generateBlogDraft,
 } from "@/lib/admin/blog";
+import {
+  listAdminLegalSources,
+  getAdminLegalSource,
+  listAdminLegalTopics,
+  upsertLegalSource,
+  setLegalSourceStatus,
+  deleteLegalSource,
+} from "@/lib/admin/legal-library";
 import { buildCalculatorsInventory } from "@/lib/admin/calculators";
 import {
   listCalculatorSettings,
   getCalculatorSetting,
   saveCalculatorSetting,
 } from "@/lib/admin/calculator-settings";
+import {
+  listRuleSummaries,
+  listCalculatorRuleBoard,
+  getRuleDetail,
+  saveRuleDraft,
+  previewDraft,
+  publishDraft,
+  rollbackToVersion,
+  deleteDraft,
+  type SaveRuleDraftInput,
+} from "@/lib/admin/calculator-rules";
 import {
   listCostProfiles,
   getCostProfile,
@@ -120,6 +139,8 @@ import {
   getAdminUserUsage,
 } from "@/lib/admin/subscription";
 import { listAudit, recordAudit } from "@/lib/admin/audit";
+import { listAdminCoupons, getAdminCoupon, parseCouponDraft } from "@/lib/admin/coupons";
+import { createCoupon, updateCoupon, setCouponStatus } from "@/lib/coupons/store";
 import {
   auditPlanCreated,
   createPlan,
@@ -140,7 +161,9 @@ import type {
   SettlementStatus,
   RagReviewState,
   AdminBlogPost,
+  AdminLegalSource,
   CalculatorAccessTier,
+  CalculatorRuleSourceOverride,
   SupportTicketStatus,
   SupportTicketPriority,
   OrderStatus,
@@ -154,6 +177,9 @@ import type {
  * because `@legalir/types` also re-exports a WIDER, public `BlogPostStatus`.
  */
 type AdminBlogStatus = AdminBlogPost["status"];
+
+/** Legal-library lifecycle as declared on its admin row (draft/published/archived). */
+type AdminLegalStatus = AdminLegalSource["status"];
 
 // ---------------------------------------------------------------------------
 // Shared row shapes (local — keep this module self-contained)
@@ -324,6 +350,10 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 
   refunds: ({ url }) => ok({ items: listAdjustments(url.searchParams.get("orderId") ?? undefined) }),
 
+  // Coupon catalog. Read is a billing-read capability (it feeds sales
+  // reporting); creating/editing a coupon is a billing-manage mutation.
+  coupons: () => ok({ items: listAdminCoupons() }),
+
   finance: () => ok({ rules: listCommissionRules() }),
 
   settlements: ({ url }) =>
@@ -369,6 +399,14 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       items: listAdminBlogPosts(),
       categories: listBlogCategories(),
       status: url.searchParams.get("status") ?? undefined,
+    }),
+
+  // The legal library is a product section of its own — its own store, its own
+  // lifecycle, its own permission pair. Never folded into the blog surface.
+  "legal-library": () =>
+    ok({
+      items: listAdminLegalSources(),
+      topics: listAdminLegalTopics(),
     }),
 
   announcements: () => ok({ items: listAnnouncements() }),
@@ -426,7 +464,26 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
   const [a, b, d] = c.segments;
   switch (a) {
+    case "coupons": {
+      if (!b) return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
+      const row = getAdminCoupon(b);
+      if (!row) return adminError(404, "COUPON_NOT_FOUND", "کد تخفیف یافت نشد");
+      return ok(row);
+    }
     case "calculators": {
+      // §5-rules — the DB-backed rule layer. `calculators/rules` lists every
+      // dataset; `calculators/rules/:datasetId` returns one dataset's full
+      // rule view. Everything else under `calculators/:slug` is the §5 policy.
+      if (b === "rules") {
+        // The calculator-centric rule board: every calculator with its service
+        // status, active rule version, last change and legal source. Powers the
+        // «مدیریت فرمول‌ها» surface. Super-Admin-gated (see permissionFor).
+        if (d === "board") return ok({ items: listCalculatorRuleBoard() });
+        if (!d) return ok({ items: listRuleSummaries() });
+        const detail = getRuleDetail(d);
+        if (!detail) return adminError(404, "DATASET_NOT_FOUND", "مجموعه‌داده یافت نشد");
+        return ok(detail);
+      }
       // §5 — one calculator's editable operational policy (defaults when unset).
       if (!b) return adminError(400, "BAD_PATH", "شناسهٔ محاسبه‌گر لازم است");
       return ok(getCalculatorSetting(b));
@@ -437,6 +494,13 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       const post = b ? getAdminBlogPost(b) : undefined;
       if (!post) return adminError(404, "NOT_FOUND", "مطلب یافت نشد");
       return ok(post);
+    }
+    case "legal-library": {
+      // The library's own topics selector + per-source detail (never the blog's).
+      if (b === "topics") return ok({ items: listAdminLegalTopics() });
+      const source = b ? getAdminLegalSource(b) : undefined;
+      if (!source) return adminError(404, "NOT_FOUND", "منبع حقوقی یافت نشد");
+      return ok(source);
     }
     case "staff": {
       // One staff member's dossier (identity + effective permissions + org).
@@ -703,6 +767,28 @@ function parseCalculatorSetting(body: Body): {
   return out;
 }
 
+/**
+ * Narrow a raw rule-draft body to the typed draft fields. `rates` stays a
+ * structural patch — it is never trusted; `validateDraftRates` in the rule
+ * module is the sole gate. Only explicitly-present optional fields are copied
+ * so a partial update never clears a sibling field the operator left alone.
+ */
+function parseSaveRuleDraft(body: Body): SaveRuleDraftInput {
+  const out: SaveRuleDraftInput = { rates: {} };
+  if (body["rates"] !== undefined && typeof body["rates"] === "object" && body["rates"] !== null) {
+    out.rates = body["rates"] as Record<string, unknown>;
+  }
+  if (body["source"] !== undefined && typeof body["source"] === "object" && body["source"] !== null) {
+    out.source = body["source"] as CalculatorRuleSourceOverride;
+  }
+  if (typeof body["changeNoteFa"] === "string") out.changeNoteFa = body["changeNoteFa"] as string;
+  if (typeof body["effectiveFrom"] === "string") out.effectiveFrom = body["effectiveFrom"] as string;
+  if (body["verificationStatus"] === "verified" || body["verificationStatus"] === "pending") {
+    out.verificationStatus = body["verificationStatus"] as "verified" | "pending";
+  }
+  return out;
+}
+
 /** Narrow a raw create body to the typed plan fields (numbers stay raw for
  *  `createPlan` to validate, so a bad value yields a precise Persian error). */
 function parseCreatePlan(body: Body): CreatePlanInput {
@@ -753,6 +839,72 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
 
   if (a === "plans" && b) {
     return adminError(405, "METHOD_NOT_ALLOWED", "برای ویرایش پلن از PATCH استفاده کنید");
+  }
+
+  // Coupons — CREATE (POST /admin/coupons). Edits + status changes go through
+  // PATCH on /admin/coupons/:id.
+  if (a === "coupons" && !b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = createCoupon(parseCouponDraft(body), actor.userId);
+    if (!res.ok) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.create", resourceType: "coupon", resourceId: str(body["code"]), result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.create", resourceType: "coupon", resourceId: res.coupon.id, after: { code: res.coupon.code, kind: res.coupon.kind, value: res.coupon.value, status: res.coupon.status }, ...meta });
+    return NextResponse.json({ data: res.coupon }, { status: 201 });
+  }
+
+  // §5-rules — the DB-backed, versioned rule layer. `calculators/rules/:datasetId`
+  // saves the open draft; the `/preview`, `/publish`, `/rollback` and `/discard`
+  // sub-paths drive the draft lifecycle. A draft never affects users; only a
+  // published version whose effective date has arrived is applied.
+  if (a === "calculators" && b === "rules" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    if (!d) {
+      const res = saveRuleDraft(c, parseSaveRuleDraft(body), actor.userId);
+      if ("error" in res) {
+        recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.draft.save", resourceType: "calculator_rule", resourceId: c, result: "denied", reason: res.error, ...meta });
+        return mapDataError(res.error);
+      }
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.draft.save", resourceType: "calculator_rule", resourceId: res.id, after: { datasetId: res.datasetId, version: res.version, keys: Object.keys(res.rates) }, ...meta });
+      return ok(res);
+    }
+
+    if (d === "preview") {
+      return ok(previewDraft(c, (body["rates"] as Record<string, unknown>) ?? {}));
+    }
+
+    if (d === "publish") {
+      const res = publishDraft(str(body["versionId"]), actor.userId);
+      if ("error" in res) {
+        recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.publish", resourceType: "calculator_rule", resourceId: str(body["versionId"]), result: "denied", reason: res.error, ...meta });
+        return mapDataError(res.error);
+      }
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.publish", resourceType: "calculator_rule", resourceId: res.id, after: { datasetId: res.datasetId, version: res.version, effectiveFrom: res.effectiveFrom }, reason: res.changeNoteFa, ...meta });
+      return ok(res);
+    }
+
+    if (d === "rollback") {
+      const res = rollbackToVersion(c, str(body["versionId"]), actor.userId);
+      if ("error" in res) {
+        recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.rollback", resourceType: "calculator_rule", resourceId: str(body["versionId"]), result: "denied", reason: res.error, ...meta });
+        return mapDataError(res.error);
+      }
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.rollback", resourceType: "calculator_rule", resourceId: res.id, after: { datasetId: res.datasetId, version: res.version }, ...meta });
+      return ok(res);
+    }
+
+    if (d === "discard") {
+      const res = deleteDraft(str(body["versionId"]));
+      if ("error" in res) return mapDataError(res.error);
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.draft.discard", resourceType: "calculator_rule", resourceId: str(body["versionId"]), ...meta });
+      return ok(res);
+    }
+
+    return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
   }
 
   if (a === "calculators" && b) {
@@ -1142,6 +1294,63 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
+  if (a === "legal-library") {
+    // Delete a source (the library's own store — never the blog's).
+    if (b && c === "delete") {
+      const res = deleteLegalSource(b);
+      if ("error" in res) return mapDataError(res.error);
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "library.delete",
+        resourceType: "legal_source",
+        resourceId: b,
+        ...meta,
+      });
+      return ok(res);
+    }
+
+    // Create a source (always a draft unless a status is supplied).
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = upsertLegalSource(
+      {
+        title: str(body["title"]),
+        slug: body["slug"] === undefined ? null : str(body["slug"]),
+        sourceType: body["sourceType"] as AdminLegalSource["sourceType"] | undefined,
+        topic: body["topic"] === undefined ? null : str(body["topic"]),
+        topicSlug: body["topicSlug"] === undefined ? null : str(body["topicSlug"]),
+        summary: body["summary"] === undefined ? null : str(body["summary"]),
+        body: body["body"] === undefined ? null : str(body["body"]),
+        authority: body["authority"] === undefined ? null : str(body["authority"]),
+        readingTime: body["readingTime"] === undefined ? null : num(body["readingTime"]),
+        popular: Boolean(body["popular"]),
+        featured: Boolean(body["featured"]),
+        seoTitle: body["seoTitle"] === undefined ? null : str(body["seoTitle"]),
+        seoDescription: body["seoDescription"] === undefined ? null : str(body["seoDescription"]),
+        canonicalUrl: body["canonicalUrl"] === undefined ? null : str(body["canonicalUrl"]),
+        sourceUrl: body["sourceUrl"] === undefined ? null : str(body["sourceUrl"]),
+        officialSourceUrl:
+          body["officialSourceUrl"] === undefined ? null : str(body["officialSourceUrl"]),
+        status: (body["status"] as AdminLegalStatus | undefined) ?? "DRAFT",
+      },
+      actor.userId
+    );
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "library.create",
+      resourceType: "legal_source",
+      resourceId: res.id,
+      after: { status: res.status, slug: res.slug },
+      ...meta,
+    });
+    return NextResponse.json({ data: res }, { status: 201 });
+  }
+
   // §31 — admin subscription actions for one user (activate / extend /
   // deactivate / change_plan). Every branch reuses the lifecycle module so the
   // one-active invariant can never be bypassed from the admin surface.
@@ -1187,6 +1396,32 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
 async function handlePatch(request: NextRequest, segments: string[], actor: Actor): Promise<NextResponse> {
   const [a, b, c] = segments;
   const meta = requestMeta(request);
+
+  // Coupons — a `{ status }`-only body is a lifecycle change (enable/disable/
+  // archive); anything else is a full edit. Both are audited distinctly.
+  if (a === "coupons" && b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const keys = Object.keys(body);
+    const statusOnly = keys.length === 1 && keys[0] === "status";
+
+    if (statusOnly) {
+      const before = getAdminCoupon(b);
+      const res = setCouponStatus(b, body["status"] as never, actor.userId);
+      if (!res) return adminError(404, "COUPON_NOT_FOUND", "کد تخفیف یافت نشد");
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.status.change", resourceType: "coupon", resourceId: b, before: before ? { status: before.status } : null, after: { status: res.status }, ...meta });
+      return ok(res);
+    }
+
+    const before = getAdminCoupon(b);
+    const res = updateCoupon(b, parseCouponDraft(body), actor.userId);
+    if (!res.ok) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.update", resourceType: "coupon", resourceId: b, result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.update", resourceType: "coupon", resourceId: b, before: before ? { code: before.code, value: before.value, status: before.status } : null, after: { code: res.coupon.code, value: res.coupon.value, status: res.coupon.status }, ...meta });
+    return ok(res.coupon);
+  }
 
   if (a === "users" && b) {
     const body = (await readJson(request)) as Body | null;
@@ -1305,6 +1540,82 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
       orgId: actor.orgId,
       action: "blog.update",
       resourceType: "blog_post",
+      resourceId: b,
+      before: { status: before.status },
+      after: { status: res.status },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  if (a === "legal-library" && b) {
+    // Update a source, or change only its status. Publishing is explicit; a
+    // status change away from `published` removes it from the public library.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    // A status-only change (no other fields) routes through setLegalSourceStatus.
+    const keys = Object.keys(body);
+    if (keys.length === 1 && "status" in body) {
+      const before = getAdminLegalSource(b);
+      if (!before) return adminError(404, "NOT_FOUND", "منبع حقوقی یافت نشد");
+      const res = setLegalSourceStatus(b, body["status"] as AdminLegalStatus);
+      if ("error" in res) return mapDataError(res.error);
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: res.status === "PUBLISHED" ? "library.publish" : "library.status.change",
+        resourceType: "legal_source",
+        resourceId: b,
+        before: { status: before.status },
+        after: { status: res.status },
+        ...meta,
+      });
+      return ok(res);
+    }
+
+    const before = getAdminLegalSource(b);
+    if (!before) return adminError(404, "NOT_FOUND", "منبع حقوقی یافت نشد");
+    const res = upsertLegalSource(
+      {
+        id: b,
+        title: body["title"] === undefined ? before.title : str(body["title"]),
+        slug: body["slug"] === undefined ? before.slug : str(body["slug"]),
+        sourceType:
+          body["sourceType"] === undefined
+            ? before.sourceType
+            : (body["sourceType"] as AdminLegalSource["sourceType"]),
+        topic: body["topic"] === undefined ? before.topic : str(body["topic"]),
+        topicSlug: body["topicSlug"] === undefined ? before.topicSlug : str(body["topicSlug"]),
+        summary: body["summary"] === undefined ? before.summary : str(body["summary"]),
+        body: body["body"] === undefined ? before.body : str(body["body"]),
+        authority: body["authority"] === undefined ? before.authority : str(body["authority"]),
+        readingTime:
+          body["readingTime"] === undefined ? before.readingTime : num(body["readingTime"]),
+        popular: body["popular"] === undefined ? before.popular : Boolean(body["popular"]),
+        featured: body["featured"] === undefined ? before.featured : Boolean(body["featured"]),
+        seoTitle: body["seoTitle"] === undefined ? before.seoTitle : str(body["seoTitle"]),
+        seoDescription:
+          body["seoDescription"] === undefined ? before.seoDescription : str(body["seoDescription"]),
+        canonicalUrl:
+          body["canonicalUrl"] === undefined ? before.canonicalUrl : str(body["canonicalUrl"]),
+        sourceUrl: body["sourceUrl"] === undefined ? before.sourceUrl : str(body["sourceUrl"]),
+        officialSourceUrl:
+          body["officialSourceUrl"] === undefined
+            ? before.officialSourceUrl
+            : str(body["officialSourceUrl"]),
+        status: (body["status"] as AdminLegalStatus | undefined) ?? before.status,
+      },
+      actor.userId
+    );
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "library.update",
+      resourceType: "legal_source",
       resourceId: b,
       before: { status: before.status },
       after: { status: res.status },
@@ -1472,16 +1783,33 @@ function permissionFor(method: string, segments: string[]): Permission {
     // concrete /admin/plans/[code] route and the page's edit gate).
     case "plans": return method === "GET" ? "admin:plans:read" : "admin:system:manage";
     case "orders": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
+    // Coupons are a sales/discount capability: reading the catalog aligns with
+    // sales reporting (billing:read); creating/editing/archiving is a
+    // billing:manage mutation.
+    case "coupons": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
     case "refunds": return "admin:refund:approve";
     case "finance": return method === "GET" ? "admin:finance:read" : "admin:finance:manage";
     case "settlements": return b && method === "GET" ? "admin:finance:read" : "admin:settlement:manage";
     case "ai": return method === "GET" ? "admin:ai:read" : "admin:ai:manage";
     case "rag": return method === "GET" ? "admin:rag:read" : "admin:rag:manage";
-    case "calculators": return method === "GET" ? "admin:calculators:read" : "admin:calculators:manage";
+    case "calculators":
+      // The RULE layer (`calculators/rules*`) is a system-level, publish-gated
+      // surface gated by its OWN Super-Admin-only permissions; the calc's
+      // operational policy (`calculators/:slug`) stays under the manager pair.
+      if (b === "rules") {
+        return method === "GET"
+          ? "admin:calculators:rules:read"
+          : "admin:calculators:rules:manage";
+      }
+      return method === "GET" ? "admin:calculators:read" : "admin:calculators:manage";
     case "energy": return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
     case "support": return method === "GET" ? "admin:support:read" : "admin:support:manage";
     case "content": return "admin:content:read";
     case "blog": return method === "GET" ? "admin:content:read" : "admin:content:manage";
+    // The legal library has its OWN permission pair — distinct from the blog's,
+    // so the two content workflows can be delegated independently.
+    case "legal-library":
+      return method === "GET" ? "admin:library:read" : "admin:library:manage";
     case "announcements":
       return method === "GET" ? "admin:content:read" : "admin:content:manage";
     case "staff": return method === "GET" ? "admin:staff:read" : "admin:staff:manage";

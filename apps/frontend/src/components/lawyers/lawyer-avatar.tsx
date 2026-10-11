@@ -44,8 +44,11 @@ export function LawyerAvatar({
   tone,
   className = "",
 }: LawyerAvatarProps) {
-  const [failed, setFailed] = useState(false);
-  const showImage = Boolean(avatarUrl) && !failed;
+  // Track WHICH url failed (not a bare boolean): when the avatar is replaced
+  // (e.g. an operator saves a new portrait) the instance retries the new URL
+  // instead of latching on the initials fallback forever.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const showImage = Boolean(avatarUrl) && avatarUrl !== failedUrl;
 
   return (
     <div
@@ -63,7 +66,7 @@ export function LawyerAvatar({
             loading="lazy"
             decoding="async"
             data-avatar-type={avatarType}
-            onError={() => setFailed(true)}
+            onError={() => setFailedUrl(avatarUrl)}
             className="h-full w-full object-cover"
           />
         ) : (

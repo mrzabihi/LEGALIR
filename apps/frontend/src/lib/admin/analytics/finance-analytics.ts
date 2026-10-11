@@ -12,7 +12,7 @@
 // Simulated payments are counted and labelled, never presented as real money.
 // ============================================================
 
-import type { FinanceAnalytics } from "@legalir/types";
+import type { FinanceAnalytics, OrderStatus } from "@legalir/types";
 import { listOrders } from "@/lib/admin/orders";
 import { readSubscriptions, readAdjustments, readPayments, earliestDataIso } from "./sources";
 import { resolveRange, toWindowInfo, withinWindow, type ResolveRangeInput } from "./range";
@@ -31,10 +31,14 @@ function completedRefunds(): Map<string, number> {
 }
 
 /**
- * Sum the net amount of orders purchased in the window, using the orders
- * module itself (`listOrders`) so this is a genuine cross-check rather than a
- * re-derivation of the same formula.
+ * Sum the net amount of EARNING orders purchased in the window, using the
+ * orders module itself (`listOrders`) so this is a genuine cross-check rather
+ * than a re-derivation of the same formula. Only SUCCESS / REFUNDED /
+ * PARTIALLY_REFUNDED orders count — an awaiting-payment (PENDING) or failed
+ * order is not a sale and contributes nothing, matching the sales ledger.
  */
+const EARNING_STATUSES = new Set<OrderStatus>(["SUCCESS", "REFUNDED", "PARTIALLY_REFUNDED"]);
+
 function ordersNetInWindow(fromIso: string, toIso: string): number {
   let page = 1;
   let total = Number.POSITIVE_INFINITY;
@@ -44,6 +48,7 @@ function ordersNetInWindow(fromIso: string, toIso: string): number {
     const res = listOrders({ page, pageSize: 100 });
     total = res.total;
     for (const o of res.items) {
+      if (!EARNING_STATUSES.has(o.status)) continue;
       if (withinWindow(o.purchasedAt, fromIso, toIso)) sum += o.netAmount;
     }
     page += 1;

@@ -196,12 +196,23 @@ export type Permission =
   | "admin:rag:publish"
   | "admin:calculators:read"
   | "admin:calculators:manage"
+  // Calculator RULE management (formulas/rates/versions) is a system-level
+  // capability reserved to the Super Admin — a normal platform manager may run
+  // and configure a calculator's operational policy (enabled / tier / energy)
+  // but must NOT view or change the rule layer that produces user results.
+  | "admin:calculators:rules:read"
+  | "admin:calculators:rules:manage"
   | "admin:energy:read"
   | "admin:energy:manage"
   | "admin:support:read"
   | "admin:support:manage"
   | "admin:content:read"
   | "admin:content:manage"
+  // The public legal library is a product section in its own right (distinct
+  // from the blog). Its authoring surface is gated by its own permission pair
+  // so the two content workflows can be delegated independently.
+  | "admin:library:read"
+  | "admin:library:manage"
   | "admin:reports:read"
   | "admin:reports:export"
   | "admin:analytics:read"
@@ -379,6 +390,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:knowledge:write",
     "admin:content:read",
     "admin:content:manage",
+    "admin:library:read",
+    "admin:library:manage",
     "admin:calculators:read",
     "admin:calculators:manage",
     "admin:energy:read",
@@ -446,6 +459,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:support:manage",
     "admin:content:read",
     "admin:content:manage",
+    "admin:library:read",
+    "admin:library:manage",
     "admin:reports:read",
     "admin:analytics:read",
     "admin:reports:export",
@@ -494,12 +509,17 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:knowledge:write",
     "admin:calculators:read",
     "admin:calculators:manage",
+    // Rule-layer management is Super-Admin-only; only this role holds these.
+    "admin:calculators:rules:read",
+    "admin:calculators:rules:manage",
     "admin:energy:read",
     "admin:energy:manage",
     "admin:support:read",
     "admin:support:manage",
     "admin:content:read",
     "admin:content:manage",
+    "admin:library:read",
+    "admin:library:manage",
     "admin:reports:read",
     "admin:analytics:read",
     "admin:reports:export",

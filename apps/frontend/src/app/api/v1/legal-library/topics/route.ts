@@ -3,23 +3,22 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
-import { findSessionById } from "@/lib/db";
-import { readLegalLibrary } from "@/lib/legal-library-db";
+import { isPubliclyVisible, readLegalLibrary } from "@/lib/legal-library-db";
 
-function getUserId(req: Request): string | null {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const match = cookieHeader.match(/legalir-session=([^;]+)/);
-  if (!match || !match[1]) return null;
-  const session = findSessionById(match[1]!);
-  return session?.userId ?? null;
-}
+export async function GET() {
+  const { items, topics } = readLegalLibrary();
 
-export async function GET(request: Request) {
-  const userId = getUserId(request);
-  if (!userId) {
-    return NextResponse.json({ code: "UNAUTHORIZED", message: "لطفا وارد شوید" }, { status: 401 });
+  // Public endpoint — a topic's live count reflects PUBLISHED sources only, so
+  // a topic that has nothing published never advertises a phantom count.
+  const published = items.filter(isPubliclyVisible);
+  const counts = new Map<string, number>();
+  for (const item of published) {
+    if (item.topicSlug) counts.set(item.topicSlug, (counts.get(item.topicSlug) ?? 0) + 1);
   }
 
-  const { topics } = readLegalLibrary();
-  return NextResponse.json({ data: topics, meta: { requestId: crypto.randomUUID() } });
+  const visible = topics
+    .map((t) => ({ ...t, contentCount: counts.get(t.slug) ?? 0 }))
+    .filter((t) => t.contentCount > 0);
+
+  return NextResponse.json({ data: visible, meta: { requestId: crypto.randomUUID() } });
 }

@@ -32,6 +32,7 @@ import type {
 import { supportCounts } from "./support";
 import { ragReviewCounts } from "./rag";
 import { listAiProviders } from "./ai-providers";
+import { salesInWindow, summarizeSales, type SaleRecord } from "./sales-report";
 
 const TIMEZONE = "Asia/Tehran";
 const CURRENCY = "IRT";
@@ -232,15 +233,23 @@ function buildAttention(
   return items.filter((i) => i.count > 0);
 }
 
-/** Total sales (completed subscription purchases) in a rolling window. */
+/** Earning sales in an explicit half-open window, from the unified ledger. */
+function earnersInWindow(fromIso: string, toIso: string): SaleRecord[] {
+  return salesInWindow(fromIso, toIso);
+}
+
+/**
+ * Total sales (reportable purchases) in a rolling window. `count` counts every
+ * EARNING sale — including a payment-free order, which counts as a sale with
+ * zero revenue — and `amount` is the collected revenue: the real money received,
+ * never the pre-discount base. Sourced from the unified ledger so a checkout
+ * order and its subscription are never double-counted.
+ */
 export function salesInRange(days = 30): { count: number; amount: number } {
   const since = cutoffIso(days);
-  const subs = readTable<StoredSubscription>("subscriptions");
-  const inRange = subs.filter((s) => s.purchased_at >= since);
-  return {
-    count: inRange.length,
-    amount: inRange.reduce((sum, s) => sum + (s.amount || 0), 0),
-  };
+  const toIso = new Date().toISOString();
+  const earners = earnersInWindow(since, toIso);
+  return { count: earners.length, amount: summarizeSales(earners).collectedAmount };
 }
 
 /** Resolve the effective window length (days) for a request, or the rolling default. */
@@ -321,12 +330,18 @@ export function buildOverview(
   const adjustments = readTable<AdjustmentRow>("financial_adjustments");
 
   const activeSubs = subs.filter((s) => s.status_fa === "فعال" || s.status === "active").length;
-  const salesCount = countSince(subs, fromIso, (s) => (inCurrent(s.purchased_at) ? s.purchased_at : undefined));
-  const salesAmount = sumSince(subs, fromIso, (s) => (inCurrent(s.purchased_at) ? s.purchased_at : undefined), (s) => s.amount || 0);
+
+  // Sales count every EARNING sale (a payment-free order counts, zero revenue);
+  // revenue is the collected money only. The unified ledger keeps a checkout
+  // order and the subscription it created from being counted twice.
+  const curSales = summarizeSales(earnersInWindow(fromIso, toIso));
+  const salesCount = curSales.count;
+  const salesAmount = curSales.collectedAmount;
 
   // Previous-period equivalents (only comparable for range-scoped metrics).
-  const prevSalesCount = countSince(subs, prevFromIso, (s) => (inPrevious(s.purchased_at) ? s.purchased_at : undefined));
-  const prevSalesAmount = sumSince(subs, prevFromIso, (s) => (inPrevious(s.purchased_at) ? s.purchased_at : undefined), (s) => s.amount || 0);
+  const prevSales = summarizeSales(earnersInWindow(prevFromIso, prevToIso));
+  const prevSalesCount = prevSales.count;
+  const prevSalesAmount = prevSales.collectedAmount;
   const prevNewUsers = countSince(users, prevFromIso, (u) => (inPrevious(u.createdAt) ? u.createdAt : undefined));
   const prevRequests = countSince(requests, prevFromIso, (r) => (inPrevious(r.createdAt) ? r.createdAt : undefined));
   const prevRefunded = sumSince(
@@ -415,7 +430,7 @@ export function buildOverview(
       "تعداد فروش",
       salesCount,
       prevSalesCount,
-      `خریدهای بازهٔ انتخاب‌شده`,
+      `همهٔ سفارش‌های قطعی‌شدهٔ بازه (شامل سفارش رایگان با درآمد صفر)`,
       { drillHref: "/admin/orders" }
     ),
     comparableKpi(
@@ -423,7 +438,7 @@ export function buildOverview(
       "درآمد فروش",
       salesAmount,
       prevSalesAmount,
-      `مجموع مبلغ خریدها در بازهٔ انتخاب‌شده`,
+      `مجموع مبلغ وصول‌شده در بازهٔ انتخاب‌شده`,
       { drillHref: "/admin/orders", unitFa: "تومان" }
     ),
     comparableKpi(
@@ -507,7 +522,7 @@ export interface RevenueByPlanRow {
   amount: number;
 }
 
-/** Revenue grouped by plan over a rolling window (real subscriptions only). */
+/** Sales grouped by plan over a window: count of earning sales + collected revenue. */
 export function revenueByPlan(
   rangeDays = 30,
   explicit?: { from: string; to: string } | null
@@ -515,20 +530,18 @@ export function revenueByPlan(
   const window =
     (explicit ? absoluteWindow(explicit.from, explicit.to) : null) ?? rollingWindow(rangeDays);
   const { fromIso, toIso } = window;
-  const subs = readTable<StoredSubscription>("subscriptions").filter(
-    (s) => s.purchased_at >= fromIso && s.purchased_at < toIso
-  );
+  const sales = earnersInWindow(fromIso, toIso);
   const byCode = new Map<string, RevenueByPlanRow>();
-  for (const s of subs) {
-    const row = byCode.get(s.plan_code) ?? {
-      planCode: s.plan_code,
-      planNameFa: s.plan_name_fa,
+  for (const s of sales) {
+    const row = byCode.get(s.planCode) ?? {
+      planCode: s.planCode,
+      planNameFa: s.planNameFa,
       count: 0,
       amount: 0,
     };
     row.count += 1;
-    row.amount += s.amount || 0;
-    byCode.set(s.plan_code, row);
+    row.amount += s.collectedAmount;
+    byCode.set(s.planCode, row);
   }
   return [...byCode.values()].sort((a, b) => b.amount - a.amount);
 }
@@ -548,20 +561,18 @@ export function dailySales(
   const window =
     (explicit ? absoluteWindow(explicit.from, explicit.to) : null) ?? rollingWindow(rangeDays);
   const { fromIso, toIso } = window;
-  const subs = readTable<StoredSubscription>("subscriptions");
+  const sales = earnersInWindow(fromIso, toIso);
   const points: DailySalesPoint[] = [];
   const start = new Date(fromIso);
   const end = new Date(toIso);
   const startDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
   for (let t = startDay.getTime(); t <= end.getTime(); t += 86_400_000) {
     const day = new Date(t).toISOString().slice(0, 10);
-    const daySubs = subs.filter(
-      (s) => s.purchased_at.slice(0, 10) === day && s.purchased_at < toIso && s.purchased_at >= fromIso
-    );
+    const daySales = sales.filter((s) => s.purchasedAt.slice(0, 10) === day);
     points.push({
       date: day,
-      count: daySubs.length,
-      amount: daySubs.reduce((sum, s) => sum + (s.amount || 0), 0),
+      count: daySales.length,
+      amount: daySales.reduce((sum, s) => sum + s.collectedAmount, 0),
     });
   }
   return points;

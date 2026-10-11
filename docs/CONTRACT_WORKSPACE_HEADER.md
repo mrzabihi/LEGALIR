@@ -6,8 +6,8 @@
 > It is a **workspace**, not a discovery surface, so it is deliberately quiet:
 > no glassmorphism, no glow — a solid surface and two levels of hierarchy.
 >
-> The surface is a **soft light-blue control surface** (`--contract-sticky-bg`,
-> `#DAE3F3`), not plain white. That is what makes "this is the persistent status
+> The surface is the **LEGALIR brand ivory** (`--contract-sticky-bg`,
+> `#FCF6E8`), not plain white. That is what makes "this is the persistent status
 > area" legible at a glance while the white contract form scrolls underneath.
 
 ---
@@ -17,9 +17,9 @@
 The previous header used `bg-surface/95` + `backdrop-blur` (glassmorphism) and
 carried a decorative save label. It was replaced with:
 
-- a **solid light-blue** control surface (`--contract-sticky-bg`) — no
-  translucency, no blur — so the header reads as a distinct persistent band
-  above the white form;
+- a **solid LEGALIR brand-ivory** control surface (`--contract-sticky-bg`,
+  `#FCF6E8`) — no translucency, no blur — so the header reads as a distinct
+  persistent band above the white form;
 - **two levels** of hierarchy instead of one dense row;
 - **scroll-aware elevation** — flat at the top of the page, lifted once content
   slides under it (see §2);
@@ -33,26 +33,30 @@ and progress stay visible while the user scrolls a long step.
 
 ## 2. Surface & elevation
 
-The header floats above the white contract form, so it sits on a soft light-blue
+The header floats above the white contract form, so it sits on the brand ivory
 control surface rather than plain white. All values live in `globals.css` as
 `--contract-sticky-*` custom properties (light + dark), so nothing is scattered
 across pages:
 
 | Token | Light | Role |
 |---|---|---|
-| `--contract-sticky-bg` | `#DAE3F3` | the header surface |
-| `--contract-sticky-text` | `#172B4E` | primary text (LEGALIR navy) |
-| `--contract-sticky-muted` | `rgba(23,43,78,.72)` | secondary text |
-| `--contract-sticky-accent` | `#C3B18A` | bronze — state badge border + hairline only |
-| `--contract-sticky-border` | `rgba(23,43,78,.10)` | `border-bottom` |
-| `--contract-sticky-shadow` | `0 6px 18px rgba(23,43,78,.08)` | scroll-aware elevation |
-| `--contract-sticky-chip` | `rgba(23,43,78,.06)` | section chips |
-| `--contract-sticky-chip-strong` | `rgba(23,43,78,.12)` | step chip |
-| `--contract-sticky-track` | `rgba(23,43,78,.14)` | progress track |
+| `--contract-sticky-bg` | `#FCF6E8` | the header surface (brand ivory) |
+| `--contract-sticky-text` | `#222E2D` | primary text (brand teal, 13:1 AAA) |
+| `--contract-sticky-muted` | `#4C5B57` | secondary text (6.6:1 AA) |
+| `--contract-sticky-accent` | `#C69B38` | gold — hairline only |
+| `--contract-sticky-border` | `rgba(34,46,45,.12)` | `border-bottom` |
+| `--contract-sticky-shadow` | `0 6px 18px rgba(34,46,45,.08)` | scroll-aware elevation |
+| `--contract-sticky-chip` | `rgba(34,46,45,.07)` | section chips |
+| `--contract-sticky-chip-strong` | `#E4EEE8` | step chip (pale green) |
+| `--contract-sticky-track` | `rgba(34,46,45,.14)` | progress track |
+| `--contract-sticky-fill` | `#1D624E` | progress fill (brand green) |
+| `--contract-sticky-badge-bg` | `#E4EEE8` | lifecycle badge surface |
+| `--contract-sticky-badge-text` | `#1D624E` | lifecycle badge text (6.1:1 AA) |
+| `--contract-sticky-badge-border` | `rgba(29,98,78,.24)` | lifecycle badge border |
 
-The bronze accent is deliberately rationed: a thin border on the lifecycle
-state badge and a 16 px hairline at the header's start edge. It is never a
-background.
+The gold accent is deliberately rationed: a single 16 px hairline at the
+header's start edge. It is never a background. The progress fill is always the
+brand green `#1D624E` — it never doubles as the text colour.
 
 **Elevation is scroll-aware.** The header is `sticky` inside the app shell's
 `<main class="overflow-auto">`, not the window, so a plain `window.scrollY`
@@ -77,10 +81,10 @@ sticky offset tracks the real header height instead of a magic number.
 
 | Element | Notes |
 |---|---|
-| Back link | «بازگشت به مرکز قراردادها» → `/contracts` |
+| Back link | «بازگشت به مرکز قراردادها» → `/contracts`; brand-green text with an RTL-mirrored back arrow |
 | Save status | shares the back-link row, right-aligned, `aria-live="polite"` |
-| Title | `text-h4`; truncates on desktop, clamps to 2 lines on mobile |
-| Status badge | the raw lifecycle state label, e.g. «پیش‌نویس»; bronze border |
+| Title | `text-h4`; clamps to 2 lines on phone, truncates to one line from `tablet` up |
+| Status badge | the raw lifecycle state label, e.g. «پیش‌نویس»; pale-green chip (`--contract-sticky-badge-*`) |
 | Reference code | `LGL-RENT-1405-000016 — رهن و اجاره ملک مسکونی` |
 | Copy button | copies the reference code; labelled for screen readers |
 
@@ -89,15 +93,15 @@ sticky offset tracks the real header height instead of a magic number.
 | Element | Notes |
 |---|---|
 | «تکمیل قرارداد» | the section title |
-| «مرحله X از Y» | the wizard step position, on a navy chip |
+| «مرحله X از Y» | the wizard step position, on a pale-green chip |
 | «{progress}٪» | the server-computed percentage |
 | Progress bar | 6 px (`h-1.5`), `role="progressbar"` with `aria-valuenow` |
 | «۲ از ۵ بخش تکمیل شده» | completed / total, from the real section list |
 | Remaining chips | up to 6 section labels still under 100 %, then «+N» |
 | Blockers | a warning line listing the sections that block signing |
 
-The bar turns `bg-success` at 100 % and `--contract-sticky-text` (navy)
-otherwise.
+The bar's fill is the brand green `--contract-sticky-fill` (`#1D624E`) at every
+percentage — it never uses the text colour as a fill.
 
 ---
 
@@ -109,7 +113,7 @@ decorative label:
 | `SaveStatus` | Rendered |
 |---|---|
 | `saving` | a spinner + «در حال ذخیره...» |
-| `saved` | a brand-green dot + «همه تغییرات ذخیره شده‌اند» |
+| `saved` | a brand-green dot + «همه تغییرات ذخیره شده‌اند» (brand-green text) |
 | `error` | «ذخیره انجام نشد — تلاش مجدد» (a button that calls `onRetrySave`) |
 | `idle` | «ذخیره خودکار فعال است» |
 
@@ -131,15 +135,14 @@ the complement, rendered as chips.
 
 ## 6. Responsive behaviour
 
-- **Desktop / tablet** — a compact two-level header, measured ~189 px at the
-  default laptop width.
-- **Mobile** — the title clamps to two lines (`max-mobile-l:line-clamp-2
-  max-mobile-l:whitespace-normal`) instead of truncating to an unreadable
-  fragment. The remaining-section chips ride a **single horizontal rail**
-  (`overflow-x-auto scrollbar-hide`) so the sticky header never grows to two
-  rows; from `mobile-l` (375 px) up they wrap normally. A fade hint at the end
-  edge signals the rail continues. Measured ~235 px (≈30 % of a 780 px viewport)
-  with no horizontal overflow.
+- **Desktop / tablet (≥600 px)** — a compact two-level header, measured ~203 px.
+- **Phone (<600 px)** — the title clamps to two lines (`line-clamp-2`) instead
+  of truncating to an unreadable fragment. The remaining-section chips ride a
+  **single horizontal rail** (`overflow-x-auto scrollbar-hide`) so the sticky
+  header never grows to two rows; the rail is keyboard-focusable and carries a
+  fade hint at the end edge. Only from `tablet` (600 px) up do the chips wrap
+  normally and the title truncate to one line. Measured ~231 px at 390 px and
+  ~251 px at 320 px, with no horizontal overflow.
 - The header is `sticky top-0`; the wizard's sticky footer is
   `fixed bottom-0 … desktop:static`, so on desktop the footer returns to normal
   flow and only the header stays pinned.
@@ -155,11 +158,17 @@ the complement, rendered as chips.
 - The back link is a real `<Link>` with a visible label, not an icon-only
   control.
 - Colours come from the `--contract-sticky-*` tokens (see §2) plus the semantic
-  `bg-success` / `text-warning-700` roles — no invented hex values in the
-  component. Contrast on the `#DAE3F3` surface: navy `#172B4E` 10.95:1 (AAA),
-  muted ~5.8:1 (AA), success `#1F6F50` 4.72:1 (AA), warning `#92400E` 5.49:1
-  (AA). The brand green `#32B183` is used only as a small dot
-  (`bg-control-selected`), never as text on the blue surface (2.1:1 — fail).
+  `bg-warning-50` / `text-warning-700` roles for the blockers band — no
+  invented hex values in the component. Contrast on the `#FCF6E8` surface:
+  teal `#222E2D` 13.0:1 (AAA), muted `#4C5B57` 6.6:1 (AA), brand green
+  `#1D624E` 6.1:1 (AA), warning ink `#92400E` 5.49:1 (AA). The blockers band
+  uses a soft gold wash (`bg-warning-50`, `#FFFBEB`) on the ivory surface, never
+  a saturated red. The back link uses the theme-aware brand foreground
+  `--brand-fg`, which is `#1D624E` in light and lifts to a mint on the dark
+  surface.
+- The mobile chip rail is keyboard-scrollable: it takes `tabIndex={0}` (only when
+  it actually overflows) with a visible `focus-visible` ring, so the hidden
+  scrollbar does not hurt discoverability.
 
 ---
 

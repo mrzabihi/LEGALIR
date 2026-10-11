@@ -15,6 +15,10 @@ import {
   fetchBlogPosts,
   fetchBlogPost,
   fetchDailyQuota,
+  fetchLegalLibraryItems,
+  fetchLegalLibrarySource,
+  fetchLegalLibraryTopics,
+  setLegalLibraryBookmark,
 } from "@/lib/api/v1";
 
 // ============================================================
@@ -175,5 +179,56 @@ export function useBlogPost(slug: string | undefined) {
     enabled: Boolean(slug),
     staleTime: 5 * 60_000, // 5 min
     retry: 1,
+  });
+}
+
+// ============================================================
+// Legal Library (کتابخانه لیگالیر) — public reads
+// ============================================================
+// Own cache namespace (["library", …]) so it never collides with the blog.
+
+export function useLegalLibraryItems(params: {
+  search?: string;
+  topic?: string;
+  sourceType?: string;
+  sort?: "newest" | "oldest" | "title" | "popular";
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  return useQuery({
+    queryKey: ["library", "items", params],
+    queryFn: () => fetchLegalLibraryItems(params),
+    staleTime: 5 * 60_000, // 5 min
+    retry: 1,
+  });
+}
+
+export function useLegalLibrarySource(id: string | undefined) {
+  return useQuery({
+    queryKey: ["library", "source", id],
+    queryFn: () => fetchLegalLibrarySource(id as string),
+    enabled: Boolean(id),
+    staleTime: 5 * 60_000, // 5 min
+    retry: 1,
+  });
+}
+
+export function useLegalLibraryTopics() {
+  return useQuery({
+    queryKey: ["library", "topics"],
+    queryFn: fetchLegalLibraryTopics,
+    staleTime: 5 * 60_000, // 5 min
+    retry: 1,
+  });
+}
+
+/** Toggle a bookmark on a library source; refreshes the affected detail. */
+export function useSetLegalBookmark(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bookmarked: boolean) => setLegalLibraryBookmark(id, bookmarked),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["library", "source", id] });
+    },
   });
 }

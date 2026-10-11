@@ -71,7 +71,7 @@ function QuotaRow({ quota }: { quota: PeriodQuotaView }) {
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-container-high">
             <span
               className={`block h-full rounded-full transition-all duration-medium2 ${
-                exhausted ? "bg-error-500" : "bg-primary-500"
+                exhausted ? "bg-error-500" : "bg-[var(--brand-green)]"
               }`}
               style={{ width: `${percent}%` }}
             />
@@ -87,19 +87,22 @@ export function SubscriptionUsageCard() {
 
   return (
     <section
-      className="mb-6 rounded-large bg-surface-container-low border border-[color:var(--color-outline-variant)] shadow-elevation-1 p-5"
+      className="mb-6 rounded-large bg-[var(--dashboard-card-bg)] border border-[color:color-mix(in_srgb,var(--brand-green)_18%,transparent)] shadow-elevation-1 p-5"
       aria-label="مصرف و سهمیه"
     >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h3 className="text-titleMedium text-on-surface font-semibold">مصرف و سهمیه</h3>
+          <div className="flex items-center gap-2">
+            <span className="h-5 w-1 rounded-full bg-gradient-to-b from-[var(--brand-green)] to-[var(--brand-gold)]" aria-hidden="true" />
+            <h3 className="text-titleMedium text-on-surface font-semibold">مصرف و سهمیه</h3>
+          </div>
           <p className="text-caption text-muted mt-0.5">
             اعتبار امروز، سهمیه‌های دوره و امتیازهای شما
           </p>
         </div>
         <Link
           href="/settings/usage"
-          className="hidden tablet:inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] px-3.5 py-1.5 text-caption text-on-surface-variant font-medium hover:bg-surface-container-high hover:text-on-surface transition-colors duration-short4 touch-target-min"
+          className="hidden tablet:inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_25%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-3.5 py-1.5 text-caption text-[var(--brand-fg)] font-medium hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] transition-colors duration-short4 touch-target-min"
         >
           جزئیات بیشتر
           <IconChevronRight size={14} rtlFlip />
@@ -127,9 +130,9 @@ export function SubscriptionUsageCard() {
           {/* ── The two distinct assets ─────────────────────────── */}
           <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
             {/* 1) Today's subscription credit */}
-            <div className="rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-4">
+            <div className="rounded-medium border border-[color:color-mix(in_srgb,var(--brand-green)_14%,transparent)] bg-surface p-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-info-50 text-info-600">
+                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[color-mix(in_srgb,var(--brand-green)_12%,transparent)] text-[var(--brand-fg)]">
                   <IconBolt size={18} />
                 </span>
                 <div className="min-w-0">
@@ -149,7 +152,7 @@ export function SubscriptionUsageCard() {
                   </p>
                   <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
                     <span
-                      className="block h-full rounded-full bg-info-500 transition-all duration-medium2"
+                      className="block h-full rounded-full bg-[var(--brand-green)] transition-all duration-medium2"
                       style={{ width: `${pct(data.daily.pointsUsed, data.daily.pointsTotal)}%` }}
                     />
                   </div>
@@ -168,10 +171,10 @@ export function SubscriptionUsageCard() {
             {/* 2) Reward points — a separate, persistent asset */}
             <Link
               href="/points"
-              className="group rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-4 transition-colors hover:bg-surface-container-high"
+              className="group rounded-medium border border-[color:color-mix(in_srgb,var(--brand-gold)_28%,transparent)] bg-surface p-4 transition-colors hover:bg-[color:color-mix(in_srgb,var(--brand-gold)_8%,transparent)]"
             >
               <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[var(--color-violet-50)] text-[var(--color-violet-600)]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[color-mix(in_srgb,var(--brand-gold)_16%,transparent)] text-[var(--brand-fg-gold)]">
                   <IconCoin size={18} />
                 </span>
                 <div className="min-w-0">
@@ -192,7 +195,7 @@ export function SubscriptionUsageCard() {
 
           {/* ── Period-scoped service quotas ────────────────────── */}
           {data.hasSubscription && data.period.length > 0 && (
-            <div className="rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-4">
+            <div className="rounded-medium border border-[color:color-mix(in_srgb,var(--brand-green)_14%,transparent)] bg-surface p-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-medium bg-surface-container-high text-on-surface-variant">
                   <IconCalendar size={16} />
@@ -217,7 +220,7 @@ export function SubscriptionUsageCard() {
           {/* Mobile action */}
           <Link
             href="/settings/usage"
-            className="tablet:hidden flex w-full items-center justify-center gap-1 rounded-medium border border-[color:var(--color-outline-variant)] px-4 py-2.5 text-body-2 text-on-surface-variant font-medium hover:bg-surface-container-high transition-colors duration-short4 touch-target"
+            className="tablet:hidden flex w-full items-center justify-center gap-1 rounded-medium border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] px-4 py-2.5 text-body-2 text-[var(--brand-fg)] font-medium hover:bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] transition-colors duration-short4 touch-target"
           >
             جزئیات بیشتر
             <IconChevronRight size={16} rtlFlip />

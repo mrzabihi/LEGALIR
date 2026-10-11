@@ -130,7 +130,7 @@ export function Sidebar({ userRole }: SidebarProps) {
               aria-current={isActive ? "page" : undefined}
             >
               {isActive && (
-                <span className="absolute end-0 top-3 bottom-3 w-0.5 rounded-full bg-secondary-400" aria-hidden="true" />
+                <span className="absolute end-0 top-3 bottom-3 w-0.5 rounded-full bg-[var(--sidebar-active-mark)]" aria-hidden="true" />
               )}
               <NavIcon icon={item.icon} isActive={isActive} />
               <span className="truncate">{item.titleFa}</span>
@@ -174,7 +174,7 @@ export function Sidebar({ userRole }: SidebarProps) {
             ].join(" ")}
             aria-current={pathname === "/subscription" ? "page" : undefined}
           >
-            <span className="text-secondary-300 group-hover:text-secondary-200 transition-colors duration-short4">
+            <span className="text-[var(--brand-gold)] group-hover:text-[var(--warm-glass-ivory)] transition-colors duration-short4">
               <IconSubscription size={22} />
             </span>
             <span className="flex items-center gap-1.5 min-w-0 max-w-full">
@@ -192,12 +192,12 @@ export function Sidebar({ userRole }: SidebarProps) {
             "group mt-2 flex items-center gap-3 rounded-xl px-3.5 py-3 min-h-[52px]",
             "transition-all duration-short4 ease-standard active:scale-[0.98]",
             pathname === "/support"
-              ? "bg-glass-state-strong text-glass-ivory ring-1 ring-secondary-400/40"
-              : "bg-[color-mix(in_srgb,var(--color-secondary)_16%,transparent)] text-glass-ivory hover:bg-[color-mix(in_srgb,var(--color-secondary)_26%,transparent)]",
+              ? "bg-glass-state-strong text-glass-ivory ring-1 ring-[var(--brand-gold)]/50"
+              : "bg-[color-mix(in_srgb,var(--brand-gold)_18%,transparent)] text-glass-ivory hover:bg-[color-mix(in_srgb,var(--brand-gold)_28%,transparent)]",
           ].join(" ")}
           aria-current={pathname === "/support" ? "page" : undefined}
         >
-          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-secondary-400 to-secondary-600 flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
+          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-[var(--brand-gold)] to-[var(--brand-gold-deep)] flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
             <IconPhone size={18} />
           </span>
           <span className="min-w-0 flex-1">
@@ -226,20 +226,20 @@ export function SidebarMobile({ userRole }: SidebarProps) {
   const displayName = profile?.displayName ?? session?.mobileDisplay ?? "کاربر";
 
   return (
-    <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)]">
+    <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
       {/* User header in drawer */}
-      <div className="px-4 py-4 border-b border-divider">
+      <div className="px-4 py-4 border-b border-glass-border">
         <div className="flex items-center gap-3">
           <UserAvatar
             avatarUrl={profile?.avatarUrl}
             name={displayName}
             size={48}
-            className="shadow-elevation-3"
-            fallbackClassName="bg-gradient-to-br from-primary-600 to-primary-800 text-white text-h3 font-bold"
+            className="shadow-elevation-3 ring-1 ring-[rgba(252,246,232,0.35)]"
+            fallbackClassName="bg-gradient-to-br from-[var(--brand-green)] to-[var(--brand-teal)] text-white text-h3 font-bold"
           />
           <div className="min-w-0">
-            <p className="text-body-1 text-on-surface font-semibold truncate">{displayName}</p>
-            <p className="text-caption text-muted">{session?.mobileDisplay}</p>
+            <p className="text-body-1 text-glass-ivory font-semibold truncate">{displayName}</p>
+            <p className="text-caption text-glass-ivory-muted">{session?.mobileDisplay}</p>
           </div>
         </div>
       </div>
@@ -256,8 +256,8 @@ export function SidebarMobile({ userRole }: SidebarProps) {
               className={[
                 "flex items-center gap-3 px-4 py-3.5 rounded-xl text-labelLarge transition-all duration-200 touch-target",
                 isActive
-                  ? "bg-primary-50 text-primary-700 font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800",
+                  ? "bg-glass-state-strong text-glass-ivory font-semibold"
+                  : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
               ].join(" ")}
               aria-current={isActive ? "page" : undefined}
             >
@@ -268,7 +268,7 @@ export function SidebarMobile({ userRole }: SidebarProps) {
         })}
       </nav>
 
-      <div className="px-2 py-3 border-t border-divider">
+      <div className="px-2 py-3 border-t border-glass-border">
         <div className="grid grid-cols-2 gap-2">
           <Link
             href="/settings"
@@ -277,12 +277,12 @@ export function SidebarMobile({ userRole }: SidebarProps) {
               "flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
               "text-labelLarge transition-colors touch-target",
               pathname === "/settings"
-                ? "bg-primary-50 text-primary-700 font-semibold"
-                : "text-neutral-600 hover:bg-neutral-100",
+                ? "bg-glass-state-strong text-glass-ivory font-semibold"
+                : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
             ].join(" ")}
             aria-current={pathname === "/settings" ? "page" : undefined}
           >
-            <IconSettings size={22} className="text-neutral-400" />
+            <IconSettings size={22} className="text-glass-ivory-muted" />
             <span className="truncate max-w-full">تنظیمات</span>
           </Link>
           <Link
@@ -292,12 +292,12 @@ export function SidebarMobile({ userRole }: SidebarProps) {
               "flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
               "text-labelLarge transition-colors touch-target",
               pathname === "/subscription"
-                ? "bg-primary-50 text-primary-700 font-semibold"
-                : "text-secondary-700 hover:bg-amber-50",
+                ? "bg-glass-state-strong text-glass-ivory font-semibold"
+                : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
             ].join(" ")}
             aria-current={pathname === "/subscription" ? "page" : undefined}
           >
-            <IconSubscription size={22} className="text-secondary-500" />
+            <IconSubscription size={22} className="text-[var(--brand-gold)]" />
             <span className="flex items-center gap-1.5 min-w-0 max-w-full">
               <span className="truncate">اشتراک</span>
               <SubscriptionStatusBadge className="shrink-0" />
@@ -313,19 +313,19 @@ export function SidebarMobile({ userRole }: SidebarProps) {
             "group mt-2 flex items-center gap-3 rounded-xl px-3.5 py-3 min-h-[52px]",
             "transition-all duration-short4 ease-standard active:scale-[0.98] touch-target",
             pathname === "/support"
-              ? "bg-primary-50 text-primary-700 ring-1 ring-primary-200"
-              : "bg-secondary-50 text-secondary-800 hover:bg-secondary-100",
+              ? "bg-glass-state-strong text-glass-ivory ring-1 ring-[var(--brand-gold)]/50"
+              : "bg-[color-mix(in_srgb,var(--brand-gold)_18%,transparent)] text-glass-ivory hover:bg-[color-mix(in_srgb,var(--brand-gold)_28%,transparent)]",
           ].join(" ")}
           aria-current={pathname === "/support" ? "page" : undefined}
         >
-          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-secondary-400 to-secondary-600 flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
+          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-[var(--brand-gold)] to-[var(--brand-gold-deep)] flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
             <IconPhone size={18} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-body-2 font-semibold truncate">پشتیبانی</span>
-            <span className="block text-caption text-secondary-700/70 truncate">پاسخگوی سوالات شما هستیم</span>
+            <span className="block text-caption text-glass-ivory-muted truncate">پاسخگوی سوالات شما هستیم</span>
           </span>
-          <IconChevronRight size={18} className="shrink-0 text-secondary-500 group-hover:text-secondary-700 transition-colors duration-short4" />
+          <IconChevronRight size={18} className="shrink-0 text-glass-ivory-muted group-hover:text-glass-ivory transition-colors duration-short4" />
         </Link>
       </div>
     </div>

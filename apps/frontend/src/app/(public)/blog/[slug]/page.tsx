@@ -14,7 +14,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { readBlog } from "@/lib/legal-library-db";
+import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
 import { getLegalArticle } from "@/lib/blog/legal-articles";
 import { articleHeadings } from "@/lib/blog/article-types";
 import { toPersianDate } from "@/lib/persian-utils";
@@ -53,8 +53,11 @@ function formatDate(iso: string): string {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const post = readBlog().details[slug];
-  if (!post) return { title: "مقاله یافت نشد" };
+  const { items, details } = readBlog();
+  const post = details[slug];
+  if (!post || !isBlogPostPubliclyVisible(items.find((i) => i.slug === slug), post)) {
+    return { title: "مقاله یافت نشد" };
+  }
 
   const title = post.seoTitle ?? post.titleFa;
   const description = post.seoDescription ?? post.excerpt;
@@ -62,7 +65,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title,
     description,
-    alternates: post.canonicalUrl ? { canonical: post.canonicalUrl } : undefined,
+    // Always canonical: prefer the post's own URL, otherwise this article's
+    // path. Without a fallback the article would inherit the blog-list
+    // canonical (/blog) from the parent layout, which is wrong.
+    alternates: { canonical: post.canonicalUrl ?? `/blog/${slug}` },
     openGraph: {
       type: "article",
       title,
@@ -293,8 +299,9 @@ function BottomCta() {
 
 export default async function BlogArticlePage({ params }: PageProps) {
   const { slug } = await params;
-  const post = readBlog().details[slug];
-  if (!post) notFound();
+  const { items, details } = readBlog();
+  const post = details[slug];
+  if (!post || !isBlogPostPubliclyVisible(items.find((i) => i.slug === slug), post)) notFound();
 
   const richDoc = getLegalArticle(slug);
   const publishedAt = formatDate(post.publishedAt);

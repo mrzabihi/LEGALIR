@@ -4,23 +4,9 @@
 
 import { NextResponse } from "next/server";
 import type { LegalContentType } from "@legalir/types";
-import { findSessionById } from "@/lib/db";
-import { filterLibraryItems, paginate, readLegalLibrary } from "@/lib/legal-library-db";
-
-function getUserId(req: Request): string | null {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const match = cookieHeader.match(/legalir-session=([^;]+)/);
-  if (!match || !match[1]) return null;
-  const session = findSessionById(match[1]!);
-  return session?.userId ?? null;
-}
+import { filterLibraryItems, isPubliclyVisible, paginate, readLegalLibrary } from "@/lib/legal-library-db";
 
 export async function GET(request: Request) {
-  const userId = getUserId(request);
-  if (!userId) {
-    return NextResponse.json({ code: "UNAUTHORIZED", message: "لطفا وارد شوید" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const q = url.searchParams.get("q") ?? "";
   const topic = url.searchParams.get("topic") ?? "";
@@ -28,8 +14,9 @@ export async function GET(request: Request) {
   const page = parseInt(url.searchParams.get("page") ?? "1", 10);
   const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20", 10);
 
+  // Public endpoint — search runs over PUBLISHED sources only.
   const { items } = readLegalLibrary();
-  const filtered = filterLibraryItems(items, {
+  const filtered = filterLibraryItems(items.filter(isPubliclyVisible), {
     search: q,
     topic,
     sourceType: sourceType || undefined,

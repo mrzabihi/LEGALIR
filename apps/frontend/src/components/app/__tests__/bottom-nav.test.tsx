@@ -9,16 +9,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 
-// jsdom has no router; the bar only reads the pathname.
+// jsdom has no router; the bar reads the pathname and pushes `/new` from the
+// centre action.
 let mockPathname = "/dashboard";
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
+  useRouter: () => ({ push: mockPush }),
 }));
 
 import { BottomNav } from "@/components/app/bottom-nav";
 
 beforeEach(() => {
   mockPathname = "/dashboard";
+  mockPush.mockClear();
 });
 
 describe("BottomNav", () => {
@@ -129,5 +133,37 @@ describe("BottomNav", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     );
+  });
+
+  it("navigates to /new before opening the sheet", () => {
+    render(<BottomNav />);
+    fireEvent.click(screen.getByRole("button", { name: "ساخت جدید" }));
+
+    // The launcher must be reached *and* the sheet raised, so dismissing the
+    // sheet still leaves the user on the full «ساخت جدید» page.
+    expect(mockPush).toHaveBeenCalledWith("/new");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("does not push again when the centre button is tapped while already on /new", () => {
+    mockPathname = "/new";
+    render(<BottomNav />);
+    fireEvent.click(screen.getByRole("button", { name: "ساخت جدید" }));
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("keeps the sheet open when the centre action arrives at /new", async () => {
+    const { rerender } = render(<BottomNav />);
+    fireEvent.click(screen.getByRole("button", { name: "ساخت جدید" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // The centre tap's own navigation lands on /new — that must NOT dismiss
+    // the sheet (only a destination tap or an unrelated route change does).
+    mockPathname = "/new";
+    rerender(<BottomNav />);
+    await Promise.resolve();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

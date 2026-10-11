@@ -7,7 +7,12 @@
 // shell (UX) and on every API (authorization).
 // ============================================================
 
+import type { Metadata } from "next";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { NOINDEX_ROBOTS } from "@/lib/site";
+
+// The operator console is private and must never appear in search results.
+export const metadata: Metadata = { ...NOINDEX_ROBOTS };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return <AdminShell>{children}</AdminShell>;

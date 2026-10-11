@@ -82,7 +82,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
 
       {/* Desktop Sidebar */}
       {sidebar && (
-        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-glass-border bg-glass-surface-strong [background-image:var(--sidebar-gradient)]">
+        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-glass-border bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
           {sidebar}
         </aside>
       )}
