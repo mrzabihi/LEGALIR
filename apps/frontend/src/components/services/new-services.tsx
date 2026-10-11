@@ -29,7 +29,7 @@
 
 import Link from "next/link";
 import { IconChevronRight, IconSparkle } from "@/lib/icons";
-import { CampaignBanner } from "./campaign-banner";
+import { CampaignPhotoBanner } from "./campaign-photo-banner";
 import { NDA_CAMPAIGN, type NewServiceDef } from "@/lib/services/catalog";
 
 interface NewServicesProps {
@@ -62,7 +62,9 @@ export function NewServices({ services }: NewServicesProps) {
       </div>
 
       {/* ---- Feature: the wide NDA banner ---- */}
-      <CampaignBanner banner={NDA_CAMPAIGN} size="wide" />
+      {/* Photographic treatment: the meeting photo spans the panel and the
+          copy sits over its bright right side. */}
+      <CampaignPhotoBanner banner={NDA_CAMPAIGN} size="wide" />
 
       {/* ---- Secondary: the remaining new services ---- */}
       {secondary.length > 0 && (

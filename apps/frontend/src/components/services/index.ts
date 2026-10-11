@@ -3,6 +3,7 @@
 // ============================================================
 
 export { CampaignBanner } from "./campaign-banner";
+export { CampaignPhotoBanner } from "./campaign-photo-banner";
 export { ServiceBanner } from "./service-banner";
 export { ServiceCard } from "./service-card";
 export { CategoryShortcuts } from "./category-shortcuts";

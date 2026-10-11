@@ -575,6 +575,13 @@ export interface CampaignBannerDef {
   icon: IconComponent;
   /** Which code-native illustration to render. */
   art: "lawyer" | "contract" | "nda" | "library";
+  /**
+   * When present, the campaign renders with the photographic treatment
+   * (`CampaignPhotoBanner`) instead of the gradient one: the photo spans
+   * the whole panel and the copy sits over its quiet side. `art` is then
+   * unused.
+   */
+  photo?: BannerPhoto;
   /** Tailwind gradient for the banner surface. */
   gradient: string;
   /** Raw brand accent for the illustration. */
@@ -582,6 +589,30 @@ export interface CampaignBannerDef {
   /** Explicitly names the experience the CTA opens. */
   experience: string;
   keywords: string[];
+}
+
+/** A full-bleed photographic campaign background, at both breakpoints. */
+export interface BannerPhoto {
+  /** Full-resolution webp (≈1280w), path under `/public`. */
+  src: string;
+  /** Half-resolution webp (≈640w) for narrow viewports. */
+  srcSm: string;
+  /** Native pixel size of `src` — the frame's aspect ratio. */
+  width: number;
+  height: number;
+  /**
+   * CSS `object-position` for the photo. The frame crops to the panel
+   * aspect ratio, so this decides which slice of the photo survives — it
+   * must keep the human subject fully inside the frame on every
+   * breakpoint.
+   */
+  objectPosition: string;
+  /**
+   * Which edge the copy hugs from `tablet` up. The photo's subject should
+   * sit on the *opposite* side so a face is never behind a headline.
+   * Defaults to `start` (the right edge in RTL).
+   */
+  copySide?: "start" | "end";
 }
 
 /**
@@ -599,6 +630,18 @@ export const PRIMARY_CAMPAIGN: CampaignBannerDef = {
   href: "/lawyers",
   icon: IconHandshake,
   art: "lawyer",
+  // Photographic treatment: the handshake/notebook photo, subject on the
+  // left, copy over the dark right side.
+  photo: {
+    src: "/assets/promo/legalir-banner-lawyer.webp",
+    srcSm: "/assets/promo/legalir-banner-lawyer-sm.webp",
+    width: 1280,
+    height: 720,
+    // Subject on the left; the phone frame (portrait) crops the sides, so
+    // anchor left to keep the lawyer in frame. No effect on the wide
+    // desktop frame, which only crops vertically.
+    objectPosition: "left center",
+  },
   gradient: "from-primary-700 via-primary-800 to-primary-900",
   accent: "#D89A13",
   experience: "مشاوره با وکیل انسانی",
@@ -632,6 +675,17 @@ export const NDA_CAMPAIGN: CampaignBannerDef = {
   href: "/contracts/new?type=nda",
   icon: IconShieldCheck,
   art: "nda",
+  // Photographic treatment: the lawyer-in-meeting photo. Its subject sits
+  // on the left, so the copy takes the bright, quiet right side.
+  photo: {
+    src: "/assets/promo/legalir-banner-nda.webp",
+    srcSm: "/assets/promo/legalir-banner-nda-sm.webp",
+    width: 1280,
+    height: 720,
+    // Subject (the handshake) sits left; anchor left so the phone frame
+    // keeps it in view.
+    objectPosition: "left center",
+  },
   gradient: "from-primary-600 via-primary-700 to-primary-800",
   accent: "#32B183",
   experience: "تنظیم توافقنامه محرمانگی",

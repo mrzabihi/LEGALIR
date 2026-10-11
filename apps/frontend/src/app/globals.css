@@ -1429,6 +1429,53 @@ html {
   animation: float 4s ease-in-out infinite;
 }
 
+/* ============================================================
+   Photographic campaign banners — moving light & motion
+   ============================================================
+   The /services lawyer + NDA banners place a photograph behind the
+   copy. Three decorative layers keep the panel alive without ever
+   touching the selectable HTML text:
+     • a slow ken-burns drift on the photo itself
+     • a soft diagonal sheen that sweeps across the panel
+     • two drifting light blooms (brand accent + deep teal) that give
+       the flat photo a sense of depth
+   All of them fade to rest under `prefers-reduced-motion`. */
+
+@keyframes banner-kenburns {
+  0%   { transform: scale(1.05) translate3d(0, 0, 0); }
+  100% { transform: scale(1.17) translate3d(-1.6%, -1.2%, 0); }
+}
+.animate-banner-kenburns {
+  animation: banner-kenburns 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes banner-sheen {
+  0%   { transform: translateX(-150%) skewX(-18deg); opacity: 0; }
+  14%  { opacity: 0.5; }
+  60%  { opacity: 0.3; }
+  100% { transform: translateX(280%) skewX(-18deg); opacity: 0; }
+}
+.animate-banner-sheen {
+  animation: banner-sheen 8.5s ease-in-out infinite;
+}
+
+@keyframes banner-bloom {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.6; }
+  50%      { transform: translate3d(5%, -6%, 0) scale(1.2); opacity: 0.9; }
+}
+.animate-banner-bloom {
+  animation: banner-bloom 15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-banner-kenburns,
+  .animate-banner-sheen,
+  .animate-banner-bloom {
+    animation: none;
+  }
+}
+
 /* Attach-file paperclip — a slow, restrained wiggle that draws the eye to
    the attach affordance without being distracting. The final keyframe is
    the resting pose so reduced-motion users see a plain, upright clip. */

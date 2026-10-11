@@ -47,6 +47,7 @@ import {
 } from "@/lib/services/catalog";
 import {
   CampaignBanner,
+  CampaignPhotoBanner,
   CategoryShortcuts,
   NewServices,
   ServiceBanner,
@@ -261,7 +262,9 @@ export default function ServicesPage() {
           {/* ============================================================
               3. Primary campaign — human lawyer consultation
               ============================================================ */}
-          <CampaignBanner banner={PRIMARY_CAMPAIGN} size="hero" className="mb-6" />
+          {/* Photographic treatment: the handshake photo spans the panel and
+              the copy sits over its dark right side. */}
+          <CampaignPhotoBanner banner={PRIMARY_CAMPAIGN} size="hero" className="mb-6" />
 
           {/* ============================================================
               4. The six service banners
