@@ -235,6 +235,16 @@
   --brand-gold-deep: #A37C3C;
   --brand-ivory: #FCF6E8;
 
+  /* Theme-aware brand *foregrounds*. The base palette above is tuned for
+     fills and navigation chrome; on the dark page surface the raw green and
+     teal drop below the 4.5:1 AA floor when used as small text, so every
+     brand-coloured LINK, LABEL and CAPTION reads from these instead. Fills,
+     strokes and gradients keep using the base tokens. Light values clear AA
+     on white (green 7.5:1, warm gold 4.8:1). */
+  --brand-fg: #1D624E;        /* primary brand text — links & labels */
+  --brand-fg-hover: #8A6A33;  /* hover / emphasis — warm gold */
+  --brand-fg-gold: #8A6A33;   /* gold text on a light surface */
+
   /* Dashboard hero/usage card surface. The light theme uses the brand ivory
      directly; the dark theme (below) substitutes a deep teal so the card
      never turns into a bright block on a dark page. */
@@ -565,6 +575,14 @@
      a deep desaturated teal so the card reads as an elevated brand panel. */
   --dashboard-card-bg: #16211F;
 
+  /* Brand foregrounds on the dark page surface. The base #1D624E green only
+     reaches 2.1:1 on the deep navy, so links/labels switch to a lifted
+     brand-green mint (9.3:1) and the warm-gold emphasis to the tertiary
+     light tone (9.9:1). Fills and gradients still use the base palette. */
+  --brand-fg: #34D399;
+  --brand-fg-hover: #D5BE97;
+  --brand-fg-gold: #D5BE97;
+
   /* Sidebar premium gradient — dark theme. Same tiny vertical drift, lifted
      to the dark-theme teal-green so the glass stays distinguishable over the
      deep navy page. Endpoints average to --warm-glass-surface-strong. */
@@ -867,16 +885,19 @@ html:not([data-theme]) {
   border-radius: 6px;
   background: inherit;
 }
-/* Focused/filled floating label takes brand green. */
-.brand-search-field label {
-  color: color-mix(in srgb, var(--brand-teal) 65%, transparent);
+/* Resting label = the theme-aware muted on-surface tone (AA in both themes);
+   the focused/filled floating label lifts to the theme-aware brand fg.
+   `label[for]` matches the shared field's own utility specificity so the
+   brand colour actually wins over `group-focus-within/field:text-primary`. */
+.brand-search-field label[for] {
+  color: var(--color-on-surface-variant);
 }
-.brand-search-field label,
-.brand-search-field:focus-within label {
+.brand-search-field label[for],
+.brand-search-field:focus-within label[for] {
   transition: color var(--motion-duration-short4) var(--motion-easing-standard);
 }
-.brand-search-field:focus-within label {
-  color: var(--brand-green);
+.brand-search-field:focus-within label[for] {
+  color: var(--brand-fg);
 }
 /* Dark theme: lift the resting surface off the deep page. */
 :root[data-theme="dark"] .brand-search-field {

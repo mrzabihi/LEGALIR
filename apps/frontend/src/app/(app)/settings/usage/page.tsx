@@ -248,7 +248,7 @@ function UsageTabContent({
           className="group rounded-large border border-divider bg-surface p-5 transition-colors hover:bg-surface-hover"
         >
           <div className="flex items-center gap-3 mb-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-violet-50)] text-[var(--color-violet-600)]">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-gold)_16%,transparent)] text-[var(--brand-fg-gold)]">
               <IconCoin size={20} />
             </span>
             <div className="min-w-0">

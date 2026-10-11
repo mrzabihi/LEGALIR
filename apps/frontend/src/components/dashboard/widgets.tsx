@@ -861,7 +861,7 @@ interface UsageSummaryCardProps {
   onRetry?: () => void;
 }
 
-/** Per-feature accent. Blue · green · violet, muted and theme-aware. */
+/** Per-feature accent. Blue · green · warm-gold, muted and theme-aware. */
 interface UsageAccent {
   /** Icon container background */
   bg: string;
@@ -873,16 +873,19 @@ interface UsageAccent {
 
 const ACCENT_BLUE: UsageAccent = { bg: "bg-info-50", fg: "text-info-600", stroke: "stroke-info-500" };
 const ACCENT_GREEN: UsageAccent = { bg: "bg-success-50", fg: "text-success-600", stroke: "stroke-success-500" };
-const ACCENT_VIOLET: UsageAccent = {
-  bg: "bg-[var(--color-violet-50)]",
-  fg: "text-[var(--color-violet-600)]",
-  stroke: "stroke-[var(--color-violet-500)]",
+// Third accent — warm brand gold rather than violet, so the three read as one
+// LEGALIR family (blue · green · gold). The `--color-tertiary*` tokens flip
+// light↔dark, keeping the icon and ring legible in both themes.
+const ACCENT_GOLD: UsageAccent = {
+  bg: "bg-[var(--color-tertiary-container)]",
+  fg: "text-[var(--color-on-tertiary-container)]",
+  stroke: "stroke-[var(--color-tertiary)]",
 };
 
 const USAGE_ACCENT: Record<string, UsageAccent> = {
   AI_CHAT_MESSAGE: ACCENT_BLUE,
   DOCUMENT_ANALYSIS: ACCENT_GREEN,
-  CONTRACT_GENERATION: ACCENT_VIOLET,
+  CONTRACT_GENERATION: ACCENT_GOLD,
 };
 
 const USAGE_ICON: Record<string, typeof IconDocument> = {
@@ -1197,7 +1200,7 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
                 key={chip.label}
                 type="button"
                 onClick={() => handleChipClick(chip.query)}
-                className="group inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_7%,transparent)] px-3 py-[5px] text-caption leading-none text-[var(--brand-green)] transition-colors duration-short4 ease-standard hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] hover:border-[var(--brand-green)] active:scale-[0.97]"
+                className="group inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_7%,transparent)] px-3 py-[5px] text-caption leading-none text-[var(--brand-fg)] transition-colors duration-short4 ease-standard hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] hover:border-[var(--brand-green)] active:scale-[0.97]"
               >
                 <span className="h-1 w-1 rounded-full bg-[var(--brand-green)] transition-colors duration-short4 group-hover:bg-[var(--brand-ivory)]" aria-hidden="true" />
                 {chip.label}

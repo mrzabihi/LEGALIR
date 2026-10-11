@@ -243,7 +243,7 @@ export function PromoModule({
         </div>
 
         <div className="min-w-0 flex-1">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-2.5 py-0.5 text-caption font-medium text-[var(--brand-green)]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-2.5 py-0.5 text-caption font-medium text-[var(--brand-fg)]">
             <Icon size={14} />
             {title}
           </span>
@@ -252,7 +252,7 @@ export function PromoModule({
           </p>
           <Link
             href={href}
-            className="mt-2 inline-flex items-center gap-1 rounded-small text-caption font-semibold text-[var(--brand-green)] transition-colors hover:text-[var(--brand-gold-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2"
+            className="mt-2 inline-flex items-center gap-1 rounded-small text-caption font-semibold text-[var(--brand-fg)] transition-colors hover:text-[var(--brand-fg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-fg)] focus-visible:ring-offset-2"
           >
             {cta}
             <IconChevronLeft

@@ -102,7 +102,7 @@ export function SubscriptionUsageCard() {
         </div>
         <Link
           href="/settings/usage"
-          className="hidden tablet:inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_25%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-3.5 py-1.5 text-caption text-[var(--brand-green)] font-medium hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] transition-colors duration-short4 touch-target-min"
+          className="hidden tablet:inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_25%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-3.5 py-1.5 text-caption text-[var(--brand-fg)] font-medium hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] transition-colors duration-short4 touch-target-min"
         >
           جزئیات بیشتر
           <IconChevronRight size={14} rtlFlip />
@@ -132,7 +132,7 @@ export function SubscriptionUsageCard() {
             {/* 1) Today's subscription credit */}
             <div className="rounded-medium border border-[color:color-mix(in_srgb,var(--brand-green)_14%,transparent)] bg-surface p-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[color-mix(in_srgb,var(--brand-green)_12%,transparent)] text-[var(--brand-green)]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[color-mix(in_srgb,var(--brand-green)_12%,transparent)] text-[var(--brand-fg)]">
                   <IconBolt size={18} />
                 </span>
                 <div className="min-w-0">
@@ -174,7 +174,7 @@ export function SubscriptionUsageCard() {
               className="group rounded-medium border border-[color:color-mix(in_srgb,var(--brand-gold)_28%,transparent)] bg-surface p-4 transition-colors hover:bg-[color:color-mix(in_srgb,var(--brand-gold)_8%,transparent)]"
             >
               <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[color-mix(in_srgb,var(--brand-gold)_16%,transparent)] text-[var(--brand-gold-deep)]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-medium bg-[color-mix(in_srgb,var(--brand-gold)_16%,transparent)] text-[var(--brand-fg-gold)]">
                   <IconCoin size={18} />
                 </span>
                 <div className="min-w-0">
@@ -220,7 +220,7 @@ export function SubscriptionUsageCard() {
           {/* Mobile action */}
           <Link
             href="/settings/usage"
-            className="tablet:hidden flex w-full items-center justify-center gap-1 rounded-medium border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] px-4 py-2.5 text-body-2 text-[var(--brand-green)] font-medium hover:bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] transition-colors duration-short4 touch-target"
+            className="tablet:hidden flex w-full items-center justify-center gap-1 rounded-medium border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] px-4 py-2.5 text-body-2 text-[var(--brand-fg)] font-medium hover:bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] transition-colors duration-short4 touch-target"
           >
             جزئیات بیشتر
             <IconChevronRight size={16} rtlFlip />
