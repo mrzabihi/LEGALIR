@@ -1,43 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useCurrentSubscription,
   useEntitlements,
   useUsage,
   usePlansV1,
-  useCheckoutIntent,
-  useCheckoutIntentPoll,
 } from "@/hooks/useSubscription";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSubscriptionHistory } from "@/lib/api/v1";
-import { SkeletonCard, Button, ProgressLinear, ConfirmDialog } from "@legalir/ui";
+import { SkeletonCard, Button, ProgressLinear } from "@legalir/ui";
 import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
 import { PLAN_ORDER, planDiscountPercent, planGradient } from "@/lib/subscription/plan-visuals";
 import { PlanCarousel } from "@/components/subscription/plan-carousel";
-import type { Plan, PlanCode, PaymentStatus, V1SubscriptionHistoryItem } from "@legalir/types";
-
-// ============================================================
-// Constants
-// ============================================================
-
-const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-  idle: "آماده",
-  creating: "در حال ایجاد",
-  pending: "در انتظار پرداخت",
-  paid: "پرداخت شده",
-  failed: "ناموفق",
-  cancelled: "لغو شده",
-};
-
-const PAYMENT_STATUS_VARIANTS: Record<PaymentStatus, string> = {
-  idle: "bg-surface text-muted",
-  creating: "bg-warning/10 text-warning",
-  pending: "bg-warning/10 text-warning",
-  paid: "bg-success/10 text-success",
-  failed: "bg-error/10 text-error",
-  cancelled: "bg-surfaceVariant text-muted",
-};
+import { CheckoutModal } from "@/components/subscription/checkout-modal";
+import type { Plan, PlanCode, V1SubscriptionHistoryItem } from "@legalir/types";
 
 // ============================================================
 // Sub-components
@@ -448,93 +425,12 @@ function PaymentHistoryList({
 }
 
 // ============================================================
-// ConfirmDialog
-// ============================================================
-
-function PlanConfirmDialog({
-  open,
-  plan,
-  onClose,
-  onConfirm,
-  isLoading,
-}: {
-  open: boolean;
-  plan: Plan | null;
-  onClose: () => void;
-  onConfirm: () => void;
-  isLoading: boolean;
-}) {
-  if (!plan) return null;
-
-  return (
-    <ConfirmDialog
-      open={open}
-      onClose={onClose}
-      onConfirm={onConfirm}
-      title={`انتخاب پلن ${plan.nameFa}`}
-      description={`آیا از انتخاب پلن ${plan.nameFa} با قیمت ${toPersianNumber(plan.salePrice)} تومان به مدت ${plan.durationDays} روز اطمینان دارید؟`}
-      confirmLabel="تأیید و پرداخت"
-      cancelLabel="انصراف"
-      loading={isLoading}
-    />
-  );
-}
-
-// ============================================================
-// PaymentStatusBanner
-// ============================================================
-
-function PaymentStatusBanner({
-  status,
-  intentId,
-  onRetry,
-}: {
-  status: PaymentStatus;
-  intentId: string | null;
-  onRetry: () => void;
-}) {
-  const label = PAYMENT_STATUS_LABELS[status];
-  const variantClass = PAYMENT_STATUS_VARIANTS[status];
-  const isSuccess = status === "paid";
-  const isTerminal = status === "failed" || status === "cancelled";
-
-  return (
-    <div className={`rounded-2xl p-4 mb-6 ${variantClass} border`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {isSuccess && (
-            <div className="h-10 w-10 rounded-xl bg-success/20 flex items-center justify-center">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-success">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <path d="m9 11 3 3L22 4" />
-              </svg>
-            </div>
-          )}
-          <div>
-            <p className="text-body-2 font-medium">وضعیت پرداخت: {label}</p>
-            {intentId && status !== "idle" && (
-              <p className="text-caption mt-1 opacity-70">شناسه پرداخت: {intentId.slice(0, 8)}...</p>
-            )}
-          </div>
-        </div>
-        {isTerminal && (
-          <Button variant="text" onClick={onRetry}>
-            تلاش مجدد
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
 // Main Page Component
 // ============================================================
 
 export default function SubscriptionPage() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [checkoutIntentId, setCheckoutIntentId] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const {
     data: subscription,
@@ -562,11 +458,6 @@ export default function SubscriptionPage() {
     isLoading: plansLoading,
   } = usePlansV1();
 
-  const checkoutMutation = useCheckoutIntent();
-  const {
-    data: checkoutStatus,
-  } = useCheckoutIntentPoll(checkoutIntentId);
-
   // Payment history
   const {
     data: historyData,
@@ -580,41 +471,23 @@ export default function SubscriptionPage() {
     retry: 1,
   });
 
-  const paymentStatus: PaymentStatus = checkoutStatus?.status ?? "idle";
+  // Buying opens the order-review modal. There is NO auto-confirm and NO
+  // polling-driven fake success: the modal commits against the server, which is
+  // the only thing that can activate a subscription (and only for a zero total).
+  const handleSelectPlan = (plan: Plan) => {
+    setSelectedPlan(plan);
+    setCheckoutOpen(true);
+  };
 
-  // When the payment settles (the mock gateway confirms it while we poll), the
-  // activation has already happened server-side. Pull every dependent surface
-  // so the current plan, entitlements, usage and history reflect it immediately
-  // — no manual refresh. Keyed on the intent so it runs exactly once per
-  // confirmation.
-  useEffect(() => {
-    if (checkoutStatus?.status !== "paid") return;
+  const handleCloseCheckout = () => {
+    setCheckoutOpen(false);
+    setSelectedPlan(null);
+    // The order (free activation or a pending record) may have changed the
+    // account state; pull every dependent surface so the page reflects reality.
     refetchSub();
     refetchEnt();
     refetchUsage();
     refetchHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutStatus?.status, checkoutIntentId]);
-
-  const handleSelectPlan = (plan: Plan) => {
-    setSelectedPlan(plan);
-    setConfirmOpen(true);
-  };
-
-  const handleConfirmCheckout = async () => {
-    if (!selectedPlan) return;
-    try {
-      const intent = await checkoutMutation.mutateAsync(selectedPlan.code);
-      setCheckoutIntentId(intent.id);
-      setConfirmOpen(false);
-    } catch {
-      // Error handled by mutation state
-    }
-  };
-
-  const handleRetry = () => {
-    setCheckoutIntentId(null);
-    refetchSub();
   };
 
   const currentPlanCode = subscription?.planCode ?? null;
@@ -648,15 +521,6 @@ export default function SubscriptionPage() {
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto" dir="rtl">
       <h1 className="text-h2 text-on-surface mb-6 font-bold">اشتراک</h1>
-
-      {/* Payment Status */}
-      {paymentStatus !== "idle" && (
-        <PaymentStatusBanner
-          status={paymentStatus}
-          intentId={checkoutIntentId}
-          onRetry={handleRetry}
-        />
-      )}
 
       {/* Current Subscription Card */}
       <CurrentSubscriptionCard
@@ -706,30 +570,14 @@ export default function SubscriptionPage() {
           currentPlanCode={currentPlanCode}
           recommendedCode={recommendedCode}
           onSelect={handleSelectPlan}
-          isLoading={checkoutMutation.isPending}
+          isLoading={false}
           ctaLabel={ctaLabel}
           isUpgrade={isUpgrade}
         />
       ) : null}
 
-      {/* Confirmation Dialog */}
-      <PlanConfirmDialog
-        open={confirmOpen}
-        plan={selectedPlan}
-        onClose={() => {
-          setConfirmOpen(false);
-          setSelectedPlan(null);
-        }}
-        onConfirm={handleConfirmCheckout}
-        isLoading={checkoutMutation.isPending}
-      />
-
-      {/* Error state for checkout mutation */}
-      {checkoutMutation.isError && (
-        <div className="mt-4 p-3 rounded-xl bg-error/5 border border-error/20 text-caption text-error">
-          {(checkoutMutation.error as Error)?.message ?? "خطا در ایجاد درخواست پرداخت"}
-        </div>
-      )}
+      {/* Order review + confirmation modal (server-computed pricing) */}
+      <CheckoutModal open={checkoutOpen} plan={selectedPlan} onClose={handleCloseCheckout} />
     </div>
   );
 }

@@ -139,6 +139,8 @@ import {
   getAdminUserUsage,
 } from "@/lib/admin/subscription";
 import { listAudit, recordAudit } from "@/lib/admin/audit";
+import { listAdminCoupons, getAdminCoupon, parseCouponDraft } from "@/lib/admin/coupons";
+import { createCoupon, updateCoupon, setCouponStatus } from "@/lib/coupons/store";
 import {
   auditPlanCreated,
   createPlan,
@@ -348,6 +350,10 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 
   refunds: ({ url }) => ok({ items: listAdjustments(url.searchParams.get("orderId") ?? undefined) }),
 
+  // Coupon catalog. Read is a billing-read capability (it feeds sales
+  // reporting); creating/editing a coupon is a billing-manage mutation.
+  coupons: () => ok({ items: listAdminCoupons() }),
+
   finance: () => ok({ rules: listCommissionRules() }),
 
   settlements: ({ url }) =>
@@ -458,6 +464,12 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
   const [a, b, d] = c.segments;
   switch (a) {
+    case "coupons": {
+      if (!b) return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
+      const row = getAdminCoupon(b);
+      if (!row) return adminError(404, "COUPON_NOT_FOUND", "کد تخفیف یافت نشد");
+      return ok(row);
+    }
     case "calculators": {
       // §5-rules — the DB-backed rule layer. `calculators/rules` lists every
       // dataset; `calculators/rules/:datasetId` returns one dataset's full
@@ -827,6 +839,20 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
 
   if (a === "plans" && b) {
     return adminError(405, "METHOD_NOT_ALLOWED", "برای ویرایش پلن از PATCH استفاده کنید");
+  }
+
+  // Coupons — CREATE (POST /admin/coupons). Edits + status changes go through
+  // PATCH on /admin/coupons/:id.
+  if (a === "coupons" && !b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const res = createCoupon(parseCouponDraft(body), actor.userId);
+    if (!res.ok) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.create", resourceType: "coupon", resourceId: str(body["code"]), result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.create", resourceType: "coupon", resourceId: res.coupon.id, after: { code: res.coupon.code, kind: res.coupon.kind, value: res.coupon.value, status: res.coupon.status }, ...meta });
+    return NextResponse.json({ data: res.coupon }, { status: 201 });
   }
 
   // §5-rules — the DB-backed, versioned rule layer. `calculators/rules/:datasetId`
@@ -1371,6 +1397,32 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
   const [a, b, c] = segments;
   const meta = requestMeta(request);
 
+  // Coupons — a `{ status }`-only body is a lifecycle change (enable/disable/
+  // archive); anything else is a full edit. Both are audited distinctly.
+  if (a === "coupons" && b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const keys = Object.keys(body);
+    const statusOnly = keys.length === 1 && keys[0] === "status";
+
+    if (statusOnly) {
+      const before = getAdminCoupon(b);
+      const res = setCouponStatus(b, body["status"] as never, actor.userId);
+      if (!res) return adminError(404, "COUPON_NOT_FOUND", "کد تخفیف یافت نشد");
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.status.change", resourceType: "coupon", resourceId: b, before: before ? { status: before.status } : null, after: { status: res.status }, ...meta });
+      return ok(res);
+    }
+
+    const before = getAdminCoupon(b);
+    const res = updateCoupon(b, parseCouponDraft(body), actor.userId);
+    if (!res.ok) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.update", resourceType: "coupon", resourceId: b, result: "denied", reason: res.error, ...meta });
+      return mapDataError(res.error);
+    }
+    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.update", resourceType: "coupon", resourceId: b, before: before ? { code: before.code, value: before.value, status: before.status } : null, after: { code: res.coupon.code, value: res.coupon.value, status: res.coupon.status }, ...meta });
+    return ok(res.coupon);
+  }
+
   if (a === "users" && b) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
@@ -1731,6 +1783,10 @@ function permissionFor(method: string, segments: string[]): Permission {
     // concrete /admin/plans/[code] route and the page's edit gate).
     case "plans": return method === "GET" ? "admin:plans:read" : "admin:system:manage";
     case "orders": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
+    // Coupons are a sales/discount capability: reading the catalog aligns with
+    // sales reporting (billing:read); creating/editing/archiving is a
+    // billing:manage mutation.
+    case "coupons": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
     case "refunds": return "admin:refund:approve";
     case "finance": return method === "GET" ? "admin:finance:read" : "admin:finance:manage";
     case "settlements": return b && method === "GET" ? "admin:finance:read" : "admin:settlement:manage";

@@ -15,10 +15,13 @@ import type {
   OrderStatus,
   FinancialAdjustment,
   StoredSubscription,
+  StoredOrder,
+  CheckoutOrderStatus,
 } from "@legalir/types";
 import { ORDER_STATUS_FA } from "@legalir/types";
 
 const ADJ_TABLE = "financial_adjustments";
+const CHECKOUT_ORDERS = "orders";
 
 /** Mask a stored mobile for admin display: keep first 4 + last 4. */
 export function maskMobile(mobile: string): string {
@@ -83,6 +86,67 @@ function toOrder(sub: StoredSubscription): AdminOrder {
   };
 }
 
+/**
+ * Map a checkout order's own lifecycle onto the admin `OrderStatus` union. The
+ * checkout status is the authoritative purchase outcome, so it decides the
+ * projection rather than the linked subscription's status.
+ */
+function checkoutOrderStatus(status: CheckoutOrderStatus): OrderStatus {
+  switch (status) {
+    case "paid":
+      return "SUCCESS";
+    case "no_payment_required":
+      // A payment-free activation is a genuine, completed sale.
+      return "SUCCESS";
+    case "awaiting_payment":
+      return "PENDING";
+    case "failed":
+      return "FAILED";
+    case "cancelled":
+      return "EXPIRED";
+    case "refunded":
+      return "REFUNDED";
+    default:
+      return "SUCCESS";
+  }
+}
+
+/**
+ * Build an admin order projection from a checkout order — the authoritative
+ * purchase record with the base/discount/collected split. `id` is kept equal to
+ * the subscription id so refunds (which reference the subscription) still apply,
+ * and the two surfaces show ONE stable identifier per purchase.
+ */
+function toOrderFromCheckout(order: StoredOrder): AdminOrder {
+  const user: DbUser | undefined = findUserById(order.userId);
+  const orderId = order.subscriptionId ?? order.id;
+  const refunded = refundedFor(orderId);
+  let status = checkoutOrderStatus(order.status);
+  if (refunded >= order.finalAmount && order.finalAmount > 0) status = "REFUNDED";
+  else if (refunded > 0) status = "PARTIALLY_REFUNDED";
+  return {
+    id: orderId,
+    referenceId: order.referenceId || orderId,
+    userId: order.userId,
+    userDisplayName: user?.displayName ?? null,
+    userMobileMasked: user ? maskMobile(user.mobile) : "••••",
+    orgId: user?.orgId ?? null,
+    planCode: order.planCode,
+    planNameFa: order.planNameFa,
+    listPrice: order.listPrice,
+    salePrice: order.finalAmount,
+    discountAmount: order.discountAmount,
+    refundedAmount: refunded,
+    netAmount: order.finalAmount - refunded,
+    currency: order.currency || "IRT",
+    status,
+    gateway: order.gateway === "none" ? "بدون پرداخت" : order.gateway,
+    trackingId: order.trackingId,
+    purchasedAt: order.paidAt || order.createdAt,
+    createdAt: order.createdAt,
+  };
+}
+
 export interface OrderQuery {
   search?: string;
   status?: OrderStatus | "";
@@ -100,12 +164,26 @@ export interface OrderQuery {
   pageSize?: number;
 }
 
-/** Paginated, filterable order list derived from real subscriptions. */
+/**
+ * Every order across BOTH sources, deduped by `id`. Checkout orders win (they
+ * carry the authoritative split); a subscription is only projected when no
+ * checkout order already represents it.
+ */
+function allOrders(): AdminOrder[] {
+  const checkout = readTable<StoredOrder>(CHECKOUT_ORDERS).map(toOrderFromCheckout);
+  const covered = new Set(checkout.map((o) => o.id));
+  const legacy = readTable<StoredSubscription>("subscriptions")
+    .map(toOrder)
+    .filter((o) => !covered.has(o.id));
+  return [...checkout, ...legacy];
+}
+
+/** Paginated, filterable order list derived from the real checkout + subscription tables. */
 export function listOrders(query: OrderQuery = {}): AdminOrderListResponse {
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
 
-  let orders = readTable<StoredSubscription>("subscriptions").map(toOrder);
+  let orders = allOrders();
   if (query.fromIso && query.toIso) {
     const from = query.fromIso;
     const to = query.toIso;
@@ -130,6 +208,12 @@ export function listOrders(query: OrderQuery = {}): AdminOrderListResponse {
 }
 
 export function getOrder(id: string): AdminOrder | undefined {
+  // Checkout orders are the authoritative record; fall back to a legacy
+  // subscription only when no checkout order owns this id.
+  const checkout = readTable<StoredOrder>(CHECKOUT_ORDERS).find(
+    (o) => (o.subscriptionId ?? o.id) === id
+  );
+  if (checkout) return toOrderFromCheckout(checkout);
   const sub = readTable<StoredSubscription>("subscriptions").find((s) => s.id === id);
   return sub ? toOrder(sub) : undefined;
 }

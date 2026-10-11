@@ -1506,3 +1506,61 @@ export type {
   UsageLedgerSummary,
   ActivityType,
 };
+  Coupon,
+  CouponStatus,
+// ---------------------------------------------------------------------------
+// Discount coupons (billing panel)
+// ---------------------------------------------------------------------------
+// The coupon catalog the checkout applies. Every write is audited server-side;
+// a used coupon is never physically deleted (archive only), so historical
+// orders keep their reference. `usageCount` is recomputed by the server.
+
+/** A coupon row as the admin list/detail returns it (coupon + live usage). */
+export interface AdminCouponRow extends Coupon {
+  usageCount: number;
+}
+
+/** The editable subset of a coupon (undefined = leave a field untouched). */
+export interface AdminCouponDraft {
+  title?: string;
+  code?: string;
+  kind?: "percent" | "fixed";
+  value?: number;
+  percentCap?: number;
+  eligiblePlans?: string[];
+  startsAt?: string;
+  endsAt?: string;
+  minOrderAmount?: number;
+  totalUses?: number;
+  perUserLimit?: number;
+  status?: CouponStatus;
+  internalNotes?: string;
+  currency?: string;
+}
+
+export function fetchAdminCoupons(): Promise<{ items: AdminCouponRow[] }> {
+  return apiClient.get<{ items: AdminCouponRow[] }>(`${A}/coupons`);
+}
+
+export function fetchAdminCoupon(id: string): Promise<AdminCouponRow> {
+  return apiClient.get<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`);
+}
+
+export function createAdminCoupon(input: AdminCouponDraft): Promise<AdminCouponRow> {
+  return apiClient.post<AdminCouponRow>(`${A}/coupons`, input);
+}
+
+export function updateAdminCoupon(
+  id: string,
+  input: AdminCouponDraft
+): Promise<AdminCouponRow> {
+  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, input);
+}
+
+export function setAdminCouponStatus(
+  id: string,
+  status: CouponStatus
+): Promise<AdminCouponRow> {
+  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, { status });
+}
+

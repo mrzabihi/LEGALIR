@@ -2950,3 +2950,8 @@ export * from "./analytics";
 // Lawyer taxonomy (4-level expertise tree), services, jurisdictions & geography
 // ---------------------------------------------------------------------------
 export * from "./lawyer-taxonomy";
+
+// ---------------------------------------------------------------------------
+// Checkout, pricing & coupons (quote → validate → order purchase flow)
+// ---------------------------------------------------------------------------
+export * from "./checkout";

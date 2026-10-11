@@ -2,16 +2,14 @@
 // LEGALIR — GET /api/v1/checkout/intents/[id]
 // ============================================================
 // Reads the PERSISTED payment (not an in-memory Map) so the status survives a
-// restart and reflects the real activation path.
-//
-// Mock-gateway seam: a pending `mock` payment is "approved" on first read,
-// which runs the ONE activation path (`confirmPayment`). This mimics a real
-// gateway redirecting back a success callback — the client keeps polling and
-// observes `paid` once the gateway settles. Repeat reads are idempotent no-ops.
+// restart. This is a PURE READ: it never activates a subscription. A pending
+// payment stays pending until a REAL gateway settles it server-to-server — the
+// old "auto-confirm a mock payment on read" behaviour was the defect that made
+// a purchase succeed without any payment, and it has been removed.
 
 import { NextResponse } from "next/server";
 import { findSessionById } from "@/lib/db";
-import { getPayment, confirmPayment, subscriptionForPayment } from "@/lib/payments";
+import { getPayment, subscriptionForPayment } from "@/lib/payments";
 import { getPlanByCode } from "@/lib/usage/plans";
 import type { CheckoutIntent, Payment } from "@legalir/types";
 
@@ -57,18 +55,13 @@ export async function GET(
     );
   }
 
-  let payment = getPayment(id);
+  const payment = getPayment(id);
   // Unknown payment, or one that belongs to another user → treat as not found.
   if (!payment || payment.userId !== userId) {
     return NextResponse.json(
       { code: "NOT_FOUND", message: "درخواست پرداخت یافت نشد", correlationId: crypto.randomUUID(), retryable: false },
       { status: 404 }
     );
-  }
-
-  if (payment.status === "pending" && payment.method === "mock") {
-    const confirmed = confirmPayment({ paymentId: id, userId, method: "mock" });
-    if (confirmed?.payment) payment = confirmed.payment;
   }
 
   const subscription = subscriptionForPayment(payment);
