@@ -319,23 +319,32 @@
   /* --- Contract workspace sticky header ---
      The sticky status surface of the contract draft workspace. It floats
      above the white contract form, so it must read as a distinct control
-     surface without becoming a saturated blue bar: the base is a whisper
-     of the brand navy (#DAE3F3), the text is the deep navy, and the bronze
-     accent is reserved for the small lifecycle chip and a hairline — never
-     used as a surface. Elevation is scroll-aware: the header is flat at the
-     top of the page and lifts once content slides underneath it. */
-  --contract-sticky-bg: #DAE3F3;
-  --contract-sticky-text: #172B4E;
-  /* Navy-tinted secondary text — reads better on the blue surface than the
-     neutral gray `--color-muted`, and still clears WCAG AA (5.0:1). */
-  --contract-sticky-muted: rgba(23, 43, 78, 0.72);
-  --contract-sticky-accent: #C3B18A;
-  --contract-sticky-border: rgba(23, 43, 78, 0.10);
-  --contract-sticky-shadow: 0 6px 18px rgba(23, 43, 78, 0.08);
+     surface without becoming a saturated bar: the base is the brand ivory
+     (#FCF6E8), the text is the deep brand teal (#222E2D), and the gold
+     accent is rationed to a hairline — never a surface. The progress fill
+     is the brand green (#1D624E) and the lifecycle badge sits on a whisper
+     of that green. Elevation is scroll-aware: the header is flat at the top
+     of the page and lifts once content slides underneath it.
+     Contrast on the #FCF6E8 surface: teal 13.0:1 (AAA), muted 6.6:1 (AA),
+     badge green 6.1:1 (AA), back-link green 6.7:1 (AA). */
+  --contract-sticky-bg: #FCF6E8;
+  --contract-sticky-text: #222E2D;
+  /* Teal-tinted secondary text — a warm green-grey that clears WCAG AA
+     (6.6:1) on the ivory surface. */
+  --contract-sticky-muted: #4C5B57;
+  --contract-sticky-accent: #C69B38;
+  --contract-sticky-border: rgba(34, 46, 45, 0.12);
+  --contract-sticky-shadow: 0 6px 18px rgba(34, 46, 45, 0.08);
   /* Tonal fills that sit *on* the sticky surface. */
-  --contract-sticky-chip: rgba(23, 43, 78, 0.06);
-  --contract-sticky-chip-strong: rgba(23, 43, 78, 0.12);
-  --contract-sticky-track: rgba(23, 43, 78, 0.14);
+  --contract-sticky-chip: rgba(34, 46, 45, 0.07);
+  --contract-sticky-chip-strong: #E4EEE8;
+  --contract-sticky-track: rgba(34, 46, 45, 0.14);
+  /* Filled part of the progress bar — always the brand green. */
+  --contract-sticky-fill: #1D624E;
+  /* Lifecycle state badge — a whisper of brand green with readable text. */
+  --contract-sticky-badge-bg: #E4EEE8;
+  --contract-sticky-badge-text: #1D624E;
+  --contract-sticky-badge-border: rgba(29, 98, 78, 0.24);
 
   /* Scrim & Shadow */
   --color-scrim: rgba(0, 0, 0, 0.5);
@@ -594,18 +603,23 @@
     var(--warm-glass-gradient-bottom) 100%
   );
 
-  /* Contract workspace sticky header — dark counterpart. The light-blue
-     surface becomes a lifted navy panel; the bronze accent is brightened
-     so it still reads as an accent on a dark base. */
-  --contract-sticky-bg: #16233C;
-  --contract-sticky-text: #E8EDF5;
-  --contract-sticky-muted: rgba(232, 237, 245, 0.72);
+  /* Contract workspace sticky header — dark counterpart. The ivory surface
+     becomes a lifted deep-teal panel; the gold accent is brightened so it
+     still reads as an accent, and the progress fill lifts to the readable
+     brand-green mint. */
+  --contract-sticky-bg: #16211F;
+  --contract-sticky-text: #F2EDE0;
+  --contract-sticky-muted: rgba(242, 237, 224, 0.68);
   --contract-sticky-accent: #D5BE97;
-  --contract-sticky-border: rgba(255, 255, 255, 0.10);
+  --contract-sticky-border: rgba(252, 246, 232, 0.12);
   --contract-sticky-shadow: 0 6px 18px rgba(0, 0, 0, 0.40);
-  --contract-sticky-chip: rgba(255, 255, 255, 0.06);
-  --contract-sticky-chip-strong: rgba(255, 255, 255, 0.12);
-  --contract-sticky-track: rgba(255, 255, 255, 0.16);
+  --contract-sticky-chip: rgba(252, 246, 232, 0.08);
+  --contract-sticky-chip-strong: rgba(252, 246, 232, 0.16);
+  --contract-sticky-track: rgba(252, 246, 232, 0.16);
+  --contract-sticky-fill: #34D399;
+  --contract-sticky-badge-bg: rgba(52, 211, 153, 0.16);
+  --contract-sticky-badge-text: #6EE7B7;
+  --contract-sticky-badge-border: rgba(110, 231, 183, 0.32);
 
   --color-scrim: rgba(0, 0, 0, 0.7);
   --color-shadow: rgba(0, 0, 0, 0.3);
