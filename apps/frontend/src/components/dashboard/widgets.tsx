@@ -54,6 +54,13 @@ interface WidgetShellProps {
   className?: string;
   /** Skip the white card wrapper for full-bleed sections */
   bare?: boolean;
+  /**
+   * Optional full-bleed artwork layer drawn BEHIND the card content (a single
+   * image + its own scrim, as an absolutely-positioned fragment). Opt-in: when
+   * omitted the card keeps the plain `bg-surface-container-low` surface, so
+   * every existing widget is unchanged.
+   */
+  background?: ReactNode;
 }
 
 export function WidgetShell({
@@ -68,6 +75,7 @@ export function WidgetShell({
   children,
   className = "",
   bare = false,
+  background,
 }: WidgetShellProps) {
   const content = (
     <>
@@ -95,9 +103,14 @@ export function WidgetShell({
 
   return (
     <section
-      className={`rounded-large bg-surface-container-low border border-[color:var(--color-outline-variant)] shadow-elevation-1 p-5 ${className}`}
+      className={`relative rounded-large bg-surface-container-low border border-[color:var(--color-outline-variant)] shadow-elevation-1 p-5 ${background ? "overflow-hidden" : ""} ${className}`}
     >
-      {content}
+      {background && (
+        <div className="absolute inset-0" aria-hidden="true">
+          {background}
+        </div>
+      )}
+      {background ? <div className="relative z-10">{content}</div> : content}
     </section>
   );
 }
@@ -1457,6 +1470,22 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
       isEmpty={!items || items.length === 0}
       emptyMessage="هنوز سندی بارگذاری نکرده‌اید"
       className="mb-6"
+      background={
+        <>
+          {/* The card's artwork — a legal editorial on brand green/ivory/gold.
+              Kept faint by a theme-aware surface scrim so it reads as texture,
+              never as a competing image behind legible list copy. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/legalir-dashboard-recent-docs.webp"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-surface-container-low)_68%,transparent)]" />
+        </>
+      }
     >
       <div className="space-y-1">
         {items.map((doc) => {
@@ -1465,9 +1494,9 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
             <Link
               key={doc.id}
               href="/documents"
-              className="flex items-center gap-3 p-3 rounded-medium hover:bg-surface-container-high transition-colors touch-target group"
+              className="flex items-center gap-3 p-3 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-high)_55%,transparent)] border border-[color:var(--color-outline-variant)] hover:bg-[color-mix(in_srgb,var(--color-surface-container-high)_82%,transparent)] transition-colors touch-target group"
             >
-              <span className="text-xl shrink-0 w-10 h-10 rounded-medium bg-surface-container-high flex items-center justify-center group-hover:bg-surface-container-highest transition-colors">
+              <span className="text-xl shrink-0 w-10 h-10 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-highest)_70%,transparent)] flex items-center justify-center transition-colors">
                 {doc.mime?.includes("pdf") ? "📄" : doc.mime?.includes("image") ? "🖼️" : "📎"}
               </span>
               <div className="flex-1 min-w-0">
