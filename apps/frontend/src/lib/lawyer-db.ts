@@ -299,9 +299,18 @@ export function findReviewByUser(lawyerId: string, userId: string): LawyerReview
  * cancelled. This is the eligibility gate the review routes enforce.
  */
 export function hasCompletedEngagement(userId: string, lawyerId: string): boolean {
-  return listRequestsForLawyer(lawyerId).some(
-    (r) => r.userId === userId && (r.state === "COMPLETED" || r.state === "CLOSED")
-  );
+  return listRequestsForLawyer(lawyerId).some((r) => {
+    if (r.userId !== userId) return false;
+    if (r.state === "COMPLETED") return true;
+    // CLOSED is reachable from CANCELLED and DECLINED too (see
+    // LEGAL_REQUEST_TRANSITIONS) and neither of those is a lawyer-only move, so
+    // a bare CLOSED row proves nothing — a client could cancel-then-close an
+    // untouched request to forge a "verified" review. Only a request whose
+    // history actually reached COMPLETED counts: the genuine closed-after-
+    // completion case.
+    if (r.state !== "CLOSED") return false;
+    return listRequestEvents(r.id).some((e) => e.toState === "COMPLETED");
+  });
 }
 
 /** How long (days) after submitting a review the author may still edit it. */

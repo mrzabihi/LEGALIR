@@ -19,6 +19,30 @@ import { readTable, writeTable } from "@/lib/db";
 
 const TABLE = "idempotency_keys";
 
+// ---------------------------------------------------------------------------
+// In-process serialisation of the check-execute-write section
+// ---------------------------------------------------------------------------
+// `lib/db.ts` has no transactions: `readTable` copies and `writeTable` rewrites
+// the whole table. Without a lock, two concurrent same-key requests (the exact
+// double-click this module exists for) both read before either writes, both miss
+// and BOTH run the handler — minting two requests / two cases. A stale writer can
+// also clobber a concurrent different-key row, so a later retry re-executes.
+//
+// This serialises the critical section within the ONE Node process that owns
+// `.data/` (the app runs a single process — no cluster/workers in dev or `next
+// start`), the same honest mechanism `lib/checkout/mutex.ts` uses. It is NOT a
+// distributed lock; a multi-process deployment would need a real DB transaction.
+let chain: Promise<unknown> = Promise.resolve();
+
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = chain.then(fn, fn);
+  chain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
 /** Rows older than this are pruned — mirrors the documented 24h contract. */
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -61,33 +85,38 @@ export async function runIdempotent<T>(
   const raw = request.headers.get(IDEMPOTENCY_HEADER);
   const key = raw && raw.trim().length > 0 ? raw.trim() : null;
   if (!key) {
+    // No key → nothing to dedupe; a genuinely new operation is never blocked.
     const out = await handler();
     return { ...out, replayed: false };
   }
 
-  const now = Date.now();
-  const rows = readTable<IdempotencyRow>(TABLE).filter(
-    (r) => now - Date.parse(r.createdAt) < TTL_MS
-  );
+  // The whole check → execute → memoize section is serialised, so two
+  // concurrent requests carrying the SAME key cannot both miss and both run.
+  return withLock(async () => {
+    const now = Date.now();
+    const rows = readTable<IdempotencyRow>(TABLE).filter(
+      (r) => now - Date.parse(r.createdAt) < TTL_MS
+    );
 
-  const hit = rows.find(
-    (r) => r.key === key && r.scope === scope && r.actorId === actorId
-  );
-  if (hit) {
-    return { status: hit.status, body: hit.body as T, replayed: true };
-  }
+    const hit = rows.find(
+      (r) => r.key === key && r.scope === scope && r.actorId === actorId
+    );
+    if (hit) {
+      return { status: hit.status, body: hit.body as T, replayed: true };
+    }
 
-  const out = await handler();
-  if (out.status >= 200 && out.status < 300) {
-    rows.push({
-      key,
-      scope,
-      actorId,
-      status: out.status,
-      body: out.body,
-      createdAt: new Date().toISOString(),
-    });
-    writeTable(TABLE, rows);
-  }
-  return { ...out, replayed: false };
+    const out = await handler();
+    if (out.status >= 200 && out.status < 300) {
+      rows.push({
+        key,
+        scope,
+        actorId,
+        status: out.status,
+        body: out.body,
+        createdAt: new Date().toISOString(),
+      });
+      writeTable(TABLE, rows);
+    }
+    return { ...out, replayed: false };
+  });
 }

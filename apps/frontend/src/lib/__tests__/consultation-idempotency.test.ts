@@ -191,6 +191,27 @@ describe("consultation create — Idempotency-Key", () => {
     expect(requestCount()).toBe(before + 1);
   });
 
+  it("two CONCURRENT requests with the same key still create exactly ONE request", async () => {
+    const before = requestCount();
+    const key = "idem-create-concurrent";
+
+    // Fire both before awaiting either — the exact double-click / racing-retry
+    // the store exists to absorb. Without the in-process lock both would miss
+    // the (empty) key table and both would run the handler.
+    const [a, b] = await Promise.all([
+      createRequestRoute(req(clientSession, URL, { method: "POST", body: BODY, idemKey: key })),
+      createRequestRoute(req(clientSession, URL, { method: "POST", body: BODY, idemKey: key })),
+    ]);
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+
+    const aBody = (await a.json()) as { data: LegalRequest };
+    const bBody = (await b.json()) as { data: LegalRequest };
+    // Same request id in both responses, and exactly one row on disk.
+    expect(bBody.data.id).toBe(aBody.data.id);
+    expect(requestCount()).toBe(before + 1);
+  });
+
   it("a different key creates a genuinely new request", async () => {
     const before = requestCount();
     await createRequestRoute(req(clientSession, URL, { method: "POST", body: BODY, idemKey: "idem-create-B" }));
