@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CTASection } from "@/components/public/CTASection";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
+import { HeroTitle } from "@/components/public/HeroTitle";
 import { LegalTopicsSection, type LegalTopic } from "@/components/public/LegalTopicsSection";
 import { PromoPanel } from "@/components/shared";
 import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
@@ -370,12 +371,14 @@ export default function LandingPage() {
             <AIDisclaimer compact />
           </div>
 
-          {/* Main heading */}
-          <h1
-            className="text-[36px] tablet:text-[56px] font-extrabold leading-tight mb-6 tracking-tight animate-heading-shine bg-gradient-to-r from-white via-secondary-200 to-white bg-[length:200%_100%] bg-clip-text text-transparent hover:animate-hover-shimmer cursor-default select-none"
-          >
-            دستیار هوشمند حقوقی ایران
-          </h1>
+          {/* Main heading — one-shot typewriter reveal (see HeroTitle).
+              The gradient/shine/hover-shimmer effects were removed with the
+              gradient-clipped text; the solid white copy, size, weight and
+              spacing below are unchanged, so the HERO layout is identical. */}
+          <HeroTitle
+            className="text-[36px] tablet:text-[56px] font-extrabold leading-tight mb-6 tracking-tight text-white cursor-default select-none"
+            text="دستیار هوشمند حقوقی ایران"
+          />
 
           {/* Subheading */}
           <p

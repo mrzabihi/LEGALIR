@@ -1895,6 +1895,68 @@ html {
   border-radius: 4px;
 }
 
+/* ============================================================
+   HERO TITLE — one-shot typewriter reveal
+   ============================================================
+   The landing hero heading is split into *grapheme clusters*, each
+   rendered as its own sibling inline <span> (see HeroTitle in the
+   landing page). Because every cluster is present — and therefore
+   spatially laid out — from the very first frame, revealing one is a
+   pure opacity flip: nothing reflows, the HERO never grows or shrinks,
+   and no letter is ever sliced in half mid-word.
+
+   The per-character stagger is advanced in JS (HeroTitle increments a
+   counter) and written as an inline `opacity`; no CSS keyframe animation
+   drives the reveal. That is deliberate: Chromium silently drops the
+   `animation-fill-mode` of *finished* CSS animations once enough of them
+   pile up, which left the tail of a 25-cluster sentence permanently
+   invisible in both headless and headed Chrome. A plain inline opacity
+   has no such failure mode.
+
+   `.hero-type-char` therefore ships at opacity 0 (the start of the typing
+   run). With scripting disabled there is nothing to reveal it, so
+   `@media (scripting: none)` shows the full sentence instead — a no-JS
+   visitor still reads the heading. */
+.hero-type-char {
+  opacity: 0;
+}
+@media (scripting: none) {
+  .hero-type-char {
+    opacity: 1;
+  }
+}
+
+/* Cursor — hidden while the sentence is still being typed, then shown with
+   a slow square-wave blink once the last cluster has landed. The blink
+   only starts in the `is-on` state so the cursor is fully solid for its
+   first visible moment rather than mid-fade. */
+.hero-type-cursor {
+  visibility: hidden;
+}
+.hero-type-cursor.is-on {
+  visibility: visible;
+  animation: hero-cursor-blink 1.1s step-end infinite;
+}
+@keyframes hero-cursor-blink {
+  0%, 45%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Under `prefers-reduced-motion` no typing runs: the finished sentence is
+   shown at once (the `!important` beats the inline start-state opacity)
+   and the cursor rests as a calm, non-blinking mark. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-type-char {
+    opacity: 1 !important;
+  }
+  /* `!important` beats the higher-specificity `.is-on` blink rule. */
+  .hero-type-cursor {
+    visibility: visible;
+    animation: none !important;
+    opacity: 1;
+  }
+}
+
 /* Reduced motion: respect user preference */
 @media (prefers-reduced-motion: reduce) {
   .scroll-reveal,
