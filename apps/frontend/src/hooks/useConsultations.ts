@@ -40,13 +40,17 @@ export function useConsultation(id: string | undefined) {
 export function useCreateConsultation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
+    // `idempotencyKey` is minted ONCE by the caller per logical submit and
+    // reused on retry, so a double-click / network retry replays the first
+    // response instead of creating a second request.
+    mutationFn: ({ idempotencyKey, ...input }: {
       title: string;
       category: string;
       intakeAnswers?: Record<string, string>;
       selectedLawyerId?: string | null;
       attachmentDocumentIds?: string[];
-    }) => createLegalRequest(input),
+      idempotencyKey?: string;
+    }) => createLegalRequest(input, idempotencyKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["legal-requests", "list"] });
     },
@@ -57,8 +61,8 @@ export function useCreateConsultation() {
 export function useRespondToConsultation(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ action, note }: { action: "accept" | "decline"; note?: string }) =>
-      respondToConsultation(id, action, note),
+    mutationFn: ({ action, note, idempotencyKey }: { action: "accept" | "decline"; note?: string; idempotencyKey?: string }) =>
+      respondToConsultation(id, action, note, idempotencyKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["legal-requests", "detail", id] });
       queryClient.invalidateQueries({ queryKey: ["legal-requests", "list"] });

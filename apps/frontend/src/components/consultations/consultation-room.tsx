@@ -17,10 +17,11 @@
 // Every action is a request; the server re-validates and may reject it.
 // ============================================================
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Button, ConfirmDialog, Textarea } from "@legalir/ui";
 import { useConsultation, useRespondToConsultation, useSendConsultationMessage } from "@/hooks/useConsultations";
+import { generateIdempotencyKey } from "@/lib/api/idempotency";
 import { useTransitionLegalRequest } from "@/hooks/useLegalRequests";
 import { LawyerAvatar } from "@/components/lawyers/lawyer-avatar";
 import { ConsultationBanner } from "./consultation-banner";
@@ -97,6 +98,11 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [draft, setDraft] = useState("");
 
+  // One idempotency key per (action) decision. A retried accept/decline reuses
+  // the SAME key so the server replays the first outcome instead of creating a
+  // second case; a fresh decision (or the opposite action) mints a new one.
+  const respondKeyRef = useRef<{ action: "accept" | "decline"; key: string } | null>(null);
+
   const isClient = viewerRole === "client";
   const awaiting = request.state === "WAITING_FOR_ACCEPTANCE";
   const declined = request.state === "DECLINED";
@@ -120,6 +126,20 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
       await send.mutateAsync(body);
       setDraft("");
     }, "ارسال پیام ناموفق بود");
+  }
+
+  /**
+   * The lawyer's accept/decline. One key per action: a retried decision reuses
+   * it (so a second case is never created), a switch of action mints a new one.
+   */
+  async function handleRespond(action: "accept" | "decline") {
+    if (!respondKeyRef.current || respondKeyRef.current.action !== action) {
+      respondKeyRef.current = { action, key: generateIdempotencyKey() };
+    }
+    await run(
+      () => respond.mutateAsync({ action, idempotencyKey: respondKeyRef.current!.key }),
+      action === "accept" ? "پذیرش ناموفق بود" : "رد درخواست ناموفق بود"
+    );
   }
 
   return (
@@ -276,7 +296,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
               <div className="space-y-2">
                 <Button
                   fullWidth
-                  onClick={() => run(() => respond.mutateAsync({ action: "accept" }), "پذیرش ناموفق بود")}
+                  onClick={() => handleRespond("accept")}
                   loading={respond.isPending}
                   startIcon={<IconCheck size={18} />}
                 >
@@ -285,7 +305,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
                 <Button
                   fullWidth
                   variant="outlined"
-                  onClick={() => run(() => respond.mutateAsync({ action: "decline" }), "رد درخواست ناموفق بود")}
+                  onClick={() => handleRespond("decline")}
                   disabled={respond.isPending}
                   startIcon={<IconClose size={18} />}
                 >

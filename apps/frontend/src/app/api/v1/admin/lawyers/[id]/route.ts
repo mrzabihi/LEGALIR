@@ -27,6 +27,10 @@ import {
   updateLawyerProfile,
   resolveAdminLifecycle,
   listLawyerReviewRecords,
+  listLawyerReviewRows,
+  listReviewEvents,
+  listReviewReports,
+  toReviewReportRecord,
 } from "@/lib/lawyer-db";
 import {
   findUserById,
@@ -71,6 +75,18 @@ export async function GET(
   const reviews = listLawyerReviewRecords(id);
   const latest = history[0] ?? null;
 
+  // Per-review moderation history + reports, so the drawer can show why a
+  // review is withheld and who decided — without a second round-trip.
+  const moderation = Object.fromEntries(
+    listLawyerReviewRows(id).map((r) => [
+      r.id,
+      {
+        events: listReviewEvents(r.id),
+        reports: listReviewReports(r.id).map(toReviewReportRecord),
+      },
+    ])
+  );
+
   return NextResponse.json({
     data: {
       profile: {
@@ -94,10 +110,13 @@ export async function GET(
       lastDecision: latest,
       messages,
       reviews,
+      /** reviewId → { events, reports }, for the drawer's moderation panel. */
+      moderation,
       stats: {
         messagesSent: messages.length,
         decisions: history.length,
         reviews: reviews.length,
+        openReports: reviews.reduce((n, r) => n + r.openReports, 0),
       },
     },
   });

@@ -15,3 +15,5 @@ export { LawyerRating } from "./lawyer-rating";
 export { LawyerAvailabilityBadge } from "./lawyer-availability-badge";
 export { LawyerSpecialtyChips } from "./lawyer-specialty-chips";
 export { LawyerSpecialtyWatermark } from "./lawyer-specialty-watermark";
+export { LawyerReviewForm } from "./lawyer-review-form";
+export { ReviewReportControl } from "./lawyer-review-report";

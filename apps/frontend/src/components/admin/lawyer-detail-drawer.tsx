@@ -65,6 +65,8 @@ import {
   LAWYER_VISIBILITY_FA,
   LAWYER_SERVICES,
   LAWYER_JURISDICTIONS,
+  LAWYER_REVIEW_STATUS_FA,
+  LAWYER_REVIEW_REPORT_STATUS_FA,
   ADMIN_LAWYER_STATUS_FA,
   taxonomyByType,
   taxonomyPathLabels,
@@ -79,6 +81,7 @@ import {
   type LawyerMarketplaceVisibility,
   type LawyerExpertise,
   type LawyerLocation,
+  type LawyerReviewStatus,
   type AdminLawyerStatus,
 } from "@legalir/types";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
@@ -192,6 +195,7 @@ function ReasonDialog({
   confirmLabel,
   destructive,
   minLength = 3,
+  requireReason = true,
   busy,
   onClose,
   onConfirm,
@@ -201,12 +205,14 @@ function ReasonDialog({
   confirmLabel: string;
   destructive: boolean;
   minLength?: number;
+  /** When false the reason is optional (non-destructive transitions). */
+  requireReason?: boolean;
   busy: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState("");
-  const valid = reason.trim().length >= minLength;
+  const valid = !requireReason || reason.trim().length >= minLength;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -235,7 +241,10 @@ function ReasonDialog({
         )}
 
         <div className="mt-4">
-          <Field label="دلیل (الزامی)" hint="این متن در گزارش عملیات (Audit Log) ثبت می‌شود.">
+          <Field
+            label={requireReason ? "دلیل (الزامی)" : "دلیل (اختیاری)"}
+            hint="این متن در گزارش عملیات (Audit Log) ثبت می‌شود."
+          >
             <TextArea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -704,16 +713,109 @@ function RatingPanel({ detail, canManage }: { detail: AdminLawyerDetail; canMana
 // Reviews tab
 // ---------------------------------------------------------------------------
 
+/** Tones for the moderation status of a review (PUBLISHED is the only public one). */
+export const REVIEW_STATUS_TONES: Record<
+  LawyerReviewStatus,
+  "neutral" | "success" | "warning" | "danger" | "info" | "brand"
+> = {
+  PENDING: "info",
+  PUBLISHED: "success",
+  REPORTED: "warning",
+  HIDDEN: "neutral",
+  REJECTED: "danger",
+};
+
+type ReviewAction = "publish" | "hide" | "restore" | "reject" | "delete";
+
+/** The migration-legal actions offered from each moderation state. */
+function reviewActions(status: LawyerReviewStatus): ReviewAction[] {
+  switch (status) {
+    case "PENDING":
+      return ["publish", "reject", "delete"];
+    case "PUBLISHED":
+      return ["hide", "reject", "delete"];
+    case "REPORTED":
+      return ["publish", "hide", "reject", "delete"];
+    case "HIDDEN":
+      return ["restore", "reject", "delete"];
+    case "REJECTED":
+      return ["restore", "publish", "delete"];
+  }
+}
+
+/** The label, tone and dialog copy for each moderation action. */
+const REVIEW_ACTION_META: Record<
+  ReviewAction,
+  {
+    label: string;
+    variant: "primary" | "secondary" | "ghost" | "danger";
+    needsReason: boolean;
+    destructive: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+  }
+> = {
+  publish: {
+    label: "تأیید و انتشار",
+    variant: "primary",
+    needsReason: false,
+    destructive: false,
+    title: "تأیید و انتشار نظر",
+    description:
+      "این نظر در پروفایل عمومی نمایش داده می‌شود و در میانگین امتیاز وارد می‌گردد. گزارش‌های باز این نظر بسته می‌شوند.",
+    confirmLabel: "تأیید و انتشار",
+  },
+  hide: {
+    label: "پنهان‌سازی",
+    variant: "ghost",
+    needsReason: true,
+    destructive: true,
+    title: "پنهان‌سازی نظر",
+    description:
+      "این نظر از فهرست عمومی و از میانگین امتیاز خارج می‌شود اما حذف نمی‌گردد و قابل بازگردانی است. دلیل الزامی است.",
+    confirmLabel: "پنهان‌سازی",
+  },
+  restore: {
+    label: "بازگردانی",
+    variant: "secondary",
+    needsReason: false,
+    destructive: false,
+    title: "بازگردانی نظر",
+    description:
+      "این نظر دوباره در فهرست عمومی نمایش داده می‌شود و در میانگین امتیاز وارد می‌گردد.",
+    confirmLabel: "بازگردانی",
+  },
+  reject: {
+    label: "رد نظر",
+    variant: "danger",
+    needsReason: true,
+    destructive: true,
+    title: "رد نظر",
+    description:
+      "این نظر رد می‌شود و هرگز منتشر نخواهد شد. دلیل الزامی است و در گزارش عملیات ثبت می‌گردد.",
+    confirmLabel: "رد نظر",
+  },
+  delete: {
+    label: "حذف",
+    variant: "danger",
+    needsReason: true,
+    destructive: true,
+    title: "حذف نظر",
+    description:
+      "این نظر برای همیشه حذف می‌شود و قابل بازگردانی نیست. دلیل برای گزارش عملیات ثبت می‌گردد.",
+    confirmLabel: "حذف نظر",
+  },
+};
+
 function ReviewsPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage: boolean }) {
   const moderate = useModerateAdminLawyerReview();
-  const [pending, setPending] = useState<{
-    reviewId: string;
-    action: "hide" | "restore" | "delete";
-  } | null>(null);
+  const [pending, setPending] = useState<{ reviewId: string; action: ReviewAction } | null>(null);
 
   const reviews = detail.reviews;
+  const openReports = detail.stats.openReports;
 
-  async function run(reviewId: string, action: "hide" | "restore" | "delete", reason?: string) {
+  async function run(reviewId: string, action: ReviewAction, reason?: string) {
     try {
       await moderate.mutateAsync({ id: detail.profile.id, reviewId, action, reason });
       snackbar.show({ message: "نظر به‌روزرسانی شد.", variant: "success" });
@@ -725,79 +827,124 @@ function ReviewsPanel({ detail, canManage }: { detail: AdminLawyerDetail; canMan
 
   return (
     <div className="space-y-4">
-      <InfoBanner tone="info">
-        پنهان‌سازی «بازگردانی‌پذیر» است: نظر از فهرست عمومی و از میانگین امتیاز خارج می‌شود اما حذف
-        نمی‌گردد. حذف، ردیف را برای همیشه برمی‌دارد.
+      <InfoBanner tone={openReports > 0 ? "warning" : "info"}>
+        نظرات پس از بررسی منتشر می‌شوند. پنهان‌سازی «بازگردانی‌پذیر» است: نظر از فهرست عمومی و از
+        میانگین امتیاز خارج می‌شود اما حذف نمی‌گردد. حذف، ردیف را برای همیشه برمی‌دارد. هر تصمیم با
+        دلیل، در گزارش عملیات (Audit Log) ثبت می‌شود.
+        {openReports > 0 && (
+          <span className="mt-1 block font-medium">
+            {toPersianNumber(openReports)} گزارش باز در انتظار بررسی است.
+          </span>
+        )}
       </InfoBanner>
 
       {reviews.length === 0 ? (
         <p className="text-body-2 text-muted">نظری برای این وکیل ثبت نشده است.</p>
       ) : (
         <ul className="space-y-2">
-          {reviews.map((r) => (
-            <li
-              key={r.id}
-              className="rounded-medium border border-divider bg-surface-container-low p-3 text-body-2"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium text-on-surface">{r.authorName}</span>
-                <span className="flex items-center gap-2">
-                  <Badge tone="neutral">{toPersianNumber(r.rating)} ستاره</Badge>
-                  {r.hidden && <Badge tone="warning">پنهان</Badge>}
-                  {r.verifiedEngagement && <Badge tone="info">خرید تأییدشده</Badge>}
-                </span>
-              </div>
-              <p className="mt-1.5 text-on-surface-variant">{r.comment}</p>
-              <div className="mt-1 text-caption text-muted">{toPersianDate(r.createdAt)}</div>
-
-              {canManage && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {r.hidden ? (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={moderate.isPending}
-                      onClick={() => run(r.id, "restore")}
-                    >
-                      بازگردانی
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={moderate.isPending}
-                      onClick={() => setPending({ reviewId: r.id, action: "hide" })}
-                    >
-                      پنهان‌سازی
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={moderate.isPending}
-                    onClick={() => setPending({ reviewId: r.id, action: "delete" })}
-                  >
-                    حذف
-                  </Button>
+          {reviews.map((r) => {
+            const status = r.status;
+            const moderation = detail.moderation[r.id];
+            const events = moderation?.events ?? [];
+            const reports = moderation?.reports ?? [];
+            const actions = canManage ? reviewActions(status) : [];
+            return (
+              <li
+                key={r.id}
+                className="rounded-medium border border-divider bg-surface-container-low p-3 text-body-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-on-surface">{r.authorName}</span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Badge tone="neutral">{toPersianNumber(r.rating)} ستاره</Badge>
+                    <Badge tone={REVIEW_STATUS_TONES[status]} dot>
+                      {LAWYER_REVIEW_STATUS_FA[status]}
+                    </Badge>
+                    {r.openReports > 0 && (
+                      <Badge tone="warning">{toPersianNumber(r.openReports)} گزارش باز</Badge>
+                    )}
+                    {r.verifiedEngagement && <Badge tone="info">خرید تأییدشده</Badge>}
+                  </span>
                 </div>
-              )}
-            </li>
-          ))}
+                <p className="mt-1.5 text-on-surface-variant">{r.comment}</p>
+                <div className="mt-1 text-caption text-muted">{toPersianDate(r.createdAt)}</div>
+
+                {/* Filed reports against this review (why it was flagged). */}
+                {reports.length > 0 && (
+                  <div className="mt-2 rounded-medium border border-warning/40 bg-warning-container/30 p-2">
+                    <p className="mb-1 text-caption font-medium text-on-surface">گزارش‌های تخلف</p>
+                    <ul className="space-y-1">
+                      {reports.map((rep) => (
+                        <li key={rep.id} className="text-caption text-on-surface-variant">
+                          <span className="text-muted">
+                            {LAWYER_REVIEW_REPORT_STATUS_FA[rep.status]} ·{" "}
+                            {toPersianDate(rep.createdAt)}:
+                          </span>{" "}
+                          {rep.reason}
+                          {rep.resolutionNote && (
+                            <span className="text-muted"> — رسیدگی: {rep.resolutionNote}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Moderation history (previous → new status, reason, actor, time). */}
+                {events.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-caption text-muted">
+                      تاریخچهٔ مدیریت ({toPersianNumber(events.length)})
+                    </summary>
+                    <ol className="mt-1 space-y-1">
+                      {events.map((ev) => (
+                        <li key={ev.id} className="text-caption text-on-surface-variant">
+                          <span className="text-muted">
+                            {ev.fromStatus
+                              ? `${LAWYER_REVIEW_STATUS_FA[ev.fromStatus as LawyerReviewStatus] ?? ev.fromStatus} → `
+                              : ""}
+                            {LAWYER_REVIEW_STATUS_FA[ev.toStatus as LawyerReviewStatus] ?? ev.toStatus}
+                          </span>
+                          {" · "}
+                          {toPersianDate(ev.createdAt)}
+                          {ev.reason ? ` · دلیل: ${ev.reason}` : ""}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
+
+                {actions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {actions.map((action) => {
+                      const meta = REVIEW_ACTION_META[action];
+                      return (
+                        <Button
+                          key={action}
+                          size="sm"
+                          variant={meta.variant}
+                          disabled={moderate.isPending}
+                          onClick={() => setPending({ reviewId: r.id, action })}
+                        >
+                          {meta.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
       {pending && (
         <ReasonDialog
-          title={pending.action === "delete" ? "حذف نظر" : "پنهان‌سازی نظر"}
-          description={
-            <p>
-              {pending.action === "delete"
-                ? "این نظر برای همیشه حذف می‌شود و قابل بازگردانی نیست."
-                : "این نظر از فهرست عمومی و از میانگین امتیاز خارج می‌شود."}
-            </p>
-          }
-          confirmLabel={pending.action === "delete" ? "حذف نظر" : "پنهان‌سازی"}
-          destructive
+          title={REVIEW_ACTION_META[pending.action].title}
+          description={<p>{REVIEW_ACTION_META[pending.action].description}</p>}
+          confirmLabel={REVIEW_ACTION_META[pending.action].confirmLabel}
+          destructive={REVIEW_ACTION_META[pending.action].destructive}
+          requireReason={REVIEW_ACTION_META[pending.action].needsReason}
           busy={moderate.isPending}
           onClose={() => setPending(null)}
           onConfirm={(reason) => run(pending.reviewId, pending.action, reason)}

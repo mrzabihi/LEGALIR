@@ -35,6 +35,10 @@ import {
   fetchAdminRequest,
   assignRequestLawyer,
   changeRequestState,
+  fetchAdminContracts,
+  fetchAdminContract,
+  reviewAdminContract,
+  type AdminContractsQuery,
   fetchAdminFlags,
   updateAdminFlag,
   type UpdateFlagInput,
@@ -143,6 +147,13 @@ import {
   fetchAdminAnnouncements,
   createAdminAnnouncement,
   setAdminAnnouncementStatus,
+  fetchAdminCoupons,
+  fetchAdminCoupon,
+  createAdminCoupon,
+  updateAdminCoupon,
+  setAdminCouponStatus,
+  type AdminCouponDraft,
+  type AdminCouponRow,
 } from "@/lib/api/admin";
 import type {
   PlanStatus,
@@ -160,9 +171,11 @@ import type {
   AnnouncementStatus,
   CreateAnnouncementInput,
   AdminAnnouncement,
+  AdminContractReviewActionRequest,
   AdminBlogPost,
   UpsertBlogPostInput,
   GenerateBlogDraftInput,
+  CouponStatus,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -397,6 +410,49 @@ export function useChangeRequestState() {
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
       qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Contracts — the admin review queue (§6/§7)
+// ---------------------------------------------------------------------------
+
+export function useAdminContracts(query: AdminContractsQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "contracts", query],
+    queryFn: () => fetchAdminContracts(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminContract(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "contracts", "detail", id],
+    queryFn: () => fetchAdminContract(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Record a review decision (approve / reject / request_info / cancel). A
+ * decision moves the contract's state, so both the queue slice and the
+ * detail must refetch — the row's approval badge and the decision panel both
+ * change. On an approve we also refresh the public verification surfaces the
+ * owner reads.
+ */
+export function useAdminContractReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AdminContractReviewActionRequest }) =>
+      reviewAdminContract(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
     },
   });
 }
@@ -1124,13 +1180,19 @@ export function useChangeStaffRole() {
   });
 }
 
-export function useAdminAudit(query: AdminAuditQuery = {}) {
+export function useAdminAudit(
+  query: AdminAuditQuery = {},
+  options: { enabled?: boolean } = {}
+) {
   return useQuery({
     queryKey: ["admin", "audit", query],
     queryFn: () => fetchAdminAudit(query),
     staleTime: 30_000,
     retry: 1,
     placeholderData: (prev) => prev,
+    // The endpoint requires `admin:audit:read`; when the viewer lacks it the
+    // section is hidden and the request must not fire (no 403 in the console).
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -1302,7 +1364,7 @@ export function useSetAdminLawyerFeatured() {
   });
 }
 
-/** Moderate a single review (hide / restore / delete). */
+/** Moderate a single review (publish / hide / restore / reject / delete). */
 export function useModerateAdminLawyerReview() {
   const qc = useQueryClient();
   return useMutation({
@@ -1314,7 +1376,7 @@ export function useModerateAdminLawyerReview() {
     }: {
       id: string;
       reviewId: string;
-      action: "hide" | "restore" | "delete";
+      action: "publish" | "hide" | "restore" | "reject" | "delete";
       reason?: string;
     }) => moderateAdminLawyerReview(id, reviewId, { action, reason }),
     onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
@@ -1402,14 +1464,6 @@ export function useUsageSummary(rangeDays = 30) {
     retry: 1,
   });
 }
-  fetchAdminCoupons,
-  fetchAdminCoupon,
-  createAdminCoupon,
-  updateAdminCoupon,
-  setAdminCouponStatus,
-  type AdminCouponDraft,
-  type AdminCouponRow,
-  CouponStatus,
 
 // ---------------------------------------------------------------------------
 // Discount coupons (billing)

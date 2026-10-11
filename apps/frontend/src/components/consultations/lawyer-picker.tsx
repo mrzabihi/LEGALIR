@@ -23,7 +23,7 @@ import { LawyerAvailabilityBadge } from "@/components/lawyers/lawyer-availabilit
 import { availabilityView } from "@/lib/lawyers/availability";
 import { IconSearch, IconRefresh, IconInfo } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { LEGAL_CATEGORY_FA, type LawyerListItem } from "@legalir/types";
+import { IRAN_PROVINCES, LEGAL_CATEGORY_FA, type LawyerListItem } from "@legalir/types";
 import { formatToman } from "./consultation-status";
 
 interface LawyerPickerProps {
@@ -169,10 +169,7 @@ export function LawyerPicker({
             onChange={(e) => setProvince(e.target.value)}
             options={[
               { value: "", label: "همه استان‌ها" },
-              { value: "تهران", label: "تهران" },
-              { value: "اصفهان", label: "اصفهان" },
-              { value: "فارس", label: "فارس" },
-              { value: "خراسان رضوی", label: "خراسان رضوی" },
+              ...IRAN_PROVINCES.map((p) => ({ value: p.nameFa, label: p.nameFa })),
             ]}
             fullWidth
           />

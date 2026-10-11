@@ -1646,6 +1646,8 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         actorId: actor.userId,
         actorRole: actor.role,
         note: lawyerId ? "تخصیص وکیل توسط پشتیبانی" : "حذف وکیل توسط پشتیبانی",
+        // Admin-initiated: keep the support note out of the client/lawyer timeline.
+        noteVisibility: "internal",
       });
       if (!res.ok) {
         if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
@@ -1676,6 +1678,8 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         actorId: actor.userId,
         actorRole: actor.role,
         note: typeof body["note"] === "string" ? (body["note"] as string) : "تغییر وضعیت توسط پشتیبانی",
+        // Admin-originated note: never surfaced in the client/lawyer timeline.
+        noteVisibility: "internal",
       });
       if (!res.ok) {
         if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");

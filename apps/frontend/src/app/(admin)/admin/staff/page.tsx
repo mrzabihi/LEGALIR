@@ -105,6 +105,8 @@ function AuditDiff({
 export default function AdminStaffPage() {
   const { can } = useAdminMe();
   const canManage = can("admin:staff:manage");
+  // The audit feed is its OWN permission; a staff manager may not hold it.
+  const canAudit = can("admin:audit:read");
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -132,13 +134,16 @@ export default function AdminStaffPage() {
   const debouncedAction = useDebouncedValue(action.trim(), 300);
   useEffect(() => setPage(1), [debouncedActor, debouncedAction]);
 
-  const audit = useAdminAudit({
-    actorUserId: debouncedActor || undefined,
-    action: debouncedAction || undefined,
-    result: (result || undefined) as AdminAuditEntry["result"] | undefined,
-    page,
-    pageSize: 25,
-  });
+  const audit = useAdminAudit(
+    {
+      actorUserId: debouncedActor || undefined,
+      action: debouncedAction || undefined,
+      result: (result || undefined) as AdminAuditEntry["result"] | undefined,
+      page,
+      pageSize: 25,
+    },
+    { enabled: canAudit }
+  );
 
   const roleOptions = useMemo(
     () => ASSIGNABLE_ROLES.map((r) => ({ value: r, label: ROLE_FA[r] ?? r })),
@@ -165,7 +170,7 @@ export default function AdminStaffPage() {
       <PageHeader
         title="مدیران، نقش‌ها و رویدادهای امنیتی"
         description="کارکنان پلتفرم، سطح دسترسی نقش‌ها و گزارش رویدادهای امنیتی. تغییر نقش نیازمند مجوز مدیریت کارکنان است و سرور آن را مجوزسنجی می‌کند."
-        actions={<ExportButton kind="audit" />}
+        actions={canAudit ? <ExportButton kind="audit" /> : undefined}
       />
       <StaffNav />
 
@@ -333,7 +338,8 @@ export default function AdminStaffPage() {
         </StateView>
       </Section>
 
-      {/* ----- Audit / security events ----- */}
+      {/* ----- Audit / security events (own permission: admin:audit:read) ----- */}
+      {canAudit ? (
       <Section
         title="رویدادهای امنیتی (ممیزی)"
         subtitle="گزارش فقط‌افزودنی همه عملیات حساس، همراه با مقدار قبلی و جدید. فیلدهای حساس هرگز ثبت نمی‌شوند."
@@ -449,6 +455,14 @@ export default function AdminStaffPage() {
           )}
         </StateView>
       </Section>
+      ) : (
+        <Section title="رویدادهای امنیتی (ممیزی)">
+          <InfoBanner tone="warning">
+            دسترسی به گزارش رویدادهای امنیتی نیازمند مجوز «ممیزی» است. برای مشاهده، با مدیر ارشد
+            هماهنگ کنید.
+          </InfoBanner>
+        </Section>
+      )}
 
       <Card className="p-4 text-caption text-muted">
         توجه: آخرین مدیر ارشد پلتفرم قابل تنزل نیست؛ این محدودیت سمت سرور اعمال می‌شود تا دسترسی

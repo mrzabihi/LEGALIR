@@ -15,6 +15,7 @@ import {
   canTransitionLegalRequest,
   type LegalRequest,
   type LegalRequestEvent,
+  type LegalRequestEventVisibility,
   type LegalRequestState,
   type PlatformRole,
 } from "@legalir/types";
@@ -103,6 +104,8 @@ export function assignRequestLawyer(params: {
   actorId: string;
   actorRole: PlatformRole | "system";
   note?: string | null;
+  /** `internal` keeps the note out of the client/lawyer timeline. Default public. */
+  noteVisibility?: LegalRequestEventVisibility;
 }): { ok: true; request: LegalRequest } | { ok: false; reason: "not_found" | "terminal" } {
   const rows = readTable<LegalRequest>("legal_requests");
   const idx = rows.findIndex((r) => r.id === params.requestId);
@@ -126,6 +129,7 @@ export function assignRequestLawyer(params: {
     actorId: params.actorId,
     actorRole: params.actorRole,
     note: params.note ?? null,
+    noteVisibility: params.noteVisibility ?? "public",
     createdAt: now,
   });
 
@@ -152,6 +156,8 @@ export function transitionRequest(params: {
   actorId: string;
   actorRole: PlatformRole | "system";
   note?: string | null;
+  /** `internal` keeps the note out of the client/lawyer timeline. Default public. */
+  noteVisibility?: LegalRequestEventVisibility;
   patch?: Partial<Omit<LegalRequest, "id" | "userId" | "createdAt">>;
 }): TransitionResult {
   const rows = readTable<LegalRequest>("legal_requests");
@@ -181,6 +187,7 @@ export function transitionRequest(params: {
     actorId: params.actorId,
     actorRole: params.actorRole,
     note: params.note ?? null,
+    noteVisibility: params.noteVisibility ?? "public",
     createdAt: new Date().toISOString(),
   });
 

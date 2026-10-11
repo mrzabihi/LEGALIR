@@ -25,10 +25,11 @@
 // previously drafted lawyer B must show A, never B.
 // ============================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Button, SelectableCard, Textarea, Select } from "@legalir/ui";
 import { useCreateConsultation } from "@/hooks/useConsultations";
+import { generateIdempotencyKey } from "@/lib/api/idempotency";
 import { useLawyer } from "@/hooks/useLawyers";
 import { useDocuments, useInitiateUpload, useCompleteUpload } from "@/hooks/useDocuments";
 import { UploadZone } from "@/components/documents/upload-zone";
@@ -113,6 +114,11 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
+
+  // One idempotency key per submit attempt: a failed send keeps the SAME key
+  // so a retry replays the first server response instead of creating a second
+  // request; a successful create mints a fresh one for the next consultation.
+  const idemKeyRef = useRef<string>("");
 
   // Hydrate the draft once on mount.
   useEffect(() => {
@@ -217,6 +223,8 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
       setError("وکیل انتخاب‌شده در دسترس نیست. لطفاً وکیل دیگری انتخاب کنید.");
       return;
     }
+    // Mint the key once and reuse it on any retry of this same submit.
+    if (!idemKeyRef.current) idemKeyRef.current = generateIdempotencyKey();
     try {
       const created = await create.mutateAsync({
         title: draft.title.trim(),
@@ -228,16 +236,20 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
         // The one authoritative id — the same one the preview rendered.
         selectedLawyerId: draft.lawyerId,
         attachmentDocumentIds: draft.attachmentIds,
+        idempotencyKey: idemKeyRef.current,
       });
       // The draft is now a real request — clear it so a new consultation
-      // starts clean.
+      // starts clean, and drop the spent key.
       try {
         localStorage.removeItem(DRAFT_KEY);
       } catch {
         // ignore
       }
+      idemKeyRef.current = "";
       router.push(`/consultations/${created.id}`);
     } catch (e) {
+      // Keep the key: the next click reuses it, so a partial/retried submit
+      // cannot create a duplicate.
       setError(e instanceof Error ? e.message : "ثبت درخواست ناموفق بود");
     }
   }
