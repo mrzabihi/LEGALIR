@@ -42,6 +42,7 @@ import {
   CalculatorControls,
   CalculatorRow,
 } from "@/components/calculators";
+import { PageIntroBanner } from "@/components/shared";
 
 export default function CalculatorsPage() {
   const [query, setQuery] = useState("");
@@ -74,17 +75,18 @@ export default function CalculatorsPage() {
       {/* ============================================================
           1. Intro + search
           ============================================================ */}
-      <header className="mb-5">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-3 py-1 text-caption text-on-surface-variant">
-          <IconCalculator size={14} />
-          {allCards.length.toLocaleString("fa-IR")} محاسبه‌گر حقوقی
-        </span>
-        <h1 className="mt-3 text-h2 font-bold text-on-surface">محاسبه‌گرهای حقوقی</h1>
-        <p className="mt-1.5 max-w-2xl text-body-2 leading-relaxed text-on-surface-variant">
-          محاسبات دقیق و مستند بر پایه قوانین و تعرفه‌های رسمی — بدون واسپاری به هوش مصنوعی.
-          محاسبه‌گر خود را جستجو کنید یا از دسته‌بندی‌ها به آن برسید.
-        </p>
-      </header>
+      <PageIntroBanner
+        className="mb-5"
+        icon={IconCalculator}
+        eyebrow={
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-3 py-1 text-caption text-on-surface-variant">
+            <IconCalculator size={14} />
+            {allCards.length.toLocaleString("fa-IR")} محاسبه‌گر حقوقی
+          </span>
+        }
+        title="محاسبه‌گرهای حقوقی"
+        description="محاسبات دقیق و مستند بر پایه قوانین و تعرفه‌های رسمی — بدون واسپاری به هوش مصنوعی. محاسبه‌گر خود را جستجو کنید یا از دسته‌بندی‌ها به آن برسید."
+      />
 
       <div className="mb-6">
         <CalculatorControls

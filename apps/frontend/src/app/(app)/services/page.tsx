@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { TextField } from "@legalir/ui";
 import { IconClose, IconSearch, IconServices, IconLawBook } from "@/lib/icons";
-import { PromoPanel } from "@/components/shared";
+import { PageIntroBanner, PromoPanel } from "@/components/shared";
 import {
   CATALOG_CATEGORIES,
   CATALOG_SIZE,
@@ -132,55 +132,54 @@ export default function ServicesPage() {
       {/* ============================================================
           1. Intro + search
           ============================================================ */}
-      <header className="mb-5 grid gap-4 laptop:grid-cols-[minmax(0,1fr)_minmax(0,420px)] laptop:items-end laptop:gap-8">
-        <div className="min-w-0">
+      <PageIntroBanner
+        className="mb-5"
+        eyebrow={
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-3 py-1 text-caption text-on-surface-variant">
             <IconServices size={14} />
             {CATALOG_SIZE.toLocaleString("fa-IR")} خدمت حقوقی
           </span>
-          <h1 className="mt-3 text-h2 font-bold text-on-surface">خدمات لیگالیر</h1>
-          <p className="mt-1.5 max-w-2xl text-body-2 leading-relaxed text-on-surface-variant">
-            خدمات حقوقی قانون‌مدار لیگالیر — از پرسش و تحلیل سند تا تنظیم قرارداد، محاسبه‌گرهای
-            دقیق و مشاوره با وکیل انسانی.
-          </p>
-        </div>
-
-        <form
-          role="search"
-          onSubmit={(e) => e.preventDefault()}
-          className="w-full"
-          aria-label="جستجو در خدمات"
-        >
-          <TextField
-            ref={searchRef}
-            type="search"
-            label="جستجو در خدمات"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && query) {
-                e.preventDefault();
-                clearSearch();
+        }
+        title="خدمات لیگالیر"
+        description="خدمات حقوقی قانون‌مدار لیگالیر — از پرسش و تحلیل سند تا تنظیم قرارداد، محاسبه‌گرهای دقیق و مشاوره با وکیل انسانی."
+        actions={
+          <form
+            role="search"
+            onSubmit={(e) => e.preventDefault()}
+            className="w-full laptop:w-[420px]"
+            aria-label="جستجو در خدمات"
+          >
+            <TextField
+              ref={searchRef}
+              type="search"
+              label="جستجو در خدمات"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && query) {
+                  e.preventDefault();
+                  clearSearch();
+                }
+              }}
+              placeholder="مثلاً: اظهارنامه، مهریه، NDA"
+              leadingIcon={<IconSearch size={20} />}
+              endAdornment={
+                query ? (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    aria-label="پاک کردن جستجو"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <IconClose size={18} />
+                  </button>
+                ) : undefined
               }
-            }}
-            placeholder="مثلاً: اظهارنامه، مهریه، NDA"
-            leadingIcon={<IconSearch size={20} />}
-            endAdornment={
-              query ? (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  aria-label="پاک کردن جستجو"
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <IconClose size={18} />
-                </button>
-              ) : undefined
-            }
-            fullWidth
-          />
-        </form>
-      </header>
+              fullWidth
+            />
+          </form>
+        }
+      />
 
       {/* ============================================================
           Search mode — flat, scannable results

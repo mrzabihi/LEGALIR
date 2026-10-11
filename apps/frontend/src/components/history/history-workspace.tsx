@@ -29,6 +29,7 @@ import {
 import { toPersianDate } from "@/lib/persian-utils";
 import { deriveActions, type HistoryAction, type HistoryActionKey } from "@/lib/history/actions";
 import { Button, Dialog, Select, TextField, Tooltip, snackbar } from "@legalir/ui";
+import { PageIntroBanner } from "@/components/shared";
 import {
   IconHistory,
   IconSearch,
@@ -663,60 +664,59 @@ export function HistoryWorkspace() {
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto">
       {/* Page Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-        <div>
-          <h1 className="text-h2 text-on-surface">{archivedView ? "بایگانی" : "تاریخچه"}</h1>
-          <p className="text-body-2 text-muted mt-1">
-            {archivedView ? ARCHIVE_DESCRIPTION_FA : "سابقه گفتگوها، اسناد و قراردادها"}
-          </p>
-        </div>
+      <PageIntroBanner
+        className="mb-5"
+        icon={IconHistory}
+        title={archivedView ? "بایگانی" : "تاریخچه"}
+        description={archivedView ? ARCHIVE_DESCRIPTION_FA : "سابقه گفتگوها، اسناد و قراردادها"}
+        actions={
+          <>
+            {archivedView ? (
+              <Link
+                href="/history"
+                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
+              >
+                <IconArrowForward size={18} className="rotate-180" />
+                بازگشت به تاریخچه
+              </Link>
+            ) : (
+              <Link
+                href="/history?archived=true"
+                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
+                aria-label={`بایگانی (${archivedCount} مورد)`}
+              >
+                <IconArchive size={18} />
+                بایگانی
+                {archivedCount > 0 && (
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-labelSmall text-white">
+                    {archivedCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
-        <div className="flex items-center gap-2">
-          {archivedView ? (
-            <Link
-              href="/history"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
-            >
-              <IconArrowForward size={18} className="rotate-180" />
-              بازگشت به تاریخچه
-            </Link>
-          ) : (
-            <Link
-              href="/history?archived=true"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
-              aria-label={`بایگانی (${archivedCount} مورد)`}
-            >
-              <IconArchive size={18} />
-              بایگانی
-              {archivedCount > 0 && (
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-labelSmall text-white">
-                  {archivedCount}
-                </span>
-              )}
-            </Link>
-          )}
+            {isAdmin && !adminReviewActive && (
+              <button
+                onClick={handleOpenAdminModal}
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 bg-amber-600 text-white text-body-2 font-medium hover:bg-amber-700 transition-colors touch-target"
+              >
+                <IconShield size={18} />
+                بازبینی مدیر ارشد
+              </button>
+            )}
 
-          {isAdmin && !adminReviewActive && (
-            <button
-              onClick={handleOpenAdminModal}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 bg-amber-600 text-white text-body-2 font-medium hover:bg-amber-700 transition-colors touch-target"
-            >
-              <IconShield size={18} />
-              بازبینی مدیر ارشد
-            </button>
-          )}
-
-          {adminReviewActive && (
-            <button
-              onClick={handleExitAdminReview}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 border border-error text-error text-body-2 font-medium hover:bg-error/10 transition-colors touch-target"
-            >
-              <IconClose size={18} />
-              خروج از حالت بازبینی
-            </button>
-          )}
-        </div>
-      </div>
+            {adminReviewActive && (
+              <button
+                onClick={handleExitAdminReview}
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 border border-error text-error text-body-2 font-medium hover:bg-error/10 transition-colors touch-target"
+              >
+                <IconClose size={18} />
+                خروج از حالت بازبینی
+              </button>
+            )}
+          </>
+        }
+      />
 
       {adminReviewActive && <AuditBanner />}
 

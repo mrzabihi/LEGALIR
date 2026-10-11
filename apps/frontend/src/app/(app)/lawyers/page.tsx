@@ -22,7 +22,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLawyers } from "@/hooks/useLawyers";
-import { IconInfo, IconRefresh, IconHandshake, IconSparkle } from "@/lib/icons";
+import { IconInfo, IconRefresh, IconHandshake, IconSparkle, IconUsers } from "@/lib/icons";
 import {
   LawyerCard,
   LawyerCarousel,
@@ -32,7 +32,7 @@ import {
   EMPTY_LAWYER_FILTERS,
   type LawyerFilterValues,
 } from "@/components/lawyers";
-import { PromoPanel } from "@/components/shared";
+import { PageIntroBanner, PromoPanel } from "@/components/shared";
 import { type LawyerSearchFilters } from "@legalir/types";
 import { groupByPrimaryDomain, featuredLawyers } from "@/lib/lawyers/grouping";
 
@@ -141,12 +141,12 @@ export default function LawyersPage() {
   return (
     <div className="mx-auto max-w-6xl p-4 tablet:p-6" dir="rtl">
       {/* --- Header --- */}
-      <div className="mb-5">
-        <h1 className="mb-2 text-h2 text-on-surface">وکلای LEGALIR</h1>
-        <p className="text-body-2 text-muted">
-          وکلای تأییدشده را بر اساس تخصص، شهر، سابقه و بودجه مرور کنید و خودتان انتخاب کنید.
-        </p>
-      </div>
+      <PageIntroBanner
+        className="mb-5"
+        icon={IconUsers}
+        title="وکلای LEGALIR"
+        description="وکلای تأییدشده را بر اساس تخصص، شهر، سابقه و بودجه مرور کنید و خودتان انتخاب کنید."
+      />
 
       {/* --- Search + quick filters --- */}
       <LawyerFilterBar

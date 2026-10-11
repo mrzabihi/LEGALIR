@@ -5,14 +5,15 @@
 "use client";
 
 import React, { Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useDocuments, useDeleteDocument } from "@/hooks/useDocuments";
+import { resolveService } from "@/lib/services";
 // Import the module directly rather than through the `@/components/documents`
 // barrel: the barrel re-exports every document component (viewers, pdfjs
 // wrappers, chat panel, …), so a barrel import dragged ~550 KB of unrelated
 // modules — including pdfjs-dist — into this list route's client bundle.
 import { DocumentList } from "@/components/documents/document-list";
-import { PageContextHeader } from "@/components/shared";
+import { PageIntroBanner } from "@/components/shared";
 import { Button, ConfirmDialog, SkeletonCard, EmptyState, ErrorState, snackbar } from "@legalir/ui";
 import { IconAdd, IconDocument } from "@/lib/icons";
 import type {
@@ -158,20 +159,48 @@ export default function DocumentsPage() {
 // Sub-components
 // ============================================================
 
+// `Header` reads `useSearchParams` (via the URL-resolved service), which
+// Next.js requires to sit inside a Suspense boundary on a statically
+// rendered route. The wrapper keeps every call site boundary-free.
 function Header({ onUploadClick }: { onUploadClick: () => void }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
-      <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
-        <PageContextHeader className="mb-0" />
-      </Suspense>
-      <Button
-        variant="filled"
-        size="large"
-        startIcon={<IconAdd size={20} />}
-        onClick={onUploadClick}
-      >
-        بارگذاری سند
-      </Button>
-    </div>
+    <Suspense
+      fallback={
+        <div className="mb-6 h-24 animate-pulse rounded-xlarge bg-surface-container" aria-hidden="true" />
+      }
+    >
+      <HeaderBanner onUploadClick={onUploadClick} />
+    </Suspense>
+  );
+}
+
+function HeaderBanner({ onUploadClick }: { onUploadClick: () => void }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const service = resolveService(pathname, searchParams);
+
+  return (
+    <PageIntroBanner
+      className="mb-6"
+      breadcrumbAriaLabel="breadcrumb"
+      breadcrumb={[
+        { label: "داشبورد", href: "/dashboard" },
+        { label: service?.title ?? "تحلیل اسناد" },
+      ]}
+      icon={service?.icon}
+      iconGradient={service?.gradient}
+      title={service?.title ?? "تحلیل اسناد"}
+      description={service?.subtitle ?? "بررسی و تحلیل مستندات حقوقی"}
+      actions={
+        <Button
+          variant="filled"
+          size="large"
+          startIcon={<IconAdd size={20} />}
+          onClick={onUploadClick}
+        >
+          بارگذاری سند
+        </Button>
+      }
+    />
   );
 }

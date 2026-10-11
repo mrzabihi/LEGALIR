@@ -5,4 +5,6 @@ export { MobileTable, MobileTableCard } from "./mobile-table";
 export { SplashScreen } from "./SplashScreen";
 export { AppSplashGate } from "./AppSplashGate";
 export { PageContextHeader } from "./PageContextHeader";
+export { PageIntroBanner, type PageIntroBannerProps } from "./page-intro-banner";
+export { Breadcrumb, type BreadcrumbItem } from "./Breadcrumb";
 export { PromoArt, PromoPanel, PromoModule, type PromoArtKey } from "./promo-art";

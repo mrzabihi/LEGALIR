@@ -7,7 +7,7 @@ import { TextField, Textarea, Select } from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
 import { IconAdd, IconSearch, IconBalance } from "@/lib/icons";
-import { PromoArt } from "@/components/shared";
+import { PageIntroBanner, PromoArt } from "@/components/shared";
 
 // ============================================================
 // Status Badge Component
@@ -222,19 +222,21 @@ export default function CasesPage() {
   return (
     <div className="p-4 tablet:p-6 max-w-6xl mx-auto" dir="rtl">
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-h2 text-on-surface mb-1">پرونده‌های من</h1>
-          <p className="text-body-2 text-muted">مدیریت و پیگیری پرونده‌های حقوقی</p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-sm touch-target"
-        >
-          <IconAdd size={20} />
-          پرونده جدید
-        </button>
-      </div>
+      <PageIntroBanner
+        className="mb-6"
+        icon={IconBalance}
+        title="پرونده‌های من"
+        description="مدیریت و پیگیری پرونده‌های حقوقی"
+        actions={
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-white hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-sm touch-target tablet:w-auto"
+          >
+            <IconAdd size={20} />
+            پرونده جدید
+          </button>
+        }
+      />
 
       {/* Search & Filter Bar */}
       <div className="flex flex-col tablet:flex-row gap-3 mb-6">

@@ -11,7 +11,8 @@
 
 import Link from "next/link";
 import { useConsultations } from "@/hooks/useConsultations";
-import { IconAdd, IconArrowBack, IconInfo, IconRefresh } from "@/lib/icons";
+import { IconAdd, IconArrowBack, IconHeadset, IconInfo, IconRefresh } from "@/lib/icons";
+import { PageIntroBanner } from "@/components/shared";
 import { LEGAL_CATEGORY_FA } from "@legalir/types";
 import { ConsultationStatusBadge, formatDateTime } from "@/components/consultations/consultation-status";
 
@@ -20,21 +21,21 @@ export default function ConsultationsPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="mb-2 text-h2 text-on-surface">مشاوره‌های من</h1>
-          <p className="text-body-2 text-muted">
-            درخواست‌های مشاوره خود را پیگیری کنید و پس از پذیرش وکیل، در همین پرونده گفت‌وگو کنید.
-          </p>
-        </div>
-        <Link
-          href="/consultations/new"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98]"
-        >
-          <IconAdd size={18} />
-          مشاوره جدید
-        </Link>
-      </div>
+      <PageIntroBanner
+        className="mb-6"
+        icon={IconHeadset}
+        title="مشاوره‌های من"
+        description="درخواست‌های مشاوره خود را پیگیری کنید و پس از پذیرش وکیل، در همین پرونده گفت‌وگو کنید."
+        actions={
+          <Link
+            href="/consultations/new"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98] tablet:w-auto"
+          >
+            <IconAdd size={18} />
+            مشاوره جدید
+          </Link>
+        }
+      />
 
       {isLoading && (
         <div className="space-y-3">

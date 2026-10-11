@@ -15,11 +15,20 @@ export interface BreadcrumbItem {
   href?: string;
 }
 
-export function Breadcrumb({ items, className = "" }: { items: BreadcrumbItem[]; className?: string }) {
+export function Breadcrumb({
+  items,
+  className = "mb-3",
+  ariaLabel = "مسیر صفحه",
+}: {
+  items: BreadcrumbItem[];
+  className?: string;
+  /** Accessible name for the trail. Defaults to «مسیر صفحه». */
+  ariaLabel?: string;
+}) {
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label="مسیر صفحه" className={`mb-3 ${className}`}>
+    <nav aria-label={ariaLabel} className={className}>
       <ol className="flex flex-wrap items-center gap-1.5 text-caption text-muted">
         {items.map((item, i) => {
           const isLast = i === items.length - 1;
