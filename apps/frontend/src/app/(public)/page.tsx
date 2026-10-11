@@ -299,6 +299,22 @@ export default function LandingPage() {
           HERO — Dramatic Navy Gradient with Geometric Pattern
           ============================================================ */}
       <section className="relative overflow-hidden bg-gradient-to-b from-primary-700 via-primary-600 to-primary-500">
+        {/* Photographic backdrop — the brand editorial (balance scales and a
+            gavel on brand-green) under a green→navy scrim. The scrim, not the
+            gradient, is what keeps the white hero copy at WCAG AA while the
+            artwork still reads as a photograph. */}
+        <div className="absolute inset-0" aria-hidden="true">
+          <Image
+            src="/assets/legalir-landing-hero.webp"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(29,98,78,0.62)_0%,rgba(17,34,44,0.68)_55%,rgba(11,18,32,0.80)_100%)]" />
+        </div>
+
         {/* Geometric dot-grid pattern overlay */}
         <div
           className="absolute inset-0 pointer-events-none opacity-50"

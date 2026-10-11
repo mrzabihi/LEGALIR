@@ -2,15 +2,18 @@
 // LEGALIR — Promotional artwork system
 // ============================================================
 // One placement system for the six Legalir promotional illustrations.
-// The source bitmaps are square (≈354×357), opaque, and carry the
-// LEGALIR wordmark baked into the lower-left corner. Two consequences
-// drive every rule below:
+// The source bitmaps are square (≈354×357) and opaque. Most are branded
+// illustrations with the LEGALIR wordmark baked into the lower-left
+// corner; "five" is instead a photographic editorial (a hand signing a
+// document) with no baked wordmark. Two consequences drive every rule
+// below:
 //
 //   • They are square, so they are never stretched into a wide hero
 //     strip. Each one gets a square (or near-square) frame, or sits in
 //     a split layout beside the copy.
-//   • The wordmark is already in the bitmap, so the adjacent HTML never
-//     repeats it as a second identical heading.
+//   • Where a wordmark is baked in, the adjacent HTML never repeats it
+//     as a second identical heading; where it is not, the HTML copy
+//     still stands on its own.
 //
 // Three treatments, one visual language (same frame, radius, border,
 // spacing, and CTA styling):

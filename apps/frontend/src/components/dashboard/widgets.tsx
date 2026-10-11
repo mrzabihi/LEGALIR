@@ -565,10 +565,10 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
 // LibraryBanner — image entry point to the Legal Library
 // ============================================================
 // A wide, image-driven band into «کتابخانه حقوقی LEGALIR». The backdrop is
-// the shared brand editorial cropped hard onto the law volumes with the
-// reading side (RTL: the right) darkened, so the copy clears contrast while
-// the artwork still reads as a photograph. Destination and copy are
-// unchanged from the previous inline banner — `/legal-library` only.
+// the dedicated brand banner — a light, editorial law-study scene — with the
+// reading side (RTL: the right) darkened by the scrim, so the copy clears
+// contrast while the artwork still reads as a photograph. Destination and
+// copy are unchanged from the previous inline banner — `/legal-library` only.
 
 export function LibraryBanner() {
   return (
@@ -579,7 +579,7 @@ export function LibraryBanner() {
       <div className="absolute inset-0" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/assets/legalir-dashboard-hero.webp"
+          src="/assets/legalir-library-banner.webp"
           alt=""
           loading="lazy"
           decoding="async"
