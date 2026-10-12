@@ -22,7 +22,7 @@ import {
   IconSettings,
   IconSubscription,
   IconPhone,
-  IconCoin,
+  IconBolt,
 } from "@/lib/icons";
 
 export function TopBar() {
@@ -53,88 +53,101 @@ export function TopBar() {
 
   return (
     <>
-      {/* Mobile leading slot — the bottom navigation bar already covers
-          every destination, so there is no hamburger/drawer trigger here.
-          The subscription chip takes its place instead. */}
-      <div className="desktop:hidden">
-        <SubscriptionStatusChip />
+      {/* Rendered as three flex children of the header: a leading cluster, a
+          reserved centre slot, and a trailing cluster. The `flex-1` clusters
+          sit in their own boxes either side of the fixed centre slot, so no
+          control can ever drift over the logo — the old absolutely-centred
+          logo had no such guard and the energy pill and bell overlapped it at
+          ≤375px. `min-w-0` lets a cluster shrink rather than widen the row. */}
+
+      {/* Leading cluster — phones carry the plan chip + bell here. On desktop
+          this cluster collapses to an empty `flex-1` spacer: the account group
+          (chip · energy · bell · avatar) lives on the trailing side instead, so
+          the two never split the identity controls across opposite edges. */}
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <div className="desktop:hidden">
+          <SubscriptionStatusChip />
+        </div>
+        <div className="desktop:hidden">
+          <NotificationBell />
+        </div>
       </div>
 
-      {/* Notification Center — on mobile/tablet the bell sits at the start
-          of the header; on desktop it stays beside the avatar (below). */}
-      <div className="desktop:hidden">
-        <NotificationBell />
-      </div>
-
-      {/* Centered brand logo — single instance shared by desktop & mobile */}
-      <Link
-        href="/dashboard"
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center"
-        aria-label="LEGALIR — داشبورد"
-      >
-        <img
-          src="/legalir-logo-fa-type.png"
-          alt="LEGALIR"
-          className="h-8 tablet:h-10 w-auto max-w-[150px] tablet:max-w-[190px] object-contain [[data-theme=dark]_&]:brightness-0 [[data-theme=dark]_&]:invert"
-        />
-      </Link>
-
-      <div className="flex-1" />
-
-      {/* Subscription status — desktop shows it beside the avatar; on
-          mobile it leads the header instead (see the top of this bar). */}
-      <div className="hidden desktop:block">
-        <SubscriptionStatusChip />
-      </div>
-
-      {/* Points card — beside Avatar */}
-      <Link
-        href="/points"
-        className="flex items-center gap-1.5 rounded-medium bg-secondary-50 dark:bg-secondary-500/10 border border-secondary-200/60 dark:border-secondary-500/20 px-2.5 py-1.5 transition-colors hover:bg-secondary-100 dark:hover:bg-secondary-500/20 touch-target-min"
-        aria-label={`امتیاز من: ${toPersianNumber(balance)} امتیاز`}
-        title="امتیازهای من"
-      >
-        <IconCoin size={16} className="text-secondary-600 dark:text-secondary-400" />
-        <span className="hidden tablet:inline text-labelSmall text-secondary-700 dark:text-secondary-300 font-semibold tabular-nums">
-          {toPersianNumber(balance)}
-        </span>
-        <span className="tablet:hidden text-caption text-secondary-700 dark:text-secondary-300 font-semibold tabular-nums">
-          {toPersianNumber(balance)}
-        </span>
-      </Link>
-
-      {/* Notification Center — desktop keeps the bell beside the avatar.
-          On mobile/tablet it moves into the navigation drawer header, so
-          it is hidden here to avoid showing it twice. */}
-      <div className="hidden desktop:block">
-        <NotificationBell />
-      </div>
-
-      {/* User Menu */}
-      <div className="relative" ref={menuRef}>
-        <button
-          onClick={() => setUserMenuOpen(!userMenuOpen)}
-          className={[
-            "flex items-center gap-2 rounded-medium p-1.5 pr-2.5 transition-all duration-200 touch-target",
-            userMenuOpen ? "bg-primary-50 ring-2 ring-primary-200" : "hover:bg-neutral-100",
-          ].join(" ")}
-          aria-label="منوی کاربری"
-          aria-expanded={userMenuOpen}
-          aria-haspopup="true"
+      {/* Reserved centre slot — a fixed-width, non-shrinking box that holds
+          the logo dead-centre. Its width is the logo's protected zone: the two
+          `flex-1` clusters cannot enter it, so the mark is never overlapped. */}
+      <div className="flex h-full w-[72px] shrink-0 items-center justify-center tablet:w-[96px]">
+        <Link
+          href="/dashboard"
+          className="flex max-w-full items-center"
+          aria-label="LEGALIR — داشبورد"
         >
-          <UserAvatar
-            avatarUrl={profile?.avatarUrl}
-            name={avatarName}
-            size={32}
-            className="shadow-elevation-1"
-            fallbackClassName="bg-gradient-to-br from-primary-600 to-primary-800 text-white text-labelSmall font-bold"
+          <img
+            src="/legalir-logo-fa-type.png"
+            alt="LEGALIR"
+            className="h-6 tablet:h-8 w-auto max-w-full object-contain [[data-theme=dark]_&]:brightness-0 [[data-theme=dark]_&]:invert"
           />
-          <span className="hidden tablet:inline text-labelLarge text-on-surface font-medium truncate max-w-[100px]">
-            {displayName ?? mobileFallback ?? "کاربر"}
-          </span>
-        </button>
+        </Link>
+      </div>
 
-        {userMenuOpen && <UserMenuDropdown onClose={() => setUserMenuOpen(false)} />}
+      {/* Trailing cluster — the account group, pinned to the end edge. On
+          desktop it is the plan chip · energy · bell · avatar, in that source
+          order (RTL: chip nearest the logo through avatar at the outer edge);
+          on phones the chip + bell live in the leading cluster instead. */}
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1 wide:gap-1.5">
+        <div className="hidden min-w-0 desktop:block">
+          <SubscriptionStatusChip />
+        </div>
+
+        {/* Energy balance — the header's single gold accent: a slim bordered
+            pill (no fill, no shadow). The gold is rationed to the bolt glyph;
+            the count stays neutral so it never competes with the logo. */}
+        <Link
+          href="/points"
+          className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-secondary-200/70 px-1.5 transition-colors hover:bg-secondary-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 wide:gap-1.5 wide:px-2 [[data-theme=dark]_&]:border-secondary-500/25 [[data-theme=dark]_&]:hover:bg-secondary-500/10"
+          aria-label={`امتیاز من: ${toPersianNumber(balance)} امتیاز`}
+          title="امتیازهای من"
+        >
+          <IconBolt size={14} className="text-secondary-600 [[data-theme=dark]_&]:text-secondary-300" aria-hidden="true" />
+          <span className="text-caption font-semibold tabular-nums text-on-surface-variant">
+            {toPersianNumber(balance)}
+          </span>
+        </Link>
+
+        {/* Desktop keeps the bell beside the avatar; on phones it lives in the
+            leading cluster above. */}
+        <div className="hidden desktop:block">
+          <NotificationBell />
+        </div>
+
+        {/* User Menu — avatar (and name on desktop) in one pill. The open
+            state is a soft brand tint, never a heavy box. */}
+        <div className="relative min-w-0" ref={menuRef}>
+          <button
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className={[
+              "flex h-8 min-w-0 items-center gap-2 rounded-full ps-1 pe-1 tablet:ps-1.5 tablet:pe-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400",
+              userMenuOpen
+                ? "bg-secondary-50/80 [[data-theme=dark]_&]:bg-secondary-500/15"
+                : "hover:bg-surface-container [[data-theme=dark]_&]:hover:bg-surface-container-high",
+            ].join(" ")}
+            aria-label="منوی کاربری"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="true"
+          >
+            <UserAvatar
+              avatarUrl={profile?.avatarUrl}
+              name={avatarName}
+              size={26}
+              fallbackClassName="bg-primary-700 text-white text-labelSmall font-bold"
+            />
+            <span className="hidden min-w-0 tablet:inline text-body-2 text-on-surface font-medium truncate max-w-[84px]">
+              {displayName ?? mobileFallback ?? "کاربر"}
+            </span>
+          </button>
+
+          {userMenuOpen && <UserMenuDropdown onClose={() => setUserMenuOpen(false)} />}
+        </div>
       </div>
     </>
   );
@@ -161,16 +174,16 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
       role="menu"
     >
       {/* User info header */}
-      <div className="px-4 py-3.5 border-b border-divider bg-neutral-50/50">
+      <div className="px-4 py-3.5 border-b border-divider bg-surface-container-low">
         <p className="text-body-2 text-on-surface font-semibold">{displayName ?? "کاربر لیگالیر"}</p>
         {mobile && <p className="text-caption text-muted dir-ltr text-right mt-0.5">{mobile}</p>}
       </div>
 
       <div className="py-1.5">
-        <MenuItem icon={<IconPerson size={18} className="text-neutral-400" />} label="پروفایل" onClick={() => { onClose(); router.push("/profile"); }} />
-        <MenuItem icon={<IconSubscription size={18} className="text-neutral-400" />} label="اشتراک" onClick={() => { onClose(); router.push("/subscription"); }} />
-        <MenuItem icon={<IconSettings size={18} className="text-neutral-400" />} label="تنظیمات" onClick={() => { onClose(); router.push("/settings"); }} />
-        <MenuItem icon={<IconPhone size={18} className="text-neutral-400" />} label="پشتیبانی" onClick={() => { onClose(); router.push("/support"); }} />
+        <MenuItem icon={<IconPerson size={18} className="text-on-surface-variant" />} label="پروفایل" onClick={() => { onClose(); router.push("/profile"); }} />
+        <MenuItem icon={<IconSubscription size={18} className="text-on-surface-variant" />} label="اشتراک" onClick={() => { onClose(); router.push("/subscription"); }} />
+        <MenuItem icon={<IconSettings size={18} className="text-on-surface-variant" />} label="تنظیمات" onClick={() => { onClose(); router.push("/settings"); }} />
+        <MenuItem icon={<IconPhone size={18} className="text-on-surface-variant" />} label="پشتیبانی" onClick={() => { onClose(); router.push("/support"); }} />
       </div>
 
       <div className="border-t border-divider py-1.5">

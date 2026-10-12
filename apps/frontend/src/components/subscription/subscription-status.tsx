@@ -40,23 +40,26 @@ const PLAN_TIER: Record<
   PlanCode,
   { icon: PlanIconComponent; motion: string; onDark: string; onLight: string }
 > = {
+  // On the light header the tier is carried by SHAPE (sparkle / star / gem)
+  // inside one brand-gold accent — the header stays on the gold/green/ivory
+  // palette instead of pulling in a per-tier hue (e.g. the old blue diamond).
   silver: {
     icon: IconPlanSilver,
     motion: "plan-icon--silver",
     onDark: "text-neutral-200",
-    onLight: "text-neutral-500",
+    onLight: "text-secondary-700",
   },
   gold: {
     icon: IconPlanGold,
     motion: "plan-icon--gold",
     onDark: "text-secondary-300",
-    onLight: "text-secondary-600",
+    onLight: "text-secondary-700",
   },
   diamond: {
     icon: IconPlanDiamond,
     motion: "plan-icon--diamond",
     onDark: "text-info-200",
-    onLight: "text-info-600",
+    onLight: "text-secondary-700",
   },
 };
 
@@ -93,17 +96,17 @@ const TONE: Record<SubscriptionState, { dot: string; text: string; chip: string 
   active: {
     dot: "bg-success",
     text: "text-success",
-    chip: "bg-success/10 text-success border-success/25",
+    chip: "bg-success-container text-success border-success",
   },
   expiring_soon: {
     dot: "bg-warning",
     text: "text-warning",
-    chip: "bg-warning/10 text-warning border-warning/30",
+    chip: "bg-warning-container text-warning border-warning",
   },
   expired: {
     dot: "bg-error",
     text: "text-error",
-    chip: "bg-error/10 text-error border-error/25",
+    chip: "bg-error-container text-error border-error",
   },
   free: {
     dot: "bg-muted",
@@ -147,29 +150,45 @@ export function SubscriptionStatusChip({ className = "" }: { className?: string 
   if (isLoading) {
     return (
       <span
-        className={`inline-flex h-8 w-20 animate-pulse rounded-xl bg-surface-container-high ${className}`}
+        className={`inline-flex h-9 w-20 animate-pulse rounded-full bg-surface-container-high ${className}`}
         aria-hidden="true"
       />
     );
   }
 
+  // The chip is a constant brand surface (ivory fill, green hairline, deep
+  // green text) so it never introduces a second hue into the header. The plan
+  // tier rides on the gold glyph; urgency (expiring / expired) rides on a
+  // single small status dot, so the state stays readable without recolouring
+  // the whole chip.
+  const showUrgency = status.state === "expiring_soon" || status.state === "expired";
+
   return (
     <Link
       href="/subscription"
-      className={`group inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition-colors hover:brightness-[0.97] touch-target-min ${tone.chip} ${className}`}
+      className={[
+        "group inline-flex h-8 max-w-[8.5rem] items-center gap-1.5 rounded-full border px-2.5 transition-[filter] hover:brightness-[0.98]",
+        "border-[color-mix(in_srgb,var(--plan-green)_26%,transparent)] bg-plan-ivory text-plan-green-dark",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--plan-green)]",
+        "touch-target-pad",
+        className,
+      ].join(" ")}
       aria-label={ariaLabel(status)}
       title={ariaLabel(status)}
     >
       {status.planCode ? (
-        <PlanIcon planCode={status.planCode} size={13} tone="onLight" />
+        <PlanIcon planCode={status.planCode} size={13} tone="onLight" className="shrink-0" />
       ) : (
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
       )}
-      <span className="text-labelSmall font-semibold whitespace-nowrap">{planLabel(status)}</span>
-      <span className="hidden tablet:inline text-labelSmall opacity-70 whitespace-nowrap" aria-hidden="true">
+      <span className="min-w-0 truncate text-labelSmall font-semibold whitespace-nowrap">{planLabel(status)}</span>
+      {showUrgency && (
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
+      )}
+      <span className="hidden tablet:inline text-labelSmall text-plan-green whitespace-nowrap" aria-hidden="true">
         •
       </span>
-      <span className="hidden tablet:inline text-labelSmall font-medium whitespace-nowrap" aria-hidden="true">
+      <span className="hidden tablet:inline text-labelSmall font-medium text-plan-green whitespace-nowrap" aria-hidden="true">
         {shortRemaining(status)}
       </span>
     </Link>
@@ -230,7 +249,7 @@ export function SubscriptionStatusDetails({ className = "" }: { className?: stri
         <p className="text-body-2 text-error">خطا در دریافت وضعیت اشتراک</p>
         <button
           onClick={refetch}
-          className="rounded-full px-3 py-1.5 text-body-2 text-primary hover:bg-primary/10 transition-colors touch-target"
+          className="rounded-full px-3 py-1.5 text-body-2 text-primary hover:bg-surface-hover transition-colors touch-target"
         >
           تلاش مجدد
         </button>

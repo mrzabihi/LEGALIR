@@ -799,6 +799,25 @@ html:not([data-theme]) {
   min-height: 48px;
 }
 
+/* Comfortable hit area for a *compact* control.
+   Unlike `.touch-target-min` it never grows the visual box (which would
+   inflate header rows). Instead it paints an invisible overlay, centred on
+   the control and at least 44×44px, that captures the tap. The overlay is
+   absolutely positioned, so it enlarges the actionable region without
+   affecting layout, spacing or the control's rendered size. */
+.touch-target-pad {
+  position: relative;
+}
+.touch-target-pad::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
 /* ============================================================
    MD3 STATE LAYERS
    Overlay the current text color at the MD3 interaction opacity.
