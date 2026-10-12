@@ -250,6 +250,18 @@
      never turns into a bright block on a dark page. */
   --dashboard-card-bg: #FCF6E8;
 
+  /* --- Subscription plan-card palette ---
+     The premium plan cards use a printed-ticket palette: a light ivory base
+     for quiet surfaces, deep green for the primary/recommended card and gold
+     for accents + the special-plan badge. These are FIXED (not theme-aware)
+     so the cards render identically in light and dark, exactly like a printed
+     ticket, and the plan grid never loses contrast against the page. */
+  --plan-ivory: #F9E8C7;
+  --plan-ivory-soft: #FCF2DE;
+  --plan-gold: #EDB853;
+  --plan-green: #3C685E;
+  --plan-green-dark: #233D37;
+
   /* --- Warm Smoked Glass navigation surfaces ---
      Shared material language for the desktop sidebar and the mobile
      bottom navigation. A deep desaturated teal that reads as smoked brand

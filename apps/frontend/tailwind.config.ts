@@ -223,6 +223,17 @@ const config: Config = {
         red: semanticAlias("error"),
         rose: semanticAlias("error", 1),
         pink: semanticAlias("error", 2),
+        // Subscription plan-card palette — a fixed printed-ticket palette
+        // (ivory base, deep-green primary card, gold accents) defined in
+        // globals.css. Theme-independent so plan cards read the same in light
+        // and dark. Used by components/subscription/plan-card.tsx.
+        plan: {
+          ivory: "var(--plan-ivory)",
+          "ivory-soft": "var(--plan-ivory-soft)",
+          gold: "var(--plan-gold)",
+          green: "var(--plan-green)",
+          "green-dark": "var(--plan-green-dark)",
+        },
         // Warm Smoked Glass navigation material — shared by the desktop
         // sidebar and the mobile bottom navigation (see globals.css).
         glass: {
