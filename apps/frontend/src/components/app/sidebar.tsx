@@ -104,7 +104,10 @@ export function Sidebar({ userRole }: SidebarProps) {
     <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
       {/* Logo Area — cohesive brand lockup with optical alignment */}
       <div className="flex items-center justify-center px-5 py-5">
-        <img src="/legalir-logo-sidebar.png" alt="LEGALIR" className="h-11 w-auto shrink-0" />
+        {/* `h-9` (not the old `h-11`): the new lockup is wider, so at 36px it
+            keeps ~30px of breathing room on each side of the rail instead of
+            near-filling it (UI/UX review, 2026-10-12). */}
+        <img src="/legalir-logo-sidebar.png" alt="LEGALIR" className="h-9 w-auto shrink-0" />
       </div>
 
       <div className="mx-4 border-b border-glass-border" />
