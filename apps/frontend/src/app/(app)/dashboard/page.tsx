@@ -7,6 +7,7 @@
 "use client";
 
 import { useMe, useDashboardSummary, useUsageSummary, useBlogPosts } from "@/hooks/useDashboard";
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import {
   HeroSection,
   LibraryBanner,
@@ -38,13 +39,25 @@ export default function DashboardPage() {
   // Profile Completion Incentive — evaluates eligibility after data loads.
   const promptController = useProfileCompletionPrompt();
 
+  // Hydration guard. The shell (AppLayout/TopBar/Sidebar) fetches the shared
+  // `["me"]` query, and because `(app)/loading.tsx` nests this page in its own
+  // Suspense boundary the shell can hydrate — and resolve `me` — before this
+  // page does. React Query feeds the live `getCurrentResult()` to both
+  // snapshots, so without this flag the hydration render would read *resolved*
+  // data while the server rendered the loading branch → hydration mismatch.
+  // Passing `isPending || !hydrated` keeps the loading branch identical to the
+  // server until hydration completes; each widget's own `isLoading` prop is the
+  // same expression once hydrated.
+  const hydrated = useIsHydrated();
+  const loading = me.isPending || !hydrated;
+  const dashboardLoading = dashboard.isPending || !hydrated;
+  const blogLoading = blog.isPending || !hydrated;
+
   const displayName = me.data?.profile?.displayName ?? null;
   const activities = dashboard.data?.recentActivity;
-  // `isPending` (no data yet) — NOT `isLoading` (isPending && isFetching).
-  // During SSR no fetch starts, so `isLoading` is false on the server but true
-  // on the client's first render, which makes the loading branch a hydration
-  // mismatch. `isPending` is true on both sides, so the skeleton is stable.
-  const hasNoActivity = !dashboard.isPending && (!activities || activities.length === 0);
+  // `hasNoActivity` also gates the "شروع کنید!" empty-state CTA, so it must be
+  // false during the loading branch (the server's pending render).
+  const hasNoActivity = !dashboard.isPending && hydrated && (!activities || activities.length === 0);
 
   const heroStats = {
     dailyUsed: dashboard.data?.dailyTrialsUsed ?? 0,
@@ -62,7 +75,7 @@ export default function DashboardPage() {
       {/* ── 1) OVERVIEW ─────────────────────────────────────── */}
       <HeroSection
         displayName={displayName}
-        isLoading={me.isPending}
+        isLoading={loading}
         stats={heroStats}
       />
 
@@ -74,7 +87,7 @@ export default function DashboardPage() {
       {/* Profile Completion — from /api/v1/me */}
       <ProfileCompletionCard
         profile={me.data?.profile}
-        isLoading={me.isPending}
+        isLoading={loading}
       />
 
       {/* ── 2) ACTIONS ──────────────────────────────────────── */}
@@ -91,19 +104,19 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 items-stretch gap-4 mb-6">
         <RecentActivities
           items={activities}
-          isLoading={dashboard.isPending}
+          isLoading={dashboardLoading}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
         <ActiveRequests
           items={dashboard.data?.activeRequests ?? []}
-          isLoading={dashboard.isPending}
+          isLoading={dashboardLoading}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
         <SmartRecommendations
           items={dashboard.data?.recommendations ?? []}
-          isLoading={dashboard.isPending}
+          isLoading={dashboardLoading}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
@@ -132,7 +145,7 @@ export default function DashboardPage() {
 
       <RecentDocuments
         items={dashboard.data?.recentDocuments ?? []}
-        isLoading={dashboard.isPending}
+        isLoading={dashboardLoading}
         error={dashboard.error as Error | null}
         onRetry={() => dashboard.refetch()}
       />
@@ -152,7 +165,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {blog.isPending ? (
+        {blogLoading ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
               <div key={i} className="h-32 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
