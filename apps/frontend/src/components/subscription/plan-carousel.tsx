@@ -1,11 +1,14 @@
 // ============================================================
 // LEGALIR — Subscription · Plan Carousel
 // ============================================================
-// Mobile/PWA: a horizontal, snap-scrolling row of plan cards. The active card
-// takes most of the width and the next card peeks in, so it is obvious the row
-// scrolls. Only this strip scrolls horizontally — the page never does.
+// Mobile/PWA: a horizontal, snap-scrolling row of plan cards. Each card takes
+// almost the whole width (`w-[85%]`, `snap-center`) so ONE card is centred per
+// scroll and the next card peeks in, making it obvious the row scrolls. Only
+// this strip scrolls horizontally — the page never does.
 //
-// Desktop (tablet+): the same cards lay out as a plain 3-up grid; no carousel.
+// Desktop (laptop+ / ≥900px): the same cards lay out as a plain 3-up grid; no
+// carousel. The switch is at `laptop`, NOT `tablet`: between 600–899px there is
+// no sidebar yet, so a 3-up grid would squeeze each card to ~170px and break.
 //
 // This is presentation only. It renders whatever plans the page hands it and
 // calls back with `onSelect`; it does not price, entitle or check out anything.
@@ -60,7 +63,7 @@ export function PlanCarousel({
       ref={trackRef}
       role="group"
       aria-label="پلن‌های اشتراک"
-      className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide tablet:grid tablet:grid-cols-3 tablet:gap-4 tablet:overflow-visible tablet:pb-0"
+      className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide laptop:grid laptop:grid-cols-3 laptop:gap-4 laptop:overflow-visible laptop:pb-0"
     >
       {plans.map((plan) => {
         const isCurrent = plan.code === currentPlanCode;
@@ -69,7 +72,7 @@ export function PlanCarousel({
           <div
             key={plan.id}
             ref={isCurrent || (!currentPlanCode && isRecommended) ? focusRef : undefined}
-            className="w-[82%] shrink-0 snap-center tablet:w-auto tablet:shrink"
+            className="w-[85%] shrink-0 snap-center laptop:w-auto laptop:shrink"
           >
             <PlanCard
               plan={plan}

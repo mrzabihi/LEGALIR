@@ -631,7 +631,7 @@ export default function SubscriptionPage() {
             }
           >
             {plansQuery.isLoading ? (
-              <div className="grid grid-cols-1 gap-3 tablet:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 laptop:grid-cols-3">
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="rounded-xlarge border border-divider bg-surface p-4">
                     <SkeletonCard lines={4} />
@@ -645,9 +645,9 @@ export default function SubscriptionPage() {
                 text="در حال حاضر پلنی برای فروش در دسترس نیست. لطفاً بعداً مراجعه کنید."
               />
             ) : (
-              <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide tablet:grid tablet:grid-cols-3 tablet:gap-4 tablet:overflow-visible tablet:pb-0">
+              <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide laptop:grid laptop:grid-cols-3 laptop:gap-4 laptop:overflow-visible laptop:pb-0">
                 {plans.map((plan) => (
-                  <div key={plan.id} className="w-[80%] shrink-0 snap-start tablet:w-auto tablet:shrink">
+                  <div key={plan.id} className="w-[85%] shrink-0 snap-center laptop:w-auto laptop:shrink">
                     <PlanSummaryCard
                       plan={plan}
                       isRecommended={plan.code === recommendedCode}
@@ -730,11 +730,11 @@ export default function SubscriptionPage() {
         )}
 
         {plansQuery.isLoading ? (
-          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide tablet:grid tablet:grid-cols-3 tablet:gap-4 tablet:overflow-visible tablet:pb-0">
+          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide laptop:grid laptop:grid-cols-3 laptop:gap-4 laptop:overflow-visible laptop:pb-0">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="w-[82%] shrink-0 snap-center rounded-xlarge border border-divider bg-surface p-6 tablet:w-auto tablet:shrink"
+                className="w-[85%] shrink-0 snap-center rounded-xlarge border border-divider bg-surface p-6 laptop:w-auto laptop:shrink"
               >
                 <SkeletonCard lines={5} />
               </div>
