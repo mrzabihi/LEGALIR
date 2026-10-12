@@ -13,33 +13,43 @@ import { PageIntroBanner, PromoArt } from "@/components/shared";
 // Status Badge Component
 // ============================================================
 
+// Semantic status tones — one token pair per state (a whisper of the hue as
+// the fill, a readable text tone, a hairline border). Drawn from the theme's
+// semantic roles so light and dark both work; the label is always rendered
+// in text, so status is never colour-only.
 const STATUS_COLORS: Record<CaseStatus, string> = {
-  DRAFT: "bg-neutral-100 text-neutral-700 border-neutral-200",
-  ACTIVE: "bg-blue-50 text-blue-700 border-blue-200",
-  UNDER_REVIEW: "bg-amber-50 text-amber-700 border-amber-200",
-  WAITING_DOCUMENTS: "bg-purple-50 text-purple-700 border-purple-200",
-  LAWYER_ASSIGNED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  CLOSED: "bg-green-50 text-green-700 border-green-200",
-  ARCHIVED: "bg-neutral-100 text-neutral-500 border-neutral-200",
+  DRAFT: "bg-surface-container text-on-surface-variant border-divider",
+  ACTIVE: "bg-info-50 text-info-700 border-info-200",
+  UNDER_REVIEW: "bg-warning-50 text-warning-700 border-warning-200",
+  WAITING_DOCUMENTS: "bg-secondary-container text-secondary-on-container border-secondary-200",
+  LAWYER_ASSIGNED: "bg-success-50 text-success-700 border-success-200",
+  CLOSED: "bg-success/10 text-success border-success/30",
+  ARCHIVED: "bg-surface-container text-muted border-divider",
 };
 
 const PRIORITY_COLORS: Record<CasePriority, string> = {
-  low: "bg-neutral-50 text-neutral-600 border-neutral-200",
-  medium: "bg-blue-50 text-blue-600 border-blue-200",
-  high: "bg-amber-50 text-amber-600 border-amber-200",
-  urgent: "bg-red-50 text-red-600 border-red-200",
+  low: "bg-surface-container text-on-surface-variant border-divider",
+  medium: "bg-info-50 text-info-700 border-info-200",
+  high: "bg-warning-50 text-warning-700 border-warning-200",
+  urgent: "bg-error-50 text-error-700 border-error-200",
 };
 
+// Category chip tints. Each is a single-hue tonal gradient drawn from the
+// LEGALIR brand family (gold → green → teal) plus two muted semantic hues
+// (caution red, finance blue) — no neon second hues. Two stops inside one
+// hue read as a soft top-light, never as a saturated rainbow, and every chip
+// stays close enough to its neighbour that nine of them in a list still scan
+// as one family rather than nine competing palettes.
 const CATEGORY_GRADIENTS: Record<CaseCategory, string> = {
-  family: "from-pink-500 to-rose-500",
-  contract: "from-blue-500 to-indigo-500",
-  property: "from-amber-500 to-orange-500",
-  employment: "from-emerald-500 to-teal-500",
-  business: "from-violet-500 to-purple-500",
-  criminal: "from-red-500 to-rose-500",
-  financial: "from-cyan-500 to-blue-500",
-  tax: "from-stone-500 to-neutral-500",
-  other: "from-slate-500 to-gray-500",
+  family: "from-[var(--brand-gold)] to-[var(--brand-gold-deep)]",
+  contract: "from-[var(--brand-green)] to-[#174E3E]",
+  property: "from-[var(--brand-gold-deep)] to-[#6E5526]",
+  employment: "from-[#2F6F63] to-[var(--brand-green)]",
+  business: "from-[#3B5A52] to-[var(--brand-teal)]",
+  criminal: "from-[#B42318] to-[#7A1A12]",
+  financial: "from-[#2563EB] to-[#1D4ED8]",
+  tax: "from-[#6B7280] to-[#4B5563]",
+  other: "from-[#9CA3AF] to-[#6B7280]",
 };
 
 function StatusBadge({ status }: { status: CaseStatus }) {
@@ -98,7 +108,7 @@ function CreateCaseModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-surface rounded-2xl shadow-elevation-4 w-full max-w-lg mx-4 p-6 animate-in"
+        className="bg-surface rounded-xlarge shadow-elevation-4 w-full max-w-lg mx-4 p-6 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
@@ -275,7 +285,7 @@ export default function CasesPage() {
       {loading && (
         <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-3 gap-4">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-40 rounded-2xl bg-surface border border-divider/60 skeleton-shimmer" />
+            <div key={i} className="h-40 rounded-large bg-surface border border-divider skeleton-shimmer" />
           ))}
         </div>
       )}
@@ -310,7 +320,7 @@ export default function CasesPage() {
             <Link
               key={c.id}
               href={`/cases/${c.id}`}
-              className="group rounded-2xl bg-surface border border-divider/60 p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+              className="group flex flex-col rounded-large border border-divider bg-surface p-5 shadow-elevation-1 transition-shadow duration-short3 hover:border-primary hover:shadow-elevation-3"
             >
               {/* Category gradient accent + icon */}
               <div className="flex items-center gap-3 mb-3">
@@ -320,7 +330,7 @@ export default function CasesPage() {
                 <span className="text-caption text-muted">{CASE_CATEGORY_FA[c.category]}</span>
               </div>
 
-              <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary-700 transition-colors line-clamp-2">
+              <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary transition-colors line-clamp-2">
                 {c.title}
               </h3>
 

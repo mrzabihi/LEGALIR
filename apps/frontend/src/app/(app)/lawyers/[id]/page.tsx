@@ -159,7 +159,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-h2 text-on-surface">{lawyer.fullName}</h1>
               {lawyer.featured && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-caption text-primary-700">
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-caption text-primary">
                   برگزیده
                 </span>
               )}
@@ -258,7 +258,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                 {lawyer.specializations.map((s) => (
                   <span
                     key={s.category}
-                    className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-caption text-primary-700"
+                    className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-caption text-primary"
                   >
                     {specialtyLabel(s.category)} · {toPersianNumber(s.yearsExperience)} سال
                   </span>
@@ -271,7 +271,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 text-body-2 text-on-surface">
                         {e.isPrimary && (
-                          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-caption text-primary-700">
+                          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-caption text-primary">
                             اصلی
                           </span>
                         )}

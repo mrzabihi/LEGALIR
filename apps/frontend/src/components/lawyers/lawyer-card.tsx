@@ -76,10 +76,10 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
   return (
     <div
       className={[
-        "group relative flex flex-col overflow-hidden rounded-2xl border p-5 shadow-sm transition-all duration-200",
+        "group relative flex flex-col overflow-hidden rounded-large border p-5 shadow-elevation-1 transition-shadow duration-short3",
         rejected
-          ? "border-error-200 bg-error-50 hover:shadow-elevation-2"
-          : "border-divider/60 bg-surface hover:shadow-elevation-2",
+          ? "border-error-200 bg-error-50 hover:shadow-elevation-3"
+          : "border-divider bg-surface hover:shadow-elevation-3",
       ].join(" ")}
     >
       <LawyerSpecialtyWatermark category={lawyer.specializations[0]?.category} />
@@ -110,7 +110,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
                 {lawyer.fullName}
               </h3>
               {lawyer.featured && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-caption text-primary-700">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-caption text-primary">
                   <IconSparkle size={13} />
                   برگزیده
                 </span>

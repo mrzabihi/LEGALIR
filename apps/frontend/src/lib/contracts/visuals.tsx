@@ -12,9 +12,12 @@
 // There are no illustration assets in the repo, so this module is the
 // single, hand-built visual system: one abstract SVG scene per contract
 // type, all on the same 320×180 (16:9) viewBox so a grid of cards never
-// shifts layout. Every scene is drawn from the MD3 semantic tokens via
-// `currentColor` + one accent hue, so it themes with the app and never
-// hard-codes a hex value.
+// shifts layout.
+//
+// Every scene now draws from the LEGALIR brand palette (see
+// `lib/contracts/palette.ts`): the accent hue is a theme-aware `--cv-*`
+// custom property, so a scene is legible on the white card AND on the
+// dark card without a second set of drawings. No scene hard-codes a hex.
 //
 // Adding a contract type means adding one scene here — the cards read
 // `hasContractVisual` / `ContractVisual` and never branch on the type.
@@ -22,23 +25,12 @@
 
 import React from "react";
 import type { ContractTypeId } from "@legalir/types";
-
-/** The accent hue each scene is drawn in. Falls back to primary. */
-const ACCENTS: Record<string, string> = {
-  property_rent: "var(--color-primary)",
-  property_sale: "var(--color-secondary)",
-  vehicle_sale: "var(--color-tertiary)",
-  debt: "var(--color-primary)",
-  freelance: "var(--color-secondary)",
-  nda: "var(--color-tertiary)",
-  saas: "var(--color-primary)",
-  startup: "var(--color-secondary)",
-};
+import { contractAccentToken } from "./palette";
 
 /**
  * The shared frame every scene draws inside: a soft accent plate plus
  * the two stroke weights the scenes use. Keeping this in one place is
- * what makes eight hand-drawn scenes read as one system.
+ * what makes nine hand-drawn scenes read as one system.
  */
 function Scene({
   accent,
@@ -58,12 +50,12 @@ function Scene({
     >
       <defs>
         <linearGradient id={`plate-${uid}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.16" />
-          <stop offset="100%" stopColor={accent} stopOpacity="0.03" />
+          <stop offset="0%" stopColor={accent} stopOpacity="0.14" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0.02" />
         </linearGradient>
         <linearGradient id={`fill-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.9" />
-          <stop offset="100%" stopColor={accent} stopOpacity="0.55" />
+          <stop offset="0%" stopColor={accent} stopOpacity="0.85" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0.45" />
         </linearGradient>
       </defs>
 
@@ -111,10 +103,11 @@ function RentScene({ accent }: { accent: string }) {
       <rect x="98" y="88" width="12" height="12" rx="2" fill={accent} fillOpacity="0.35" stroke="none" />
       <rect x="130" y="120" width="12" height="12" rx="2" fill={accent} fillOpacity="0.35" stroke="none" />
       {/* Key */}
-      <circle cx="212" cy="86" r="16" />
-      <line x1="224" y1="98" x2="256" y2="130" />
-      <line x1="244" y1="118" x2="256" y2="106" />
-      <line x1="252" y1="126" x2="264" y2="114" />
+      <circle cx="214" cy="86" r="16" />
+      <circle cx="214" cy="86" r="5" />
+      <line x1="228" y1="100" x2="258" y2="130" />
+      <line x1="246" y1="118" x2="258" y2="106" />
+      <line x1="254" y1="126" x2="266" y2="114" />
     </Scene>
   );
 }
@@ -131,14 +124,15 @@ function SaleScene({ accent }: { accent: string }) {
       <line x1="202" y1="76" x2="250" y2="76" />
       <line x1="202" y1="92" x2="250" y2="92" />
       <line x1="202" y1="108" x2="234" y2="108" />
+      <path d="M202 124 q6 -6 12 0 t12 0" />
       {/* Transfer arrow */}
-      <path d="M160 118 H182" />
-      <path d="M174 110 L182 118 L174 126" />
+      <path d="M160 116 H182" />
+      <path d="M174 108 L182 116 L174 124" />
     </Scene>
   );
 }
 
-/** Vehicle — a car on a road with a plate. */
+/** Vehicle — a car on a road with a transfer plate. */
 function VehicleScene({ accent }: { accent: string }) {
   return (
     <Scene accent={accent}>
@@ -154,20 +148,22 @@ function VehicleScene({ accent }: { accent: string }) {
   );
 }
 
-/** Debt — stacked coins and a repayment arrow. */
+/** Debt — a signed promissory note with a circular seal and a repayment
+ *  arrow. Deliberately NO coin stacks or money-burst (per the brief). */
 function DebtScene({ accent }: { accent: string }) {
   return (
     <Scene accent={accent}>
-      <ellipse cx="104" cy="128" rx="40" ry="12" />
-      <path d="M64 128 V112 M144 128 V112" />
-      <ellipse cx="104" cy="112" rx="40" ry="12" />
-      <path d="M64 112 V96 M144 112 V96" />
-      <ellipse cx="104" cy="96" rx="40" ry="12" />
-      <path d="M64 96 V80 M144 96 V80" />
-      <ellipse cx="104" cy="80" rx="40" ry="12" />
-      {/* Repayment arrow */}
-      <path d="M196 96 C232 96 232 128 200 128" />
-      <path d="M208 120 L200 128 L208 136" />
+      {/* Promissory note */}
+      <rect x="56" y="46" width="104" height="94" rx="8" />
+      <line x1="74" y1="72" x2="142" y2="72" />
+      <line x1="74" y1="90" x2="142" y2="90" />
+      <line x1="74" y1="108" x2="120" y2="108" />
+      {/* Signature squiggle */}
+      <path d="M74 126 q8 -8 16 0 t16 0" />
+      {/* Circular seal with a confirming tick */}
+      <circle cx="212" cy="94" r="30" />
+      <path d="M199 94 l9 9 l18 -20" />
+      <line x1="160" y1="94" x2="176" y2="94" />
     </Scene>
   );
 }
@@ -236,6 +232,22 @@ function StartupScene({ accent }: { accent: string }) {
   );
 }
 
+/** Employment — a briefcase with an employer and employee node above it. */
+function EmploymentScene({ accent }: { accent: string }) {
+  return (
+    <Scene accent={accent}>
+      <rect x="96" y="86" width="128" height="62" rx="8" />
+      <path d="M136 86 V78 A10 10 0 0 1 146 68 H174 A10 10 0 0 1 184 78 V86" />
+      <line x1="96" y1="108" x2="224" y2="108" />
+      <rect x="152" y="102" width="16" height="14" rx="3" fill={accent} fillOpacity="0.5" stroke="none" />
+      <circle cx="120" cy="48" r="14" />
+      <circle cx="204" cy="48" r="14" />
+      <path d="M100 78 A20 20 0 0 1 140 78" />
+      <path d="M184 78 A20 20 0 0 1 224 78" />
+    </Scene>
+  );
+}
+
 const SCENES: Record<string, (props: { accent: string }) => React.ReactElement> = {
   property_rent: RentScene,
   property_sale: SaleScene,
@@ -245,6 +257,7 @@ const SCENES: Record<string, (props: { accent: string }) => React.ReactElement> 
   nda: NdaScene,
   saas: SaasScene,
   startup: StartupScene,
+  employment: EmploymentScene,
 };
 
 /** True when a hand-built scene exists for this contract type. */
@@ -254,7 +267,7 @@ export function hasContractVisual(type: string): boolean {
 
 /** The accent hue for a contract type (used for badges and rails too). */
 export function contractAccent(type: string): string {
-  return ACCENTS[type] ?? "var(--color-primary)";
+  return contractAccentToken(type);
 }
 
 interface ContractVisualProps {
@@ -274,7 +287,7 @@ export function ContractVisual({ type, accent, className = "" }: ContractVisualP
   if (!SceneComponent) return null;
   return (
     <div className={className}>
-      <SceneComponent accent={accent ?? contractAccent(type)} />
+      <SceneComponent accent={accent ?? contractAccentToken(type)} />
     </div>
   );
 }

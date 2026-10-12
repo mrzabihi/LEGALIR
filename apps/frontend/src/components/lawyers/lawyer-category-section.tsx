@@ -33,10 +33,12 @@ export function LawyerCategorySection({
   onViewAll,
 }: LawyerCategorySectionProps) {
   return (
-    <section className="relative mb-6 overflow-hidden rounded-3xl border border-divider/60 bg-surface-container/40 p-4 tablet:p-5">
-      {/* Soft brand wash at the top edge — decorative only. */}
+    <section className="relative mb-6 overflow-hidden rounded-xlarge border border-divider bg-surface-container-low p-4 tablet:p-5">
+      {/* Soft brand wash at the top edge — decorative only. (A solid token,
+          not a `/opacity` modifier: Tailwind 3.4 drops opacity on `var()`
+          colours, so `from-primary/[0.07]` would emit nothing.) */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-primary/[0.07] to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-primary-container to-transparent"
         aria-hidden="true"
       />
 

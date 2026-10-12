@@ -346,6 +346,22 @@
   --contract-sticky-badge-text: #1D624E;
   --contract-sticky-badge-border: rgba(29, 98, 78, 0.24);
 
+  /* --- Contract visual accents (`--cv-*`) ---
+     The single palette the contract illustration system draws from. Each
+     value is a brand-family hue (globals.css is the token source of truth);
+     the light theme uses the raw LEGALIR hexes, and the dark theme lifts
+     them so line art stays legible on the deep-navy surface. See
+     `lib/contracts/palette.ts` for the JS-side names. */
+  --cv-teal: #222E2D;
+  --cv-green: #1D624E;
+  --cv-green-soft: #2E7A61;
+  /* Deeper gold: legible as a 2.5px stroke on white (4.0:1). */
+  --cv-gold: #A37C3C;
+  /* Bright gold: the small, important accent, used sparingly. */
+  --cv-gold-bright: #C69B38;
+  --cv-navy: #26364A;
+  --cv-navy-soft: #3A4F6B;
+
   /* Scrim & Shadow */
   --color-scrim: rgba(0, 0, 0, 0.5);
   --color-shadow: rgba(0, 0, 0, 0.10);
@@ -620,6 +636,17 @@
   --contract-sticky-badge-bg: rgba(52, 211, 153, 0.16);
   --contract-sticky-badge-text: #6EE7B7;
   --contract-sticky-badge-border: rgba(110, 231, 183, 0.32);
+
+  /* Contract visual accents — dark theme. The raw brand hexes sink below the
+     4.5:1 floor as 2.5px strokes on the deep-navy card, so every hue lifts to
+     a readable sibling while the family stays recognisably LEGALIR. */
+  --cv-teal: #7FB3A6;
+  --cv-green: #34D399;
+  --cv-green-soft: #6EE7B7;
+  --cv-gold: #D5BE97;
+  --cv-gold-bright: #FBBF24;
+  --cv-navy: #8CA8D0;
+  --cv-navy-soft: #A7BEDE;
 
   --color-scrim: rgba(0, 0, 0, 0.7);
   --color-shadow: rgba(0, 0, 0, 0.3);

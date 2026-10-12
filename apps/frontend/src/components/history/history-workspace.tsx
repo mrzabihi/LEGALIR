@@ -95,36 +95,48 @@ const RETENTION_MAX_AGE_DAYS = 31;
 // Small helpers
 // ============================================================
 
+// Type tints drawn from the brand family (navy · gold · green) plus one
+// semantic hue — no raw rainbow. The tile background is a whisper of the
+// hue (`*-50`) with a readable icon on top (`*-700`); the type is also
+// always labelled in text beside it, so colour is never the only cue.
 const TYPE_VISUAL: Record<
   V1HistoryItem["type"],
   { icon: ReactNode; bg: string; fg: string; labelFa: string }
 > = {
-  conversation: { icon: <IconChat size={20} />, bg: "bg-blue-100", fg: "text-blue-600", labelFa: "گفتگو" },
-  document: { icon: <IconDocument size={20} />, bg: "bg-green-100", fg: "text-green-600", labelFa: "سند" },
-  contract: { icon: <IconContract size={20} />, bg: "bg-amber-100", fg: "text-amber-600", labelFa: "قرارداد" },
-  case: { icon: <IconShield size={20} />, bg: "bg-sky-100", fg: "text-sky-600", labelFa: "پرونده" },
-  subscription: { icon: <IconSubscription size={20} />, bg: "bg-violet-100", fg: "text-violet-600", labelFa: "اشتراک" },
+  conversation: { icon: <IconChat size={20} />, bg: "bg-primary-container", fg: "text-primary-on-container", labelFa: "گفتگو" },
+  document: { icon: <IconDocument size={20} />, bg: "bg-success-50", fg: "text-success-700", labelFa: "سند" },
+  contract: { icon: <IconContract size={20} />, bg: "bg-warning-50", fg: "text-warning-700", labelFa: "قرارداد" },
+  case: { icon: <IconShield size={20} />, bg: "bg-info-50", fg: "text-info-700", labelFa: "پرونده" },
+  subscription: { icon: <IconSubscription size={20} />, bg: "bg-secondary-container", fg: "text-secondary-on-container", labelFa: "اشتراک" },
 };
 
-/** Status badge colour + symbol, keyed off the raw status string. */
-function getStatusConfig(status: string): { color: string; symbol: string } {
+/**
+ * Status badge tone + dot colour, keyed off the raw status string.
+ *
+ * The tone is a semantic token pair (bg + readable text + hairline border);
+ * the dot repeats the same hue as a shape. Colour is decoration — the status
+ * is always spelled out in text next to it, so the badge never relies on hue
+ * alone. No emoji: a single, consistent dot keeps a list of mixed statuses
+ * reading as one system.
+ */
+function getStatusConfig(status: string): { color: string; dot: string } {
   const s = status.toLowerCase();
   if (["completed", "ready", "generated", "approved", "exported", "active", "signed", "finalized"].includes(s)) {
-    return { color: "bg-success/10 text-success border-success/30", symbol: "✓" };
+    return { color: "bg-success/10 text-success border-success/30", dot: "bg-success" };
   }
   if (["processing", "analyzing", "extracting", "under_review", "collecting", "uploaded", "generating"].includes(s)) {
-    return { color: "bg-blue-100 text-blue-700 border-blue-300", symbol: "⟳" };
+    return { color: "bg-info-50 text-info-700 border-info-200", dot: "bg-info" };
   }
   if (["draft", "پیش‌نویس"].includes(s)) {
-    return { color: "bg-amber-100 text-amber-700 border-amber-300", symbol: "📝" };
+    return { color: "bg-warning-50 text-warning-700 border-warning-200", dot: "bg-warning" };
   }
   if (["failed", "blocked", "error", "cancelled", "canceled"].includes(s)) {
-    return { color: "bg-error/10 text-error border-error/30", symbol: "✗" };
+    return { color: "bg-error/10 text-error border-error/30", dot: "bg-error" };
   }
   if (["archived"].includes(s)) {
-    return { color: "bg-surfaceVariant text-muted border-divider", symbol: "📦" };
+    return { color: "bg-surfaceVariant text-muted border-divider", dot: "bg-on-surface-variant" };
   }
-  return { color: "bg-surfaceVariant text-muted border-divider", symbol: "" };
+  return { color: "bg-surfaceVariant text-muted border-divider", dot: "bg-on-surface-variant" };
 }
 
 function actionIcon(key: HistoryActionKey, size = 16): ReactNode {
@@ -242,7 +254,7 @@ function EmptyState({ hasFilters, archivedView }: { hasFilters: boolean; archive
 
 function RetentionNote() {
   return (
-    <div className="flex items-start gap-2.5 rounded-large bg-surfaceVariant/60 border border-divider px-4 py-3 mb-5">
+    <div className="mb-5 flex items-start gap-2.5 rounded-large border border-divider bg-surface-container px-4 py-3">
       <IconInfo size={18} className="text-muted mt-0.5 shrink-0" />
       <p className="text-labelSmall text-muted leading-relaxed">{RETENTION_NOTE_FA}</p>
     </div>
@@ -286,12 +298,12 @@ function HistoryCard({
   return (
     <article
       className={[
-        "rounded-large border p-4 transition-all hover:shadow-elevation-4",
-        item.archived ? "bg-surfaceVariant/30 border-divider" : "bg-surface border-divider",
+        "rounded-large border p-4 shadow-elevation-1 transition-shadow duration-short3 hover:shadow-elevation-3",
+        item.archived ? "border-divider bg-surface-container" : "border-divider bg-surface",
       ].join(" ")}
     >
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${visual.bg}`}>
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${visual.bg}`}>
           <span className={visual.fg}>{visual.icon}</span>
         </div>
 
@@ -299,9 +311,9 @@ function HistoryCard({
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <h3 className="text-body-1 font-semibold text-onSurface">{item.title}</h3>
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-labelSmall ${statusCfg.color}`}
             >
-              <span>{statusCfg.symbol}</span>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} aria-hidden="true" />
               {item.statusFa}
             </span>
             {item.archived && (
@@ -757,7 +769,7 @@ export function HistoryWorkspace() {
               label="جستجو در تاریخچه"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="جستجو در تاریخچه..."
+              placeholder="مثلاً: قرارداد اجاره، اظهارنامه"
               leadingIcon={<IconSearch size={18} />}
               endAdornment={
                 searchQuery ? (

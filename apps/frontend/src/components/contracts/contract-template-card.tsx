@@ -21,7 +21,7 @@
 "use client";
 
 import type { ContractDefinition } from "@/lib/contracts/registry";
-import { ContractVisual } from "@/lib/contracts/visuals";
+import { ContractVisual, contractAccent } from "@/lib/contracts/visuals";
 import { IconArrowBack } from "@/lib/icons";
 
 interface ContractTemplateCardProps {
@@ -60,22 +60,37 @@ export function ContractTemplateCard({
       className="group flex h-full w-full flex-col text-right rounded-large border border-divider bg-surface overflow-hidden shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary/40 transition-all duration-short3 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-60"
     >
       {/* 16:9 illustration — a fixed aspect ratio so every card in a row has
-          the same image height and a grid never shifts as visuals load. */}
+          the same image height and a grid never shifts as visuals load. The
+          band is a *background* for the card identity, not a hero: the title,
+          description and CTA below stay the primary content. */}
       <div className="relative aspect-video w-full overflow-hidden bg-surface-container-low">
         <ContractVisual
           type={definition.id}
-          className="h-full w-full transition-transform duration-medium2 ease-standard group-hover:scale-[1.03]"
+          className="h-full w-full transition-transform duration-medium2 ease-standard group-hover:scale-[1.02]"
         />
-        <span className="absolute top-3 start-3 rounded-full bg-surface/90 px-2.5 py-0.5 text-labelSmall text-on-surface shadow-elevation-1">
+        {/* Badges float on the illustration, so they carry a glass surface with
+            a hairline border to stay legible over any part of the scene. */}
+        <span className="absolute top-2.5 start-2.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface/85 px-2.5 py-0.5 text-labelSmall font-medium text-on-surface shadow-elevation-1 backdrop-blur-sm">
           {definition.categoryFa}
         </span>
         {/* «جدید» badge — data-driven, opposite corner from the category
             badge so the two never overlap. Renders nothing when not new. */}
         {definition.isNew && (
-          <span className="absolute top-3 end-3 rounded-full bg-secondary px-2.5 py-0.5 text-labelSmall text-on-secondary shadow-elevation-1">
+          <span className="absolute top-2.5 end-2.5 rounded-full bg-secondary px-2.5 py-0.5 text-labelSmall font-medium text-on-secondary shadow-elevation-1">
             جدید
           </span>
         )}
+        {/* A hairline in the contract's own accent ties the illustration to the
+            content below it, so the band reads as the top of one card — not a
+            picture sitting on top of a separate list item. */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-[3px]"
+          style={{
+            background: `linear-gradient(90deg, transparent 0%, ${contractAccent(definition.id)} 50%, transparent 100%)`,
+            opacity: 0.5,
+          }}
+        />
       </div>
 
       <div className="flex flex-1 flex-col p-3 tablet:p-4">

@@ -200,7 +200,9 @@ describe("HistoryPage", () => {
     setupHistoryWithItems();
     render(<HistoryPage />, { wrapper: TestWrapper });
     await waitFor(() => {
-      const searchInput = screen.getByPlaceholderText(/جستجو/);
+      // The field is labelled «جستجو در تاریخچه»; assert on the accessible
+      // label rather than the placeholder, which now carries an example query.
+      const searchInput = screen.getByLabelText(/جستجو/);
       expect(searchInput).toBeTruthy();
     });
   });
