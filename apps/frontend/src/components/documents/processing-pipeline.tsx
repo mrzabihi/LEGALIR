@@ -80,7 +80,7 @@ export function ProcessingPipeline({ stage, progress = 0 }: ProcessingPipelinePr
                     isDone
                       ? "border-success bg-success text-white"
                       : isActive
-                        ? "border-primary bg-primary text-white shadow-elevation-3"
+                        ? "border-primary bg-primary text-primary-on shadow-elevation-3"
                         : "border-divider bg-surface text-muted",
                   ].join(" ")}
                   aria-current={isActive ? "step" : undefined}

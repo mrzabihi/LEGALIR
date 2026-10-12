@@ -169,7 +169,7 @@ function CreateCaseModal({
             <button
               type="submit"
               disabled={creating || !form.title.trim()}
-              className="flex-1 h-11 rounded-xl bg-primary text-white text-body-2 font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 h-11 rounded-xl bg-primary text-primary-on text-body-2 font-medium hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {creating ? "در حال ثبت..." : "ثبت پرونده"}
             </button>
@@ -240,7 +240,7 @@ export default function CasesPage() {
         actions={
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-white hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-sm touch-target tablet:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-primary-on hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98] shadow-sm touch-target tablet:w-auto"
           >
             <IconAdd size={20} />
             پرونده جدید
@@ -306,7 +306,7 @@ export default function CasesPage() {
           </p>
           <button
             onClick={() => setShowCreate(true)}
-            className="mt-3 rounded-xl bg-gradient-to-r from-primary-700 to-primary-800 text-white px-6 py-2.5 text-button font-medium hover:from-primary-800 hover:to-primary-900 transition-all shadow-md shadow-primary/20 active:scale-[0.98] touch-target"
+            className="mt-3 rounded-xl bg-primary text-primary-on px-6 py-2.5 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors shadow-md shadow-primary/20 active:scale-[0.98] touch-target"
           >
             ثبت اولین پرونده
           </button>

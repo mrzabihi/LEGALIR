@@ -548,7 +548,7 @@ export function DocumentChatPanel({
                 <p className="text-bodySmall text-error mb-3">{initError}</p>
                 <button
                   onClick={ensureConversation}
-                  className="rounded-medium bg-primary text-white px-4 py-2 text-button font-medium hover:bg-primary-variant transition-colors touch-target"
+                  className="rounded-medium bg-primary text-primary-on px-4 py-2 text-button font-medium hover:bg-primary-variant transition-colors touch-target"
                 >
                   تلاش مجدد
                 </button>

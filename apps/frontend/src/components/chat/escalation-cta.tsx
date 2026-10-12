@@ -108,7 +108,7 @@ export function EscalationCta({ category }: { category?: string | null }) {
 
       <Link
         href={marketplaceHref}
-        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-5 py-3 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98]"
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-5 py-3 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98]"
       >
         مشاهده سایر وکلا
         {categoryLabel ? ` در ${categoryLabel}` : ""}

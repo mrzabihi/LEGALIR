@@ -263,7 +263,7 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
               }
               onExit();
             }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98]"
+            className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98]"
           >
             <IconCheck size={18} />
             ثبت و دریافت تحلیل
@@ -272,7 +272,7 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
           <button
             type="button"
             onClick={handleNext}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98]"
+            className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98]"
           >
             مرحله بعد
             <IconArrowForward size={18} />

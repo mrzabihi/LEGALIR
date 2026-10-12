@@ -381,7 +381,7 @@ export function LawyerFiltersSheet({
               onApply(draft);
               onClose();
             }}
-            className="flex-1 rounded-xl bg-primary px-4 py-3 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-[0.98]"
+            className="flex-1 rounded-medium bg-primary px-4 py-3 text-button font-medium text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
           >
             اعمال فیلترها
           </button>

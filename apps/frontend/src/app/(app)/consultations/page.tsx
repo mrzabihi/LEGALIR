@@ -29,7 +29,7 @@ export default function ConsultationsPage() {
         actions={
           <Link
             href="/consultations/new"
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98] tablet:w-auto"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-medium bg-primary px-4 py-2.5 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98] tablet:w-auto"
           >
             <IconAdd size={18} />
             مشاوره جدید

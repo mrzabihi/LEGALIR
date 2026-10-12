@@ -206,7 +206,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <p className="text-body-2 text-muted mb-6">{message}</p>
       <button
         onClick={onRetry}
-        className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-primary text-white text-body-2 font-medium hover:bg-primary-dark transition-colors touch-target"
+        className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-primary text-primary-on text-body-2 font-medium hover:bg-primary-700 hover:text-white transition-colors touch-target"
       >
         <IconRefresh size={18} />
         تلاش مجدد
@@ -242,7 +242,7 @@ function EmptyState({ hasFilters, archivedView }: { hasFilters: boolean; archive
       {!hasFilters && !archivedView && (
         <Link
           href="/chat"
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary-dark transition-colors touch-target"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-primary-on text-body-2 font-medium hover:bg-primary-700 hover:text-white transition-colors touch-target"
         >
           <IconChat size={18} />
           شروع گفتگو
@@ -366,7 +366,7 @@ function HistoryCard({
             {primary.href ? (
               <Link
                 href={primary.href}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-primary-on text-labelSmall font-medium hover:bg-primary-700 hover:text-white transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {actionIcon(primary.key, 15)}
                 {primary.labelFa}
@@ -376,7 +376,7 @@ function HistoryCard({
                 type="button"
                 onClick={() => onAction(primary, item)}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-primary-on text-labelSmall font-medium hover:bg-primary-700 hover:text-white disabled:opacity-50 transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {actionIcon(primary.key, 15)}
                 {primary.labelFa}
@@ -700,7 +700,7 @@ export function HistoryWorkspace() {
                 <IconArchive size={18} />
                 بایگانی
                 {archivedCount > 0 && (
-                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-labelSmall text-white">
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-labelSmall text-primary-on">
                     {archivedCount}
                   </span>
                 )}

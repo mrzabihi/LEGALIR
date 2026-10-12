@@ -34,7 +34,7 @@ export function ErrorDisplay({
           {onRetry && (
             <button
               onClick={onRetry}
-              className="rounded-medium bg-primary px-6 py-3 text-white font-button hover:opacity-90 transition-opacity touch-target"
+              className="rounded-medium bg-primary px-6 py-3 text-primary-on font-button hover:opacity-90 transition-opacity touch-target"
             >
               تلاش مجدد
             </button>
@@ -66,7 +66,7 @@ export function EmptyState({ icon = " ", title, description, action }: EmptyStat
       {action && (
         <button
           onClick={action.onClick}
-          className="rounded-medium bg-primary px-6 py-3 text-white font-button hover:opacity-90 transition-opacity touch-target mt-2"
+          className="rounded-medium bg-primary px-6 py-3 text-primary-on font-button hover:opacity-90 transition-opacity touch-target mt-2"
         >
           {action.label}
         </button>

@@ -27,7 +27,7 @@ export function ForbiddenPage({
         {showUpgrade && (
           <Link
             href="/subscription"
-            className="rounded-medium bg-primary px-6 py-3 text-white font-button hover:opacity-90 transition-opacity touch-target"
+            className="rounded-medium bg-primary px-6 py-3 text-primary-on font-button hover:opacity-90 transition-opacity touch-target"
           >
             ارتقای اشتراک
           </Link>

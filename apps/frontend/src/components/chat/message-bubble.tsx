@@ -66,7 +66,7 @@ export function MessageBubble({
           className={[
             "rounded-large px-4 py-3",
             isUser
-              ? "bg-primary text-white rounded-br-small"
+              ? "bg-primary text-primary-on rounded-br-small"
               : "bg-surface border border-divider rounded-bl-small",
             isFailed || isBlocked
               ? "bg-error/[0.06] border-error/20"

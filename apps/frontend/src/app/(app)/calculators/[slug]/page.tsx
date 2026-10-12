@@ -135,7 +135,7 @@ function NotFoundState({ slug }: { slug: string }) {
         </p>
         <Link
           href="/calculators"
-          className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-5 py-2.5 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98]"
         >
           بازگشت به فهرست محاسبه‌گرها
         </Link>

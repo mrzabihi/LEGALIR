@@ -137,7 +137,7 @@ export function CalculatorFilter({
         </span>
         {active && (
           <span
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] text-white"
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] text-primary-on"
             aria-hidden="true"
           >
             ۱

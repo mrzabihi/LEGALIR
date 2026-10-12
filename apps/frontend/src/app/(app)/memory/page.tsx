@@ -290,7 +290,7 @@ export default function MemoryPage() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary/90 transition-colors touch-target"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-primary-on text-body-2 font-medium hover:opacity-90 transition-colors touch-target"
           >
             تلاش مجدد
           </button>
@@ -315,7 +315,7 @@ export default function MemoryPage() {
           </p>
           <Link
             href="/chat"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary/90 transition-colors touch-target"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-primary-on text-body-2 font-medium hover:opacity-90 transition-colors touch-target"
           >
             <IconChat size={18} />
             شروع گفتگو
@@ -452,7 +452,7 @@ export default function MemoryPage() {
                             !editKey.trim() ||
                             !editValue.trim()
                           }
-                          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-white text-caption font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-primary-on text-caption font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
                         >
                           <IconSave size={14} />
                           ذخیره
@@ -665,7 +665,7 @@ export default function MemoryPage() {
                 type="button"
                 onClick={handleApproveConsent}
                 disabled={updateMemory.isPending}
-                className="rounded-full bg-primary px-5 py-2 text-white text-body-2 font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors touch-target inline-flex items-center gap-1.5"
+                className="rounded-full bg-primary px-5 py-2 text-primary-on text-body-2 font-medium hover:opacity-90 disabled:opacity-50 transition-colors touch-target inline-flex items-center gap-1.5"
               >
                 {updateMemory.isPending ? (
                   <>

@@ -109,7 +109,7 @@ export function Footer() {
                   </div>
                   <button
                     type="button"
-                    className="h-12 px-5 rounded-lg bg-primary text-white text-button font-medium hover:bg-primary/90 active:bg-primary/80 transition-colors duration-200 whitespace-nowrap"
+                    className="h-12 px-5 rounded-medium bg-primary text-primary-on text-button font-medium hover:opacity-90 active:opacity-80 transition-colors duration-200 whitespace-nowrap"
                   >
                     ثبت
                   </button>

@@ -97,7 +97,7 @@ export default function NewConversationPage() {
         disabled={createMutation.isPending}
         className={[
           "w-full rounded-medium px-6 py-3 text-button transition-colors touch-target",
-          "bg-primary text-white hover:bg-primary-variant",
+          "bg-primary text-primary-on hover:bg-primary-variant",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         ].join(" ")}
       >

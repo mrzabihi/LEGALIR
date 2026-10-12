@@ -92,7 +92,7 @@ export function ActivateServiceCta({ serviceTitle }: ActivateServiceCtaProps) {
       type="button"
       onClick={submit}
       disabled={create.isPending}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-6 py-3 text-button font-medium text-white transition-colors hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60 touch-target tablet:w-auto"
+      className="inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-6 py-3 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60 touch-target tablet:w-auto"
     >
       <IconBell size={18} aria-hidden="true" />
       {create.isPending

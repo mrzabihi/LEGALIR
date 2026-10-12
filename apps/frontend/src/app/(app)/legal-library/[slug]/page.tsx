@@ -204,7 +204,7 @@ function NotFoundState({ id }: { id: string }) {
       <div className="flex items-center gap-3">
         <Link
           href="/legal-library"
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
         >
           کتابخانه حقوقی
         </Link>
@@ -335,7 +335,7 @@ export default function LegalSourceDetailPage() {
           <button
             type="button"
             onClick={() => query.refetch()}
-            className="mt-2 rounded-xl bg-primary px-6 py-2.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98] touch-target"
+            className="mt-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
           >
             تلاش دوباره
           </button>

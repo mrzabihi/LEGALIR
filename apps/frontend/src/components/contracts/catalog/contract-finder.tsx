@@ -92,7 +92,7 @@ export function ContractFinder() {
         <button
           type="button"
           onClick={run}
-          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-medium bg-primary px-5 text-button font-medium text-white transition-colors hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
+          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-medium bg-primary px-5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
         >
           <IconSearch size={18} aria-hidden="true" />
           پیدا کردن قرارداد مناسب

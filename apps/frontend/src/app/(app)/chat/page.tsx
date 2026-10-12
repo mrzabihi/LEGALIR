@@ -57,7 +57,7 @@ export default function ChatListPage() {
             <h1 className="text-h2 text-on-surface">گفتگوها</h1>
             <Link
               href={`/chat/new?service=${serviceType}`}
-              className="rounded-medium bg-primary text-white px-5 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
+              className="rounded-medium bg-primary text-primary-on px-5 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
             >
               گفتگوی جدید
             </Link>
@@ -94,7 +94,7 @@ export default function ChatListPage() {
           </div>
           <Link
             href={`/chat/new?service=${serviceType}`}
-            className="inline-flex items-center gap-2 rounded-medium bg-primary text-white px-6 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
+            className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-6 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
           >
             شروع گفتگوی جدید
           </Link>

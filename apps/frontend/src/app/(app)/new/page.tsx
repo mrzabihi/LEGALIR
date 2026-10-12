@@ -357,7 +357,7 @@ export default function NewServicePage() {
         </p>
         <Link
           href="/services"
-          className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-6 py-2.5 text-button font-medium text-white transition-colors hover:bg-primary-600 touch-target"
+          className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-600 hover:text-white touch-target"
         >
           رفتن به فهرست کامل خدمات
           <IconChevronRight size={16} />

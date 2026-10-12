@@ -122,7 +122,7 @@ export function LawyerCardCompact({ lawyer }: LawyerCardCompactProps) {
       {body}
 
       {/* --- CTA (pinned to the bottom for equal heights) --- */}
-      <span className="mt-auto block rounded-xl bg-primary px-3 py-2 text-center text-button font-medium text-white shadow-sm transition-colors group-hover:bg-primary-700">
+      <span className="mt-auto block rounded-medium bg-primary px-3 py-2 text-center text-button font-medium text-primary-on shadow-elevation-1 transition-colors group-hover:bg-primary-700 group-hover:text-white">
         مشاهده پروفایل
       </span>
     </Link>

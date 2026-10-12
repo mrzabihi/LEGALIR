@@ -374,7 +374,7 @@ export default function LegalLibraryPage() {
           <button
             type="button"
             onClick={() => itemsQuery.refetch()}
-            className="mt-2 rounded-xl bg-primary px-6 py-2.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98] touch-target"
+            className="mt-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
           >
             تلاش دوباره
           </button>
@@ -421,7 +421,7 @@ export default function LegalLibraryPage() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/chat"
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98] touch-target"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
           >
             <IconArrowLeft />
             پرسش از مشاور

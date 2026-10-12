@@ -498,7 +498,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
             ) : (
               <Link
                 href={`/consultations/new?lawyerId=${lawyer.id}`}
-                className="block rounded-xl bg-primary px-5 py-3 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
+                className="block rounded-medium bg-primary px-5 py-3 text-center text-button font-medium text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
               >
                 درخواست مشاوره از این وکیل
               </Link>
@@ -520,7 +520,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
         ) : (
           <Link
             href={`/consultations/new?lawyerId=${lawyer.id}`}
-            className="block rounded-xl bg-primary px-5 py-3 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
+            className="block rounded-medium bg-primary px-5 py-3 text-center text-button font-medium text-primary-on shadow-sm transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
           >
             درخواست مشاوره از این وکیل
           </Link>

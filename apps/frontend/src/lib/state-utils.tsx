@@ -25,7 +25,7 @@ export function OfflineState() {
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="rounded-medium bg-primary text-white px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
+          className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
         >
           تلاش مجدد
         </button>
@@ -72,7 +72,7 @@ export function ForbiddenState({
         {actionLabel && onAction && (
           <button
             onClick={onAction}
-            className="rounded-medium bg-primary text-white px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
+            className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
           >
             {actionLabel}
           </button>

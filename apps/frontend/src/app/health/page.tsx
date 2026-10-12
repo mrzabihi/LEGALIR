@@ -248,7 +248,7 @@ export default function HealthPage() {
             <button
               onClick={rerun}
               disabled={running}
-              className="rounded-medium bg-primary px-4 py-2 text-sm text-white font-button hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="rounded-medium bg-primary px-4 py-2 text-sm text-primary-on font-button hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {running ? "در حال بررسی..." : "بررسی مجدد"}
             </button>

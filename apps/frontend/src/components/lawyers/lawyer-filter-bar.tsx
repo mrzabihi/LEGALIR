@@ -341,7 +341,7 @@ export function LawyerFilterBar({
             <IconFilter size={18} />
             <span className="hidden mobile-l:inline">فیلترها</span>
             {quickFilterCount > 0 && (
-              <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
+              <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-on">
                 {toPersianNumber(quickFilterCount)}
               </span>
             )}

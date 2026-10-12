@@ -75,7 +75,7 @@ export function ConversationList({
           <h2 className="text-titleMedium text-onSurface">گفتگوها</h2>
           <Link
             href="/chat/new"
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary-variant transition-colors touch-target"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-primary-on hover:bg-primary-variant transition-colors touch-target"
             aria-label="گفتگوی جدید"
           >
             <IconAdd size={20} />
@@ -122,7 +122,7 @@ export function ConversationList({
             <p className="text-bodyMedium text-muted mb-3">گفتگویی ندارید</p>
             <Link
               href="/chat/new"
-              className="inline-flex items-center gap-2 rounded-medium bg-primary text-white px-4 py-2 text-button hover:bg-primary-variant transition-colors"
+              className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-4 py-2 text-button hover:bg-primary-variant transition-colors"
             >
               <IconAdd size={16} />
               شروع گفتگوی جدید

@@ -199,7 +199,7 @@ export default function MyPointsPage() {
             <button
               onClick={handleClaimDaily}
               disabled={claim.isPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 touch-target"
+              className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-5 py-2.5 text-button font-medium hover:bg-primary-600 hover:text-white transition-colors disabled:opacity-50 touch-target"
             >
               {claim.isPending ? "در حال دریافت..." : "دریافت امتیاز"}
             </button>

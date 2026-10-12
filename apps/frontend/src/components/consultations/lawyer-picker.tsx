@@ -132,7 +132,7 @@ export function LawyerPicker({
           className={[
             "rounded-full px-3.5 py-1.5 text-caption font-medium transition",
             mode === "browse"
-              ? "bg-primary text-white"
+              ? "bg-primary text-primary-on"
               : "bg-surface-container text-muted hover:text-on-surface",
           ].join(" ")}
         >
@@ -144,7 +144,7 @@ export function LawyerPicker({
           className={[
             "rounded-full px-3.5 py-1.5 text-caption font-medium transition",
             mode === "match"
-              ? "bg-primary text-white"
+              ? "bg-primary text-primary-on"
               : "bg-surface-container text-muted hover:text-on-surface",
           ].join(" ")}
         >

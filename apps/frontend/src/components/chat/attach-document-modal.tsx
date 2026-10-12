@@ -259,7 +259,7 @@ export function AttachDocumentModal({
             onClick={handleUploadNew}
             className="mb-2 flex w-full items-center gap-3 rounded-medium px-3 py-2.5 text-start transition-colors hover:bg-surface-hover"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-medium bg-primary text-primary-on">
               <IconUpload size={18} />
             </span>
             <span className="min-w-0 flex-1">
@@ -283,7 +283,7 @@ export function AttachDocumentModal({
             <button
               type="button"
               onClick={() => onConfirm(picked)}
-              className="flex-1 rounded-medium bg-primary px-4 py-2.5 text-bodySmall font-medium text-white transition-colors hover:bg-primary-variant"
+              className="flex-1 rounded-medium bg-primary px-4 py-2.5 text-bodySmall font-medium text-primary-on transition-colors hover:bg-primary-variant"
             >
               افزودن {picked.length > 0 ? `(${picked.length})` : ""}
             </button>

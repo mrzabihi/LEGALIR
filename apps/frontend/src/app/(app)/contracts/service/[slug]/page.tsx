@@ -106,7 +106,7 @@ function NotFoundState({ slug }: { slug: string }) {
         </p>
         <Link
           href="/contracts"
-          className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-5 py-2.5 text-button font-medium text-white transition-colors hover:bg-primary-700 active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
         >
           بازگشت به فهرست قراردادها
         </Link>

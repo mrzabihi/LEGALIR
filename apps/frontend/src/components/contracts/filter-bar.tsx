@@ -57,7 +57,7 @@ export function ContractFilterBar({
             onClick={() => onStateFilterChange(undefined)}
             className={`flex-1 min-w-0 rounded-small px-2 py-1.5 text-caption text-center transition-colors touch-target ${
               !stateFilter
-                ? "bg-primary text-white"
+                ? "bg-primary text-primary-on"
                 : "bg-surface-container text-muted hover:bg-surface-container-high"
             }`}
           >
@@ -69,7 +69,7 @@ export function ContractFilterBar({
               onClick={() => onStateFilterChange(s)}
               className={`flex-1 min-w-0 rounded-small px-2 py-1.5 text-caption text-center transition-colors touch-target ${
                 stateFilter === s
-                  ? "bg-primary text-white"
+                  ? "bg-primary text-primary-on"
                   : "bg-surface-container text-muted hover:bg-surface-container-high"
               }`}
             >

@@ -336,7 +336,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
                         aria-current={isActive ? "step" : undefined}
                         className={`rounded-full border px-3 py-1 text-caption transition-colors duration-short4 ${
                           isActive
-                            ? "bg-primary text-white border-[color:var(--color-primary)] font-semibold"
+                            ? "bg-primary text-primary-on border-[color:var(--color-primary)] font-semibold"
                             : "bg-surface text-on-surface-variant border-[color:var(--color-outline-variant)] hover:border-[color:var(--color-primary)]"
                         }`}
                       >
@@ -412,7 +412,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
                 type="button"
                 onClick={() => setStep(Math.min(visibleGroups.length - 1, activeStep + 1))}
                 disabled={activeStep === visibleGroups.length - 1}
-                className="rounded-medium bg-primary text-white px-4 py-2 text-button font-medium disabled:opacity-40 hover:bg-primary-700 transition-colors duration-short4"
+                className="rounded-medium bg-primary text-primary-on px-4 py-2 text-button font-medium disabled:opacity-40 hover:bg-primary-700 hover:text-white transition-colors duration-short4"
               >
                 مرحله بعد
               </button>
@@ -457,7 +457,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
                 type="button"
                 onClick={computeCharged}
                 disabled={submitting}
-                className="w-full rounded-medium bg-primary text-white px-4 py-2.5 text-button font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
+                className="w-full rounded-medium bg-primary text-primary-on px-4 py-2.5 text-button font-semibold hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
               >
                 {submitting
                   ? "در حال محاسبه…"

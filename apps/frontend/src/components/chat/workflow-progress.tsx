@@ -127,7 +127,7 @@ export function WorkflowProgress({
       {suggestCaseCreation && onCreateCase && (
         <button
           onClick={onCreateCase}
-          className="w-full mt-2 rounded-lg bg-primary text-white px-4 py-2 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98]"
+          className="w-full mt-2 rounded-medium bg-primary text-primary-on px-4 py-2 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98]"
         >
           ایجاد پرونده حقوقی
         </button>

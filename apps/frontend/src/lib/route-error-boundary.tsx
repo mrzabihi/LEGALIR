@@ -81,7 +81,7 @@ export class RouteErrorBoundary extends Component<
             <div className="flex flex-wrap items-center justify-center gap-3">
               <button
                 onClick={this.handleRetry}
-                className="rounded-medium bg-primary text-white px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
+                className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
               >
                 تلاش مجدد
               </button>

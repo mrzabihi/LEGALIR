@@ -116,7 +116,7 @@ function NextActionCard({
         {action.kind !== "none" && (
           <button
             onClick={() => onGo(action.targetTab)}
-            className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors"
+            className="rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors"
           >
             مشاهده
           </button>
@@ -633,7 +633,7 @@ export default function CaseDetailPage() {
                         <button
                           disabled={busy || !stageReason.trim()}
                           onClick={changeStage}
-                          className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                          className="rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
                         >
                           ثبت تغییر مرحله
                         </button>
@@ -659,7 +659,7 @@ export default function CaseDetailPage() {
               {canWrite && (
                 <button
                   onClick={() => setShowPartyForm((v) => !v)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-3 py-1.5 text-caption font-medium hover:bg-primary-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-3 py-1.5 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors"
                 >
                   <IconAdd size={14} />
                   افزودن طرف
@@ -690,7 +690,7 @@ export default function CaseDetailPage() {
                   <button
                     disabled={busy || !partyName.trim()}
                     onClick={addParty}
-                    className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                    className="rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
                   >
                     ثبت
                   </button>
@@ -796,7 +796,7 @@ export default function CaseDetailPage() {
             {canWrite && (
               <button
                 onClick={() => setShowEventForm((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors"
               >
                 <IconAdd size={16} />
                 ثبت رویداد
@@ -842,7 +842,7 @@ export default function CaseDetailPage() {
                 <button
                   disabled={busy || !eventTitle.trim()}
                   onClick={addEvent}
-                  className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  className="rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
                 >
                   ثبت رویداد
                 </button>
@@ -911,7 +911,7 @@ export default function CaseDetailPage() {
             {canWrite && (
               <button
                 onClick={() => setShowTaskForm((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors"
               >
                 <IconAdd size={16} />
                 وظیفه جدید
@@ -949,7 +949,7 @@ export default function CaseDetailPage() {
                 <button
                   disabled={busy || !taskTitle.trim()}
                   onClick={addTask}
-                  className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  className="rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
                 >
                   ثبت وظیفه
                 </button>
@@ -1013,7 +1013,7 @@ export default function CaseDetailPage() {
                   setShowAttach((v) => !v);
                   if (!showAttach) loadAvailableDocs();
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors"
               >
                 <IconAdd size={16} />
                 افزودن سند
@@ -1096,7 +1096,7 @@ export default function CaseDetailPage() {
             {canWrite && (
               <button
                 onClick={() => setShowDeadlineForm((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors"
               >
                 <IconAdd size={16} />
                 مهلت جدید
@@ -1135,7 +1135,7 @@ export default function CaseDetailPage() {
                 <button
                   disabled={busy || !deadlineTitle.trim() || !deadlineDueAt}
                   onClick={addDeadline}
-                  className="rounded-xl bg-primary text-white px-4 py-2 text-caption font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  className="rounded-medium bg-primary text-primary-on px-4 py-2 text-caption font-medium hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
                 >
                   ثبت مهلت
                 </button>
@@ -1236,7 +1236,7 @@ export default function CaseDetailPage() {
       <div className="mt-8 mb-4 p-6 rounded-2xl bg-gradient-to-r from-primary-50 to-blue-50 border border-primary/10 text-center">
         <p className="text-body-1 text-on-surface font-medium mb-1">نیاز به مشاوره در این پرونده دارید؟</p>
         <p className="text-body-2 text-muted mb-4">درباره این پرونده با مشاور هوش مصنوعی LEGALIR گفتگو کنید</p>
-        <Link href="/chat" className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-6 py-2.5 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-sm">
+        <Link href="/chat" className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-6 py-2.5 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98] shadow-elevation-1">
           شروع گفتگو
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="rtl-flip">
             <path d="M5 12h14M12 5l7 7-7 7" />

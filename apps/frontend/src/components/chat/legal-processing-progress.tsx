@@ -177,7 +177,7 @@ export function LegalProcessingProgress({
             <button
               type="button"
               onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-caption font-medium text-white transition hover:bg-primary-700"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-caption font-medium text-primary-on transition hover:bg-primary-700 hover:text-white"
             >
               <IconRefresh size={14} />
               تلاش مجدد
@@ -222,7 +222,7 @@ export function LegalProcessingProgress({
                   className={[
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-caption",
                     done
-                      ? "border-primary bg-primary text-white"
+                      ? "border-primary bg-primary text-primary-on"
                       : failed
                         ? "border-error text-error"
                         : active
