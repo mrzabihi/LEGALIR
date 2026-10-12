@@ -133,7 +133,7 @@ export function Sidebar({ userRole }: SidebarProps) {
               aria-current={isActive ? "page" : undefined}
             >
               {isActive && (
-                <span className="absolute end-0 top-3 bottom-3 w-0.5 rounded-full bg-[var(--sidebar-active-mark)]" aria-hidden="true" />
+                <span className="absolute end-1 top-3 bottom-3 w-0.5 rounded-full bg-[var(--sidebar-active-mark)]" aria-hidden="true" />
               )}
               <NavIcon icon={item.icon} isActive={isActive} />
               <span className="truncate">{item.titleFa}</span>
