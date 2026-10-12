@@ -300,8 +300,20 @@ export default function ServicesPage() {
             cta="مشاهده منابع حقوقی"
             href="/legal-library"
             icon={IconLawBook}
-            imageSide="end"
             size="panel"
+            // Photographic treatment: the archival-library artwork — shelves
+            // on the left, an empty ivory field on the right — becomes the
+            // section background. The copy takes that quiet right side, and
+            // `objectPosition: left` keeps the shelves framed on every
+            // breakpoint (a phone crop turns portrait and overflows both
+            // edges). `art` is unused when `photo` is set.
+            photo={{
+              src: "/assets/promo/legalir-banner-legal-sources.webp",
+              srcSm: "/assets/promo/legalir-banner-legal-sources-sm.webp",
+              width: 1280,
+              height: 720,
+              objectPosition: "left center",
+            }}
             className="mb-10"
           />
 
