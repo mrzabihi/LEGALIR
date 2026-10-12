@@ -61,7 +61,7 @@ export function CategoryFilter({ value, onChange }: CategoryFilterProps) {
   const chipClass = (selected: boolean) =>
     [
       "flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-caption font-medium transition-all touch-target-min",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
       selected
         ? "border-[color:var(--control-selected-border)] bg-[color:var(--control-selected-surface)] text-[color:var(--control-selected)]"
         : "border-[color:var(--color-divider)] bg-surface text-on-surface hover:border-[color-mix(in_srgb,var(--control-selected)_50%,transparent)]",

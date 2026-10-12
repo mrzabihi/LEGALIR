@@ -12,7 +12,7 @@ export function ForbiddenPage({
 }) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
-      <div className="rounded-full bg-error/10 p-4 mb-2">
+      <div className="rounded-full bg-error-container p-4 mb-2">
         <IconShield size={48} className="text-error" />
       </div>
       <h1 className="text-h2 text-on-surface">{title}</h1>

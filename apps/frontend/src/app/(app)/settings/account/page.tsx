@@ -58,9 +58,9 @@ export default function AccountClosurePage() {
       <SettingsCard
         title="حذف حساب کاربری"
         icon={<IconWarning size={22} />}
-        className="border-2 border-error/40"
+        className="border-2 border-error"
       >
-        <div className="rounded-lg bg-error/5 border border-error/20 p-4 mb-5">
+        <div className="rounded-medium bg-error-container border border-error p-4 mb-5">
           <p className="text-body-2 text-on-surface mb-1 font-medium">
             هشدار: این عملیات قابل بازگشت نیست
           </p>
@@ -88,7 +88,7 @@ export default function AccountClosurePage() {
             <button
               type="button"
               onClick={() => setStep("confirm")}
-              className="inline-flex items-center gap-1.5 rounded-full border-2 border-error/60 bg-error/5 px-5 py-2.5 text-body-2 text-error font-medium transition hover:bg-error/10"
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-error bg-error-container px-5 py-2.5 text-body-2 text-error font-medium transition hover:opacity-90"
             >
               <IconDelete size={16} />
               درخواست حذف حساب
@@ -96,7 +96,7 @@ export default function AccountClosurePage() {
           )}
 
           {step === "confirm" && (
-            <div className="rounded-lg border border-error/30 bg-error/5 p-4 space-y-3">
+            <div className="rounded-medium border border-error bg-error-container p-4 space-y-3">
               <p className="text-body-2 text-error font-medium">
                 برای تأیید، عبارت DELETE را تایپ کنید:
               </p>
@@ -121,7 +121,7 @@ export default function AccountClosurePage() {
                   type="button"
                   onClick={handleDelete}
                   disabled={!canDelete || deleteAccount.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2.5 text-body-2 text-on-error font-medium transition hover:bg-error/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2.5 text-body-2 text-on-error font-medium transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {deleteAccount.isPending ? (
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-on-error border-t-transparent" />

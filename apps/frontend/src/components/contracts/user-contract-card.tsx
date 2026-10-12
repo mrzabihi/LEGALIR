@@ -74,7 +74,7 @@ export function UserContractCard({ contract, onDelete, onCopyId }: UserContractC
   }
 
   return (
-    <div className="rounded-large border border-divider bg-surface p-4 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary/40 transition-all duration-short3">
+    <div className="rounded-large border border-divider bg-surface p-4 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary transition-all duration-short3">
       <div className="flex items-start gap-3">
         {/* Quiet thumbnail — anchors the row without competing with the
             status and progress, which are the point of this card. */}

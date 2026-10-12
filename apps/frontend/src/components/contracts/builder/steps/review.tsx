@@ -20,7 +20,7 @@
 
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Checkbox, Chip, Dialog, OTPInput, ProgressLinear, Textarea } from "@legalir/ui";
 import {
@@ -39,7 +39,11 @@ import { LifecycleStepper } from "../lifecycle-stepper";
 import { getContractDefinition } from "@/lib/contracts/registry";
 import { stateLabelFa } from "@/lib/contracts/state-machine";
 import { formatIsoJalali } from "@/lib/contracts/dates";
-import { useFinalizeContract, useSubmitForReview } from "@/hooks/usePropertyContracts";
+import {
+  useContractAudit,
+  useFinalizeContract,
+  useSubmitForReview,
+} from "@/hooks/usePropertyContracts";
 import {
   useAcceptLawyerReview,
   useAddReviewComment,
@@ -51,6 +55,7 @@ import {
   useCreateSignatureRequest,
   useDecideLawyerFinding,
   useDeclineSignature,
+  useRecordPhysicalSignature,
   useRequestSignatureOtp,
   useVerifySignatureOtp,
 } from "@/hooks/useContractLifecycle";
@@ -83,6 +88,7 @@ export function ReviewStep() {
   const requestOtp = useRequestSignatureOtp();
   const verifyOtp = useVerifySignatureOtp();
   const decline = useDeclineSignature();
+  const recordPhysical = useRecordPhysicalSignature();
   const createLawyer = useCreateLawyerReview();
   const acceptLawyer = useAcceptLawyerReview();
   const completeLawyer = useCompleteLawyerReview();
@@ -93,13 +99,29 @@ export function ReviewStep() {
   const finalize = useFinalizeContract();
   const submit = useSubmitForReview();
 
+  // §9.2 — the searchable audit trail.
+  const [auditActor, setAuditActor] = useState("");
+  const [auditAction, setAuditAction] = useState("");
+  const [auditFrom, setAuditFrom] = useState("");
+  const [auditTo, setAuditTo] = useState("");
+  const audit = useContractAudit(contract.id, {
+    actor: auditActor || undefined,
+    action: auditAction || undefined,
+    from: auditFrom || undefined,
+    to: auditTo || undefined,
+  });
+
   const [actionError, setActionError] = useState<string | null>(null);
   const [signTarget, setSignTarget] = useState<SignatureParticipant | null>(null);
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
   const [mobileMasked, setMobileMasked] = useState<string | null>(null);
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [commentBody, setCommentBody] = useState("");
+  // The participant awaiting a wet-ink scan upload.
+  const [physicalTarget, setPhysicalTarget] = useState<SignatureParticipant | null>(null);
+  const physicalInputRef = useRef<HTMLInputElement>(null);
 
   const currentVersion = contract.versions.find((v) => v.id === contract.currentVersionId);
   const request = view?.signatureRequest ?? null;
@@ -133,13 +155,46 @@ export function ReviewStep() {
     setOtpError(null);
     setConsent(false);
     setMobileMasked(null);
+    setOtpExpiresAt(null);
     await run(async () => {
       const res = await requestOtp.mutateAsync({
         id: contract.id,
         participantId: participant.id,
       });
+      // The server reports the REAL delivery outcome — never claim a code
+      // was sent when it was not. A failed send is refused by the route
+      // (thrown here) or flagged by `sent: false`.
+      if (!res.sent) {
+        setActionError(
+          `ارسال کد تأیید به ${res.mobileMasked} ناموفق بود. دوباره تلاش کنید یا روش «امضای دستی» را انتخاب کنید.`
+        );
+        return;
+      }
       setMobileMasked(res.mobileMasked);
+      setOtpExpiresAt(res.expiresAt);
       setSignTarget(participant);
+    });
+  }
+
+  /** Trigger the hidden file picker for a participant's wet-ink scan. */
+  function beginPhysical(participant: SignatureParticipant) {
+    setPhysicalTarget(participant);
+    setActionError(null);
+    // Reset so re-selecting the same file still fires onChange.
+    if (physicalInputRef.current) physicalInputRef.current.value = "";
+    physicalInputRef.current?.click();
+  }
+
+  async function uploadPhysical(file: File) {
+    if (!physicalTarget) return;
+    const target = physicalTarget;
+    setPhysicalTarget(null);
+    await run(async () => {
+      await recordPhysical.mutateAsync({
+        id: contract.id,
+        participantId: target.id,
+        file,
+      });
     });
   }
 
@@ -313,7 +368,9 @@ export function ReviewStep() {
                     {signed ? (
                       <span className="text-caption text-success inline-flex items-center gap-1">
                         <IconCheck className="w-3.5 h-3.5" />
-                        امضا شده
+                        {participant.signedMethod === "PHYSICAL_WET_INK"
+                          ? "امضای دستی ثبت شد"
+                          : "امضا شده"}
                       </span>
                     ) : participant.status === "DECLINED" ? (
                       <span className="text-caption text-error">خودداری کرده</span>
@@ -326,6 +383,15 @@ export function ReviewStep() {
                           disabled={!view?.canSign || requestOtp.isPending}
                         >
                           ارسال کد و امضا
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<IconFileText className="w-3.5 h-3.5" />}
+                          onClick={() => beginPhysical(participant)}
+                          disabled={!view?.canSign || recordPhysical.isPending}
+                        >
+                          امضای دستی (بارگذاری اسکن)
                         </Button>
                         <Button
                           size="small"
@@ -358,10 +424,26 @@ export function ReviewStep() {
 
           <p className="mt-3 text-caption text-muted">
             این امضا «تأیید و امضای الکترونیکی» است و با «امضای الکترونیکی مطمئن» یا «امضای
-            دیجیتال رسمی» یکسان نیست.
+            دیجیتال رسمی» یکسان نیست. طرفی که روی نسخه چاپی امضا می‌کند، اسکن امضاشده را با
+            گزینهٔ «امضای دستی» بارگذاری می‌کند.
           </p>
         </SectionCard>
       )}
+
+      {/* Hidden picker for the wet-ink scan — one file, opened per participant */}
+      <input
+        ref={physicalInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void uploadPhysical(file);
+          setPhysicalTarget(null);
+        }}
+      />
 
       {/* ------------------------------------------------------
           Lawyer review panel
@@ -557,6 +639,89 @@ export function ReviewStep() {
       </SectionCard>
 
       {/* ------------------------------------------------------
+          Audit trail — searchable (§9.2)
+          ------------------------------------------------------ */}
+      <SectionCard
+        title="تاریخچهٔ بررسی و حسابرسی"
+        description="همه رخدادهای این قرارداد — قابل جست‌وجو بر اساس کنشگر، نوع و تاریخ"
+      >
+        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-2">
+          <label className="text-caption text-muted">
+            کنشگر
+            <select
+              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
+              value={auditActor}
+              onChange={(e) => setAuditActor(e.target.value)}
+            >
+              <option value="">همه</option>
+              {(audit.data?.actors ?? []).map((a) => (
+                <option key={a.actorId} value={a.actorId}>
+                  {a.actorLabel}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-caption text-muted">
+            نوع کنش
+            <input
+              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
+              placeholder="مثلاً signature."
+              value={auditAction}
+              onChange={(e) => setAuditAction(e.target.value)}
+            />
+          </label>
+          <label className="text-caption text-muted">
+            از تاریخ
+            <input
+              type="date"
+              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
+              value={auditFrom}
+              onChange={(e) => setAuditFrom(e.target.value)}
+            />
+          </label>
+          <label className="text-caption text-muted">
+            تا تاریخ
+            <input
+              type="date"
+              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
+              value={auditTo}
+              onChange={(e) => setAuditTo(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {audit.isLoading ? (
+            <p className="text-body-2 text-muted">در حال بارگذاری…</p>
+          ) : (audit.data?.entries.length ?? 0) === 0 ? (
+            <p className="text-body-2 text-muted">رخدادی با این فیلترها یافت نشد.</p>
+          ) : (
+            audit.data!.entries.map((entry) => (
+              <div
+                key={entry.id}
+                className="rounded-medium border border-divider px-3 py-2 flex items-start justify-between gap-3 flex-wrap"
+              >
+                <div className="min-w-0">
+                  <p className="text-body-2 text-on-surface">{entry.descriptionFa}</p>
+                  <p className="text-caption text-muted">
+                    {entry.actorLabel} — {entry.action}
+                  </p>
+                </div>
+                <span className="text-caption text-muted shrink-0">
+                  {formatIsoJalali(entry.createdAt.slice(0, 10))}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+        {audit.data && (
+          <p className="mt-2 text-caption text-muted">
+            نمایش {audit.data.entries.length} از {audit.data.total} رخداد.
+          </p>
+        )}
+      </SectionCard>
+
+      {/* ------------------------------------------------------
           Finalize + artifacts
           ------------------------------------------------------ */}
       <SectionCard title="تکمیل و بایگانی" description="نسخه غیرقابل‌تغییر قرارداد">
@@ -620,7 +785,22 @@ export function ReviewStep() {
       {/* Live preview — same engine as the snapshot and the PDF */}
       <div>
         <h3 className="text-titleMedium text-on-surface mb-2">پیش‌نمایش قرارداد</h3>
-        <LivePreview contract={{ ...contract, data }} parties={parties} payments={payments} />
+        <LivePreview
+          contract={{ ...contract, data }}
+          parties={parties}
+          payments={payments}
+          stamp={
+            view?.adminApproved
+              ? {
+                  applied: true,
+                  reviewedAt: view.adminReview?.decidedAt ?? null,
+                  reviewingOfficeFa: view.adminReview?.reviewingOfficeFa,
+                  reviewerInitials: view.adminReview?.reviewerInitials,
+                  reviewId: view.adminReview?.id,
+                }
+              : { applied: false }
+          }
+        />
       </div>
 
       {/* OTP dialog — consent is explicit, never prechecked */}

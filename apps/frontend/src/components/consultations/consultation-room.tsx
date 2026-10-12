@@ -59,7 +59,7 @@ export function ConsultationRoom({ id }: { id: string }) {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-        <div className="h-64 animate-pulse rounded-2xl bg-surface-container" />
+        <div className="h-64 animate-pulse rounded-large bg-surface-container" />
       </div>
     );
   }
@@ -67,12 +67,12 @@ export function ConsultationRoom({ id }: { id: string }) {
   if (isError || !data) {
     return (
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-        <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-8 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-8 text-center">
           <p className="text-body-1 text-error">این مشاوره یافت نشد یا به آن دسترسی ندارید</p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -155,7 +155,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
       <ConsultationBanner />
 
       {/* Header */}
-      <div className="mb-6 rounded-2xl border border-divider/60 bg-surface p-6 shadow-sm">
+      <div className="mb-6 rounded-large border border-divider bg-surface p-6 shadow-elevation-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-h2 text-on-surface">{request.title}</h1>
@@ -186,7 +186,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
         {/* Main column */}
         <div className="space-y-6 tablet:col-span-2">
           {/* Message room */}
-          <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+          <section className="rounded-large border border-divider bg-surface p-5">
             <h2 className="mb-4 text-h3 text-on-surface">گفت‌وگوی پرونده</h2>
 
             {messages.length === 0 ? (
@@ -236,7 +236,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
         {/* Side column */}
         <div className="space-y-6">
           {/* Lawyer card */}
-          <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+          <section className="rounded-large border border-divider bg-surface p-5">
             <h2 className="mb-3 text-h3 text-on-surface">وکیل</h2>
             {lawyer ? (
               <div className="space-y-3">
@@ -268,7 +268,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
                 </dl>
                 <Link
                   href={`/lawyers/${lawyer.id}`}
-                  className="block rounded-xl border border-divider/60 px-4 py-2.5 text-center text-body-2 text-primary transition hover:bg-primary/5"
+                  className="block rounded-medium border border-divider px-4 py-2.5 text-center text-body-2 text-primary transition hover:bg-primary-container"
                 >
                   مشاهده پروفایل وکیل
                 </Link>
@@ -281,11 +281,11 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
           </section>
 
           {/* Actions */}
-          <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+          <section className="rounded-large border border-divider bg-surface p-5">
             <h2 className="mb-3 text-h3 text-on-surface">اقدام‌ها</h2>
 
             {error && (
-              <div className="mb-3 flex items-start gap-2 rounded-xl bg-error/10 px-3 py-2 text-caption text-error">
+              <div className="mb-3 flex items-start gap-2 rounded-medium bg-error-container px-3 py-2 text-caption text-error">
                 <IconWarning size={16} className="mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -378,7 +378,7 @@ function RoomBody({ id, detail }: { id: string; detail: ConsultationDetail }) {
 
           {/* Intake answers */}
           {Object.keys(request.intakeAnswers).length > 0 && (
-            <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+            <section className="rounded-large border border-divider bg-surface p-5">
               <h2 className="mb-3 text-h3 text-on-surface">اطلاعات ثبت‌شده</h2>
               <dl className="space-y-2 text-body-2">
                 {Object.entries(request.intakeAnswers).map(([k, v]) => (
@@ -417,9 +417,9 @@ function MessageBubble({ message }: { message: ConsultationMessageView }) {
     <li className={message.isMine ? "flex justify-start" : "flex justify-end"}>
       <div
         className={[
-          "max-w-[85%] rounded-2xl px-4 py-2.5",
+          "max-w-[85%] rounded-large px-4 py-2.5",
           message.isMine
-            ? "bg-primary/10 text-on-surface"
+            ? "bg-primary-container text-on-surface"
             : "bg-surface-container text-on-surface",
         ].join(" ")}
       >

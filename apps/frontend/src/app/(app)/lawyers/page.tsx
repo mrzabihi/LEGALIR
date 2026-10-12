@@ -181,11 +181,11 @@ export default function LawyersPage() {
 
       {/* --- Error --- */}
       {isError && (
-        <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-6 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
           <p className="text-body-1 text-error">دریافت فهرست وکلا با مشکل مواجه شد.</p>
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -200,14 +200,14 @@ export default function LawyersPage() {
           <p className="text-body-1 text-muted">
             {isFiltering ? "وکیلی با این مشخصات یافت نشد" : "در حال حاضر وکیلی در دسترس نیست"}
           </p>
-          <p className="text-body-2 text-muted/60">
+          <p className="text-body-2 text-muted">
             {isFiltering ? "فیلترها را تغییر دهید یا جستجو را پاک کنید" : "لطفاً بعداً دوباره سر بزنید"}
           </p>
           {isFiltering && (
             <button
               type="button"
               onClick={clearFilters}
-              className="mt-2 rounded-full border border-divider/60 bg-surface px-4 py-2 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover"
+              className="mt-2 rounded-full border border-divider bg-surface px-4 py-2 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover"
             >
               پاک کردن فیلترها
             </button>
@@ -222,7 +222,7 @@ export default function LawyersPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-primary/10"
+              className="rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-surface-hover"
             >
               پاک کردن فیلترها
             </button>

@@ -77,11 +77,11 @@ function JobList({ jobs }: { jobs: DocumentJob[] }) {
         >
           {/* Status icon */}
           {job.status === "completed" ? (
-            <IconCheckCircle size={18} className="text-green-600 shrink-0" />
+            <IconCheckCircle size={18} className="text-success shrink-0" />
           ) : job.status === "failed" ? (
-            <IconWarning size={18} className="text-red-600 shrink-0" />
+            <IconWarning size={18} className="text-error shrink-0" />
           ) : job.status === "running" ? (
-            <div className="w-[18px] h-[18px] shrink-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+            <div className="w-[18px] h-[18px] shrink-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           ) : (
             <IconInfo size={18} className="text-muted shrink-0" />
           )}
@@ -98,7 +98,7 @@ function JobList({ jobs }: { jobs: DocumentJob[] }) {
 
           {/* Error code */}
           {job.status === "failed" && job.errorCode && (
-            <span className="text-caption text-red-600 text-end max-w-[120px] truncate" title={job.errorCode}>
+            <span className="text-caption text-error text-end max-w-[120px] truncate" title={job.errorCode}>
               {job.errorCode}
             </span>
           )}
@@ -138,10 +138,10 @@ function ProcessingSection({
 
       {/* Current stage */}
       {currentStage && (
-        <div className="flex items-center gap-2 rounded-medium bg-blue-50 border border-blue-100 p-3">
-          <div className="w-5 h-5 shrink-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+        <div className="flex items-center gap-2 rounded-medium bg-info-container border border-info p-3">
+          <div className="w-5 h-5 shrink-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           <div>
-            <p className="text-caption font-medium text-blue-800">
+            <p className="text-caption font-medium text-info">
               مرحله فعلی: {getStageLabel(currentStage)}
             </p>
           </div>
@@ -162,10 +162,10 @@ function ProcessingSection({
                 className={[
                   "flex items-center justify-center w-6 h-6 rounded-full text-caption font-bold shrink-0",
                   isCompleted
-                    ? "bg-green-500 text-white"
+                    ? "bg-success text-white"
                     : isCurrent
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-200 text-muted",
+                      ? "bg-primary text-primary-on"
+                      : "bg-surface-container text-muted",
                 ].join(" ")}
                 aria-label={`${getStageLabel(stage)}${isCompleted ? " (تکمیل شده)" : isCurrent ? " (در حال انجام)" : " (در انتظار)"}`}
               >
@@ -181,7 +181,7 @@ function ProcessingSection({
                 <div
                   className={[
                     "flex-1 h-0.5 mx-1",
-                    isCompleted ? "bg-green-500" : "bg-gray-200",
+                    isCompleted ? "bg-success" : "bg-surface-container",
                   ].join(" ")}
                   aria-hidden="true"
                 />
@@ -380,7 +380,7 @@ export function DocumentDetail({
             size="small"
             onClick={handleOpenDelete}
             disabled={isDeleting}
-            className="text-red-600 hover:bg-red-50 touch-target"
+            className="text-error hover:bg-error-container touch-target"
             aria-label="حذف سند"
             startIcon={<IconDelete size={16} />}
           >
@@ -418,13 +418,13 @@ export function DocumentDetail({
           Failed document error
           ============================================================ */}
       {status === "failed" && (
-        <div className="flex items-start gap-2 rounded-medium bg-red-50 border border-red-200 p-4">
-          <IconWarning size={22} className="text-red-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 rounded-medium bg-error-container border border-error p-4">
+          <IconWarning size={22} className="text-error shrink-0 mt-0.5" />
           <div>
-            <p className="text-body-2 text-red-800 font-medium">
+            <p className="text-body-2 text-error font-medium">
               پردازش سند با خطا مواجه شد
             </p>
-            <p className="text-caption text-red-700 mt-1">
+            <p className="text-caption text-error mt-1">
               لطفا دوباره تلاش کنید یا در صورت تکرار خطا با پشتیبانی تماس بگیرید.
             </p>
           </div>

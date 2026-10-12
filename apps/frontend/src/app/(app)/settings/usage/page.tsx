@@ -97,11 +97,11 @@ function QuotaCard({ quota }: { quota: PeriodQuotaView }) {
   const limit = quota.limit ?? 0;
   const usedPct = unlimited ? 0 : pct(quota.used, limit);
   const exhausted = !unlimited && quota.remaining === 0;
-  const barColor = exhausted ? "bg-error" : usedPct >= 70 ? "bg-amber-500" : "bg-primary";
+  const barColor = exhausted ? "bg-error" : usedPct >= 70 ? "bg-warning" : "bg-primary";
 
   return (
     <div className="flex items-start gap-3 rounded-large bg-surface-hover p-4 border border-divider">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-container">
         <Icon size={20} className="text-primary" />
       </div>
       <div className="min-w-0 flex-1">
@@ -113,7 +113,7 @@ function QuotaCard({ quota }: { quota: PeriodQuotaView }) {
         </p>
         {!unlimited && (
           <div
-            className="mt-1.5 h-2 w-full rounded-full bg-gray-200 dark:bg-surface overflow-hidden"
+            className="mt-1.5 h-2 w-full rounded-full bg-surface-container overflow-hidden"
             role="progressbar"
             aria-valuenow={quota.used}
             aria-valuemin={0}
@@ -129,10 +129,10 @@ function QuotaCard({ quota }: { quota: PeriodQuotaView }) {
 }
 
 const TX_STATUS_CLASS: Record<UsageTransactionStatus, string> = {
-  RESERVED: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700/30",
-  COMPLETED: "bg-success/10 text-success border-success/20",
-  REVERSED: "bg-muted/10 text-muted border-muted/20",
-  FAILED: "bg-error/10 text-error border-error/20",
+  RESERVED: "bg-warning-container text-warning border-warning",
+  COMPLETED: "bg-success-container text-success border-success",
+  REVERSED: "bg-surface-container text-muted border-divider",
+  FAILED: "bg-error-container text-error border-error",
 };
 
 const TX_STATUS_FA: Record<UsageTransactionStatus, string> = {
@@ -172,8 +172,8 @@ function UsageTabContent({
       {/* ── The two distinct assets ─────────────────────────────── */}
       <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
         {/* 1) Today's subscription credit — resets at Tehran midnight */}
-        <div className="group relative overflow-hidden rounded-large bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border border-white/10 backdrop-blur p-5">
-          <span className="pointer-events-none absolute -top-10 -end-10 w-32 h-32 rounded-full bg-blue-400/20 blur-3xl transition-opacity duration-500 opacity-60 group-hover:opacity-100" aria-hidden="true" />
+        <div className="group relative overflow-hidden rounded-large border border-[color:color-mix(in_srgb,var(--brand-gold)_24%,transparent)] bg-gradient-to-br from-[var(--brand-green)] to-[var(--brand-teal)] p-5 text-[var(--brand-ivory)] backdrop-blur">
+          <span className="pointer-events-none absolute -top-10 -end-10 w-32 h-32 rounded-full bg-[color-mix(in_srgb,var(--brand-gold)_45%,transparent)] blur-3xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100" aria-hidden="true" />
           <div className="relative flex items-center gap-4">
             <div
               className="relative w-16 h-16 shrink-0"
@@ -183,11 +183,11 @@ function UsageTabContent({
               <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
                 <defs>
                   <linearGradient id="settingsCreditGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="100%" stopColor="#3b82f6" />
+                    <stop offset="0%" stopColor="var(--brand-gold)" />
+                    <stop offset="100%" stopColor="#E0C879" />
                   </linearGradient>
                 </defs>
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3.5" />
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(252,246,232,0.18)" strokeWidth="3.5" />
                 <circle
                   cx="18" cy="18" r="15.915" fill="none"
                   stroke={creditExhausted ? "#f87171" : creditLow ? "#fbbf24" : "url(#settingsCreditGrad)"}
@@ -203,37 +203,37 @@ function UsageTabContent({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <IconBolt size={18} className="text-blue-200" />
+                <IconBolt size={18} className="text-[var(--brand-gold)]" />
                 <span className="text-body-1 text-white font-medium">اعتبار امروز اشتراک</span>
               </div>
               <p className="mt-1 text-h3 font-bold text-white tabular-nums" dir="ltr">
                 {toPersianNumber(daily.pointsRemaining)}
-                <span className="text-body-2 text-primary-200/90 font-normal">
+                <span className="text-body-2 text-[color-mix(in_srgb,var(--brand-ivory)_80%,transparent)] font-normal">
                   {" / "}
                   {toPersianNumber(daily.pointsTotal)}
                 </span>
               </p>
-              <p className="mt-1 text-caption text-primary-200/90">
+              <p className="mt-1 text-caption text-[color-mix(in_srgb,var(--brand-ivory)_80%,transparent)]">
                 {toPersianNumber(daily.requestsRemaining)} درخواست از {toPersianNumber(daily.requestLimit)} باقی‌مانده
               </p>
             </div>
           </div>
 
-          <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2 text-caption text-primary-200/90">
+          <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2 text-caption text-[color-mix(in_srgb,var(--brand-ivory)_80%,transparent)]">
             <p>هر روز نیمه‌شب به وقت تهران بازنشانی می‌شود</p>
             <p>بازنشانی تا <span className="tabular-nums" dir="ltr">{countdown}</span></p>
           </div>
 
           {(!summary.hasSubscription || creditExhausted) && (
-            <div className="relative mt-4 flex flex-wrap items-center justify-between gap-3 rounded-medium bg-white/10 p-3 border border-white/15">
-              <p className="text-body-2 text-white">
+            <div className="relative mt-4 flex flex-wrap items-center justify-between gap-3 rounded-medium border border-[color-mix(in_srgb,var(--brand-ivory)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-ivory)_12%,transparent)] p-3">
+              <p className="text-body-2 text-[var(--brand-ivory)]">
                 {!summary.hasSubscription
                   ? "اشتراک فعالی ندارید."
                   : "اعتبار امروز شما به پایان رسیده است."}
               </p>
               <Link
                 href="/subscription"
-                className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-body-2 text-blue-700 font-medium transition hover:bg-blue-50 touch-target"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-gold)] px-4 py-2 text-body-2 font-medium text-[var(--brand-teal)] transition-colors hover:bg-[var(--brand-gold-deep)] touch-target"
               >
                 <IconSubscription size={16} />
                 {summary.subscriptionExpired ? "تمدید اشتراک" : "خرید اشتراک"}
@@ -325,17 +325,17 @@ function UsageTabContent({
 }
 
 const STATUS_CLASS: Record<string, string> = {
-  active: "bg-success/10 text-success border-success/20",
-  expired: "bg-muted/10 text-muted border-muted/20",
-  cancelled: "bg-muted/10 text-muted border-muted/20",
-  unknown: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700/30",
+  active: "bg-success-container text-success border-success",
+  expired: "bg-surface-container text-muted border-divider",
+  cancelled: "bg-surface-container text-muted border-divider",
+  unknown: "bg-warning-container text-warning border-warning",
 };
 
 const STATUS_DOT: Record<string, string> = {
   active: "bg-success",
   expired: "bg-muted",
   cancelled: "bg-muted",
-  unknown: "bg-amber-500",
+  unknown: "bg-warning",
 };
 
 function HistoryTabContent({
@@ -380,7 +380,7 @@ function HistoryTabContent({
           </thead>
           <tbody className="divide-y divide-divider">
             {history.map((item) => (
-              <tr key={item.id} className="hover:bg-surface-hover/50 transition-colors">
+              <tr key={item.id} className="hover:bg-surface-hover transition-colors">
                 <td className="py-2.5 pl-3 text-on-surface">{formatDate(item.purchasedAt)}</td>
                 <td className="py-2.5 pl-3 text-on-surface">{item.planNameFa}</td>
                 <td className="py-2.5">
@@ -415,7 +415,7 @@ export default function UsageSettingsPage() {
             role="tab"
             aria-selected={activeTab === "usage"}
             onClick={() => setActiveTab("usage")}
-            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "usage" ? "bg-control-selected text-control-selected-foreground shadow-sm" : "text-muted hover:text-on-surface"}`}
+            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "usage" ? "bg-control-selected text-control-selected-foreground shadow-elevation-1" : "text-muted hover:text-on-surface"}`}
           >
             مصرف
           </button>
@@ -423,7 +423,7 @@ export default function UsageSettingsPage() {
             role="tab"
             aria-selected={activeTab === "history"}
             onClick={() => setActiveTab("history")}
-            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "history" ? "bg-control-selected text-control-selected-foreground shadow-sm" : "text-muted hover:text-on-surface"}`}
+            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "history" ? "bg-control-selected text-control-selected-foreground shadow-elevation-1" : "text-muted hover:text-on-surface"}`}
           >
             تاریخچه
           </button>

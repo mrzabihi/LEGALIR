@@ -9,6 +9,7 @@
 
 import { apiClient } from "./client";
 import type {
+  ContractAuditEntry,
   ContractCompleteness,
   ContractDocument,
   ContractDocumentCategory,
@@ -245,6 +246,26 @@ export function verifySignOtp(
     action: "verify_otp",
     ...params,
   });
+}
+
+/** The contract's searchable audit trail (§9.2). */
+export interface ContractAuditResponse {
+  entries: ContractAuditEntry[];
+  actors: { actorId: string; actorLabel: string }[];
+  total: number;
+}
+
+export function fetchContractAudit(
+  id: string,
+  filters: { actor?: string; action?: string; from?: string; to?: string } = {}
+): Promise<ContractAuditResponse> {
+  const params = new URLSearchParams();
+  if (filters.actor) params.set("actor", filters.actor);
+  if (filters.action) params.set("action", filters.action);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  const qs = params.toString();
+  return apiClient.get(`/api/v1/property-contracts/${id}/audit${qs ? `?${qs}` : ""}`);
 }
 
 export function finalizeContract(id: string): Promise<{

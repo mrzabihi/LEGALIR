@@ -154,7 +154,7 @@ function WizardBody() {
           </div>
 
           {!editable && (
-            <div className="rounded-medium border border-warning/40 bg-warning-50 px-3 py-2.5 text-body-2">
+            <div className="rounded-medium border border-warning bg-warning-container px-3 py-2.5 text-body-2">
               این قرارداد در وضعیت فعلی قابل ویرایش نیست. برای تغییر محتوا ابتدا از طرف مقابل درخواست اصلاح کنید.
             </div>
           )}

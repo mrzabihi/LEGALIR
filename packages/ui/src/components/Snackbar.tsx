@@ -130,7 +130,7 @@ function SnackbarItemComponent({ item }: { item: SnackbarItem }) {
           setExiting(true);
           setTimeout(() => snackbar.hide(item.id), 300);
         }}
-        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-onSurface/[0.12] transition-colors shrink-0"
+        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors shrink-0"
         aria-label="بستن"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

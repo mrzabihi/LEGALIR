@@ -43,7 +43,7 @@ export function ContractSearch({
             type="button"
             onClick={() => onChange("")}
             aria-label="پاک کردن جستجو"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-on-surface/[0.08] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-surface-hover transition-colors"
           >
             <IconClose size={18} />
           </button>

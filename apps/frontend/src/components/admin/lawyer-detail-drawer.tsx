@@ -871,7 +871,7 @@ function ReviewsPanel({ detail, canManage }: { detail: AdminLawyerDetail; canMan
 
                 {/* Filed reports against this review (why it was flagged). */}
                 {reports.length > 0 && (
-                  <div className="mt-2 rounded-medium border border-warning/40 bg-warning-container/30 p-2">
+                  <div className="mt-2 rounded-medium border border-warning bg-warning-container p-2">
                     <p className="mb-1 text-caption font-medium text-on-surface">گزارش‌های تخلف</p>
                     <ul className="space-y-1">
                       {reports.map((rep) => (

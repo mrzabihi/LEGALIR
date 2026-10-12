@@ -437,8 +437,8 @@ export function DocumentChatPanel({
   return (
     <div className="flex flex-col rounded-large border border-divider bg-surface overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-divider bg-surface-container/50">
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-divider bg-surface-container">
+        <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
           <IconChat size={16} className="text-primary" />
         </div>
         <div className="flex-1 min-w-0">
@@ -454,7 +454,7 @@ export function DocumentChatPanel({
             type="button"
             onClick={handleClearTrial}
             disabled={messages.length === 0}
-            className="shrink-0 rounded-medium px-2 py-1 text-caption text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-target"
+            className="shrink-0 rounded-medium px-2 py-1 text-caption text-primary hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:pointer-events-none touch-target"
           >
             پاک‌کردن گفتگو
           </button>
@@ -463,7 +463,7 @@ export function DocumentChatPanel({
 
       {/* Trial marker strip */}
       {isTrial && (
-        <div className="flex items-center gap-2 border-b border-secondary/20 bg-secondary/5 px-4 py-2">
+        <div className="flex items-center gap-2 border-b border-secondary bg-secondary-container px-4 py-2">
           <TrialBadge label="نمونهٔ آزمایشی" />
           <span className="text-caption text-muted">{TRIAL_DISCLAIMER_FA}</span>
         </div>
@@ -479,7 +479,7 @@ export function DocumentChatPanel({
         {/* --- NO-MODEL state (real document, model not connected) --- */}
         {!isTrial && !chatEnabled ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warning/10">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warning-container">
               <IconWarning size={24} className="text-warning" aria-hidden="true" />
             </div>
             <h4 className="text-bodyMedium text-onSurface font-medium mb-2">
@@ -499,11 +499,11 @@ export function DocumentChatPanel({
             {/* Opening trial analysis message (scenario, not the user's file) */}
             {reportMessage && (
               <div className="flex gap-3 animate-fade-in">
-                <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
                   <IconSparkle size={15} className="text-secondary" aria-hidden="true" />
                 </div>
                 <div className="max-w-[85%] tablet:max-w-[75%]">
-                  <div className="rounded-large px-4 py-3 bg-surface border border-secondary/20 rounded-bl-small">
+                  <div className="rounded-large px-4 py-3 bg-surface border border-secondary rounded-bl-small">
                     <p className="text-bodyMedium text-onSurface leading-loose legal-text">
                       {reportMessage.content}
                     </p>
@@ -569,7 +569,7 @@ export function DocumentChatPanel({
                       key={opt.id}
                       onClick={() => setSelectedIntent(opt.id)}
                       disabled={isStreaming}
-                      className="rounded-medium border border-primary/30 bg-primary-50 text-primary px-4 py-3 text-bodySmall font-medium hover:bg-primary-100 transition-colors touch-target disabled:opacity-50 text-right"
+                      className="rounded-medium border border-primary bg-primary-container text-primary px-4 py-3 text-bodySmall font-medium hover:bg-surface-hover transition-colors touch-target disabled:opacity-50 text-right"
                     >
                       <span className="block">{opt.label}</span>
                       <span className="block text-caption text-muted font-normal mt-0.5">
@@ -587,7 +587,7 @@ export function DocumentChatPanel({
                 {/* Opening analysis message (LegalIR's comment on the file) */}
                 {reportMessage && (
                   <div className="flex gap-3 animate-fade-in">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
                       <span className="text-primary text-labelSmall font-bold" aria-hidden="true">
                         ل
                       </span>
@@ -653,7 +653,7 @@ export function DocumentChatPanel({
               <button
                 key={q.questionFa}
                 onClick={() => handleTrialQuestion(q)}
-                className="rounded-full border border-secondary/30 bg-secondary/5 text-secondary-700 px-3 py-1.5 text-caption font-medium hover:bg-secondary/10 transition-colors touch-target"
+                className="rounded-full border border-secondary bg-secondary-container text-secondary px-3 py-1.5 text-caption font-medium hover:bg-surface-hover transition-colors touch-target"
               >
                 {q.questionFa}
               </button>
@@ -670,7 +670,7 @@ export function DocumentChatPanel({
               key={prompt}
               onClick={() => handleSendMessage(prompt)}
               disabled={isStreaming}
-              className="rounded-full border border-primary/30 bg-primary-50 text-primary px-3 py-1.5 text-caption font-medium hover:bg-primary-100 transition-colors touch-target disabled:opacity-50"
+              className="rounded-full border border-primary bg-primary-container text-primary px-3 py-1.5 text-caption font-medium hover:bg-surface-hover transition-colors touch-target disabled:opacity-50"
             >
               {prompt}
             </button>
@@ -688,7 +688,7 @@ export function DocumentChatPanel({
           isGenerating={isStreaming}
         />
       ) : (
-        <div className="border-t border-divider bg-surface-container/40 px-4 py-3">
+        <div className="border-t border-divider bg-surface-container px-4 py-3">
           <p className="text-caption text-muted leading-relaxed">
             {isTrial
               ? "در حالت آزمایشی، پاسخ‌ها فقط از میان پرسش‌های پیشنهادی همین سناریو ارائه می‌شوند؛ برای گفتگوی آزاد، اتصال سرویس تحلیل لازم است."

@@ -30,7 +30,7 @@ export function UsageBar({
   const subExhausted = hasSubscription && subscriptionUsed! >= subscriptionLimit!;
 
   return (
-    <div className="rounded-medium bg-surfaceVariant/50 p-3 space-y-3">
+    <div className="rounded-medium bg-surface-container p-3 space-y-3">
       {/* Today's usage */}
       <div>
         <div className="flex items-center justify-between mb-1.5">

@@ -74,14 +74,14 @@ export function LawyerReviewForm({ lawyerId }: { lawyerId: string }) {
   }, [existing?.id, existing?.rating, existing?.comment]);
 
   if (eligibility.isLoading) {
-    return <div className="h-24 animate-pulse rounded-xl bg-surface-container" />;
+    return <div className="h-24 animate-pulse rounded-medium bg-surface-container" />;
   }
   if (eligibility.isError || !eligibility.data) return null;
 
   // Not allowed to review and no review of their own → explain, do not offer.
   if (!eligibility.data.canReview && !existing) {
     return (
-      <p className="rounded-xl bg-surface-container/60 px-4 py-3 text-body-2 text-muted">
+      <p className="rounded-medium bg-surface-container px-4 py-3 text-body-2 text-muted">
         {eligibility.data.reason ?? "امکان ثبت نظر در حال حاضر وجود ندارد."}
       </p>
     );
@@ -103,7 +103,7 @@ export function LawyerReviewForm({ lawyerId }: { lawyerId: string }) {
   // A review exists but is outside the edit window / rejected.
   if (!eligibility.data.canReview && existing) {
     return (
-      <div className="space-y-2 rounded-xl border border-divider/60 bg-surface p-4">
+      <div className="space-y-2 rounded-medium border border-divider bg-surface p-4">
         <div className="flex items-center justify-between">
           <Stars value={existing.rating} readOnly />
           <span className="text-caption text-muted">
@@ -117,7 +117,7 @@ export function LawyerReviewForm({ lawyerId }: { lawyerId: string }) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-divider/60 bg-surface p-4">
+    <div className="space-y-3 rounded-medium border border-divider bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-body-2 font-medium text-on-surface">
           {isEdit ? "ویرایش نظر شما" : "ثبت نظر شما"}

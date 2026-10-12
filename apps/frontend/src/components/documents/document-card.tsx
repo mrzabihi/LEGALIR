@@ -46,10 +46,10 @@ function getDocumentIcon(mime: string) {
 }
 
 const RISK_CHIP_CLASSES: Record<string, string> = {
-  low: "bg-green-100 text-green-800 border-green-200",
-  medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  high: "bg-orange-100 text-orange-800 border-orange-200",
-  critical: "bg-red-100 text-red-800 border-red-200",
+  low: "bg-success-container text-success border-success",
+  medium: "bg-warning-container text-warning border-warning",
+  high: "bg-warning-container text-warning border-warning",
+  critical: "bg-error-container text-error border-error",
 };
 
 const RISK_LABELS: Record<string, string> = {
@@ -85,13 +85,13 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
     // The root is a plain container (not a button) so the actions can live
     // beside the open target without nesting interactive elements — which
     // would be invalid HTML and break a11y.
-    <div className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-divider/60 bg-surface text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3">
+    <div className="group relative flex w-full flex-col overflow-hidden rounded-medium border border-divider bg-surface text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary hover:shadow-elevation-3">
       {/* Open target — the card body. Clicking anywhere here opens the
           document; the actions live in a separate footer row below. */}
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full flex-1 flex-col gap-3 rounded-t-xl p-4 text-start focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
+        className="flex w-full flex-1 flex-col gap-3 rounded-t-medium p-4 text-start focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
         aria-label={`سند ${name}`}
       >
         {/* Top row: icon + name + status */}
@@ -155,11 +155,11 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
           the primary and leads the row at the START edge (the right in RTL),
           with «حذف» as the destructive action beside it — the same edge the
           history cards use for their primary action. */}
-      <div className="mt-auto flex items-center justify-start gap-1.5 border-t border-divider/60 px-3 py-2">
+      <div className="mt-auto flex items-center justify-start gap-1.5 border-t border-divider px-3 py-2">
         <button
           type="button"
           onClick={onClick}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-labelSmall font-medium text-primary transition-colors duration-short3 hover:bg-primary/[0.08] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-labelSmall font-medium text-primary transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         >
           <IconOpenInNew size={16} />
           مشاهده
@@ -171,7 +171,7 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
               label={`حذف سند ${name}`}
               variant="standard"
               size="small"
-              className="!text-error hover:!bg-error/10"
+              className="!text-error hover:!bg-error-container"
               onClick={() => onDelete(document)}
             >
               <IconDelete size={16} />

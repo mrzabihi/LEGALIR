@@ -66,7 +66,7 @@ export function WorkflowProgress({
 
   return (
     <div
-      className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2 animate-fade-in"
+      className="rounded-medium border border-primary bg-primary-container p-3 space-y-2 animate-fade-in"
       role="status"
       aria-label={`وضعیت فرایند: ${phaseLabel}`}
     >
@@ -98,7 +98,7 @@ export function WorkflowProgress({
 
       {/* Phase changed animation hint */}
       {phaseChanged && (
-        <p className="text-caption text-primary/70 animate-pulse">
+        <p className="text-caption text-primary opacity-70 animate-pulse">
           {phase === "DATA_COLLECTION" && "در حال جمع‌آوری اطلاعات تکمیلی..."}
           {phase === "ANALYSIS" && "در حال تحلیل حقوقی موضوع..."}
           {phase === "RECOMMENDATION" && "در حال ارائه توصیه‌های عملی..."}
@@ -116,7 +116,7 @@ export function WorkflowProgress({
             </span>
           ))}
           {pendingQuestions.length > 2 && (
-            <span className="text-primary/70">
+            <span className="text-primary opacity-70">
               +{pendingQuestions.length - 2} سوال دیگر
             </span>
           )}

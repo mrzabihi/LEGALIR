@@ -79,7 +79,7 @@ export default function ChatListPage() {
       {/* Desktop empty state */}
       <main className="hidden tablet:flex flex-1 flex-col items-center justify-center p-8">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary-container flex items-center justify-center">
             <IconChat size={32} className="text-primary" />
           </div>
           <h2 className="text-h3 text-onSurface mb-2">

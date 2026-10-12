@@ -176,7 +176,7 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
 
   const isPageMode = mode === "page";
   const containerClasses = isPageMode
-    ? "flex flex-col h-full bg-surface rounded-xl border border-divider shadow-elevation-1 overflow-hidden"
+    ? "flex flex-col h-full bg-surface rounded-medium border border-divider shadow-elevation-1 overflow-hidden"
     : "flex flex-col h-full bg-surface";
 
   return (
@@ -355,8 +355,8 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
           className={[
             "w-11 h-11 flex items-center justify-center rounded-full transition-colors touch-target shrink-0",
             inputValue.trim()
-              ? "bg-primary text-white hover:bg-primary-variant"
-              : "bg-outline/10 text-muted cursor-not-allowed",
+              ? "bg-primary text-primary-on hover:bg-primary-variant"
+              : "bg-surface-container text-muted cursor-not-allowed",
           ].join(" ")}
           aria-label="ارسال پیام"
         >

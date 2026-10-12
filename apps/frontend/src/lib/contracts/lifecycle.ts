@@ -30,7 +30,17 @@ import {
 const STAGE_STATES: Record<ContractLifecycleStage, PropertyContractState[]> = {
   INFO: ["DRAFT", "PARTIES_PENDING", "PROPERTY_PENDING", "DOCUMENTS_PENDING", "TERMS_PENDING"],
   PREVIEW: [],
-  REVIEW: ["READY_FOR_REVIEW", "COUNTERPARTY_REVIEW", "CHANGES_REQUESTED"],
+  // The admin review gate is part of the Review stage: a contract in the
+  // admin queue, or one approved/rejected by an admin, is still "under
+  // review" from the user's point of view — it has not reached signature.
+  REVIEW: [
+    "READY_FOR_REVIEW",
+    "COUNTERPARTY_REVIEW",
+    "CHANGES_REQUESTED",
+    "PENDING_ADMIN_REVIEW",
+    "ADMIN_APPROVED",
+    "REJECTED",
+  ],
   SIGNATURE: ["READY_TO_SIGN", "PARTIALLY_SIGNED"],
   COMPLETE: [
     "SIGNED",

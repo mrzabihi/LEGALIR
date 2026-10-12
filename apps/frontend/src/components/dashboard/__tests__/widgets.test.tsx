@@ -13,10 +13,16 @@ import {
   ProfileCompletionCard,
   RecentActivities,
   UsageSummaryCard,
+  SmartInputBar,
 } from "../widgets";
 import { QuickActions } from "../quick-access";
 import { PointsSummaryCard } from "../points-summary-card";
 import type { Profile, RecentActivityItem, UsageSummary, Entitlement } from "@legalir/types";
+
+// SmartInputBar routes on submit; only that hook needs the router.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+}));
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({
@@ -532,6 +538,35 @@ describe("UsageSummaryCard", () => {
       </TestWrapper>
     );
     expect(screen.getByText("اطلاعات مصرف در دسترس نیست")).toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// SmartInputBar — label ≠ placeholder (search-box regression)
+// ============================================================
+// The field's placeholder must NOT repeat its label: when both are present
+// the MD3 floating label shows the resting hint and the placeholder an
+// example, and a duplicate would surface the same sentence twice (the
+// original bug where the placeholder bled under the border).
+
+describe("SmartInputBar", () => {
+  it("exposes a label as the accessible name and a distinct example placeholder", () => {
+    render(
+      <TestWrapper>
+        <SmartInputBar />
+      </TestWrapper>
+    );
+
+    // The label is the accessible name — not the placeholder.
+    const field = screen.getByLabelText("مسئله حقوقی خود را توضیح دهید") as HTMLInputElement;
+    expect(field).toBeInTheDocument();
+
+    const placeholder = field.getAttribute("placeholder") ?? "";
+    expect(placeholder.length).toBeGreaterThan(0);
+    // Must not duplicate the label verbatim (ignoring trailing punctuation).
+    expect(placeholder.replace(/[.…]/g, "").trim()).not.toBe("مسئله حقوقی خود را توضیح دهید");
+    // Long-problem typing is bounded so the single line can never grow.
+    expect(field.getAttribute("maxlength")).toBe("500");
   });
 });
 

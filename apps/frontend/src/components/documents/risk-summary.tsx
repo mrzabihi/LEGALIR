@@ -19,31 +19,31 @@ const RISK_CONFIG: Record<
 > = {
   critical: {
     label: "بحرانی",
-    className: "bg-red-50 border-red-200",
-    iconClassName: "text-red-600",
+    className: "bg-error-container border-error",
+    iconClassName: "text-error",
   },
   high: {
     label: "زیاد",
-    className: "bg-orange-50 border-orange-200",
-    iconClassName: "text-orange-500",
+    className: "bg-warning-container border-warning",
+    iconClassName: "text-warning",
   },
   medium: {
     label: "متوسط",
-    className: "bg-yellow-50 border-yellow-200",
-    iconClassName: "text-yellow-600",
+    className: "bg-warning-container border-warning",
+    iconClassName: "text-warning",
   },
   low: {
     label: "کم",
-    className: "bg-green-50 border-green-200",
-    iconClassName: "text-green-600",
+    className: "bg-success-container border-success",
+    iconClassName: "text-success",
   },
 };
 
 const SEVERITY_BAR_COLORS: Record<string, string> = {
-  critical: "bg-red-600",
-  high: "bg-orange-500",
-  medium: "bg-yellow-600",
-  low: "bg-green-600",
+  critical: "bg-error",
+  high: "bg-warning-400",
+  medium: "bg-warning-700",
+  low: "bg-success",
 };
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -88,10 +88,10 @@ function ConfidenceCircle({ value }: { value: number }) {
 
   const strokeColor =
     value >= 80
-      ? "stroke-green-500"
+      ? "stroke-success"
       : value >= 50
-        ? "stroke-yellow-500"
-        : "stroke-red-500";
+        ? "stroke-warning"
+        : "stroke-error";
 
   return (
     <div className="relative inline-flex items-center justify-center">
@@ -181,7 +181,7 @@ export function RiskSummary({ report }: RiskSummaryProps) {
         <h4 className="text-labelSmall text-on-surface font-medium">
           تفکیک بر اساس شدت:
         </h4>
-        <div className="flex items-center gap-1 h-6 rounded-full overflow-hidden bg-divider/30">
+        <div className="flex items-center gap-1 h-6 rounded-full overflow-hidden bg-surface-container">
           {SEVERITY_ORDER.map((sev) => {
             const count = severityCounts[sev] ?? 0;
             if (count === 0) return null;
@@ -189,7 +189,7 @@ export function RiskSummary({ report }: RiskSummaryProps) {
             return (
               <div
                 key={sev}
-                className={`h-full ${SEVERITY_BAR_COLORS[sev] ?? "bg-gray-400"}`}
+                className={`h-full ${SEVERITY_BAR_COLORS[sev] ?? "bg-muted"}`}
                 style={{ width: `${widthPct}%` }}
                 aria-label={`${SEVERITY_LABELS[sev]}: ${count} مورد`}
                 title={`${SEVERITY_LABELS[sev]}: ${count} مورد`}
@@ -206,10 +206,10 @@ export function RiskSummary({ report }: RiskSummaryProps) {
             return (
               <div
                 key={sev}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-divider text-caption"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-divider text-caption"
               >
                 <span
-                  className={`w-2.5 h-2.5 rounded-full ${SEVERITY_BAR_COLORS[sev] ?? "bg-gray-400"}`}
+                  className={`w-2.5 h-2.5 rounded-full ${SEVERITY_BAR_COLORS[sev] ?? "bg-muted"}`}
                   aria-hidden="true"
                 />
                 <span className="text-on-surface">{SEVERITY_LABELS[sev]}</span>
@@ -222,7 +222,7 @@ export function RiskSummary({ report }: RiskSummaryProps) {
 
       {/* Warning for high/critical */}
       {overallRisk === "critical" || overallRisk === "high" ? (
-        <div className="flex items-start gap-2 rounded-medium bg-red-100 border border-red-200 p-3 text-red-800">
+        <div className="flex items-start gap-2 rounded-medium bg-error-container border border-error p-3 text-error">
           <IconWarning size={20} className="shrink-0 mt-0.5" />
           <p className="text-caption">
             این سند دارای ریسک {riskConfig.label} است. توصیه می‌شود پیش از اقدام، با یک

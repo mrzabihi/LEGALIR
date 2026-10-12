@@ -47,7 +47,7 @@ export function CalculatorCategoryBanner({ meta, count }: CalculatorCategoryBann
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className="text-h4 font-bold text-on-surface">{meta.title}</h3>
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface/70 px-1.5 text-labelSmall font-medium tabular-nums text-on-surface-variant">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface px-1.5 text-labelSmall font-medium tabular-nums text-on-surface-variant">
             {count.toLocaleString("fa-IR")}
           </span>
         </div>
@@ -56,7 +56,7 @@ export function CalculatorCategoryBanner({ meta, count }: CalculatorCategoryBann
 
       <Link
         href={`/calculators/all?category=${meta.id}`}
-        className="hidden shrink-0 items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] bg-surface/70 px-3 py-1.5 text-labelLarge font-medium text-on-surface transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:inline-flex"
+        className="hidden shrink-0 items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-3 py-1.5 text-labelLarge font-medium text-on-surface transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:inline-flex"
       >
         مشاهدهٔ همه
         <IconChevronLeft size={16} />

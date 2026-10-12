@@ -150,7 +150,7 @@ export function SplashScreen({ onFinish, duration }: SplashScreenProps) {
           <div className="relative w-24 h-24 flex items-center justify-center">
             {/* Outer ring */}
             <div
-              className="absolute inset-0 rounded-full border-2 border-primary/30"
+              className="absolute inset-0 rounded-full border-2 border-primary"
               style={{
                 animation: reducedMotion ? "none" : "pulse 2s ease-in-out infinite",
               }}
@@ -226,7 +226,7 @@ export function SplashScreen({ onFinish, duration }: SplashScreenProps) {
             {[...Array(3)].map((_, i) => (
               <div
                 key={i}
-                className="w-2 h-2 rounded-full bg-primary/30"
+                className="w-2 h-2 rounded-full bg-primary"
                 style={{
                   animation: `splash-dot 1.2s ease-in-out ${i * 0.15}s infinite`,
                 }}

@@ -122,7 +122,7 @@ const TYPE_VISUAL: Record<
 function getStatusConfig(status: string): { color: string; dot: string } {
   const s = status.toLowerCase();
   if (["completed", "ready", "generated", "approved", "exported", "active", "signed", "finalized"].includes(s)) {
-    return { color: "bg-success/10 text-success border-success/30", dot: "bg-success" };
+    return { color: "bg-success-container text-success border-success", dot: "bg-success" };
   }
   if (["processing", "analyzing", "extracting", "under_review", "collecting", "uploaded", "generating"].includes(s)) {
     return { color: "bg-info-50 text-info-700 border-info-200", dot: "bg-info" };
@@ -131,7 +131,7 @@ function getStatusConfig(status: string): { color: string; dot: string } {
     return { color: "bg-warning-50 text-warning-700 border-warning-200", dot: "bg-warning" };
   }
   if (["failed", "blocked", "error", "cancelled", "canceled"].includes(s)) {
-    return { color: "bg-error/10 text-error border-error/30", dot: "bg-error" };
+    return { color: "bg-error-container text-error border-error", dot: "bg-error" };
   }
   if (["archived"].includes(s)) {
     return { color: "bg-surfaceVariant text-muted border-divider", dot: "bg-on-surface-variant" };
@@ -182,13 +182,13 @@ function LoadingState() {
           className="rounded-large bg-surface p-5 shadow-elevation-1 border border-divider animate-pulse"
         >
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-muted/30 shrink-0" />
+            <div className="w-10 h-10 rounded-full bg-surface-container shrink-0" />
             <div className="flex-1 space-y-3">
-              <div className="h-5 bg-muted/30 rounded w-2/3" />
-              <div className="h-4 bg-muted/20 rounded w-1/3" />
-              <div className="h-4 bg-muted/20 rounded w-full" />
+              <div className="h-5 bg-surface-container rounded w-2/3" />
+              <div className="h-4 bg-surface-container rounded w-1/3" />
+              <div className="h-4 bg-surface-container rounded w-full" />
             </div>
-            <div className="w-20 h-4 bg-muted/20 rounded shrink-0" />
+            <div className="w-20 h-4 bg-surface-container rounded shrink-0" />
           </div>
         </div>
       ))}
@@ -342,7 +342,7 @@ function HistoryCard({
             </span>
             {item.categoryFa && (
               <span className="inline-flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary opacity-60" />
                 {item.categoryFa}
               </span>
             )}
@@ -386,7 +386,7 @@ function HistoryCard({
         )}
 
         {secondary.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-divider/60 pt-2.5">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-divider pt-2.5">
             {secondary.map((action) => (
               <Tooltip key={action.key} content={action.hintFa ?? action.labelFa}>
                 <button
@@ -395,10 +395,10 @@ function HistoryCard({
                   disabled={busy}
                   aria-label={action.labelFa}
                   className={[
-                    "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-labelSmall font-medium transition-colors touch-target disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                    "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-labelSmall font-medium transition-colors touch-target disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     action.destructive
-                      ? "border-error/30 text-error hover:bg-error/10"
-                      : "border-border text-muted hover:bg-onSurface/[0.06] hover:text-on-surface",
+                      ? "border-error text-error hover:bg-error-container"
+                      : "border-border text-muted hover:bg-surface-hover hover:text-on-surface",
                   ].join(" ")}
                 >
                   {actionIcon(action.key, 16)}
@@ -456,7 +456,7 @@ function DeleteHistoryDialog({
           onClick={onCancel}
           disabled={pending}
           aria-label="بستن"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-onSurface/[0.08] transition-colors touch-target disabled:opacity-50"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-hover transition-colors touch-target disabled:opacity-50"
         >
           <IconClose size={18} />
         </button>
@@ -492,16 +492,16 @@ function AdminReviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-scrim/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onCancel} />
       <div className="relative w-full max-w-md mx-4 rounded-large bg-surface shadow-elevation-16 border border-divider p-6 animate-fade-in">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <IconShield size={24} className="text-amber-600" />
+            <IconShield size={24} className="text-warning" />
             <h2 className="text-h3 text-on-surface">بازبینی مدیر ارشد</h2>
           </div>
           <button
             onClick={onCancel}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target"
             aria-label="بستن"
           >
             <IconClose size={18} />
@@ -532,7 +532,7 @@ function AdminReviewModal({
         <div className="flex items-center gap-3 justify-end">
           <button
             onClick={onCancel}
-            className="rounded-full px-5 py-2.5 text-body-2 font-medium text-on-surface border border-border hover:bg-onSurface/[0.06] transition-colors touch-target"
+            className="rounded-full px-5 py-2.5 text-body-2 font-medium text-on-surface border border-border hover:bg-surface-hover transition-colors touch-target"
           >
             انصراف
           </button>
@@ -540,8 +540,10 @@ function AdminReviewModal({
             onClick={onConfirm}
             disabled={!isValid}
             className={[
-              "rounded-full px-5 py-2.5 text-body-2 font-medium text-white transition-colors touch-target",
-              isValid ? "bg-primary hover:bg-primary-dark" : "bg-muted cursor-not-allowed",
+              "rounded-full px-5 py-2.5 text-body-2 font-medium transition-colors touch-target",
+              isValid
+                ? "bg-primary text-primary-on hover:bg-primary-700 hover:text-white"
+                : "bg-muted text-white cursor-not-allowed",
             ].join(" ")}
           >
             تأیید و ورود
@@ -686,7 +688,7 @@ export function HistoryWorkspace() {
             {archivedView ? (
               <Link
                 href="/history"
-                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
+                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-surface-hover transition-colors touch-target"
               >
                 <IconArrowForward size={18} className="rotate-180" />
                 بازگشت به تاریخچه
@@ -694,7 +696,7 @@ export function HistoryWorkspace() {
             ) : (
               <Link
                 href="/history?archived=true"
-                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
+                className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-surface-hover transition-colors touch-target"
                 aria-label={`بایگانی (${archivedCount} مورد)`}
               >
                 <IconArchive size={18} />
@@ -720,7 +722,7 @@ export function HistoryWorkspace() {
             {adminReviewActive && (
               <button
                 onClick={handleExitAdminReview}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 border border-error text-error text-body-2 font-medium hover:bg-error/10 transition-colors touch-target"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 border border-error text-error text-body-2 font-medium hover:bg-error-container transition-colors touch-target"
               >
                 <IconClose size={18} />
                 خروج از حالت بازبینی
@@ -750,7 +752,7 @@ export function HistoryWorkspace() {
                   "rounded-full border px-4 py-2 text-body-2 transition-colors touch-target",
                   isActive
                     ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                    : "border-border bg-surface text-muted hover:border-control-selected/50 hover:text-on-surface",
+                    : "border-border bg-surface text-muted hover:border-control-selected hover:text-on-surface",
                 ].join(" ")}
               >
                 {cat.label}
@@ -776,7 +778,7 @@ export function HistoryWorkspace() {
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover"
                     aria-label="پاک کردن جستجو"
                   >
                     <IconClose size={16} />

@@ -24,6 +24,7 @@ import {
   declineSignature,
   fetchContractLifecycle,
   issueInvitations,
+  recordPhysicalSignature,
   requestSignatureOtp,
   revokeInvitation,
   verifySignatureOtp,
@@ -128,6 +129,16 @@ export function useDeclineSignature() {
       partyId?: string;
       reason?: string;
     }) => declineSignature(id, params),
+    onSuccess: (_res, variables) => invalidateLifecycle(queryClient, variables.id),
+  });
+}
+
+/** Record a physical (wet-ink) signature with its uploaded scan. */
+export function useRecordPhysicalSignature() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, participantId, file }: { id: string; participantId: string; file: File }) =>
+      recordPhysicalSignature(id, { participantId, file }),
     onSuccess: (_res, variables) => invalidateLifecycle(queryClient, variables.id),
   });
 }

@@ -15,9 +15,9 @@ export function AIDisclaimer({ compact = false }: AIDisclaimerProps) {
   }
 
   return (
-    <div className="rounded-2xl bg-surface border border-divider/60 p-6 shadow-elevation-1">
+    <div className="rounded-large bg-surface border border-divider p-6 shadow-elevation-1">
       <div className="flex items-start gap-3">
-        <div className="h-8 w-8 rounded-medium bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+        <div className="h-8 w-8 rounded-medium bg-primary-container flex items-center justify-center shrink-0 mt-0.5">
           <IconShield size={18} className="text-primary" />
         </div>
         <div>

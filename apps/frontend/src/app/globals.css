@@ -89,6 +89,16 @@
   --color-outline-variant: #D1D5DB;
   --color-divider: #E5E7EB;
 
+  /* --- Warm ivory "note" cards (the «خدمات جدید» secondary tiles) ---
+     A calm paper-toned surface. Its own theme-aware token group because the
+     brand ivories (`--brand-ivory`, `secondary-50`) are frozen across themes
+     and would read near-white on the deep-navy dark canvas. */
+  --card-ivory-bg: #F7F1E2;
+  --card-ivory-bg-hover: #F2E9D3;
+  --card-ivory-tile: #FFFFFF;
+  /* The icon/chevron accent reuses the brand gold-on-light foreground
+     (`--brand-fg-gold`) rather than a parallel token — one source for gold. */
+
   /* Semantic */
   --color-error: #B42318;
   --color-on-error: #FFFFFF;
@@ -479,6 +489,13 @@
   --color-outline: #6B7280;
   --color-outline-variant: #374151;
   --color-divider: #1E2A40;
+
+  /* Warm ivory "note" cards — dark theme. A deep, warm brown (not the light
+     ivory): a light fill would blow out on the deep-navy canvas. The gold
+     accent lifts so the icon stays legible on its tile. */
+  --card-ivory-bg: #2A2517;
+  --card-ivory-bg-hover: #332D1C;
+  --card-ivory-tile: #3A3320;
 
   --color-error: #FCA5A5;
   --color-on-error: #7F1D1D;

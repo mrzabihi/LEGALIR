@@ -65,7 +65,7 @@ export function ContractCardMenu({ items, label = "گزینه‌های بیشت�
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
-        className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-on-surface/[0.08] transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
       >
         <IconMore size={20} />
       </button>
@@ -84,7 +84,7 @@ export function ContractCardMenu({ items, label = "گزینه‌های بیشت�
                 setOpen(false);
                 item.onSelect();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-right text-body-2 transition-colors hover:bg-on-surface/[0.06] ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-right text-body-2 transition-colors hover:bg-surface-hover ${
                 item.destructive ? "text-error" : "text-on-surface"
               }`}
             >

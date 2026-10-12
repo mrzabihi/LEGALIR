@@ -32,6 +32,7 @@ import {
 } from "@/lib/contracts/db";
 import { computeCompleteness, isReadyForReview } from "@/lib/contracts/completeness";
 import { insertReviewComment } from "@/lib/contracts/review-db";
+import { createPendingReview, openAdminReview } from "@/lib/contracts/admin-review";
 import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 import { partyRoleLabelFa } from "@/lib/contracts/registry";
@@ -40,7 +41,7 @@ interface Params {
   params: Promise<{ id: string }>;
 }
 
-type ReviewAction = "submit" | "approve" | "request_changes" | "comment";
+type ReviewAction = "submit" | "approve" | "request_changes" | "comment" | "submit_admin";
 
 interface ReviewBody {
   action?: ReviewAction;
@@ -71,6 +72,7 @@ export async function POST(request: Request, { params }: Params) {
   if (body.action === "approve") return approve(userId, contract, body);
   if (body.action === "request_changes") return requestChanges(userId, contract, body);
   if (body.action === "comment") return addComment(userId, contract, body);
+  if (body.action === "submit_admin") return submitForAdminReview(userId, contract);
 
   return badRequest("عملیات درخواستی معتبر نیست", "INVALID_ACTION");
 }
@@ -270,4 +272,56 @@ function requestChanges(userId: string, contract: PropertyContract, body: Review
   });
 
   return ok({ contract: updated });
+}
+
+// ------------------------------------------------------------
+// submit_admin — enter the compulsory LEGALIR admin review queue
+// ------------------------------------------------------------
+// The contract's content is frozen as a fresh immutable version and a
+// PENDING admin review is opened, bound to that exact version's hash.
+// The version is the thing the admin judges; because snapshotting
+// invalidates stale approvals, any later content change produces a NEW
+// version with a DIFFERENT hash, and the old approval stops matching —
+// the contract must be re-submitted. This is the same hash-bound gate
+// the sign and finalize routes enforce.
+
+function submitForAdminReview(userId: string, contract: PropertyContract) {
+  // One open review at a time — a second submission while a review is
+  // pending would create an ambiguous decision trail.
+  if (openAdminReview(contract.id)) {
+    return conflict("یک درخواست بررسی ادمین در جریان است.", "REVIEW_IN_FLIGHT");
+  }
+
+  try {
+    assertTransition(contract.state, "PENDING_ADMIN_REVIEW");
+  } catch (err) {
+    if (err instanceof IllegalTransitionError) return conflict(err.message, "ILLEGAL_TRANSITION");
+    throw err;
+  }
+
+  // Freeze the content. The admin reviews THIS version, and any later
+  // edit yields a new hash that the approval will no longer match.
+  const { version } = createVersion(contract, userId);
+
+  const review = createPendingReview({
+    contractId: contract.id,
+    contractVersionId: version.id,
+    documentHash: version.documentHash,
+    submittedByLabelFa: "کاربر",
+  });
+
+  const updated = updateContractForUser(userId, contract.id, {
+    state: "PENDING_ADMIN_REVIEW",
+  });
+
+  audit({
+    contractId: contract.id,
+    actorId: userId,
+    actorLabel: "کاربر",
+    action: "admin_review.submitted",
+    descriptionFa: `قرارداد برای بررسی ادمین ارسال شد (نسخه ${version.versionNumber}).`,
+    metadata: { reviewId: review.id, versionId: version.id, documentHash: version.documentHash },
+  });
+
+  return ok({ contract: updated, review, version });
 }

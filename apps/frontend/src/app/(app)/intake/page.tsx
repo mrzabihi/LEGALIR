@@ -77,8 +77,8 @@ function FieldInput({
                 className={[
                   "rounded-full border px-3 py-1.5 text-caption transition-colors",
                   selected
-                    ? "border-primary bg-primary/10 text-primary-700"
-                    : "border-divider/60 bg-surface text-muted hover:border-primary/40",
+                    ? "border-primary bg-primary-container text-primary"
+                    : "border-divider bg-surface text-muted hover:border-primary",
                 ].join(" ")}
               >
                 {o.labelFa}
@@ -97,10 +97,10 @@ function FieldInput({
               type="button"
               onClick={() => onChange(opt.v)}
               className={[
-                "rounded-xl border px-5 py-2 text-body-2 transition-colors",
+                "rounded-medium border px-5 py-2 text-body-2 transition-colors",
                 value === opt.v
-                  ? "border-primary bg-primary/10 text-primary-700"
-                  : "border-divider/60 bg-surface text-muted hover:border-primary/40",
+                  ? "border-primary bg-primary-container text-primary"
+                  : "border-divider bg-surface text-muted hover:border-primary",
               ].join(" ")}
             >
               {opt.label}
@@ -193,11 +193,11 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
   }
 
   if (isLoading || !schema || !step) {
-    return <div className="h-64 animate-pulse rounded-2xl bg-surface-container" />;
+    return <div className="h-64 animate-pulse rounded-large bg-surface-container" />;
   }
 
   return (
-    <div className="rounded-2xl border border-divider/60 bg-surface p-6">
+    <div className="rounded-large border border-divider bg-surface p-6">
       {/* Progress */}
       <div className="mb-6">
         <div className="mb-2 flex items-center justify-between text-caption text-muted">
@@ -206,7 +206,7 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
           </span>
           <span>{schema.titleFa}</span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-divider/60">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-divider">
           <div
             className="h-full rounded-full bg-primary transition-all duration-300"
             style={{ width: `${((stepIndex + 1) / schema.steps.length) * 100}%` }}
@@ -218,7 +218,7 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
       {step.descriptionFa && <p className="mb-5 text-body-2 text-muted">{step.descriptionFa}</p>}
 
       {isLast ? (
-        <div className="rounded-xl bg-primary/5 p-4 text-body-2 text-on-surface">
+        <div className="rounded-medium bg-primary-container p-4 text-body-2 text-on-surface">
           <p className="mb-2 font-semibold">خلاصه پاسخ‌های شما</p>
           <ul className="space-y-1 text-muted">
             {Object.entries(answers).map(([k, v]) => (
@@ -247,7 +247,7 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
         <button
           type="button"
           onClick={stepIndex === 0 ? onExit : handleBack}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-divider/60 px-4 py-2.5 text-body-2 text-on-surface transition hover:bg-surface-hover"
+          className="inline-flex items-center gap-1.5 rounded-medium border border-divider px-4 py-2.5 text-body-2 text-on-surface transition hover:bg-surface-hover"
         >
           <IconArrowBack size={18} />
           {stepIndex === 0 ? "تغییر دسته" : "مرحله قبل"}
@@ -306,7 +306,7 @@ export default function IntakePage() {
       ) : (
         <>
           {drafts && drafts.length > 0 && (
-            <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="mb-6 rounded-large border border-primary bg-primary-container p-4">
               <p className="mb-2 flex items-center gap-1.5 text-body-2 font-semibold text-on-surface">
                 <IconInfo size={18} className="text-primary" />
                 پیش‌نویس‌های ناتمام
@@ -333,7 +333,7 @@ export default function IntakePage() {
                 key={code}
                 type="button"
                 onClick={() => setCategory(code)}
-                className="rounded-2xl border border-divider/60 bg-surface p-5 text-start transition-all hover:border-primary/40 hover:shadow-elevation-1"
+                className="rounded-large border border-divider bg-surface p-5 text-start transition-all hover:border-primary hover:shadow-elevation-1"
               >
                 <span className="text-body-1 font-semibold text-on-surface">{label}</span>
               </button>

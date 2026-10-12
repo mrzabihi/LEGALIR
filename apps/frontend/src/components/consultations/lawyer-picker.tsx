@@ -201,7 +201,7 @@ export function LawyerPicker({
       )}
 
       {mode === "browse" && browse.isError && (
-        <div className="flex flex-col items-center gap-2 rounded-large bg-error/10 p-5 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-large bg-error-container p-5 text-center">
           <p className="text-body-2 text-error">خطا در بارگذاری وکلا</p>
           <button
             type="button"
@@ -215,13 +215,13 @@ export function LawyerPicker({
       )}
 
       {mode === "match" && match.isError && (
-        <div className="rounded-large bg-error/10 p-5 text-center text-body-2 text-error">
+        <div className="rounded-large bg-error-container p-5 text-center text-body-2 text-error">
           یافتن وکیل ناموفق بود. دوباره تلاش کنید.
         </div>
       )}
 
       {mode === "match" && match.data && match.data.candidates.length === 0 && (
-        <div className="flex flex-col items-center gap-2 rounded-large border border-divider/60 bg-surface p-6 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-large border border-divider bg-surface p-6 text-center">
           <IconInfo size={26} className="text-muted" />
           <p className="text-body-2 text-muted">
             وکیل واجد شرایطی برای این موضوع یافت نشد.

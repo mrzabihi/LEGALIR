@@ -164,7 +164,7 @@ export const STATUS_DOT_CLASSES: Record<ContractStatusTone, string> = {
   info: "bg-info",
   warning: "bg-warning",
   success: "bg-success",
-  muted: "bg-on-surface-variant/50",
+  muted: "bg-on-surface-variant opacity-50",
   error: "bg-error",
 };
 
@@ -181,6 +181,9 @@ const PROPERTY_STATE_DRAFT: Record<PropertyContractState, ContractDraftStatus> =
   CHANGES_REQUESTED: "in_progress",
   READY_FOR_REVIEW: "ready",
   COUNTERPARTY_REVIEW: "ready",
+  PENDING_ADMIN_REVIEW: "ready",
+  ADMIN_APPROVED: "ready",
+  REJECTED: "in_progress",
   READY_TO_SIGN: "ready",
   PARTIALLY_SIGNED: "ready",
   SIGNED: "ready",

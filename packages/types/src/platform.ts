@@ -161,6 +161,11 @@ export type Permission =
   | "admin:overview:read"
   | "admin:requests:read"
   | "admin:requests:manage"
+  // Compulsory internal review of generated contracts. A contract cannot be
+  // issued or signed until an admin has approved the exact version, so the
+  // queue is gated by its own permission pair (read vs decide).
+  | "admin:contracts:read"
+  | "admin:contracts:review"
   | "admin:lawyer:read"
   // Granular lawyer-management capabilities (Super Admin / ADMIN_LAWYERS).
   // `admin:lawyer:verify` above covers the review decision; these cover the
@@ -350,6 +355,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:overview:read",
     "admin:users:read",
     "admin:requests:read",
+    "admin:contracts:read",
+    "admin:contracts:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -420,6 +427,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:users:manage",
     "admin:requests:read",
     "admin:requests:manage",
+    "admin:contracts:read",
+    "admin:contracts:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -475,6 +484,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:users:manage",
     "admin:requests:read",
     "admin:requests:manage",
+    "admin:contracts:read",
+    "admin:contracts:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",

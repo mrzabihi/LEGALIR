@@ -96,7 +96,7 @@ export default function MemorySettingsPage() {
         {showForm && (
           <form
             onSubmit={handleSubmit}
-            className="rounded-large border border-divider bg-surface-hover/40 p-4 mb-5 space-y-3"
+            className="rounded-large border border-divider bg-surface-hover p-4 mb-5 space-y-3"
           >
             <TextField
               id="memory-key"
@@ -154,7 +154,7 @@ export default function MemorySettingsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="text-body-1 text-on-surface font-medium">{item.key}</span>
-                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-caption text-primary">
+                    <span className="inline-flex items-center rounded-full bg-primary-container px-2.5 py-0.5 text-caption text-primary">
                       {MEMORY_CATEGORY_LABELS[item.category]}
                     </span>
                   </div>
@@ -164,7 +164,7 @@ export default function MemorySettingsPage() {
                   type="button"
                   onClick={() => setDeleteTarget(item)}
                   disabled={deleteMemory.isPending}
-                  className="shrink-0 rounded-full p-2 text-muted hover:text-error hover:bg-error/10 transition-colors touch-target"
+                  className="shrink-0 rounded-full p-2 text-muted hover:text-error hover:bg-error-container transition-colors touch-target"
                   aria-label="حذف"
                 >
                   <IconDelete size={16} />
@@ -197,7 +197,7 @@ export default function MemorySettingsPage() {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleteMemory.isPending}
-                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-muted/10 transition-colors touch-target"
+                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
               >
                 انصراف
               </button>
@@ -205,7 +205,7 @@ export default function MemorySettingsPage() {
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={deleteMemory.isPending}
-                className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2 text-white text-body-2 font-medium hover:bg-error/90 disabled:opacity-50 transition-colors touch-target"
+                className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2 text-white text-body-2 font-medium hover:opacity-90 disabled:opacity-50 transition-colors touch-target"
               >
                 {deleteMemory.isPending ? "در حال حذف..." : "حذف"}
               </button>

@@ -26,9 +26,10 @@
 "use client";
 
 import { useCallback } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SegmentedControl } from "@legalir/ui";
-import { CONTRACT_SERVICE_COUNT } from "@/lib/contract-services";
+import { COMING_SOON_CONTRACT_SERVICE_COUNT } from "@/lib/contract-services";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { ContractList } from "./contract-list";
 import { ContractCatalog } from "./catalog";
@@ -107,11 +108,29 @@ export function ContractsHub() {
           <div className="mb-5">
             <h2 className="text-h3 font-bold text-on-surface">قراردادهای در دست توسعه</h2>
             <p className="mt-1 max-w-2xl text-body-2 text-on-surface-variant">
-              {toPersianNumber(CONTRACT_SERVICE_COUNT)} خدمت قراردادی که به‌تدریج فعال می‌شوند.
+              {toPersianNumber(COMING_SOON_CONTRACT_SERVICE_COUNT)} خدمت قراردادی که به‌تدریج فعال می‌شوند.
               جزئیات و قابلیت‌های هر خدمت را ببینید و در صورت نیاز با وکیل متخصص مشورت کنید.
             </p>
           </div>
-          <ContractCatalog embedded paramPrefix="soon-" />
+          {COMING_SOON_CONTRACT_SERVICE_COUNT > 0 ? (
+            <ContractCatalog embedded paramPrefix="soon-" filterStatus="coming-soon" />
+          ) : (
+            <div className="rounded-xlarge border border-[color:var(--color-outline-variant)] bg-surface-container-low p-6 text-center">
+              <p className="text-body-1 font-semibold text-on-surface">
+                همهٔ خدمات قراردادی فعال شده‌اند
+              </p>
+              <p className="mt-1.5 text-body-2 text-on-surface-variant">
+                در حال حاضر هیچ خدمتی در دست توسعه نیست. می‌توانید از فهرست کامل قراردادهای فعال
+                استفاده کنید.
+              </p>
+              <Link
+                href="/contracts"
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-medium bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                مشاهده قراردادهای فعال
+              </Link>
+            </div>
+          )}
         </section>
       )}
     </div>

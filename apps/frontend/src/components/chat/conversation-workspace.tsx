@@ -142,7 +142,7 @@ export function ConversationWorkspace({
         {/* Mobile: back button */}
         <button
           onClick={() => window.history.back()}
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target shrink-0 tablet:hidden"
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target shrink-0 tablet:hidden"
           aria-label="بازگشت به لیست گفتگوها"
         >
           <IconArrowBack size={20} />
@@ -152,7 +152,7 @@ export function ConversationWorkspace({
         {onMobileDrawerToggle && (
           <button
             onClick={onMobileDrawerToggle}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target shrink-0 tablet:hidden"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target shrink-0 tablet:hidden"
             aria-label="نمایش لیست گفتگوها"
           >
             <IconMenu size={20} />
@@ -183,7 +183,7 @@ export function ConversationWorkspace({
             </h1>
             <button
               onClick={() => setIsRenaming(true)}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors shrink-0 touch-target"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors shrink-0 touch-target"
               aria-label="تغییر نام گفتگو"
             >
               <IconEdit size={14} className="text-muted" />
@@ -195,13 +195,13 @@ export function ConversationWorkspace({
         {onToggleStar && (
           <button
             onClick={onToggleStar}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target shrink-0"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target shrink-0"
             aria-label={isStarred ? "حذف از نشان‌ها" : "نشان کردن گفتگو"}
             title={isStarred ? "حذف نشان" : "نشان کردن"}
           >
             <IconStar
               size={18}
-              className={isStarred ? "text-yellow-500 fill-yellow-500" : "text-muted"}
+              className={isStarred ? "text-warning fill-warning" : "text-muted"}
             />
           </button>
         )}
@@ -210,7 +210,7 @@ export function ConversationWorkspace({
         {onMinimize && (
           <button
             onClick={onMinimize}
-            className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target shrink-0"
+            className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target shrink-0"
             aria-label="جمع کردن گفتگو"
             title="جمع کردن"
           >
@@ -223,7 +223,7 @@ export function ConversationWorkspace({
         {/* Close / X button (desktop only) */}
         <button
           onClick={handleClose}
-          className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-full hover:bg-error/10 hover:text-error transition-colors touch-target shrink-0"
+          className="hidden tablet:flex w-10 h-10 items-center justify-center rounded-full hover:bg-error-container hover:text-error transition-colors touch-target shrink-0"
           aria-label="بستن گفتگو"
           title="بستن"
         >

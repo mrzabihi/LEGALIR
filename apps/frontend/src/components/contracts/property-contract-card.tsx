@@ -80,7 +80,7 @@ export function PropertyContractCard({ contract, onDelete }: PropertyContractCar
   const deletable = isDeletable(contract.state);
 
   return (
-    <div className="rounded-large bg-surface p-4 shadow-elevation-1 border border-divider hover:shadow-elevation-3 hover:border-primary/40 transition-all">
+    <div className="rounded-large bg-surface p-4 shadow-elevation-1 border border-divider hover:shadow-elevation-3 hover:border-primary transition-all">
       {/* The info block is the resume target — it links to the existing
           contract id so the wizard reopens where the user stopped. */}
       <Link
@@ -148,7 +148,7 @@ export function PropertyContractCard({ contract, onDelete }: PropertyContractCar
           <Button
             variant="text"
             size="medium"
-            className="!text-error hover:!bg-error/10"
+            className="!text-error hover:!bg-error-container"
             startIcon={<IconDelete size={18} />}
             onClick={() => onDelete(contract)}
           >

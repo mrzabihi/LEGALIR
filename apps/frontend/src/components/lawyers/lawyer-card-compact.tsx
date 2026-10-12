@@ -72,7 +72,7 @@ export function LawyerCardCompact({ lawyer }: LawyerCardCompactProps) {
 
       {/* --- Primary specialty --- */}
       {primary && (
-        <span className="mx-auto rounded-full border border-primary/15 bg-primary/5 px-2.5 py-0.5 text-caption text-primary-700">
+        <span className="mx-auto rounded-full border border-primary bg-primary-container px-2.5 py-0.5 text-caption text-primary">
           {specialtyLabel(primary)}
         </span>
       )}
@@ -100,11 +100,11 @@ export function LawyerCardCompact({ lawyer }: LawyerCardCompactProps) {
 
   if (rejected) {
     return (
-      <div className="flex h-full flex-col gap-3 rounded-2xl border border-error-200 bg-error-50 p-4">
+      <div className="flex h-full flex-col gap-3 rounded-large border border-error bg-error-container p-4">
         {body}
         <div
           role="status"
-          className="mt-auto flex items-center justify-center gap-1.5 rounded-xl border border-error-200 bg-error-100 px-3 py-2 text-center text-caption font-medium text-error-700"
+          className="mt-auto flex items-center justify-center gap-1.5 rounded-medium border border-error bg-error-container px-3 py-2 text-center text-caption font-medium text-error"
         >
           <IconError size={14} className="shrink-0" aria-hidden="true" />
           {removeReason}
@@ -116,7 +116,7 @@ export function LawyerCardCompact({ lawyer }: LawyerCardCompactProps) {
   return (
     <Link
       href={`/lawyers/${lawyer.id}`}
-      className="group flex h-full flex-col gap-3 rounded-2xl border border-divider/60 bg-surface p-4 shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-elevation-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      className="group flex h-full flex-col gap-3 rounded-large border border-divider bg-surface p-4 shadow-elevation-1 transition-all duration-short3 hover:border-primary hover:shadow-elevation-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       aria-label={`مشاهده پروفایل ${lawyer.fullName}`}
     >
       {body}

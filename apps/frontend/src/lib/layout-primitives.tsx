@@ -125,7 +125,7 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
         {/* Top Bar */}
         {topBar && (
-          <header className="relative z-30 shrink-0 h-14 tablet:h-16 border-b border-divider bg-surface/80 backdrop-blur-lg flex items-center px-3 tablet:px-5 gap-3">
+          <header className="relative z-30 shrink-0 h-14 tablet:h-16 border-b border-divider bg-surface backdrop-blur-lg flex items-center px-3 tablet:px-5 gap-3">
             {topBar}
           </header>
         )}

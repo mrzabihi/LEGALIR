@@ -212,7 +212,7 @@ export function Header() {
               </svg>
             </button>
             <div
-              className={`absolute end-0 top-full mt-2 w-52 rounded-xl bg-white shadow-xl border border-neutral-200 py-1 transition-all duration-200 origin-top-right z-30 ${
+              className={`absolute end-0 top-full mt-2 w-52 rounded-medium bg-white shadow-xl border border-neutral-200 py-1 transition-all duration-200 origin-top-right z-30 ${
                 ctaOpen
                   ? "opacity-100 scale-100 visible"
                   : "opacity-0 scale-95 invisible"
@@ -352,7 +352,7 @@ export function Header() {
                       </Link>
                       <Link
                         href="/auth/register"
-                        className="flex w-full items-center justify-center rounded-medium border border-primary-700/40 py-3.5 text-button font-medium text-primary-700 transition-colors hover:bg-primary-50"
+                        className="flex w-full items-center justify-center rounded-medium border border-primary-700 py-3.5 text-button font-medium text-primary-700 transition-colors hover:bg-primary-50"
                       >
                         ثبت‌نام
                       </Link>

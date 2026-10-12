@@ -68,7 +68,7 @@ function PreviewCardShell({
       {/* Hover / focus overlay — desktop only; mobile taps the card. */}
       {interactive && (
         <div
-          className="pointer-events-none absolute inset-0 hidden desktop:flex items-center justify-center opacity-0 transition-opacity duration-200 ease-standard group-hover:bg-scrim/40 group-hover:opacity-100 group-focus-visible:bg-scrim/40 group-focus-visible:opacity-100"
+          className="pointer-events-none absolute inset-0 hidden desktop:flex items-center justify-center opacity-0 transition-opacity duration-200 ease-standard group-hover:bg-scrim group-hover:opacity-100 group-focus-visible:bg-scrim group-focus-visible:opacity-100"
           aria-hidden="true"
         >
           <span className="rounded-full bg-surface px-4 py-2 text-labelLarge text-on-surface shadow-elevation-2">

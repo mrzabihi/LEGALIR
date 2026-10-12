@@ -55,7 +55,7 @@ export function ContractServiceCard({ service }: ContractServiceCardProps) {
       </div>
 
       {service.note && (
-        <p className="text-[10px] text-on-surface-variant/80">{service.note}</p>
+        <p className="text-[10px] text-on-surface-variant opacity-80">{service.note}</p>
       )}
 
       <span className="flex items-center gap-1 border-t border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] pt-3 text-caption font-medium text-primary">

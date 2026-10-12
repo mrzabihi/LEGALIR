@@ -49,11 +49,11 @@ function segmentClass(status: StageStatus): string {
     case "ACTIVE":
       return "stroke-primary";
     case "WAITING":
-      return "stroke-amber-500";
+      return "stroke-warning";
     case "FAILED":
       return "stroke-error";
     default:
-      return "stroke-outline/25";
+      return "stroke-outline-variant";
   }
 }
 
@@ -94,7 +94,7 @@ export function LegalProcessingProgress({
     <div
       className={[
         "rounded-large border bg-surface p-4",
-        isFailed ? "border-error/30" : "border-divider",
+        isFailed ? "border-error" : "border-divider",
         compact ? "flex flex-col gap-3" : "flex flex-wrap items-center gap-4",
       ].join(" ")}
       role="status"
@@ -151,7 +151,7 @@ export function LegalProcessingProgress({
           {isFailed ? (
             <IconWarning size={16} className="shrink-0 text-error" />
           ) : isWaiting ? (
-            <IconWarning size={16} className="shrink-0 text-amber-500" />
+            <IconWarning size={16} className="shrink-0 text-warning" />
           ) : null}
           <p
             className={[
@@ -187,7 +187,7 @@ export function LegalProcessingProgress({
             <button
               type="button"
               onClick={onCancel}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption text-muted transition hover:bg-error/10 hover:text-error"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption text-muted transition hover:bg-error-container hover:text-error"
             >
               <IconStop size={14} />
               توقف
@@ -197,7 +197,7 @@ export function LegalProcessingProgress({
             type="button"
             onClick={() => setExpanded((e) => !e)}
             aria-expanded={expanded}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-caption text-muted transition hover:bg-onSurface/[0.06]"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-caption text-muted transition hover:bg-surface-hover"
           >
             مشاهده مراحل
             <IconChevronDown
@@ -227,7 +227,7 @@ export function LegalProcessingProgress({
                         ? "border-error text-error"
                         : active
                           ? "border-primary text-primary"
-                          : "border-outline/40 text-muted",
+                          : "border-outline text-muted",
                   ].join(" ")}
                   aria-hidden="true"
                 >

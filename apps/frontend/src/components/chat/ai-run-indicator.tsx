@@ -20,10 +20,10 @@ const STATUS_ICONS: Partial<Record<AiRunStatus, React.ReactNode>> = {
 };
 
 const STATUS_COLORS: Record<AiRunStatus, string> = {
-  queued: "bg-outline/30",
-  retrieving: "bg-primary/50 animate-pulse",
-  generating: "bg-primary/70 animate-pulse",
-  validating: "bg-primary/90 animate-pulse",
+  queued: "bg-outline-variant",
+  retrieving: "bg-primary opacity-50 animate-pulse",
+  generating: "bg-primary opacity-70 animate-pulse",
+  validating: "bg-primary opacity-90 animate-pulse",
   succeeded: "bg-success",
   blocked: "bg-warning",
   failed: "bg-error",

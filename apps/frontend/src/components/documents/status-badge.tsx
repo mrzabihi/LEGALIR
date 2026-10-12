@@ -17,42 +17,42 @@ const STATUS_CONFIG: Record<
 > = {
   ready: {
     label: "آماده",
-    className: "bg-green-100 text-green-800 border-green-200",
+    className: "bg-success-container text-success border-success",
     pulse: false,
   },
   processing: {
     label: "در حال پردازش",
-    className: "bg-blue-100 text-blue-800 border-blue-200",
+    className: "bg-info-container text-info border-info",
     pulse: true,
   },
   extracting: {
     label: "استخراج متن",
-    className: "bg-blue-100 text-blue-800 border-blue-200",
+    className: "bg-info-container text-info border-info",
     pulse: true,
   },
   analyzing: {
     label: "در حال تحلیل",
-    className: "bg-blue-100 text-blue-800 border-blue-200",
+    className: "bg-info-container text-info border-info",
     pulse: true,
   },
   uploaded: {
     label: "بارگذاری شده",
-    className: "bg-gray-100 text-gray-700 border-gray-200",
+    className: "bg-surface-container text-muted border-divider",
     pulse: false,
   },
   failed: {
     label: "خطا",
-    className: "bg-red-100 text-red-800 border-red-200",
+    className: "bg-error-container text-error border-error",
     pulse: false,
   },
   blocked: {
     label: "مسدود",
-    className: "bg-red-100 text-red-800 border-red-200",
+    className: "bg-error-container text-error border-error",
     pulse: false,
   },
   cancelled: {
     label: "لغو شده",
-    className: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    className: "bg-warning-container text-warning border-warning",
     pulse: false,
   },
 };

@@ -101,10 +101,10 @@ const SOURCE_STATUS_LABELS: Record<SourceStatus, string> = {
 };
 
 const SOURCE_STATUS_CLASSES: Record<SourceStatus, string> = {
-  valid: "bg-green-100 text-green-800 border-green-200",
-  amended: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  expired: "bg-red-100 text-red-800 border-red-200",
-  needs_review: "bg-orange-100 text-orange-800 border-orange-200",
+  valid: "bg-success-container text-success border-success",
+  amended: "bg-warning-container text-warning border-warning",
+  expired: "bg-error-container text-error border-error",
+  needs_review: "bg-warning-container text-warning border-warning",
 };
 
 const SOURCE_TYPE_LABELS: Record<LegalSource["type"], string> = {
@@ -195,7 +195,7 @@ export function ReviewResult({
   return (
     <section aria-label="نتیجه بررسی" dir="rtl" className="flex flex-col gap-4">
       {trial && (
-        <div className="flex items-start gap-2 rounded-medium border border-secondary/30 bg-secondary/5 p-3">
+        <div className="flex items-start gap-2 rounded-medium border border-secondary bg-secondary-container p-3">
           <TrialBadge
             label={trialLabel ? `نمونهٔ آزمایشی — ${trialLabel}` : undefined}
             className="shrink-0"
@@ -353,7 +353,7 @@ function MissingTab({ findings }: { findings: DocumentFinding[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-2 rounded-medium bg-yellow-50 border border-yellow-200 p-3 text-yellow-800">
+      <div className="flex items-start gap-2 rounded-medium bg-warning-container border border-warning p-3 text-warning">
         <IconWarning size={20} className="shrink-0 mt-0.5" />
         <p className="text-caption leading-relaxed">
           برای تحلیل دقیق‌تر، این موارد باید تکمیل شوند. تا آن زمان نتیجه بررسی
@@ -423,7 +423,7 @@ function SourcesTab({ sources }: { sources: CollectedSource[] }) {
           </dl>
 
           {citation.quote && (
-            <blockquote className="rounded-medium bg-surfaceVariant/50 border-r-2 border-primary/40 px-3 py-2 text-caption text-on-surface leading-relaxed">
+            <blockquote className="rounded-medium bg-surface-container border-r-2 border-primary px-3 py-2 text-caption text-on-surface leading-relaxed">
               {citation.quote}
             </blockquote>
           )}
@@ -452,7 +452,7 @@ function SuggestionsTab({ findings }: { findings: DocumentFinding[] }) {
       {findings.map((finding) => (
         <Card key={finding.id} variant="outlined" padding="medium" className="flex flex-col gap-2">
           <div className="flex items-start gap-2">
-            <IconInfo size={20} className="text-blue-600 shrink-0 mt-0.5" />
+            <IconInfo size={20} className="text-info shrink-0 mt-0.5" />
             <h4 className="text-body-2 font-bold text-on-surface">{finding.title}</h4>
           </div>
           {finding.locator && (
@@ -461,8 +461,8 @@ function SuggestionsTab({ findings }: { findings: DocumentFinding[] }) {
               {finding.locator}
             </p>
           )}
-          <div className="rounded-medium bg-blue-50 border border-blue-100 p-3">
-            <p className="text-caption text-blue-800 leading-relaxed">
+          <div className="rounded-medium bg-info-container border border-info p-3">
+            <p className="text-caption text-info leading-relaxed">
               {finding.recommendation}
             </p>
           </div>
@@ -544,7 +544,7 @@ function DocumentTab({
 
 function DisclaimerNote() {
   return (
-    <div className="flex items-start gap-2 rounded-medium bg-surfaceVariant/50 border border-divider p-3">
+    <div className="flex items-start gap-2 rounded-medium bg-surface-container border border-divider p-3">
       <IconInfo size={18} className="text-muted shrink-0 mt-0.5" />
       <p className="text-caption text-muted leading-relaxed">
         این تحلیل توسط هوش مصنوعی لیگالیر تهیه شده و جایگزین نظر وکیل نیست. برای

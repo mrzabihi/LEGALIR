@@ -101,7 +101,7 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
         type="button"
         onClick={handleBellClick}
         className={[
-          "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors touch-target-min shrink-0",
+          "relative flex h-10 w-10 items-center justify-center rounded-medium transition-colors touch-target-min shrink-0",
           isSidebar
             ? open
               ? "bg-glass-state-strong text-glass-ivory"
@@ -130,7 +130,7 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
       {open && (
         <div
           className={[
-            "hidden tablet:block absolute top-full mt-3 w-[22rem] rounded-2xl bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in",
+            "hidden tablet:block absolute top-full mt-3 w-[22rem] rounded-large bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in",
             // On the sidebar the bell hugs the screen's right edge, so the
             // popover must open leftward (start-0 in RTL) to stay on screen.
             isSidebar ? "start-0 origin-top-start" : "end-0 origin-top-end",
@@ -197,7 +197,7 @@ function NotificationPreview({
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-divider/70 max-h-[22rem] overflow-y-auto">
+        <div className="divide-y divide-divider max-h-[22rem] overflow-y-auto">
           {items.map((item) => (
             <NotificationItem
               key={item.id}
@@ -212,7 +212,7 @@ function NotificationPreview({
       <Link
         href="/notifications"
         onClick={onNavigate}
-        className="border-t border-divider px-4 py-3 text-center text-body-2 text-primary font-medium hover:bg-surface-container/60 transition-colors"
+        className="border-t border-divider px-4 py-3 text-center text-body-2 text-primary font-medium hover:bg-surface-container transition-colors"
       >
         مشاهده همه اعلان‌ها
       </Link>

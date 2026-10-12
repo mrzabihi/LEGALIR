@@ -155,7 +155,7 @@ export default function DashboardPage() {
         {blog.isPending ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-32 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
+              <div key={i} className="h-32 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
             ))}
           </div>
         ) : blog.data?.items && blog.data.items.length > 0 ? (
@@ -164,7 +164,7 @@ export default function DashboardPage() {
               <Link
                 key={post.id}
                 href={`/blog/${post.slug}`}
-                className="group rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+                className="group rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
               >
                 <span className="inline-flex items-center gap-1 w-fit text-caption text-secondary-700 bg-secondary-50 border border-[color-mix(in_srgb,var(--color-secondary-200)_60%,transparent)] rounded-full px-2.5 py-0.5 mb-3">
                   {post.category}
@@ -182,7 +182,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-6 text-center">
+          <div className="rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-6 text-center">
             <p className="text-body-2 text-muted">هنوز مطلبی در وبلاگ منتشر نشده است.</p>
           </div>
         )}
@@ -190,9 +190,9 @@ export default function DashboardPage() {
 
       {/* Empty state CTA when no activity exists */}
       {hasNoActivity && (
-        <section className="mb-6 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-8 text-center">
+        <section className="mb-6 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-8 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
+            <div className="h-16 w-16 rounded-large bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
@@ -216,7 +216,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href={getServiceById("document_analysis")?.href ?? "/documents"}
-              className="inline-flex items-center gap-2 rounded-xl border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-medium border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -226,7 +226,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href={getServiceById("contract_drafting")?.href ?? "/contracts"}
-              className="inline-flex items-center gap-2 rounded-xl border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-medium border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

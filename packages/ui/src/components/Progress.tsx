@@ -56,7 +56,7 @@ export function ProgressLinear({
         {/* Buffer */}
         {buffer !== undefined && (
           <div
-            className="absolute top-0 h-full bg-primary/[0.16] rounded-full transition-all duration-short3"
+            className="absolute top-0 h-full bg-primary-container rounded-full transition-all duration-short3"
             style={{ width: `${bufferPercentage}%`, insetInlineStart: 0 }}
           />
         )}

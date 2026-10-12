@@ -70,7 +70,7 @@ export function PreviewPlaceholder({
       ) : (
         <div className="flex flex-col items-center justify-center gap-4 rounded-large border border-dashed border-divider bg-surface p-8 text-center">
           {/* Large icon */}
-          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-muted">
+          <div className="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center text-muted">
             <DocIcon size={40} />
           </div>
 

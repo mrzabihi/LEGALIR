@@ -82,7 +82,7 @@ export default function FeaturesPage() {
       <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
         <div className="mx-auto max-w-6xl px-4 text-center">
           <h1 className="text-h1 text-white mb-4">قابلیت‌های LEGALIR</h1>
-          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+          <p className="text-body-1 text-primary-100 opacity-80 max-w-xl mx-auto leading-relaxed">
             LEGALIR چگونه به شما کمک می‌کند؟ با ابزارهای هوشمند حقوقی ما آشنا شوید
           </p>
         </div>
@@ -111,10 +111,10 @@ export default function FeaturesPage() {
             {features.map((f) => (
               <div
                 key={f.title}
-                className="rounded-xl bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-shadow flex flex-col p-6"
+                className="rounded-medium bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-shadow flex flex-col p-6"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="h-12 w-12 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700">
+                  <div className="h-12 w-12 rounded-medium bg-primary-50 flex items-center justify-center text-primary-700">
                     <f.icon size={24} />
                   </div>
                   {f.badge && (

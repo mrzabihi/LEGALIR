@@ -90,7 +90,7 @@ export function TopBar() {
       {/* Points card — beside Avatar */}
       <Link
         href="/points"
-        className="flex items-center gap-1.5 rounded-xl bg-secondary-50 dark:bg-secondary-500/10 border border-secondary-200/60 dark:border-secondary-500/20 px-2.5 py-1.5 transition-colors hover:bg-secondary-100 dark:hover:bg-secondary-500/20 touch-target-min"
+        className="flex items-center gap-1.5 rounded-medium bg-secondary-50 dark:bg-secondary-500/10 border border-secondary-200/60 dark:border-secondary-500/20 px-2.5 py-1.5 transition-colors hover:bg-secondary-100 dark:hover:bg-secondary-500/20 touch-target-min"
         aria-label={`امتیاز من: ${toPersianNumber(balance)} امتیاز`}
         title="امتیازهای من"
       >
@@ -115,7 +115,7 @@ export function TopBar() {
         <button
           onClick={() => setUserMenuOpen(!userMenuOpen)}
           className={[
-            "flex items-center gap-2 rounded-xl p-1.5 pr-2.5 transition-all duration-200 touch-target",
+            "flex items-center gap-2 rounded-medium p-1.5 pr-2.5 transition-all duration-200 touch-target",
             userMenuOpen ? "bg-primary-50 ring-2 ring-primary-200" : "hover:bg-neutral-100",
           ].join(" ")}
           aria-label="منوی کاربری"
@@ -157,7 +157,7 @@ function UserMenuDropdown({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="absolute top-full end-0 mt-3 w-64 rounded-2xl bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in origin-top-end"
+      className="absolute top-full end-0 mt-3 w-64 rounded-large bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in origin-top-end"
       role="menu"
     >
       {/* User info header */}
@@ -196,7 +196,7 @@ function MenuItem({ icon, label, onClick, danger }: {
       onClick={onClick}
       className={[
         "flex items-center gap-3 w-full px-4 py-3 text-body-2 transition-colors touch-target-min text-start",
-        danger ? "text-error hover:bg-error/5" : "text-on-surface hover:bg-neutral-50",
+        danger ? "text-error hover:bg-error-container" : "text-on-surface hover:bg-surface-hover",
       ].join(" ")}
       role="menuitem"
     >

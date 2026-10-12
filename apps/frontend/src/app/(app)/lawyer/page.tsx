@@ -59,7 +59,7 @@ function formatDate(iso: string): string {
 
 function StatCard({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-2xl border border-divider/60 bg-surface p-4 text-center">
+    <div className="rounded-large border border-divider bg-surface p-4 text-center">
       <div className={`mb-1 text-h3 ${tone ?? "text-on-surface"}`}>{value}</div>
       <p className="text-caption text-muted">{label}</p>
     </div>
@@ -143,7 +143,7 @@ function LawyerSelfAvatarCard({ profile }: { profile: LawyerProfile }) {
   const busy = setAvatar.isPending;
 
   return (
-    <section className="mb-6 rounded-2xl border border-divider/60 bg-surface p-5">
+    <section className="mb-6 rounded-large border border-divider bg-surface p-5">
       <h2 className="mb-3 text-h3 text-on-surface">تصویر نمایهٔ حرفه‌ای</h2>
       <div className="flex flex-col gap-4 tablet:flex-row tablet:items-center">
         <LawyerAvatar
@@ -216,7 +216,7 @@ export default function LawyerWorkspacePage() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-5xl p-4 tablet:p-6" dir="rtl">
-        <div className="h-64 animate-pulse rounded-2xl bg-surface-container" />
+        <div className="h-64 animate-pulse rounded-large bg-surface-container" />
       </div>
     );
   }
@@ -227,8 +227,8 @@ export default function LawyerWorkspacePage() {
   if (isForbidden) {
     return (
       <div className="mx-auto max-w-3xl p-4 tablet:p-6" dir="rtl">
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-divider/60 bg-surface p-10 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="flex flex-col items-center gap-3 rounded-large border border-divider bg-surface p-10 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-large bg-primary-container text-primary">
             <IconBalance size={28} />
           </span>
           <h1 className="text-h3 text-on-surface">میزکار وکیل</h1>
@@ -250,11 +250,11 @@ export default function LawyerWorkspacePage() {
   if (isError || !data) {
     return (
       <div className="mx-auto max-w-5xl p-4 tablet:p-6" dir="rtl">
-        <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-8 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-8 text-center">
           <p className="text-body-1 text-error">خطا در بارگذاری میزکار</p>
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary-container"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -284,7 +284,7 @@ export default function LawyerWorkspacePage() {
               className={[
                 "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption",
                 profile.verificationStatus === "VERIFIED"
-                  ? "bg-success/10 text-success"
+                  ? "bg-success-container text-success"
                   : "bg-amber-50 text-amber-700",
               ].join(" ")}
             >
@@ -297,7 +297,7 @@ export default function LawyerWorkspacePage() {
 
       {/* No profile yet — the workspace is empty but the account is a lawyer */}
       {!profile && (
-        <div className="mb-6 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-body-2 text-amber-800">
+        <div className="mb-6 flex items-start gap-2 rounded-large border border-amber-200 bg-amber-50 p-4 text-body-2 text-amber-800">
           <IconWarning size={18} className="mt-0.5 shrink-0" />
           <span>
             هنوز پروفایل وکیل نساخته‌اید. تا زمانی که پروفایل شما تأیید نشود، درخواستی به شما ارجاع
@@ -327,7 +327,7 @@ export default function LawyerWorkspacePage() {
 
       {/* Performance — derived from real events */}
       <div className="mb-6 grid grid-cols-2 gap-3 tablet:grid-cols-4">
-        <div className="rounded-2xl border border-divider/60 bg-surface p-4 text-center">
+        <div className="rounded-large border border-divider bg-surface p-4 text-center">
           <div className="mb-1 flex items-center justify-center gap-1 text-amber-600">
             <IconStar size={18} />
             <span className="text-h3">
@@ -348,7 +348,7 @@ export default function LawyerWorkspacePage() {
 
       <div className="grid grid-cols-1 gap-6 tablet:grid-cols-2">
         {/* Inbox */}
-        <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+        <section className="rounded-large border border-divider bg-surface p-5">
           <h2 className="mb-4 text-h3 text-on-surface">صندوق درخواست‌ها</h2>
           {inbox.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -361,7 +361,7 @@ export default function LawyerWorkspacePage() {
                 <li key={item.requestId}>
                   <Link
                     href={`/consultations/${item.requestId}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-divider/60 px-3 py-3 transition hover:border-primary/40 hover:bg-primary/5"
+                    className="flex items-center justify-between gap-3 rounded-medium border border-divider px-3 py-3 transition hover:border-primary hover:bg-primary-container"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -391,7 +391,7 @@ export default function LawyerWorkspacePage() {
         </section>
 
         {/* Cases */}
-        <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+        <section className="rounded-large border border-divider bg-surface p-5">
           <h2 className="mb-4 text-h3 text-on-surface">پرونده‌های من</h2>
           {cases.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -404,7 +404,7 @@ export default function LawyerWorkspacePage() {
                 <li key={c.caseId}>
                   <Link
                     href={`/cases/${c.caseId}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-divider/60 px-3 py-3 transition hover:border-primary/40 hover:bg-primary/5"
+                    className="flex items-center justify-between gap-3 rounded-medium border border-divider px-3 py-3 transition hover:border-primary hover:bg-primary-container"
                   >
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-body-2 font-medium text-on-surface">{c.title}</h3>

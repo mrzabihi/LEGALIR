@@ -102,8 +102,8 @@ const distinctions = [
     description:
       "هسته هوشمند لیگالیر بر پایه منابع حقوقی ساختاریافته، قوانین و آرای قضایی آموزش دیده و تحلیل ساختاریافته ارائه می‌دهد.",
     color: "border-r-warning",
-    accentBg: "bg-warning/5",
-    iconBg: "bg-warning/10",
+    accentBg: "bg-warning-container",
+    iconBg: "bg-surface",
     iconColor: "text-warning",
   },
   {
@@ -112,8 +112,8 @@ const distinctions = [
     description:
       "هر پاسخ با ارجاع دقیق به مواد قانونی، آرای وحدت رویه و بخشنامه‌ها همراه است. وضعیت اعتبار هر منبع (معتبر / اصلاح‌شده / منسوخ) به‌روشنی مشخص شده است.",
     color: "border-r-success",
-    accentBg: "bg-success/5",
-    iconBg: "bg-success/10",
+    accentBg: "bg-success-container",
+    iconBg: "bg-surface",
     iconColor: "text-success",
   },
   {
@@ -122,8 +122,8 @@ const distinctions = [
     description:
       "در موضوعات حساس، لیگالیر مسیر ارتباط با وکلای متخصص و تأییدشده را فراهم می‌کند تا تصمیم‌گیری حقوقی با اطمینان بیشتری انجام شود.",
     color: "border-r-primary",
-    accentBg: "bg-primary/5",
-    iconBg: "bg-primary/10",
+    accentBg: "bg-primary-container",
+    iconBg: "bg-surface",
     iconColor: "text-primary-700",
   },
 ];
@@ -401,7 +401,7 @@ export default function LandingPage() {
             </Link>
             <Link
               href="/features"
-              className="rounded-large border border-primary-300/25 text-primary-100 px-10 py-4 text-button hover:border-primary-200/40 hover:text-white hover:bg-primary-600/30 transition-all duration-300 touch-target w-full mobile-s:w-auto active:scale-[0.98]"
+              className="rounded-large border border-white/25 text-primary-100 px-10 py-4 text-button hover:border-white/40 hover:text-white hover:bg-white/10 transition-all duration-300 touch-target w-full mobile-s:w-auto active:scale-[0.98]"
             >
               مشاهده قابلیت‌ها
             </Link>
@@ -427,7 +427,7 @@ export default function LandingPage() {
           <div className="flex flex-col tablet:flex-row items-center justify-center gap-6 tablet:gap-14">
             {statsItems.map((stat) => (
               <div key={stat.label} className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-large bg-secondary-500/10 flex items-center justify-center shrink-0">
+                <div className="h-10 w-10 rounded-large bg-secondary-container flex items-center justify-center shrink-0">
                   <stat.icon size={20} className="text-secondary-600 shrink-0" />
                 </div>
                 <span className="text-[28px] tablet:text-[32px] font-bold text-primary-700 leading-none">
@@ -500,7 +500,7 @@ export default function LandingPage() {
       <section className="bg-neutral-50 border-y border-divider">
         <div className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 rounded-full bg-secondary-100/50 border border-secondary-200/30 px-4 py-1.5 text-caption font-medium text-secondary-700 mb-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-secondary-100 border border-secondary-200 px-4 py-1.5 text-caption font-medium text-secondary-700 mb-4">
               <IconStar size={16} className="text-secondary-600" />
               نمونه پرسش‌های واقعی
             </div>
@@ -690,7 +690,7 @@ export default function LandingPage() {
           ============================================================ */}
       <section className="mx-auto max-w-6xl px-4 py-20 tablet:py-24">
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary-50 border border-secondary-200/50 px-4 py-1.5 text-caption font-medium text-secondary-700 mb-4">
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary-50 border border-secondary-200 px-4 py-1.5 text-caption font-medium text-secondary-700 mb-4">
             <IconLawBook size={16} className="text-secondary-600" />
             مجله و آموزش حقوقی لیگالیر
           </div>
@@ -709,7 +709,7 @@ export default function LandingPage() {
               className="group flex flex-col rounded-large bg-surface border border-divider shadow-elevation-1 card-lift card-press overflow-hidden transition-all duration-300 hover:border-primary-200"
             >
               <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-divider">
-                <span className="inline-flex items-center gap-1 text-caption text-secondary-700 bg-secondary-50 border border-secondary-200/60 rounded-full px-2.5 py-0.5">
+                <span className="inline-flex items-center gap-1 text-caption text-secondary-700 bg-secondary-50 border border-secondary-200 rounded-full px-2.5 py-0.5">
                   <IconCategory size={12} />
                   {post.category}
                 </span>

@@ -110,7 +110,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
                 {lawyer.fullName}
               </h3>
               {lawyer.featured && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-caption text-primary">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary bg-primary-container px-2 py-0.5 text-caption text-primary">
                   <IconSparkle size={13} />
                   برگزیده
                 </span>
@@ -120,7 +120,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
                   نمونه
                 </span>
               ) : lawyer.verificationStatus === "VERIFIED" ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-caption text-success">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success-container px-2 py-0.5 text-caption text-success">
                   <IconCheckCircle size={13} />
                   احراز هویت شده
                 </span>
@@ -168,7 +168,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
 
       {/* --- Price + CTA (pinned to the bottom for equal heights) --- */}
       <div className="relative mt-auto pt-4">
-        <div className="mb-3 flex items-end justify-between border-t border-divider/60 pt-3">
+        <div className="mb-3 flex items-end justify-between border-t border-divider pt-3">
           <div className="flex flex-col">
             <span className="inline-flex items-center gap-1 text-caption text-muted">
               <IconClock size={13} />
@@ -179,7 +179,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
             </span>
           </div>
           {lawyer.pricing.freeFirstConsultation && (
-            <span className="rounded-full bg-success/10 px-2.5 py-0.5 text-caption text-success">
+            <span className="rounded-full bg-success-container px-2.5 py-0.5 text-caption text-success">
               اولین مشاوره رایگان
             </span>
           )}
@@ -190,7 +190,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
           // reason, in red, so the card cannot invite an action.
           <div
             role="status"
-            className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-4 py-2.5 text-center text-button font-medium text-error-700"
+            className="flex items-center justify-center gap-2 rounded-medium border border-error bg-error-container px-4 py-2.5 text-center text-button font-medium text-error"
           >
             <IconError size={16} className="shrink-0" aria-hidden="true" />
             {removeReason}
@@ -199,7 +199,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
           <div className="flex flex-col gap-2 mobile-l:flex-row">
             <Link
               href={`/lawyers/${lawyer.id}`}
-              className="flex-1 rounded-xl border border-divider/60 bg-surface px-4 py-2.5 text-center text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="flex-1 rounded-medium border border-divider bg-surface px-4 py-2.5 text-center text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               مشاهده پروفایل
             </Link>
@@ -215,7 +215,7 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
                 type="button"
                 disabled
                 aria-disabled="true"
-                className="flex-1 cursor-not-allowed rounded-xl bg-surface-container px-4 py-2.5 text-center text-button font-medium text-muted"
+                className="flex-1 cursor-not-allowed rounded-medium bg-surface-container px-4 py-2.5 text-center text-button font-medium text-muted"
               >
                 {view.ctaLabel}
               </button>

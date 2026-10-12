@@ -96,9 +96,9 @@ export function OTPInput({
           className={[
             "w-12 h-14 text-center text-titleLarge rounded-medium",
             "border outline-none transition-all duration-short3",
-            "focus:border-primary focus:ring-2 focus:ring-primary/20",
+            "focus:border-primary focus:ring-2 focus:ring-primary",
             hasError ? "border-error" : "border-outline",
-            disabled ? "opacity-[0.38] bg-surfaceVariant/50" : "bg-transparent",
+            disabled ? "opacity-[0.38] bg-surface-container" : "bg-transparent",
             "text-onSurface font-vazir",
           ].join(" ")}
         />

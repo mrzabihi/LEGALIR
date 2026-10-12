@@ -67,7 +67,7 @@ export function DailyVisitToast() {
   return (
     <div
       role="status"
-      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up-fade flex items-center gap-2 rounded-xl bg-emerald-600 text-white pl-4 pr-5 py-3 text-body-2 shadow-elevation-8 motion-reduce:transition-none"
+      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up-fade flex items-center gap-2 rounded-medium bg-emerald-600 text-white pl-4 pr-5 py-3 text-body-2 shadow-elevation-8 motion-reduce:transition-none"
     >
       <IconCoin size={18} />
       <span>{message}</span>

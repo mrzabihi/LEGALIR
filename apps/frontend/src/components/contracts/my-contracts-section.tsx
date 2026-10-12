@@ -192,7 +192,7 @@ export function MyContractsSection({
             "shrink-0 inline-flex h-10 items-center gap-1.5 rounded-medium border px-3 text-labelLarge transition-colors",
             finerActive
               ? "border-primary text-primary"
-              : "border-divider text-on-surface hover:border-control-selected/50",
+              : "border-divider text-on-surface hover:border-control-selected",
           ].join(" ")}
         >
           <IconFilter size={18} />
@@ -234,7 +234,7 @@ export function MyContractsSection({
               key={`${chip.group}:${chip.value}`}
               type="button"
               onClick={() => removeChip(chip)}
-              className="inline-flex h-7 items-center gap-1 rounded-full border border-divider bg-surface px-2.5 text-caption text-on-surface transition-colors hover:border-error/40 hover:text-error"
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-divider bg-surface px-2.5 text-caption text-on-surface transition-colors hover:border-error hover:text-error"
               aria-label={`حذف فیلتر ${chip.labelFa}`}
             >
               {chip.labelFa}
@@ -287,7 +287,7 @@ export function MyContractsSection({
           {/* «ادامه دهید» — the drafts the user can pick up right now.
               Hidden entirely when there are none. */}
           {drafts.length > 0 && (
-            <div className="rounded-large border border-primary/30 bg-primary/[0.04] p-4">
+            <div className="rounded-large border border-primary bg-primary-container p-4">
               <div className="mb-3 flex items-center gap-2">
                 <IconHistory size={18} className="text-primary" />
                 <h3 className="text-titleSmall text-on-surface">ادامه دهید</h3>
@@ -477,7 +477,7 @@ function TabChip({
       className={`shrink-0 h-9 rounded-full border px-3.5 text-labelMedium transition-colors ${
         selected
           ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-          : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected/50"
+          : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected"
       }`}
     >
       {label}

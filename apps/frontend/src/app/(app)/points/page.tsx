@@ -115,7 +115,7 @@ export default function MyPointsPage() {
       {toast && (
         <div
           role="status"
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up-fade rounded-xl bg-emerald-600 text-white px-5 py-3 text-body-2 shadow-elevation-8 motion-reduce:transition-none"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up-fade rounded-medium bg-emerald-600 text-white px-5 py-3 text-body-2 shadow-elevation-8 motion-reduce:transition-none"
         >
           {toast}
         </div>
@@ -131,7 +131,7 @@ export default function MyPointsPage() {
       <div className="flex items-center gap-3 mb-6">
         <Link
           href="/dashboard"
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-surface border border-divider/60 text-muted hover:text-primary transition-colors touch-target-min"
+          className="w-10 h-10 flex items-center justify-center rounded-medium bg-surface border border-divider text-muted hover:text-primary transition-colors touch-target-min"
           aria-label="بازگشت"
         >
           <IconArrowBack size={20} rtlFlip />
@@ -140,12 +140,12 @@ export default function MyPointsPage() {
       </div>
 
       {/* Balance hero */}
-      <section className="relative rounded-2xl bg-gradient-to-br from-secondary-600 via-secondary-700 to-secondary-900 p-6 mb-6 overflow-hidden">
+      <section className="relative rounded-large bg-gradient-to-br from-secondary-600 via-secondary-700 to-secondary-900 p-6 mb-6 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
           <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
         </div>
         <div className="relative flex items-center gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-large bg-white/15 text-white">
             <IconCoin size={28} />
           </span>
           <div>
@@ -159,13 +159,13 @@ export default function MyPointsPage() {
 
         {/* Lifetime aggregates — derived from the ledger, never stored */}
         <div className="relative mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-white/10 px-4 py-3">
+          <div className="rounded-medium bg-white/10 px-4 py-3">
             <p className="text-caption text-secondary-100/80">مجموع کسب‌شده</p>
             <p className="text-body-1 text-white font-semibold tabular-nums mt-0.5" dir="ltr">
               +{toPersianNumber(lifetimeEarned)}
             </p>
           </div>
-          <div className="rounded-xl bg-white/10 px-4 py-3">
+          <div className="rounded-medium bg-white/10 px-4 py-3">
             <p className="text-caption text-secondary-100/80">مجموع خرج‌شده</p>
             <p className="text-body-1 text-white font-semibold tabular-nums mt-0.5" dir="ltr">
               −{toPersianNumber(lifetimeSpent)}
@@ -175,10 +175,10 @@ export default function MyPointsPage() {
       </section>
 
       {/* Daily visit claim */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5 mb-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+            <span className="flex h-11 w-11 items-center justify-center rounded-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
               <IconCheck size={22} />
             </span>
             <div>
@@ -216,9 +216,9 @@ export default function MyPointsPage() {
             return (
               <div
                 key={rule.eventType}
-                className="flex items-center gap-3 rounded-xl bg-surface border border-divider/60 p-4 shadow-elevation-1"
+                className="flex items-center gap-3 rounded-medium bg-surface border border-divider p-4 shadow-elevation-1"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary-50 text-secondary-700 dark:bg-secondary-500/10 dark:text-secondary-400">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-secondary-50 text-secondary-700 dark:bg-secondary-500/10 dark:text-secondary-400">
                   {ruleIcon(rule.eventType)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -242,9 +242,9 @@ export default function MyPointsPage() {
       </section>
 
       {/* Future redemption teaser */}
-      <section className="rounded-2xl bg-surface border border-dashed border-divider p-5 mb-6">
+      <section className="rounded-large bg-surface border border-dashed border-divider p-5 mb-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-400 dark:bg-neutral-500/10">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-neutral-100 text-neutral-400 dark:bg-neutral-500/10">
             <IconInfo size={20} />
           </span>
           <div>
@@ -265,17 +265,17 @@ export default function MyPointsPage() {
         {history.isLoading ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-16 rounded-xl bg-surface border border-divider/60 skeleton-shimmer" />
+              <div key={i} className="h-16 rounded-medium bg-surface border border-divider skeleton-shimmer" />
             ))}
           </div>
         ) : history.data?.items && history.data.items.length > 0 ? (
-          <div className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 divide-y divide-divider/60">
+          <div className="rounded-large bg-surface border border-divider shadow-elevation-1 divide-y divide-divider">
             {history.data.items.map((item) => (
               <HistoryRow key={item.id} item={item} />
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl bg-surface border border-divider/60 p-6 text-center">
+          <div className="rounded-large bg-surface border border-divider p-6 text-center">
             <p className="text-body-2 text-muted">هنوز امتیازی دریافت نکرده‌اید.</p>
           </div>
         )}
@@ -289,7 +289,7 @@ function HistoryRow({ item }: { item: RewardLedgerItem }) {
   return (
     <div className="flex items-center gap-3 p-4">
       <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${
           positive
             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
             : "bg-red-50 text-error dark:bg-red-500/10"

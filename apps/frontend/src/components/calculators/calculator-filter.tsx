@@ -175,7 +175,7 @@ export function CalculatorFilter({
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     selected
                       ? "bg-primary-soft font-medium text-on-primary-container"
-                      : "text-on-surface hover:bg-on-surface/[0.06]",
+                      : "text-on-surface hover:bg-surface-hover",
                     isReset && !selected ? "text-on-surface-variant" : "",
                   ].join(" ")}
                 >

@@ -40,7 +40,7 @@ export function ContractCategoryChips({
             className={`shrink-0 h-9 rounded-full border px-4 text-labelLarge transition-colors duration-short3 focus-visible:outline-2 focus-visible:outline-control-focus focus-visible:outline-offset-2 ${
               selected
                 ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected/50"
+                : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected"
             }`}
           >
             {category.labelFa}

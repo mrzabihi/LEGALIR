@@ -76,6 +76,15 @@ import type {
   LegalRequest,
   LegalRequestEvent,
   LegalRequestState,
+  AdminContractListResponse,
+  AdminContractReviewActionRequest,
+  ContractAdminReviewDetail,
+  ContractAdminReviewStatus,
+  ContractCompleteness,
+  ContractLegalBasisReport,
+  ContractTypeId,
+  PropertyContract,
+  PropertyContractState,
   AdminAnnouncement,
   AnnouncementStatus,
   CreateAnnouncementInput,
@@ -94,6 +103,7 @@ import type {
   AdminLawyerStatus,
   LawyerProfile,
   LawyerReviewRecord,
+  LawyerReviewReportRecord,
   LawyerExpertise,
   LawyerLocation,
   LawyerPricing,
@@ -103,6 +113,8 @@ import type {
   LawyerLicenseStatus,
   LawyerGender,
   LawyerAvatarType,
+  Coupon,
+  CouponStatus,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -293,7 +305,23 @@ export interface AdminLawyerDetail {
   messages: AdminLawyerMessageRow[];
   /** Every review row (including hidden) for in-drawer moderation. */
   reviews: LawyerReviewRecord[];
-  stats: { messagesSent: number; decisions: number; reviews: number };
+  /** Per-review moderation history + reports, keyed by review id. */
+  moderation: Record<
+    string,
+    {
+      events: {
+        id: string;
+        fromStatus: string | null;
+        toStatus: string;
+        reason: string | null;
+        actorUserId: string;
+        actorRole: string;
+        createdAt: string;
+      }[];
+      reports: LawyerReviewReportRecord[];
+    }
+  >;
+  stats: { messagesSent: number; decisions: number; reviews: number; openReports: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -506,6 +534,107 @@ export function changeRequestState(
     state,
     note,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Contracts — the admin review queue (§6/§7)
+// ---------------------------------------------------------------------------
+// The operator surface over the contract lifecycle: list every contract,
+// open one to judge the rendered document, and record the ONE decision the
+// backend allows (approve / reject / request_info / cancel). The decision is
+// enforced server-side against the review's bound version hash — the client
+// carries no approval logic.
+
+export interface AdminContractsQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  /** The admin-review status filter. */
+  status?: ContractAdminReviewStatus;
+  /** The contract type filter. */
+  type?: ContractTypeId;
+}
+
+export function fetchAdminContracts(
+  query: AdminContractsQuery = {}
+): Promise<AdminContractListResponse> {
+  return apiClient.get<AdminContractListResponse>(
+    `${A}/contracts${qs({
+      page: query.page,
+      pageSize: query.pageSize,
+      search: query.search,
+      status: query.status,
+      type: query.type,
+    })}`
+  );
+}
+
+/** One clause of the rendered document the admin is asked to judge. */
+export interface AdminContractClause {
+  id: string;
+  headingFa: string;
+  paragraphs: string[];
+  conditional: boolean;
+}
+
+/** The full review context for one contract — the SAME render the preview/PDF use. */
+export interface AdminContractDetail {
+  contract: {
+    id: string;
+    referenceCode: string;
+    type: ContractTypeId;
+    typeFa: string;
+    title: string;
+    state: PropertyContractState;
+    stateFa: string;
+    progress: number;
+    ownerLabelFa: string;
+    partySummaryFa: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  completeness: ContractCompleteness;
+  parties: { id: string; role: string; nameFa: string; isInitiator: boolean }[];
+  currentVersion: {
+    id: string;
+    versionNumber: number;
+    documentHash: string;
+    createdAt: string;
+  } | null;
+  versions: { id: string; versionNumber: number; documentHash: string; createdAt: string }[];
+  rendered: {
+    titleFa: string;
+    preambleFa: string;
+    clauses: AdminContractClause[];
+    footerFa: string;
+  };
+  /** §2 — the non-binding legal-basis annex for the clauses above. */
+  legalBasis: ContractLegalBasisReport;
+  adminReview: ContractAdminReviewDetail | null;
+  approved: boolean;
+  stamp: { applied: boolean; text: string; disclaimerFa: string };
+}
+
+export function fetchAdminContract(id: string): Promise<AdminContractDetail> {
+  return apiClient.get<AdminContractDetail>(`${A}/contracts/${encodeURIComponent(id)}`);
+}
+
+/** The response of a review decision: the updated contract, review and approval flag. */
+export interface AdminContractReviewResponse {
+  contract: PropertyContract;
+  review: ContractAdminReviewDetail;
+  approved: boolean;
+}
+
+/** Record the review decision for the ONE open review (POST). */
+export function reviewAdminContract(
+  id: string,
+  input: AdminContractReviewActionRequest
+): Promise<AdminContractReviewResponse> {
+  return apiClient.post<AdminContractReviewResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}`,
+    input
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1153,6 +1282,62 @@ export function setAdminAnnouncementStatus(
 }
 
 // ---------------------------------------------------------------------------
+// Discount coupons (billing panel)
+// ---------------------------------------------------------------------------
+// The coupon catalog the checkout applies. Every write is audited server-side;
+// a used coupon is never physically deleted (archive only), so historical
+// orders keep their reference. `usageCount` is recomputed by the server.
+
+/** A coupon row as the admin list/detail returns it (coupon + live usage). */
+export interface AdminCouponRow extends Coupon {
+  usageCount: number;
+}
+
+/** The editable subset of a coupon (undefined = leave a field untouched). */
+export interface AdminCouponDraft {
+  title?: string;
+  code?: string;
+  kind?: "percent" | "fixed";
+  value?: number;
+  percentCap?: number;
+  eligiblePlans?: string[];
+  startsAt?: string;
+  endsAt?: string;
+  minOrderAmount?: number;
+  totalUses?: number;
+  perUserLimit?: number;
+  status?: CouponStatus;
+  internalNotes?: string;
+  currency?: string;
+}
+
+export function fetchAdminCoupons(): Promise<{ items: AdminCouponRow[] }> {
+  return apiClient.get<{ items: AdminCouponRow[] }>(`${A}/coupons`);
+}
+
+export function fetchAdminCoupon(id: string): Promise<AdminCouponRow> {
+  return apiClient.get<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`);
+}
+
+export function createAdminCoupon(input: AdminCouponDraft): Promise<AdminCouponRow> {
+  return apiClient.post<AdminCouponRow>(`${A}/coupons`, input);
+}
+
+export function updateAdminCoupon(
+  id: string,
+  input: AdminCouponDraft
+): Promise<AdminCouponRow> {
+  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, input);
+}
+
+export function setAdminCouponStatus(
+  id: string,
+  status: CouponStatus
+): Promise<AdminCouponRow> {
+  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, { status });
+}
+
+// ---------------------------------------------------------------------------
 // Support tickets
 // ---------------------------------------------------------------------------
 
@@ -1414,11 +1599,14 @@ export function setAdminLawyerFeatured(
   });
 }
 
-/** Moderate a single review: hide (soft) / restore (undo hide) / delete. */
+/**
+ * Moderate a single review: publish (approve a pending review) / hide /
+ * restore / reject / delete. Withholding (hide, reject) requires a reason.
+ */
 export function moderateAdminLawyerReview(
   id: string,
   reviewId: string,
-  input: { action: "hide" | "restore" | "delete"; reason?: string }
+  input: { action: "publish" | "hide" | "restore" | "reject" | "delete"; reason?: string }
 ): Promise<unknown> {
   return apiClient.post(
     `${A}/lawyers/${encodeURIComponent(id)}/reviews/${encodeURIComponent(reviewId)}`,
@@ -1506,61 +1694,3 @@ export type {
   UsageLedgerSummary,
   ActivityType,
 };
-  Coupon,
-  CouponStatus,
-// ---------------------------------------------------------------------------
-// Discount coupons (billing panel)
-// ---------------------------------------------------------------------------
-// The coupon catalog the checkout applies. Every write is audited server-side;
-// a used coupon is never physically deleted (archive only), so historical
-// orders keep their reference. `usageCount` is recomputed by the server.
-
-/** A coupon row as the admin list/detail returns it (coupon + live usage). */
-export interface AdminCouponRow extends Coupon {
-  usageCount: number;
-}
-
-/** The editable subset of a coupon (undefined = leave a field untouched). */
-export interface AdminCouponDraft {
-  title?: string;
-  code?: string;
-  kind?: "percent" | "fixed";
-  value?: number;
-  percentCap?: number;
-  eligiblePlans?: string[];
-  startsAt?: string;
-  endsAt?: string;
-  minOrderAmount?: number;
-  totalUses?: number;
-  perUserLimit?: number;
-  status?: CouponStatus;
-  internalNotes?: string;
-  currency?: string;
-}
-
-export function fetchAdminCoupons(): Promise<{ items: AdminCouponRow[] }> {
-  return apiClient.get<{ items: AdminCouponRow[] }>(`${A}/coupons`);
-}
-
-export function fetchAdminCoupon(id: string): Promise<AdminCouponRow> {
-  return apiClient.get<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`);
-}
-
-export function createAdminCoupon(input: AdminCouponDraft): Promise<AdminCouponRow> {
-  return apiClient.post<AdminCouponRow>(`${A}/coupons`, input);
-}
-
-export function updateAdminCoupon(
-  id: string,
-  input: AdminCouponDraft
-): Promise<AdminCouponRow> {
-  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, input);
-}
-
-export function setAdminCouponStatus(
-  id: string,
-  status: CouponStatus
-): Promise<AdminCouponRow> {
-  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, { status });
-}
-

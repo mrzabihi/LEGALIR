@@ -17,7 +17,7 @@ export default function RegisterPage() {
       <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <h1 className="text-h1 text-white mb-4">ثبت‌نام در LEGALIR</h1>
-          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+          <p className="text-body-1 text-primary-100 opacity-80 max-w-xl mx-auto leading-relaxed">
             به جامعه کاربران LEGALIR بپیوندید. ثبت‌نام رایگان و سریع — فقط با شماره موبایل
           </p>
         </div>
@@ -26,7 +26,7 @@ export default function RegisterPage() {
       {/* Register Form Section */}
       <section className="bg-neutral-50 py-16">
         <div className="mx-auto max-w-md px-4">
-          <div className="rounded-xl bg-surface border border-neutral-200 shadow-sm p-8">
+          <div className="rounded-medium bg-surface border border-neutral-200 shadow-sm p-8">
             <div className="text-center mb-6">
               <h2 className="text-h3 text-primary-800 mb-2">ایجاد حساب کاربری</h2>
               <p className="text-body-2 text-neutral-500 leading-relaxed">
@@ -65,9 +65,9 @@ export default function RegisterPage() {
             ].map((benefit) => (
               <div
                 key={benefit.title}
-                className="rounded-xl bg-surface border border-neutral-200 shadow-sm p-6 text-center"
+                className="rounded-medium bg-surface border border-neutral-200 shadow-sm p-6 text-center"
               >
-                <div className="h-10 w-10 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700 mx-auto mb-3 text-button font-bold">
+                <div className="h-10 w-10 rounded-medium bg-primary-50 flex items-center justify-center text-primary-700 mx-auto mb-3 text-button font-bold">
                   &#10003;
                 </div>
                 <h3 className="text-h3 text-primary-800 mb-2">{benefit.title}</h3>

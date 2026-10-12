@@ -34,10 +34,10 @@ const _STATUS_LABELS: Record<string, string> = {
 };
 
 const RISK_COLORS: Record<string, string> = {
-  low: "bg-success/10 text-success",
-  medium: "bg-warning/10 text-warning",
-  high: "bg-error/10 text-error",
-  critical: "bg-error/20 text-error",
+  low: "bg-success-container text-success",
+  medium: "bg-warning-container text-warning",
+  high: "bg-error-container text-error",
+  critical: "bg-error-container text-error",
 };
 
 interface ConversationListProps {
@@ -147,8 +147,8 @@ export function ConversationList({
                     "flex items-start gap-3 px-3 py-3 rounded-medium transition-colors",
                     "touch-target",
                     isActive
-                      ? "bg-primary/10"
-                      : "hover:bg-onSurface/[0.05]",
+                      ? "bg-primary-container"
+                      : "hover:bg-surface-hover",
                     isArchived ? "opacity-50 cursor-default" : "",
                   ].join(" ")}
                   aria-current={isActive ? "page" : undefined}

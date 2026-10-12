@@ -188,12 +188,12 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
 
   return createPortal(
     <div className="fixed inset-0 z-[60]" role="presentation">
-      {/* Backdrop — stops above the bar so the nav stays clickable. Tap to
-          dismiss. Hidden while dragging so the drag reads cleanly. */}
+      {/* Backdrop — on mobile it stops above the bar so the nav stays
+          clickable; on desktop (no bar) it covers the full height. Tap to
+          dismiss. */}
       <div
         data-sheet-backdrop
-        className="absolute inset-x-0 top-0 bg-scrim/40 animate-fade-in"
-        style={{ bottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }}
+        className="absolute inset-x-0 top-0 bottom-[calc(84px_+_env(safe-area-inset-bottom,0px))] desktop:bottom-0 bg-scrim animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -273,9 +273,9 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
                   key={action.id}
                   href={action.href}
                   onClick={onClose}
-                  className="group flex min-h-[64px] items-center gap-3 rounded-2xl border border-divider bg-surface-container-low px-4 py-3.5 transition-colors hover:bg-surface-container active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
+                  className="group flex min-h-[64px] items-center gap-3 rounded-large border border-divider bg-surface-container-low px-4 py-3.5 transition-colors hover:bg-surface-container active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-50 text-secondary-700 transition-colors group-hover:bg-secondary-100">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-secondary-50 text-secondary-700 transition-colors group-hover:bg-secondary-100">
                     {Icon ? <Icon size={22} /> : null}
                   </span>
                   <span className="text-body-2 font-medium text-on-surface">
@@ -288,12 +288,11 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
         </div>
 
         {/* Nav-clearance spacer — keeps the floating bar (and its raised
-            centre button) off the scroll region, so wheel/touch scrolling is
-            never intercepted and the last action is never covered. */}
+            centre button) off the scroll region on mobile. It collapses on
+            desktop, where there is no bar to clear. */}
         <div
           aria-hidden="true"
-          className="shrink-0"
-          style={{ height: "calc(84px + env(safe-area-inset-bottom, 0px))" }}
+          className="h-[calc(84px_+_env(safe-area-inset-bottom,0px))] desktop:hidden shrink-0"
         />
       </div>
     </div>,

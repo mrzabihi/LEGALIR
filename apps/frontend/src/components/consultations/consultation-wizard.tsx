@@ -255,11 +255,11 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
   }
 
   if (!hydrated) {
-    return <div className="h-64 animate-pulse rounded-2xl bg-surface-container" />;
+    return <div className="h-64 animate-pulse rounded-large bg-surface-container" />;
   }
 
   return (
-    <div className="rounded-2xl border border-divider/60 bg-surface p-5 tablet:p-6">
+    <div className="rounded-large border border-divider bg-surface p-5 tablet:p-6">
       {/* Step indicator */}
       <div className="mb-6">
         <div className="mb-2 flex items-center justify-between text-caption text-muted">
@@ -268,7 +268,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
           </span>
           <span>{STEP_TITLES[step]}</span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-divider/60">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
           <div
             className="h-full rounded-full bg-primary transition-all duration-300"
             style={{ width: `${((step + 1) / STEP_TITLES.length) * 100}%` }}
@@ -342,7 +342,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
               {attachments.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center gap-3 rounded-xl border border-divider/60 px-3 py-2.5"
+                  className="flex items-center gap-3 rounded-medium border border-divider px-3 py-2.5"
                 >
                   <IconFile size={18} className="shrink-0 text-muted" />
                   <span className="min-w-0 flex-1 truncate text-body-2 text-on-surface">
@@ -354,7 +354,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
                     onClick={() =>
                       patch({ attachmentIds: draft.attachmentIds.filter((id) => id !== a.id) })
                     }
-                    className="shrink-0 rounded-full p-1 text-muted transition hover:bg-error/10 hover:text-error"
+                    className="shrink-0 rounded-full p-1 text-muted transition hover:bg-error-container hover:text-error"
                   >
                     <IconClose size={16} />
                   </button>
@@ -375,7 +375,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
                       key={d.id}
                       type="button"
                       onClick={() => patch({ attachmentIds: [...draft.attachmentIds, d.id] })}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-divider/60 px-3 py-1.5 text-caption text-on-surface transition hover:border-primary/40 hover:bg-primary/5"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-divider px-3 py-1.5 text-caption text-on-surface transition hover:border-primary hover:bg-primary-container"
                     >
                       <IconFile size={14} />
                       {d.name}
@@ -430,7 +430,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
       {/* Step 4 — review */}
       {step === 3 && (
         <div className="space-y-4">
-          <dl className="divide-y divide-divider/60 rounded-xl border border-divider/60">
+          <dl className="divide-y divide-divider rounded-medium border border-divider">
             <ReviewRow label="موضوع" value={LEGAL_CATEGORY_FA[draft.category] ?? draft.category} />
             <ReviewRow label="عنوان" value={draft.title} />
             <ReviewRow label="شرح" value={draft.description} />
@@ -448,7 +448,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
             onGoToStep={() => patch({ step: 2 })}
           />
 
-          <dl className="divide-y divide-divider/60 rounded-xl border border-divider/60">
+          <dl className="divide-y divide-divider rounded-medium border border-divider">
             <ReviewRow label="روش مشاوره" value="مشاوره متنی امن" />
             <ReviewRow
               label="پیوست‌ها"
@@ -461,13 +461,13 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
           </dl>
 
           {/* Payment is not integrated — show the real price, disable checkout. */}
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-container px-4 py-3">
+          <div className="flex items-center justify-between gap-3 rounded-medium bg-surface-container px-4 py-3">
             <span className="text-body-2 text-muted">پرداخت آنلاین</span>
             <button
               type="button"
               disabled
               aria-disabled="true"
-              className="cursor-not-allowed rounded-xl bg-surface px-4 py-2 text-button text-muted"
+              className="cursor-not-allowed rounded-medium bg-surface px-4 py-2 text-button text-muted"
             >
               پرداخت آنلاین — به‌زودی
             </button>
@@ -482,7 +482,7 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
       )}
 
       {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl bg-error/10 px-3 py-2 text-caption text-error">
+        <div className="mt-4 flex items-start gap-2 rounded-medium bg-error-container px-3 py-2 text-caption text-error">
           <IconWarning size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -551,7 +551,7 @@ function LawyerReviewSection({
   // selection UI must be offered rather than a silent default.
   if (!lawyerId) {
     return (
-      <div className="rounded-xl border border-divider/60 p-4">
+      <div className="rounded-medium border border-divider p-4">
         <p className="text-labelLarge text-on-surface">وکیل</p>
         <p className="mt-1 text-body-2 text-muted">
           وکیلی انتخاب نشده است. می‌توانید وکیل انتخاب کنید، یا درخواست را بدون وکیل ثبت کنید تا
@@ -570,13 +570,13 @@ function LawyerReviewSection({
   }
 
   if (loading) {
-    return <div className="h-28 animate-pulse rounded-xl bg-surface-container" />;
+    return <div className="h-28 animate-pulse rounded-medium bg-surface-container" />;
   }
 
   // The id no longer resolves — never substitute a default lawyer.
   if (error || !lawyer) {
     return (
-      <div className="rounded-xl border border-error/40 bg-error/5 p-4">
+      <div className="rounded-medium border border-error bg-error-container p-4">
         <div className="flex items-start gap-2 text-error">
           <IconWarning size={18} className="mt-0.5 shrink-0" />
           <p className="text-body-2">
@@ -606,7 +606,7 @@ function LawyerReviewSection({
     .join("، ");
 
   return (
-    <div className="rounded-xl border border-divider/60 p-4">
+    <div className="rounded-medium border border-divider p-4">
       <div className="flex items-start gap-3">
         <LawyerAvatar
           name={lawyer.fullName}
@@ -625,7 +625,7 @@ function LawyerReviewSection({
       </div>
 
       {!eligible && (
-        <div className="mt-3 flex items-start gap-2 rounded-lg bg-error/10 px-3 py-2 text-caption text-error">
+        <div className="mt-3 flex items-start gap-2 rounded-medium bg-error-container px-3 py-2 text-caption text-error">
           <IconWarning size={16} className="mt-0.5 shrink-0" />
           <span>این وکیل در حال حاضر درخواست جدید نمی‌پذیرد. لطفاً وکیل دیگری انتخاب کنید.</span>
         </div>

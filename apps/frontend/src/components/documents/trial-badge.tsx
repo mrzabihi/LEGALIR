@@ -29,7 +29,7 @@ export function TrialBadge({ className = "", label, withNote = false }: TrialBad
   return (
     <span className={`inline-flex flex-col items-start gap-0.5 ${className}`}>
       <span
-        className="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/10 px-2.5 py-0.5 text-caption font-medium text-secondary-700"
+        className="inline-flex items-center gap-1 rounded-full border border-secondary bg-secondary-container px-2.5 py-0.5 text-caption font-medium text-secondary"
         role="status"
       >
         <IconSparkle size={13} aria-hidden="true" className="shrink-0" />

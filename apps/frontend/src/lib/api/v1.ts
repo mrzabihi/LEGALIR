@@ -89,6 +89,8 @@ import type {
   LawyerSearchFilters,
   LawyerDetail,
   LawyerAvatarType,
+  LawyerReviewEligibility,
+  LawyerReviewSubmitInput,
   MatchCriteria,
   MatchResult,
   IntakeSchema,
@@ -950,6 +952,41 @@ export function matchLawyers(criteria: MatchCriteria): Promise<MatchResult> {
   return apiClient.post<MatchResult>("/api/v1/lawyers/match", criteria);
 }
 
+/** What the signed-in viewer may do about reviewing this lawyer. */
+export function fetchLawyerReviewEligibility(id: string): Promise<LawyerReviewEligibility> {
+  return apiClient.get<LawyerReviewEligibility>(
+    `/api/v1/lawyers/${encodeURIComponent(id)}/reviews/mine`
+  );
+}
+
+/** Submit or edit the viewer's review of a lawyer. */
+export function submitLawyerReview(
+  id: string,
+  input: LawyerReviewSubmitInput
+): Promise<{
+  id: string;
+  status: string;
+  rating: number;
+  comment: string;
+  updatedAt: string;
+  editableUntil: string;
+  created: boolean;
+}> {
+  return apiClient.post(`/api/v1/lawyers/${encodeURIComponent(id)}/reviews`, input);
+}
+
+/** Report an inappropriate review. */
+export function reportLawyerReview(
+  id: string,
+  reviewId: string,
+  reason: string
+): Promise<{ reviewId: string; status: string; reported: boolean }> {
+  return apiClient.post(
+    `/api/v1/lawyers/${encodeURIComponent(id)}/reviews/${encodeURIComponent(reviewId)}/report`,
+    { reason }
+  );
+}
+
 // ============================================================
 // Legal Intake Wizard (PART 5)
 // ============================================================
@@ -1001,14 +1038,22 @@ export function fetchLegalRequests(): Promise<LegalRequest[]> {
   return apiClient.get<LegalRequest[]>("/api/v1/legal-requests");
 }
 
-export function createLegalRequest(input: {
-  title: string;
-  category: string;
-  intakeAnswers?: Record<string, string>;
-  selectedLawyerId?: string | null;
-  attachmentDocumentIds?: string[];
-}): Promise<LegalRequest> {
-  return apiClient.post<LegalRequest>("/api/v1/legal-requests", input);
+export function createLegalRequest(
+  input: {
+    title: string;
+    category: string;
+    intakeAnswers?: Record<string, string>;
+    selectedLawyerId?: string | null;
+    attachmentDocumentIds?: string[];
+  },
+  /**
+   * A key minted ONCE per logical submit and reused across retries, so a
+   * double-click / network retry replays the first response instead of
+   * creating a second request. Omit to let the client generate one.
+   */
+  idempotencyKey?: string
+): Promise<LegalRequest> {
+  return apiClient.post<LegalRequest>("/api/v1/legal-requests", input, { idempotencyKey });
 }
 
 export function fetchLegalRequest(id: string): Promise<LegalRequestDetail> {
@@ -1035,11 +1080,13 @@ export function fetchConsultation(id: string): Promise<ConsultationDetail> {
 export function respondToConsultation(
   id: string,
   action: "accept" | "decline",
-  note?: string
+  note?: string,
+  idempotencyKey?: string
 ): Promise<LegalRequest> {
   return apiClient.post<LegalRequest>(
     `/api/v1/legal-requests/${encodeURIComponent(id)}/respond`,
-    { action, note }
+    { action, note },
+    { idempotencyKey }
   );
 }
 

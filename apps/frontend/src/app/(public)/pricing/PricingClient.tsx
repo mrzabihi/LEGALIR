@@ -97,7 +97,7 @@ function PlanCard({
   return (
     <div
       className={[
-        "relative flex flex-col rounded-2xl bg-surface border-2 transition-all duration-medium1",
+        "relative flex flex-col rounded-large bg-surface border-2 transition-all duration-medium1",
         "card-lift",
         meta.popular
           ? "border-secondary-400 shadow-elevation-8 scale-[1.02] tablet:scale-105 z-10"
@@ -123,7 +123,7 @@ function PlanCard({
       {/* Card Header — Gradient */}
       <div
         className={[
-          "rounded-t-2xl px-6 pt-8 pb-6 text-center",
+          "rounded-t-large px-6 pt-8 pb-6 text-center",
           "bg-gradient-to-b",
           meta.gradientFrom,
           meta.gradientTo,
@@ -131,7 +131,7 @@ function PlanCard({
         ].join(" ")}
       >
         <h3 className="text-h3 text-white mb-1.5">{plan.nameFa}</h3>
-        <p className="text-body-2 text-primary-100/80 min-h-[3rem] leading-relaxed">
+        <p className="text-body-2 text-primary-100 opacity-80 min-h-[3rem] leading-relaxed">
           {plan.descriptionFa}
         </p>
       </div>
@@ -146,7 +146,7 @@ function PlanCard({
               <span className="text-body-2 text-muted line-through">
                 {toPersianCurrency(plan.listPrice)}
               </span>
-              <span className="rounded-full bg-error/10 text-error text-caption px-2 py-0.5 font-bold">
+              <span className="rounded-full bg-error-container text-error text-caption px-2 py-0.5 font-bold">
                 {toPersianNumber(discountPercent)}٪ تخفیف
               </span>
             </div>
@@ -174,7 +174,7 @@ function PlanCard({
         </div>
 
         {/* Feature highlights */}
-        <div className="rounded-xl bg-neutral-50 p-4 mb-5 space-y-3">
+        <div className="rounded-medium bg-neutral-50 p-4 mb-5 space-y-3">
           <div className="flex items-center justify-between text-caption">
             <span className="text-muted">درخواست روزانه</span>
             <span className="text-on-surface font-medium">
@@ -222,7 +222,7 @@ function PlanCard({
             ? `/auth/mobile?intent=subscribe&plan=${plan.code}`
             : `/auth/mobile?intent=subscribe&plan=${plan.code}`}
           className={[
-            "block rounded-xl px-6 py-3.5 text-button text-center font-bold transition-all duration-short3",
+            "block rounded-medium px-6 py-3.5 text-button text-center font-bold transition-all duration-short3",
             "touch-target-min w-full",
             meta.popular
               ? "bg-secondary-600 text-white hover:bg-secondary-700 shadow-elevation-3 hover:shadow-elevation-8 animate-glow"
@@ -263,13 +263,13 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
             <div
               key={plan.id}
               className={[
-                "rounded-xl bg-surface border-2 shadow-sm p-5",
-                meta.popular ? "border-secondary-300" : "border-divider/60",
+                "rounded-medium bg-surface border-2 shadow-elevation-1 p-5",
+                meta.popular ? "border-secondary-300" : "border-divider",
               ].join(" ")}
             >
               <div
                 className={[
-                  "text-center py-2 rounded-lg mb-4 text-white font-bold",
+                  "text-center py-2 rounded-medium mb-4 text-white font-bold",
                   "bg-gradient-to-r",
                   meta.gradientFrom,
                   meta.gradientTo,
@@ -318,11 +318,11 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
       </div>
 
       {/* Tablet/Desktop: Styled matrix table */}
-      <div className="hidden tablet:block overflow-x-auto rounded-2xl border border-divider/60 shadow-elevation-3">
+      <div className="hidden tablet:block overflow-x-auto rounded-large border border-divider shadow-elevation-3">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-primary-800 to-primary-900">
-              <th className="text-right py-5 px-6 text-body-2 text-primary-100 font-medium min-w-[200px] rounded-tr-2xl">
+              <th className="text-right py-5 px-6 text-body-2 text-primary-100 font-medium min-w-[200px] rounded-tr-large">
                 ویژگی
               </th>
               {plans.map((plan, idx) => {
@@ -333,11 +333,11 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
                     key={plan.id}
                     className={[
                       "text-center py-5 px-5 text-white",
-                      isLast ? "rounded-tl-2xl" : "",
+                      isLast ? "rounded-tl-large" : "",
                     ].join(" ")}
                   >
                     <div className="text-h3 font-bold mb-0.5">{plan.nameFa}</div>
-                    <div className="text-caption text-primary-100/70">
+                    <div className="text-caption text-primary-100 opacity-70">
                       {toPersianCurrency(plan.salePrice)} / {plan.durationDays} روز
                     </div>
                   </th>
@@ -351,7 +351,7 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
                 key={f.key}
                 className={[
                   "border-b border-neutral-100 last:border-0 transition-colors",
-                  idx % 2 === 0 ? "bg-white hover:bg-neutral-50" : "bg-neutral-50/50 hover:bg-neutral-100/50",
+                  idx % 2 === 0 ? "bg-white hover:bg-neutral-50" : "bg-surface-container hover:bg-surface-hover",
                 ].join(" ")}
               >
                 <td className="py-4 px-6 text-body-2 text-on-surface font-medium">
@@ -435,7 +435,7 @@ function PricingSkeletons() {
       {[1, 2, 3].map((i) => (
         <div
           key={i}
-          className="rounded-2xl bg-surface p-6 shadow-elevation-2 border border-divider/60"
+          className="rounded-large bg-surface p-6 shadow-elevation-2 border border-divider"
         >
           <SkeletonCard lines={5} />
         </div>
@@ -454,42 +454,42 @@ function TrustBar() {
       <div className="mx-auto max-w-6xl px-4">
         <div className="grid grid-cols-1 tablet:grid-cols-3 gap-8 text-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-large bg-white/10 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="text-secondary-300" aria-hidden="true">
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
               </svg>
             </div>
             <div>
               <h3 className="text-body-1 font-bold text-white mb-1">پرداخت امن</h3>
-              <p className="text-caption text-primary-100/70">
+              <p className="text-caption text-primary-100 opacity-70">
                 تمام تراکنش‌ها از درگاه‌های امن بانکی انجام می‌شود
               </p>
             </div>
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-large bg-white/10 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="text-secondary-300 rtl-flip rotate-180" aria-hidden="true">
                 <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
               </svg>
             </div>
             <div>
               <h3 className="text-body-1 font-bold text-white mb-1">بازگشت وجه</h3>
-              <p className="text-caption text-primary-100/70">
+              <p className="text-caption text-primary-100 opacity-70">
                 ضمانت بازگشت وجه تا ۷ روز پس از خرید
               </p>
             </div>
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-large bg-white/10 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="text-secondary-300">
                 <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
               </svg>
             </div>
             <div>
               <h3 className="text-body-1 font-bold text-white mb-1">پشتیبانی ۲۴/۷</h3>
-              <p className="text-caption text-primary-100/70">
+              <p className="text-caption text-primary-100 opacity-70">
                 تیم پشتیبانی ما همیشه آماده پاسخگویی به شماست
               </p>
             </div>
@@ -532,7 +532,7 @@ function FaqSection() {
           {faqs.map((faq, idx) => (
             <details
               key={idx}
-              className="group rounded-xl bg-surface border border-divider/60 shadow-sm transition-shadow hover:shadow-elevation-2"
+              className="group rounded-medium bg-surface border border-divider shadow-elevation-1 transition-shadow hover:shadow-elevation-2"
             >
               <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none">
                 <span className="text-body-1 text-on-surface font-medium">{faq.q}</span>
@@ -577,8 +577,8 @@ export function PricingClient() {
         <div className="absolute inset-0 bg-noise pointer-events-none" />
 
         {/* Decorative floating rings */}
-        <div className="absolute top-10 right-[-5%] w-72 h-72 rounded-full border border-primary-600/20 opacity-30" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 rounded-full border border-secondary-600/10 opacity-20" />
+        <div className="absolute top-10 right-[-5%] w-72 h-72 rounded-full border border-primary-600 opacity-30" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 rounded-full border border-secondary-600 opacity-20" />
 
         <div className="relative mx-auto max-w-6xl px-4 text-center">
           {/* Badge */}
@@ -591,10 +591,10 @@ export function PricingClient() {
             تعرفه‌های{" "}
             <span className="text-secondary-400 relative">
               LEGALIR
-              <span className="absolute -bottom-1 left-0 right-0 h-1 bg-secondary-500/30 rounded-full" />
+              <span className="absolute -bottom-1 left-0 right-0 h-1 bg-secondary-container rounded-full" />
             </span>
           </h1>
-          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed mb-8">
+          <p className="text-body-1 text-primary-100 opacity-80 max-w-xl mx-auto leading-relaxed mb-8">
             پلن مناسب خود را انتخاب کنید. انتخاب پلن مناسب و شروع هوشمند
           </p>
 

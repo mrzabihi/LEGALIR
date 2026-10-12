@@ -132,8 +132,8 @@ export function SegmentedControl({
                 className={[
                   "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-medium",
                   selected
-                    ? "bg-primary/[0.12] text-primary"
-                    : "bg-on-surface/[0.08] text-on-surface-variant",
+                    ? "bg-primary-container text-primary"
+                    : "bg-surface-container text-on-surface-variant",
                 ].join(" ")}
               >
                 {segment.badge}

@@ -26,12 +26,12 @@ function Star({ fill }: { fill: "full" | "half" | "empty" }) {
     return <IconStar size={15} className="text-warning-600" />;
   }
   if (fill === "empty") {
-    return <IconStar size={15} className="text-on-surface-variant/25" />;
+    return <IconStar size={15} className="text-outline" />;
   }
   // Half star: a clipped full star over a dimmed base.
   return (
     <span className="relative inline-flex" aria-hidden="true">
-      <IconStar size={15} className="text-on-surface-variant/25" />
+      <IconStar size={15} className="text-outline" />
       <span className="absolute inset-0 overflow-hidden" style={{ width: "50%" }}>
         <IconStar size={15} className="text-warning-600" />
       </span>

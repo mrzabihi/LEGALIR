@@ -52,7 +52,7 @@ export function ReviewReportControl({ lawyerId, reviewId }: { lawyerId: string; 
   }
 
   return (
-    <div className="mt-2 space-y-2 rounded-xl border border-divider/60 bg-surface-container/40 p-3">
+    <div className="mt-2 space-y-2 rounded-medium border border-divider bg-surface-container p-3">
       <Textarea
         id={`report-${reviewId}`}
         label="دلیل گزارش"

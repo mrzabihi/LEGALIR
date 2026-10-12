@@ -156,8 +156,8 @@ export function availabilityView(
 export const TONE_DOT_CLASS: Record<AvailabilityTone, string> = {
   positive: "bg-success",
   caution: "bg-warning",
-  neutral: "bg-on-surface-variant/50",
-  muted: "bg-on-surface-variant/30",
+  neutral: "bg-outline",
+  muted: "bg-outline-variant",
   rejected: "bg-error",
 };
 

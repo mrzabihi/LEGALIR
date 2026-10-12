@@ -362,7 +362,7 @@ export default function RegisterAccountPage() {
         {/* API Error */}
         {displayApiError && (
           <div
-            className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error"
+            className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error"
             role="alert"
           >
             <svg

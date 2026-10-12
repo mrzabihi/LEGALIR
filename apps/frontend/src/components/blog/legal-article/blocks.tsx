@@ -116,7 +116,7 @@ export function LegalTable({ block }: { block: ArticleTableBlock }) {
             {block.rows.map((row, r) => (
               <tr
                 key={r}
-                className="odd:bg-surface even:bg-surface-container-low/40"
+                className="odd:bg-surface even:bg-surface-container-low"
               >
                 {row.map((cell, c) => (
                   <td
@@ -158,7 +158,7 @@ export function LegalFaq({ block }: { block: ArticleFaqBlock }) {
         {block.items.map((item) => (
           <details
             key={item.question}
-            className="group rounded-large border border-divider bg-surface open:border-primary-200 open:bg-primary-50/30"
+            className="group rounded-large border border-divider bg-surface open:border-primary-200 open:bg-primary-50"
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-labelLarge text-primary-800 [&::-webkit-details-marker]:hidden">
               {item.question}
@@ -216,8 +216,8 @@ export function LegalCta({ block }: { block: ArticleCtaBlock }) {
 
 export function LegalProvisionCard({ block }: { block: ArticleProvisionBlock }) {
   return (
-    <figure className="my-8 rounded-large border border-secondary-200 bg-secondary-50/60 overflow-hidden">
-      <figcaption className="flex items-center gap-3 px-5 py-3.5 border-b border-secondary-200/70 bg-secondary-100/50">
+    <figure className="my-8 rounded-large border border-secondary-200 bg-secondary-50 overflow-hidden">
+      <figcaption className="flex items-center gap-3 px-5 py-3.5 border-b border-secondary-200 bg-secondary-100">
         <span className="inline-flex items-center justify-center h-9 w-9 rounded-medium bg-secondary-700 text-white shrink-0">
           <IconLawBook size={18} />
         </span>
@@ -225,11 +225,11 @@ export function LegalProvisionCard({ block }: { block: ArticleProvisionBlock }) 
           <span className="block text-labelLarge text-secondary-900 truncate">
             {block.label}
           </span>
-          <span className="block text-caption text-secondary-700/80">
+          <span className="block text-caption text-secondary-700 opacity-80">
             {block.summary}
           </span>
         </span>
-        <span className="ms-auto text-h4 text-secondary-700/40 tabular-nums shrink-0">
+        <span className="ms-auto text-h4 text-secondary-700 opacity-40 tabular-nums shrink-0">
           {block.number}
         </span>
       </figcaption>
@@ -246,20 +246,20 @@ export function LegalProvisionCard({ block }: { block: ArticleProvisionBlock }) 
 
 export function LegalCaseCard({ block }: { block: ArticleCaseBlock }) {
   return (
-    <figure className="my-8 rounded-large border border-primary-200 bg-primary-50/50 overflow-hidden">
-      <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5 border-b border-primary-200/70 bg-primary-100/40">
+    <figure className="my-8 rounded-large border border-primary-200 bg-primary-50 overflow-hidden">
+      <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5 border-b border-primary-200 bg-primary-100">
         <span className="inline-flex items-center justify-center h-9 w-9 rounded-medium bg-primary-700 text-white shrink-0">
           <IconBalance size={18} />
         </span>
         <span className="text-labelLarge text-primary-900">{block.label}</span>
-        <span className="ms-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-primary-700/80">
+        <span className="ms-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-primary-700 opacity-80">
           <span>{block.authority}</span>
           <span aria-hidden="true" className="text-primary-300">•</span>
           <span className="tabular-nums">{block.date}</span>
         </span>
       </figcaption>
       <div className="px-5 py-5">
-        <p className="text-caption text-primary-700/70 mb-2">حکم رأی</p>
+        <p className="text-caption text-primary-700 opacity-70 mb-2">حکم رأی</p>
         <p className="text-body-1 text-on-surface leading-loose text-justify">
           {block.holding}
         </p>
@@ -377,7 +377,7 @@ export function LegalTimeline({ block }: { block: ArticleTimelineBlock }) {
 
 export function LegalTakeaway({ block }: { block: ArticleTakeawayBlock }) {
   return (
-    <section className="my-10 rounded-large border border-primary-200 bg-primary-50/40 p-6">
+    <section className="my-10 rounded-large border border-primary-200 bg-primary-50 p-6">
       <h3 className="text-titleMedium text-primary-800 mb-4">{block.title}</h3>
       <ul className="space-y-3">
         {block.points.map((point) => (

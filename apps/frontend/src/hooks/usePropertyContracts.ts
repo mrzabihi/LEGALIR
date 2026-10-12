@@ -33,6 +33,7 @@ import {
   createVersion,
   deleteContractDocument,
   deletePropertyContract,
+  fetchContractAudit,
   fetchContractDocuments,
   fetchParties,
   fetchPayments,
@@ -67,6 +68,8 @@ export const propertyContractKeys = {
   documents: (id: string) => [...propertyContractKeys.detail(id), "documents"] as const,
   payments: (id: string) => [...propertyContractKeys.detail(id), "payments"] as const,
   versions: (id: string) => [...propertyContractKeys.detail(id), "versions"] as const,
+  audit: (id: string, filters: string = "") =>
+    [...propertyContractKeys.detail(id), "audit", filters] as const,
 };
 
 // ------------------------------------------------------------
@@ -121,6 +124,22 @@ export function useContractVersions(id: string | undefined) {
   return useQuery({
     queryKey: propertyContractKeys.versions(id ?? ""),
     queryFn: () => fetchVersions(id!),
+    enabled: !!id,
+    staleTime: 15_000,
+  });
+}
+
+/** The contract's searchable audit trail (§9.2). */
+export function useContractAudit(
+  id: string | undefined,
+  filters: { actor?: string; action?: string; from?: string; to?: string } = {}
+) {
+  const key = `${filters.actor ?? ""}|${filters.action ?? ""}|${filters.from ?? ""}|${
+    filters.to ?? ""
+  }`;
+  return useQuery({
+    queryKey: propertyContractKeys.audit(id ?? "", key),
+    queryFn: () => fetchContractAudit(id!, filters),
     enabled: !!id,
     staleTime: 15_000,
   });

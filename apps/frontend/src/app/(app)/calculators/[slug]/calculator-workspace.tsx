@@ -439,7 +439,7 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
           ) : displayResult ? (
             <>
               {charged && chargedCost !== null && (
-                <div className="mb-3 rounded-medium bg-primary/5 border border-primary-200 p-3 text-caption text-on-surface-variant">
+                <div className="mb-3 rounded-medium bg-primary-container border border-primary-200 p-3 text-caption text-on-surface-variant">
                   {chargedCost > 0
                     ? `هزینهٔ این اجرا: ${toPersianDigits(chargedCost)} امتیاز انرژی کسر شد.`
                     : "این اجرا بدون هزینهٔ اضافی ثبت شد (پیش‌تر همین امروز محاسبه شده است)."}

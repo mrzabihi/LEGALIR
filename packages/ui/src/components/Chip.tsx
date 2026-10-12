@@ -23,7 +23,7 @@ const variantClasses = {
   },
   outlined: {
     default: "border border-outline text-onSurfaceVariant",
-    selected: "border border-primary text-primary bg-primary/[0.08]",
+    selected: "border border-primary text-primary bg-primary-container",
   },
 };
 
@@ -72,7 +72,7 @@ export function Chip({
               onRemove?.();
             }
           }}
-          className="h-4 w-4 flex items-center justify-center rounded-full hover:bg-onSurface/[0.12] cursor-pointer -me-0.5"
+          className="h-4 w-4 flex items-center justify-center rounded-full hover:bg-surface-hover cursor-pointer -me-0.5"
           aria-label={`حذف ${label}`}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">

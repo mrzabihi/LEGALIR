@@ -343,7 +343,7 @@ export function PromoModule({
   return (
     <section
       className={[
-        "group relative isolate overflow-hidden rounded-2xl",
+        "group relative isolate overflow-hidden rounded-large",
         // Brand hairline + a brand wash behind the content. The wash and the
         // glow are decorative layers (`-z-10`) so every foreground keeps its
         // normal token colour and WCAG contrast in both themes.

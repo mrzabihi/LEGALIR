@@ -49,9 +49,9 @@ export function ContractVersionHistory({
               key={version.id}
               className={`rounded-medium p-4 border transition-colors ${
                 isCurrent
-                  ? "border-primary bg-primary/5"
+                  ? "border-primary bg-primary-container"
                   : isSelected
-                    ? "border-blue-300 bg-blue-50"
+                    ? "border-primary bg-primary-container"
                     : "border-divider"
               }`}
             >
@@ -61,7 +61,7 @@ export function ContractVersionHistory({
                     نسخه {version.versionNumber}
                   </span>
                   {isCurrent && (
-                    <span className="text-caption bg-primary/10 text-primary rounded-small px-2 py-0.5">
+                    <span className="text-caption bg-primary-container text-primary rounded-small px-2 py-0.5">
                       فعلی
                     </span>
                   )}

@@ -500,7 +500,7 @@ export default function ConversationPage() {
               <h2 className="text-titleSmall text-onSurface">گفتگوها</h2>
               <button
                 onClick={() => setMobileDrawerOpen(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target"
                 aria-label="بستن منو"
               >
                 <IconClose size={20} />
@@ -577,7 +577,7 @@ function AttachedDocumentViewer({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-onSurface/[0.08]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover"
             aria-label="بستن نمایشگر"
           >
             <IconClose size={18} />

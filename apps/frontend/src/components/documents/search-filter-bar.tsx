@@ -82,7 +82,7 @@ export function SearchFilterBar({
             label="جستجوی اسناد"
             value={search}
             onChange={handleSearchChange}
-            placeholder="جستجوی اسناد..."
+            placeholder="مثلاً: قرارداد، دادخواست، اظهارنامه"
             leadingIcon={<IconSearch size={20} />}
             fullWidth
           />
@@ -119,7 +119,7 @@ export function SearchFilterBar({
                 "shrink-0 px-3 py-1.5 rounded-medium border text-caption font-medium transition-colors",
                 status === opt.value
                   ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                  : "border-divider bg-surface text-on-surface hover:border-control-selected/50",
+                  : "border-divider bg-surface text-on-surface hover:border-control-selected",
               ].join(" ")}
             >
               {opt.label}

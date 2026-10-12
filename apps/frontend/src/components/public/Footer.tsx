@@ -85,7 +85,7 @@ export function Footer() {
 
           {/* Newsletter Signup Placeholder */}
           <div className="border-t border-neutral-200 pt-10 mb-10">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 max-w-2xl">
+            <div className="bg-white rounded-medium p-6 shadow-sm border border-neutral-200 max-w-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex-1">
                   <h3 className="text-button font-semibold text-on-surface mb-1">

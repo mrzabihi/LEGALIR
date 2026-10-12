@@ -30,7 +30,7 @@
 
 import fontkit from "@pdf-lib/fontkit";
 import bidiFactory from "bidi-js";
-import type { PDFFont, PDFPage, RGB } from "pdf-lib";
+import type { PDFFont, PDFPage, RGB, Rotation } from "pdf-lib";
 
 const bidi = bidiFactory();
 
@@ -113,6 +113,8 @@ export interface DrawRtlOptions {
   right?: number;
   /** Left start X — used only when `right` is not given. */
   x?: number;
+  /** Rotation (e.g. `degrees(45)`) applied to each run — used by the watermark. */
+  rotate?: Rotation;
 }
 
 /**
@@ -131,7 +133,14 @@ export function drawRtl(
   let pen = opts.right !== undefined ? opts.right - total : (opts.x ?? 0);
   runs.forEach((run, k) => {
     if (run.text) {
-      page.drawText(run.text, { x: pen, y: opts.y, size: opts.size, font, color: opts.color });
+      page.drawText(run.text, {
+        x: pen,
+        y: opts.y,
+        size: opts.size,
+        font,
+        color: opts.color,
+        rotate: opts.rotate,
+      });
     }
     pen += widths[k]!;
   });

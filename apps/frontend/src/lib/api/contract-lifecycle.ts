@@ -105,6 +105,32 @@ export function declineSignature(
   });
 }
 
+/**
+ * Record a physical (wet-ink) signature by uploading the scan of the
+ * signed printed copy. Multipart, so it bypasses the JSON apiClient.
+ */
+export async function recordPhysicalSignature(
+  id: string,
+  params: { participantId: string; file: File }
+): Promise<{ participant: SignatureParticipant; allSigned: boolean }> {
+  const form = new FormData();
+  form.append("participantId", params.participantId);
+  form.append("file", params.file);
+  const response = await fetch(`/api/v1/property-contracts/${id}/sign`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "ثبت امضای دستی ناموفق بود");
+  }
+  const json = (await response.json()) as {
+    data: { participant: SignatureParticipant; allSigned: boolean };
+  };
+  return json.data;
+}
+
 // ------------------------------------------------------------
 // Invitations
 // ------------------------------------------------------------

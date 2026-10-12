@@ -321,7 +321,7 @@ describe("SettingsPage (hub)", () => {
 
     await waitFor(() => {
       const link = document.querySelector('a[href="/settings/account"]');
-      expect(link?.className).toContain("border-error/40");
+      expect(link?.className).toContain("border-error");
     });
   });
 });

@@ -53,7 +53,7 @@ export function Tabs({ tabs, value, onChange, variant = "primary", fullWidth = f
     <div
       className={[
         "relative flex border-b border-divider",
-        variant === "secondary" ? "bg-surfaceVariant/50 rounded-medium px-1 pt-1" : "",
+        variant === "secondary" ? "bg-surface-container rounded-medium px-1 pt-1" : "",
         fullWidth ? "w-full" : "",
       ].join(" ")}
       role="tablist"

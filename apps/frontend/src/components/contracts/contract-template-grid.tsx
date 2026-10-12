@@ -111,7 +111,7 @@ export function ContractTemplateGrid({
               setExpanded(true);
               onViewAll?.();
             }}
-            className="inline-flex items-center gap-1.5 h-10 rounded-medium px-5 text-labelLarge text-primary hover:bg-primary/10 transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            className="inline-flex items-center gap-1.5 h-10 rounded-medium px-5 text-labelLarge text-primary hover:bg-primary-container transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           >
             مشاهده همه قراردادها
             <IconChevronDown size={18} />

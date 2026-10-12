@@ -21,7 +21,13 @@
 // ------------------------------------------------------------
 
 /** The top-level contract domain. */
-export type ContractDomain = "property" | "vehicle" | "finance" | "services" | "business";
+export type ContractDomain =
+  | "property"
+  | "vehicle"
+  | "finance"
+  | "services"
+  | "business"
+  | "employment";
 
 /** Contract types within the property domain (the fully bespoke journeys). */
 export type PropertyContractType = "property_rent" | "property_sale";
@@ -37,7 +43,8 @@ export type SchemaContractType =
   | "freelance"
   | "nda"
   | "saas"
-  | "startup";
+  | "startup"
+  | "employment";
 
 /** Every contract type the engine knows about (extend as domains land). */
 export type ContractTypeId = PropertyContractType | SchemaContractType;
@@ -57,7 +64,9 @@ export type PartyRole =
   | "provider" // ارائه‌دهنده سرویس
   | "customer" // مشتری
   | "founder" // بنیان‌گذار
-  | "investor"; // سرمایه‌گذار
+  | "investor" // سرمایه‌گذار
+  | "employer" // کارفرما
+  | "employee"; // کارگر / کارمند (نیروی کار)
 
 /** The legal capacity a party acts in. */
 export type PartyCapacity =
@@ -88,6 +97,9 @@ export type PropertyContractState =
   | "READY_FOR_REVIEW"
   | "COUNTERPARTY_REVIEW"
   | "CHANGES_REQUESTED"
+  | "PENDING_ADMIN_REVIEW"
+  | "ADMIN_APPROVED"
+  | "REJECTED"
   | "READY_TO_SIGN"
   | "PARTIALLY_SIGNED"
   | "SIGNED"
@@ -105,6 +117,9 @@ export const PROPERTY_CONTRACT_STATE_LABELS: Record<PropertyContractState, strin
   READY_FOR_REVIEW: "آماده بررسی",
   COUNTERPARTY_REVIEW: "نزد طرف مقابل",
   CHANGES_REQUESTED: "درخواست اصلاح",
+  PENDING_ADMIN_REVIEW: "در انتظار تأیید ادمین",
+  ADMIN_APPROVED: "تأییدشده برای صدور",
+  REJECTED: "ردشده",
   READY_TO_SIGN: "آماده امضا",
   PARTIALLY_SIGNED: "امضای ناقص",
   SIGNED: "امضا شده",
@@ -114,17 +129,28 @@ export const PROPERTY_CONTRACT_STATE_LABELS: Record<PropertyContractState, strin
   ARCHIVED: "بایگانی‌شده",
 };
 
-/** Allowed state transitions. `FINALIZED`/`CANCELLED`/`ARCHIVED` are terminal-ish. */
+/**
+ * Allowed state transitions. `FINALIZED`/`CANCELLED`/`ARCHIVED` are terminal-ish.
+ *
+ * The compulsory admin-approval gate sits between review and signature:
+ * `READY_FOR_REVIEW → PENDING_ADMIN_REVIEW → ADMIN_APPROVED → READY_TO_SIGN`.
+ * A signature is never issued before an approval bound to the exact current
+ * version exists, so this edge is the machine-level half of that invariant;
+ * the sign route enforces the other half (an approval for the current hash).
+ */
 export const CONTRACT_STATE_TRANSITIONS: Record<PropertyContractState, PropertyContractState[]> = {
   DRAFT: ["PARTIES_PENDING", "PROPERTY_PENDING", "DOCUMENTS_PENDING", "TERMS_PENDING", "READY_FOR_REVIEW", "CANCELLED"],
   PARTIES_PENDING: ["DRAFT", "PROPERTY_PENDING", "TERMS_PENDING", "READY_FOR_REVIEW", "CANCELLED"],
   PROPERTY_PENDING: ["DRAFT", "PARTIES_PENDING", "DOCUMENTS_PENDING", "TERMS_PENDING", "READY_FOR_REVIEW", "CANCELLED"],
   DOCUMENTS_PENDING: ["DRAFT", "PROPERTY_PENDING", "TERMS_PENDING", "READY_FOR_REVIEW", "CANCELLED"],
   TERMS_PENDING: ["DRAFT", "PROPERTY_PENDING", "DOCUMENTS_PENDING", "READY_FOR_REVIEW", "CANCELLED"],
-  READY_FOR_REVIEW: ["DRAFT", "COUNTERPARTY_REVIEW", "READY_TO_SIGN", "CANCELLED"],
-  COUNTERPARTY_REVIEW: ["CHANGES_REQUESTED", "READY_TO_SIGN", "CANCELLED"],
+  READY_FOR_REVIEW: ["DRAFT", "COUNTERPARTY_REVIEW", "PENDING_ADMIN_REVIEW", "READY_TO_SIGN", "CANCELLED"],
+  COUNTERPARTY_REVIEW: ["CHANGES_REQUESTED", "PENDING_ADMIN_REVIEW", "READY_TO_SIGN", "CANCELLED"],
   CHANGES_REQUESTED: ["DRAFT", "READY_FOR_REVIEW", "COUNTERPARTY_REVIEW", "CANCELLED"],
-  READY_TO_SIGN: ["PARTIALLY_SIGNED", "SIGNED", "CHANGES_REQUESTED", "CANCELLED"],
+  PENDING_ADMIN_REVIEW: ["ADMIN_APPROVED", "CHANGES_REQUESTED", "REJECTED", "CANCELLED"],
+  ADMIN_APPROVED: ["READY_TO_SIGN", "PENDING_ADMIN_REVIEW", "CHANGES_REQUESTED", "CANCELLED"],
+  REJECTED: ["DRAFT", "CANCELLED", "ARCHIVED"],
+  READY_TO_SIGN: ["PARTIALLY_SIGNED", "SIGNED", "CHANGES_REQUESTED", "PENDING_ADMIN_REVIEW", "CANCELLED"],
   PARTIALLY_SIGNED: ["SIGNED", "CHANGES_REQUESTED", "CANCELLED"],
   SIGNED: ["READY_FOR_OFFICIAL_REGISTRATION", "FINALIZED", "CANCELLED"],
   READY_FOR_OFFICIAL_REGISTRATION: ["FINALIZED", "CANCELLED"],
@@ -367,6 +393,14 @@ export type ContractDocumentCategory =
   | "partition_minutes" // صورت‌مجلس تفکیکی
   | "mortgage_release" // مدارک فک رهن
   | "check_image" // تصویر چک
+  | "signed_scan" // نسخه امضاشدهٔ دستی (اسکن)
+  | "employer_id" // کارت ملی / شناسهٔ کارفرما
+  | "employee_id" // کارت ملی / شناسهٔ کارگر
+  | "employee_passport" // گذرنامهٔ کارگر غیرایرانی (به‌همراه مجوز کار و اقامت)
+  | "employment_resume" // رزومه / سوابق کاری
+  | "employment_education" // مدارک تحصیلی
+  | "employment_order" // ابلاغ/حکم کار یا پیش‌نویس توافق
+  | "employment_medical" // گواهی سلامت / طب کار
   | "other";
 
 export interface ContractDocument {
@@ -665,6 +699,13 @@ export interface ContractFieldDescriptor {
   helperFa?: string;
   /** True when the field must be filled for the section to complete. */
   required?: boolean;
+  /**
+   * Conditional requirement: the field is required ONLY when the condition
+   * holds. Used for the employer/employee splits (natural person vs. legal
+   * entity, Iranian vs. foreign national) so the completeness scorer demands
+   * exactly the branch the user chose.
+   */
+  requiredWhen?: { key: string; equals?: GenericFieldValue; oneOf?: GenericFieldValue[] };
 }
 
 // ------------------------------------------------------------
@@ -716,7 +757,7 @@ export interface ContractApproval {
   /** Free-text comment when requesting changes. */
   comment: string;
   /** How the approval was given. */
-  method: "otp" | "explicit_consent";
+  method: "otp" | "explicit_consent" | "physical";
   approvedAt: string | null;
   createdAt: string;
 }
@@ -921,6 +962,69 @@ export interface ContractVerificationInfo {
   statusFa: string;
   /** Party display names only — never national ids or addresses. */
   partyNames: string[];
+  /**
+   * True when this final version carries the LEGALIR review stamp — i.e.
+   * a bound admin approval existed at finalize time. Public-safe.
+   */
+  reviewed: boolean;
+  /** The stamp text, present only when `reviewed`. Never a court/notary seal. */
+  stampLabelFa?: string;
+  /** ISO date of the review decision, when reviewed. */
+  reviewedAt?: string;
+  /** The verifying office/person label, when reviewed. Not a court or notary. */
+  reviewingOfficeFa?: string;
+  /** A short public review id, when reviewed. Never a raw token. */
+  reviewId?: string;
+}
+
+// ------------------------------------------------------------
+// Admin contract queue (the operator-facing projection)
+// ------------------------------------------------------------
+// One row per contract in the admin review/list surface. It carries
+// only what an operator needs to triage — never the full document body
+// or the parties' national ids.
+
+export interface AdminContractListItem {
+  id: string;
+  referenceCode: string;
+  type: ContractTypeId;
+  typeFa: string;
+  title: string;
+  state: PropertyContractState;
+  stateFa: string;
+  progress: number;
+  /** The owner's display name. */
+  ownerLabelFa: string;
+  /** Short party summary, e.g. «مریم محمدی و رضا کریمی». */
+  partySummaryFa: string;
+  /** The current admin-review status, when a review exists. */
+  adminReviewStatus: ContractAdminReviewStatus | null;
+  adminReviewStatusFa: string | null;
+  /** True when the current version carries a valid, bound admin approval. */
+  adminApproved: boolean;
+  currentVersionNumber: number;
+  finalizedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface AdminContractListResponse {
+  items: AdminContractListItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+  /** Counts by admin-review status, for the queue tabs. */
+  counts: { pending: number; approved: number; rejected: number; changesRequested: number };
+}
+
+/** A request body for an admin review action. */
+export interface AdminContractReviewActionRequest {
+  action: ContractAdminReviewAction;
+  /** Required for reject and request_info; ignored otherwise. */
+  reason?: string;
 }
 
 // ============================================================
@@ -1065,6 +1169,18 @@ export const SIGNATURE_PARTICIPANT_STATUS_FA: Record<SignatureParticipantStatus,
 };
 
 /**
+ * HOW a participant signed. An OTP signature is proven by a one-time
+ * code; a physical signature is wet-ink on a printed copy, proven by an
+ * uploaded scan. They carry different assurance and are never conflated.
+ */
+export type SignatureSignMethod = "OTP_ELECTRONIC" | "PHYSICAL_WET_INK";
+
+export const SIGNATURE_SIGN_METHOD_FA: Record<SignatureSignMethod, string> = {
+  OTP_ELECTRONIC: "امضای الکترونیکی (کد یک‌بارمصرف پیامکی)",
+  PHYSICAL_WET_INK: "امضای دستی روی نسخه چاپی",
+};
+
+/**
  * One participant in a signature request. A participant is either a
  * registered party (`partyId`) or a guest signer identified only by
  * mobile (`guestMobile`) — the engine treats both identically.
@@ -1088,6 +1204,10 @@ export interface SignatureParticipant {
   /** ISO timestamp the participant first opened the document. */
   viewedAt: string | null;
   signedAt: string | null;
+  /** How the signature was applied, when signed. */
+  signedMethod: SignatureSignMethod | null;
+  /** The uploaded wet-ink scan (a ContractDocument id), when physical. */
+  proofDocumentId: string | null;
   declinedAt: string | null;
   declineReason: string | null;
   createdAt: string;
@@ -1341,6 +1461,158 @@ export interface AiContractReview {
 }
 
 // ------------------------------------------------------------
+// Compulsory admin review & approval (§6 / §7)
+// ------------------------------------------------------------
+// A generated contract MUST pass an internal LEGALIR admin approval
+// before a final version is stamped or a signature is issued. An
+// approval is bound to the EXACT version hash it was given for: if the
+// content changes afterwards the approval no longer holds and the
+// contract must return to the queue.
+
+export type ContractAdminReviewStatus =
+  | "PENDING" // در انتظار تأیید ادمین
+  | "APPROVED" // تأییدشده برای صدور
+  | "REJECTED" // ردشده
+  | "CHANGES_REQUESTED" // نیازمند اصلاح
+  | "CANCELLED"; // لغو بررسی
+
+export const CONTRACT_ADMIN_REVIEW_STATUS_FA: Record<ContractAdminReviewStatus, string> = {
+  PENDING: "در انتظار تأیید ادمین",
+  APPROVED: "تأییدشده برای صدور",
+  REJECTED: "ردشده",
+  CHANGES_REQUESTED: "نیازمند اصلاح",
+  CANCELLED: "لغو‌شده",
+};
+
+export type ContractAdminReviewAction =
+  | "approve" // تأیید برای صدور نهایی
+  | "reject" // رد و بازگرداندن همراه با دلیل
+  | "request_info" // درخواست اطلاعات یا اصلاح مشخص
+  | "cancel"; // لغو بررسی با علت
+
+/**
+ * A single immutable entry in an admin review's history. Every action —
+ * including a re-review after a change — is appended, never overwritten,
+ * so the audit trail of who approved exactly what, and when, survives.
+ */
+export interface ContractAdminReviewEvent {
+  id: string;
+  /** The review this event belongs to. */
+  reviewId: string;
+  action: ContractAdminReviewAction;
+  actorId: string;
+  actorLabel: string;
+  /** The admin's free-text reason or note. Required for reject/request_info. */
+  reasonFa: string;
+  /** The version hash the action was recorded against. */
+  contractVersionId: string | null;
+  documentHash: string | null;
+  createdAt: string;
+}
+
+/**
+ * An admin review bound to a contract version. `documentHash` is the
+ * hash of the version the decision was made for — an approval with a
+ * `documentHash` that no longer matches the current version is stale.
+ */
+export interface ContractAdminReview {
+  id: string;
+  contractId: string;
+  contractVersionId: string | null;
+  documentHash: string | null;
+  status: ContractAdminReviewStatus;
+  /** The admin who made the current decision, when one has been made. */
+  reviewerId: string | null;
+  reviewerLabelFa: string | null;
+  /** Public-safe identifier of the reviewer shown beside the stamp, e.g. «B.R». */
+  reviewerInitials: string | null;
+  /** The office/person verifying, shown beside the stamp. Never a court or notary. */
+  reviewingOfficeFa: string;
+  reasonFa: string;
+  submittedAt: string;
+  decidedAt: string | null;
+  /** ISO timestamp after which the review is no longer valid, if set. */
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractAdminReviewDetail extends ContractAdminReview {
+  events: ContractAdminReviewEvent[];
+}
+
+// ------------------------------------------------------------
+// The review stamp (§7)
+// ------------------------------------------------------------
+// The stamp is a VISUAL mark of LEGALIR's internal review. It is never
+// presented as a court, notary, registry or government seal, and it is
+// only ever drawn on an admin-approved FINAL version. A draft or a
+// rejected contract carries the unapproved-draft watermark instead.
+
+/** The exact stamp text — never paraphrased. */
+export const CONTRACT_REVIEW_STAMP_TEXT = "لیـــــــگالیر - بررسی شد";
+
+/** The watermark shown on any not-yet-approved contract. */
+export const CONTRACT_DRAFT_WATERMARK_FA = "پیش‌نویس ـ تأییدنشده";
+
+/** The blue tone of the review stamp (ink-like), as an RGB triple 0–255. */
+export const CONTRACT_REVIEW_STAMP_RGB: readonly [number, number, number] = [28, 78, 156];
+
+/** The footer note that must accompany the stamp wherever it is shown. */
+export const CONTRACT_REVIEW_STAMP_DISCLAIMER_FA =
+  "این مهر نشان‌دهندهٔ بررسی داخلی لیگالیر است و به‌معنای مهر دادگاه، دفترخانه، سازمان ثبت یا تأیید قطعی حقوقی نیست.";
+
+// ------------------------------------------------------------
+// The legal-basis report (§2)
+// ------------------------------------------------------------
+// A NON-BINDING annex that lists, per clause, the real provisions the
+// catalogued clause template rests on. It is never part of the operative
+// contract text and never presented as a substitute for legal advice.
+// A provision only appears here when a human legal review has approved
+// that citation; an unreviewed or unknown provision is never guessed and
+// simply omitted.
+
+/** The mandatory framing line for the legal-basis annex. */
+export const CONTRACT_LEGAL_BASIS_DISCLAIMER_FA =
+  "این پیوست صرفاً «مبنای حقوقی و گزارش بررسی» است، بخشی از متن تعهدآور قرارداد نیست و جایگزین نظر وکیل یا مشاورهٔ حقوقی نیست.";
+
+/** Whether a clause↔provision citation has passed legal review. */
+export type ContractLegalCitationStatus = "reviewed" | "pending";
+
+/** One reviewed provision a clause rests on. */
+export interface ContractLegalCitation {
+  /** The exact, curated provision locator, e.g. «ماده ۲۳۰ قانون مدنی». */
+  articleFa: string;
+  /** The law the provision belongs to. */
+  lawTitleFa: string;
+  /** Why this clause rests on the provision (one line). */
+  noteFa: string;
+  /** Review state of THIS citation mapping. */
+  status: ContractLegalCitationStatus;
+  /** Link into the official law catalog (`LAW_SOURCES[].id`), when one exists. */
+  lawSourceId: string | null;
+}
+
+/** The citations attached to a single rendered clause. */
+export interface ContractLegalBasisSection {
+  clauseId: string;
+  clauseHeadingFa: string;
+  citations: ContractLegalCitation[];
+}
+
+/** The assembled legal-basis annex for one contract version. */
+export interface ContractLegalBasisReport {
+  disclaimerFa: string;
+  /** Clauses carrying at least one reviewed citation. */
+  citedClauseCount: number;
+  /** Operative clauses with no catalogued provision (rest on the parties' agreement). */
+  uncitedClauseCount: number;
+  sections: ContractLegalBasisSection[];
+  /** True when at least one citation is still awaiting legal review. */
+  hasPendingCitations: boolean;
+}
+
+// ------------------------------------------------------------
 // Lifecycle aggregate (what the workspace renders)
 // ------------------------------------------------------------
 
@@ -1355,6 +1627,15 @@ export interface ContractLifecycleView {
   lawyerReview: LawyerReviewRequestDetail | null;
   /** The most recent AI review, when one exists. */
   aiReview: AiContractReview | null;
+  /** The current admin review, when one exists. */
+  adminReview: ContractAdminReview | null;
+  /**
+   * True when the contract's CURRENT version carries a valid, bound
+   * LEGALIR admin approval. This is the same hash-bound check the sign
+   * and finalize routes enforce; the preview reads it to decide whether
+   * to show the review stamp or the unapproved-draft watermark.
+   */
+  adminApproved: boolean;
   /** Review comments on the current version. */
   comments: ContractReviewComment[];
   /** True when the contract may be prepared for signature right now. */
@@ -1363,6 +1644,11 @@ export interface ContractLifecycleView {
   canSign: boolean;
   /** True when the contract may be finalized right now. */
   canFinalize: boolean;
+  /**
+   * True when the contract may be submitted to the admin review queue.
+   * Requires a frozen current version and no newer un-reviewed content.
+   */
+  canSubmitForAdminReview: boolean;
 }
 
 // ------------------------------------------------------------

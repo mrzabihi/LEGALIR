@@ -107,20 +107,25 @@ const SOURCE_FILTERS: { key: "" | LegalContentType; label: string }[] = [
   { key: "TEMPLATE_GUIDE", label: "قالب و راهنما" },
 ];
 
-/** Per-type accent (icon tile + type badge) keeping the library's own identity. */
+/** Per-type presentation — icon tile + type badge. Tiles are single-hue drifts
+ *  inside the LEGALIR brand family (green · gold · teal, plus a neutral fallback)
+ *  so the grid reads as one material; types are told apart by icon and title,
+ *  never by a rainbow of hues. Badges use the theme's solid container roles — a
+ *  light tint of the same hue — because a `/opacity` modifier on a `var()` colour
+ *  is silently dropped by Tailwind 3.4 and would emit no CSS at all. */
 const TYPE_STYLE: Record<LegalContentType, { badge: string; tile: string }> = {
-  LAW_ARTICLE: { badge: "bg-primary/8 text-primary-700", tile: "from-primary-600 to-primary-800" },
-  REGULATION: { badge: "bg-warning-container text-warning", tile: "from-amber-500 to-amber-700" },
-  UNIFICATION_RULING: { badge: "bg-secondary/10 text-secondary-700", tile: "from-secondary to-secondary-light" },
-  JUDICIAL_DECISION: { badge: "bg-info-container text-info", tile: "from-sky-500 to-sky-700" },
-  LEGAL_GUIDE: { badge: "bg-secondary/10 text-secondary-700", tile: "from-secondary to-secondary-light" },
-  HOW_TO: { badge: "bg-primary/8 text-primary-700", tile: "from-primary-600 to-primary-800" },
-  CHECKLIST: { badge: "bg-success-container text-success", tile: "from-emerald-500 to-teal-600" },
-  FAQ: { badge: "bg-info-container text-info", tile: "from-sky-500 to-sky-700" },
-  LEGAL_TOOL: { badge: "bg-primary/8 text-primary-700", tile: "from-blue-500 to-cyan-500" },
-  TEMPLATE_GUIDE: { badge: "bg-primary/8 text-primary-700", tile: "from-primary-600 to-primary-800" },
-  BLOG_ARTICLE: { badge: "bg-surface-container text-on-surface-variant", tile: "from-neutral-500 to-neutral-700" },
-  SOURCE: { badge: "bg-surface-container text-on-surface-variant", tile: "from-neutral-500 to-neutral-700" },
+  LAW_ARTICLE: { badge: "bg-success-container text-success", tile: "from-[var(--brand-green)] to-[#174E3E]" },
+  REGULATION: { badge: "bg-success-container text-success", tile: "from-[#2F6F63] to-[var(--brand-green)]" },
+  UNIFICATION_RULING: { badge: "bg-secondary-container text-on-secondary-container", tile: "from-[var(--brand-gold)] to-[var(--brand-gold-deep)]" },
+  JUDICIAL_DECISION: { badge: "bg-secondary-container text-on-secondary-container", tile: "from-[var(--brand-gold-deep)] to-[#6E5526]" },
+  LEGAL_GUIDE: { badge: "bg-surface-container text-on-surface-variant", tile: "from-[#3B5A52] to-[var(--brand-teal)]" },
+  HOW_TO: { badge: "bg-success-container text-success", tile: "from-[var(--brand-green)] to-[#174E3E]" },
+  CHECKLIST: { badge: "bg-success-container text-success", tile: "from-[var(--brand-green)] to-[#2E7A61]" },
+  FAQ: { badge: "bg-surface-container text-on-surface-variant", tile: "from-[#3B5A52] to-[var(--brand-teal)]" },
+  LEGAL_TOOL: { badge: "bg-primary-container text-on-primary-container", tile: "from-[var(--brand-teal)] to-[#26364A]" },
+  TEMPLATE_GUIDE: { badge: "bg-secondary-container text-on-secondary-container", tile: "from-[var(--brand-gold-deep)] to-[var(--brand-teal)]" },
+  BLOG_ARTICLE: { badge: "bg-surface-container text-on-surface-variant", tile: "from-[#6B7280] to-[#4B5563]" },
+  SOURCE: { badge: "bg-surface-container text-on-surface-variant", tile: "from-[#6B7280] to-[#4B5563]" },
 };
 
 /** Honest verification label derived from the real `verificationStatus`. */
@@ -155,11 +160,11 @@ function SourceCard({ item }: { item: V1LegalLibraryListItem }) {
   return (
     <Link
       href={`/legal-library/${encodeURIComponent(item.id)}`}
-      className="card-lift card-press group flex flex-col gap-3 rounded-2xl border border-divider/60 bg-surface p-4 shadow-elevation-1 transition-colors hover:border-primary/30"
+      className="card-lift card-press group flex flex-col gap-3 rounded-large border border-divider bg-surface p-4 shadow-elevation-1 transition-shadow duration-short3 hover:border-primary"
     >
       <div className="flex items-start justify-between gap-2">
         <div
-          className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-110 ${style.tile}`}
+          className={`flex h-11 w-11 items-center justify-center rounded-medium bg-gradient-to-br text-white shadow-elevation-1 transition-transform duration-short3 group-hover:scale-110 ${style.tile}`}
         >
           <IconBookOpen />
         </div>
@@ -180,7 +185,7 @@ function SourceCard({ item }: { item: V1LegalLibraryListItem }) {
 
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-labelSmall text-on-surface-variant">
         {chip && (
-          <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${chip.className}`}>
+          <span className={`inline-flex items-center gap-1 rounded-small px-2 py-0.5 ${chip.className}`}>
             <IconCheckCircle />
             {chip.label}
           </span>
@@ -202,9 +207,9 @@ function SourceCard({ item }: { item: V1LegalLibraryListItem }) {
 
 function CardSkeleton() {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-divider/60 bg-surface p-4 shadow-elevation-1">
+    <div className="flex flex-col gap-3 rounded-large border border-divider bg-surface p-4 shadow-elevation-1">
       <div className="flex items-start justify-between">
-        <div className="h-11 w-11 animate-pulse rounded-xl bg-surface-container" />
+        <div className="h-11 w-11 animate-pulse rounded-medium bg-surface-container" />
         <div className="h-5 w-20 animate-pulse rounded-full bg-surface-container" />
       </div>
       <div className="h-5 w-3/4 animate-pulse rounded bg-surface-container" />
@@ -281,7 +286,7 @@ export default function LegalLibraryPage() {
               <button
                 type="button"
                 onClick={() => setSearchInput("")}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover"
                 aria-label="پاک کردن جستجو"
               >
                 <IconClose size={18} />
@@ -306,10 +311,10 @@ export default function LegalLibraryPage() {
                   aria-pressed={active}
                   onClick={() => setActiveTopic(active ? "" : t.slug)}
                   className={[
-                    "flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-caption font-medium transition-all touch-target",
+                    "flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-caption font-medium transition-colors touch-target",
                     active
                       ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                      : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
+                      : "border-divider bg-surface text-on-surface hover:border-control-selected",
                   ].join(" ")}
                 >
                   {t.icon && <span aria-hidden="true">{t.icon}</span>}
@@ -340,10 +345,10 @@ export default function LegalLibraryPage() {
               aria-selected={active}
               onClick={() => setActiveType(filter.key)}
               className={[
-                "shrink-0 rounded-xl border px-4 py-2 text-caption font-medium transition-all touch-target",
+                "shrink-0 rounded-full border px-4 py-2 text-caption font-medium transition-colors touch-target",
                 active
                   ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                  : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
+                  : "border-divider bg-surface text-on-surface hover:border-control-selected",
               ].join(" ")}
             >
               {filter.label}
@@ -361,7 +366,7 @@ export default function LegalLibraryPage() {
         </div>
       ) : itemsQuery.isError ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-error/20 bg-error-container">
+          <div className="flex h-16 w-16 items-center justify-center rounded-large bg-error-container">
             <SvgIcon size={30} className="text-error">
               <circle cx="12" cy="12" r="10" />
               <path d="M12 8v4M12 16h.01" />
@@ -381,7 +386,7 @@ export default function LegalLibraryPage() {
         </div>
       ) : showEmpty ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-divider/40 bg-surface-container">
+          <div className="flex h-16 w-16 items-center justify-center rounded-large bg-surface-container">
             <IconSearch />
           </div>
           <p className="text-body-1 font-medium text-on-surface">
@@ -396,7 +401,7 @@ export default function LegalLibraryPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="mt-2 rounded-xl border border-divider bg-surface px-5 py-2.5 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-container touch-target"
+              className="mt-2 rounded-full border border-divider bg-surface px-5 py-2.5 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover touch-target"
             >
               نمایش همه منابع
             </button>
@@ -411,7 +416,7 @@ export default function LegalLibraryPage() {
       )}
 
       {/* Bottom CTA */}
-      <div className="mb-4 mt-12 rounded-2xl border border-primary/10 bg-gradient-to-r from-primary/5 to-secondary/5 p-6 text-center">
+      <div className="mb-4 mt-12 rounded-xlarge border border-divider bg-surface-container-low p-6 text-center">
         <p className="mb-1 text-body-1 font-medium text-on-surface">
           منبع حقوقی مورد نظر خود را پیدا نکردید؟
         </p>
@@ -428,7 +433,7 @@ export default function LegalLibraryPage() {
           </Link>
           <Link
             href="/support"
-            className="inline-flex items-center gap-2 rounded-xl border border-divider px-6 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-container active:scale-[0.98] touch-target"
+            className="inline-flex items-center gap-2 rounded-full border border-divider px-6 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.98] touch-target"
           >
             درخواست منبع جدید
           </Link>

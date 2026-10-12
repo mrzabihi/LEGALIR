@@ -34,8 +34,8 @@ function SessionRow({
   revoking: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-large border border-divider bg-surface-hover/40 p-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <div className="flex items-start gap-3 rounded-large border border-divider bg-surface-container p-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-container text-primary">
         <IconPerson size={18} />
       </span>
       <div className="min-w-0 flex-1">
@@ -44,7 +44,7 @@ function SessionRow({
             {session.device} — {session.browser}
           </span>
           {session.current && (
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-caption text-primary">
+            <span className="inline-flex items-center rounded-full bg-primary-container px-2 py-0.5 text-caption text-primary">
               جاری
             </span>
           )}
@@ -59,7 +59,7 @@ function SessionRow({
           type="button"
           onClick={() => onRevoke(session.id)}
           disabled={revoking}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-error/30 px-3 py-1.5 text-caption text-error transition hover:bg-error/5 disabled:opacity-50"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-error px-3 py-1.5 text-caption text-error transition hover:bg-error-container disabled:opacity-50"
         >
           <IconDelete size={14} />
           خروج
@@ -109,7 +109,7 @@ export default function SecuritySettingsPage() {
         {otherCount > 0 && (
           <div className="mt-4">
             {confirmOthers ? (
-              <div className="flex flex-wrap items-center gap-3 rounded-large border border-error/30 bg-error/5 p-4">
+              <div className="flex flex-wrap items-center gap-3 rounded-large border border-error bg-error-container p-4">
                 <p className="text-body-2 text-error flex-1">
                   از {otherCount.toLocaleString("fa-IR")} نشست دیگر خارج می‌شوید. ادامه؟
                 </p>
@@ -121,7 +121,7 @@ export default function SecuritySettingsPage() {
                     });
                   }}
                   disabled={revokeOthers.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-error px-4 py-2 text-body-2 text-on-error font-medium transition hover:bg-error/90 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-error px-4 py-2 text-body-2 text-on-error font-medium transition hover:opacity-90 disabled:opacity-50"
                 >
                   {revokeOthers.isPending ? "در حال خروج..." : "تأیید"}
                 </button>

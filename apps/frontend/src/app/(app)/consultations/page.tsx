@@ -40,18 +40,18 @@ export default function ConsultationsPage() {
       {isLoading && (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-surface-container" />
+            <div key={i} className="h-20 animate-pulse rounded-large bg-surface-container" />
           ))}
         </div>
       )}
 
       {isError && (
-        <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-6 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
           <p className="text-body-1 text-error">خطا در بارگذاری مشاوره‌ها</p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary-container"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -75,7 +75,7 @@ export default function ConsultationsPage() {
             <li key={r.id}>
               <Link
                 href={`/consultations/${r.id}`}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-divider/60 bg-surface p-5 transition-all hover:border-primary/40 hover:shadow-elevation-1"
+                className="flex items-center justify-between gap-4 rounded-large border border-divider bg-surface p-5 transition-all hover:border-primary hover:shadow-elevation-1"
               >
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-body-1 font-semibold text-on-surface">{r.title}</h2>

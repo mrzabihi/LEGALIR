@@ -33,7 +33,7 @@ export function SettingsShell({
       <div className="flex items-center gap-3 mb-6">
         <Link
           href="/settings"
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-surface border border-divider/60 text-muted hover:text-primary transition-colors touch-target-min"
+          className="w-10 h-10 flex items-center justify-center rounded-medium bg-surface border border-divider text-muted hover:text-primary transition-colors touch-target-min"
           aria-label="بازگشت به تنظیمات"
         >
           <IconArrowBack size={20} rtlFlip />

@@ -11,7 +11,7 @@ export function CitationInline({ reference, onClick }: CitationInlineProps) {
   return (
     <button
       onClick={() => onClick(reference)}
-      className="inline-flex items-center gap-1 align-middle mx-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-labelSmall hover:bg-primary/20 transition-colors"
+      className="inline-flex items-center gap-1 align-middle mx-1 px-1.5 py-0.5 rounded-full bg-primary-container text-primary text-labelSmall hover:bg-surface-hover transition-colors"
       aria-label={`منبع: ${reference.locator}`}
       type="button"
     >

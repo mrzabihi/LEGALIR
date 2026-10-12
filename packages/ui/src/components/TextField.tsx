@@ -148,8 +148,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
               "border-none outline-none",
               inputSize === "small" ? "text-bodySmall py-1.5" : "text-bodyMedium py-1.5",
               showPlaceholderOnFocusOnly
-                ? "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100 placeholder:text-onSurfaceVariant/60"
-                : "placeholder:text-onSurfaceVariant/60",
+                ? "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100 placeholder:text-muted"
+                : "placeholder:text-muted",
               "transition-opacity duration-short3",
             ].join(" ")}
             {...rest}

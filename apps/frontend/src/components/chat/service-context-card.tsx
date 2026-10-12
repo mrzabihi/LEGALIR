@@ -4,14 +4,14 @@ import { getServiceContext, type ServiceType } from "@/lib/ai/service-context";
 import { IconServices } from "@/lib/icons";
 
 const TONE: Record<ServiceType, { iconBg: string; ring: string }> = {
-  legal_consultation: { iconBg: "bg-primary/10 text-primary", ring: "border-primary/20" },
-  contract_review: { iconBg: "bg-rose-50 text-rose-600", ring: "border-rose-200" },
-  contract_drafting: { iconBg: "bg-emerald-50 text-emerald-600", ring: "border-emerald-200" },
-  legal_notice: { iconBg: "bg-stone-100 text-stone-600", ring: "border-stone-200" },
-  document_analysis: { iconBg: "bg-blue-50 text-blue-600", ring: "border-blue-200" },
-  legal_calculation: { iconBg: "bg-amber-50 text-amber-600", ring: "border-amber-200" },
-  law_search: { iconBg: "bg-indigo-50 text-indigo-600", ring: "border-indigo-200" },
-  case_analysis: { iconBg: "bg-purple-50 text-purple-600", ring: "border-purple-200" },
+  legal_consultation: { iconBg: "bg-primary-container text-primary", ring: "border-primary" },
+  contract_review: { iconBg: "bg-error-container text-error", ring: "border-error" },
+  contract_drafting: { iconBg: "bg-success-container text-success", ring: "border-success" },
+  legal_notice: { iconBg: "bg-surface-container text-muted", ring: "border-divider" },
+  document_analysis: { iconBg: "bg-info-container text-info", ring: "border-info" },
+  legal_calculation: { iconBg: "bg-warning-container text-warning", ring: "border-warning" },
+  law_search: { iconBg: "bg-secondary-container text-secondary", ring: "border-secondary" },
+  case_analysis: { iconBg: "bg-tertiary-container text-tertiary", ring: "border-tertiary" },
 };
 
 interface ServiceContextCardProps {

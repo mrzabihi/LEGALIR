@@ -77,7 +77,7 @@ export function NewServices({ services }: NewServicesProps) {
               <>
                 <span
                   aria-hidden="true"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-surface-container text-on-surface-variant"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-[var(--card-ivory-tile)] text-[color:var(--brand-fg-gold)] shadow-elevation-1 transition-transform duration-short4 ease-standard group-hover:scale-[1.04]"
                 >
                   <Icon size={22} />
                 </span>
@@ -92,8 +92,11 @@ export function NewServices({ services }: NewServicesProps) {
               </>
             );
 
+            // A calm, flat ivory "note" tile — no border; the warm fill alone
+            // separates it from the cool-gray canvas. Hover deepens the ivory
+            // and adds a soft lift, so the affordance reads without chrome.
             const shell =
-              "flex h-full items-start gap-3 rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4";
+              "flex h-full items-center gap-3 rounded-large border border-transparent bg-[var(--card-ivory-bg)] p-4";
 
             if (!available) {
               return (
@@ -112,12 +115,12 @@ export function NewServices({ services }: NewServicesProps) {
               <li key={service.id}>
                 <Link
                   href={service.href}
-                  className={`${shell} group transition-all duration-short4 ease-standard hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] hover:shadow-elevation-3 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface)] touch-target`}
+                  className={`${shell} group transition-all duration-short4 ease-standard hover:-translate-y-0.5 hover:bg-[var(--card-ivory-bg-hover)] hover:shadow-elevation-4 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-fg-gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-background)] touch-target`}
                 >
                   {body}
                   <IconChevronRight
                     size={18}
-                    className="shrink-0 self-center text-muted transition-transform duration-short4 ease-standard group-hover:-translate-x-0.5"
+                    className="shrink-0 self-center text-[color:var(--brand-fg-gold)] transition-transform duration-short4 ease-standard group-hover:-translate-x-0.5"
                   />
                 </Link>
               </li>

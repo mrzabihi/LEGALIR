@@ -47,13 +47,13 @@ export function LegalArticleHero({
         {/* Breadcrumb */}
         <nav
           aria-label="مسیر صفحه"
-          className="flex items-center gap-2 text-caption text-primary-200/70 mb-6"
+          className="flex items-center gap-2 text-caption text-primary-200 opacity-70 mb-6"
         >
           <Link href="/blog" className="hover:text-white transition-colors">
             وبلاگ
           </Link>
-          <span aria-hidden="true" className="text-primary-300/50">/</span>
-          <span className="text-primary-100/80">{category}</span>
+          <span aria-hidden="true" className="text-primary-300 opacity-50">/</span>
+          <span className="text-primary-100 opacity-80">{category}</span>
         </nav>
 
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-labelSmall bg-white/15 text-white/90 border border-white/20 mb-4">
@@ -63,26 +63,26 @@ export function LegalArticleHero({
 
         <h1 className="text-h1 text-white leading-snug mb-3">{title}</h1>
 
-        <p className="text-h4 text-primary-100/90 leading-relaxed max-w-2xl">
+        <p className="text-h4 text-primary-100 opacity-90 leading-relaxed max-w-2xl">
           {hero.lead}
         </p>
 
-        <p className="text-body-2 text-primary-100/70 leading-relaxed max-w-2xl mt-2">
+        <p className="text-body-2 text-primary-100 opacity-70 leading-relaxed max-w-2xl mt-2">
           {hero.subtitle}
         </p>
 
         {/* Byline */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-body-2 text-primary-100/70 mt-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-body-2 text-primary-100 opacity-70 mt-6">
           <span className="flex items-center gap-1.5">
             <IconPerson size={16} />
             {author}
           </span>
-          <span aria-hidden="true" className="text-primary-200/40 hidden tablet:inline">|</span>
+          <span aria-hidden="true" className="text-primary-200 opacity-40 hidden tablet:inline">|</span>
           <span className="flex items-center gap-1.5">
             <IconCalendar size={16} />
             {publishedAt}
           </span>
-          <span aria-hidden="true" className="text-primary-200/40 hidden tablet:inline">|</span>
+          <span aria-hidden="true" className="text-primary-200 opacity-40 hidden tablet:inline">|</span>
           <span className="tabular-nums">{readingTime} دقیقه مطالعه</span>
         </div>
       </div>
@@ -95,7 +95,7 @@ export function LegalArticleHero({
               key={item.label}
               className="rounded-large border border-white/15 bg-white/10 p-4 backdrop-blur-[2px]"
             >
-              <dt className="text-caption text-primary-100/70 mb-1.5">
+              <dt className="text-caption text-primary-100 opacity-70 mb-1.5">
                 {item.label}
               </dt>
               <dd className="text-body-2 text-white leading-relaxed">

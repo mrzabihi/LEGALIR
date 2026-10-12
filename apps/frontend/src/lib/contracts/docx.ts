@@ -16,8 +16,23 @@
 // ============================================================
 
 import type { PropertyContract, PropertyContractVersion } from "@legalir/types";
+import {
+  CONTRACT_DRAFT_WATERMARK_FA,
+  CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
+  CONTRACT_REVIEW_STAMP_TEXT,
+} from "@legalir/types";
 import { renderContract } from "./template";
+import { buildLegalBasisReport, legalBasisReportLines } from "./legal-basis";
 import { formatIsoJalali } from "./dates";
+
+/** The review mark to draw — the same rule as the PDF renderer. */
+export interface DocxReviewStamp {
+  applied: boolean;
+  reviewId?: string;
+  reviewDateIso?: string;
+  reviewingOfficeFa?: string;
+  reviewerInitials?: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Minimal ZIP writer (stored / no compression)
@@ -156,6 +171,27 @@ function paragraph(text: string, opts?: { bold?: boolean; size?: number; align?:
   );
 }
 
+/**
+ * A paragraph with an explicit run colour — used for the blue review
+ * stamp text. `colorHex` is a 6-digit RGB without the leading `#`.
+ */
+function coloredParagraph(
+  text: string,
+  opts: { bold?: boolean; size?: number; align?: "right" | "center"; colorHex: string }
+): string {
+  const size = opts.size ?? 22;
+  const align = opts.align ?? "center";
+  const bold = opts.bold ? "<w:b/><w:bCs/>" : "";
+  const rPr =
+    `<w:rFonts w:ascii="Vazirmatn" w:hAnsi="Vazirmatn" w:cs="Vazirmatn"/>${bold}` +
+    `<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>` +
+    `<w:color w:val="${opts.colorHex}"/><w:rtl/>`;
+  return (
+    `<w:p><w:pPr><w:bidi/><w:jc w:val="${align}"/><w:rPr>${rPr}</w:rPr></w:pPr>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
+  );
+}
+
 function documentXml(body: string): string {
   return (
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
@@ -205,6 +241,11 @@ const STYLES =
 export interface RenderDocxParams {
   contract: PropertyContract;
   version: PropertyContractVersion;
+  /**
+   * The review mark to draw. Omitting it treats the document as an
+   * unapproved draft, which carries the watermark instead.
+   */
+  stamp?: DocxReviewStamp;
 }
 
 /**
@@ -212,7 +253,7 @@ export interface RenderDocxParams {
  * `version.snapshot`, so the file always matches the recorded hash.
  */
 export function renderContractDocx(params: RenderDocxParams): Uint8Array {
-  const { contract, version } = params;
+  const { contract, version, stamp } = params;
   const snapshot = version.snapshot;
   const rendered = renderContract(
     { ...contract, data: snapshot.data },
@@ -221,6 +262,26 @@ export function renderContractDocx(params: RenderDocxParams): Uint8Array {
   );
 
   const parts: string[] = [];
+
+  // The approved-by-LEGALIR mark, or the unapproved-draft banner. A
+  // draft gets NO stamp, only the standing «تأییدنشده» notice.
+  if (stamp?.applied) {
+    parts.push(coloredParagraph(CONTRACT_REVIEW_STAMP_TEXT, { bold: true, size: 30, colorHex: "1C4E9C" }));
+    const meta: string[] = [];
+    if (stamp.reviewDateIso) meta.push(`تاریخ بررسی: ${formatIsoJalali(stamp.reviewDateIso.slice(0, 10))}`);
+    if (stamp.reviewingOfficeFa) meta.push(`واحد بررسی: ${stamp.reviewingOfficeFa}`);
+    if (stamp.reviewId) meta.push(`شناسهٔ بررسی: ${stamp.reviewId}`);
+    if (stamp.reviewerInitials) meta.push(`بررسی‌کننده: ${stamp.reviewerInitials}`);
+    if (meta.length > 0) parts.push(paragraph(meta.join(" — "), { size: 18, align: "center" }));
+    parts.push(
+      paragraph(CONTRACT_REVIEW_STAMP_DISCLAIMER_FA, { size: 16, align: "center" })
+    );
+  } else {
+    parts.push(
+      coloredParagraph(CONTRACT_DRAFT_WATERMARK_FA, { bold: true, size: 28, colorHex: "A0A0A8" })
+    );
+  }
+  parts.push(paragraph("", { size: 20 }));
 
   parts.push(paragraph(rendered.titleFa, { bold: true, size: 32, align: "center" }));
   parts.push(paragraph(`کد قرارداد: ${contract.referenceCode}`, { size: 20 }));
@@ -245,6 +306,14 @@ export function renderContractDocx(params: RenderDocxParams): Uint8Array {
 
   parts.push(paragraph("", { size: 20 }));
   parts.push(paragraph(rendered.footerFa, { size: 18 }));
+
+  // --- Legal-basis annex (§2) — the same reviewed citations as the PDF ---
+  const legalBasisLines = legalBasisReportLines(buildLegalBasisReport(contract, rendered));
+  if (legalBasisLines.length > 0) {
+    parts.push(paragraph("", { size: 20 }));
+    parts.push(paragraph("پیوست — مبنای حقوقی و گزارش بررسی", { bold: true, size: 26 }));
+    for (const line of legalBasisLines) parts.push(paragraph(line, { size: 18 }));
+  }
 
   const entries: ZipEntry[] = [
     { name: "[Content_Types].xml", data: utf8(CONTENT_TYPES) },

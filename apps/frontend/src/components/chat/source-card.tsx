@@ -5,10 +5,10 @@ import { IconLawBook, IconLinkSource, IconWarning } from "@/lib/icons";
 import { CitationCopyButton } from "./citation-copy-button";
 
 const AVAILABILITY_LABELS: Record<string, { label: string; className: string }> = {
-  available: { label: "قابل دسترس", className: "bg-success/10 text-success" },
-  unavailable: { label: "در دسترس نیست", className: "bg-error/10 text-error" },
-  outdated: { label: "منسوخ شده", className: "bg-warning/10 text-warning" },
-  unverified: { label: "تأیید نشده", className: "bg-warning/10 text-warning" },
+  available: { label: "قابل دسترس", className: "bg-success-container text-success" },
+  unavailable: { label: "در دسترس نیست", className: "bg-error-container text-error" },
+  outdated: { label: "منسوخ شده", className: "bg-warning-container text-warning" },
+  unverified: { label: "تأیید نشده", className: "bg-warning-container text-warning" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,21 +36,21 @@ export function SourceCard({ source }: SourceCardProps) {
     <div className="space-y-4">
       {/* Warning banners */}
       {isUnavailable && (
-        <div className="flex items-start gap-2 p-3 rounded-medium bg-error/[0.06] border border-error/20">
+        <div className="flex items-start gap-2 p-3 rounded-medium bg-error-container border border-error">
           <IconWarning size={18} className="text-error shrink-0 mt-0.5" />
           <p className="text-bodySmall text-error">این منبع در حال حاضر در دسترس نیست. ممکن است به دلیل محدودیت انتشار یا دسته‌بندی محرمانه باشد.</p>
         </div>
       )}
 
       {isOutdated && (
-        <div className="flex items-start gap-2 p-3 rounded-medium bg-warning/[0.08] border border-warning/20">
+        <div className="flex items-start gap-2 p-3 rounded-medium bg-warning-container border border-warning">
           <IconWarning size={18} className="text-warning shrink-0 mt-0.5" />
           <p className="text-bodySmall text-warning">این منبع منسوخ شده یا تاریخ مصرف آن گذشته است. لطفاً نسخه به‌روز را بررسی کنید.</p>
         </div>
       )}
 
       {isUnverified && (
-        <div className="flex items-start gap-2 p-3 rounded-medium bg-warning/[0.06] border border-warning/15">
+        <div className="flex items-start gap-2 p-3 rounded-medium bg-warning-container border border-warning">
           <IconWarning size={18} className="text-warning shrink-0 mt-0.5" />
           <p className="text-bodySmall text-warning">اعتبار این منبع هنوز تأیید نشده است. اطلاعات ارائه‌شده ممکن است قطعی نباشد.</p>
         </div>
@@ -58,7 +58,7 @@ export function SourceCard({ source }: SourceCardProps) {
 
       {/* Source header */}
       <div className="flex items-start gap-3">
-        <span className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <span className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0">
           <IconLawBook size={20} className="text-primary" />
         </span>
         <div className="flex-1 min-w-0">
@@ -80,31 +80,31 @@ export function SourceCard({ source }: SourceCardProps) {
       {/* Metadata fields */}
       <dl className="space-y-2 text-bodySmall">
         {source.articleSection && (
-          <div className="flex justify-between gap-2 py-1.5 border-b border-divider/50">
+          <div className="flex justify-between gap-2 py-1.5 border-b border-divider">
             <dt className="text-muted shrink-0">ماده / بخش</dt>
             <dd className="text-onSurface text-end">{source.articleSection}</dd>
           </div>
         )}
-        <div className="flex justify-between gap-2 py-1.5 border-b border-divider/50">
+        <div className="flex justify-between gap-2 py-1.5 border-b border-divider">
           <dt className="text-muted shrink-0">مرجع انتشار</dt>
           <dd className="text-onSurface text-end">{source.publicationAuthority}</dd>
         </div>
-        <div className="flex justify-between gap-2 py-1.5 border-b border-divider/50">
+        <div className="flex justify-between gap-2 py-1.5 border-b border-divider">
           <dt className="text-muted shrink-0">حوزه قضایی</dt>
           <dd className="text-onSurface text-end">{source.jurisdiction}</dd>
         </div>
-        <div className="flex justify-between gap-2 py-1.5 border-b border-divider/50">
+        <div className="flex justify-between gap-2 py-1.5 border-b border-divider">
           <dt className="text-muted shrink-0">تاریخ اجرا</dt>
           <dd className="text-onSurface text-end">{source.effectiveDate}</dd>
         </div>
         {source.versionDate && (
-          <div className="flex justify-between gap-2 py-1.5 border-b border-divider/50">
+          <div className="flex justify-between gap-2 py-1.5 border-b border-divider">
             <dt className="text-muted shrink-0">آخرین ویرایش</dt>
             <dd className="text-onSurface text-end">{source.versionDate}</dd>
           </div>
         )}
         {source.documentIdentifier && (
-          <div className="flex justify-between gap-2 py-1.5 border-b border-divider/50">
+          <div className="flex justify-between gap-2 py-1.5 border-b border-divider">
             <dt className="text-muted shrink-0">شناسه</dt>
             <dd className="text-onSurface text-end font-mono text-labelSmall">
               {source.documentIdentifier}
@@ -115,7 +115,7 @@ export function SourceCard({ source }: SourceCardProps) {
 
       {/* Excerpt */}
       {source.excerpt && (
-        <div className="rounded-medium bg-surfaceVariant/30 p-3">
+        <div className="rounded-medium bg-surface-container p-3">
           <p className="text-bodySmall text-onSurfaceVariant leading-loose whitespace-pre-wrap">
             {source.excerpt}
           </p>

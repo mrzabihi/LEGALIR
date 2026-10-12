@@ -66,7 +66,7 @@ export function ReferencesTab({
       {references.map((ref) => (
         <div key={ref.id} className="px-4 py-3">
           <div className="flex items-start gap-3">
-            <span className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+            <span className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0 mt-0.5">
               <IconLawBook size={14} className="text-primary" />
             </span>
             <div className="flex-1 min-w-0">

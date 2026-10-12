@@ -57,7 +57,7 @@ export function ContractTemplateCard({
       onClick={() => onStart(definition)}
       disabled={disabled}
       aria-label={`${definition.ctaFa} — ${definition.typeFa}`}
-      className="group flex h-full w-full flex-col text-right rounded-large border border-divider bg-surface overflow-hidden shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary/40 transition-all duration-short3 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-60"
+      className="group flex h-full w-full flex-col text-right rounded-large border border-divider bg-surface overflow-hidden shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary transition-all duration-short3 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-60"
     >
       {/* 16:9 illustration — a fixed aspect ratio so every card in a row has
           the same image height and a grid never shifts as visuals load. The
@@ -70,7 +70,7 @@ export function ContractTemplateCard({
         />
         {/* Badges float on the illustration, so they carry a glass surface with
             a hairline border to stay legible over any part of the scene. */}
-        <span className="absolute top-2.5 start-2.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface/85 px-2.5 py-0.5 text-labelSmall font-medium text-on-surface shadow-elevation-1 backdrop-blur-sm">
+        <span className="absolute top-2.5 start-2.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-2.5 py-0.5 text-labelSmall font-medium text-on-surface shadow-elevation-1 backdrop-blur-sm">
           {definition.categoryFa}
         </span>
         {/* «جدید» badge — data-driven, opposite corner from the category

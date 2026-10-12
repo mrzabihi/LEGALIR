@@ -73,7 +73,7 @@ export default function ProfileCompletionPage() {
   }
 
   return (
-    <div className="rounded-large bg-neutral-0/95 backdrop-blur-sm p-8 shadow-elevation-8 border border-neutral-200/50">
+    <div className="rounded-large bg-surface backdrop-blur-sm p-8 shadow-elevation-8 border border-divider">
       {/* Header */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary-700/10 mb-4">
@@ -193,7 +193,7 @@ export default function ProfileCompletionPage() {
         {/* Error Message */}
         {error && (
           <div
-            className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error justify-center"
+            className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error justify-center"
             role="alert"
           >
             <svg
@@ -218,7 +218,7 @@ export default function ProfileCompletionPage() {
         {/* Success Message */}
         {saved && (
           <div
-            className="flex items-center gap-2 rounded-medium bg-success-container/30 border border-success/20 px-4 py-3 text-body-2 text-success justify-center"
+            className="flex items-center gap-2 rounded-medium bg-success-container border border-success px-4 py-3 text-body-2 text-success justify-center"
             role="status"
           >
             <svg

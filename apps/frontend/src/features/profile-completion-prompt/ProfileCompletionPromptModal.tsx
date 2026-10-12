@@ -56,7 +56,7 @@ export function ProfileCompletionPromptModal({ controller }: Props) {
         onClick={cancel}
         disabled={saving}
         aria-label="بستن"
-        className="absolute top-3 left-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-error/30 bg-error/5 text-error shadow-elevation-1 hover:bg-error/15 hover:border-error/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40 transition-colors disabled:opacity-50 touch-target"
+        className="absolute top-3 left-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-error bg-error-container text-error shadow-elevation-1 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error transition-colors disabled:opacity-50 touch-target"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18" />
@@ -107,7 +107,7 @@ export function ProfileCompletionPromptModal({ controller }: Props) {
 
       {/* Error state */}
       {error && (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-medium bg-error-container border border-error/20 px-3 py-2">
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-medium bg-error-container border border-error px-3 py-2">
           <p className="text-caption text-error">
             ذخیره‌ی تنظیمات انجام نشد.
           </p>
