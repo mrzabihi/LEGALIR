@@ -162,7 +162,7 @@ export function Dialog({
         {(title || description) && (
           <div className="shrink-0 px-6 pt-6 pb-2">
             {title && (
-              <h2 id="dialog-title" className="text-headlineSmall text-on-surface">
+              <h2 id="dialog-title" className="text-headlineSmall font-medium text-on-surface">
                 {title}
               </h2>
             )}

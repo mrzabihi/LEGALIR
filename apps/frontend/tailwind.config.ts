@@ -308,6 +308,15 @@ const config: Config = {
         labelLarge: ["14px", { lineHeight: "22px", fontWeight: "500" }],
         titleSmall: ["14px", { lineHeight: "22px", fontWeight: "600" }],
         titleMedium: ["16px", { lineHeight: "26px", fontWeight: "600" }],
+        // MD3 headline roles. `@legalir/ui`'s Dialog and the design-system
+        // page already referenced `text-headlineSmall`, but the token was
+        // never defined here — so the class emitted no CSS and every dialog
+        // title silently fell back to the base body size (16px/400) instead
+        // of the intended 24px headline. Defined here once, in the shared
+        // token source, rather than patched per page.
+        headlineLarge: ["32px", { lineHeight: "40px", fontWeight: "400" }],
+        headlineMedium: ["28px", { lineHeight: "36px", fontWeight: "400" }],
+        headlineSmall: ["24px", { lineHeight: "32px", fontWeight: "400" }],
       },
       borderRadius: {
         xs: "var(--shape-xs)",
