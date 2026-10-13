@@ -20,6 +20,7 @@ import {
   useDeleteUserAvatar,
 } from "@/hooks/useDashboard";
 import { useProfileUsage, useSubscriptionHistory, useMemories } from "@/hooks/usePhase11";
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { SubscriptionStatusDetails } from "@/components/subscription/subscription-status";
 import { useUpdateAccountType } from "@/hooks/useAccount";
 import { useOrganizations } from "@/hooks/useOnboarding";
@@ -957,13 +958,25 @@ export default function AccountHubPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
 
-  const profile = me.data?.profile ?? null;
-  const mobile = me.data?.user?.mobileDisplay;
-  const accountType = me.data?.user?.accountType ?? "individual";
+  // Hydration guard. `["me"]` is owned by the app shell (AppLayout/TopBar/
+  // Sidebar), which can resolve — and warm the cache — before this page
+  // hydrates, because `(app)/loading.tsx` nests the page in its own Suspense
+  // boundary. React Query feeds the same live `getCurrentResult()` to both
+  // snapshots, so reading `me.data` at the hydration render would diverge from
+  // the server's pending render (avatar initial, completion ring, account-type
+  // chip). Gate every rendered `me`-derived value on `useIsHydrated()`; the
+  // page-owned queries below are safe to read directly.
+  const hydrated = useIsHydrated();
+  const meReady = hydrated && !me.isPending;
+
+  const profile = meReady ? me.data?.profile ?? null : null;
+  const mobile = meReady ? me.data?.user?.mobileDisplay : undefined;
+  const accountType = meReady ? me.data?.user?.accountType ?? "individual" : "individual";
   // Platform account type (PERSONAL | LAWYER | BUSINESS). Falls back to the
   // legacy field for payloads that predate the platform model.
-  const platformAccountType: PlatformAccountType =
-    me.data?.user?.platformAccountType ?? (accountType === "legal" ? "BUSINESS" : "PERSONAL");
+  const platformAccountType: PlatformAccountType = meReady
+    ? me.data?.user?.platformAccountType ?? (accountType === "legal" ? "BUSINESS" : "PERSONAL")
+    : "PERSONAL";
   const isLawyerAccount = platformAccountType === "LAWYER";
   // The user's active organization (membership-scoped). A user is NEVER a
   // company — an org member keeps their personal identity and represents

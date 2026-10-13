@@ -38,6 +38,7 @@ import {
   useSubscriptionUsage,
 } from "@/hooks/useSubscription";
 import { useSubscriptionHistory } from "@/hooks/usePhase11";
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { PLAN_ORDER, planDiscountPercent } from "@/lib/subscription/plan-visuals";
 import { toPersianCurrency, toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -527,12 +528,21 @@ export default function SubscriptionPage() {
   const usageQuery = useSubscriptionUsage();
   const historyQuery = useSubscriptionHistory(1, 20);
 
+  // Hydration guard. `useCurrentSubscription` (`["v1","subscriptions",
+  // "current"]`) is the SAME query the header's SubscriptionStatusChip reads.
+  // The shell can resolve — and warm the cache — before this page hydrates, so
+  // `hasActiveSubscription` (and the reward-points banner it gates, rendered in
+  // the main return outside the status tab's `usageQuery.isLoading` mask) would
+  // flip on at hydration while the server, where the chip was still pending,
+  // rendered it hidden → mismatch. Gate the derived flag on `useIsHydrated()`.
+  const hydrated = useIsHydrated();
+
   const subscription = subQuery.data ?? null;
   const plans = plansQuery.data ?? [];
   const usage = usageQuery.data;
   const historyItems = historyQuery.data?.items ?? [];
 
-  const hasActiveSubscription = subscription?.status === "active";
+  const hasActiveSubscription = hydrated && subscription?.status === "active";
 
   // ── Real recommended signal (never self-declared) ──────────────────────
   // An admin «پیشنهادی»/«محبوب» tag wins; otherwise the plan with the largest

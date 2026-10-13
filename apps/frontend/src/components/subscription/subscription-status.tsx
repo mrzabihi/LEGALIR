@@ -16,6 +16,7 @@
 
 import Link from "next/link";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import type { SubscriptionState, SubscriptionStatusView } from "@/lib/subscription";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
@@ -233,8 +234,14 @@ export function SubscriptionStatusBadge({ className = "" }: { className?: string
 export function SubscriptionStatusDetails({ className = "" }: { className?: string }) {
   const { status, isLoading, isError, refetch } = useSubscriptionStatus();
   const tone = TONE[status.state];
+  // `useCurrentSubscription` is also read by the header chip in the app shell,
+  // which can resolve before this page-owned instance hydrates. Without this
+  // gate the hydration render would show the real plan while the server HTML
+  // held the skeleton. (The Chip/Badge variants live *only* in the shell, so
+  // they hydrate in lockstep and need no gate.)
+  const hydrated = useIsHydrated();
 
-  if (isLoading) {
+  if (isLoading || !hydrated) {
     return (
       <div className={`space-y-3 ${className}`} aria-busy="true">
         <div className="h-5 w-1/3 animate-pulse rounded bg-divider" />
