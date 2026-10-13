@@ -66,7 +66,7 @@ export function ContractsHub() {
   // renders it above its heading. One element ⇒ the two views can never
   // drift, and the switcher never floats above the search.
   const viewSwitcher = (
-    <div className="flex justify-center">
+    <div className="flex justify-start">
       <SegmentedControl
         ariaLabel="نمای قراردادها"
         idBase={ID_BASE}

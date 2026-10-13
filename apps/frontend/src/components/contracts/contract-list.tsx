@@ -28,6 +28,7 @@ import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ConfirmDialog, snackbar } from "@legalir/ui";
 import { useContracts } from "@/hooks/useContracts";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useCreatePropertyContract,
   useDeletePropertyContract,
@@ -51,6 +52,11 @@ import { ContractSearch } from "./contract-search";
 import { ContractCategoryChips } from "./contract-category-chips";
 import { ContractTemplateGrid } from "./contract-template-grid";
 import { MyContractsSection } from "./my-contracts-section";
+
+// How long typing must pause before the buffered query is applied to the
+// grid and the URL. Long enough to finish a word, short enough to feel
+// eager; the Enter key bypasses it and applies at once.
+const SEARCH_DEBOUNCE_MS = 400;
 
 interface ContractListProps {
   /**
@@ -102,7 +108,24 @@ export function ContractList({ headerSlot }: ContractListProps) {
     [writeParams]
   );
 
-  const setQuery = (value: string) => setFilters({ ...filters, query: value });
+  // --- Search: type freely, query on pause --------------------------
+  // `searchInput` is what the user is typing; the query that actually
+  // filters the grid (and lands in the URL) is only written once typing
+  // pauses. Enter bypasses the wait and applies at once. This keeps the
+  // URL — and every result — quiet between keystrokes instead of
+  // re-filtering on every character.
+  const [searchInput, setSearchInput] = React.useState(filters.query);
+  const debouncedQuery = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+  React.useEffect(() => {
+    if (debouncedQuery === filters.query) return;
+    setFilters({ ...filters, query: debouncedQuery });
+  }, [debouncedQuery, filters, setFilters]);
+
+  const submitQuery = () => {
+    trackContractEvent("contract_search_performed", { query: searchInput });
+    if (searchInput !== filters.query) setFilters({ ...filters, query: searchInput });
+  };
+
   const setCategory = (value: TemplateCategory) => {
     writeParams((params) => {
       if (value === "all") params.delete("category");
@@ -216,9 +239,9 @@ export function ContractList({ headerSlot }: ContractListProps) {
           between them be small without fighting the outer `space-y-6`. */}
       <div className="space-y-3">
         <ContractSearch
-          value={filters.query}
-          onChange={setQuery}
-          onSubmit={() => trackContractEvent("contract_search_performed", { query: filters.query })}
+          value={searchInput}
+          onChange={setSearchInput}
+          onSubmit={submitQuery}
           onOpenFilters={() => setDrawerOpen(true)}
           filterCount={finerActiveCount}
         />
