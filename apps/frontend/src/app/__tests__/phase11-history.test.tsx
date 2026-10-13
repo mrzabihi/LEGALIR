@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -200,9 +200,10 @@ describe("HistoryPage", () => {
     setupHistoryWithItems();
     render(<HistoryPage />, { wrapper: TestWrapper });
     await waitFor(() => {
-      // The field is labelled «جستجو در تاریخچه»; assert on the accessible
-      // label rather than the placeholder, which now carries an example query.
-      const searchInput = screen.getByLabelText(/جستجو/);
+      // The field is labelled «جست‌وجو در تاریخچه» (with a ZWNJ); assert on
+      // the accessible label rather than the placeholder, which now carries
+      // an example query.
+      const searchInput = screen.getByLabelText("جست‌وجو در تاریخچه");
       expect(searchInput).toBeTruthy();
     });
   });
@@ -261,23 +262,63 @@ describe("HistoryPage", () => {
     setupHistoryWithItems();
     render(<HistoryPage />, { wrapper: TestWrapper });
     await waitFor(() => {
+      // The failed item keeps «مشاهده جزئیات خطا» as its ONE primary action.
       expect(screen.getByText("مشاهده جزئیات خطا")).toBeTruthy();
-      // Retry is a secondary icon action — labelled, not visible text.
-      expect(screen.getByLabelText("تلاش مجدد")).toBeTruthy();
+    });
+
+    // Retry is now a secondary action inside the ⋮ menu — open it to reveal.
+    const failedRow = screen.getByText("مشاهده جزئیات خطا").closest("article")!;
+    fireEvent.click(within(failedRow).getByLabelText("گزینه‌های این سابقه"));
+    await waitFor(() => {
+      expect(screen.getByText("تلاش مجدد")).toBeTruthy();
     });
   });
 
   // --- Delete confirmation ---
+
+  it("keeps archive as a secondary action that moves the item", async () => {
+    let archivedId: string | null = null;
+    let archivedValue: boolean | null = null;
+    setHandlers([
+      historyHandler(),
+      http.patch("http://localhost:8000/api/v1/history", async ({ request }) => {
+        // archiveHistoryItem sends { id, archived } as the PATCH body.
+        const body = (await request.json()) as { id: string; archived: boolean };
+        archivedId = body.id;
+        archivedValue = body.archived;
+        return HttpResponse.json({ data: { id: archivedId, archived: archivedValue } });
+      }),
+    ]);
+
+    render(<HistoryPage />, { wrapper: TestWrapper });
+
+    // The primary action of the first draft row is «ادامه»; archiving lives
+    // in its ⋮ menu — open it and choose «بایگانی».
+    await waitFor(() => {
+      expect(screen.getAllByText("ادامه").length).toBeGreaterThanOrEqual(1);
+    });
+    const draftRow = screen.getAllByText("ادامه")[0]!.closest("article")!;
+    fireEvent.click(within(draftRow).getByLabelText("گزینه‌های این سابقه"));
+    // Scope to the row: the page header also carries a «بایگانی» entry link.
+    fireEvent.click(await within(draftRow).findByText("بایگانی"));
+
+    await waitFor(() => {
+      expect(archivedId).not.toBeNull();
+      expect(archivedValue).toBe(true);
+    });
+  });
 
   it("opens the permanent-delete dialog and cancels without deleting", async () => {
     setupHistoryWithItems();
     render(<HistoryPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getAllByLabelText("حذف").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("ادامه").length).toBeGreaterThanOrEqual(1);
     });
 
-    fireEvent.click(screen.getAllByLabelText("حذف")[0]!);
+    const draftRow = screen.getAllByText("ادامه")[0]!.closest("article")!;
+    fireEvent.click(within(draftRow).getByLabelText("گزینه‌های این سابقه"));
+    fireEvent.click(await screen.findByText("حذف"));
 
     await waitFor(() => {
       expect(screen.getByText("حذف دائمی این مورد؟")).toBeTruthy();
@@ -304,10 +345,12 @@ describe("HistoryPage", () => {
     render(<HistoryPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      expect(screen.getAllByLabelText("حذف").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("ادامه").length).toBeGreaterThanOrEqual(1);
     });
 
-    fireEvent.click(screen.getAllByLabelText("حذف")[0]!);
+    const draftRow = screen.getAllByText("ادامه")[0]!.closest("article")!;
+    fireEvent.click(within(draftRow).getByLabelText("گزینه‌های این سابقه"));
+    fireEvent.click(await screen.findByText("حذف"));
     await waitFor(() => expect(screen.getByText("مطمئنم، حذف کن")).toBeTruthy());
     fireEvent.click(screen.getByText("مطمئنم، حذف کن"));
 
@@ -331,11 +374,12 @@ describe("HistoryPage", () => {
 
     render(<HistoryPage />, { wrapper: TestWrapper });
 
-    await waitFor(() => {
-      expect(screen.getAllByLabelText("ویرایش").length).toBeGreaterThanOrEqual(1);
-    });
-
-    fireEvent.click(screen.getAllByLabelText("ویرایش")[0]!);
+    // «ویرایش» is now a secondary action inside the ⋮ menu of an editable
+    // completed row. Documents can't be forked, so target the completed
+    // *conversation* («مشاوره طلاق توافقی») rather than the first row.
+    const completedRow = (await screen.findByText("مشاوره طلاق توافقی")).closest("article")!;
+    fireEvent.click(within(completedRow).getByLabelText("گزینه‌های این سابقه"));
+    fireEvent.click(await within(completedRow).findByText("ویرایش"));
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/chat/new");

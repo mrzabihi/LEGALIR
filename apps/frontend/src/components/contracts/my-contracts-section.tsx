@@ -43,7 +43,8 @@ import {
 } from "@/lib/contracts/filters";
 import { trackContractEvent } from "@/lib/contracts/analytics";
 import { Dialog, Drawer, Select } from "@legalir/ui";
-import { IconClose, IconFilter, IconHistory, IconRefresh } from "@/lib/icons";
+import { IconFilter, IconHistory, IconRefresh } from "@/lib/icons";
+import { ResultsBar, type ActiveFilter } from "@/components/shared";
 import { UserContractCard } from "./user-contract-card";
 import { ContractsEmptyState } from "./contracts-empty-state";
 import { ContractFilterPanel } from "./contract-filter-panel";
@@ -106,6 +107,14 @@ export function MyContractsSection({
 
   const chips = React.useMemo(() => activeFilterChips(filters), [filters]);
   const finerActive = hasFinerFilters(filters);
+
+  // The shared results bar takes the same active filters, each individually
+  // removable, so this list reads with one results/clear vocabulary.
+  const activeFilterList: ActiveFilter[] = React.useMemo(
+    () => chips.map((chip) => ({ key: `${chip.group}:${chip.value}`, label: chip.labelFa, onRemove: () => removeChip(chip) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chips, filters]
+  );
 
   // The «ادامه دهید» block and the grouped view are only meaningful on
   // the unfiltered «همه» view — a filtered list is shown flat.
@@ -225,32 +234,11 @@ export function MyContractsSection({
 
       {/* Result count + the removable active-filter chips. */}
       {!isLoading && !isError && contracts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-caption text-muted">
-            {visible.length} قرارداد
-          </span>
-          {chips.map((chip) => (
-            <button
-              key={`${chip.group}:${chip.value}`}
-              type="button"
-              onClick={() => removeChip(chip)}
-              className="inline-flex h-7 items-center gap-1 rounded-full border border-divider bg-surface px-2.5 text-caption text-on-surface transition-colors hover:border-error hover:text-error"
-              aria-label={`حذف فیلتر ${chip.labelFa}`}
-            >
-              {chip.labelFa}
-              <IconClose size={12} />
-            </button>
-          ))}
-          {chips.length > 0 && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-caption text-primary hover:underline"
-            >
-              پاک کردن همه
-            </button>
-          )}
-        </div>
+        <ResultsBar
+          countLabel={`${visible.length} قرارداد`}
+          filters={activeFilterList}
+          onClearAll={clearFilters}
+        />
       )}
 
       {isLoading ? (
@@ -295,7 +283,7 @@ export function MyContractsSection({
                   {drafts.length} قرارداد نیمه‌تمام
                 </span>
               </div>
-              <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2.5">
                 {drafts.slice(0, 4).map((contract) => (
                   <UserContractCard
                     key={contract.id}
@@ -323,7 +311,7 @@ export function MyContractsSection({
                         {group.contracts.length}
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-2.5">
                       {shown.map((contract) => (
                         <UserContractCard
                           key={contract.id}
@@ -348,7 +336,7 @@ export function MyContractsSection({
                 );
               })
             : (
-              <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2.5">
                 {visible.map((contract) => (
                   <UserContractCard
                     key={contract.id}

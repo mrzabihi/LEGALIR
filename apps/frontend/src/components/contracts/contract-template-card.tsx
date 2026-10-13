@@ -68,6 +68,12 @@ export function ContractTemplateCard({
           type={definition.id}
           className="h-full w-full transition-transform duration-medium2 ease-standard group-hover:scale-[1.02]"
         />
+        {/* A soft top scrim guarantees the floating badges keep contrast over
+            any part of any scene, however light that scene's plate is. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/25 to-transparent"
+        />
         {/* Badges float on the illustration, so they carry a glass surface with
             a hairline border to stay legible over any part of the scene. */}
         <span className="absolute top-2.5 start-2.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-2.5 py-0.5 text-labelSmall font-medium text-on-surface shadow-elevation-1 backdrop-blur-sm">

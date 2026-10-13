@@ -61,7 +61,7 @@ export function ContractsHub() {
   );
 
   return (
-    <div className="mx-auto max-w-[1400px] p-4 tablet:p-6" dir="rtl">
+    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl">
       {/* The header is shared by BOTH views, so it stays pixel-identical
           when the user switches — the brief's "header stays fixed". It is
           the same `ContractsPageHeader` the workspace has always used. */}

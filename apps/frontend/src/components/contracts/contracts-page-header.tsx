@@ -25,14 +25,14 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { resolveService } from "@/lib/services";
 import { IconFilePen, IconFileSearch } from "@/lib/icons";
-import { PageIntroBanner } from "@/components/shared";
+import { CompactPageHeader } from "@/components/shared";
 
 interface ContractsPageHeaderProps {
-  /** Extra classes for the banner wrapper. */
+  /** Extra classes for the header wrapper. */
   className?: string;
 }
 
-export function ContractsPageHeader({ className = "mb-5" }: ContractsPageHeaderProps) {
+export function ContractsPageHeader({ className = "" }: ContractsPageHeaderProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -40,28 +40,26 @@ export function ContractsPageHeader({ className = "mb-5" }: ContractsPageHeaderP
   const title = service?.title ?? "تنظیم قرارداد";
 
   return (
-    <PageIntroBanner
+    <CompactPageHeader
       className={className}
       // The nav keeps its historical accessible name; `service-navigation`
       // asserts a navigation labelled «breadcrumb» on this route.
       breadcrumbAriaLabel="breadcrumb"
       breadcrumb={[{ label: "داشبورد", href: "/dashboard" }, { label: title }]}
-      icon={service?.icon}
-      iconGradient={service?.gradient}
       title={title}
       description="قرارداد تازه بسازید، پیش‌نویس‌های خود را تکمیل کنید و خدمات قراردادی در دست توسعه را ببینید."
       actions={
         <>
           <Link
             href="/contracts/new"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-medium bg-primary px-6 text-labelLarge text-primary-on transition-colors hover:state-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 touch-target"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-5 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           >
             <IconFilePen size={20} aria-hidden="true" />
             تنظیم پیش‌نویس جدید
           </Link>
           <Link
             href="/contracts/review"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-medium border border-outline px-6 text-labelLarge text-primary transition-colors hover:state-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-labelLarge font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           >
             <IconFileSearch size={20} aria-hidden="true" />
             بررسی یک قرارداد

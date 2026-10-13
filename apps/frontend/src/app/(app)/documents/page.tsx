@@ -1,6 +1,11 @@
 // ============================================================
 // LEGALIR — Documents List Page (Phase 9)
 // ============================================================
+// The shell for the documents surface: a low compact header plus the
+// shared compact list. The header keeps its service-resolved title /
+// breadcrumb (so the same page works for every document service) but
+// drops the decorative banner for the flat list identity.
+// ============================================================
 
 "use client";
 
@@ -13,9 +18,9 @@ import { resolveService } from "@/lib/services";
 // wrappers, chat panel, …), so a barrel import dragged ~550 KB of unrelated
 // modules — including pdfjs-dist — into this list route's client bundle.
 import { DocumentList } from "@/components/documents/document-list";
-import { PageIntroBanner } from "@/components/shared";
-import { Button, ConfirmDialog, SkeletonCard, EmptyState, ErrorState, snackbar } from "@legalir/ui";
-import { IconAdd, IconDocument } from "@/lib/icons";
+import { CompactPageHeader } from "@/components/shared";
+import { Button, ConfirmDialog, snackbar } from "@legalir/ui";
+import { IconAdd } from "@/lib/icons";
 import type {
   V1DocumentListParams,
   V1DocumentFilter,
@@ -58,7 +63,7 @@ export default function DocumentsPage() {
     status,
     sort,
   };
-  const { data, isLoading, isError, error, refetch } = useDocuments(listParams);
+  const { data, isLoading, isError, refetch } = useDocuments(listParams);
 
   // --- Navigation ---
   const handleDocumentClick = (id: string) => {
@@ -69,72 +74,26 @@ export default function DocumentsPage() {
     router.push("/documents/upload");
   };
 
-  // --- Render loading ---
-  if (isLoading) {
-    return (
-      <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
-        <Header onUploadClick={handleUploadClick} />
-        <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }, (_, i) => (
-            <SkeletonCard key={i} lines={3} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // --- Render error ---
-  if (isError) {
-    return (
-      <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
-        <Header onUploadClick={handleUploadClick} />
-        <ErrorState
-          title="خطا در دریافت اسناد"
-          message={error instanceof Error ? error.message : "لطفاً دوباره تلاش کنید"}
-          onRetry={() => refetch()}
-          fullPage
-        />
-      </div>
-    );
-  }
-
-  // --- Render empty ---
-  if (!data?.items?.length && !search && status === "all") {
-    return (
-      <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
-        <Header onUploadClick={handleUploadClick} />
-        <EmptyState
-          icon={<IconDocument size={64} />}
-          title="هنوز سندی اضافه نکرده‌اید"
-          description="قرارداد یا سند حقوقی خود را بارگذاری کنید تا تحلیل ریسک و بررسی بندها را دریافت کنید"
-          action={{
-            label: "افزودن سند",
-            onClick: handleUploadClick,
-          }}
-        />
-      </div>
-    );
-  }
-
-  // --- Render list ---
   return (
-    <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
+    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6">
       <Header onUploadClick={handleUploadClick} />
 
-      <DocumentList
-        documents={data?.items ?? []}
-        isLoading={false}
-        isError={false}
-        search={search}
-        status={status}
-        sort={sort}
-        onSearchChange={setSearch}
-        onStatusChange={(val) => setStatus(val as V1DocumentFilter)}
-        onSortChange={(val) => setSort(val as "newest" | "oldest" | "name")}
-        onDocumentClick={handleDocumentClick}
-        onRetry={() => refetch()}
-        onDelete={setPendingDelete}
-      />
+      <div className="mt-4">
+        <DocumentList
+          documents={data?.items ?? []}
+          isLoading={isLoading}
+          isError={isError}
+          search={search}
+          status={status}
+          sort={sort}
+          onSearchChange={setSearch}
+          onStatusChange={(val) => setStatus(val as V1DocumentFilter)}
+          onSortChange={(val) => setSort(val as "newest" | "oldest" | "name")}
+          onDocumentClick={handleDocumentClick}
+          onRetry={() => refetch()}
+          onDelete={setPendingDelete}
+        />
+      </div>
 
       {/* Delete confirmation. Nothing is deleted until the user
           explicitly confirms; cancel closes with no side effects. */}
@@ -156,7 +115,7 @@ export default function DocumentsPage() {
 }
 
 // ============================================================
-// Sub-components
+// Header
 // ============================================================
 
 // `Header` reads `useSearchParams` (via the URL-resolved service), which
@@ -166,7 +125,7 @@ function Header({ onUploadClick }: { onUploadClick: () => void }) {
   return (
     <Suspense
       fallback={
-        <div className="mb-6 h-24 animate-pulse rounded-xlarge bg-surface-container" aria-hidden="true" />
+        <div className="h-16 animate-pulse rounded-medium border-b border-[color:var(--color-outline-variant)] bg-surface-container" aria-hidden="true" />
       }
     >
       <HeaderBanner onUploadClick={onUploadClick} />
@@ -180,15 +139,12 @@ function HeaderBanner({ onUploadClick }: { onUploadClick: () => void }) {
   const service = resolveService(pathname, searchParams);
 
   return (
-    <PageIntroBanner
-      className="mb-6"
+    <CompactPageHeader
       breadcrumbAriaLabel="breadcrumb"
       breadcrumb={[
         { label: "داشبورد", href: "/dashboard" },
         { label: service?.title ?? "تحلیل اسناد" },
       ]}
-      icon={service?.icon}
-      iconGradient={service?.gradient}
       title={service?.title ?? "تحلیل اسناد"}
       description={service?.subtitle ?? "بررسی و تحلیل مستندات حقوقی"}
       actions={
