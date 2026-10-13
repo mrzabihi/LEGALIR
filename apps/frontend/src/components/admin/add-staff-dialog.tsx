@@ -21,7 +21,15 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ROLE_FA, STAFF_ROLES, type PlatformRole } from "@legalir/types";
 import type { AdminUserRow } from "@/lib/api/admin";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { Badge, Button, Field, SearchInput, Select, LoadingBlock } from "@/components/admin/ui";
+import {
+  Badge,
+  Button,
+  Field,
+  SearchInput,
+  Select,
+  LoadingBlock,
+  MobileNumber,
+} from "@/components/admin/ui";
 
 function errMessage(err: unknown, fallback: string): string {
   return err && typeof err === "object" && "message" in err
@@ -131,9 +139,7 @@ export function AddStaffDialog({
                         <span className="block truncate text-body-2 font-medium text-on-surface">
                           {u.displayName ?? "بدون نام"}
                         </span>
-                        <span dir="ltr" className="block text-caption tabular-nums text-muted">
-                          {u.mobile}
-                        </span>
+                        <MobileNumber className="text-caption text-muted">{u.mobile}</MobileNumber>
                       </span>
                       <Badge tone={isStaff ? "brand" : "neutral"}>{ROLE_FA[u.role] ?? u.role}</Badge>
                     </button>

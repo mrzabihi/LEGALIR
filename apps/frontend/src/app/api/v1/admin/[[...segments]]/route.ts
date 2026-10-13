@@ -19,7 +19,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requirePermission } from "@/lib/rbac";
 import { readTable, findUserById } from "@/lib/db";
-import { toMobileDisplay } from "@legalir/validation";
+import { toE164Display } from "@legalir/validation";
 import {
   ADMIN_EXPORT_PERMISSION,
   lawyerDecisionBucket,
@@ -266,7 +266,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       rows = rows.filter(
         (u) =>
           (u.displayName ?? "").toLowerCase().includes(q) ||
-          toMobileDisplay(u.mobile).includes(q) ||
+          toE164Display(u.mobile).includes(q) ||
           u.id.toLowerCase().includes(q) ||
           (u.publicId ?? "").toLowerCase().includes(q)
       );
@@ -277,7 +277,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         id: u.id,
         publicId: u.publicId ?? null,
         displayName: u.displayName,
-        mobile: toMobileDisplay(u.mobile),
+        mobile: toE164Display(u.mobile),
         email: u.email,
         role: u.role ?? "USER",
         accountType: u.platformAccountType ?? "PERSONAL",
@@ -523,7 +523,7 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
         id: user.id,
         publicId: user.publicId ?? null,
         displayName: user.displayName,
-        mobile: toMobileDisplay(user.mobile),
+        mobile: toE164Display(user.mobile),
         email: user.email,
         role: user.role ?? "USER",
         accountType: user.platformAccountType ?? "PERSONAL",

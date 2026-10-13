@@ -15,7 +15,7 @@ import {
   getRewardBalance,
   type RewardLedgerEntry,
 } from "@/lib/db";
-import { toMobileDisplay } from "@legalir/validation";
+import { toE164Display } from "@legalir/validation";
 import { getPlanByCode } from "@/lib/usage/plans";
 import { getUsageSummary } from "@/lib/usage/engine";
 import { getEnergyLedger } from "@/lib/energy/ledger";
@@ -91,7 +91,7 @@ export function getAdminUserSubscriptionView(
     userId,
     publicId: user.publicId ?? null,
     displayName: user.displayName ?? null,
-    mobile: toMobileDisplay(user.mobile),
+    mobile: toE164Display(user.mobile),
     current: active
       ? {
           id: active.id,

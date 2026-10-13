@@ -13,7 +13,7 @@ export {
   isValidIranMobile,
   toWesternDigits,
   toNationalMobile,
-  toMobileDisplay,
+  toE164Display,
   toPersianMobileDisplay,
   maskMobile,
   iranMobileSchema,

@@ -18,7 +18,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type * as dbModule from "../db";
-import { toMobileDisplay } from "@legalir/validation";
+import { toE164Display } from "@legalir/validation";
 
 type Db = typeof dbModule;
 
@@ -132,31 +132,32 @@ describe("mobile identity — one number, one account", () => {
 });
 
 // ============================================================
-// toMobileDisplay — the admin panel's full, LTR-readable rendering
+// toE164Display — the admin panel's full, LTR-readable rendering
 // ============================================================
-// The stored identity is canonical E.164; the admin panel shows the national
-// form with its leading zero intact. This is a DISPLAY projection only — it
-// never rewrites the stored value, so no digit is dropped and the order holds.
+// The stored identity is canonical E.164 (`+989123456789`); the admin panel
+// shows that SAME canonical form so an operator sees the country code and the
+// `+` in full. This is a DISPLAY projection only — it never rewrites the
+// stored value, so no digit is added or dropped and the order holds.
 
-describe("toMobileDisplay — full national display", () => {
-  it("renders the admin-list form of the full number, zero intact", () => {
-    expect(toMobileDisplay("+989142080937")).toBe("09142080937");
-    expect(toMobileDisplay("+989131077363")).toBe("09131077363");
+describe("toE164Display — full E.164 display", () => {
+  it("renders the canonical form of the full number, `+` and country code intact", () => {
+    expect(toE164Display("+989142080937")).toBe("+989142080937");
+    expect(toE164Display("+989131077363")).toBe("+989131077363");
   });
 
-  it("resolves EVERY accepted format to the same national display", () => {
+  it("resolves EVERY accepted format to the same canonical display", () => {
     const national = "9123456789";
     for (const format of formatsOf(national)) {
-      expect(toMobileDisplay(format), `input: ${format}`).toBe(`0${national}`);
+      expect(toE164Display(format), `input: ${format}`).toBe(`+98${national}`);
     }
   });
 
-  it("passes a legacy 09… row through unchanged", () => {
-    expect(toMobileDisplay("09123456789")).toBe("09123456789");
+  it("normalises a legacy 09… row to the same canonical display", () => {
+    expect(toE164Display("09123456789")).toBe("+989123456789");
   });
 
   it("returns an unrecognised value unchanged (never a digit added or dropped)", () => {
-    expect(toMobileDisplay("")).toBe("");
-    expect(toMobileDisplay("not-a-number")).toBe("not-a-number");
+    expect(toE164Display("")).toBe("");
+    expect(toE164Display("not-a-number")).toBe("not-a-number");
   });
 });

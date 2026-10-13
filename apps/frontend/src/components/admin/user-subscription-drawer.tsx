@@ -27,6 +27,7 @@ import {
   InfoBanner,
   LoadingBlock,
   ErrorBlock,
+  MobileNumber,
   Select,
   TextInput,
   DataTable,
@@ -155,9 +156,7 @@ export function UserSubscriptionDrawer({
           <div>
             <div className="flex items-center justify-between">
               <span className="font-semibold text-on-surface">{data.displayName ?? "بدون نام"}</span>
-              <span dir="ltr" className="inline-block text-caption text-muted tabular-nums">
-                {data.mobile}
-              </span>
+              <MobileNumber className="text-caption text-muted">{data.mobile}</MobileNumber>
             </div>
             <div className="mt-1 flex items-center gap-1.5">
               <span className="text-caption text-muted">شناسهٔ سیستمی:</span>

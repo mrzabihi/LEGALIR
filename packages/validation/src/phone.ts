@@ -123,14 +123,16 @@ export function toNationalMobile(mobile: string): string {
 }
 
 /**
- * Any accepted mobile format → national display form (`09123456789`), leading
- * zero intact. A purely presentational projection: `+989123456789`, a legacy
- * `09123456789` row and a spaced/Persian-digit value all resolve to the same
- * readable number. Invalid input is returned unchanged — never masked,
- * truncated or invented — so a display call can never corrupt a value.
+ * Any accepted mobile format → the canonical E.164 display form
+ * (`+989123456789`), the country code and `+` intact. A purely presentational
+ * projection of the SAME canonical identity the store holds: `09123456789`,
+ * a spaced value and a Persian-digit value all resolve to the one readable
+ * number an operator can dial or copy verbatim. Invalid input is returned
+ * unchanged — never masked, truncated or invented — so a display call can
+ * never corrupt a value.
  */
-export function toMobileDisplay(raw: string): string {
-  return toNationalMobile(normalizeIranMobile(raw) ?? raw);
+export function toE164Display(raw: string): string {
+  return normalizeIranMobile(raw) ?? raw;
 }
 
 /**

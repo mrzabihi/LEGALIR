@@ -18,7 +18,7 @@
 
 import type { AdminOrderListResponse, OrderStatus } from "@legalir/types";
 import { listOrders } from "@/lib/admin/orders";
-import { toMobileDisplay } from "@legalir/validation";
+import { toE164Display } from "@legalir/validation";
 import { readSubscriptions, readUsers, type UserRow } from "./sources";
 import { resolveRange, withinWindow, type ResolvedRange } from "./range";
 
@@ -133,7 +133,7 @@ function toDrillUser(u: UserRow, active: Set<string>): DrillUserRow {
     id: u.id,
     publicId: u.publicId ?? null,
     displayName: u.displayName,
-    mobile: toMobileDisplay(u.mobile),
+    mobile: toE164Display(u.mobile),
     email: u.email,
     role: u.role ?? "USER",
     accountType: u.platformAccountType ?? "PERSONAL",
@@ -166,7 +166,7 @@ export function listDrillUsers(
     rows = rows.filter(
       (u) =>
         (u.displayName ?? "").toLowerCase().includes(q) ||
-        toMobileDisplay(u.mobile).includes(q) ||
+        toE164Display(u.mobile).includes(q) ||
         u.id.toLowerCase().includes(q) ||
         (u.publicId ?? "").toLowerCase().includes(q)
     );

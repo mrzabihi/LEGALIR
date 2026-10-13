@@ -797,15 +797,23 @@ export function Td({
 
 /**
  * A mobile number rendered left-to-right inside the RTL panel. `isolate` +
- * `dir="ltr"` keep the digits, leading zero and any `+` prefix in the correct
+ * `dir="ltr"` keep the digits, country code and any `+` prefix in the correct
  * order regardless of the surrounding Persian text, while the row still lays
- * out RTL. Shown in full — never masked, truncated or wrapped.
+ * out RTL. Shown in full — never masked, truncated or wrapped. The E.164 value
+ * it wraps (`+989…`) is complete; `dir="ltr"` is the ONLY direction control,
+ * never a code-point trick or string reversal.
  */
-export function MobileNumber({ children }: { children: ReactNode }) {
+export function MobileNumber({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <bdi
       dir="ltr"
-      className="inline-block tabular-nums whitespace-nowrap text-start"
+      className={`inline-block tabular-nums whitespace-nowrap text-start ${className}`}
       style={{ unicodeBidi: "isolate" }}
     >
       {children}

@@ -83,8 +83,9 @@ describe("getAdminUserSubscriptionView", () => {
     expect(view.current.planCode).toBe("gold");
     expect(view.current.status).toBe("active");
     expect(view.history).toHaveLength(1);
-    // The full national number, leading zero intact — never masked or truncated.
-    expect(view.mobile).toMatch(/^09\d{9}$/);
+    // The full canonical E.164 number, `+` and country code intact — never
+    // masked or truncated.
+    expect(view.mobile).toMatch(/^\+989\d{9}$/);
     expect(view.mobile).not.toContain("•");
   });
 

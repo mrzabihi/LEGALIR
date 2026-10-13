@@ -4,9 +4,9 @@
 // Lists platform users with their role, account type and subscription
 // state. A super-admin (holding admin:users:manage) may change a user's
 // role — the LAST super-admin cannot be demoted (server-enforced lockout
-// guard). Mobile numbers are shown in full (national form) so an operator can
-// identify and contact a user; they are rendered LTR within the RTL panel so
-// the digits never reorder.
+// guard). Mobile numbers are shown in full canonical E.164 form (`+989…`) so an
+// operator can identify and contact a user exactly as the value is stored; they
+// are rendered LTR (isolated) within the RTL panel so the digits never reorder.
 // ============================================================
 
 "use client";

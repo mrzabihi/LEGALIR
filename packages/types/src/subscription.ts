@@ -149,7 +149,7 @@ export interface AdminUserSubscriptionView {
   /** The user's readable, server-generated system id (`LG-…`), or null. */
   publicId: string | null;
   displayName: string | null;
-  /** Full national mobile (`09xxxxxxxxx`). */
+  /** Full canonical mobile (`+989xxxxxxxxx`). */
   mobile: string;
   current: {
     id: string;
