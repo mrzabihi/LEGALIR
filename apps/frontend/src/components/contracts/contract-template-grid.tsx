@@ -1,13 +1,29 @@
 // ============================================================
 // LEGALIR — Contract template grid (SECTION 1)
 // ============================================================
-// The first thing the page answers: "چه قراردادی می‌توانم بسازم؟"
+// The first thing the page answers: «چه قراردادی می‌توانم بسازم؟»
 //
 // It renders every IMPLEMENTED definition from the registry — so a new
 // domain appears here the moment its definition is registered — filtered
 // by the shared search query and the category chips, ranked by the
-// Persian-aware scorer, and capped at eight cards until the user asks
-// for the rest.
+// Persian-aware scorer, and capped until the user asks for the rest.
+//
+// ONE DOM, two layouts. The same list is a horizontally-snapping rail on
+// phones and a responsive grid from `tablet` up, so there is no
+// duplicated markup and no second source of truth for "which cards":
+//
+//   • Phone  — a native touch scroller. Each card is ~78vw so the next
+//     card peeks in, signalling "there is more to the side". Snap points
+//     keep a card settled at the inline edge. The rail is full-bleed to
+//     the page gutter and scrolls INSIDE itself; the page never scrolls
+//     sideways (it is the only `overflow-x` on the surface).
+//   • Tablet+ — a grid: 2 columns, 3 from `laptop`. It is CAPPED at 3
+//     per row, so cards stay readable instead of shrinking into slivers
+//     on a wide screen.
+//
+// `auto-rows-fr` makes every row the same height and `h-full` lets each
+// card fill it, so a grid of mixed-length titles still reads as one set
+// of equal cards.
 // ============================================================
 
 "use client";
@@ -80,17 +96,16 @@ export function ContractTemplateGrid({
 
   return (
     <div className="space-y-4">
-      {/* 2 → 3 → 5 columns. Two per row even on phones, so the grid reads as a
-          proper 2-up list rather than one full-width card per row. Five only at
-          `wide` (1440px+): below that the sidebar leaves too little room for
-          five readable cards. `auto-rows-fr` makes every row the same height
-          (not just within a row) and `h-full` lets each card stretch to fill
-          it, so all cards are exactly equal. */}
-      <div className="grid grid-cols-2 laptop:grid-cols-3 wide:grid-cols-5 auto-rows-fr gap-3 tablet:gap-4">
+      {/* The single track. Base = phone rail; `tablet:` = grid. The
+          negative margin bleeds the rail to the page's own gutter (p-4) so
+          a card's edge aligns with the header above; it is reset from
+          `tablet:` where the grid takes over. `overscroll-x-contain` keeps
+          a hard swipe from chaining to the page. */}
+      <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-1 tablet:mx-0 tablet:grid tablet:auto-rows-fr tablet:grid-cols-2 tablet:gap-4 tablet:overflow-visible tablet:px-0 tablet:pb-0 laptop:grid-cols-3">
         {visible.map((def, i) => (
           <div
             key={def.id}
-            className="animate-slide-up-fade h-full"
+            className="animate-slide-up-fade h-full w-[78vw] shrink-0 snap-start tablet:w-full tablet:snap-align-none"
             style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
           >
             <ContractTemplateCard
@@ -111,7 +126,7 @@ export function ContractTemplateGrid({
               setExpanded(true);
               onViewAll?.();
             }}
-            className="inline-flex items-center gap-1.5 h-10 rounded-medium px-5 text-labelLarge text-primary hover:bg-primary-container transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            className="inline-flex h-10 items-center gap-1.5 rounded-medium px-5 text-labelLarge text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           >
             مشاهده همه قراردادها
             <IconChevronDown size={18} />
