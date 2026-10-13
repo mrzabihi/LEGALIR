@@ -795,6 +795,24 @@ export function Td({
   );
 }
 
+/**
+ * A mobile number rendered left-to-right inside the RTL panel. `isolate` +
+ * `dir="ltr"` keep the digits, leading zero and any `+` prefix in the correct
+ * order regardless of the surrounding Persian text, while the row still lays
+ * out RTL. Shown in full — never masked, truncated or wrapped.
+ */
+export function MobileNumber({ children }: { children: ReactNode }) {
+  return (
+    <bdi
+      dir="ltr"
+      className="inline-block tabular-nums whitespace-nowrap text-start"
+      style={{ unicodeBidi: "isolate" }}
+    >
+      {children}
+    </bdi>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Form fields
 // ---------------------------------------------------------------------------

@@ -133,7 +133,8 @@ export interface AdminUserRow {
   /** Readable, server-generated system id (`LG-…`), or null. */
   publicId: string | null;
   displayName: string | null;
-  mobileMasked: string;
+  /** Full national mobile (`09xxxxxxxxx`); display in LTR within the RTL panel. */
+  mobile: string;
   email: string | null;
   role: PlatformRole;
   accountType: string;

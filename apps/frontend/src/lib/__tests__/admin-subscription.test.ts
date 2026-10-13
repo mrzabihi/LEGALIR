@@ -74,7 +74,7 @@ function activateGold(userId: string) {
 // ============================================================
 
 describe("getAdminUserSubscriptionView", () => {
-  it("showcases the active plan, masked mobile and history", () => {
+  it("showcases the active plan, the full mobile and history", () => {
     const user = freshUser();
     activateGold(user);
 
@@ -83,8 +83,9 @@ describe("getAdminUserSubscriptionView", () => {
     expect(view.current.planCode).toBe("gold");
     expect(view.current.status).toBe("active");
     expect(view.history).toHaveLength(1);
-    expect(view.mobileMasked).toContain("•");
-    expect(view.mobileMasked).not.toMatch(/\d{11}/); // never the full number
+    // The full national number, leading zero intact — never masked or truncated.
+    expect(view.mobile).toMatch(/^09\d{9}$/);
+    expect(view.mobile).not.toContain("•");
   });
 
   it("falls back to the free tier (never an error) when the user has no plan", () => {

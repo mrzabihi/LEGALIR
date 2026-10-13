@@ -18,6 +18,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type * as dbModule from "../db";
+import { toMobileDisplay } from "@legalir/validation";
 
 type Db = typeof dbModule;
 
@@ -127,5 +128,35 @@ describe("mobile identity — one number, one account", () => {
     expect(db.findUserByMobile("09129998877")?.id).toBe("legacy-09");
     expect(db.findUserByMobile("+989129998877")?.id).toBe("legacy-09");
     expect(db.findUserByMobile("00989129998877")?.id).toBe("legacy-09");
+  });
+});
+
+// ============================================================
+// toMobileDisplay — the admin panel's full, LTR-readable rendering
+// ============================================================
+// The stored identity is canonical E.164; the admin panel shows the national
+// form with its leading zero intact. This is a DISPLAY projection only — it
+// never rewrites the stored value, so no digit is dropped and the order holds.
+
+describe("toMobileDisplay — full national display", () => {
+  it("renders the admin-list form of the full number, zero intact", () => {
+    expect(toMobileDisplay("+989142080937")).toBe("09142080937");
+    expect(toMobileDisplay("+989131077363")).toBe("09131077363");
+  });
+
+  it("resolves EVERY accepted format to the same national display", () => {
+    const national = "9123456789";
+    for (const format of formatsOf(national)) {
+      expect(toMobileDisplay(format), `input: ${format}`).toBe(`0${national}`);
+    }
+  });
+
+  it("passes a legacy 09… row through unchanged", () => {
+    expect(toMobileDisplay("09123456789")).toBe("09123456789");
+  });
+
+  it("returns an unrecognised value unchanged (never a digit added or dropped)", () => {
+    expect(toMobileDisplay("")).toBe("");
+    expect(toMobileDisplay("not-a-number")).toBe("not-a-number");
   });
 });

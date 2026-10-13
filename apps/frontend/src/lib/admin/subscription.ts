@@ -12,10 +12,10 @@ import {
   readTable,
   writeTable,
   findUserById,
-  normalizeStoredMobile,
   getRewardBalance,
   type RewardLedgerEntry,
 } from "@/lib/db";
+import { toMobileDisplay } from "@legalir/validation";
 import { getPlanByCode } from "@/lib/usage/plans";
 import { getUsageSummary } from "@/lib/usage/engine";
 import { getEnergyLedger } from "@/lib/energy/ledger";
@@ -35,12 +35,6 @@ import type {
   AdminUserSubscriptionView,
   PlanCode,
 } from "@legalir/types";
-
-function mask(mobile: string): string {
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
-}
 
 function daysUntil(endAt: string | null): number | null {
   if (!endAt) return null;
@@ -97,7 +91,7 @@ export function getAdminUserSubscriptionView(
     userId,
     publicId: user.publicId ?? null,
     displayName: user.displayName ?? null,
-    mobileMasked: mask(user.mobile),
+    mobile: toMobileDisplay(user.mobile),
     current: active
       ? {
           id: active.id,

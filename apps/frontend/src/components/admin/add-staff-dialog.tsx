@@ -132,7 +132,7 @@ export function AddStaffDialog({
                           {u.displayName ?? "بدون نام"}
                         </span>
                         <span dir="ltr" className="block text-caption tabular-nums text-muted">
-                          {u.mobileMasked}
+                          {u.mobile}
                         </span>
                       </span>
                       <Badge tone={isStaff ? "brand" : "neutral"}>{ROLE_FA[u.role] ?? u.role}</Badge>

@@ -18,7 +18,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { requirePermission } from "@/lib/rbac";
-import { readTable, findUserById, normalizeStoredMobile } from "@/lib/db";
+import { readTable, findUserById } from "@/lib/db";
+import { toMobileDisplay } from "@legalir/validation";
 import {
   ADMIN_EXPORT_PERMISSION,
   lawyerDecisionBucket,
@@ -209,12 +210,6 @@ interface LegalRequestRow {
   updatedAt: string;
 }
 
-function mask(mobile: string): string {
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
-}
-
 const ok = <T>(data: T) => NextResponse.json({ data });
 
 type Body = Record<string, unknown>;
@@ -271,7 +266,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       rows = rows.filter(
         (u) =>
           (u.displayName ?? "").toLowerCase().includes(q) ||
-          mask(u.mobile).includes(q) ||
+          toMobileDisplay(u.mobile).includes(q) ||
           u.id.toLowerCase().includes(q) ||
           (u.publicId ?? "").toLowerCase().includes(q)
       );
@@ -282,7 +277,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         id: u.id,
         publicId: u.publicId ?? null,
         displayName: u.displayName,
-        mobileMasked: mask(u.mobile),
+        mobile: toMobileDisplay(u.mobile),
         email: u.email,
         role: u.role ?? "USER",
         accountType: u.platformAccountType ?? "PERSONAL",
@@ -528,7 +523,7 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
         id: user.id,
         publicId: user.publicId ?? null,
         displayName: user.displayName,
-        mobileMasked: mask(user.mobile),
+        mobile: toMobileDisplay(user.mobile),
         email: user.email,
         role: user.role ?? "USER",
         accountType: user.platformAccountType ?? "PERSONAL",

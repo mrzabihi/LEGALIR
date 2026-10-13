@@ -123,6 +123,17 @@ export function toNationalMobile(mobile: string): string {
 }
 
 /**
+ * Any accepted mobile format → national display form (`09123456789`), leading
+ * zero intact. A purely presentational projection: `+989123456789`, a legacy
+ * `09123456789` row and a spaced/Persian-digit value all resolve to the same
+ * readable number. Invalid input is returned unchanged — never masked,
+ * truncated or invented — so a display call can never corrupt a value.
+ */
+export function toMobileDisplay(raw: string): string {
+  return toNationalMobile(normalizeIranMobile(raw) ?? raw);
+}
+
+/**
  * Canonical E.164 → Persian-digit national display (`۰۹۱۲۳۴۵۶۷۸۹`).
  * Non-canonical input is returned unchanged.
  */
