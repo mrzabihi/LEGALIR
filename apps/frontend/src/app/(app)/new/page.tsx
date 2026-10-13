@@ -45,6 +45,7 @@ import {
   IconSparkle,
 } from "@/lib/icons";
 import { CampaignBanner } from "@/components/services/campaign-banner";
+import { StartRequestPanel } from "@/components/services/start-request-panel";
 import { SECONDARY_CAMPAIGN, type IconComponent } from "@/lib/services/catalog";
 
 // ============================================================
@@ -332,6 +333,11 @@ export default function NewServicePage() {
           </Link>
         </div>
       </header>
+
+      {/* Smart intake — describe the problem in your own words, optionally
+          attach a document, and get routed to the right existing flow.
+          A launcher entry point, not a separate product. */}
+      <StartRequestPanel />
 
       {/* Zones in order, with the contract-relevant campaign slotted
           straight under the contract zone. */}
