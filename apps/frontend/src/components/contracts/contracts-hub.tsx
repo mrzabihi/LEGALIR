@@ -60,28 +60,34 @@ export function ContractsHub() {
     [router, pathname, searchParams]
   );
 
+  // The view switcher is the SAME element in both views and sits just
+  // BELOW the search card: the active view hands it to `ContractList`
+  // (which renders it right under its search card), the coming-soon view
+  // renders it above its heading. One element ⇒ the two views can never
+  // drift, and the switcher never floats above the search.
+  const viewSwitcher = (
+    <div className="flex justify-center">
+      <SegmentedControl
+        ariaLabel="نمای قراردادها"
+        idBase={ID_BASE}
+        value={view}
+        onChange={setView}
+        glow
+        className="w-full tablet:w-auto"
+        segments={[
+          { value: "active", label: "قراردادهای فعال" },
+          { value: "coming-soon", label: "بزودی" },
+        ]}
+      />
+    </div>
+  );
+
   return (
     <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl">
       {/* The header is shared by BOTH views, so it stays pixel-identical
           when the user switches — the brief's "header stays fixed". It is
           the same `ContractsPageHeader` the workspace has always used. */}
       <ContractsPageHeader />
-
-      {/* The view switcher. Full-width on phones (comfortable targets),
-          content-width from tablet up. */}
-      <div className="mb-6 flex">
-        <SegmentedControl
-          ariaLabel="نمای قراردادها"
-          idBase={ID_BASE}
-          value={view}
-          onChange={setView}
-          className="w-full tablet:w-auto"
-          segments={[
-            { value: "active", label: "قراردادهای فعال" },
-            { value: "coming-soon", label: "بزودی" },
-          ]}
-        />
-      </div>
 
       {/* Active view — the workspace (my contracts + template library). */}
       {view === "active" ? (
@@ -90,9 +96,9 @@ export function ContractsHub() {
           role="tabpanel"
           aria-labelledby={`${ID_BASE}-tab-active`}
           tabIndex={0}
-          className="animate-fade-in focus-visible:outline-none"
+          className="mt-3 tablet:mt-4 animate-fade-in focus-visible:outline-none"
         >
-          <ContractList />
+          <ContractList headerSlot={viewSwitcher} />
         </section>
       ) : (
         /* Coming-soon view — the future contract services. The embedded
@@ -103,9 +109,10 @@ export function ContractsHub() {
           role="tabpanel"
           aria-labelledby={`${ID_BASE}-tab-coming-soon`}
           tabIndex={0}
-          className="animate-fade-in focus-visible:outline-none"
+          className="mt-3 tablet:mt-4 animate-fade-in focus-visible:outline-none"
         >
-          <div className="mb-5">
+          {viewSwitcher}
+          <div className="mt-4 mb-5">
             <h2 className="text-h3 font-bold text-on-surface">قراردادهای در دست توسعه</h2>
             <p className="mt-1 max-w-2xl text-body-2 text-on-surface-variant">
               {toPersianNumber(COMING_SOON_CONTRACT_SERVICE_COUNT)} خدمت قراردادی که به‌تدریج فعال می‌شوند.

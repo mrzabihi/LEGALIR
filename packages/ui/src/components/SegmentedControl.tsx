@@ -40,6 +40,12 @@ interface SegmentedControlProps {
   idBase?: string;
   /** Stretch the control to fill its container (equal-width segments). */
   fullWidth?: boolean;
+  /**
+   * Give the SELECTED segment a soft primary-tinted halo instead of the
+   * flat elevation-1 shadow. Opt-in so dense/toolbar usages (admin,
+   * pickers) stay untouched; reserved for a page's primary view switcher.
+   */
+  glow?: boolean;
   className?: string;
 }
 
@@ -50,6 +56,7 @@ export function SegmentedControl({
   ariaLabel,
   idBase,
   fullWidth = false,
+  glow = false,
   className = "",
 }: SegmentedControlProps) {
   const refs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -121,7 +128,9 @@ export function SegmentedControl({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface-container-high)]",
               "disabled:pointer-events-none disabled:opacity-[0.38]",
               selected
-                ? "bg-surface font-semibold text-primary shadow-elevation-1"
+                ? glow
+                  ? "bg-surface font-semibold text-primary ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--color-primary)_20%,transparent)] shadow-[0_2px_10px_-2px_color-mix(in_srgb,var(--color-primary)_45%,transparent)]"
+                  : "bg-surface font-semibold text-primary shadow-elevation-1"
                 : "text-on-surface-variant hover:text-on-surface",
             ].join(" ")}
           >

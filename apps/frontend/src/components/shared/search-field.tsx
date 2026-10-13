@@ -32,6 +32,12 @@ export interface SearchFieldProps {
   onSubmit?: () => void;
   className?: string;
   autoFocus?: boolean;
+  /**
+   * Reserve the empty helper row below the field (default). Set `false` when
+   * the field sits inside bespoke chrome (e.g. a search card) where the blank
+   * row would add dead height.
+   */
+  reserveMessageSpace?: boolean;
 }
 
 export function SearchField({
@@ -42,6 +48,7 @@ export function SearchField({
   onSubmit,
   className = "",
   autoFocus = false,
+  reserveMessageSpace = true,
 }: SearchFieldProps) {
   return (
     <div className={`w-full ${className}`}>
@@ -69,6 +76,7 @@ export function SearchField({
         }
         fullWidth
         autoFocus={autoFocus}
+        reserveMessageSpace={reserveMessageSpace}
       />
     </div>
   );

@@ -26,6 +26,11 @@ export interface CompactPageHeaderProps {
   breadcrumbAriaLabel?: string;
   /** The page's single primary control, pinned to the end edge on tablet+. */
   actions?: ReactNode;
+  /**
+   * Tighter vertical rhythm (smaller padding + gaps). Opt-in for a page whose
+   * top-of-list region must stay short; other list pages keep the default.
+   */
+  compact?: boolean;
   className?: string;
 }
 
@@ -35,6 +40,7 @@ export function CompactPageHeader({
   breadcrumb,
   breadcrumbAriaLabel,
   actions,
+  compact = false,
   className = "",
 }: CompactPageHeaderProps) {
   const hasBreadcrumb = Boolean(breadcrumb && breadcrumb.length > 0);
@@ -42,7 +48,10 @@ export function CompactPageHeader({
   return (
     <header
       className={[
-        "flex flex-col gap-4 border-b border-[color:var(--color-outline-variant)] pb-4 tablet:flex-row tablet:items-end tablet:justify-between tablet:gap-6",
+        "flex flex-col border-b border-[color:var(--color-outline-variant)]",
+        compact
+          ? "gap-3 pb-3 tablet:flex-row tablet:items-end tablet:justify-between tablet:gap-5"
+          : "gap-4 pb-4 tablet:flex-row tablet:items-end tablet:justify-between tablet:gap-6",
         className,
       ]
         .filter(Boolean)
@@ -50,11 +59,20 @@ export function CompactPageHeader({
     >
       <div className="min-w-0">
         {hasBreadcrumb && (
-          <Breadcrumb items={breadcrumb!} className="mb-1.5" ariaLabel={breadcrumbAriaLabel} />
+          <Breadcrumb
+            items={breadcrumb!}
+            className={compact ? "mb-1" : "mb-1.5"}
+            ariaLabel={breadcrumbAriaLabel}
+          />
         )}
         <h1 className="text-h3 font-bold text-on-surface">{title}</h1>
         {description && (
-          <p className="mt-1 max-w-2xl text-body-2 leading-relaxed text-on-surface-variant">
+          <p
+            className={[
+              "max-w-2xl text-body-2 leading-relaxed text-on-surface-variant",
+              compact ? "mt-0.5" : "mt-1",
+            ].join(" ")}
+          >
             {description}
           </p>
         )}

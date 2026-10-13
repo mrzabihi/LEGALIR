@@ -69,6 +69,14 @@ interface MyContractsSectionProps {
   onFiltersChange: (next: ContractFilterState) => void;
   /** Called when the user asks to start a contract from the empty state. */
   onStart?: () => void;
+  /**
+   * The mobile filter drawer is CONTROLLED by the page, because the trigger
+   * that opens it now lives in the search card (up in the toolbar), while the
+   * drawer itself lives here where the filter model already is. Optional so
+   * the component still renders standalone (unit tests) with it closed.
+   */
+  drawerOpen?: boolean;
+  onDrawerOpenChange?: (open: boolean) => void;
 }
 
 /** True when any axis beyond the coarse tab is narrowing the list. */
@@ -91,10 +99,12 @@ export function MyContractsSection({
   filters,
   onFiltersChange,
   onStart,
+  drawerOpen = false,
+  onDrawerOpenChange,
 }: MyContractsSectionProps) {
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
+  const setDrawerOpen = (open: boolean) => onDrawerOpenChange?.(open);
 
   const typeOptions = React.useMemo(() => contractTypeOptions(contracts), [contracts]);
 
@@ -152,29 +162,11 @@ export function MyContractsSection({
 
   return (
     <section className="space-y-4" aria-labelledby="my-contracts-heading">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="my-contracts-heading" className="text-h4 text-on-surface">
-          قراردادهای من
-        </h2>
-
-        {/* Mobile: the finer axes live in a drawer. */}
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          className="tablet:hidden inline-flex h-10 items-center gap-1.5 rounded-medium border border-divider px-3 text-labelLarge text-on-surface"
-        >
-          <IconFilter size={18} />
-          فیلترها
-          {finerActive && (
-            <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
-              {filters.draft.length +
-                filters.analysis.length +
-                filters.types.length +
-                (filters.dateRange !== "any" ? 1 : 0)}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* The mobile filter trigger now lives in the search card above, so
+          this heading is a clean full-width line. */}
+      <h2 id="my-contracts-heading" className="text-h4 text-on-surface">
+        قراردادهای من
+      </h2>
 
       {/* Desktop filter bar — the coarse tabs on one row, the finer axes
           behind «فیلترهای بیشتر», and the sort control. */}

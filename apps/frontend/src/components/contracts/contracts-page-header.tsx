@@ -42,12 +42,17 @@ export function ContractsPageHeader({ className = "" }: ContractsPageHeaderProps
   return (
     <CompactPageHeader
       className={className}
+      // The list region above the contracts list must stay short, so this
+      // page uses the tighter header rhythm.
+      compact
       // The nav keeps its historical accessible name; `service-navigation`
       // asserts a navigation labelled «breadcrumb» on this route.
       breadcrumbAriaLabel="breadcrumb"
       breadcrumb={[{ label: "داشبورد", href: "/dashboard" }, { label: title }]}
       title={title}
-      description="قرارداد تازه بسازید، پیش‌نویس‌های خود را تکمیل کنید و خدمات قراردادی در دست توسعه را ببینید."
+      // One short line, not the old two-clause sentence — the page is
+      // scan-oriented, and a single line keeps the whole header low.
+      description="قراردادهای حقوقی موردنیاز شما"
       actions={
         <>
           <Link

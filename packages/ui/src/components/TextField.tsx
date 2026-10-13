@@ -54,6 +54,13 @@ export interface TextFieldProps
   suffix?: React.ReactNode;
   /** Display character count if maxLength provided */
   showCharCount?: boolean;
+  /**
+   * Reserve the ~20px helper/error row even when there is no message, so a
+   * field never jumps when an error appears. Set `false` for a field that is
+   * purely decorative or lives in bespoke chrome (e.g. a search CARD) where
+   * the empty row is dead space.
+   */
+  reserveMessageSpace?: boolean;
   /** Force the value direction (e.g. `ltr` for phone/email). */
   inputDir?: "ltr" | "rtl";
 }
@@ -77,6 +84,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     prefix,
     suffix,
     showCharCount,
+    reserveMessageSpace = true,
     disabled,
     readOnly,
     required,
@@ -168,6 +176,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         error={resolvedError}
         helper={resolvedHelper}
         counter={showCharCount && maxLength ? `${charCount}/${maxLength}` : undefined}
+        reserveSpace={reserveMessageSpace}
       />
     </div>
   );
