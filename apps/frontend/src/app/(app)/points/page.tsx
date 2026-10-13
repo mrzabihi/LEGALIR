@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useMe } from "@/hooks/useDashboard";
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { useRewardsSummary, useClaimDailyVisit } from "@/hooks/useRewards";
 import { usePointsAccount, usePointsTransactions } from "@/hooks/useAccount";
 import { Breadcrumb } from "@/components/shared/Breadcrumb";
@@ -87,14 +88,27 @@ export default function MyPointsPage() {
 
   const [toast, setToast] = useState<string | null>(null);
 
-  const profileCompleted = (me.data?.profile?.completionPercent ?? 0) >= 100;
+  // Hydration guard. `me` and the rewards summary are shell-owned queries
+  // (AppLayout/TopBar/Sidebar) that can resolve — and warm the cache — before
+  // this page hydrates, because `(app)/loading.tsx` nests the page in its own
+  // Suspense boundary. The values below all render into the DOM (balance,
+  // «سر زدن روزانه» state, the راههای کسب امتیاز list), so reading them at
+  // the hydration render would diverge from the server HTML. Gate them until
+  // hydration completes; `account` is page-owned and safe to read directly.
+  const hydrated = useIsHydrated();
+  const summaryReady = hydrated && !summary.isPending;
+  const meReady = hydrated && !me.isPending;
+
+  const profileCompleted = meReady && (me.data?.profile?.completionPercent ?? 0) >= 100;
   // Balance is the ledger-derived aggregate — the same source the header
   // badge and dashboard card read, so all three always agree.
-  const balance = account.data?.balance ?? summary.data?.balance ?? 0;
+  const balance = account.data?.balance ?? (summaryReady ? summary.data?.balance : undefined) ?? 0;
   const lifetimeEarned = account.data?.lifetimeEarned ?? 0;
   const lifetimeSpent = account.data?.lifetimeSpent ?? 0;
-  const visitClaimed = summary.data?.today?.visitRewardClaimed ?? false;
-  const rules = summary.data?.rules ?? [];
+  const visitClaimed = summaryReady && summary.data?.today?.visitRewardClaimed === true;
+  // During the loading branch the server rendered no rules; keep it that way
+  // for the hydration render, then let the list appear once hydrated.
+  const rules = summaryReady ? summary.data?.rules ?? [] : [];
 
   useEffect(() => {
     if (!toast) return;
