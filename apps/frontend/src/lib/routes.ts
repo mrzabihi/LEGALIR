@@ -140,23 +140,91 @@ export const bottomNavDestinations: BottomNavDestination[] = [
 export interface CreateAction {
   id: string;
   titleFa: string;
+  /** One-line explanation shown under the title, so a choice is unambiguous. */
+  descriptionFa: string;
   /** Real in-app destination the action opens. */
   href: string;
   /** Key into the create-action icon map. */
   icon: string;
+  /**
+   * The primary entry point, rendered as a single full-width card above the
+   * specialist grid. It is the legal chat — the place a user starts when they
+   * do not yet know which specialist service they need. Exactly one action is
+   * featured.
+   */
+  featured?: boolean;
 }
 
 /**
  * The four quick-start actions in the «ساخت جدید» sheet. Each points at an
  * existing flow — opening the sheet never creates a contract, request or AI
- * run by itself; the user must pick an action.
+ * run by itself; the user must pick an action. The titles and descriptions
+ * mirror the canonical service labels (`@/lib/ai/service-context`) so the
+ * sheet and the rest of the app name the same service the same way, and the
+ * hrefs reuse the real, shipped destinations rather than duplicates.
+ *
+ * The legal chat is `featured`: it leads the sheet as one full-width card so
+ * a user who has not chosen a specialist service still has an obvious start.
  */
 export const createActions: CreateAction[] = [
-  { id: "draft-contract", titleFa: "تنظیم قرارداد", href: "/contracts/new", icon: "FilePen" },
-  { id: "review-contract", titleFa: "بررسی قرارداد", href: "/contracts/review", icon: "FileSearch" },
-  { id: "generate-notice", titleFa: "تولید اظهارنامه", href: "/chat?category=formal_letter", icon: "FileText" },
-  { id: "legal-consultation", titleFa: "مشاوره حقوقی", href: "/chat", icon: "Chat" },
+  {
+    id: "legal-consultation",
+    titleFa: "گفت‌وگوی حقوقی",
+    descriptionFa:
+      "سؤال خود را بپرسید و از لیـــگالیــــر پاسخ مستند بگیرید\nمناسب وقتی هنوز نمی‌دانید کدام خدمت را لازم دارید",
+    href: "/chat",
+    icon: "Chat",
+    featured: true,
+  },
+  {
+    id: "draft-contract",
+    titleFa: "تنظیم قرارداد",
+    descriptionFa: "پیش‌نویس قرارداد شخصی‌سازی‌شده",
+    href: "/contracts/new",
+    icon: "FilePen",
+  },
+  {
+    id: "review-contract",
+    titleFa: "بررسی قرارداد",
+    descriptionFa: "تحلیل ریسک و شروط نامتعارف",
+    href: "/contracts/review",
+    icon: "FileSearch",
+  },
+  {
+    id: "generate-notice",
+    titleFa: "تولید اظهارنامه",
+    descriptionFa: "اظهارنامه رسمی با مستندات قانونی",
+    href: "/chat?service=legal_notice",
+    icon: "FileText",
+  },
 ];
+
+/**
+ * The one extra entry in the «ساخت جدید» sheet: «مشاوره با وکلا». It is a
+ * distinct kind of choice — a human, not an AI service — so it is modelled
+ * separately from `createActions` (which owns the four AI quick-starts and
+ * guarantees exactly one `featured`). The sheet renders this as its own
+ * closing card, visually set apart from the AI services, and never folds it
+ * into the specialist grid. Kept here so the destination lives next to the
+ * other route data rather than hard-coded in the view.
+ */
+export interface LawyerConsultationEntry {
+  id: string;
+  titleFa: string;
+  descriptionFa: string;
+  /** Real in-app destination — the lawyer marketplace. */
+  href: string;
+  icon: string;
+}
+
+export const lawyerConsultation: LawyerConsultationEntry = {
+  id: "lawyer-consultation",
+  titleFa: "مشاوره با وکلا",
+  descriptionFa:
+    "وکیل متخصص را از میان وکلای تأییدشده انتخاب کنید و مشاوره یا تنظیم قرارداد را به او بسپارید.",
+  href: "/lawyers",
+  icon: "Handshake",
+};
 
 /**
  * The destination that should be lit for `pathname`, or `null` when the
