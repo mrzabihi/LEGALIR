@@ -1502,18 +1502,28 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
       className="mb-6"
       background={
         <>
-          {/* The card's artwork — a legal editorial on brand green/ivory/gold.
-              Kept faint by a theme-aware surface scrim so it reads as texture,
-              never as a competing image behind legible list copy. */}
+          {/* The card's artwork — a soft ivory editorial of document-analysis
+              motifs (faint legal papers + a magnifier) on the brand
+              ivory/gold/sage field. `object-cover` + `object-center` is the
+              picture equivalent of `background-size: cover` and
+              `background-position: center`, so the abstract always fills the
+              card without ever stretching or overflowing. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/assets/legalir-dashboard-recent-docs.webp"
+            src="/assets/legalir-dashboard-recent-docs-abstract.webp"
             alt=""
             loading="lazy"
             decoding="async"
             className="absolute inset-0 h-full w-full object-cover object-center"
           />
-          <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-surface-container-low)_68%,transparent)]" />
+          {/* Legibility scrim — theme-aware, so the same listing stays legible
+              in both themes. Light theme keeps a light veil so the ivory
+              artwork still reads as an image; dark theme lays a heavier navy
+              veil so the card sits in the dark surface family with white text.
+              On top, a soft top-down gradient deepens only where the title and
+              first row begin, leaving the artwork visible toward the foot. */}
+          <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-surface)_40%,transparent)] dark:bg-[color-mix(in_srgb,var(--color-surface)_74%,transparent)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_46%,transparent)_0%,transparent_42%)] dark:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_74%,transparent)_0%,color-mix(in_srgb,var(--color-surface)_52%,transparent)_100%)]" />
         </>
       }
     >
@@ -1524,9 +1534,9 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
             <Link
               key={doc.id}
               href="/documents"
-              className="flex items-center gap-3 p-3 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-high)_55%,transparent)] border border-[color:var(--color-outline-variant)] hover:bg-[color-mix(in_srgb,var(--color-surface-container-high)_82%,transparent)] transition-colors touch-target group"
+              className="flex items-center gap-3 p-3 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-high)_58%,transparent)] border border-[color:color-mix(in_srgb,var(--color-outline-variant)_80%,transparent)] shadow-elevation-1 hover:bg-[color-mix(in_srgb,var(--color-surface-container-high)_88%,transparent)] hover:shadow-elevation-2 transition-[background-color,box-shadow,border-color] duration-short4 ease-standard touch-target group"
             >
-              <span className="text-xl shrink-0 w-10 h-10 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-highest)_70%,transparent)] flex items-center justify-center transition-colors">
+              <span className="text-xl shrink-0 w-10 h-10 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-highest)_70%,transparent)] border border-[color:color-mix(in_srgb,var(--color-outline-variant)_55%,transparent)] flex items-center justify-center transition-colors">
                 {doc.mime?.includes("pdf") ? "📄" : doc.mime?.includes("image") ? "🖼️" : "📎"}
               </span>
               <div className="flex-1 min-w-0">
