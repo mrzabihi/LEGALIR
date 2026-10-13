@@ -439,13 +439,16 @@ export function listPurchaseRanking(
   });
 
   if (query.search) {
-    // Shared normalisation lane: Persian/Arabic digits and letter forms in the
-    // query are folded to their western/latin equivalents before matching, so a
-    // name or the digits of a masked mobile match regardless of keyboard. The
-    // mobile is stored masked (`0912***2174`), so only substring text matching
-    // applies — there is no full number to normalise on the phone lane.
+    // Shared normalisation lane: Persian/Arabic digits and letter forms fold to
+    // their western/latin equivalents before matching. The phone lane matches
+    // the RAW stored mobile — never the masked `0912***2174` — so a number query
+    // works even though the column renders masked; the raw value stays
+    // server-side and only `mobileMasked` is returned to the row.
     items = items.filter((r) =>
-      matchesRow(query.search!, { texts: [r.displayName ?? "", r.mobileMasked, r.userId] })
+      matchesRow(query.search!, {
+        phones: [idx.get(r.userId)?.mobile],
+        texts: [r.displayName ?? "", r.mobileMasked, r.userId],
+      })
     );
   }
 

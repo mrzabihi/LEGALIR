@@ -35,8 +35,8 @@ import {
 import {
   findUserById,
   listMessagesForLawyerProfile,
-  normalizeStoredMobile,
 } from "@/lib/db";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 import { recordAudit } from "@/lib/admin/audit";
 import { requestMeta, readJson } from "@/lib/admin/http";
 import {
@@ -48,12 +48,9 @@ import {
   type LawyerPricing,
 } from "@legalir/types";
 
-/** Mask a mobile (first 4 + last 4) — the panel never shows a full number. */
+/** Mask a mobile with the panel-wide rule (four middle digits) for the drawer. */
 function maskMobile(mobile: string | undefined): string {
-  if (!mobile) return "—";
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
+  return maskMobileMiddle(mobile);
 }
 
 export async function GET(

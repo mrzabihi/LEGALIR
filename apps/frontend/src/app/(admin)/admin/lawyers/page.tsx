@@ -40,6 +40,7 @@ import {
   StateView,
   Button,
   IdChip,
+  MaskedMobile,
   FilterPills,
   InfoBanner,
   TextInput,
@@ -204,12 +205,12 @@ export default function AdminLawyersPage() {
               head={
                 <tr>
                   <Th>وکیل</Th>
+                  <Th>موبایل</Th>
                   <Th>پایه / سازمان</Th>
                   <Th>تخصص اصلی</Th>
                   <Th>شهر</Th>
                   <Th>سابقه</Th>
                   <Th>امتیاز</Th>
-                  <Th>نظرات</Th>
                   <Th>تأیید</Th>
                   <Th>وضعیت</Th>
                   <Th>برجسته</Th>
@@ -244,6 +245,9 @@ export default function AdminLawyersPage() {
                       </div>
                     </Td>
                     <Td className="whitespace-nowrap">
+                      <MaskedMobile value={l.mobile} className="text-caption" />
+                    </Td>
+                    <Td className="whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-caption text-on-surface-variant">
                           {l.professionalRank
@@ -269,13 +273,18 @@ export default function AdminLawyersPage() {
                     <Td className="whitespace-nowrap text-caption">
                       {l.yearsExperience != null ? `${toPersianNumber(l.yearsExperience)} سال` : "—"}
                     </Td>
-                    <Td className="whitespace-nowrap tabular-nums">
-                      {l.displayRating != null
-                        ? toPersianNumber(Number(l.displayRating.toFixed(1)))
-                        : "—"}
-                    </Td>
-                    <Td className="whitespace-nowrap tabular-nums">
-                      {toPersianNumber(l.displayReviewCount)}
+                    <Td className="whitespace-nowrap">
+                      {l.displayRating != null && l.displayReviewCount > 0 ? (
+                        <span className="tabular-nums text-on-surface">
+                          {toPersianNumber(Number(l.displayRating.toFixed(1)))}
+                          <span className="text-muted"> از ۵</span>
+                          <span className="ms-1 text-caption text-muted">
+                            ({toPersianNumber(l.displayReviewCount)} رأی)
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-caption text-muted">بدون امتیاز</span>
+                      )}
                     </Td>
                     <Td>
                       <Badge tone={BUCKET_TONES[l.bucket]}>{LAWYER_DECISION_BUCKET_FA[l.bucket]}</Badge>

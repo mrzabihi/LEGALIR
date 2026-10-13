@@ -382,7 +382,7 @@ describe("financial adjustments", () => {
     const order = getOrder("sub-1")!;
     expect(order.status).toBe("SUCCESS");
     expect(order.netAmount).toBe(500_000);
-    expect(order.userMobileMasked).toBe("0912•••4567");
+    expect(order.userMobileMasked).toBe("0912****567");
     expect(order.gateway).toBe("simulated");
   });
 
@@ -503,7 +503,7 @@ describe("staff administration", () => {
     seedStaff();
     const staff = listStaff();
     expect(staff.map((s) => s.id)).toEqual(["u-super"]);
-    expect(staff[0]!.mobileMasked).toBe("0912•••0001");
+    expect(staff[0]!.mobileMasked).toBe("0912****001");
     expect(staff[0]!.roleFa).toBe("مدیر ارشد پلتفرم");
   });
 

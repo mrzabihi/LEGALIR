@@ -4,9 +4,10 @@
 // Lists platform users with their role, account type and subscription
 // state. A super-admin (holding admin:users:manage) may change a user's
 // role — the LAST super-admin cannot be demoted (server-enforced lockout
-// guard). Mobile numbers are shown in full canonical E.164 form (`+989…`) so an
-// operator can identify and contact a user exactly as the value is stored; they
-// are rendered LTR (isolated) within the RTL panel so the digits never reorder.
+// guard). Mobile numbers are masked by default (the four middle digits hidden
+// with a star each) and revealed per row via the eye toggle in the same cell;
+// both states render LTR (isolated) within the RTL panel so digits never
+// reorder.
 // ============================================================
 
 "use client";
@@ -25,7 +26,7 @@ import {
   DataTable,
   Th,
   Td,
-  MobileNumber,
+  MaskedMobile,
   Badge,
   StateView,
   LoadingBlock,
@@ -106,7 +107,7 @@ function AdminUsersView() {
     <div>
       <PageHeader
         title="کاربران و سازمان‌ها"
-        description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت کامل نمایش داده می‌شوند."
+        description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت پیش‌فرض ماسک هستند و با آیکون چشم هر ردیف به‌طور کامل نمایش داده می‌شوند."
         actions={<ExportButton kind="users" />}
       />
 
@@ -177,7 +178,7 @@ function AdminUsersView() {
                     </div>
                   </Td>
                   <Td>
-                    <MobileNumber>{u.mobile}</MobileNumber>
+                    <MaskedMobile value={u.mobile} />
                   </Td>
                   <Td>
                     {editing === u.id ? (

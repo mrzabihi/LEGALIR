@@ -28,6 +28,7 @@ import {
   type AdminExportKind,
 } from "@legalir/types";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 import { PAGE_SIZE_OPTIONS } from "@/lib/admin/pagination";
 import { adminSectionTitle } from "@/lib/admin-nav";
 import { downloadAdminExport } from "@/lib/api/admin";
@@ -45,6 +46,8 @@ import {
   IconSearch,
   IconClose,
   IconDownload,
+  IconEye,
+  IconEyeOff,
 } from "@/lib/icons";
 
 // ---------------------------------------------------------------------------
@@ -820,6 +823,59 @@ export function MobileNumber({
     >
       {children}
     </bdi>
+  );
+}
+
+/**
+ * A mobile rendered MASKED by default, with a per-cell reveal toggle. This is
+ * the panel-wide default for a user's or lawyer's number: four middle digits
+ * are hidden (see {@link maskMobileMiddle}) until the operator clicks the eye,
+ * which reveals the full value LTR — re-hidden on a second click. The reveal
+ * state is LOCAL to the cell and never escapes it: nothing lands in the URL,
+ * localStorage, a tooltip, an HTML `title`, alt text or the DOM of a
+ * neighbouring row, so a masked screenshot carries no full numbers.
+ *
+ * The mask is a privacy affordance, not an authorization boundary — the
+ * server still authorizes the caller and decides what the endpoint returns.
+ */
+export function MaskedMobile({
+  value,
+  className = "",
+}: {
+  /** The full value the row owns (any stored shape); masking is display-only. */
+  value: string | null | undefined;
+  className?: string;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const full = value ?? "";
+  const hasValue = full.trim().length > 0;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <bdi
+        dir="ltr"
+        className={`tabular-nums whitespace-nowrap text-start ${className}`}
+        style={{ unicodeBidi: "isolate" }}
+      >
+        {revealed ? full : maskMobileMiddle(full)}
+      </bdi>
+      {hasValue && (
+        <button
+          type="button"
+          onClick={() => setRevealed((r) => !r)}
+          aria-pressed={revealed}
+          aria-label={revealed ? "مخفی‌کردن شماره موبایل" : "نمایش شماره موبایل"}
+          title={revealed ? "مخفی‌کردن شماره" : "نمایش شماره"}
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {revealed ? (
+            <IconEyeOff size={15} aria-hidden="true" />
+          ) : (
+            <IconEye size={15} aria-hidden="true" />
+          )}
+        </button>
+      )}
+    </span>
   );
 }
 

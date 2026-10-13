@@ -7,7 +7,8 @@
 // Amounts are integers in Toman (IRT).
 // ============================================================
 
-import { readTable, writeTable, findUserById, normalizeStoredMobile, type DbUser } from "@/lib/db";
+import { readTable, writeTable, findUserById, type DbUser } from "@/lib/db";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 import type {
   AdminOrder,
   AdminOrderListResponse,
@@ -24,11 +25,13 @@ import { matchesRow } from "@/lib/search/normalize";
 const ADJ_TABLE = "financial_adjustments";
 const CHECKOUT_ORDERS = "orders";
 
-/** Mask a stored mobile for admin display: keep first 4 + last 4. */
+/**
+ * Mask a stored mobile for admin display with the panel-wide rule (four middle
+ * digits hidden) so the orders/receipt/support surfaces read identically to the
+ * users/lawyers/staff tables.
+ */
 export function maskMobile(mobile: string): string {
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
+  return maskMobileMiddle(mobile);
 }
 
 function orderStatus(statusFa: string, refunded: number, amount: number): OrderStatus {
@@ -195,7 +198,9 @@ export function listOrders(query: OrderQuery = {}): AdminOrderListResponse {
   if (query.search) {
     orders = orders.filter((o) =>
       matchesRow(query.search!, {
-        phones: [o.userMobileMasked],
+        // Phone lane matches the RAW stored mobile (never the masked row field),
+        // so a number query works even though the column renders masked.
+        phones: [findUserById(o.userId)?.mobile],
         texts: [o.id, o.userDisplayName],
       })
     );

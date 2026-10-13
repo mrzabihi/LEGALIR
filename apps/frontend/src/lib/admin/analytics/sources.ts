@@ -11,7 +11,8 @@
 // matches a field observed in `apps/frontend/.data/<table>.json`.
 // ============================================================
 
-import { readTable, findUserById, normalizeStoredMobile } from "@/lib/db";
+import { readTable, findUserById } from "@/lib/db";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 import type {
   PlanEntitlementSnapshot,
   LegalRequestState,
@@ -212,11 +213,9 @@ export const readLawyerProfiles = (): LawyerProfileRow[] =>
 // Identity helpers (shared by every report so display is consistent)
 // ---------------------------------------------------------------------------
 
-/** Mask a stored mobile: keep first 4 + last 4. Identical to the orders panel. */
+/** Mask a stored mobile with the panel-wide rule (four middle digits). */
 export function maskMobile(mobile: string): string {
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
+  return maskMobileMiddle(mobile);
 }
 
 /** A user's display name, falling back to their masked mobile. */

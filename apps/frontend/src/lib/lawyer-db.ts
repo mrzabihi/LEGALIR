@@ -1045,6 +1045,7 @@ export function deleteReviewRow(lawyerId: string, reviewId: string): boolean {
  */
 export function toAdminLawyerListItem(
   profile: LawyerProfile,
+  mobile: string,
   mobileMasked: string,
   lastDecision: {
     newStatus: LawyerVerificationStatus;
@@ -1084,6 +1085,7 @@ export function toAdminLawyerListItem(
     deletedAt: profile.deletedAt ?? null,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
+    mobile,
     mobileMasked,
     bucket,
     lastDecision,

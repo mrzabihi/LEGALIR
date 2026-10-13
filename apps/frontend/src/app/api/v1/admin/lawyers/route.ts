@@ -6,7 +6,8 @@
 // operator works with: avatar, professional rank, issuing organisation,
 // primary specialty, cities, experience, displayed rating + review count,
 // verification state, lifecycle (فعال/غیرفعال/معلق/حذف‌شده), featured flag,
-// masked applicant mobile and the last recorded decision.
+// the applicant mobile (full `mobile` + a four-middle-digit `mobileMasked`) and
+// the last recorded decision.
 //
 // This reads the SAME profile rows the public /lawyers marketplace reads, so
 // a change here is reflected there immediately (there is no second copy).
@@ -25,7 +26,7 @@ import {
   toAdminLawyerListItem,
   resolveAdminLifecycle,
 } from "@/lib/lawyer-db";
-import { findUserById, normalizeStoredMobile } from "@/lib/db";
+import { findUserById } from "@/lib/db";
 import {
   lawyerDecisionBucket,
   taxonomySearchText,
@@ -35,17 +36,10 @@ import {
 } from "@legalir/types";
 import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
 import { matchesRow } from "@/lib/search/normalize";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 
 const BUCKETS: LawyerDecisionBucket[] = ["REVIEW", "APPROVED", "REJECTED", "SUSPENDED"];
 const LIFECYCLES: AdminLawyerStatus[] = ["ACTIVE", "INACTIVE", "SUSPENDED", "DELETED"];
-
-/** Mask a mobile for the admin listing (first 4 + last 4). */
-function maskMobile(mobile: string | undefined): string {
-  if (!mobile) return "—";
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
-}
 
 export async function GET(request: NextRequest) {
   const auth = requirePermission(request, "admin:lawyer:read");
@@ -101,7 +95,8 @@ export async function GET(request: NextRequest) {
       const user = findUserById(l.userId);
       return toAdminLawyerListItem(
         l,
-        maskMobile(user?.mobile),
+        user?.mobile ?? "",
+        maskMobileMiddle(user?.mobile),
         decision
           ? {
               newStatus: decision.newStatus as LawyerVerificationStatus,

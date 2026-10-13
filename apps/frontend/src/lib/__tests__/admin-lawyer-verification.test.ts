@@ -167,7 +167,8 @@ describe("admin lawyer verification — full lifecycle", () => {
     const row = data.items.find((i) => i["id"] === LAWYER_ID);
     expect(row).toBeDefined();
     expect(row!["bucket"]).toBe("REVIEW");
-    expect(String(row!["mobileMasked"])).toContain("•");
+    // Panel-wide mask: exactly the four middle digits are hidden, `+98` kept.
+    expect(String(row!["mobileMasked"])).toBe("+9891****0999");
     expect(row!["lastDecision"]).toBeNull();
   });
 
@@ -242,7 +243,7 @@ describe("admin lawyer verification — full lifecycle", () => {
       };
     };
     expect(data.bucket).toBe("APPROVED");
-    expect(data.contact.mobileMasked).toContain("•");
+    expect(data.contact.mobileMasked).toBe("+9891****0999");
     expect(data.history).toHaveLength(1);
     expect(data.stats.decisions).toBe(1);
   });

@@ -28,7 +28,7 @@ import {
   SearchInput,
   Select,
   LoadingBlock,
-  MobileNumber,
+  MaskedMobile,
 } from "@/components/admin/ui";
 
 function errMessage(err: unknown, fallback: string): string {
@@ -139,7 +139,7 @@ export function AddStaffDialog({
                         <span className="block truncate text-body-2 font-medium text-on-surface">
                           {u.displayName ?? "بدون نام"}
                         </span>
-                        <MobileNumber className="text-caption text-muted">{u.mobile}</MobileNumber>
+                        <MaskedMobile className="text-caption text-muted" value={u.mobile} />
                       </span>
                       <Badge tone={isStaff ? "brand" : "neutral"}>{ROLE_FA[u.role] ?? u.role}</Badge>
                     </button>

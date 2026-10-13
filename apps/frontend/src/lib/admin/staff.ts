@@ -13,11 +13,11 @@ import {
   readTable,
   findUserById,
   setUserRole,
-  normalizeStoredMobile,
   listSessionsForUser,
 } from "@/lib/db";
 import { getOrganizationById } from "@/lib/org-db";
 import { matchesRow } from "@/lib/search/normalize";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 import {
   STAFF_ROLES,
   PLATFORM_SUPERADMIN_ROLES,
@@ -43,11 +43,13 @@ interface UserRow {
   createdAt: string;
 }
 
-/** Mask a mobile for a staff listing (first 4 + last 4). */
+/**
+ * Mask a mobile for a staff listing. Delegates to the panel-wide rule so the
+ * staff table masks exactly like the users/lawyers tables (four middle digits,
+ * country/trunk prefix preserved).
+ */
 function mask(mobile: string): string {
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
+  return maskMobileMiddle(mobile);
 }
 
 /**
@@ -86,15 +88,17 @@ export function listStaff(filter: { search?: string; role?: string } = {}): Staf
   return readTable<UserRow>("users")
     .filter((u) => u.role && STAFF_ROLES.includes(u.role))
     .filter((u) => (filter.role ? u.role === filter.role : true))
-    .map(toStaffMember)
-    .filter((m) =>
+    // Match the phone lane against the RAW stored mobile (never the mask) so a
+    // number search keeps working even though the table renders it masked.
+    .filter((u) =>
       search.trim()
         ? matchesRow(search, {
-            phones: [m.mobileMasked],
-            texts: [m.displayName, m.email, m.id],
+            phones: [u.mobile],
+            texts: [u.displayName, u.email, u.id],
           })
         : true
     )
+    .map(toStaffMember)
     .sort((a, b) => a.roleFa.localeCompare(b.roleFa, "fa"));
 }
 

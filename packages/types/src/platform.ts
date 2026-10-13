@@ -1314,6 +1314,9 @@ export interface AdminLawyerListItem {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** The full owning user's mobile (canonical `+989…`), shown masked-by-default. */
+  mobile: string;
+  /** The four-middle-digit-masked form of {@link mobile} (display default). */
   mobileMasked: string;
   bucket: LawyerDecisionBucket;
   lastDecision: {
