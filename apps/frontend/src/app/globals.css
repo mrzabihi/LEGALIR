@@ -1833,6 +1833,37 @@ html {
   animation: slide-up-fade 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) both;
 }
 
+/* --- Create-sheet card entrances ---
+   The «ساخت جدید» cards rise in a short top-to-bottom stagger. The delay is
+   baked into its own class (rather than set inline) so the reduced-motion
+   override below can drop BOTH the motion and the wait in one place — an
+   inline `animationDelay` could not be neutralised globally. `both` fill holds
+   each card at its 0% frame (opacity 0) through the delay, so it never flashes
+   in early; with the animation removed the cards simply appear at rest. */
+@keyframes create-card-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-create-card {
+  animation: create-card-in 0.34s cubic-bezier(0.2, 0.0, 0.0, 1) both;
+}
+.animate-create-card-m1 { animation-delay: 60ms; }
+.animate-create-card-m2 { animation-delay: 120ms; }
+.animate-create-card-m3 { animation-delay: 180ms; }
+.animate-create-card-m4 { animation-delay: 240ms; }
+.animate-create-card-m5 { animation-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-create-card,
+  .animate-create-card-m1,
+  .animate-create-card-m2,
+  .animate-create-card-m3,
+  .animate-create-card-m4,
+  .animate-create-card-m5 {
+    animation: none !important;
+    animation-delay: 0s !important;
+  }
+}
+
 /* -- Ring spin animation (used by splash screen decorative rings) -- */
 @keyframes splash-ring-spin {
   from { transform: rotate(0deg); }

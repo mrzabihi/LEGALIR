@@ -65,7 +65,12 @@ describe("BottomNav", () => {
 
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getAllByRole("link")).toHaveLength(4);
+    // Four AI quick-start cards + the distinct lawyer-consultation card.
+    expect(within(dialog).getAllByRole("link")).toHaveLength(5);
+    expect(within(dialog).getByRole("link", { name: /مشاوره با وکلا/ })).toHaveAttribute(
+      "href",
+      "/lawyers"
+    );
   });
 
   it("closes the sheet on Escape", async () => {

@@ -9,6 +9,7 @@ import {
   bottomNavDestinations,
   getActiveBottomNavPath,
   createActions,
+  lawyerConsultation,
   canAccessRoute,
   isNavItemActive,
   isPublicPath,
@@ -147,12 +148,50 @@ describe("createActions", () => {
       expect(action.href).toMatch(/^\//);
       expect(action.titleFa.length).toBeGreaterThan(0);
       expect(action.icon.length).toBeGreaterThan(0);
+      // Every card explains itself — a choice is never an unlabelled tile.
+      expect(action.descriptionFa.length).toBeGreaterThan(0);
     }
+  });
+
+  it("features exactly one action, and it is the legal chat, listed first", () => {
+    const featured = createActions.filter((a) => a.featured);
+    expect(featured).toHaveLength(1);
+    expect(featured[0]?.id).toBe("legal-consultation");
+    expect(featured[0]?.href).toBe("/chat");
+    // The featured entry leads the sheet, so the remaining three fall into
+    // the specialist grid in order.
+    expect(createActions[0]?.featured).toBe(true);
+    expect(createActions.filter((a) => !a.featured)).toHaveLength(3);
+  });
+
+  it("routes each specialist action to its canonical destination", () => {
+    const byId = Object.fromEntries(createActions.map((a) => [a.id, a.href]));
+    expect(byId).toMatchObject({
+      "draft-contract": "/contracts/new",
+      "review-contract": "/contracts/review",
+      "generate-notice": "/chat?service=legal_notice",
+    });
   });
 
   it("uses unique ids", () => {
     const ids = createActions.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("lawyerConsultation", () => {
+  it("points at the real lawyer marketplace", () => {
+    expect(lawyerConsultation.href).toBe("/lawyers");
+    expect(lawyerConsultation.icon).toBe("Handshake");
+    expect(lawyerConsultation.titleFa.length).toBeGreaterThan(0);
+    expect(lawyerConsultation.descriptionFa.length).toBeGreaterThan(0);
+  });
+
+  it("is modelled separately from the four AI quick-start actions", () => {
+    // `createActions` must stay a clean set of four; the human-consultation
+    // entry is its own thing and is never folded into that list.
+    expect(createActions).toHaveLength(4);
+    expect(createActions.some((a) => a.id === lawyerConsultation.id)).toBe(false);
   });
 });
 
