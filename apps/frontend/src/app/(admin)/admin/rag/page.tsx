@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Link from "next/link";
 import {
@@ -53,6 +53,7 @@ import {
   InfoBanner,
   FilterPills,
   ExportButton,
+  Pagination,
   StatCard,
   Section,
   EmptyBlock,
@@ -60,6 +61,7 @@ import {
   Tabs,
   type TabItem,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { Drawer, snackbar } from "@legalir/ui";
 import {
   IconDatabase,
@@ -482,6 +484,13 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
     search: debouncedSearch || undefined,
   });
 
+  const sources = query.data?.items ?? [];
+  const pager = useClientPagination(sources);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, debouncedSearch, state]);
+
   const filters = useMemo(
     () => [
       { value: "", label: "همه" },
@@ -531,7 +540,8 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
         isEmpty={(d) => d.items.length === 0}
         emptyMessage="منبعی با این فیلتر یافت نشد."
       >
-        {(data) => (
+        {() => (
+          <>
           <DataTable
             head={
               <tr>
@@ -545,7 +555,7 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
               </tr>
             }
           >
-            {data.items.map((s) => (
+            {pager.pageItems.map((s) => (
               <tr key={s.id}>
                 <Td className="max-w-[280px]">
                   <span className="block truncate font-medium text-on-surface" title={s.title}>
@@ -591,6 +601,17 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
               </tr>
             ))}
           </DataTable>
+
+          <Pagination
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={pager.total}
+            totalPages={pager.totalPages}
+            itemLabel="منبع"
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </StateView>
 

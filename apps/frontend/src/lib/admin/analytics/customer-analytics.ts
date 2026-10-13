@@ -40,6 +40,7 @@ import {
 } from "./sources";
 import { resolveRange, toWindowInfo, withinWindow, type ResolveRangeInput } from "./range";
 import { analyticsDataQuality } from "./quality";
+import { matchesRow } from "@/lib/search/normalize";
 
 const DAY_MS = 86_400_000;
 
@@ -438,12 +439,13 @@ export function listPurchaseRanking(
   });
 
   if (query.search) {
-    const q = query.search.trim().toLowerCase();
-    items = items.filter(
-      (r) =>
-        (r.displayName ?? "").toLowerCase().includes(q) ||
-        r.mobileMasked.includes(q) ||
-        r.userId.toLowerCase().includes(q)
+    // Shared normalisation lane: Persian/Arabic digits and letter forms in the
+    // query are folded to their western/latin equivalents before matching, so a
+    // name or the digits of a masked mobile match regardless of keyboard. The
+    // mobile is stored masked (`0912***2174`), so only substring text matching
+    // applies — there is no full number to normalise on the phone lane.
+    items = items.filter((r) =>
+      matchesRow(query.search!, { texts: [r.displayName ?? "", r.mobileMasked, r.userId] })
     );
   }
 

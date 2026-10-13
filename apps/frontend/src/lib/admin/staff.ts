@@ -17,6 +17,7 @@ import {
   listSessionsForUser,
 } from "@/lib/db";
 import { getOrganizationById } from "@/lib/org-db";
+import { matchesRow } from "@/lib/search/normalize";
 import {
   STAFF_ROLES,
   PLATFORM_SUPERADMIN_ROLES,
@@ -81,16 +82,17 @@ function toStaffMember(u: UserRow): StaffMember {
 
 /** Every user holding a platform-staff role, optionally filtered. */
 export function listStaff(filter: { search?: string; role?: string } = {}): StaffMember[] {
-  const search = filter.search?.trim().toLowerCase();
+  const search = filter.search ?? "";
   return readTable<UserRow>("users")
     .filter((u) => u.role && STAFF_ROLES.includes(u.role))
     .filter((u) => (filter.role ? u.role === filter.role : true))
     .map(toStaffMember)
     .filter((m) =>
-      search
-        ? (m.displayName ?? "").toLowerCase().includes(search) ||
-          (m.email ?? "").toLowerCase().includes(search) ||
-          m.id.toLowerCase().includes(search)
+      search.trim()
+        ? matchesRow(search, {
+            phones: [m.mobileMasked],
+            texts: [m.displayName, m.email, m.id],
+          })
         : true
     )
     .sort((a, b) => a.roleFa.localeCompare(b.roleFa, "fa"));

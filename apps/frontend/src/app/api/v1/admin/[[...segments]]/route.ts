@@ -32,6 +32,8 @@ import {
 } from "@legalir/types";
 
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
+import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
+import { matchesRow } from "@/lib/search/normalize";
 import { buildOverview, revenueByPlan, dailySales, resolvedRangeDays } from "@/lib/admin/metrics";
 import { listFlags, updateFlag } from "@/lib/admin/flags";
 import {
@@ -252,9 +254,9 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
   },
 
   users: ({ url }) => {
-    const page = intParam(url, "page", 1);
-    const pageSize = Math.min(100, intParam(url, "pageSize", 25));
-    const q = (url.searchParams.get("search") ?? "").toLowerCase();
+    const page = resolvePage(url.searchParams.get("page"));
+    const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
+    const search = url.searchParams.get("search") ?? "";
     const role = url.searchParams.get("role") ?? "";
     const subs = readTable<{ user_id: string; status_fa?: string; status?: string }>("subscriptions");
     const activeIds = new Set(
@@ -262,16 +264,18 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
     );
     let rows = readTable<UserRow>("users");
     if (role) rows = rows.filter((u) => (u.role ?? "USER") === role);
-    if (q) {
-      rows = rows.filter(
-        (u) =>
-          (u.displayName ?? "").toLowerCase().includes(q) ||
-          toE164Display(u.mobile).includes(q) ||
-          u.id.toLowerCase().includes(q) ||
-          (u.publicId ?? "").toLowerCase().includes(q)
+    if (search.trim()) {
+      // Search runs over the WHOLE table (not the current page) and matches a
+      // mobile in ANY format — `09122842174`, `9122842174`, `+98…`, Persian
+      // digits — alongside the display name and the system id.
+      rows = rows.filter((u) =>
+        matchesRow(search, {
+          phones: [u.mobile],
+          texts: [u.displayName, u.id, u.publicId, toE164Display(u.mobile)],
+        })
       );
     }
-    const items = rows
+    const mapped = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((u) => ({
         id: u.id,
@@ -284,20 +288,24 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         hasActiveSubscription: activeIds.has(u.id),
         createdAt: u.createdAt,
       }));
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-    return ok({ items: items.slice(start, start + pageSize), total, page, pageSize });
+    const p = paginate(mapped, page, pageSize);
+    return ok({
+      items: p.items,
+      total: p.total,
+      page: p.page,
+      pageSize: p.pageSize,
+      totalPages: p.totalPages,
+    });
   },
 
   requests: ({ url }) => {
-    const page = intParam(url, "page", 1);
-    const pageSize = Math.min(100, intParam(url, "pageSize", 25));
+    const page = resolvePage(url.searchParams.get("page"));
+    const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
     const state = url.searchParams.get("state");
-    const q = (url.searchParams.get("search") ?? "").toLowerCase();
+    const search = url.searchParams.get("search") ?? "";
     let rows = readTable<LegalRequestRow>("legal_requests");
     if (state) rows = rows.filter((r) => r.state === state);
-    if (q) rows = rows.filter((r) => r.title.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
-    const items = rows
+    const mapped = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((r) => {
         const user = findUserById(r.userId);
@@ -312,10 +320,20 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
         };
-      });
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-    return ok({ items: items.slice(start, start + pageSize), total, page, pageSize });
+      })
+      .filter((r) =>
+        search.trim()
+          ? matchesRow(search, { texts: [r.title, r.id, r.userDisplayName] })
+          : true
+      );
+    const p = paginate(mapped, page, pageSize);
+    return ok({
+      items: p.items,
+      total: p.total,
+      page: p.page,
+      pageSize: p.pageSize,
+      totalPages: p.totalPages,
+    });
   },
 
   flags: () => ok({ items: listFlags() }),

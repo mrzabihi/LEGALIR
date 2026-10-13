@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAdminPlans,
   useAdminPlan,
@@ -23,7 +23,9 @@ import {
   useSetAdminPlanStatus,
   useAdminMe,
 } from "@/hooks/useAdmin";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { matchesText } from "@/lib/search/normalize";
 import { computeDiscountPercent, applyDiscount, type DiscountKind } from "@/lib/usage/plan-pricing";
 import type { AdminPlanUpdate, AdminPlanCreateInput } from "@/lib/api/admin";
 import type { Plan, PlanStatus, SubscriptionPlan } from "@legalir/types";
@@ -46,6 +48,7 @@ import {
   SearchInput,
   FilterPills,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
 
 // ---------------------------------------------------------------------------
@@ -839,16 +842,15 @@ export default function AdminPlansPage() {
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null);
 
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const rows = plans.data?.items ?? [];
     return rows
       .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
       .filter(
         (p) =>
-          !q ||
-          p.nameFa.toLowerCase().includes(q) ||
-          p.code.toLowerCase().includes(q) ||
-          (p.tags ?? []).some((t) => t.toLowerCase().includes(q))
+          !search.trim() ||
+          // Shared normalisation lane: Persian/Arabic digits and letter forms
+          // in the query (and stored tags) fold before matching.
+          matchesText(search, p.nameFa, p.code, ...(p.tags ?? []))
       )
       .sort((a, b) => {
         const ao = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
@@ -857,6 +859,12 @@ export default function AdminPlansPage() {
         return a.createdAt.localeCompare(b.createdAt);
       });
   }, [plans.data, search, statusFilter]);
+
+  const pager = useClientPagination(visible);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, search, statusFilter]);
 
   async function changeStatus(code: string, status: PlanStatus) {
     try {
@@ -906,6 +914,7 @@ export default function AdminPlansPage() {
         emptyMessage="پلنی با این فیلتر یافت نشد."
       >
         {() => (
+          <>
           <DataTable
             head={
               <tr>
@@ -918,7 +927,7 @@ export default function AdminPlansPage() {
               </tr>
             }
           >
-            {visible.map((p) => {
+            {pager.pageItems.map((p) => {
               const meta = STATUS_META[p.status];
               const transitions = ALLOWED_STATUS_TRANSITIONS[p.status];
               return (
@@ -983,6 +992,17 @@ export default function AdminPlansPage() {
               );
             })}
           </DataTable>
+
+          <Pagination
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={pager.total}
+            totalPages={pager.totalPages}
+            itemLabel="پلن"
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </StateView>
 

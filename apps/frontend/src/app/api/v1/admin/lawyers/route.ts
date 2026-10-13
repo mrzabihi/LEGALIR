@@ -29,11 +29,12 @@ import { findUserById, normalizeStoredMobile } from "@/lib/db";
 import {
   lawyerDecisionBucket,
   taxonomySearchText,
-  normalizeFa,
   type LawyerDecisionBucket,
   type LawyerVerificationStatus,
   type AdminLawyerStatus,
 } from "@legalir/types";
+import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
+import { matchesRow } from "@/lib/search/normalize";
 
 const BUCKETS: LawyerDecisionBucket[] = ["REVIEW", "APPROVED", "REJECTED", "SUSPENDED"];
 const LIFECYCLES: AdminLawyerStatus[] = ["ACTIVE", "INACTIVE", "SUSPENDED", "DELETED"];
@@ -51,6 +52,8 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
+  const page = resolvePage(url.searchParams.get("page"));
+  const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
   const bucketParam = url.searchParams.get("bucket");
   const statusParam = url.searchParams.get("status");
   const lifecycleParam = url.searchParams.get("lifecycle");
@@ -71,28 +74,28 @@ export async function GET(request: NextRequest) {
   if (featuredParam === "false") rows = rows.filter((l) => l.featured !== true);
 
   if (search) {
-    const q = normalizeFa(search.toLowerCase());
     rows = rows.filter((l) => {
       const user = findUserById(l.userId);
       const specialtyLabels = [
         ...(l.expertise ?? []).map((e) => taxonomySearchText(e.taxonomyNodeId)),
         ...l.specializations.map((s) => taxonomySearchText(s.category)),
       ].join(" ");
-      const haystack = normalizeFa(
-        [
+      // Phone lane matches the FULL stored mobile (so `09122842174` works), the
+      // text lane keeps the existing Persian-normalized name/licence/city match.
+      return matchesRow(search, {
+        phones: [user?.mobile],
+        texts: [
           l.fullName,
-          l.licenseNumber ?? "",
-          l.licenseAuthority ?? "",
+          l.licenseNumber,
+          l.licenseAuthority,
           specialtyLabels,
           ...l.locations.map((loc) => `${loc.province} ${loc.city}`),
-          maskMobile(user?.mobile),
-        ].join(" ")
-      );
-      return haystack.includes(q);
+        ],
+      });
     });
   }
 
-  const items = rows
+  const mapped = rows
     .map((l) => {
       const decision = latestStatusDecision(l.id);
       const user = findUserById(l.userId);
@@ -112,5 +115,8 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-  return NextResponse.json({ data: { items, total: items.length } });
+  const p = paginate(mapped, page, pageSize);
+  return NextResponse.json({
+    data: { items: p.items, total: p.total, page: p.page, pageSize: p.pageSize, totalPages: p.totalPages },
+  });
 }

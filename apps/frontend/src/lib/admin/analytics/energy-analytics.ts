@@ -43,6 +43,7 @@ import {
   changePct,
   type ResolveRangeInput,
 } from "./range";
+import { matchesRow } from "@/lib/search/normalize";
 import { analyticsDataQuality } from "./quality";
 
 /** Stored daily subscription counter row. */
@@ -307,12 +308,11 @@ export function listEnergyUsers(input: ResolveRangeInput, query: EnergyUsersQuer
   let items: EnergyUserRow[] = allEnergyUsers(input);
 
   if (query.search) {
-    const q = query.search.trim().toLowerCase();
-    items = items.filter(
-      (r) =>
-        (r.displayName ?? "").toLowerCase().includes(q) ||
-        r.mobileMasked.includes(q) ||
-        r.userId.toLowerCase().includes(q)
+    // Same normalisation lane as the rest of the admin surface: the mobile is
+    // stored masked, so only substring text matching applies, but Persian/Arabic
+    // digits and letter forms in the query still fold before matching.
+    items = items.filter((r) =>
+      matchesRow(query.search!, { texts: [r.displayName ?? "", r.mobileMasked, r.userId] })
     );
   }
 

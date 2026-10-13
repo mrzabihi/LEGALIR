@@ -27,6 +27,7 @@ import type {
   RagSource,
   RagIngestReport,
 } from "@legalir/types";
+import { matchesRow } from "@/lib/search/normalize";
 
 const OVERLAY_TABLE = "rag_review_overlay";
 
@@ -104,10 +105,9 @@ export function listRagSources(query: RagQuery = {}): RagSource[] {
   let items = corpus.sources.map(toRagSource);
   if (query.reviewState) items = items.filter((s) => s.reviewState === query.reviewState);
   if (query.search) {
-    const q = query.search.toLowerCase();
-    items = items.filter(
-      (s) => s.title.toLowerCase().includes(q) || s.authority.toLowerCase().includes(q)
-    );
+    // Shared normalisation lane: Persian/Arabic digits and letter forms fold
+    // before matching, so a Persian-numeral citation or a ك/ي title matches.
+    items = items.filter((s) => matchesRow(query.search!, { texts: [s.title, s.authority] }));
   }
   return items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }

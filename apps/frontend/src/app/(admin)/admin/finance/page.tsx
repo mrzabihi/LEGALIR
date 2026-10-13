@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useCommissionRules,
   useUpdateCommissionRule,
@@ -46,7 +46,9 @@ import {
   IdChip,
   Section,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 
 const STATUS_TONES: Record<
   SettlementStatus,
@@ -101,6 +103,9 @@ function CommissionRules({ canManage }: { canManage: boolean }) {
     null
   );
 
+  const rulesList = rules.data?.rules ?? [];
+  const rulesPager = useClientPagination(rulesList);
+
   async function onSave(rule: CommissionRule) {
     setFeedback(null);
     try {
@@ -132,87 +137,99 @@ function CommissionRules({ canManage }: { canManage: boolean }) {
         isEmpty={(d) => d.rules.length === 0}
         emptyMessage="قاعده کمیسیونی ثبت نشده است."
       >
-        {(data) => (
-          <DataTable
-            head={
-              <tr>
-                <Th>خدمت</Th>
-                <Th>درصد پلتفرم</Th>
-                <Th>کارمزد ثابت</Th>
-                <Th>کسرهای مجاز</Th>
-                <Th>نسخه</Th>
-                {canManage && <Th>ویرایش</Th>}
-              </tr>
-            }
-          >
-            {data.rules.map((r) => (
-              <tr key={r.id}>
-                <Td dir="ltr">{r.serviceType}</Td>
-                <Td>
-                  {editing === r.id ? (
-                    <TextInput
-                      type="number"
-                      value={draft.platformPercent}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, platformPercent: Number(e.target.value) }))
-                      }
-                      className="w-24"
-                    />
-                  ) : (
-                    <span className="tabular-nums">{toPersianNumber(r.platformPercent)}٪</span>
-                  )}
-                </Td>
-                <Td>
-                  {editing === r.id ? (
-                    <TextInput
-                      type="number"
-                      value={draft.platformFixedToman}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, platformFixedToman: Number(e.target.value) }))
-                      }
-                      className="w-32"
-                    />
-                  ) : (
-                    <span className="tabular-nums">{toPersianCurrency(r.platformFixedToman)}</span>
-                  )}
-                </Td>
-                <Td>
-                  <span className="text-caption text-muted">
-                    {r.allowedDeductions.map((d) => DEDUCTION_FA[d] ?? d).join("، ") || "—"}
-                  </span>
-                </Td>
-                <Td className="tabular-nums">{toPersianNumber(r.version)}</Td>
-                {canManage && (
+        {() => (
+          <>
+            <DataTable
+              head={
+                <tr>
+                  <Th>خدمت</Th>
+                  <Th>درصد پلتفرم</Th>
+                  <Th>کارمزد ثابت</Th>
+                  <Th>کسرهای مجاز</Th>
+                  <Th>نسخه</Th>
+                  {canManage && <Th>ویرایش</Th>}
+                </tr>
+              }
+            >
+              {rulesPager.pageItems.map((r) => (
+                <tr key={r.id}>
+                  <Td dir="ltr">{r.serviceType}</Td>
                   <Td>
                     {editing === r.id ? (
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="primary" onClick={() => onSave(r)}>
-                          ذخیره نسخه جدید
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
-                          انصراف
-                        </Button>
-                      </div>
+                      <TextInput
+                        type="number"
+                        value={draft.platformPercent}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, platformPercent: Number(e.target.value) }))
+                        }
+                        className="w-24"
+                      />
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setDraft({
-                            platformPercent: r.platformPercent,
-                            platformFixedToman: r.platformFixedToman,
-                          });
-                          setEditing(r.id);
-                        }}
-                      >
-                        ویرایش
-                      </Button>
+                      <span className="tabular-nums">{toPersianNumber(r.platformPercent)}٪</span>
                     )}
                   </Td>
-                )}
-              </tr>
-            ))}
-          </DataTable>
+                  <Td>
+                    {editing === r.id ? (
+                      <TextInput
+                        type="number"
+                        value={draft.platformFixedToman}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, platformFixedToman: Number(e.target.value) }))
+                        }
+                        className="w-32"
+                      />
+                    ) : (
+                      <span className="tabular-nums">{toPersianCurrency(r.platformFixedToman)}</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className="text-caption text-muted">
+                      {r.allowedDeductions.map((d) => DEDUCTION_FA[d] ?? d).join("، ") || "—"}
+                    </span>
+                  </Td>
+                  <Td className="tabular-nums">{toPersianNumber(r.version)}</Td>
+                  {canManage && (
+                    <Td>
+                      {editing === r.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <Button size="sm" variant="primary" onClick={() => onSave(r)}>
+                            ذخیره نسخه جدید
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+                            انصراف
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setDraft({
+                              platformPercent: r.platformPercent,
+                              platformFixedToman: r.platformFixedToman,
+                            });
+                            setEditing(r.id);
+                          }}
+                        >
+                          ویرایش
+                        </Button>
+                      )}
+                    </Td>
+                  )}
+                </tr>
+              ))}
+            </DataTable>
+
+            <Pagination
+              page={rulesPager.page}
+              pageSize={rulesPager.pageSize}
+              total={rulesPager.total}
+              totalPages={rulesPager.totalPages}
+              itemLabel="قاعده"
+              onPageChange={rulesPager.setPage}
+              onPageSizeChange={rulesPager.setPageSize}
+            />
+          </>
         )}
       </StateView>
     </Section>
@@ -523,6 +540,11 @@ export default function AdminFinancePage() {
 
   const settlements = useAdminSettlements(status ? { status: status as SettlementStatus } : {});
 
+  const settlementItems = settlements.data?.items ?? [];
+  const settlementsPager = useClientPagination(settlementItems);
+  const { reset: resetSettlementsPage } = settlementsPager;
+  useEffect(() => resetSettlementsPage(), [resetSettlementsPage, status]);
+
   const filters = [
     { value: "", label: "همه" },
     ...Object.entries(SETTLEMENT_STATUS_FA).map(([value, label]) => ({ value, label })),
@@ -557,46 +579,58 @@ export default function AdminFinancePage() {
           emptyMessage="تسویه‌ای با این فیلتر یافت نشد."
           emptyHint="برای شروع، یک تسویه جدید برای وکیل و دوره مشخص ایجاد کنید."
         >
-          {(data) => (
-            <DataTable
-              head={
-                <tr>
-                  <Th>وکیل</Th>
-                  <Th>بازه</Th>
-                  <Th>ناخالص</Th>
-                  <Th>خالص</Th>
-                  <Th>وضعیت</Th>
-                  <Th>جزئیات</Th>
-                </tr>
-              }
-            >
-              {data.items.map((s) => (
-                <tr key={s.id}>
-                  <Td>{s.lawyerName}</Td>
-                  <Td className="whitespace-nowrap text-caption text-muted">
-                    {toPersianDate(s.periodStart)} — {toPersianDate(s.periodEnd)}
-                  </Td>
-                  <Td className="whitespace-nowrap tabular-nums">
-                    {toPersianCurrency(s.grossAmount)}
-                  </Td>
-                  <Td className="whitespace-nowrap tabular-nums font-medium">
-                    {toPersianCurrency(s.netAmount)}
-                  </Td>
-                  <Td>
-                    <Badge tone={STATUS_TONES[s.status]}>{SETTLEMENT_STATUS_FA[s.status]}</Badge>
-                  </Td>
-                  <Td>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setSelected(selected === s.id ? null : s.id)}
-                    >
-                      {selected === s.id ? "بستن" : "مشاهده"}
-                    </Button>
-                  </Td>
-                </tr>
-              ))}
-            </DataTable>
+          {() => (
+            <>
+              <DataTable
+                head={
+                  <tr>
+                    <Th>وکیل</Th>
+                    <Th>بازه</Th>
+                    <Th>ناخالص</Th>
+                    <Th>خالص</Th>
+                    <Th>وضعیت</Th>
+                    <Th>جزئیات</Th>
+                  </tr>
+                }
+              >
+                {settlementsPager.pageItems.map((s) => (
+                  <tr key={s.id}>
+                    <Td>{s.lawyerName}</Td>
+                    <Td className="whitespace-nowrap text-caption text-muted">
+                      {toPersianDate(s.periodStart)} — {toPersianDate(s.periodEnd)}
+                    </Td>
+                    <Td className="whitespace-nowrap tabular-nums">
+                      {toPersianCurrency(s.grossAmount)}
+                    </Td>
+                    <Td className="whitespace-nowrap tabular-nums font-medium">
+                      {toPersianCurrency(s.netAmount)}
+                    </Td>
+                    <Td>
+                      <Badge tone={STATUS_TONES[s.status]}>{SETTLEMENT_STATUS_FA[s.status]}</Badge>
+                    </Td>
+                    <Td>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setSelected(selected === s.id ? null : s.id)}
+                      >
+                        {selected === s.id ? "بستن" : "مشاهده"}
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </DataTable>
+
+              <Pagination
+                page={settlementsPager.page}
+                pageSize={settlementsPager.pageSize}
+                total={settlementsPager.total}
+                totalPages={settlementsPager.totalPages}
+                itemLabel="تسویه"
+                onPageChange={settlementsPager.setPage}
+                onPageSizeChange={settlementsPager.setPageSize}
+              />
+            </>
           )}
         </StateView>
       </Section>

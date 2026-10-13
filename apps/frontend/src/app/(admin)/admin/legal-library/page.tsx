@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Drawer, ConfirmDialog, snackbar } from "@legalir/ui";
 import {
   useAdminLegalLibrary,
@@ -24,7 +24,9 @@ import {
   useDeleteLegalSource,
   useAdminMe,
 } from "@/hooks/useAdmin";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { toPersianDate, toRelativeTime } from "@/lib/persian-utils";
+import { matchesText } from "@/lib/search/normalize";
 import {
   LEGAL_SOURCE_STATUS_FA,
   type AdminLegalSource,
@@ -49,6 +51,7 @@ import {
   FilterPills,
   StateView,
   InfoBanner,
+  Pagination,
 } from "@/components/admin/ui";
 import {
   IconEdit,
@@ -457,18 +460,20 @@ function LibrarySection({ canManage }: { canManage: boolean }) {
   const topics = query.data?.topics ?? [];
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return items.filter((s) => {
       if (statusFilter && s.status !== statusFilter) return false;
-      if (!q) return true;
-      return (
-        s.title.toLowerCase().includes(q) ||
-        s.slug.toLowerCase().includes(q) ||
-        s.summary.toLowerCase().includes(q) ||
-        (s.authority?.toLowerCase().includes(q) ?? false)
-      );
+      if (!search.trim()) return true;
+      // Shared normalisation lane: Persian/Arabic digits and letter forms fold
+      // before matching, so a title typed with ۱۳۹۹ or a ي/ك spelling matches.
+      return matchesText(search, s.title, s.slug, s.summary, s.authority);
     });
   }, [items, search, statusFilter]);
+
+  const pager = useClientPagination(filtered);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, search, statusFilter]);
 
   const counts = useMemo(
     () => ({
@@ -564,6 +569,7 @@ function LibrarySection({ canManage }: { canManage: boolean }) {
         }
       >
         {() => (
+          <>
           <DataTable
             head={
               <tr>
@@ -576,7 +582,7 @@ function LibrarySection({ canManage }: { canManage: boolean }) {
               </tr>
             }
           >
-            {filtered.map((s) => (
+            {pager.pageItems.map((s) => (
               <tr key={s.id}>
                 <Td className="max-w-[320px]">
                   <div className="flex items-center gap-2">
@@ -656,6 +662,17 @@ function LibrarySection({ canManage }: { canManage: boolean }) {
               </tr>
             ))}
           </DataTable>
+
+          <Pagination
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={pager.total}
+            totalPages={pager.totalPages}
+            itemLabel="منبع"
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </StateView>
 

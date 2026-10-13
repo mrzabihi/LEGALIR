@@ -147,6 +147,8 @@ export interface AdminUsersResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** Total pages matching the query (server-clamped page lives within 1..totalPages). */
+  totalPages: number;
 }
 
 export interface AdminUserDetail extends AdminUserRow {
@@ -177,6 +179,8 @@ export interface AdminRequestsResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** Total pages matching the query. */
+  totalPages: number;
 }
 
 export interface AdminReportsResponse {
@@ -262,6 +266,14 @@ export interface AdminSupportResponse {
  * kept so existing page imports keep working.
  */
 export type AdminLawyerRow = AdminLawyerListItem;
+
+export interface AdminLawyersResponse {
+  items: AdminLawyerRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
 
 /** A single recorded admin decision (previous → new, actor, reason, time). */
 export interface AdminLawyerDecision {
@@ -1469,14 +1481,18 @@ export function fetchAdminLawyers(params: {
   lifecycle?: AdminLawyerStatus;
   featured?: boolean;
   search?: string;
-} = {}): Promise<{ items: AdminLawyerRow[]; total: number }> {
-  return apiClient.get<{ items: AdminLawyerRow[]; total: number }>(
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<AdminLawyersResponse> {
+  return apiClient.get<AdminLawyersResponse>(
     `${A}/lawyers${qs({
       bucket: params.bucket,
       status: params.status,
       lifecycle: params.lifecycle,
       featured: params.featured === undefined ? undefined : String(params.featured),
       search: params.search,
+      page: params.page,
+      pageSize: params.pageSize,
     })}`
   );
 }

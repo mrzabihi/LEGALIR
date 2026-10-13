@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useAiProviders,
   useSaveAiProvider,
@@ -47,7 +47,9 @@ import {
   Section,
   StatCard,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 
 const KIND_OPTIONS: AiProviderKind[] = ["openai", "anthropic", "azure", "openrouter", "custom"];
 
@@ -213,6 +215,9 @@ function ProvidersTable({ canManage }: { canManage: boolean }) {
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
 
+  const providerRows = providers.data?.items ?? [];
+  const providersPager = useClientPagination(providerRows);
+
   async function onTest(id: string) {
     setFeedback(null);
     setTestingId(id);
@@ -262,7 +267,7 @@ function ProvidersTable({ canManage }: { canManage: boolean }) {
                 </tr>
               }
             >
-              {data.items.map((p: AiProviderConfig) => (
+              {providersPager.pageItems.map((p: AiProviderConfig) => (
                 <tr key={p.id}>
                   <Td>
                     <div className="flex flex-col">
@@ -330,6 +335,16 @@ function ProvidersTable({ canManage }: { canManage: boolean }) {
                 </tr>
               ))}
             </DataTable>
+
+            <Pagination
+              page={providersPager.page}
+              pageSize={providersPager.pageSize}
+              total={providersPager.total}
+              totalPages={providersPager.totalPages}
+              itemLabel="ارائه‌دهنده"
+              onPageChange={providersPager.setPage}
+              onPageSizeChange={providersPager.setPageSize}
+            />
           </>
         )}
       </StateView>
@@ -342,6 +357,12 @@ function Prompts() {
   const canManage = can("admin:ai:manage");
   const [key, setKey] = useState("");
   const prompts = useAiPrompts(key || undefined);
+  const promptRows = prompts.data?.items ?? [];
+  const promptsPager = useClientPagination(promptRows);
+  const { reset: resetPromptsPage } = promptsPager;
+  useEffect(() => {
+    resetPromptsPage();
+  }, [resetPromptsPage, key]);
   const create = useCreateAiPrompt();
   const activate = useActivateAiPrompt();
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
@@ -395,7 +416,7 @@ function Prompts() {
         isEmpty={(d) => d.items.length === 0}
         emptyMessage="پرامپتی ثبت نشده است."
       >
-        {(data) => (
+        {() => (
           <DataTable
             head={
               <tr>
@@ -408,7 +429,7 @@ function Prompts() {
               </tr>
             }
           >
-            {data.items.map((p: AiPromptVersion) => (
+            {promptsPager.pageItems.map((p: AiPromptVersion) => (
               <tr key={p.id}>
                 <Td dir="ltr" className="font-mono text-caption">
                   {p.key}
@@ -442,6 +463,16 @@ function Prompts() {
           </DataTable>
         )}
       </StateView>
+
+      <Pagination
+        page={promptsPager.page}
+        pageSize={promptsPager.pageSize}
+        total={promptsPager.total}
+        totalPages={promptsPager.totalPages}
+        itemLabel="نسخه"
+        onPageChange={promptsPager.setPage}
+        onPageSizeChange={promptsPager.setPageSize}
+      />
 
       {canManage && (
         <Card className="mt-4 p-4">

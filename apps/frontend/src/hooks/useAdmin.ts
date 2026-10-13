@@ -1207,6 +1207,8 @@ export function useAdminLawyers(
     lifecycle?: AdminLawyerStatus;
     featured?: boolean;
     search?: string;
+    page?: number;
+    pageSize?: number;
   } = {}
 ) {
   return useQuery({
@@ -1218,6 +1220,8 @@ export function useAdminLawyers(
       params.lifecycle ?? null,
       params.featured ?? null,
       params.search ?? null,
+      params.page ?? null,
+      params.pageSize ?? null,
     ],
     queryFn: () => fetchAdminLawyers(params),
     staleTime: 30_000,

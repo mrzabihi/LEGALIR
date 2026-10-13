@@ -28,6 +28,7 @@ import {
   type AdminExportKind,
 } from "@legalir/types";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { PAGE_SIZE_OPTIONS } from "@/lib/admin/pagination";
 import { adminSectionTitle } from "@/lib/admin-nav";
 import { downloadAdminExport } from "@/lib/api/admin";
 import { useAdminMe } from "@/hooks/useAdmin";
@@ -40,6 +41,7 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconChevronLeft,
+  IconChevronRight,
   IconSearch,
   IconClose,
   IconDownload,
@@ -818,6 +820,122 @@ export function MobileNumber({
     >
       {children}
     </bdi>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pagination
+// ---------------------------------------------------------------------------
+// The ONE pager every admin list uses. It speaks the shared 10/20/100 page-size
+// contract (see lib/admin/pagination) so the control and the API can never
+// disagree. RTL-first and responsive: the summary collapses on mobile while the
+// size selector and first/prev/next/last buttons stay reachable. The page and
+// page-size values are CONTROLLED — the page owns them (URL or state) so a page
+// can persist them; this component only renders and emits.
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  totalPages,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
+  itemLabel = "نتیجه",
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  /** Optional — derived from total/pageSize when omitted. */
+  totalPages?: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  pageSizeOptions?: readonly number[];
+  /** Noun after the count, e.g. «کاربر» / «سفارش» / «نتیجه». */
+  itemLabel?: string;
+}) {
+  const pages = Math.max(1, totalPages ?? Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  const atFirst = page <= 1;
+  const atLast = page >= pages;
+
+  return (
+    <div className="mt-3 flex flex-col gap-3 text-caption text-muted sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <span className="tabular-nums">
+        نمایش {toPersianNumber(from)} تا {toPersianNumber(to)} از {toPersianNumber(total)} {itemLabel}
+      </span>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {onPageSizeChange && (
+          <label className="flex items-center gap-2">
+            <span className="hidden sm:inline">در هر صفحه</span>
+            <span
+              role="group"
+              aria-label="تعداد رکورد در هر صفحه"
+              className="flex items-center overflow-hidden rounded-medium border border-divider"
+            >
+              {pageSizeOptions.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  aria-pressed={pageSize === size}
+                  onClick={() => onPageSizeChange(size)}
+                  className={`px-3 py-1.5 tabular-nums transition-colors ${
+                    pageSize === size
+                      ? "bg-primary text-on-primary"
+                      : "bg-surface text-on-surface-variant hover:bg-surface-hover"
+                  }`}
+                >
+                  {toPersianNumber(size)}
+                </button>
+              ))}
+            </span>
+          </label>
+        )}
+
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atFirst}
+            onClick={() => onPageChange(1)}
+            title="صفحهٔ اول"
+            ariaLabel="صفحهٔ اول"
+            startIcon={<IconChevronRight size={14} aria-hidden="true" />}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atFirst}
+            onClick={() => onPageChange(page - 1)}
+            title="صفحهٔ قبل"
+          >
+            قبلی
+          </Button>
+          <span className="px-1 tabular-nums whitespace-nowrap">
+            {toPersianNumber(page)} / {toPersianNumber(pages)}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atLast}
+            onClick={() => onPageChange(page + 1)}
+            title="صفحهٔ بعد"
+          >
+            بعدی
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atLast}
+            onClick={() => onPageChange(pages)}
+            title="صفحهٔ آخر"
+            ariaLabel="صفحهٔ آخر"
+            startIcon={<IconChevronLeft size={14} aria-hidden="true" />}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 

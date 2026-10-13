@@ -22,7 +22,7 @@ import {
   useDecideAdminRefund,
   useAdminMe,
 } from "@/hooks/useAdmin";
-import { toPersianNumber, toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
+import { toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
 import { adminOrderReceiptPdfUrl } from "@/lib/api/admin";
 import type { AdminOrder, OrderStatus } from "@/lib/api/admin";
 import {
@@ -57,8 +57,10 @@ import {
   InfoBanner,
   FilterPills,
   IdChip,
+  Pagination,
   ExportButton,
 } from "@/components/admin/ui";
+import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 
 const ORDER_STATUS_TONES: Record<
   OrderStatus,
@@ -454,12 +456,13 @@ function AdminOrdersView() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<string | null>(null);
   const [receiptId, setReceiptId] = useState<string | null>(null);
 
   // Debounce the search box so the list re-queries on a pause, not per key.
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
-  useEffect(() => setPage(1), [debouncedSearch]);
+  useEffect(() => setPage(1), [debouncedSearch, status, pageSize]);
 
   // When opened from a BI KPI (`?fromIso&toIso`) this scopes to that window;
   // otherwise it is the ordinary full ledger — one code path either way.
@@ -467,11 +470,8 @@ function AdminOrdersView() {
     search: debouncedSearch,
     status: status || undefined,
     page,
-    pageSize: 20,
+    pageSize,
   });
-  const totalPages = query.data
-    ? Math.max(1, Math.ceil(query.data.total / query.data.pageSize))
-    : 1;
 
   const filters = [
     { value: "", label: "همه" },
@@ -496,17 +496,10 @@ function AdminOrdersView() {
         <TextInput
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="جستجو در شناسه، کاربر یا پلن"
+          placeholder="جستجو در شناسه، کاربر یا شماره"
           className="min-w-[240px] flex-1"
         />
-        <FilterPills
-          options={filters}
-          value={status}
-          onChange={(v) => {
-            setStatus(v);
-            setPage(1);
-          }}
-        />
+        <FilterPills options={filters} value={status} onChange={setStatus} />
       </div>
 
       <StateView
@@ -583,30 +576,14 @@ function AdminOrdersView() {
               ))}
             </DataTable>
 
-            <div className="mt-3 flex items-center justify-between text-caption text-muted">
-              <span>{toPersianNumber(data.total)} سفارش</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  قبلی
-                </Button>
-                <span className="tabular-nums">
-                  {toPersianNumber(data.page)} / {toPersianNumber(totalPages)}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  بعدی
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              page={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              itemLabel="سفارش"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </StateView>

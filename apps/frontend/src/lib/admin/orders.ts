@@ -19,6 +19,7 @@ import type {
   CheckoutOrderStatus,
 } from "@legalir/types";
 import { ORDER_STATUS_FA } from "@legalir/types";
+import { matchesRow } from "@/lib/search/normalize";
 
 const ADJ_TABLE = "financial_adjustments";
 const CHECKOUT_ORDERS = "orders";
@@ -192,12 +193,11 @@ export function listOrders(query: OrderQuery = {}): AdminOrderListResponse {
   if (query.status) orders = orders.filter((o) => o.status === query.status);
   if (query.planCode) orders = orders.filter((o) => o.planCode === query.planCode);
   if (query.search) {
-    const q = query.search.toLowerCase();
-    orders = orders.filter(
-      (o) =>
-        o.id.toLowerCase().includes(q) ||
-        (o.userDisplayName ?? "").toLowerCase().includes(q) ||
-        o.userMobileMasked.includes(q)
+    orders = orders.filter((o) =>
+      matchesRow(query.search!, {
+        phones: [o.userMobileMasked],
+        texts: [o.id, o.userDisplayName],
+      })
     );
   }
   orders = orders.sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt));

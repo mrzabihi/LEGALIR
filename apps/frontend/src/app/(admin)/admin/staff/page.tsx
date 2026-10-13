@@ -47,7 +47,9 @@ import {
   Section,
   IdChip,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { StaffNav } from "@/components/admin/staff-nav";
 import { StaffDetailDrawer } from "@/components/admin/staff-detail-drawer";
 import { AddStaffDialog } from "@/components/admin/add-staff-dialog";
@@ -116,6 +118,10 @@ export default function AdminStaffPage() {
     search: debouncedSearch || undefined,
     role: roleFilter || undefined,
   });
+  const staffItems = staff.data?.items ?? [];
+  const staffPager = useClientPagination(staffItems);
+  const { reset: resetStaffPage } = staffPager;
+  useEffect(() => resetStaffPage(), [resetStaffPage, debouncedSearch, roleFilter]);
   const roles = useAdminRoles();
   const changeRole = useChangeStaffRole();
 
@@ -219,80 +225,92 @@ export default function AdminStaffPage() {
           isEmpty={(d) => d.items.length === 0}
           emptyMessage="کارمندی با این فیلتر یافت نشد."
         >
-          {(data) => (
-            <DataTable
-              head={
-                <tr>
-                  <Th>نام</Th>
-                  <Th>شماره موبایل</Th>
-                  <Th>نقش</Th>
-                  <Th>سازمان</Th>
-                  <Th>آخرین فعالیت</Th>
-                  <Th>عملیات</Th>
-                </tr>
-              }
-            >
-              {data.items.map((m: StaffMember) => (
-                <tr key={m.id}>
-                  <Td>
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        aria-hidden="true"
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-body-2 font-bold text-primary"
-                      >
-                        {(m.displayName ?? "ک").trim().charAt(0)}
-                      </span>
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate font-medium text-on-surface">
-                          {m.displayName ?? "بدون نام"}
+          {() => (
+            <>
+              <DataTable
+                head={
+                  <tr>
+                    <Th>نام</Th>
+                    <Th>شماره موبایل</Th>
+                    <Th>نقش</Th>
+                    <Th>سازمان</Th>
+                    <Th>آخرین فعالیت</Th>
+                    <Th>عملیات</Th>
+                  </tr>
+                }
+              >
+                {staffPager.pageItems.map((m: StaffMember) => (
+                  <tr key={m.id}>
+                    <Td>
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          aria-hidden="true"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-body-2 font-bold text-primary"
+                        >
+                          {(m.displayName ?? "ک").trim().charAt(0)}
                         </span>
-                        <IdChip id={m.id} />
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate font-medium text-on-surface">
+                            {m.displayName ?? "بدون نام"}
+                          </span>
+                          <IdChip id={m.id} />
+                        </div>
                       </div>
-                    </div>
-                  </Td>
-                  <Td className="tabular-nums" dir="ltr">
-                    {m.mobileMasked}
-                  </Td>
-                  <Td>
-                    {editing === m.id ? (
-                      <select
-                        autoFocus
-                        className="rounded-medium border border-divider bg-surface px-2 py-1 text-caption"
-                        defaultValue={m.role}
-                        onChange={(e) => onRoleChange(m.id, e.target.value as PlatformRole)}
-                        onBlur={() => setEditing(null)}
-                      >
-                        {roleOptions.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Badge tone="brand">{m.roleFa}</Badge>
-                    )}
-                  </Td>
-                  <Td className="text-caption text-muted" dir="ltr">
-                    {m.orgId ?? "—"}
-                  </Td>
-                  <Td className="whitespace-nowrap text-caption text-muted">
-                    {m.lastActiveAt ? toRelativeTime(m.lastActiveAt) : "بدون سابقه"}
-                  </Td>
-                  <Td>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Button size="sm" variant="secondary" onClick={() => setDetailId(m.id)}>
-                        مشاهده
-                      </Button>
-                      {canManage && (
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(m.id)}>
-                          تغییر نقش
-                        </Button>
+                    </Td>
+                    <Td className="tabular-nums" dir="ltr">
+                      {m.mobileMasked}
+                    </Td>
+                    <Td>
+                      {editing === m.id ? (
+                        <select
+                          autoFocus
+                          className="rounded-medium border border-divider bg-surface px-2 py-1 text-caption"
+                          defaultValue={m.role}
+                          onChange={(e) => onRoleChange(m.id, e.target.value as PlatformRole)}
+                          onBlur={() => setEditing(null)}
+                        >
+                          {roleOptions.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Badge tone="brand">{m.roleFa}</Badge>
                       )}
-                    </div>
-                  </Td>
-                </tr>
-              ))}
-            </DataTable>
+                    </Td>
+                    <Td className="text-caption text-muted" dir="ltr">
+                      {m.orgId ?? "—"}
+                    </Td>
+                    <Td className="whitespace-nowrap text-caption text-muted">
+                      {m.lastActiveAt ? toRelativeTime(m.lastActiveAt) : "بدون سابقه"}
+                    </Td>
+                    <Td>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Button size="sm" variant="secondary" onClick={() => setDetailId(m.id)}>
+                          مشاهده
+                        </Button>
+                        {canManage && (
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(m.id)}>
+                            تغییر نقش
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                ))}
+              </DataTable>
+
+              <Pagination
+                page={staffPager.page}
+                pageSize={staffPager.pageSize}
+                total={staffPager.total}
+                totalPages={staffPager.totalPages}
+                itemLabel="کارمند"
+                onPageChange={staffPager.setPage}
+                onPageSizeChange={staffPager.setPageSize}
+              />
+            </>
           )}
         </StateView>
       </Section>

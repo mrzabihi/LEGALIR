@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAdminFlags, useUpdateAdminFlag, useAdminMe } from "@/hooks/useAdmin";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAdminPlans } from "@/lib/api/admin";
@@ -30,10 +30,14 @@ import {
   Button,
   Select,
   TextInput,
+  SearchInput,
   InfoBanner,
   Section,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { matchesText } from "@/lib/search/normalize";
 
 const FLAG_STATUS_FA = FEATURE_FLAG_STATUS_FA;
 
@@ -59,6 +63,19 @@ export default function AdminServicesPage() {
 
   const flags = useAdminFlags();
   const updateFlag = useUpdateAdminFlag();
+  const flagItems = flags.data?.items ?? [];
+  const [search, setSearch] = useState("");
+  const filteredFlags = useMemo(
+    () =>
+      flagItems.filter((f) => {
+        if (!search.trim()) return true;
+        return matchesText(search, f.nameFa, f.key, f.descriptionFa, ...(f.allowedPlans ?? []));
+      }),
+    [flagItems, search]
+  );
+  const pager = useClientPagination(filteredFlags);
+  const { reset: resetPager } = pager;
+  useEffect(() => resetPager(), [resetPager, search]);
   const plans = useQuery({
     queryKey: ["admin", "plans"],
     queryFn: fetchAdminPlans,
@@ -123,91 +140,112 @@ export default function AdminServicesPage() {
         </div>
       )}
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="جست‌وجوی ویژگی (نام، کلید، پلن مجاز)…"
+          className="min-w-[240px]"
+        />
+      </div>
+
       <StateView
         query={flags}
         loadingRows={5}
-        isEmpty={(d) => d.items.length === 0}
-        emptyMessage="پرچم ویژگی‌ای ثبت نشده است."
+        isEmpty={() => filteredFlags.length === 0}
+        emptyMessage="پرچم ویژگی‌ای با این فیلتر یافت نشد."
       >
-        {(data) => (
-          <DataTable
-            head={
-              <tr>
-                <Th>ویژگی</Th>
-                <Th>وضعیت</Th>
-                <Th>درصد انتشار</Th>
-                <Th>محدوده</Th>
-                {canManage && <Th>تغییر وضعیت</Th>}
-              </tr>
-            }
-          >
-            {data.items.map((f) => (
-              <tr key={f.key}>
-                <Td>
-                  <div className="flex flex-col">
-                    <span className="font-medium text-on-surface">{f.nameFa}</span>
-                    <span className="text-caption text-muted" dir="ltr">
-                      {f.key}
-                    </span>
-                    <span className="text-caption text-muted">{f.descriptionFa}</span>
-                  </div>
-                </Td>
-                <Td>
-                  <Badge tone={FLAG_STATUS_TONES[f.status]}>{FLAG_STATUS_FA[f.status]}</Badge>
-                </Td>
-                <Td>
-                  {f.status === "limited" ? (
-                    <div className="flex items-center gap-1.5">
-                      <TextInput
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={drafts[f.key] ?? f.rolloutPercent}
-                        disabled={!canManage}
-                        onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [f.key]: Number(e.target.value) }))
-                        }
-                        className="w-20"
-                      />
-                      <span className="text-caption text-muted">٪</span>
-                      {canManage && (
-                        <Button size="sm" variant="ghost" onClick={() => onRollout(f.key)}>
-                          ذخیره
-                        </Button>
+        {() => (
+          <>
+            <DataTable
+              head={
+                <tr>
+                  <Th>ویژگی</Th>
+                  <Th>وضعیت</Th>
+                  <Th>درصد انتشار</Th>
+                  <Th>محدوده</Th>
+                  {canManage && <Th>تغییر وضعیت</Th>}
+                </tr>
+              }
+            >
+              {pager.pageItems.map((f) => (
+                <tr key={f.key}>
+                  <Td>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-on-surface">{f.nameFa}</span>
+                      <span className="text-caption text-muted" dir="ltr">
+                        {f.key}
+                      </span>
+                      <span className="text-caption text-muted">{f.descriptionFa}</span>
+                    </div>
+                  </Td>
+                  <Td>
+                    <Badge tone={FLAG_STATUS_TONES[f.status]}>{FLAG_STATUS_FA[f.status]}</Badge>
+                  </Td>
+                  <Td>
+                    {f.status === "limited" ? (
+                      <div className="flex items-center gap-1.5">
+                        <TextInput
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={drafts[f.key] ?? f.rolloutPercent}
+                          disabled={!canManage}
+                          onChange={(e) =>
+                            setDrafts((d) => ({ ...d, [f.key]: Number(e.target.value) }))
+                          }
+                          className="w-20"
+                        />
+                        <span className="text-caption text-muted">٪</span>
+                        {canManage && (
+                          <Button size="sm" variant="ghost" onClick={() => onRollout(f.key)}>
+                            ذخیره
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-caption text-muted">{f.environment}</span>
+                      {f.allowedPlans.length > 0 && (
+                        <span className="text-caption text-muted" dir="ltr">
+                          {f.allowedPlans.join(", ")}
+                        </span>
                       )}
                     </div>
-                  ) : (
-                    <span className="text-muted">—</span>
-                  )}
-                </Td>
-                <Td>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-caption text-muted">{f.environment}</span>
-                    {f.allowedPlans.length > 0 && (
-                      <span className="text-caption text-muted" dir="ltr">
-                        {f.allowedPlans.join(", ")}
-                      </span>
-                    )}
-                  </div>
-                </Td>
-                {canManage && (
-                  <Td>
-                    <Select
-                      value={f.status}
-                      onChange={(e) => onStatus(f.key, e.target.value as FeatureFlagStatus)}
-                      className="min-w-[120px]"
-                    >
-                      {(["on", "off", "experiment", "limited"] as FeatureFlagStatus[]).map((s) => (
-                        <option key={s} value={s}>
-                          {FLAG_STATUS_FA[s]}
-                        </option>
-                      ))}
-                    </Select>
                   </Td>
-                )}
-              </tr>
-            ))}
-          </DataTable>
+                  {canManage && (
+                    <Td>
+                      <Select
+                        value={f.status}
+                        onChange={(e) => onStatus(f.key, e.target.value as FeatureFlagStatus)}
+                        className="min-w-[120px]"
+                      >
+                        {(["on", "off", "experiment", "limited"] as FeatureFlagStatus[]).map((s) => (
+                          <option key={s} value={s}>
+                            {FLAG_STATUS_FA[s]}
+                          </option>
+                        ))}
+                      </Select>
+                    </Td>
+                  )}
+                </tr>
+              ))}
+            </DataTable>
+
+            <Pagination
+              page={pager.page}
+              pageSize={pager.pageSize}
+              total={pager.total}
+              totalPages={pager.totalPages}
+              itemLabel="سرویس"
+              onPageChange={pager.setPage}
+              onPageSizeChange={pager.setPageSize}
+            />
+          </>
         )}
       </StateView>
 
