@@ -17,9 +17,11 @@
 //     keep a card settled at the inline edge. The rail scrolls INSIDE
 //     itself; the page never scrolls sideways (it is the only
 //     `overflow-x` on the surface).
-//   • Tablet+ — the same rail, plus a pair of round ‹ › buttons floating
-//     on the edges so a pointer user can page through without a trackpad
-//     gesture. Each button fades out once the rail reaches its end.
+//   • Tablet+ — the same rail, but cards ELASTICALLY fill the row width
+//     (two per row from `tablet`, three from `laptop`) — so they are
+//     larger than a fixed pixel width and scale with the viewport. A pair
+//     of round ‹ › buttons floats on the edges so a pointer user can page
+//     through without a trackpad gesture; each fades out at its end.
 // ============================================================
 
 "use client";
@@ -155,7 +157,7 @@ export function ContractTemplateGrid({
           {visible.map((def, i) => (
             <div
               key={def.id}
-              className="animate-slide-up-fade h-full w-[76vw] shrink-0 snap-start tablet:w-[300px]"
+              className="animate-slide-up-fade h-full w-[76vw] shrink-0 snap-start tablet:w-[calc((100%-1rem)/2)] laptop:w-[calc((100%-2rem)/3)]"
               style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
             >
               <ContractTemplateCard
