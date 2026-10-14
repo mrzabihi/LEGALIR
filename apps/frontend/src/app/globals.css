@@ -1833,6 +1833,211 @@ html {
   animation: slide-up-fade 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) both;
 }
 
+/* ============================================================
+   Smart-path discovery card — background artwork + breathing aura
+   ============================================================
+   The shared discovery entry («نمی‌دونی از کجا شروع کنی؟») on the
+   dashboard and /services carries the brand `legalir-network` artwork
+   (ivory field, green waves, gold/ink network nodes) as a real
+   background. The image is decorative and sits fully behind the copy:
+
+     • `.discovery-card`       the outer shell — owns the aura and the
+                               hover hook. Deliberately NOT `overflow-hidden`
+                               so the aura can glow past the card edge.
+     • `.discovery-card-media` clips the artwork to the card's radius.
+     • `.discovery-card-scrim` a theme-aware surface wash, near-opaque where
+                               the Persian copy sits (the RTL start, i.e. the
+                               right) and dissolving across the artwork half —
+                               so title, chip and buttons keep their contrast
+                               in BOTH themes.
+     • `.discovery-card-halo`  ONE soft breathing aura; opacity + a hair of
+                               scale only, so it stays on the compositor. It
+                               is the single "look here" cue and it plays on
+                               touch too (no hover required).
+
+   Everything decorative is `aria-hidden` and inert; the card's fine-pointer
+   lift, links, focus rings and reduced-motion behaviour are untouched. */
+.discovery-card {
+  position: relative;
+}
+.discovery-card-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.discovery-card-media img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  /* Keep the node band and the green rise in frame when the wide desktop
+     crop trims the 16:9 artwork vertically. */
+  object-position: 50% 44%;
+  opacity: 0.94;
+}
+.discovery-card-scrim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to left,
+      var(--color-surface) 0%,
+      color-mix(in srgb, var(--color-surface) 88%, transparent) 30%,
+      color-mix(in srgb, var(--color-surface) 42%, transparent) 56%,
+      transparent 82%
+    ),
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--color-surface) 55%, transparent) 0%,
+      transparent 46%
+    );
+}
+/* Focus sweep — a faint, slow light drifting across the artwork; low
+   contrast so it reads as life, never as a flicker. */
+.discovery-card-sheen {
+  position: absolute;
+  inset: -12% -30%;
+  background: linear-gradient(
+    108deg,
+    transparent 42%,
+    color-mix(in srgb, #ffffff 15%, transparent) 50%,
+    transparent 58%
+  );
+  /* No `mix-blend-mode`: a blend forces the browser to re-composite against
+     the backdrop every animated frame (main-thread paint). A plain
+     translucent white band, moved by `transform` alone, stays on the
+     compositor. */
+  opacity: 0.55;
+  animation: discovery-sheen-drift 11s ease-in-out infinite;
+}
+.discovery-card-halo {
+  position: absolute;
+  inset: -8px;
+  z-index: 0;
+  border-radius: calc(var(--shape-xlarge) + 8px);
+  background: radial-gradient(
+    62% 62% at 50% 50%,
+    color-mix(in srgb, var(--brand-green) 60%, transparent) 0%,
+    transparent 72%
+  );
+  filter: blur(18px);
+  opacity: 0.34;
+  pointer-events: none;
+  animation: discovery-halo-breathe 7s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .discovery-card:hover .discovery-card-halo {
+    opacity: 0.55;
+  }
+}
+@keyframes discovery-halo-breathe {
+  0%, 100% { opacity: 0.26; transform: scale(0.985); }
+  50%      { opacity: 0.5;  transform: scale(1.015); }
+}
+@keyframes discovery-sheen-drift {
+  0%, 100% { transform: translateX(-6%); opacity: 0.4; }
+  50%      { transform: translateX(6%);  opacity: 0.6; }
+}
+
+/* Dark theme — the artwork becomes a whisper behind the dark surface and
+   the aura switches to the brighter brand green so it still reads. */
+[data-theme="dark"] .discovery-card-media img {
+  opacity: 0.4;
+}
+[data-theme="dark"] .discovery-card-scrim {
+  background:
+    linear-gradient(
+      to left,
+      var(--color-surface) 0%,
+      color-mix(in srgb, var(--color-surface) 90%, transparent) 32%,
+      color-mix(in srgb, var(--color-surface) 62%, transparent) 60%,
+      color-mix(in srgb, var(--color-surface) 28%, transparent) 84%
+    ),
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--color-surface) 70%, transparent) 0%,
+      transparent 50%
+    );
+}
+[data-theme="dark"] .discovery-card-halo {
+  background: radial-gradient(
+    62% 62% at 50% 50%,
+    color-mix(in srgb, var(--brand-fg) 46%, transparent) 0%,
+    transparent 74%
+  );
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery-card-halo,
+  .discovery-card-sheen {
+    animation: none !important;
+  }
+  .discovery-card-halo { opacity: 0.4; transform: none; }
+  .discovery-card-sheen { opacity: 0.45; transform: none; }
+}
+
+/* --- «گفت‌وگوی حقوقی» featured card — recommended-start pulse -------------
+   The chat card leads the «ساخت جدید» sheet as the suggested start. It gets
+   ONE gold breathing ring (outward only — nothing paints over the copy) and a
+   matching glow on the gold «شروع پیشنهادی» badge, tuned to the same 6s beat
+   as the discovery aura so the two surfaces read as one family. The gold ties
+   the ring to the badge that already marks the card as the recommendation. */
+.create-feature-card {
+  position: relative;
+}
+.create-feature-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-gold) 42%, transparent),
+    0 0 16px -2px color-mix(in srgb, var(--brand-gold) 55%, transparent);
+  animation: create-feature-halo 6s ease-in-out infinite;
+}
+/* The badge keeps a STATIC gold glow (its "recommended" emphasis); the pulse
+   is a sibling ::after whose `opacity` alone animates. A static box-shadow
+   plus an animated opacity stays on the compositor — animating the shadow
+   itself would repaint a blur every frame. */
+.create-feature-badge {
+  position: relative;
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--brand-gold) 45%, transparent);
+}
+.create-feature-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--brand-gold) 70%, transparent);
+  opacity: 0;
+  animation: create-feature-badge-glow 6s ease-in-out infinite;
+}
+@keyframes create-feature-halo {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+@keyframes create-feature-badge-glow {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 0.9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .create-feature-card::after,
+  .create-feature-badge::after {
+    animation: none !important;
+  }
+  .create-feature-card::after { opacity: 0.7; }
+  .create-feature-badge::after { opacity: 0.75; }
+}
+
 /* --- Create-sheet card entrances ---
    The «ساخت جدید» cards rise in a short top-to-bottom stagger. The delay is
    baked into its own class (rather than set inline) so the reduced-motion

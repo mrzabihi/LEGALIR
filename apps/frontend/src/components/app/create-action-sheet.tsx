@@ -331,7 +331,7 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
               <Link
                 href={featuredAction.href}
                 onClick={onClose}
-                className="group relative flex items-center gap-3.5 rounded-large border border-primary/30 bg-primary-container px-4 py-3.5 shadow-elevation-1 transition-[transform,border-color,box-shadow] duration-short4 ease-standard can-hover:hover:-translate-y-0.5 can-hover:hover:border-primary/50 can-hover:hover:shadow-elevation-3 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 animate-create-card animate-create-card-m1"
+                className="create-feature-card group relative flex items-center gap-3.5 rounded-large border border-primary/30 bg-primary-container px-4 py-3.5 shadow-elevation-1 transition-[transform,border-color,box-shadow] duration-short4 ease-standard can-hover:hover:-translate-y-0.5 can-hover:hover:border-primary/50 can-hover:hover:shadow-elevation-3 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 animate-create-card animate-create-card-m1"
               >
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-medium bg-primary text-primary-on shadow-elevation-1">
                   {(() => {
@@ -344,7 +344,7 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
                     <span className="text-body-1 font-semibold text-on-surface">
                       {featuredAction.titleFa}
                     </span>
-                    <span className="rounded-full bg-[var(--brand-gold)] px-2 py-0.5 text-[10px] font-medium leading-none text-[var(--brand-teal)]">
+                    <span className="create-feature-badge rounded-full bg-[var(--brand-gold)] px-2 py-0.5 text-[10px] font-medium leading-none text-[var(--brand-teal)]">
                       شروع پیشنهادی
                     </span>
                   </span>
