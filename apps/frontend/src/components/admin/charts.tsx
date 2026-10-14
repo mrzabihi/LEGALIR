@@ -988,7 +988,7 @@ export function DonutChart({
         </div>
       </div>
 
-      <ul className="w-full max-w-xs space-y-2">
+      <ul className="w-full min-w-0 max-w-xs space-y-2">
         {arcs.map((a) => {
           const pct = Math.round((a.s.value / total) * 100);
           return (

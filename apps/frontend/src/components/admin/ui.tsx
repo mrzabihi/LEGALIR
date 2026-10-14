@@ -117,7 +117,11 @@ export function CardHeader({
           {subtitle && <p className="mt-0.5 text-caption text-muted">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
@@ -160,7 +164,11 @@ export function Section({
           </h2>
           {subtitle && <p className="mt-0.5 text-body-2 text-muted">{subtitle}</p>}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+            {actions}
+          </div>
+        )}
       </div>
       {children}
     </section>
@@ -390,12 +398,12 @@ export function StatCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-end justify-between gap-2">
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-x-2 gap-y-1.5">
         <p
           className={
             isUnavailable
-              ? "text-h4 font-semibold leading-snug text-muted"
-              : `text-h2 font-bold leading-none tabular-nums ${t.value}`
+              ? "min-w-0 break-words text-h4 font-semibold leading-snug text-muted"
+              : `min-w-0 break-words text-h2 font-bold leading-none tabular-nums ${t.value}`
           }
           title={valueTitle}
         >
