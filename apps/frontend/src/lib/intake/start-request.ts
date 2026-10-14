@@ -459,3 +459,188 @@ export function categoryLabel(slug: string | null): string | null {
   if (!slug) return null;
   return LEGAL_CATEGORY_FA[slug] ?? slug;
 }
+
+// ---------------------------------------------------------------------------
+// /Suggest_law — the page that continues the /new flow
+// ---------------------------------------------------------------------------
+// The smart intake on /new no longer jumps straight to a destination. It
+// hands the user's request to `/Suggest_law`, which shows how LEGALIR
+// understood the request and which REAL, currently-enabled routes it can
+// offer. The hand-off reuses the SAME safe, architecture-consistent
+// mechanism the consultation wizard already uses for its draft: a guarded
+// localStorage write, never a query string (so a description or a document
+// name can never end up in the URL / history / server logs).
+
+/** The route the «دریافت مسیر پیشنهادی» action now lands on. */
+export const SUGGEST_LAW_PATH = "/Suggest_law";
+
+/** localStorage key for the /Suggest_law hand-off. */
+export const SUGGEST_LAW_DRAFT_KEY = "legalir-suggest-law-draft";
+
+export interface SuggestLawDraftDocument {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+}
+
+/**
+ * The request carried from /new to /Suggest_law. Kept intentionally small:
+ * only what the panel actually collected and the platform supports.
+ */
+export interface SuggestLawDraft {
+  /** The user's own description. */
+  text: string;
+  /** The user's explicit help-type pick, or null when they let us infer. */
+  intent: IntakeIntent | null;
+  /** The user's explicit legal-area pick from the clarifying step, or null. */
+  category: string | null;
+  /** An already-uploaded document (id into the real document store), or null. */
+  document: SuggestLawDraftDocument | null;
+  /** ISO timestamp of the write, so a stale draft can be told apart. */
+  savedAt: string;
+}
+
+export function buildSuggestLawDraft(input: {
+  text: string;
+  intent?: IntakeIntent | null;
+  category?: string | null;
+  document?: SuggestLawDraftDocument | null;
+}): SuggestLawDraft {
+  return {
+    text: input.text.trim(),
+    intent: input.intent ?? null,
+    category: input.category ?? null,
+    document: input.document ?? null,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Persist the hand-off. Wrapped in try/catch so a disabled/full storage never
+ * blocks navigation — the caller falls back to a clear message rather than
+ * silently dropping the request.
+ * @returns true when the write succeeded.
+ */
+export function writeSuggestLawDraft(draft: SuggestLawDraft): boolean {
+  try {
+    localStorage.setItem(SUGGEST_LAW_DRAFT_KEY, JSON.stringify(draft));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read the hand-off, validating the shape so a corrupted/foreign value is
+ * treated as absent rather than crashing the page. Returns null when there is
+ * no usable draft.
+ */
+export function readSuggestLawDraft(): SuggestLawDraft | null {
+  try {
+    const raw = localStorage.getItem(SUGGEST_LAW_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SuggestLawDraft>;
+    if (typeof parsed.text !== "string") return null;
+    const doc = parsed.document;
+    const document: SuggestLawDraftDocument | null =
+      doc && typeof doc.id === "string" && typeof doc.name === "string"
+        ? {
+            id: doc.id,
+            name: doc.name,
+            mime: typeof doc.mime === "string" ? doc.mime : "",
+            sizeBytes: typeof doc.sizeBytes === "number" ? doc.sizeBytes : 0,
+          }
+        : null;
+    return {
+      text: parsed.text,
+      intent: (parsed.intent as IntakeIntent | null) ?? null,
+      category: typeof parsed.category === "string" ? parsed.category : null,
+      document,
+      savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Drop the hand-off once it has been consumed (or the user leaves the flow). */
+export function clearSuggestLawDraft(): void {
+  try {
+    localStorage.removeItem(SUGGEST_LAW_DRAFT_KEY);
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Capability gating — never offer a service the platform has switched off
+// ---------------------------------------------------------------------------
+// Each intent is backed by a REAL feature flag (mirrored from
+// `lib/admin/flags`). /Suggest_law only offers an intent whose flag evaluates
+// enabled for the caller, so an operator disabling a service in
+// /admin/services removes it here too — no fabricated, dead destination.
+
+/** The feature-flag key that gates each intent's destination. */
+export const INTENT_FLAG_KEY: Record<IntakeIntent, string> = {
+  legal_question: "ai_consultation",
+  document_review: "document_analysis",
+  draft_document: "contract_generation",
+  calculation: "calculators",
+  next_step: "case_management",
+  lawyer: "lawyer_referral",
+};
+
+/**
+ * The intents to OFFER, in order (the explicit pick first, then the hints),
+ * filtered to those whose backing capability is enabled. A disabled service is
+ * dropped entirely rather than shown as a dead button. Fails closed: when the
+ * capability set is unknown, the list is empty and the caller shows a
+ * loading/unavailable state.
+ */
+export function offeredIntents(
+  explicit: IntakeIntent | null,
+  suggestions: readonly IntakeIntent[],
+  isEnabled: (flagKey: string) => boolean
+): IntakeIntent[] {
+  const ordered: IntakeIntent[] = [];
+  const push = (i: IntakeIntent) => {
+    if (!ordered.includes(i)) ordered.push(i);
+  };
+  if (explicit) push(explicit);
+  for (const s of suggestions) push(s);
+  push("legal_question"); // a legal question is always a candidate
+  return ordered.filter((i) => isEnabled(INTENT_FLAG_KEY[i]));
+}
+
+/**
+ * The real href for a confirmed destination, carrying the request through the
+ * SAME params the destination already understands. `carry` supplies the text
+ * and attachment the chat composer and the wizard already accept.
+ */
+export function destinationHref(
+  dest: IntakeDestination,
+  carry?: { text?: string; document?: SuggestLawDraftDocument | null }
+): string {
+  switch (dest.kind) {
+    case "chat":
+      return `/chat/new?${chatQuery({
+        serviceType: dest.serviceType,
+        text: carry?.text ?? "",
+        document: carry?.document ?? null,
+      })}`;
+    case "document":
+      return `/documents/${dest.documentId}`;
+    case "document_upload":
+      return "/documents/upload";
+    case "contracts_new":
+      return "/contracts/new";
+    case "calculator":
+      return calculatorHref(dest.slug);
+    case "consultations_list":
+      return "/consultations";
+    case "consultation_wizard":
+      // The wizard reads its own localStorage draft (written by the caller).
+      return "/consultations/new";
+  }
+}

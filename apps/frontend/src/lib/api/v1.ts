@@ -16,6 +16,7 @@ import type {
   Plan,
   V1Subscription,
   V1EntitlementsResponse,
+  V1CapabilitiesResponse,
   V1UsageResponse,
   CheckoutIntent,
   PlanCode,
@@ -621,6 +622,15 @@ export function fetchProfileUsage(): Promise<V1ProfileUsage> {
 
 export function fetchDailyQuota(): Promise<V1DailyQuota> {
   return apiClient.get<V1DailyQuota>("/api/v1/quota");
+}
+
+/**
+ * The consumer-facing capability map — the admin-managed feature flags
+ * evaluated for the caller's plan. Used to avoid offering a service the
+ * platform has switched off; the server still authorizes every action.
+ */
+export function fetchCapabilities(): Promise<V1CapabilitiesResponse> {
+  return apiClient.get<V1CapabilitiesResponse>("/api/v1/capabilities");
 }
 
 // ============================================================

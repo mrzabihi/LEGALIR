@@ -11,6 +11,11 @@ import type {
   OrgMemberRole,
 } from "./platform";
 
+// The feature-flag status union is re-exported below via `export * from
+// "./admin"`; importing it here brings the name into local scope for the
+// capability interfaces that reference it.
+import type { FeatureFlagStatus } from "./admin";
+
 // --- API Envelope ---
 
 export interface ApiSuccess<T> {
@@ -2092,6 +2097,28 @@ export interface V1EntitlementsResponse {
   entitlements: Entitlement[];
   planCode: PlanCode;
   planNameFa: string;
+}
+
+// --- Capabilities (consumer view of feature flags) ---
+// A read-only projection of the admin-managed feature flags, evaluated for
+// the CALLER'S plan/org. The UI uses it to avoid offering a service the
+// platform has switched off; the server still authorizes every action.
+
+export interface V1Capability {
+  /** The feature-flag key (e.g. "ai_consultation"). */
+  key: string;
+  /** Persian display name mirrored from the flag. */
+  nameFa: string;
+  /** True when the flag evaluates to enabled for this caller. */
+  enabled: boolean;
+  /** The raw flag status, so the UI can explain a disabled capability. */
+  status: FeatureFlagStatus;
+}
+
+export interface V1CapabilitiesResponse {
+  capabilities: V1Capability[];
+  /** The environment the flags were evaluated against. */
+  environment: string;
 }
 
 export interface V1UsageResponse {

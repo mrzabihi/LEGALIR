@@ -11,7 +11,7 @@
 //   • the honesty rule: quota is flagged only for the chat path.
 // ============================================================
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   normalizeFa,
   suggestCalculatorSlug,
@@ -27,6 +27,17 @@ import {
   categoryLabel,
   INTAKE_INTENT_OPTIONS,
   INTAKE_CATEGORY_CHOICES,
+  // /Suggest_law hand-off + capability gating
+  SUGGEST_LAW_PATH,
+  SUGGEST_LAW_DRAFT_KEY,
+  INTENT_FLAG_KEY,
+  buildSuggestLawDraft,
+  writeSuggestLawDraft,
+  readSuggestLawDraft,
+  clearSuggestLawDraft,
+  offeredIntents,
+  destinationHref,
+  type SuggestLawDraft,
 } from "../start-request";
 
 describe("normalizeFa", () => {
@@ -216,5 +227,117 @@ describe("helpers", () => {
   it("asks for clarification only on a very short description", () => {
     expect(needsClarification("کمک")).toBe(true);
     expect(needsClarification("می‌خواهم درباره قرارداد اجاره راهنمایی بگیرم")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// /Suggest_law — the hand-off from /new and its capability gating
+// ---------------------------------------------------------------------------
+
+describe("SUGGEST_LAW hand-off", () => {
+  afterEach(() => clearSuggestLawDraft());
+
+  it("targets the /Suggest_law route, not /chat", () => {
+    expect(SUGGEST_LAW_PATH).toBe("/Suggest_law");
+    expect(SUGGEST_LAW_PATH).not.toContain("/chat");
+  });
+
+  it("round-trips a request through the guarded draft store", () => {
+    const draft = buildSuggestLawDraft({
+      text: "  ودیعه‌ام را برنمی‌گرداند  ",
+      intent: "document_review",
+      category: "real_estate",
+      document: { id: "doc_9", name: "قرارداد.pdf", mime: "application/pdf", sizeBytes: 1234 },
+    });
+    expect(writeSuggestLawDraft(draft)).toBe(true);
+
+    const read = readSuggestLawDraft();
+    expect(read).not.toBeNull();
+    expect(read).toMatchObject({
+      text: "ودیعه‌ام را برنمی‌گرداند", // trimmed
+      intent: "document_review",
+      category: "real_estate",
+      document: { id: "doc_9", name: "قرارداد.pdf", mime: "application/pdf", sizeBytes: 1234 },
+    });
+    expect(typeof read?.savedAt).toBe("string");
+  });
+
+  it("returns null when there is no hand-off", () => {
+    clearSuggestLawDraft();
+    expect(readSuggestLawDraft()).toBeNull();
+  });
+
+  it("treats a corrupted / foreign value as absent rather than crashing", () => {
+    localStorage.setItem(SUGGEST_LAW_DRAFT_KEY, "{ not json");
+    expect(readSuggestLawDraft()).toBeNull();
+    localStorage.setItem(SUGGEST_LAW_DRAFT_KEY, JSON.stringify({ nope: 1 }));
+    expect(readSuggestLawDraft()).toBeNull();
+  });
+});
+
+describe("offeredIntents (capability gating)", () => {
+  it("drops an intent whose capability is switched off", () => {
+    // Everything off except the legal question: only that survives.
+    const out = offeredIntents(
+      "calculation",
+      ["calculation", "lawyer"],
+      (key) => key === INTENT_FLAG_KEY.legal_question
+    );
+    expect(out).toEqual(["legal_question"]);
+  });
+
+  it("keeps the explicit pick first, then the hints, deduped", () => {
+    const out = offeredIntents("lawyer", ["lawyer", "legal_question"], () => true);
+    expect(out[0]).toBe("lawyer");
+    expect(out.filter((i) => i === "lawyer")).toHaveLength(1);
+    expect(out).toContain("legal_question");
+  });
+
+  it("fails closed when nothing is enabled", () => {
+    expect(offeredIntents(null, ["legal_question"], () => false)).toEqual([]);
+  });
+
+  it("maps every intent to a real feature-flag key", () => {
+    for (const opt of INTAKE_INTENT_OPTIONS) {
+      expect(INTENT_FLAG_KEY[opt.id]).toBeTruthy();
+    }
+  });
+});
+
+describe("destinationHref (carry-forward to the real destination)", () => {
+  it("seeds the chat composer with ?ask and the attachment params", () => {
+    const href = destinationHref(
+      { kind: "chat", serviceType: "legal_consultation" },
+      { text: "شرح من", document: { id: "d1", name: "س.pdf", mime: "application/pdf", sizeBytes: 10 } }
+    );
+    expect(href.startsWith("/chat/new?")).toBe(true);
+    const p = new URLSearchParams(href.split("?")[1]);
+    expect(p.get("ask")).toBe("شرح من");
+    expect(p.get("attachedDocumentId")).toBe("d1");
+  });
+
+  it("points at real routes without inventing a payload", () => {
+    expect(destinationHref({ kind: "contracts_new" })).toBe("/contracts/new");
+    expect(destinationHref({ kind: "calculator", slug: "diyeh" })).toBe("/calculators/diyeh");
+    expect(destinationHref({ kind: "calculator", slug: null })).toBe("/calculators");
+    expect(destinationHref({ kind: "consultation_wizard", category: "family" })).toBe(
+      "/consultations/new"
+    );
+    expect(destinationHref({ kind: "document", documentId: "doc_1" })).toBe("/documents/doc_1");
+  });
+
+  it("never puts the description into a non-chat destination URL", () => {
+    const href = destinationHref({ kind: "contracts_new" }, { text: "محرمانه" });
+    expect(href).toBe("/contracts/new");
+    expect(href).not.toContain("محرمانه");
+  });
+});
+
+describe("SuggestLawDraft typed shape", () => {
+  it("accepts a minimal draft", () => {
+    const d: SuggestLawDraft = buildSuggestLawDraft({ text: "سؤال" });
+    expect(d.intent).toBeNull();
+    expect(d.category).toBeNull();
+    expect(d.document).toBeNull();
   });
 });

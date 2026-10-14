@@ -37,6 +37,10 @@ export const routes: RouteDef[] = [
   { path: "/profile", titleFa: "تنظیمات", access: "user", icon: "Person" },
   { path: "/support", titleFa: "پشتیبانی", access: "user", icon: "Phone" },
   { path: "/new", titleFa: "ساخت جدید", access: "user", icon: "Add" },
+  // The smart-intake continuation: /new hands the request here, and this page
+  // shows the understood request + the real, currently-enabled routes. Hidden
+  // from navigation — it is reached only through the intake flow.
+  { path: "/Suggest_law", titleFa: "پیشنهاد مسیر حقوقی", access: "user", hidden: true },
   { path: "/history", titleFa: "تاریخچه", access: "user", icon: "History" },
   { path: "/documents", titleFa: "اسناد", access: "entitled", icon: "Description" },
   { path: "/contracts", titleFa: "قراردادها", access: "entitled", icon: "Article" },
