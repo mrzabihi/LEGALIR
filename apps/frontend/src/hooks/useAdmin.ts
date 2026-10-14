@@ -25,6 +25,7 @@ import { useMe } from "@/hooks/useDashboard";
 import {
   fetchAdminOverview,
   fetchAdminReports,
+  fetchAdminLiveReport,
   type AdminWindow,
   fetchAdminUsers,
   fetchAdminUser,
@@ -33,6 +34,7 @@ import {
   adminEnergyAction,
   fetchAdminRequests,
   fetchAdminRequest,
+  fetchAdminDiscovery,
   assignRequestLawyer,
   changeRequestState,
   fetchAdminContracts,
@@ -143,6 +145,7 @@ import {
   fetchUsageSummary,
   type AdminUsersQuery,
   type AdminRequestsQuery,
+  type AdminDiscoveryQuery,
   type AdminOrdersQuery,
   fetchAdminAnnouncements,
   createAdminAnnouncement,
@@ -224,6 +227,83 @@ export function useAdminReports(
     staleTime: 60_000,
     retry: 1,
     enabled: options.enabled ?? true,
+  });
+}
+
+/** Default live cadence. A dashboard snapshot does not need sub-minute freshness. */
+export const LIVE_REFRESH_MS = 30_000;
+/** Back-off ceiling: after repeated failures a poll waits at most this long. */
+export const LIVE_MAX_BACKOFF_MS = 120_000;
+
+/**
+ * The polling policy for the live report, as a PURE function so it can be
+ * proven without timers. Returns the next interval in ms, or `false` to stop.
+ *  • paused  → stop (keep the last data);
+ *  • hidden  → stop (a background tab makes no requests);
+ *  • failed  → back off monotonically (base × (failures + 1)), capped;
+ *  • ok      → the base cadence.
+ */
+export function liveRefetchInterval(opts: {
+  paused: boolean;
+  hidden: boolean;
+  failures: number;
+  base?: number;
+}): number | false {
+  if (opts.paused) return false;
+  if (opts.hidden) return false;
+  const base = opts.base ?? LIVE_REFRESH_MS;
+  const failures = Math.max(0, opts.failures);
+  if (failures > 0) return Math.min(base * (failures + 1), LIVE_MAX_BACKOFF_MS);
+  return base;
+}
+
+/**
+ * The «گزارش زنده» live snapshot with ADAPTIVE polling. It is the project's
+ * first admin live mechanism, so it is deliberately conservative:
+ *
+ *   • ONE shared query key (`["admin","live",…]`) — a single request per tick,
+ *     never one per consumer, and never any parallel fan-out;
+ *   • the interval is `false` while PAUSED and while the TAB IS HIDDEN, so a
+ *     background or paused tab makes no requests at all;
+ *   • after a failed fetch the cadence grows (2×, 3×, 4× … capped) so a flapping
+ *     endpoint is never hammered; a success resets it to the base interval;
+ *   • `enabled` is tied only to the caller's permission gate — pausing does NOT
+ *     disable the query, so the last successful data stays in cache and can be
+ *     shown labelled as stale instead of disappearing.
+ *
+ * The server is the source of truth for every number; this hook only decides HOW
+ * OFTEN to ask, never WHAT to show.
+ */
+export function useAdminLiveReport(
+  rangeDays = 30,
+  options: {
+    enabled?: boolean;
+    window?: AdminWindow | null;
+    /** Operator pressed «توقف» — stop polling but keep the last data. */
+    paused?: boolean;
+    intervalMs?: number;
+  } = {}
+) {
+  const paused = options.paused ?? false;
+  const base = options.intervalMs ?? LIVE_REFRESH_MS;
+
+  return useQuery({
+    queryKey: ["admin", "live", rangeDays, options.window?.from ?? null, options.window?.to ?? null],
+    queryFn: () => fetchAdminLiveReport(rangeDays, options.window),
+    enabled: options.enabled ?? true,
+    staleTime: base / 2,
+    retry: 1,
+    refetchIntervalInBackground: false,
+    refetchInterval: (query) =>
+      liveRefetchInterval({
+        paused,
+        hidden: typeof document !== "undefined" && document.hidden,
+        // `errorUpdateCount` is the number of failed fetches for this observer;
+        // the policy backs off monotonically and caps so a broken endpoint is
+        // retried gently rather than hammered.
+        failures: query.state.errorUpdateCount ?? 0,
+        base,
+      }),
   });
 }
 
@@ -387,6 +467,16 @@ export function useAdminRequest(id: string | null) {
     enabled: Boolean(id),
     staleTime: 30_000,
     retry: 1,
+  });
+}
+
+export function useAdminDiscovery(query: AdminDiscoveryQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "discovery", query],
+    queryFn: () => fetchAdminDiscovery(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
   });
 }
 

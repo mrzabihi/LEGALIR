@@ -21,16 +21,25 @@ import {
   useUpdateAdminPlan,
   useCreateAdminPlan,
   useSetAdminPlanStatus,
+  useAdminReports,
   useAdminMe,
 } from "@/hooks/useAdmin";
 import { useClientPagination } from "@/hooks/useClientPagination";
-import { toPersianNumber } from "@/lib/persian-utils";
+import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { matchesText } from "@/lib/search/normalize";
 import { computeDiscountPercent, applyDiscount, type DiscountKind } from "@/lib/usage/plan-pricing";
 import type { AdminPlanUpdate, AdminPlanCreateInput } from "@/lib/api/admin";
 import type { Plan, PlanStatus, SubscriptionPlan } from "@legalir/types";
 import { Dialog, snackbar } from "@legalir/ui";
 import { PlanCard } from "@/components/subscription/plan-card";
+import {
+  StackedBarChart,
+  ChartFrame,
+  ChartSkeleton,
+  ChartEmpty,
+  type StackRow,
+  type StackSegment,
+} from "@/components/admin/charts";
 import {
   PageHeader,
   DataTable,
@@ -826,6 +835,56 @@ function PlanFormDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Plan mix over time (قالب «پلن‌ها»: نمودار میله‌ای انباشته روی بازهٔ زمانی)
+// ---------------------------------------------------------------------------
+// Selling orders stacked by plan, one column per day. `planMix` is derived from
+// the SAME real sales ledger the reports page reads — one source, one window —
+// so a segment can never disagree with the by-plan table elsewhere. A plan with
+// no sale on a day draws a zero-height segment, never a gap that would shift the
+// stack; an empty window shows an explicit empty state, not a bare axis.
+function PlanMixChart() {
+  const reports = useAdminReports(30);
+  const mix = reports.data?.planMix;
+
+  const segments: StackSegment[] = (mix?.plans ?? []).map((p) => ({
+    key: p.planCode,
+    label: p.planNameFa,
+  }));
+  const rows: StackRow[] = (mix?.days ?? []).map((d) => ({
+    label: toPersianDate(d.date, { month: "short", day: "numeric" }),
+    values: d.values,
+  }));
+  const total = rows.reduce((s, r) => s + r.values.reduce((a, v) => a + v, 0), 0);
+
+  return (
+    <Section
+      title="ترکیب پلن‌ها در بازه"
+      subtitle="تعداد سفارش‌های فروش به تفکیک پلن در هر روز سی روز گذشته."
+    >
+      <ChartFrame
+        title="سفارش‌ها به تفکیک پلن در طول زمان"
+        subtitle="هر میله یک روز است؛ بخش‌های رنگی سهم هر پلن از سفارش‌های آن روز را نشان می‌دهند."
+      >
+        {reports.isLoading ? (
+          <ChartSkeleton height={200} />
+        ) : reports.isError || !mix ? (
+          <ChartEmpty message="دادهٔ ترکیب پلن‌ها در دسترس نیست." />
+        ) : total === 0 ? (
+          <ChartEmpty message="در این بازه سفارشی ثبت نشده است." />
+        ) : (
+          <StackedBarChart
+            rows={rows}
+            segments={segments}
+            ariaLabel="ترکیب پلن‌ها در طول زمان"
+            formatTotal={(n) => `${toPersianNumber(n)} سفارش`}
+          />
+        )}
+      </ChartFrame>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -901,6 +960,8 @@ export default function AdminPlansPage() {
           تاریخچه را ببینید.
         </InfoBanner>
       )}
+
+      <PlanMixChart />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="جست‌وجوی نام، شناسه یا برچسب…" />

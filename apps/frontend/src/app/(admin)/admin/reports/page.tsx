@@ -25,6 +25,14 @@ import {
   InfoBanner,
   Section,
 } from "@/components/admin/ui";
+import {
+  LineChart,
+  BarChart,
+  ChartFrame,
+  ChartEmpty,
+  catColor,
+  type ChartPoint,
+} from "@/components/admin/charts";
 import { IconDownload } from "@/lib/icons";
 
 const RANGES = [
@@ -59,6 +67,35 @@ export default function AdminReportsPage() {
 
   const totalAmount = useMemo(
     () => (query.data ? query.data.byPlan.reduce((s, p) => s + p.amount, 0) : 0),
+    [query.data]
+  );
+
+  // Same rows, charted: the daily series as a trend line and the by-plan split
+  // as a ranked bar. Both read the SAME real payload the tables below show, so
+  // a bar and its table row can never disagree.
+  const dailyPoints = useMemo<ChartPoint[]>(
+    () =>
+      (query.data?.daily ?? []).map((d) => ({
+        label: toPersianDate(d.date, { month: "short", day: "numeric" }),
+        tooltipLabel: toPersianDate(d.date),
+        value: d.amount,
+      })),
+    [query.data]
+  );
+
+  const maxDailyAmount = useMemo(
+    () => dailyPoints.reduce((m, p) => Math.max(m, p.value), 0),
+    [dailyPoints]
+  );
+
+  const planBars = useMemo(
+    () =>
+      (query.data?.byPlan ?? []).map((p, i) => ({
+        label: p.planNameFa,
+        value: p.amount,
+        display: toPersianCurrency(p.amount),
+        color: catColor(i),
+      })),
     [query.data]
   );
 
@@ -123,27 +160,54 @@ export default function AdminReportsPage() {
               {data.byPlan.length === 0 ? (
                 <Card className="p-4 text-body-2 text-muted">فروشی ثبت نشده است.</Card>
               ) : (
-                <DataTable
-                  head={
-                    <tr>
-                      <Th>پلن</Th>
-                      <Th>شناسه</Th>
-                      <Th>تعداد</Th>
-                      <Th>مبلغ (تومان)</Th>
-                    </tr>
-                  }
-                >
-                  {data.byPlan.map((p) => (
-                    <tr key={p.planCode}>
-                      <Td className="font-medium text-on-surface">{p.planNameFa}</Td>
-                      <Td dir="ltr" className="text-caption text-muted">
-                        {p.planCode}
-                      </Td>
-                      <Td className="tabular-nums">{toPersianNumber(p.count)}</Td>
-                      <Td className="tabular-nums">{toPersianCurrency(p.amount)}</Td>
-                    </tr>
-                  ))}
-                </DataTable>
+                <>
+                  <div className="mb-4 grid grid-cols-1 gap-4 desktop:grid-cols-2">
+                    <ChartFrame
+                      title="روند مبلغ فروش روزانه"
+                      subtitle="مجموع مبلغ وصول‌شده در هر روز بازه"
+                    >
+                      {maxDailyAmount > 0 ? (
+                        <LineChart
+                          points={dailyPoints}
+                          ariaLabel="روند مبلغ فروش روزانه"
+                          seriesName="مبلغ فروش"
+                          unit="تومان"
+                        />
+                      ) : (
+                        <ChartEmpty message="در این بازه فروشی ثبت نشده است." />
+                      )}
+                    </ChartFrame>
+
+                    <ChartFrame
+                      title="سهم پلن‌ها از مبلغ فروش"
+                      subtitle="مبلغ وصول‌شده به تفکیک پلن"
+                    >
+                      <BarChart bars={planBars} ariaLabel="سهم پلن‌ها از مبلغ فروش" />
+                    </ChartFrame>
+                  </div>
+
+                  <DataTable
+                    head={
+                      <tr>
+                        <Th>پلن</Th>
+                        <Th>شناسه</Th>
+                        <Th>تعداد</Th>
+                        <Th>مبلغ (تومان)</Th>
+                      </tr>
+                    }
+                  >
+                    {data.byPlan.map((p) => (
+                      <tr key={p.planCode}>
+                        <Td className="font-medium text-on-surface">{p.planNameFa}</Td>
+                        <Td dir="ltr" className="text-caption text-muted">
+                          {p.planCode}
+                        </Td>
+                        <Td className="tabular-nums">{toPersianNumber(p.count)}</Td>
+                        <Td className="tabular-nums">{toPersianCurrency(p.amount)}</Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </>
               )}
             </Section>
 

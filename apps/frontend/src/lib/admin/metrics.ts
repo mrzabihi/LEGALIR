@@ -309,6 +309,19 @@ function absoluteWindow(fromDate: string, toDate: string): OverviewWindow | null
   };
 }
 
+/**
+ * The resolved reporting window (current + its preceding comparison window).
+ * Exposed so a lighter, independently-refreshing surface (the live report) can
+ * resolve its range with the EXACT same geometry the overview uses — a KPI card
+ * and the live chart beside it can never disagree about what "30 days" means.
+ */
+export function resolveWindow(
+  rangeDays = 30,
+  explicit?: { from: string; to: string } | null
+): OverviewWindow {
+  return (explicit ? absoluteWindow(explicit.from, explicit.to) : null) ?? rollingWindow(rangeDays);
+}
+
 /** Build the admin overview for a rolling window, or an explicit date range. */
 export function buildOverview(
   rangeDays = 30,
@@ -576,4 +589,69 @@ export function dailySales(
     });
   }
   return points;
+}
+
+export interface PlanMixPlan {
+  planCode: string;
+  planNameFa: string;
+}
+
+/** One bar per day: selling-order count per plan, aligned to `plans` by index. */
+export interface PlanMixDay {
+  /** ISO date (YYYY-MM-DD). */
+  date: string;
+  values: number[];
+}
+
+export interface PlanDailyMix {
+  /** The series legend, ordered by total volume (descending). */
+  plans: PlanMixPlan[];
+  /** One row per day in the window, oldest first. */
+  days: PlanMixDay[];
+}
+
+/**
+ * Selling orders stacked by plan over the window — the data behind a plan-mix
+ * stacked bar. Every order is counted ONCE under its own plan (the unified
+ * ledger already de-duplicates a checkout order against the subscription it
+ * created), so a day's stacked segments sum to that day's earning-sale count.
+ * Plans are fixed across the whole window so each column is directly comparable;
+ * a plan with no sales on a day contributes a zero-height segment, never a gap
+ * that would shift the stack.
+ */
+export function planDailyMix(
+  rangeDays = 30,
+  explicit?: { from: string; to: string } | null
+): PlanDailyMix {
+  const window =
+    (explicit ? absoluteWindow(explicit.from, explicit.to) : null) ?? rollingWindow(rangeDays);
+  const { fromIso, toIso } = window;
+  const sales = earnersInWindow(fromIso, toIso);
+
+  const totals = new Map<string, { planCode: string; planNameFa: string; count: number }>();
+  for (const s of sales) {
+    const row = totals.get(s.planCode) ?? { planCode: s.planCode, planNameFa: s.planNameFa, count: 0 };
+    row.count += 1;
+    totals.set(s.planCode, row);
+  }
+  const plans: PlanMixPlan[] = [...totals.values()]
+    .sort((a, b) => b.count - a.count || a.planNameFa.localeCompare(b.planNameFa))
+    .map(({ planCode, planNameFa }) => ({ planCode, planNameFa }));
+  const indexOf = new Map(plans.map((p, i) => [p.planCode, i] as const));
+
+  const days: PlanMixDay[] = [];
+  const start = new Date(fromIso);
+  const end = new Date(toIso);
+  const startDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+  for (let t = startDay.getTime(); t <= end.getTime(); t += 86_400_000) {
+    const day = new Date(t).toISOString().slice(0, 10);
+    const values = new Array<number>(plans.length).fill(0);
+    for (const s of sales) {
+      if (s.purchasedAt.slice(0, 10) !== day) continue;
+      const i = indexOf.get(s.planCode);
+      if (i !== undefined) values[i] = (values[i] ?? 0) + 1;
+    }
+    days.push({ date: day, values });
+  }
+  return { plans, days };
 }

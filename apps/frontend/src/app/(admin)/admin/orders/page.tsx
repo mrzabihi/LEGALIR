@@ -13,16 +13,27 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Drawer } from "@legalir/ui";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useOrdersList } from "@/hooks/useAnalyticsDrill";
+import { useOrdersList, useDrillWindow } from "@/hooks/useAnalyticsDrill";
 import { DrillWindowBanner } from "@/components/admin/drill-window-banner";
 import {
   useAdminOrder,
   useAdminOrderReceipt,
   useCreateAdminRefund,
   useDecideAdminRefund,
+  useAdminLiveReport,
   useAdminMe,
 } from "@/hooks/useAdmin";
-import { toPersianDate, toPersianCurrency } from "@/lib/persian-utils";
+import {
+  BarChart,
+  StackedBarChart,
+  ChartFrame,
+  ChartSkeleton,
+  ChartEmpty,
+  catColor,
+  type StackRow,
+  type StackSegment,
+} from "@/components/admin/charts";
+import { toPersianDate, toPersianCurrency, toPersianNumber } from "@/lib/persian-utils";
 import { adminOrderReceiptPdfUrl } from "@/lib/api/admin";
 import type { AdminOrder, OrderStatus } from "@/lib/api/admin";
 import {
@@ -444,6 +455,76 @@ function OrderDetail({ id }: { id: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Sales money composition (قالب «فروش»: مقایسهٔ مبالغ + جدا شدن رایگان از پرداخت‌شده)
+// ---------------------------------------------------------------------------
+// Both charts read the SAME `["admin","live"]` ledger the /admin «گزارش زنده»
+// block uses — one real source, one filter (the drill window), so a bar here and
+// a figure there can never disagree. Nothing is fabricated: a zero segment is
+// simply empty, and the free/paid split counts every earning order exactly once.
+
+function SalesCompositionChart() {
+  const window = useDrillWindow();
+  const live = useAdminLiveReport(30, {
+    window: window ? { from: window.fromIso, to: window.toIso } : null,
+  });
+
+  if (live.isLoading) return <ChartSkeleton height={200} />;
+  if (live.isError || !live.data) return <ChartEmpty message="ترکیب مبالغ در دسترس نیست." />;
+
+  const s = live.data.sales;
+  const anyMoney = s.baseAmount > 0 || s.collectedAmount > 0 || s.refundedAmount > 0;
+  const anyOrders = s.paidCount + s.freeCount + s.unpaidCount > 0;
+
+  const moneyBars = [
+    { label: "مبلغ اسمی", value: s.baseAmount, display: toPersianCurrency(s.baseAmount), color: catColor(0) },
+    { label: "تخفیف اعمال‌شده", value: s.discountAmount, display: toPersianCurrency(s.discountAmount), color: catColor(2) },
+    { label: "مبلغ وصول‌شده", value: s.collectedAmount, display: toPersianCurrency(s.collectedAmount), color: "var(--chart-pos)" },
+    { label: "مبلغ بازگشتی", value: s.refundedAmount, display: toPersianCurrency(s.refundedAmount), color: "var(--chart-neg)" },
+    { label: "مبلغ خالص", value: s.netAmount, display: toPersianCurrency(s.netAmount), color: catColor(3) },
+  ];
+
+  const paySegments: StackSegment[] = [
+    { key: "paid", label: "پرداخت‌شده", color: "var(--chart-pos)" },
+    { key: "free", label: "رایگان (تخفیف ۱۰۰٪)", color: catColor(2) },
+    { key: "unpaid", label: "بی‌پرداخت / ناتمام", color: catColor(5) },
+  ];
+  const payRows: StackRow[] = [
+    { label: "سفارش‌ها", values: [s.paidCount, s.freeCount, s.unpaidCount] },
+  ];
+
+  return (
+    <div className="mb-4 grid grid-cols-1 gap-4 desktop:grid-cols-2">
+      <ChartFrame
+        title="ترکیب مبالغ فروش"
+        subtitle="مبلغ اسمی، تخفیف، وصول‌شده، بازگشتی و خالص در بازه"
+      >
+        {anyMoney ? (
+          <BarChart bars={moneyBars} ariaLabel="ترکیب مبالغ فروش در بازه" />
+        ) : (
+          <ChartEmpty message="در این بازه مبلغی ثبت نشده است." />
+        )}
+      </ChartFrame>
+
+      <ChartFrame
+        title="ترکیب سفارش‌ها"
+        subtitle="پرداخت‌شده در مقابل رایگان (تخفیف ۱۰۰٪) و سفارش‌های ناتمام"
+      >
+        {anyOrders ? (
+          <StackedBarChart
+            rows={payRows}
+            segments={paySegments}
+            ariaLabel="ترکیب سفارش‌ها بر پایهٔ پرداخت"
+            formatTotal={(n) => `${toPersianNumber(n)} سفارش`}
+          />
+        ) : (
+          <ChartEmpty message="در این بازه سفارشی ثبت نشده است." />
+        )}
+      </ChartFrame>
+    </div>
+  );
+}
+
 export default function AdminOrdersPage() {
   return (
     <Suspense fallback={<LoadingBlock rows={6} />}>
@@ -491,6 +572,8 @@ function AdminOrdersView() {
       <InfoBanner tone="info">
         درگاه پرداخت در این محیط شبیه‌سازی‌شده است و هیچ تراکنش واقعی انجام نمی‌شود.
       </InfoBanner>
+
+      <SalesCompositionChart />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <TextInput

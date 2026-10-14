@@ -13,6 +13,9 @@
 import { apiClient } from "./client";
 import type {
   AdminOverview,
+  AdminLiveReport,
+  AdminSalesSplit,
+  AdminLivePoint,
   AdminOrderListResponse,
   AdminOrder,
   AdminOrderReceipt,
@@ -76,6 +79,8 @@ import type {
   LegalRequest,
   LegalRequestEvent,
   LegalRequestState,
+  LegalRequestDiscovery,
+  DiscoveryIntent,
   AdminContractListResponse,
   AdminContractReviewActionRequest,
   ContractAdminReviewDetail,
@@ -160,6 +165,8 @@ export interface AdminRequestsQuery {
   pageSize?: number;
   search?: string;
   state?: string;
+  /** Tri-state discovery filter: `"yes"` keeps only discovery requests. */
+  discovery?: "yes" | "no";
 }
 
 export interface AdminRequestRow {
@@ -172,6 +179,12 @@ export interface AdminRequestRow {
   orgId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** True when the request came through the path-discovery intake. */
+  hasDiscovery: boolean;
+  /** How the recorded analysis was produced, or null when there is none. */
+  discoverySource: "ai" | "rules" | null;
+  /** The legal area the engine inferred, or null. */
+  inferredCategory: string | null;
 }
 
 export interface AdminRequestsResponse {
@@ -187,6 +200,14 @@ export interface AdminReportsResponse {
   rangeDays: number;
   byPlan: { planCode: string; planNameFa: string; count: number; amount: number }[];
   daily: { date: string; count: number; amount: number }[];
+  /**
+   * Selling orders stacked by plan over the window (one row per day, values
+   * aligned to `plans` by index) — the data behind the plan-mix stacked bar.
+   */
+  planMix: {
+    plans: { planCode: string; planNameFa: string }[];
+    days: { date: string; values: number[] }[];
+  };
 }
 
 export interface AdminSettingsResponse {
@@ -428,6 +449,18 @@ export function fetchAdminReports(
   return apiClient.get<AdminReportsResponse>(`${A}/reports${windowParams(rangeDays, window)}`);
 }
 
+/**
+ * A compact live snapshot of the SAME ledger the overview reads. Same range
+ * parameters (`rangeDays` + an explicit window), so a KPI card and the live
+ * block beside it always describe the identical window.
+ */
+export function fetchAdminLiveReport(
+  rangeDays = 30,
+  window?: AdminWindow | null
+): Promise<AdminLiveReport> {
+  return apiClient.get<AdminLiveReport>(`${A}/live${windowParams(rangeDays, window)}`);
+}
+
 // ---------------------------------------------------------------------------
 // Users & requests
 // ---------------------------------------------------------------------------
@@ -489,7 +522,77 @@ export function adminEnergyAction(
 
 export function fetchAdminRequests(query: AdminRequestsQuery = {}): Promise<AdminRequestsResponse> {
   return apiClient.get<AdminRequestsResponse>(
-    `${A}/requests${qs({ page: query.page, pageSize: query.pageSize, search: query.search, state: query.state })}`
+    `${A}/requests${qs({ page: query.page, pageSize: query.pageSize, search: query.search, state: query.state, discovery: query.discovery })}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Path-discovery intake (§ dedicated panel)
+// ---------------------------------------------------------------------------
+
+export interface AdminDiscoveryQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  /** Filter by how the analysis was produced. */
+  source?: "ai" | "rules";
+}
+
+/** One request as it appears in the discovery panel's list. */
+export interface AdminDiscoveryRow {
+  id: string;
+  title: string;
+  state: string;
+  userDisplayName: string | null;
+  inferredCategory: string | null;
+  /** The help-type the user picked, or null when they let us infer. */
+  explicitIntent: DiscoveryIntent | null;
+  /** The one-line restatement the engine produced. */
+  summaryFa: string;
+  confidence: number | null;
+  needsLawyer: boolean;
+  source: "ai" | "rules";
+  /** The engine's top-ranked path. */
+  topIntent: DiscoveryIntent | null;
+  /** The path the user actually chose, or null if not yet chosen. */
+  selectedIntent: DiscoveryIntent | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminDiscoveryIntentStat {
+  intent: DiscoveryIntent;
+  recommended: number;
+  primary: number;
+  chosen: number;
+}
+
+export interface AdminDiscoveryStats {
+  total: number;
+  bySource: { ai: number; rules: number };
+  avgConfidence: number | null;
+  needsLawyer: number;
+  withDocument: number;
+  explicitIntent: number;
+  byIntent: AdminDiscoveryIntentStat[];
+  byCategory: { key: string; count: number }[];
+  byState: { key: string; count: number }[];
+}
+
+export interface AdminDiscoveryResponse {
+  stats: AdminDiscoveryStats;
+  items: AdminDiscoveryRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export function fetchAdminDiscovery(
+  query: AdminDiscoveryQuery = {}
+): Promise<AdminDiscoveryResponse> {
+  return apiClient.get<AdminDiscoveryResponse>(
+    `${A}/discovery${qs({ page: query.page, pageSize: query.pageSize, search: query.search, source: query.source })}`
   );
 }
 
@@ -514,6 +617,8 @@ export interface AdminRequestDetail {
     orgId: string | null;
     caseId: string | null;
     conversationId: string | null;
+    /** The path-discovery record, or null when the request skipped the intake. */
+    discovery: LegalRequestDiscovery | null;
     createdAt: string;
     updatedAt: string;
   };
@@ -1657,6 +1762,9 @@ export function fetchAdminKnowledge(params?: {
 // Re-export the domain types the pages need, so a page imports from one place.
 export type {
   AdminOverview,
+  AdminLiveReport,
+  AdminSalesSplit,
+  AdminLivePoint,
   AdminKpi,
   AdminAttentionItem,
   AdminBreakdownItem,

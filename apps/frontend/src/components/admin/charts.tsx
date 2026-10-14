@@ -1022,3 +1022,192 @@ export function DonutChart({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Stacked bar chart — the split of each row into named parts
+// ---------------------------------------------------------------------------
+// Each row is ONE horizontal bar whose parts are laid end-to-end and sum to
+// that row's total, so the reader sees both the split and how rows compare. The
+// first part is drawn on the RIGHT (RTL), and every part keeps a STABLE colour
+// by index. As with the other primitives the component renders only the real
+// values handed to it — a row whose parts are all zero is skipped by the caller,
+// never drawn as an empty track.
+
+export interface StackSegment {
+  key: string;
+  label: string;
+  /** Fill; defaults to a stable palette colour by segment index. */
+  color?: string;
+}
+
+export interface StackRow {
+  label: string;
+  /** One value per segment, aligned to `segments` by index. */
+  values: number[];
+}
+
+export function StackedBarChart({
+  rows,
+  segments,
+  ariaLabel,
+  formatTotal,
+}: {
+  rows: StackRow[];
+  segments: StackSegment[];
+  ariaLabel: string;
+  /** Format a row's total for the trailing value (defaults to a Persian number). */
+  formatTotal?: (total: number) => string;
+}) {
+  const colors = segments.map((s, i) => s.color ?? catColor(i));
+  const fmt = formatTotal ?? ((n: number) => toPersianNumber(n));
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-wrap items-center gap-3" aria-hidden="true">
+        {segments.map((s, i) => (
+          <li key={s.key} className="flex items-center gap-1.5 text-caption text-muted">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-small"
+              style={{ backgroundColor: colors[i] }}
+            />
+            {s.label}
+          </li>
+        ))}
+      </ul>
+
+      <ul className="space-y-3" aria-label={ariaLabel}>
+        {rows.map((row) => {
+          const total = row.values.reduce((s, v) => s + Math.max(0, v), 0);
+          return (
+            <li
+              key={row.label}
+              className="grid grid-cols-[minmax(0,6.5rem)_1fr_auto] items-center gap-3"
+            >
+              <span className="truncate text-body-2 text-on-surface-variant" title={row.label}>
+                {row.label}
+              </span>
+              <div
+                className="flex h-3.5 min-w-0 flex-row-reverse overflow-hidden rounded-full bg-[var(--chart-track)]"
+                dir="ltr"
+                role="img"
+                aria-label={`${row.label}: ${segments
+                  .map((s, i) => `${s.label} ${fmt(row.values[i] ?? 0)}`)
+                  .join("، ")}`}
+              >
+                {total > 0 &&
+                  row.values.map((v, i) => {
+                    const pct = (Math.max(0, v) / total) * 100;
+                    if (pct <= 0) return null;
+                    return (
+                      <span
+                        key={segments[i]?.key ?? i}
+                        className="h-full transition-[width] duration-short4 ease-standard motion-reduce:transition-none"
+                        style={{ width: `${pct}%`, backgroundColor: colors[i] }}
+                      />
+                    );
+                  })}
+              </div>
+              <span dir="ltr" className="shrink-0 text-body-2 tabular-nums text-onSurface">
+                {fmt(total)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <ul className="sr-only">
+        {rows.map((row) => (
+          <li key={row.label}>
+            {row.label}: {segments.map((s, i) => `${s.label} ${fmt(row.values[i] ?? 0)}`).join("، ")}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Progress ring — one real share of a real whole
+// ---------------------------------------------------------------------------
+// A single-value ring for a share of a cap (e.g. paid orders ÷ all orders). The
+// ring always draws against the tracked whole, so a 1-of-4 share cannot be
+// mistaken for a full circle. Returns `null` when the whole is zero — the caller
+// shows its own empty state rather than a meaningless filled ring.
+
+export function ProgressRing({
+  value,
+  total,
+  centerLabel,
+  ariaLabel,
+  label,
+  size = 132,
+  thickness = 14,
+  color = "var(--control-selected)",
+  tone,
+}: {
+  value: number;
+  total: number;
+  /** Caption under the percentage in the ring's centre. */
+  centerLabel: string;
+  /** Small heading above the ring. */
+  label?: string;
+  ariaLabel: string;
+  size?: number;
+  thickness?: number;
+  color?: string;
+  /** Semantic colour override (e.g. a warning share); defaults to the chosen fill. */
+  tone?: string;
+}) {
+  if (!(total > 0)) return null;
+  const clamped = Math.max(0, Math.min(value, total));
+  const frac = clamped / total;
+  const pct = Math.round(frac * 100);
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dash = frac * circumference;
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      {label && <p className="text-caption font-medium text-muted">{label}</p>}
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg
+          viewBox={`0 0 ${size} ${size}`}
+          width={size}
+          height={size}
+          role="img"
+          aria-label={ariaLabel}
+          className="-rotate-90"
+        >
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="var(--chart-track)"
+            strokeWidth={thickness}
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={tone ?? color}
+            strokeWidth={thickness}
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeLinecap="round"
+            className="transition-[stroke-dasharray] duration-short4 ease-standard motion-reduce:transition-none"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span dir="ltr" className="text-h2 font-bold tabular-nums text-onSurface">
+            {toPersianNumber(pct)}٪
+          </span>
+          <span className="text-caption text-muted">{centerLabel}</span>
+        </div>
+      </div>
+      <p className="text-caption tabular-nums text-muted">
+        {toPersianNumber(clamped)} از {toPersianNumber(total)}
+      </p>
+    </div>
+  );
+}

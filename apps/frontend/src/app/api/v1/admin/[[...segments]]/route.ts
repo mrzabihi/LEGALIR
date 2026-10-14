@@ -34,7 +34,14 @@ import {
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
 import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
 import { matchesRow } from "@/lib/search/normalize";
-import { buildOverview, revenueByPlan, dailySales, resolvedRangeDays } from "@/lib/admin/metrics";
+import {
+  buildOverview,
+  revenueByPlan,
+  dailySales,
+  planDailyMix,
+  resolvedRangeDays,
+} from "@/lib/admin/metrics";
+import { buildLiveReport } from "@/lib/admin/live-report";
 import { listFlags, updateFlag } from "@/lib/admin/flags";
 import {
   listOrders,
@@ -243,6 +250,14 @@ function explicitWindow(url: URL): { from: string; to: string } | null {
 const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResponse> = {
   overview: ({ url }) => ok(buildOverview(intParam(url, "rangeDays", 30), explicitWindow(url))),
 
+  /**
+   * A compact live snapshot of the SAME real ledger the overview reads. It is a
+   * separate route so the «گزارش زنده» block can poll it on its own cadence with
+   * a light payload, without re-pulling the whole overview. Gated on the same
+   * `admin:overview:read` permission (see permissionFor).
+   */
+  live: ({ url }) => ok(buildLiveReport(intParam(url, "rangeDays", 30), explicitWindow(url))),
+
   reports: ({ url }) => {
     const days = intParam(url, "rangeDays", 30);
     const win = explicitWindow(url);
@@ -250,6 +265,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       rangeDays: resolvedRangeDays(days, win),
       byPlan: revenueByPlan(days, win),
       daily: dailySales(days, win),
+      planMix: planDailyMix(days, win),
     });
   },
 
@@ -1779,6 +1795,9 @@ function permissionFor(method: string, segments: string[]): Permission {
   const [a, b] = segments;
   switch (a) {
     case "overview": return "admin:overview:read";
+    // The live snapshot is a projection of the overview, so it needs the same
+    // read permission — a viewer who cannot read the overview cannot read it.
+    case "live": return "admin:overview:read";
     case "reports": return method === "GET" ? "admin:reports:read" : "admin:reports:export";
     case "exports":
       // §9 — exporting a surface requires the READ permission of that very
