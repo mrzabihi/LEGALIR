@@ -194,7 +194,12 @@ test.describe("Bottom navigation selected state", () => {
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("link")).toHaveCount(4);
+    // Four AI quick-start cards + the distinct lawyer-consultation card.
+    await expect(dialog.getByRole("link")).toHaveCount(5);
+    await expect(dialog.getByRole("link", { name: /مشاوره با وکلا/ })).toHaveAttribute(
+      "href",
+      "/lawyers",
+    );
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
 
     await page.keyboard.press("Escape");

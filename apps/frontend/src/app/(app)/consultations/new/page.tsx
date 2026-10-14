@@ -35,7 +35,7 @@ export default function NewConsultationPage() {
     <Suspense
       fallback={
         <div className="mx-auto max-w-3xl p-4 tablet:p-6" dir="rtl">
-          <div className="h-64 animate-pulse rounded-2xl bg-surface-container" />
+          <div className="h-64 animate-pulse rounded-large bg-surface-container" />
         </div>
       }
     >

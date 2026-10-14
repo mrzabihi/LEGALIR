@@ -80,9 +80,9 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
             "bg-control-unselected-bg",
             hasError ? "border-error" : "border-control-unselected-border",
             // Hover / pressed / focus — keyboard-only ring.
-            "group-hover/check:border-control-selected/70",
+            "group-hover/check:border-control-selected",
             "group-active/check:scale-95",
-            "peer-focus-visible:ring-2 peer-focus-visible:ring-control-focus/40 peer-focus-visible:ring-offset-1",
+            "peer-focus-visible:ring-2 peer-focus-visible:ring-control-focus peer-focus-visible:ring-offset-1",
             "peer-disabled:bg-control-disabled-bg peer-disabled:border-control-disabled-text",
             // Checked wins over error/hover: green fill, green border.
             "peer-checked:bg-control-selected peer-checked:border-control-selected",

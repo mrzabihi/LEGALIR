@@ -45,7 +45,7 @@ const cardStyles = {
   primary: {
     card: "bg-primary-700 text-white shadow-elevation-4 hover:shadow-elevation-8 border border-primary-600",
     title: "text-white",
-    desc: "text-primary-100/70",
+    desc: "text-primary-100 opacity-70",
     cta: "bg-white text-primary-800 hover:bg-neutral-100 active:bg-white/85",
   },
   default: {
@@ -55,7 +55,7 @@ const cardStyles = {
     cta: "bg-primary-50 text-primary-700 hover:bg-primary-100 active:bg-primary-200",
   },
   outlined: {
-    card: "bg-surface border-2 border-primary-200/60 shadow-elevation-1 hover:shadow-elevation-4 hover:border-primary-400/50",
+    card: "bg-surface border-2 border-primary-200 shadow-elevation-1 hover:shadow-elevation-4 hover:border-primary-400",
     title: "text-primary-800 group-hover:text-primary-600",
     desc: "text-neutral-500",
     cta: "bg-primary-700 text-white hover:bg-primary-800 active:bg-primary-900",

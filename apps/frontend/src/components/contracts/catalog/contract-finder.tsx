@@ -76,14 +76,14 @@ export function ContractFinder() {
               }
             }}
             placeholder={EXAMPLE_PROMPT}
-            className="h-12 w-full rounded-medium border border-[color:var(--color-outline)] bg-surface ps-4 pe-10 text-body-2 text-on-surface placeholder:text-on-surface-variant/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            className="h-12 w-full rounded-medium border border-[color:var(--color-outline)] bg-surface ps-4 pe-10 text-body-2 text-on-surface placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           {prompt && (
             <button
               type="button"
               onClick={reset}
               aria-label="پاک کردن متن"
-              className="absolute end-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="absolute end-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <IconClose size={16} />
             </button>
@@ -92,7 +92,7 @@ export function ContractFinder() {
         <button
           type="button"
           onClick={run}
-          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-medium bg-primary px-5 text-button font-medium text-white transition-colors hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
+          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-medium bg-primary px-5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
         >
           <IconSearch size={18} aria-hidden="true" />
           پیدا کردن قرارداد مناسب

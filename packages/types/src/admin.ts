@@ -1332,6 +1332,71 @@ export interface AdminOverview {
 }
 
 // ---------------------------------------------------------------------------
+// Live report (گزارش زنده)
+// ---------------------------------------------------------------------------
+// A compact, self-contained snapshot of the SAME real ledger the overview and
+// reports read. It exists so the «گزارش زنده» block can refresh on its own
+// cadence (a light payload) without re-pulling the whole overview. Every field
+// is a real sum or count — nothing here is derived, estimated or fabricated.
+
+/**
+ * The monetary split of the sales EARNED inside a window. Each field is a real
+ * sum from the unified sales ledger:
+ *  • base      — Σ pre-discount catalog price
+ *  • discount  — Σ discount applied
+ *  • tax       — Σ tax added
+ *  • final     — Σ what the customer owed (base − discount + tax)
+ *  • collected — Σ money actually received (0 for a payment-free order)
+ *  • refunded  — Σ completed refunds against those sales
+ *  • net       — collected − refunded (what the platform keeps)
+ * A 100%-discount order counts in `count` yet adds 0 to `collected`.
+ */
+export interface AdminSalesSplit {
+  count: number;
+  baseAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  finalAmount: number;
+  collectedAmount: number;
+  refundedAmount: number;
+  netAmount: number;
+  /** Sales settled by a real payment (collected > 0). */
+  paidCount: number;
+  /** Sales that cost the customer nothing (payment-free / 100% discount). */
+  freeCount: number;
+  /** Orders in the window that did NOT become a sale (awaiting / failed / cancelled). */
+  unpaidCount: number;
+  currency: string;
+}
+
+/** One day of a live series (ISO `YYYY-MM-DD` + a real value). */
+export interface AdminLivePoint {
+  date: string;
+  value: number;
+}
+
+/** A compact live snapshot for the «گزارش زنده» block. */
+export interface AdminLiveReport {
+  /** Server instant when this snapshot was produced. */
+  generatedAt: string;
+  rangeDays: number;
+  timezone: string;
+  currency: string;
+  /** The monetary split of the window's earned sales. */
+  sales: AdminSalesSplit;
+  /** Users registered in the window. */
+  newUsers: number;
+  /** Legal requests registered in the window. */
+  newRequests: number;
+  /** Open (non-terminal) requests right now — a live snapshot, not window-scoped. */
+  openRequests: number;
+  /** Refunds awaiting a second approver right now. */
+  refundPending: number;
+  /** Collected amount per day over the window (oldest first). */
+  dailyCollected: AdminLivePoint[];
+}
+
+// ---------------------------------------------------------------------------
 // Excel exports (§7)
 // ---------------------------------------------------------------------------
 // One `AdminExportKind` per exportable admin surface. This is the SINGLE

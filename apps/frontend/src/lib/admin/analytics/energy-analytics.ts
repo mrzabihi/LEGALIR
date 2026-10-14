@@ -43,6 +43,7 @@ import {
   changePct,
   type ResolveRangeInput,
 } from "./range";
+import { matchesRow } from "@/lib/search/normalize";
 import { analyticsDataQuality } from "./quality";
 
 /** Stored daily subscription counter row. */
@@ -307,12 +308,16 @@ export function listEnergyUsers(input: ResolveRangeInput, query: EnergyUsersQuer
   let items: EnergyUserRow[] = allEnergyUsers(input);
 
   if (query.search) {
-    const q = query.search.trim().toLowerCase();
-    items = items.filter(
-      (r) =>
-        (r.displayName ?? "").toLowerCase().includes(q) ||
-        r.mobileMasked.includes(q) ||
-        r.userId.toLowerCase().includes(q)
+    // Same normalisation lane as the rest of the admin surface, but the phone
+    // lane matches the RAW stored mobile — never the masked `0912***2174` — so a
+    // number query keeps working even though the column renders masked. The
+    // raw value stays server-side; only `mobileMasked` is returned to the row.
+    const byId = userIndex(readUsers());
+    items = items.filter((r) =>
+      matchesRow(query.search!, {
+        phones: [byId.get(r.userId)?.mobile],
+        texts: [r.displayName ?? "", r.mobileMasked, r.userId],
+      })
     );
   }
 

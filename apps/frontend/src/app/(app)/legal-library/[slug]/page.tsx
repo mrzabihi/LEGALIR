@@ -127,8 +127,8 @@ function VerificationBadge({ status }: { status: V1LegalSourceDetail["verificati
       className={[
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-caption font-medium",
         verified
-          ? "border-success/25 bg-success-container text-success"
-          : "border-warning/25 bg-warning-container text-warning",
+          ? "bg-success-container text-success"
+          : "bg-warning-container text-warning",
       ].join(" ")}
     >
       <IconCheckCircle />
@@ -139,9 +139,9 @@ function VerificationBadge({ status }: { status: V1LegalSourceDetail["verificati
 
 function SectionBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-divider/60 bg-surface p-5 shadow-sm tablet:p-6">
+    <section className="rounded-large border border-divider bg-surface p-5 shadow-elevation-1 tablet:p-6">
       <h3 className="mb-4 flex items-center gap-2 text-h4 font-semibold text-on-surface">
-        <span className="block h-1.5 w-8 rounded-full bg-primary-600" />
+        <span className="block h-1.5 w-8 rounded-full bg-[var(--brand-gold)]" />
         {title}
       </h3>
       <div className="text-body-2 leading-relaxed text-on-surface">{children}</div>
@@ -168,10 +168,10 @@ function ActionButton({
       onClick={onClick}
       disabled={loading}
       className={[
-        "inline-flex items-center gap-2 rounded-xl border border-divider/60 px-4 py-2.5 text-button font-medium transition-all duration-200 touch-target",
+        "inline-flex items-center gap-2 rounded-full border border-divider px-4 py-2.5 text-button font-medium transition-colors touch-target",
         active
-          ? "border-primary bg-primary text-white shadow-sm"
-          : "bg-surface text-on-surface hover:bg-surface-container active:scale-[0.97]",
+          ? "border-primary bg-primary text-primary-on"
+          : "bg-surface text-on-surface hover:bg-surface-hover active:scale-[0.97]",
         loading ? "opacity-60" : "",
       ].join(" ")}
     >
@@ -188,7 +188,7 @@ function ActionButton({
 function NotFoundState({ id }: { id: string }) {
   return (
     <div className="flex flex-col items-center justify-center px-4 py-20 text-center" dir="rtl">
-      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-error/20 bg-error-container">
+      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-large bg-error-container">
         <SvgIcon size={36} className="text-error">
           <circle cx="12" cy="12" r="10" />
           <path d="M15 9l-6 6M9 9l6 6" />
@@ -198,19 +198,19 @@ function NotFoundState({ id }: { id: string }) {
       <p className="mb-2 max-w-md text-body-1 text-muted">
         منبعی با شناسه «{id}» در کتابخانه حقوقی LEGALIR یافت نشد یا در دسترس عمومی نیست.
       </p>
-      <p className="mb-8 max-w-md text-body-2 text-muted/60">
+      <p className="mb-8 max-w-md text-body-2 text-muted">
         لطفاً از صفحه کتابخانه حقوقی به جستجوی منابع معتبر بپردازید یا از مشاور هوش مصنوعی کمک بگیرید.
       </p>
       <div className="flex items-center gap-3">
         <Link
           href="/legal-library"
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
         >
           کتابخانه حقوقی
         </Link>
         <Link
           href="/chat"
-          className="inline-flex items-center gap-2 rounded-xl border border-divider/60 bg-surface px-5 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-container active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface px-5 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.98]"
         >
           مشاوره با LEGALIR
         </Link>
@@ -222,13 +222,13 @@ function NotFoundState({ id }: { id: string }) {
 function DetailSkeleton() {
   return (
     <div className="space-y-5">
-      <div className="animate-pulse rounded-2xl border border-divider/60 bg-surface p-6">
+      <div className="animate-pulse rounded-large border border-divider bg-surface p-6">
         <div className="mb-4 h-6 w-40 rounded-full bg-surface-container" />
         <div className="mb-3 h-8 w-2/3 rounded bg-surface-container" />
         <div className="h-4 w-1/2 rounded bg-surface-container" />
       </div>
-      <div className="h-40 animate-pulse rounded-2xl border border-divider/60 bg-surface" />
-      <div className="h-40 animate-pulse rounded-2xl border border-divider/60 bg-surface" />
+      <div className="h-40 animate-pulse rounded-large border border-divider bg-surface" />
+      <div className="h-40 animate-pulse rounded-large border border-divider bg-surface" />
     </div>
   );
 }
@@ -325,7 +325,7 @@ export default function LegalSourceDetailPage() {
     return (
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
         <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-error/20 bg-error-container">
+          <div className="flex h-16 w-16 items-center justify-center rounded-large bg-error-container">
             <SvgIcon size={30} className="text-error">
               <circle cx="12" cy="12" r="10" />
               <path d="M12 8v4M12 16h.01" />
@@ -335,7 +335,7 @@ export default function LegalSourceDetailPage() {
           <button
             type="button"
             onClick={() => query.refetch()}
-            className="mt-2 rounded-xl bg-primary px-6 py-2.5 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98] touch-target"
+            className="mt-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
           >
             تلاش دوباره
           </button>
@@ -366,9 +366,9 @@ export default function LegalSourceDetailPage() {
       </div>
 
       {/* Header */}
-      <header className="mb-5 rounded-2xl border border-divider/60 bg-surface p-5 shadow-sm tablet:p-6">
+      <header className="mb-5 rounded-large border border-divider bg-surface p-5 shadow-elevation-1 tablet:p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-caption font-medium text-primary-700">
+          <span className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-caption font-medium text-on-secondary-container">
             {source.sourceTypeFa}
           </span>
           <VerificationBadge status={source.verificationStatus} />
@@ -404,7 +404,7 @@ export default function LegalSourceDetailPage() {
             {identifiers.map((i) => (
               <span
                 key={i.label}
-                className="inline-flex items-center gap-1 rounded-lg bg-surface-container px-2.5 py-1 text-labelSmall text-on-surface-variant"
+                className="inline-flex items-center gap-1 rounded-small bg-surface-container px-2.5 py-1 text-labelSmall text-on-surface-variant"
               >
                 <span className="text-muted">{i.label}:</span>
                 {i.value}
@@ -433,13 +433,13 @@ export default function LegalSourceDetailPage() {
             href={sourceLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl border border-divider/60 bg-surface px-4 py-2.5 text-button font-medium text-on-surface transition-all duration-200 hover:bg-surface-container active:scale-[0.97] touch-target"
+            className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface px-4 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.97] touch-target"
           >
             <IconLinkSource />
             <span className="hidden tablet:inline">مشاهده منبع</span>
           </a>
         ) : (
-          <span className="inline-flex items-center gap-2 rounded-xl border border-divider/40 bg-surface-container/50 px-4 py-2.5 text-caption text-muted">
+          <span className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface-container px-4 py-2.5 text-caption text-muted">
             <IconLinkSource className="opacity-40" />
             لینک منبع ثبت نشده است
           </span>
@@ -472,7 +472,7 @@ export default function LegalSourceDetailPage() {
             <ul className="space-y-3">
               {source.keyPoints.map((point, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <span className="mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700">
+                  <span className="mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
                     <IconDot />
                   </span>
                   <span>{point}</span>
@@ -496,9 +496,9 @@ export default function LegalSourceDetailPage() {
 
         {/* Related sources — real, from the store */}
         {source.relatedSources.length > 0 && (
-          <section className="rounded-2xl border border-divider/60 bg-surface p-5 shadow-sm tablet:p-6">
+          <section className="rounded-large border border-divider bg-surface p-5 shadow-elevation-1 tablet:p-6">
             <h3 className="mb-4 flex items-center gap-2 text-h4 font-semibold text-on-surface">
-              <span className="block h-1.5 w-8 rounded-full bg-primary-600" />
+              <span className="block h-1.5 w-8 rounded-full bg-[var(--brand-gold)]" />
               منابع مرتبط
             </h3>
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2">
@@ -506,7 +506,7 @@ export default function LegalSourceDetailPage() {
                 <Link
                   key={rel.id}
                   href={`/legal-library/${encodeURIComponent(rel.id)}`}
-                  className="group flex flex-col gap-2 rounded-xl border border-divider/60 bg-surface-container p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-elevation-1"
+                  className="group flex flex-col gap-2 rounded-medium border border-divider bg-surface-container p-4 transition-shadow duration-short3 hover:border-primary hover:shadow-elevation-3"
                 >
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center rounded-full border border-divider bg-surface px-2 py-0.5 text-labelSmall font-medium text-on-surface-variant">
@@ -526,9 +526,9 @@ export default function LegalSourceDetailPage() {
 
         {/* Related services — real LEGALIR CTAs */}
         {source.relatedServices.length > 0 && (
-          <section className="rounded-2xl border border-divider/60 bg-surface p-5 shadow-sm tablet:p-6">
+          <section className="rounded-large border border-divider bg-surface p-5 shadow-elevation-1 tablet:p-6">
             <h3 className="mb-4 flex items-center gap-2 text-h4 font-semibold text-on-surface">
-              <span className="block h-1.5 w-8 rounded-full bg-primary-600" />
+              <span className="block h-1.5 w-8 rounded-full bg-[var(--brand-gold)]" />
               خدمات مرتبط LEGALIR
             </h3>
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-3">
@@ -536,9 +536,9 @@ export default function LegalSourceDetailPage() {
                 <Link
                   key={svc.id}
                   href={svc.href}
-                  className="group flex flex-col gap-2 rounded-xl border border-divider/60 bg-surface-container p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-elevation-1"
+                  className="group flex flex-col gap-2 rounded-medium border border-divider bg-surface-container p-4 transition-shadow duration-short3 hover:border-primary hover:shadow-elevation-3"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-medium bg-[var(--brand-green)] text-white shadow-elevation-1 transition-transform duration-short3 group-hover:scale-110">
                     <ServiceIcon href={svc.href} />
                   </span>
                   <p className="text-body-2 font-semibold text-on-surface transition-colors group-hover:text-primary">

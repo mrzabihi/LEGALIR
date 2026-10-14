@@ -52,7 +52,7 @@ export default function PrivacyPolicyPage() {
       <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <h1 className="text-h1 text-white mb-4">سیاست حریم خصوصی</h1>
-          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+          <p className="text-body-1 text-primary-100 opacity-80 max-w-xl mx-auto leading-relaxed">
             نحوه جمع‌آوری، استفاده و حفاظت از داده‌های شما در LEGALIR
           </p>
         </div>
@@ -64,7 +64,7 @@ export default function PrivacyPolicyPage() {
             <div
               key={section.id}
               id={section.id}
-              className="rounded-xl bg-surface p-8 shadow-sm border border-neutral-200"
+              className="rounded-medium bg-surface p-8 shadow-sm border border-neutral-200"
             >
               <h2 className="text-h2 text-primary-800 mb-4">{section.title}</h2>
               <p className="text-body-1 text-neutral-600 leading-relaxed">

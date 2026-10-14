@@ -82,10 +82,10 @@ function LawyerRow({
       onClick={onPick}
       className={[
         "flex w-full items-start gap-3 rounded-large border-2 p-3.5 text-start transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-control-focus/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-control-focus",
         current
           ? "border-control-selected-border bg-control-selected-surface"
-          : "border-control-unselected-border bg-control-unselected-bg hover:border-control-selected/40",
+          : "border-control-unselected-border bg-control-unselected-bg hover:border-control-selected",
       ].join(" ")}
     >
       <LawyerAvatar
@@ -103,7 +103,7 @@ function LawyerRow({
             </span>
           )}
           {current && (
-            <span className="rounded-full bg-control-selected/15 px-2 py-0.5 text-caption font-medium text-control-selected">
+            <span className="rounded-full bg-control-selected-surface px-2 py-0.5 text-caption font-medium text-control-selected">
               انتخاب فعلی
             </span>
           )}
@@ -215,7 +215,7 @@ export function LawyerSelectorDialog({
           )}
 
           {isError && (
-            <div className="flex flex-col items-center gap-2 rounded-large bg-error/10 p-5 text-center">
+            <div className="flex flex-col items-center gap-2 rounded-large bg-error-container p-5 text-center">
               <p className="text-body-2 text-error">خطا در بارگذاری فهرست وکلا</p>
               <button
                 type="button"
@@ -229,7 +229,7 @@ export function LawyerSelectorDialog({
           )}
 
           {!isLoading && !isError && specialties.length === 0 && (
-            <div className="flex flex-col items-center gap-2 rounded-large border border-divider/60 p-6 text-center">
+            <div className="flex flex-col items-center gap-2 rounded-large border border-divider p-6 text-center">
               <IconInfo size={26} className="text-muted" />
               <p className="text-body-2 text-muted">وکیلی در فهرست موجود نیست.</p>
             </div>
@@ -261,7 +261,7 @@ export function LawyerSelectorDialog({
             <button
               type="button"
               onClick={() => setLevel("specialty")}
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-caption text-primary transition hover:bg-primary/10"
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-caption text-primary transition hover:bg-surface-hover"
             >
               <IconArrowBack size={16} />
               بازگشت به تخصص‌ها
@@ -281,7 +281,7 @@ export function LawyerSelectorDialog({
           />
 
           {inSpecialty.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-large border border-divider/60 p-6 text-center">
+            <div className="flex flex-col items-center gap-2 rounded-large border border-divider p-6 text-center">
               <IconInfo size={26} className="text-muted" />
               <p className="text-body-2 text-muted">وکیلی با این مشخصات در این تخصص یافت نشد.</p>
             </div>
@@ -324,7 +324,7 @@ export function LawyerSelectorDialog({
               </div>
             </div>
 
-            <dl className="mt-3 space-y-1.5 border-t border-control-selected-border/40 pt-3 text-caption">
+            <dl className="mt-3 space-y-1.5 border-t border-control-selected-border pt-3 text-caption">
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted">هزینه مشاوره</dt>
                 <dd className="text-on-surface">
@@ -373,7 +373,7 @@ export function LawyerSelectorDialog({
       )}
 
       {/* Cancel is always reachable, and never changes the draft. */}
-      <div className="mt-4 flex justify-start border-t border-divider/60 pt-3">
+      <div className="mt-4 flex justify-start border-t border-divider pt-3">
         <button
           type="button"
           onClick={onClose}

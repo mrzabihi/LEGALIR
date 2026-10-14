@@ -18,6 +18,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type * as dbModule from "../db";
+import { toE164Display } from "@legalir/validation";
 
 type Db = typeof dbModule;
 
@@ -127,5 +128,36 @@ describe("mobile identity — one number, one account", () => {
     expect(db.findUserByMobile("09129998877")?.id).toBe("legacy-09");
     expect(db.findUserByMobile("+989129998877")?.id).toBe("legacy-09");
     expect(db.findUserByMobile("00989129998877")?.id).toBe("legacy-09");
+  });
+});
+
+// ============================================================
+// toE164Display — the admin panel's full, LTR-readable rendering
+// ============================================================
+// The stored identity is canonical E.164 (`+989123456789`); the admin panel
+// shows that SAME canonical form so an operator sees the country code and the
+// `+` in full. This is a DISPLAY projection only — it never rewrites the
+// stored value, so no digit is added or dropped and the order holds.
+
+describe("toE164Display — full E.164 display", () => {
+  it("renders the canonical form of the full number, `+` and country code intact", () => {
+    expect(toE164Display("+989142080937")).toBe("+989142080937");
+    expect(toE164Display("+989131077363")).toBe("+989131077363");
+  });
+
+  it("resolves EVERY accepted format to the same canonical display", () => {
+    const national = "9123456789";
+    for (const format of formatsOf(national)) {
+      expect(toE164Display(format), `input: ${format}`).toBe(`+98${national}`);
+    }
+  });
+
+  it("normalises a legacy 09… row to the same canonical display", () => {
+    expect(toE164Display("09123456789")).toBe("+989123456789");
+  });
+
+  it("returns an unrecognised value unchanged (never a digit added or dropped)", () => {
+    expect(toE164Display("")).toBe("");
+    expect(toE164Display("not-a-number")).toBe("not-a-number");
   });
 });

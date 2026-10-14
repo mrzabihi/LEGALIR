@@ -13,6 +13,11 @@
 //
 // Actions are derived from the item's real status by `deriveActions`, so
 // the buttons a card shows always match what the API will actually allow.
+//
+// The surface itself is a compact, single-column MD3 scan-list: one low
+// header, one search toolbar, a chip row for the coarse axis, a results
+// line, then flat rows of ~100px. Each row carries exactly ONE primary
+// action plus a ⋮ overflow menu — never a dedicated button row.
 // ============================================================
 
 "use client";
@@ -30,8 +35,16 @@ import { toPersianDate } from "@/lib/persian-utils";
 import { deriveActions, type HistoryAction, type HistoryActionKey } from "@/lib/history/actions";
 import { Button, Dialog, Select, TextField, Tooltip, snackbar } from "@legalir/ui";
 import {
+  CompactPageHeader,
+  SearchField,
+  OverflowMenu,
+  RawStatusBadge,
+  FilterChips,
+  ResultsBar,
+  type ActiveFilter,
+} from "@/components/shared";
+import {
   IconHistory,
-  IconSearch,
   IconChat,
   IconDocument,
   IconContract,
@@ -67,11 +80,11 @@ const CATEGORY_TABS: { key: string; label: string }[] = [
 
 const TYPE_OPTIONS: { key: string; label: string }[] = [
   { key: "all", label: "همه" },
-  { key: "conversation", label: "Conversation" },
-  { key: "document", label: "Document" },
-  { key: "contract", label: "Contract" },
-  { key: "subscription", label: "Subscription" },
-  { key: "case", label: "Case" },
+  { key: "conversation", label: "گفتگو" },
+  { key: "document", label: "سند" },
+  { key: "contract", label: "قرارداد" },
+  { key: "subscription", label: "اشتراک" },
+  { key: "case", label: "پرونده" },
 ];
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
@@ -94,37 +107,20 @@ const RETENTION_MAX_AGE_DAYS = 31;
 // Small helpers
 // ============================================================
 
+// Type tints drawn from the brand family (navy · gold · green) plus one
+// semantic hue — no raw rainbow. The tile background is a whisper of the
+// hue; the type is also always labelled in text beside it, so colour is
+// never the only cue.
 const TYPE_VISUAL: Record<
   V1HistoryItem["type"],
   { icon: ReactNode; bg: string; fg: string; labelFa: string }
 > = {
-  conversation: { icon: <IconChat size={20} />, bg: "bg-blue-100", fg: "text-blue-600", labelFa: "گفتگو" },
-  document: { icon: <IconDocument size={20} />, bg: "bg-green-100", fg: "text-green-600", labelFa: "سند" },
-  contract: { icon: <IconContract size={20} />, bg: "bg-amber-100", fg: "text-amber-600", labelFa: "قرارداد" },
-  case: { icon: <IconShield size={20} />, bg: "bg-sky-100", fg: "text-sky-600", labelFa: "پرونده" },
-  subscription: { icon: <IconSubscription size={20} />, bg: "bg-violet-100", fg: "text-violet-600", labelFa: "اشتراک" },
+  conversation: { icon: <IconChat size={20} />, bg: "bg-primary-container", fg: "text-primary-on-container", labelFa: "گفتگو" },
+  document: { icon: <IconDocument size={20} />, bg: "bg-success-50", fg: "text-success-700", labelFa: "سند" },
+  contract: { icon: <IconContract size={20} />, bg: "bg-warning-50", fg: "text-warning-700", labelFa: "قرارداد" },
+  case: { icon: <IconShield size={20} />, bg: "bg-info-50", fg: "text-info-700", labelFa: "پرونده" },
+  subscription: { icon: <IconSubscription size={20} />, bg: "bg-secondary-container", fg: "text-secondary-on-container", labelFa: "اشتراک" },
 };
-
-/** Status badge colour + symbol, keyed off the raw status string. */
-function getStatusConfig(status: string): { color: string; symbol: string } {
-  const s = status.toLowerCase();
-  if (["completed", "ready", "generated", "approved", "exported", "active", "signed", "finalized"].includes(s)) {
-    return { color: "bg-success/10 text-success border-success/30", symbol: "✓" };
-  }
-  if (["processing", "analyzing", "extracting", "under_review", "collecting", "uploaded", "generating"].includes(s)) {
-    return { color: "bg-blue-100 text-blue-700 border-blue-300", symbol: "⟳" };
-  }
-  if (["draft", "پیش‌نویس"].includes(s)) {
-    return { color: "bg-amber-100 text-amber-700 border-amber-300", symbol: "📝" };
-  }
-  if (["failed", "blocked", "error", "cancelled", "canceled"].includes(s)) {
-    return { color: "bg-error/10 text-error border-error/30", symbol: "✗" };
-  }
-  if (["archived"].includes(s)) {
-    return { color: "bg-surfaceVariant text-muted border-divider", symbol: "📦" };
-  }
-  return { color: "bg-surfaceVariant text-muted border-divider", symbol: "" };
-}
 
 function actionIcon(key: HistoryActionKey, size = 16): ReactNode {
   switch (key) {
@@ -160,23 +156,21 @@ function isNearPurge(item: V1HistoryItem): boolean {
 // States
 // ============================================================
 
+/** Row skeletons that mirror the final compact-row geometry. */
 function LoadingState() {
   return (
-    <div className="space-y-4 mt-6">
-      {Array.from({ length: 5 }).map((_, i) => (
+    <div className="mt-4 space-y-2.5">
+      {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="rounded-large bg-surface p-5 shadow-elevation-1 border border-divider animate-pulse"
+          className="flex items-center gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 tablet:p-4"
         >
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-muted/30 shrink-0" />
-            <div className="flex-1 space-y-3">
-              <div className="h-5 bg-muted/30 rounded w-2/3" />
-              <div className="h-4 bg-muted/20 rounded w-1/3" />
-              <div className="h-4 bg-muted/20 rounded w-full" />
-            </div>
-            <div className="w-20 h-4 bg-muted/20 rounded shrink-0" />
+          <div className="h-10 w-10 shrink-0 animate-pulse rounded-medium bg-surface-container" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-1/3 animate-pulse rounded bg-surface-container" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-surface-container" />
           </div>
+          <div className="h-9 w-24 shrink-0 animate-pulse rounded-full bg-surface-container" />
         </div>
       ))}
     </div>
@@ -185,15 +179,15 @@ function LoadingState() {
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="rounded-large bg-surface p-8 shadow-elevation-1 border border-divider text-center mt-6">
-      <div className="flex justify-center mb-4">
-        <IconWarning size={48} className="text-error" />
+    <div className="mt-4 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-8 text-center">
+      <div className="mb-4 flex justify-center">
+        <IconWarning size={44} className="text-error" />
       </div>
-      <h3 className="text-h3 text-on-surface mb-2">خطا در دریافت تاریخچه</h3>
-      <p className="text-body-2 text-muted mb-6">{message}</p>
+      <h3 className="mb-2 text-titleMedium text-on-surface">خطا در دریافت تاریخچه</h3>
+      <p className="mb-6 text-body-2 text-on-surface-variant">{message}</p>
       <button
         onClick={onRetry}
-        className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-primary text-white text-body-2 font-medium hover:bg-primary-dark transition-colors touch-target"
+        className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
       >
         <IconRefresh size={18} />
         تلاش مجدد
@@ -202,38 +196,56 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
-function EmptyState({ hasFilters, archivedView }: { hasFilters: boolean; archivedView: boolean }) {
+function EmptyState({
+  hasFilters,
+  archivedView,
+  onClearFilters,
+}: {
+  hasFilters: boolean;
+  archivedView: boolean;
+  onClearFilters: () => void;
+}) {
   return (
-    <div className="rounded-large bg-surface p-8 shadow-elevation-1 border border-divider text-center mt-6">
-      <div className="flex justify-center mb-4">
+    <div className="mt-4 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-8 text-center">
+      <div className="mb-4 flex justify-center">
         {archivedView ? (
-          <IconArchive size={48} className="text-muted" />
+          <IconArchive size={44} className="text-on-surface-variant" />
         ) : (
-          <IconHistory size={48} className="text-muted" />
+          <IconHistory size={44} className="text-on-surface-variant" />
         )}
       </div>
-      <h3 className="text-h3 text-on-surface mb-2">
+      <h3 className="mb-2 text-titleMedium text-on-surface">
         {hasFilters
           ? "نتیجه‌ای یافت نشد"
           : archivedView
             ? "موردی بایگانی نشده است"
             : "تاریخچه شما هنوز خالی است"}
       </h3>
-      <p className="text-body-2 text-muted mb-6">
+      <p className="mb-6 text-body-2 text-on-surface-variant">
         {hasFilters
           ? "با تغییر فیلترها دوباره جستجو کنید"
           : archivedView
             ? "مواردی که بایگانی می‌کنید در این بخش نگهداری می‌شوند و از پاک‌سازی خودکار مستثنا هستند"
             : "با شروع استفاده از LEGALIR، تاریخچه فعالیت‌های شما در اینجا نمایش داده می‌شود"}
       </p>
-      {!hasFilters && !archivedView && (
-        <Link
-          href="/chat"
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary-dark transition-colors touch-target"
+      {hasFilters ? (
+        <button
+          onClick={onClearFilters}
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
         >
-          <IconChat size={18} />
-          شروع گفتگو
-        </Link>
+          <IconClose size={18} />
+          پاک کردن فیلترها
+        </button>
+      ) : (
+        !archivedView && (
+          <Link
+            href="/chat"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-6 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
+          >
+            <IconChat size={18} />
+            شروع گفتگو
+          </Link>
+        )
       )}
     </div>
   );
@@ -241,20 +253,20 @@ function EmptyState({ hasFilters, archivedView }: { hasFilters: boolean; archive
 
 function RetentionNote() {
   return (
-    <div className="flex items-start gap-2.5 rounded-large bg-surfaceVariant/60 border border-divider px-4 py-3 mb-5">
-      <IconInfo size={18} className="text-muted mt-0.5 shrink-0" />
-      <p className="text-labelSmall text-muted leading-relaxed">{RETENTION_NOTE_FA}</p>
+    <div className="mt-4 flex items-start gap-2.5 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface-container px-3.5 py-2.5">
+      <IconInfo size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />
+      <p className="text-caption leading-relaxed text-on-surface-variant">{RETENTION_NOTE_FA}</p>
     </div>
   );
 }
 
 function AuditBanner() {
   return (
-    <div className="rounded-large bg-amber-50 border border-amber-300 p-4 mb-6 flex items-start gap-3">
-      <IconShield size={22} className="text-amber-600 mt-0.5 shrink-0" />
+    <div className="mt-4 flex items-start gap-2.5 rounded-medium border border-warning-200 bg-warning-50 px-3.5 py-3">
+      <IconShield size={20} className="mt-0.5 shrink-0 text-warning-700" />
       <div>
-        <p className="text-body-2 font-semibold text-amber-800">حالت بازبینی مدیر — دسترسی کامل</p>
-        <p className="text-body-2 text-amber-700 mt-1">
+        <p className="text-body-2 font-semibold text-warning-700">حالت بازبینی مدیر — دسترسی کامل</p>
+        <p className="mt-1 text-body-2 text-warning-700">
           شما در حال مشاهده تاریخچه کامل تمام کاربران هستید. این فعالیت‌ها ثبت و قابل حسابرسی است.
         </p>
       </div>
@@ -263,8 +275,11 @@ function AuditBanner() {
 }
 
 // ============================================================
-// History card
+// History row — one compact, scan-friendly line
 // ============================================================
+// Layout: [soft icon tile] [title + status · one-line description ·
+// low-emphasis meta] … [the ONE primary action] [⋮ menu]. No divider,
+// no separate action row: the whole record fits ~96–120px on desktop.
 
 function HistoryCard({
   item,
@@ -276,7 +291,6 @@ function HistoryCard({
   busy: boolean;
 }) {
   const visual = TYPE_VISUAL[item.type];
-  const statusCfg = getStatusConfig(item.status);
   const actions = deriveActions(item);
   const primary = actions[0];
   const secondary = actions.slice(1);
@@ -285,34 +299,37 @@ function HistoryCard({
   return (
     <article
       className={[
-        "rounded-large border p-4 transition-all hover:shadow-elevation-4",
-        item.archived ? "bg-surfaceVariant/30 border-divider" : "bg-surface border-divider",
+        "flex flex-col gap-3 rounded-medium border p-3 transition-colors duration-short3 tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4",
+        item.archived
+          ? "border-[color:var(--color-outline-variant)] bg-surface-container"
+          : "border-[color:var(--color-outline-variant)] bg-surface hover:border-[color:var(--color-outline)]",
       ].join(" ")}
     >
-      <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${visual.bg}`}>
+      {/* Identity + metadata */}
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${visual.bg}`}
+          aria-hidden="true"
+        >
           <span className={visual.fg}>{visual.icon}</span>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <h3 className="text-body-1 font-semibold text-onSurface">{item.title}</h3>
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border ${statusCfg.color}`}
-            >
-              <span>{statusCfg.symbol}</span>
-              {item.statusFa}
-            </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
+              {item.title}
+            </h3>
+            <RawStatusBadge status={item.status} label={item.statusFa} />
             {item.archived && (
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border border-divider bg-surfaceVariant text-muted">
-                <IconArchive size={12} />
+              <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-2 py-0.5 text-caption text-on-surface-variant">
+                <IconArchive size={12} aria-hidden="true" />
                 بایگانی‌شده
               </span>
             )}
             {nearPurge && (
               <Tooltip content="این مورد به‌زودی از تاریخچه فعال حذف می‌شود؛ برای نگهداری، آن را بایگانی کنید.">
-                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-labelSmall border border-amber-300 bg-amber-50 text-amber-700">
-                  <IconClock size={12} />
+                <span className="inline-flex items-center gap-1 rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-caption text-warning-700">
+                  <IconClock size={12} aria-hidden="true" />
                   نزدیک به پاک‌سازی
                 </span>
               </Tooltip>
@@ -320,42 +337,37 @@ function HistoryCard({
           </div>
 
           {item.description && (
-            <p className="text-body-2 text-muted line-clamp-2 mb-2">{item.description}</p>
+            <p className="mt-1 truncate text-body-2 text-on-surface-variant">{item.description}</p>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-labelSmall text-muted">
-            <span className="inline-flex items-center gap-1 font-medium text-on-surface-variant">
-              {visual.labelFa}
-            </span>
-            {item.categoryFa && (
-              <span className="inline-flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60" />
-                {item.categoryFa}
-              </span>
-            )}
-            <span>ایجاد: {toPersianDate(item.createdAt)}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
+            <span className="font-medium text-on-surface-variant">{visual.labelFa}</span>
+            <span aria-hidden="true" className="text-divider">·</span>
+            <span>{item.categoryFa ?? "سایر"}</span>
+            <span aria-hidden="true" className="text-divider">·</span>
             <span>آخرین فعالیت: {toPersianDate(item.updatedAt)}</span>
             {item.archived && item.archivedAt && (
-              <span>بایگانی: {toPersianDate(item.archivedAt)}</span>
+              <>
+                <span aria-hidden="true" className="text-divider">·</span>
+                <span>بایگانی: {toPersianDate(item.archivedAt)}</span>
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Actions — the primary action leads its own row (at the START edge,
-          i.e. the right in RTL), then a divider, then the secondary
-          archive / delete actions on the row below. The card itself is not
-          a link, so an action click can never open it, and the two rows can
-          never overlap or fall off the card. */}
-      <div className="mt-3 border-t border-divider pt-3">
-        {primary && (
-          <div className="flex flex-wrap items-center justify-start">
-            {primary.href ? (
+      {/* The ONE primary action + the ⋮ overflow menu. On mobile both sit
+          on their own line (full-width primary); from `tablet` up they pin
+          to the end edge of the same row. */}
+      {(primary || secondary.length > 0) && (
+        <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
+          {primary &&
+            (primary.href ? (
               <Link
                 href={primary.href}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
               >
-                {actionIcon(primary.key, 15)}
+                {actionIcon(primary.key, 16)}
                 {primary.labelFa}
               </Link>
             ) : (
@@ -363,39 +375,30 @@ function HistoryCard({
                 type="button"
                 onClick={() => onAction(primary, item)}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-white text-labelSmall font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-50 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
               >
-                {actionIcon(primary.key, 15)}
+                {actionIcon(primary.key, 16)}
                 {primary.labelFa}
               </button>
-            )}
-          </div>
-        )}
-
-        {secondary.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-divider/60 pt-2.5">
-            {secondary.map((action) => (
-              <Tooltip key={action.key} content={action.hintFa ?? action.labelFa}>
-                <button
-                  type="button"
-                  onClick={() => onAction(action, item)}
-                  disabled={busy}
-                  aria-label={action.labelFa}
-                  className={[
-                    "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-labelSmall font-medium transition-colors touch-target disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-                    action.destructive
-                      ? "border-error/30 text-error hover:bg-error/10"
-                      : "border-border text-muted hover:bg-onSurface/[0.06] hover:text-on-surface",
-                  ].join(" ")}
-                >
-                  {actionIcon(action.key, 16)}
-                  {action.labelFa}
-                </button>
-              </Tooltip>
             ))}
-          </div>
-        )}
-      </div>
+
+          {secondary.length > 0 && (
+            <OverflowMenu
+              label="گزینه‌های این سابقه"
+              size="small"
+              className="shrink-0"
+              items={secondary.map((action) => ({
+                key: action.key,
+                label: action.labelFa,
+                icon: actionIcon(action.key, 16),
+                destructive: action.destructive,
+                disabled: busy,
+                onSelect: () => onAction(action, item),
+              }))}
+            />
+          )}
+        </div>
+      )}
     </article>
   );
 }
@@ -436,21 +439,21 @@ function DeleteHistoryDialog({
         </>
       }
     >
-      <div className="flex items-start justify-between gap-4 mb-3">
+      <div className="mb-3 flex items-start justify-between gap-4">
         <h2 className="text-headlineSmall text-on-surface">حذف دائمی این مورد؟</h2>
         <button
           type="button"
           onClick={onCancel}
           disabled={pending}
           aria-label="بستن"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-onSurface/[0.08] transition-colors touch-target disabled:opacity-50"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors duration-short3 hover:bg-surface-hover disabled:opacity-50"
         >
           <IconClose size={18} />
         </button>
       </div>
-      <p className="text-body-2 text-muted leading-relaxed">
+      <p className="text-body-2 leading-relaxed text-on-surface-variant">
         آیا مطمئن هستید که می‌خواهید
-        <span className="text-on-surface font-medium"> «{target?.title ?? ""}» </span>
+        <span className="font-medium text-on-surface"> «{target?.title ?? ""}» </span>
         را حذف کنید؟ پس از حذف، امکان دسترسی دوباره یا بازیابی این مورد وجود ندارد.
       </p>
     </Dialog>
@@ -479,16 +482,16 @@ function AdminReviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-scrim/60 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative w-full max-w-md mx-4 rounded-large bg-surface shadow-elevation-16 border border-divider p-6 animate-fade-in">
-        <div className="flex items-center justify-between mb-5">
+      <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative mx-4 w-full max-w-md rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-6 shadow-elevation-16 animate-fade-in">
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <IconShield size={24} className="text-amber-600" />
-            <h2 className="text-h3 text-on-surface">بازبینی مدیر ارشد</h2>
+            <IconShield size={24} className="text-warning" />
+            <h2 className="text-titleLarge text-on-surface">بازبینی مدیر ارشد</h2>
           </div>
           <button
             onClick={onCancel}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
+            className="flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-short3 hover:bg-surface-hover"
             aria-label="بستن"
           >
             <IconClose size={18} />
@@ -509,17 +512,17 @@ function AdminReviewModal({
           />
         </div>
 
-        <div className="rounded-large bg-amber-50 border border-amber-200 p-4 mb-6 flex items-start gap-2.5">
-          <IconWarning size={18} className="text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-body-2 text-amber-800 leading-relaxed">
+        <div className="mb-6 flex items-start gap-2.5 rounded-medium border border-warning-200 bg-warning-50 p-4">
+          <IconWarning size={18} className="mt-0.5 shrink-0 text-warning-700" />
+          <p className="text-body-2 leading-relaxed text-warning-700">
             تمامی فعالیت‌های بازبینی شما ثبت و ذخیره می‌شود. این اطلاعات قابل حسابرسی است.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 justify-end">
+        <div className="flex items-center justify-end gap-3">
           <button
             onClick={onCancel}
-            className="rounded-full px-5 py-2.5 text-body-2 font-medium text-on-surface border border-border hover:bg-onSurface/[0.06] transition-colors touch-target"
+            className="h-10 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
           >
             انصراف
           </button>
@@ -527,8 +530,10 @@ function AdminReviewModal({
             onClick={onConfirm}
             disabled={!isValid}
             className={[
-              "rounded-full px-5 py-2.5 text-body-2 font-medium text-white transition-colors touch-target",
-              isValid ? "bg-primary hover:bg-primary-dark" : "bg-muted cursor-not-allowed",
+              "h-10 rounded-full px-5 text-body-2 font-medium transition-colors duration-short3",
+              isValid
+                ? "bg-primary text-primary-on hover:bg-primary-700 hover:text-white"
+                : "cursor-not-allowed bg-muted text-white",
             ].join(" ")}
           >
             تأیید و ورود
@@ -584,6 +589,36 @@ export function HistoryWorkspace() {
 
   const busy = archiveItem.isPending || deleteItem.isPending || editItem.isPending;
 
+  const clearAllFilters = useCallback(() => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSelectedType("all");
+  }, []);
+
+  // Active filters shown (and individually removable) in the results bar.
+  const activeFilters: ActiveFilter[] = [];
+  if (searchQuery.trim()) {
+    activeFilters.push({
+      key: "search",
+      label: `جست‌وجو: ${searchQuery.trim()}`,
+      onRemove: () => setSearchQuery(""),
+    });
+  }
+  if (selectedCategory !== "all") {
+    activeFilters.push({
+      key: "category",
+      label: CATEGORY_TABS.find((c) => c.key === selectedCategory)?.label ?? selectedCategory,
+      onRemove: () => setSelectedCategory("all"),
+    });
+  }
+  if (selectedType !== "all") {
+    activeFilters.push({
+      key: "type",
+      label: TYPE_OPTIONS.find((t) => t.key === selectedType)?.label ?? selectedType,
+      onRemove: () => setSelectedType("all"),
+    });
+  }
+
   // --- Handlers ---
 
   const handleAction = useCallback(
@@ -622,7 +657,12 @@ export function HistoryWorkspace() {
           });
           break;
         default:
-          break; // view / continue are links
+          // Navigational secondary actions (e.g. «تلاش مجدد» on a failed
+          // item) live in the ⋮ menu as buttons, so they must push their
+          // href explicitly — unlike the primary action, a menu item is
+          // never a <Link>.
+          if (action.href) router.push(action.href);
+          break;
       }
     },
     [archiveItem, editItem, router]
@@ -660,143 +700,118 @@ export function HistoryWorkspace() {
     setAdminReviewPurpose("");
   }, []);
 
+  const countLabel = data?.pagination
+    ? `${items.length} از ${data.pagination.total} نتیجه`
+    : `${items.length} نتیجه`;
+
   return (
-    <div className="p-4 tablet:p-6 max-w-4xl mx-auto">
-      {/* Page Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-        <div>
-          <h1 className="text-h2 text-on-surface">{archivedView ? "بایگانی" : "تاریخچه"}</h1>
-          <p className="text-body-2 text-muted mt-1">
-            {archivedView ? ARCHIVE_DESCRIPTION_FA : "سابقه گفتگوها، اسناد و قراردادها"}
-          </p>
-        </div>
+    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6">
+      {/* Low, quiet page header — no decorative card. */}
+      <CompactPageHeader
+        title={archivedView ? "بایگانی" : "تاریخچه"}
+        description={archivedView ? ARCHIVE_DESCRIPTION_FA : "سابقه گفتگوها، اسناد و قراردادها"}
+        actions={
+          <>
+            {archivedView ? (
+              <Link
+                href="/history"
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-4 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              >
+                <IconArrowForward size={18} className="rotate-180" />
+                بازگشت به تاریخچه
+              </Link>
+            ) : (
+              <Link
+                href="/history?archived=true"
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-4 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                aria-label={`بایگانی (${archivedCount} مورد)`}
+              >
+                <IconArchive size={18} />
+                بایگانی
+                {archivedCount > 0 && (
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-caption text-primary-on">
+                    {archivedCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
-        <div className="flex items-center gap-2">
-          {archivedView ? (
-            <Link
-              href="/history"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
-            >
-              <IconArrowForward size={18} className="rotate-180" />
-              بازگشت به تاریخچه
-            </Link>
-          ) : (
-            <Link
-              href="/history?archived=true"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2.5 text-body-2 font-medium text-on-surface hover:bg-onSurface/[0.06] transition-colors touch-target"
-              aria-label={`بایگانی (${archivedCount} مورد)`}
-            >
-              <IconArchive size={18} />
-              بایگانی
-              {archivedCount > 0 && (
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-labelSmall text-white">
-                  {archivedCount}
-                </span>
-              )}
-            </Link>
-          )}
+            {isAdmin && !adminReviewActive && (
+              <button
+                onClick={handleOpenAdminModal}
+                className="inline-flex h-9 items-center gap-2 rounded-full bg-warning-700 px-4 text-body-2 font-medium text-white transition-colors duration-short3 hover:opacity-90"
+              >
+                <IconShield size={18} />
+                بازبینی مدیر ارشد
+              </button>
+            )}
 
-          {isAdmin && !adminReviewActive && (
-            <button
-              onClick={handleOpenAdminModal}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 bg-amber-600 text-white text-body-2 font-medium hover:bg-amber-700 transition-colors touch-target"
-            >
-              <IconShield size={18} />
-              بازبینی مدیر ارشد
-            </button>
-          )}
-
-          {adminReviewActive && (
-            <button
-              onClick={handleExitAdminReview}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 border border-error text-error text-body-2 font-medium hover:bg-error/10 transition-colors touch-target"
-            >
-              <IconClose size={18} />
-              خروج از حالت بازبینی
-            </button>
-          )}
-        </div>
-      </div>
+            {adminReviewActive && (
+              <button
+                onClick={handleExitAdminReview}
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-error px-4 text-body-2 font-medium text-error transition-colors duration-short3 hover:bg-error-container"
+              >
+                <IconClose size={18} />
+                خروج از حالت بازبینی
+              </button>
+            )}
+          </>
+        }
+      />
 
       {adminReviewActive && <AuditBanner />}
 
-      {/* Retention note — active view only (archived items are exempt). */}
+      {/* Retention notice — active view only (archived items are exempt). */}
       {!archivedView && !adminReviewActive && <RetentionNote />}
 
-      {/* Category Tabs */}
+      {/* Toolbar — search owns the main space; type/sort are compact and
+          equal-height beside it. */}
       {!adminReviewActive && (
-        <div className="flex flex-wrap gap-2 mb-6" role="tablist" aria-label="دسته‌بندی تاریخچه">
-          {CATEGORY_TABS.map((cat) => {
-            const isActive = selectedCategory === cat.key;
-            return (
-              <button
-                key={cat.key}
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setSelectedCategory(cat.key)}
-                className={[
-                  "rounded-full border px-4 py-2 text-body-2 transition-colors touch-target",
-                  isActive
-                    ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                    : "border-border bg-surface text-muted hover:border-control-selected/50 hover:text-on-surface",
-                ].join(" ")}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Search, Filter, Sort Bar */}
-      {!adminReviewActive && (
-        <div className="flex flex-col tablet:flex-row gap-3 mb-6">
-          <div className="flex-1">
-            <TextField
-              type="search"
-              label="جستجو در تاریخچه"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="جستجو در تاریخچه..."
-              leadingIcon={<IconSearch size={18} />}
-              endAdornment={
-                searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
-                    aria-label="پاک کردن جستجو"
-                  >
-                    <IconClose size={16} />
-                  </button>
-                ) : undefined
-              }
-              fullWidth
-            />
+        <>
+          <div className="mt-4 flex flex-col gap-3 tablet:flex-row tablet:items-end">
+            <div className="flex-1">
+              <SearchField
+                label="جست‌وجو در تاریخچه"
+                placeholder="مثلاً: قرارداد اجاره، اظهارنامه"
+                value={searchQuery}
+                onChange={setSearchQuery}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 tablet:flex tablet:items-end">
+              <Select
+                label="نوع"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                selectSize="small"
+                className="tablet:w-[150px]"
+                options={TYPE_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
+              />
+              <Select
+                label="مرتب‌سازی"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                selectSize="small"
+                className="tablet:w-[150px]"
+                options={SORT_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
+              />
+            </div>
           </div>
 
-          <Select
-            label="فیلتر نوع"
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            selectSize="small"
-            className="min-w-[140px]"
-            options={TYPE_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
-          />
-
-          <Select
-            label="مرتب‌سازی"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            selectSize="small"
-            className="min-w-[140px]"
-            options={SORT_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
-          />
-        </div>
+          <div className="mt-3">
+            <FilterChips
+              options={CATEGORY_TABS}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              ariaLabel="فیلتر دسته‌بندی"
+            />
+          </div>
+        </>
       )}
 
       {adminReviewActive && (
-        <p className="text-body-2 text-muted mb-6">نمایش تمام آیتم‌ها بدون فیلتر (حالت بازبینی)</p>
+        <p className="mt-4 text-body-2 text-on-surface-variant">
+          نمایش تمام آیتم‌ها بدون فیلتر (حالت بازبینی)
+        </p>
       )}
 
       {isLoading && <LoadingState />}
@@ -809,20 +824,27 @@ export function HistoryWorkspace() {
       )}
 
       {!isLoading && !isError && items.length === 0 && (
-        <EmptyState hasFilters={hasFilters || adminReviewActive} archivedView={archivedView} />
+        <EmptyState
+          hasFilters={hasFilters || adminReviewActive}
+          archivedView={archivedView}
+          onClearFilters={clearAllFilters}
+        />
       )}
 
       {!isLoading && !isError && items.length > 0 && (
-        <div className="space-y-3 mt-2">
-          <p className="text-labelSmall text-muted px-1">
-            {data?.pagination
-              ? `${items.length} از ${data.pagination.total} نتیجه`
-              : `${items.length} نتیجه`}
-          </p>
+        <div className="mt-4 space-y-2.5">
+          <ResultsBar
+            countLabel={countLabel}
+            filters={activeFilters}
+            onClearAll={clearAllFilters}
+            className="px-0.5"
+          />
 
-          {items.map((item) => (
-            <HistoryCard key={item.id} item={item} onAction={handleAction} busy={busy} />
-          ))}
+          <div className="space-y-2.5">
+            {items.map((item) => (
+              <HistoryCard key={item.id} item={item} onAction={handleAction} busy={busy} />
+            ))}
+          </div>
         </div>
       )}
 

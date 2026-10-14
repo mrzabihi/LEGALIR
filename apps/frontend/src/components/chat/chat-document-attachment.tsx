@@ -60,17 +60,17 @@ export function ChatDocumentAttachment({
   // ----------------------------------------------------------
   if (variant === "COMPOSER") {
     return (
-      <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/5 py-1 pe-1 ps-3 text-bodySmall text-primary-700">
+      <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-primary bg-primary-container py-1 pe-1 ps-3 text-bodySmall text-on-primary-container">
         <Icon size={14} className="shrink-0" aria-hidden="true" />
         <span className="truncate max-w-[12rem]">{document.name}</span>
-        <span className="shrink-0 text-caption text-primary-700/70">
+        <span className="shrink-0 text-caption text-on-primary-container opacity-70">
           {formatFileSize(document.sizeBytes)}
         </span>
         {onRemove && (
           <button
             type="button"
             onClick={() => onRemove(document.documentId)}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-primary-700 transition-colors hover:bg-primary/15"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-on-primary-container transition-colors hover:bg-surface-hover"
             aria-label={`حذف پیوست ${document.name}`}
             title="حذف پیوست"
           >
@@ -106,8 +106,8 @@ export function ChatDocumentAttachment({
     >
       <span
         className={[
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-          onPrimary ? "bg-white/20 text-white" : "bg-primary/10 text-primary",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-medium",
+          onPrimary ? "bg-white/20 text-white" : "bg-primary-container text-primary",
         ].join(" ")}
         aria-hidden="true"
       >

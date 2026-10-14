@@ -147,8 +147,8 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
         className={[
           "relative flex flex-col items-center justify-center gap-3 p-8 rounded-large border-2 border-dashed transition-all duration-200 cursor-pointer",
           isDragOver
-            ? "border-primary bg-primary/5 scale-[1.01]"
-            : "border-divider bg-surface hover:border-primary/50",
+            ? "border-primary bg-primary-container scale-[1.01]"
+            : "border-divider bg-surface hover:border-primary",
           disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : "",
         ].join(" ")}
       >
@@ -156,7 +156,7 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
         <div
           className={[
             "w-14 h-14 rounded-full flex items-center justify-center transition-colors",
-            isDragOver ? "bg-primary/10 text-primary" : "bg-gray-100 text-muted",
+            isDragOver ? "bg-primary-container text-primary" : "bg-surface-container text-muted",
           ].join(" ")}
         >
           <IconUpload size={28} />
@@ -202,9 +202,9 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
       {error && (
         <div
           role="alert"
-          className="mt-3 flex items-start gap-2 rounded-medium bg-red-50 border border-red-200 p-3 text-red-800"
+          className="mt-3 flex items-start gap-2 rounded-medium bg-error-container border border-error p-3 text-error"
         >
-          <IconWarning size={20} className="mt-0.5 shrink-0 text-red-600" />
+          <IconWarning size={20} className="mt-0.5 shrink-0 text-error" />
           <div className="flex-1 min-w-0">
             <p className="text-caption font-medium">{error}</p>
           </div>
@@ -212,7 +212,7 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
             type="button"
             onClick={handleClearError}
             aria-label="بستن پیام خطا"
-            className="shrink-0 text-red-500 hover:text-red-700 p-1"
+            className="shrink-0 text-error hover:opacity-80 p-1"
           >
             <IconClose size={16} />
           </button>

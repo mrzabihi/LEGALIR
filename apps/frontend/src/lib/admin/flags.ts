@@ -12,25 +12,56 @@ import type { FeatureFlag, FeatureFlagStatus } from "@legalir/types";
 
 const TABLE = "feature_flags";
 
-/** The capabilities the product actually ships, seeded as flags. */
-const SEED: Omit<FeatureFlag, "createdAt" | "updatedAt">[] = [
-  { key: "ai_consultation", nameFa: "مشاوره هوش مصنوعی", descriptionFa: "گفت‌وگوی حقوقی مبتنی بر AI", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "document_analysis", nameFa: "تحلیل سند", descriptionFa: "تحلیل خودکار اسناد حقوقی", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "contract_review", nameFa: "بررسی قرارداد", descriptionFa: "بازبینی و ارزیابی ریسک قرارداد", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "contract_generation", nameFa: "تولید قرارداد", descriptionFa: "ساخت قرارداد از قالب‌های تأییدشده", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "formal_letter", nameFa: "تولید اظهارنامه", descriptionFa: "تنظیم اظهارنامه و نامه رسمی", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "calculators", nameFa: "محاسبه‌گرهای حقوقی", descriptionFa: "محاسبه‌های فرمولی مستقل از AI", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "lawyer_referral", nameFa: "ارجاع به وکیل", descriptionFa: "ارجاع درخواست به وکلای منتخب", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "case_management", nameFa: "پرونده و پیگیری", descriptionFa: "مدیریت پرونده و مهلت‌ها", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "legal_library", nameFa: "کتابخانه حقوقی", descriptionFa: "منابع و متون حقوقی", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "notifications_inapp", nameFa: "اعلان درون‌برنامه‌ای", descriptionFa: "مرکز اعلان‌ها", status: "on", rolloutPercent: 100, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "export_data", nameFa: "خروجی گرفتن از داده", descriptionFa: "دریافت بسته ZIP از داده‌های کاربر", status: "off", rolloutPercent: 0, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-  { key: "voice_video_consult", nameFa: "مشاوره صوتی/تصویری", descriptionFa: "نیازمند اتصال ارائه‌دهنده ویدیو", status: "off", rolloutPercent: 0, allowedPlans: [], allowedOrgIds: [], environment: "development", updatedBy: null },
-];
+/**
+ * The environment this process runs in. A flag only evaluates in a matching
+ * environment (see `isFlagEnabled`). Staging/prod map through; anything else
+ * falls back to "development" so a local server never mis-scopes a flag.
+ */
+export function currentEnvironment(): FeatureFlag["environment"] {
+  // Read as a plain string: Next narrows NODE_ENV to "development" | "test",
+  // which would make the "staging" comparison a compile-time no-op.
+  const raw: string = process.env["NODE_ENV"] ?? "";
+  if (raw === "production") return "production";
+  if (raw === "staging") return "staging";
+  return "development";
+}
+
+/**
+ * The capabilities the product actually ships, seeded as flags. `environment`
+ * is taken from the running process so a fresh staging/prod database seeds
+ * flags that `isFlagEnabled` will actually evaluate — the previous hard-coded
+ * "development" scoped every flag out of any non-dev environment.
+ */
+function seedRows(): Omit<FeatureFlag, "createdAt" | "updatedAt">[] {
+  const environment = currentEnvironment();
+  const on = {
+    status: "on" as const,
+    rolloutPercent: 100,
+    allowedPlans: [] as string[],
+    allowedOrgIds: [] as string[],
+    environment,
+    updatedBy: null,
+  };
+  const off = { ...on, status: "off" as const, rolloutPercent: 0 };
+  return [
+    { key: "ai_consultation", nameFa: "مشاوره هوش مصنوعی", descriptionFa: "گفت‌وگوی حقوقی مبتنی بر AI", ...on },
+    { key: "document_analysis", nameFa: "تحلیل سند", descriptionFa: "تحلیل خودکار اسناد حقوقی", ...on },
+    { key: "contract_review", nameFa: "بررسی قرارداد", descriptionFa: "بازبینی و ارزیابی ریسک قرارداد", ...on },
+    { key: "contract_generation", nameFa: "تولید قرارداد", descriptionFa: "ساخت قرارداد از قالب‌های تأییدشده", ...on },
+    { key: "formal_letter", nameFa: "تولید اظهارنامه", descriptionFa: "تنظیم اظهارنامه و نامه رسمی", ...on },
+    { key: "calculators", nameFa: "محاسبه‌گرهای حقوقی", descriptionFa: "محاسبه‌های فرمولی مستقل از AI", ...on },
+    { key: "lawyer_referral", nameFa: "ارجاع به وکیل", descriptionFa: "ارجاع درخواست به وکلای منتخب", ...on },
+    { key: "case_management", nameFa: "پرونده و پیگیری", descriptionFa: "مدیریت پرونده و مهلت‌ها", ...on },
+    { key: "legal_library", nameFa: "کتابخانه حقوقی", descriptionFa: "منابع و متون حقوقی", ...on },
+    { key: "notifications_inapp", nameFa: "اعلان درون‌برنامه‌ای", descriptionFa: "مرکز اعلان‌ها", ...on },
+    { key: "export_data", nameFa: "خروجی گرفتن از داده", descriptionFa: "دریافت بسته ZIP از داده‌های کاربر", ...off },
+    { key: "voice_video_consult", nameFa: "مشاوره صوتی/تصویری", descriptionFa: "نیازمند اتصال ارائه‌دهنده ویدیو", ...off },
+  ];
+}
 
 function seed(): FeatureFlag[] {
   const now = new Date().toISOString();
-  const rows: FeatureFlag[] = SEED.map((f) => ({ ...f, createdAt: now, updatedAt: now }));
+  const rows: FeatureFlag[] = seedRows().map((f) => ({ ...f, createdAt: now, updatedAt: now }));
   writeTable(TABLE, rows);
   return rows;
 }

@@ -139,6 +139,28 @@ function documentsComplete(contract: PropertyContract, documents: ContractDocume
     .every((d) => documents.some((doc) => doc.category === d.category));
 }
 
+/** The flat value map of a schema-driven contract. */
+function genericValues(contract: PropertyContract): Record<string, unknown> {
+  const values = (contract.data as { values?: Record<string, unknown> }).values;
+  return values ?? {};
+}
+
+/**
+ * True when a field's own `requiredWhen` gate is satisfied by the current
+ * values. A gated field only blocks its section while its condition holds,
+ * so the natural/legal-person and citizen/foreign-national branches stay
+ * independent. A field with no gate is always applicable.
+ */
+function conditionHolds(
+  values: Record<string, unknown>,
+  gate: { key: string; equals?: unknown; oneOf?: unknown[] }
+): boolean {
+  const current = values[gate.key];
+  if (gate.oneOf) return gate.oneOf.includes(current);
+  if (gate.equals !== undefined) return current === gate.equals;
+  return true;
+}
+
 /** Score a single section. */
 function scoreSection(
   contract: PropertyContract,
@@ -147,8 +169,21 @@ function scoreSection(
   section: ContractSectionDefinition
 ): ContractCompletenessSection {
   const missing: string[] = [];
+  const values = genericValues(contract);
+  const fields = getContractDefinition(contract.type).fields;
 
-  for (const path of section.requiredPaths) {
+  // Drop conditionally-required fields whose branch was not chosen, so an
+  // irrelevant field never holds back a section that is complete for the
+  // path the user actually took.
+  const applicablePaths = section.requiredPaths.filter((path) => {
+    if (!path.startsWith("values.")) return true;
+    const key = path.slice("values.".length);
+    const descriptor = fields.find((f) => f.key === key);
+    if (!descriptor?.requiredWhen) return true;
+    return conditionHolds(values, descriptor.requiredWhen);
+  });
+
+  for (const path of applicablePaths) {
     if (path === "parties") {
       if (!partiesComplete(contract, parties)) missing.push(PATH_LABELS["parties"] ?? "طرفین قرارداد");
       continue;
@@ -161,7 +196,7 @@ function scoreSection(
     if (!isFilled(value)) missing.push(pathLabelFa(contract, path));
   }
 
-  const total = section.requiredPaths.length;
+  const total = applicablePaths.length;
   const percent = total === 0 ? 100 : Math.round(((total - missing.length) / total) * 100);
 
   return {

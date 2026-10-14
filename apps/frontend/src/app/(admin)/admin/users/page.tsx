@@ -4,8 +4,10 @@
 // Lists platform users with their role, account type and subscription
 // state. A super-admin (holding admin:users:manage) may change a user's
 // role — the LAST super-admin cannot be demoted (server-enforced lockout
-// guard). Mobile numbers are masked by the server; the panel never sees or
-// shows a full number.
+// guard). Mobile numbers are masked by default (the four middle digits hidden
+// with a star each) and revealed per row via the eye toggle in the same cell;
+// both states render LTR (isolated) within the RTL panel so digits never
+// reorder.
 // ============================================================
 
 "use client";
@@ -16,7 +18,7 @@ import { useUsersList } from "@/hooks/useAnalyticsDrill";
 import { DrillWindowBanner } from "@/components/admin/drill-window-banner";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { UserSubscriptionDrawer } from "@/components/admin/user-subscription-drawer";
-import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
+import { toPersianDate } from "@/lib/persian-utils";
 import { ROLE_FA, STAFF_ROLES } from "@legalir/types";
 import type { PlatformRole } from "@legalir/types";
 import {
@@ -24,16 +26,19 @@ import {
   DataTable,
   Th,
   Td,
+  MaskedMobile,
   Badge,
   StateView,
   LoadingBlock,
-  TextInput,
+  SearchInput,
   Button,
   IdChip,
   InfoBanner,
+  Pagination,
   ExportButton,
 } from "@/components/admin/ui";
-import { IconSearch, IconWarning } from "@/lib/icons";
+import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
+import { IconWarning } from "@/lib/icons";
 
 const ASSIGNABLE_ROLES: PlatformRole[] = [
   "USER",
@@ -63,6 +68,7 @@ function AdminUsersView() {
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<string | null>(null);
   const [billingUserId, setBillingUserId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
@@ -70,16 +76,12 @@ function AdminUsersView() {
   // Server-side search: debounce the raw input so typing stays instant while
   // the list re-queries only once the operator pauses.
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
-  useEffect(() => setPage(1), [debouncedSearch]);
+  useEffect(() => setPage(1), [debouncedSearch, pageSize]);
 
   // When opened from a BI KPI (`?fromIso&toIso`) this scopes to that window;
   // otherwise it is the ordinary full user list — one code path either way.
-  const query = useUsersList({ search: debouncedSearch, page, pageSize: 25 });
+  const query = useUsersList({ search: debouncedSearch, page, pageSize });
   const changeRole = useChangeStaffRole();
-
-  const totalPages = query.data
-    ? Math.max(1, Math.ceil(query.data.total / query.data.pageSize))
-    : 1;
 
   const roleOptions = useMemo(
     () => ASSIGNABLE_ROLES.map((r) => ({ value: r, label: ROLE_FA[r] ?? r })),
@@ -105,7 +107,7 @@ function AdminUsersView() {
     <div>
       <PageHeader
         title="کاربران و سازمان‌ها"
-        description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت پوشیده نمایش داده می‌شوند."
+        description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت پیش‌فرض ماسک هستند و با آیکون چشم هر ردیف به‌طور کامل نمایش داده می‌شوند."
         actions={<ExportButton kind="users" />}
       />
 
@@ -130,17 +132,12 @@ function AdminUsersView() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[240px] flex-1">
-          <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-muted">
-            <IconSearch size={16} />
-          </span>
-          <TextInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجو در نام، شماره پوشیده یا شناسه"
-            className="ps-9"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="جستجو در نام، شماره تماس یا شناسه"
+          className="min-w-[240px] flex-1"
+        />
       </div>
 
       <StateView
@@ -180,7 +177,9 @@ function AdminUsersView() {
                       </span>
                     </div>
                   </Td>
-                  <Td className="tabular-nums">{u.mobileMasked}</Td>
+                  <Td>
+                    <MaskedMobile value={u.mobile} />
+                  </Td>
                   <Td>
                     {editing === u.id ? (
                       <select
@@ -232,30 +231,14 @@ function AdminUsersView() {
               ))}
             </DataTable>
 
-            <div className="mt-3 flex items-center justify-between text-caption text-muted">
-              <span>{toPersianNumber(data.total)} کاربر</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  قبلی
-                </Button>
-                <span className="tabular-nums">
-                  {toPersianNumber(data.page)} / {toPersianNumber(totalPages)}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  بعدی
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              page={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              itemLabel="کاربر"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
 
             {canManage && (
               <p className="mt-4 flex items-center gap-1.5 text-caption text-muted">

@@ -28,10 +28,10 @@ export function SettingsCard({
       className={`overflow-hidden rounded-large bg-surface shadow-elevation-1 border border-divider mb-6 ${className}`}
     >
       {(title || action) && (
-        <div className="flex items-center justify-between gap-3 border-b border-divider/70 bg-surface-container/40 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-divider bg-surface-container px-6 py-4">
           <div className="flex items-center gap-3">
             {icon && (
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary">
                 {icon}
               </span>
             )}
@@ -60,7 +60,7 @@ export function Toggle({
   disabled?: boolean;
 }) {
   return (
-    <div className="group -mx-3 flex items-center justify-between gap-4 rounded-medium px-3 py-3.5 transition-colors hover:bg-surface-container/60">
+    <div className="group -mx-3 flex items-center justify-between gap-4 rounded-medium px-3 py-3.5 transition-colors hover:bg-surface-container">
       <div className="flex flex-col gap-0.5">
         <span className={`text-body-1 ${disabled ? "text-muted" : "text-on-surface"}`}>
           {label}
@@ -78,8 +78,8 @@ export function Toggle({
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
         } ${
           checked
-            ? "bg-control-selected border-control-selected focus-visible:ring-control-focus/50"
-            : "bg-control-unselected-bg border-control-unselected-border focus-visible:ring-control-focus/50"
+            ? "bg-control-selected border-control-selected focus-visible:ring-control-focus"
+            : "bg-control-unselected-bg border-control-unselected-border focus-visible:ring-control-focus"
         }`}
       >
         <span
@@ -113,7 +113,7 @@ export function PreferenceToggleGroup({
   saving: boolean;
 }) {
   return (
-    <div className="divide-y divide-divider/70">
+    <div className="divide-y divide-divider">
       {items.map((item) => (
         <Toggle
           key={item.key}
@@ -161,13 +161,13 @@ export function ErrorBanner({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-6 text-center">
+    <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
       <IconWarning className="text-error" size={28} />
       <p className="text-body-1 text-error">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+          className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
         >
           <IconRefresh size={16} />
           تلاش مجدد

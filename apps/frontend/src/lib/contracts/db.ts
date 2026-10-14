@@ -104,6 +104,17 @@ export function listContractsForUser(userId: string): PropertyContract[] {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+/**
+ * Every contract, newest activity first. Server-internal use only —
+ * the admin queue reads across owners, and ownership is NOT enforced
+ * here, so callers must have already passed an admin permission check.
+ */
+export function listAllContracts(): PropertyContract[] {
+  return readTable<PropertyContract>(T_CONTRACTS).sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt)
+  );
+}
+
 /** A single contract, scoped to its owner. Returns null for another user's id. */
 export function getContractForUser(userId: string, contractId: string): PropertyContract | null {
   const row = readTable<PropertyContract>(T_CONTRACTS).find((c) => c.id === contractId);
@@ -282,10 +293,11 @@ export function deleteContractForUser(userId: string, contractId: string): boole
     T_APPROVALS,
     readTable<ContractApproval>(T_APPROVALS).filter((a) => a.contractId !== contractId)
   );
-  writeTable(
-    T_AUDIT,
-    readTable<ContractAuditEntry>(T_AUDIT).filter((a) => a.contractId !== contractId)
-  );
+  // The audit trail is APPEND-ONLY (§9). Deleting a draft removes the
+  // contract and its private data, but its audit entries are RETAINED so
+  // the trail stays complete and tamper-evident — a deletion is itself a
+  // fact worth being able to search later. Entries carry no sensitive
+  // data (no tokens, no full text, no raw IP).
   writeTable(
     T_PAYMENTS,
     readTable<ContractPayment>(T_PAYMENTS).filter((p) => p.contractId !== contractId)
@@ -441,10 +453,55 @@ export function invalidateApprovalsForOtherVersions(
 // Audit log
 // ------------------------------------------------------------
 
-export function listAudit(contractId: string): ContractAuditEntry[] {
+/** Filters for the audit trail (§9.2 — searchable by actor/date/action). */
+export interface AuditFilters {
+  /** Match the acting user id exactly. */
+  actorId?: string;
+  /** Case-insensitive substring match on the action (e.g. "signature."). */
+  action?: string;
+  /** Inclusive lower bound on createdAt (ISO date or timestamp). */
+  from?: string;
+  /** Inclusive upper bound on createdAt (ISO date or timestamp). */
+  to?: string;
+}
+
+/** Match an audit entry's `createdAt` against an inclusive day/timestamp range. */
+function withinRange(createdAt: string, from?: string, to?: string): boolean {
+  if (from && createdAt < from) return false;
+  // A date-only `to` (YYYY-MM-DD) must include that whole day, so widen
+  // it to the end of day before comparing.
+  if (to) {
+    const upper = to.length === 10 ? `${to}T23:59:59.999Z` : to;
+    if (createdAt > upper) return false;
+  }
+  return true;
+}
+
+/**
+ * The audit trail for a contract, newest first. Every filter is optional
+ * and narrows the result — with none supplied this is the full trail.
+ */
+export function listAudit(contractId: string, filters: AuditFilters = {}): ContractAuditEntry[] {
+  const action = filters.action?.trim().toLowerCase();
   return readTable<ContractAuditEntry>(T_AUDIT)
     .filter((a) => a.contractId === contractId)
+    .filter((a) => (filters.actorId ? a.actorId === filters.actorId : true))
+    .filter((a) => (action ? a.action.toLowerCase().includes(action) : true))
+    .filter((a) => withinRange(a.createdAt, filters.from, filters.to))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * The distinct actors who have touched a contract, for the audit filter
+ * UI — never a full member list, only those present in the trail.
+ */
+export function listAuditActors(contractId: string): { actorId: string; actorLabel: string }[] {
+  const seen = new Map<string, string>();
+  for (const a of readTable<ContractAuditEntry>(T_AUDIT)) {
+    if (a.contractId !== contractId) continue;
+    if (!seen.has(a.actorId)) seen.set(a.actorId, a.actorLabel);
+  }
+  return [...seen.entries()].map(([actorId, actorLabel]) => ({ actorId, actorLabel }));
 }
 
 export function appendAudit(entry: ContractAuditEntry): ContractAuditEntry {
@@ -528,6 +585,7 @@ const REFERENCE_KIND: Record<ContractTypeId, string> = {
   nda: "NDA",
   saas: "SAAS",
   startup: "STARTUP",
+  employment: "EMPLOY",
 };
 
 /** A short, human-facing reference code, e.g. LGL-RENT-1405-000184. */

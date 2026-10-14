@@ -12,6 +12,9 @@ import {
   CONTRACT_CATEGORIES,
   CONTRACT_SERVICES,
   CONTRACT_SERVICE_COUNT,
+  COMING_SOON_CONTRACT_SERVICE_COUNT,
+  activeContractServices,
+  comingSoonContractServices,
   contractServiceHref,
   contractServicesByCategory,
   findContractServices,
@@ -47,10 +50,26 @@ describe("catalog data invariants", () => {
     }
   });
 
-  it("marks every service «به‌زودی» in this phase", () => {
-    for (const service of CONTRACT_SERVICES) {
-      expect(service.status).toBe("coming-soon");
+  it("splits the catalog into active and coming-soon without loss", () => {
+    const active = activeContractServices();
+    const soon = comingSoonContractServices();
+    // Every service is in exactly one of the two buckets.
+    expect(active.length + soon.length).toBe(CONTRACT_SERVICES.length);
+    expect(COMING_SOON_CONTRACT_SERVICE_COUNT).toBe(soon.length);
+    for (const service of active) expect(service.status).toBe("active");
+    for (const service of soon) expect(service.status).toBe("coming-soon");
+    // The employment service is the one the brief activated.
+    expect(active.some((s) => s.id === "employment-contract")).toBe(true);
+  });
+
+  it("links every active service to a registered contract type", () => {
+    for (const service of activeContractServices()) {
+      expect(service.typeId).toBeTruthy();
     }
+    // The employment service points at the registered `employment` type.
+    const employment = getContractService("employment-contract");
+    expect(employment?.status).toBe("active");
+    expect(employment?.typeId).toBe("employment");
   });
 
   it("gives every service complete metadata for its card + detail page", () => {

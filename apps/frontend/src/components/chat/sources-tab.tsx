@@ -57,7 +57,7 @@ function SourceItem({
   if (error || !source) {
     return (
       <div className="flex items-start gap-3 p-4">
-        <span className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center shrink-0">
+        <span className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
           <IconWarning size={18} className="text-error" />
         </span>
         <div className="flex-1 min-w-0">
@@ -84,7 +84,7 @@ function SourceItem({
     <div
       className="flex items-start gap-3 p-4"
     >
-      <span className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+      <span className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0 mt-0.5">
         <IconLawBook size={18} className="text-primary" />
       </span>
       <div className="flex-1 min-w-0">

@@ -91,7 +91,7 @@ export default function ContractCenterPage() {
       </header>
 
       {error && (
-        <div className="rounded-medium border border-error/30 bg-error-50 px-3 py-2.5 text-body-2 text-on-surface mb-4">
+        <div className="rounded-medium border border-error bg-error-container px-3 py-2.5 text-body-2 text-on-surface mb-4">
           {error}
         </div>
       )}
@@ -103,7 +103,7 @@ export default function ContractCenterPage() {
             type="button"
             onClick={() => void start(def.id)}
             disabled={create.isPending}
-            className="text-right rounded-large border border-divider bg-surface p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary/40 transition-all disabled:opacity-60"
+            className="text-right rounded-large border border-divider bg-surface p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary transition-all disabled:opacity-60"
           >
             <div
               className={`w-12 h-12 rounded-medium bg-gradient-to-br ${def.gradient} flex items-center justify-center text-white mb-3`}

@@ -24,11 +24,13 @@ import {
 } from "@/lib/contracts/api-helpers";
 import {
   activeSignatureRequest,
+  appendSignatureEvent,
   insertInvitation,
   listInvitations,
   listParticipants,
   updateInvitation,
 } from "@/lib/contracts/signature/db";
+import { clientFingerprintFrom } from "@/lib/contracts/signature/fingerprint";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -48,6 +50,7 @@ export async function POST(request: Request, { params }: Params) {
   if (isErrorResponse(ctx)) return ctx;
 
   const { userId, contract } = ctx;
+  const fingerprint = clientFingerprintFrom(request);
 
   const activeRequest = activeSignatureRequest(contract.id);
   if (!activeRequest) return conflict("ابتدا درخواست امضا ایجاد کنید.", "NO_REQUEST");
@@ -93,6 +96,20 @@ export async function POST(request: Request, { params }: Params) {
     });
 
     issued.push({ participantId: participant.id, token: rawToken, expiresAt });
+
+    // One event per recipient, so the trail records WHO was invited and
+    // never only an aggregate count (§9).
+    appendSignatureEvent({
+      signatureRequestId: activeRequest.id,
+      contractId: contract.id,
+      participantId: participant.id,
+      type: "INVITATION_SENT",
+      descriptionFa: `دعوت‌نامه امضا برای ${participant.roleFa} صادر شد.`,
+      contractVersionId: activeRequest.contractVersionId,
+      documentHash: activeRequest.documentHash,
+      clientFingerprint: fingerprint,
+      metadata: { recipientMasked: participant.mobileMasked, expiresAt, verifyBeforeView },
+    });
   }
 
   audit({
@@ -113,6 +130,7 @@ export async function DELETE(request: Request, { params }: Params) {
   if (isErrorResponse(ctx)) return ctx;
 
   const { userId, contract } = ctx;
+  const fingerprint = clientFingerprintFrom(request);
 
   const url = new URL(request.url);
   const invitationId = url.searchParams.get("invitationId");
@@ -128,6 +146,18 @@ export async function DELETE(request: Request, { params }: Params) {
     status: "REVOKED",
     revokedAt: new Date().toISOString(),
   })!;
+
+  appendSignatureEvent({
+    signatureRequestId: activeRequest.id,
+    contractId: contract.id,
+    participantId: invitation.participantId,
+    type: "INVITATION_REVOKED",
+    descriptionFa: "دعوت‌نامه امضا لغو شد.",
+    contractVersionId: activeRequest.contractVersionId,
+    documentHash: activeRequest.documentHash,
+    clientFingerprint: fingerprint,
+    metadata: { invitationId: invitation.id },
+  });
 
   audit({
     contractId: contract.id,

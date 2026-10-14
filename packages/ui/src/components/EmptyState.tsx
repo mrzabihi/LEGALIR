@@ -19,7 +19,7 @@ interface EmptyStateProps {
 }
 
 const DefaultIcon = () => (
-  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" className="text-onSurfaceVariant/40">
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" className="text-onSurfaceVariant opacity-40">
     <rect x="8" y="12" width="48" height="40" rx="4" stroke="currentColor" strokeWidth="2" />
     <path d="M8 20h48" stroke="currentColor" strokeWidth="2" />
     <circle cx="14" cy="17" r="2" fill="currentColor" />
@@ -42,7 +42,7 @@ export function EmptyState({
       className={`flex flex-col items-center justify-center text-center py-12 px-4 ${className}`}
       role="status"
     >
-      <div className="mb-4 text-onSurfaceVariant/40">
+      <div className="mb-4 text-onSurfaceVariant opacity-40">
         {icon || <DefaultIcon />}
       </div>
       <h3 className="text-titleLarge text-onSurface mb-1">{title}</h3>

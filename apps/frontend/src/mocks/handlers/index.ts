@@ -795,6 +795,35 @@ export const handlers = [
     return HttpResponse.json(ok(fixtureV1UsageResponse));
   }),
 
+  // --- GET /api/v1/capabilities ---
+  // The mock mirror of the consumer capabilities endpoint (the real one reads
+  // the admin-managed flag engine in `lib/admin/flags`). It returns the same
+  // capability keys the UI gates on, evaluated "on" here exactly as the dev
+  // seed does, so /Suggest_law offers the real routes in mock mode too. A
+  // disabled capability is simply reported `enabled: false` — never omitted.
+  http.get(`${API_BASE}/api/v1/capabilities`, async () => {
+    await delay(200);
+    return HttpResponse.json(
+      ok({
+        capabilities: [
+          { key: "ai_consultation", nameFa: "مشاوره هوش مصنوعی", enabled: true, status: "on" as const },
+          { key: "document_analysis", nameFa: "تحلیل اسناد", enabled: true, status: "on" as const },
+          { key: "contract_review", nameFa: "بررسی قرارداد", enabled: true, status: "on" as const },
+          { key: "contract_generation", nameFa: "تولید قرارداد", enabled: true, status: "on" as const },
+          { key: "formal_letter", nameFa: "تولید اظهارنامه", enabled: true, status: "on" as const },
+          { key: "calculators", nameFa: "محاسبه‌گرها", enabled: true, status: "on" as const },
+          { key: "lawyer_referral", nameFa: "ارجاع به وکیل", enabled: true, status: "on" as const },
+          { key: "case_management", nameFa: "مدیریت پرونده", enabled: true, status: "on" as const },
+          { key: "legal_library", nameFa: "کتابخانه حقوقی", enabled: true, status: "on" as const },
+          { key: "notifications_inapp", nameFa: "اعلان‌های درون‌برنامه‌ای", enabled: true, status: "on" as const },
+          { key: "export_data", nameFa: "خروجی گرفتن داده", enabled: false, status: "off" as const },
+          { key: "voice_video_consult", nameFa: "مشاوره صوتی/تصویری", enabled: false, status: "off" as const },
+        ],
+        environment: "development",
+      })
+    );
+  }),
+
   // --- GET /api/v1/subscription/usage ---
   // The usage engine summary: today's subscription credit (resets at Tehran
   // midnight), the period-scoped service quotas and the persistent reward

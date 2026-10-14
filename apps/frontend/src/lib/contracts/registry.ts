@@ -676,7 +676,7 @@ function sectionsFromFields(
     .filter((s) => s.sections.length > 0)
     .map((s) => {
       const requiredPaths = fields
-        .filter((f) => f.stepId === s.id && f.required)
+        .filter((f) => f.stepId === s.id && (f.required || f.requiredWhen))
         .map((f) => `values.${f.key}`);
       // The parties and documents steps carry no field descriptors —
       // their requirement is the special "parties"/"documents" path the
@@ -1077,6 +1077,224 @@ const STARTUP_DOCUMENTS: RequiredDocumentDefinition[] = [
   { category: "other", labelFa: "اساسنامه / روزنامه رسمی", required: false, provider: "initiator" },
 ];
 
+// --- Employment / Labor ---------------------------------------------
+// «قرارداد کار» per the Iranian Labor Code (قانون کار جمهوری اسلامی ایران).
+// Nine data steps plus the shared review step; the whole contract is
+// rendered from the field list below by the generic `SchemaStep`, exactly
+// like the other schema-driven types. Conditional requirements
+// (`requiredWhen`) mirror the natural/legal-person employer split and the
+// Iranian/foreign-national employee split, so the completeness scorer asks
+// for the branch the user actually chose.
+
+const EMPLOYMENT_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات هویتی کارفرما و کارگر", ["parties"]),
+  step("employer", "مشخصات کارفرما", "کارفرمای حقیقی یا حقوقی و نمایندهٔ او", ["employer"]),
+  step("employee", "مشخصات کارگر", "کارگر/کارمند و وضعیت تابعیت", ["employee"]),
+  step("job", "شغل و وظایف", "عنوان شغل، شرح وظایف و محل انجام کار", ["job"]),
+  step("term", "مدت و دورهٔ آزمایشی", "نوع قرارداد، تاریخ شروع و پایان و دورهٔ آزمایشی", ["term"]),
+  step("wages", "دستمزد و مزایا", "حقوق پایه، مزایا و نحوهٔ پرداخت", ["wages"]),
+  step("hours", "ساعات کار و مرخصی", "ساعات کار هفتگی، تعطیلات و مرخصی", ["hours"]),
+  step("insurance", "بیمه و مالیات", "تعهدات کارفرما در قبال تأمین اجتماعی و مالیات", ["insurance"]),
+  step("obligations", "تعهدات و شروط خاص", "تعهدات متقابل، محرمانگی و شروط توافق‌شده", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  REVIEW_STEP,
+];
+
+const EMPLOYMENT_FIELDS: ContractFieldDescriptor[] = [
+  // --- کارفرما ---
+  field("employer", "employerKind", "نوع کارفرما", "select", {
+    required: true,
+    options: [
+      { value: "natural", labelFa: "شخص حقیقی" },
+      { value: "legal", labelFa: "شخص حقوقی (شرکت/مؤسسه)" },
+    ],
+  }),
+  field("employer", "employerName", "نام و نام خانوادگی کارفرما", "text", {
+    requiredWhen: { key: "employerKind", equals: "natural" },
+  }),
+  field("employer", "employerNationalId", "کد ملی کارفرما", "text", {
+    requiredWhen: { key: "employerKind", equals: "natural" },
+  }),
+  field("employer", "employerCompanyName", "نام شرکت / مؤسسه", "text", {
+    requiredWhen: { key: "employerKind", equals: "legal" },
+  }),
+  field("employer", "employerCompanyId", "شناسهٔ ملی / شمارهٔ ثبت شرکت", "text", {
+    requiredWhen: { key: "employerKind", equals: "legal" },
+  }),
+  field("employer", "employerRepresentative", "نام نمایندهٔ کارفرما", "text", {
+    requiredWhen: { key: "employerKind", equals: "legal" },
+    helperFa: "نام مدیرعامل یا نمایندهٔ قانونی که قرارداد را امضا می‌کند.",
+  }),
+  field("employer", "employerRepresentativeNationalId", "کد ملی نمایندهٔ کارفرما", "text", {
+    requiredWhen: { key: "employerKind", equals: "legal" },
+  }),
+  field("employer", "employerAddress", "نشانی کارفرما", "textarea", { required: true }),
+  field("employer", "employerPhone", "تلفن کارفرما", "text", { required: true }),
+
+  // --- کارگر ---
+  field("employee", "employeeNationality", "تابعیت کارگر", "select", {
+    required: true,
+    options: [
+      { value: "iranian", labelFa: "ایرانی" },
+      { value: "foreign", labelFa: "اتباع خارجی" },
+    ],
+  }),
+  field("employee", "employeeName", "نام و نام خانوادگی کارگر", "text", { required: true }),
+  field("employee", "employeeNationalId", "کد ملی کارگر", "text", {
+    requiredWhen: { key: "employeeNationality", equals: "iranian" },
+  }),
+  field("employee", "employeePassportNumber", "شمارهٔ گذرنامه", "text", {
+    requiredWhen: { key: "employeeNationality", equals: "foreign" },
+  }),
+  field("employee", "employeePassportExpiry", "تاریخ اعتبار گذرنامه", "date", {
+    requiredWhen: { key: "employeeNationality", equals: "foreign" },
+  }),
+  field("employee", "employeeWorkPermitNumber", "شمارهٔ پروانهٔ کار", "text", {
+    requiredWhen: { key: "employeeNationality", equals: "foreign" },
+    helperFa: "به‌کارگیری اتباع خارجی بدون پروانهٔ کار معتبر مجاز نیست؛ شماره و اعتبار آن را دقیق وارد کنید.",
+  }),
+  field("employee", "employeeWorkPermitExpiry", "تاریخ اعتبار پروانهٔ کار", "date", {
+    requiredWhen: { key: "employeeNationality", equals: "foreign" },
+  }),
+  field("employee", "employeeBirthDate", "تاریخ تولد", "date"),
+  field("employee", "employeeEducation", "آخرین مدرک تحصیلی", "text"),
+  field("employee", "employeeAddress", "نشانی کارگر", "textarea"),
+  field("employee", "employeePhone", "تلفن کارگر", "text", { required: true }),
+
+  // --- شغل و وظایف ---
+  field("job", "jobTitle", "عنوان شغل", "text", { required: true, placeholderFa: "مثلاً کارشناس حسابداری" }),
+  field("job", "jobDuties", "شرح وظایف", "textarea", {
+    required: true,
+    helperFa: "مهم‌ترین وظایف و مسئولیت‌ها را فهرست کنید.",
+  }),
+  field("job", "jobWorkplace", "محل انجام کار", "text", { required: true }),
+  field("job", "jobDepartment", "واحد / دپارتمان", "text"),
+  field("job", "jobSupervisor", "سرپرست مستقیم", "text"),
+
+  // --- مدت و دورهٔ آزمایشی ---
+  field("term", "contractType", "نوع قرارداد", "select", {
+    required: true,
+    options: [
+      { value: "definite", labelFa: "مدت موقت (معین)" },
+      { value: "indefinite", labelFa: "مدت نامحدود (غیرموقت)" },
+      { value: "task_based", labelFa: "برای انجام کار معین" },
+    ],
+    helperFa: "مطابق ماده ۷ قانون کار، قرارداد می‌تواند برای مدت موقت یا غیرموقت باشد.",
+  }),
+  field("term", "startDate", "تاریخ شروع قرارداد", "date", { required: true }),
+  field("term", "endDate", "تاریخ پایان قرارداد", "date", {
+    requiredWhen: { key: "contractType", oneOf: ["definite", "task_based"] },
+  }),
+  field("term", "probationMonths", "مدت دورهٔ آزمایشی (ماه)", "number", {
+    helperFa: "دورهٔ آزمایشی طبق قانون کار تعیین می‌شود؛ مدت توافق‌شده را با احتیاط و مطابق مقررات وارد کنید.",
+  }),
+  field("term", "probationNote", "توضیح دورهٔ آزمایشی", "textarea", {
+    helperFa: "شرایط تأیید یا خاتمهٔ همکاری در دورهٔ آزمایشی.",
+  }),
+
+  // --- دستمزد و مزایا ---
+  field("wages", "baseSalary", "حقوق پایهٔ ماهانه", "money", {
+    required: true,
+    helperFa: "نباید از حداقل مزد مصوب شورای عالی کار (سال مربوط) کمتر باشد.",
+  }),
+  field("wages", "wagePeriod", "دورهٔ پرداخت دستمزد", "select", {
+    required: true,
+    options: [
+      { value: "monthly", labelFa: "ماهانه" },
+      { value: "daily", labelFa: "روزانه" },
+      { value: "weekly", labelFa: "هفتگی" },
+      { value: "hourly", labelFa: "ساعتی" },
+      { value: "piece", labelFa: "کارمزدی (بر اساس تولید)" },
+    ],
+    helperFa: "روش پرداخت دستمزد را مطابق توافق طرفین و مقررات قانون کار انتخاب کنید.",
+  }),
+  field("wages", "paymentDay", "روز پرداخت در هر ماه", "number", {
+    helperFa: "طبق قانون کار، دستمزد ماهانه در پایان ماه پرداخت می‌شود.",
+  }),
+  field("wages", "housingAllowance", "حق مسکن", "money"),
+  field("wages", "foodAllowance", "حق خواربار (بن)", "money"),
+  field("wages", "childAllowance", "حق اولاد", "money"),
+  field("wages", "seniorityAllowance", "حق سنوات / پایهٔ سنوات", "money"),
+  field("wages", "otherBenefits", "سایر مزایا و پرداخت‌ها", "textarea", {
+    helperFa: "مثلاً پاداش، اضافه‌کاری، ایاب‌وذهاب، بیمهٔ تکمیلی.",
+  }),
+  field("wages", "accountNumber", "شماره حساب پرداخت دستمزد", "text"),
+
+  // --- ساعات کار و مرخصی ---
+  field("hours", "weeklyHours", "ساعات کار هفتگی", "number", {
+    required: true,
+    helperFa: "مطابق ماده ۵۱ قانون کار، ساعات کار نباید از ۴۴ ساعت در هفته بیشتر باشد.",
+  }),
+  field("hours", "dailyHours", "ساعات کار روزانه", "number"),
+  field("hours", "workSchedule", "برنامهٔ کار روزانه / هفتگی", "textarea", { required: true }),
+  field("hours", "restDay", "روز تعطیل هفتگی", "text", { placeholderFa: "مثلاً جمعه" }),
+  field("hours", "annualLeaveDays", "مرخصی استحقاقی سالانه (روز)", "number", {
+    helperFa: "مرخصی استحقاقی سالانه طبق قانون کار تعیین می‌شود.",
+  }),
+  field("hours", "remoteWork", "امکان دورکاری", "toggle"),
+
+  // --- بیمه و مالیات ---
+  field("insurance", "socialInsurance", "بیمهٔ تأمین اجتماعی کارگر", "select", {
+    required: true,
+    options: [
+      { value: "yes", labelFa: "بله، کارفرما مکلف به بیمه کردن است" },
+      { value: "no", labelFa: "خیر" },
+    ],
+    helperFa: "طبق قانون تأمین اجتماعی، کارفرما مکلف است کارگر را نزد سازمان تأمین اجتماعی بیمه کند.",
+  }),
+  field("insurance", "insuranceNumber", "شمارهٔ بیمهٔ کارگر", "text", {
+    requiredWhen: { key: "socialInsurance", equals: "yes" },
+  }),
+  field("insurance", "taxWithholding", "کسر مالیات بر درآمد حقوق", "toggle", {
+    helperFa: "مطابق قانون مالیات‌های مستقیم، کارفرما مکلف به کسر و ایصال مالیات بر درآمد حقوق است.",
+  }),
+  field("insurance", "payrollObligations", "تعهدات کارفرما در قبال تأمین اجتماعی", "textarea", {
+    helperFa: "مهلت و آیین ارسال لیست بیمه و پرداخت حق بیمهٔ کارگر.",
+  }),
+  field("insurance", "additionalInsurance", "بیمهٔ تکمیلی / عمر و حوادث", "textarea"),
+
+  // --- تعهدات و شروط خاص ---
+  field("obligations", "mutualObligations", "تعهدات متقابل طرفین", "textarea", { required: true }),
+  field("obligations", "confidentiality", "تعهد محرمانگی اطلاعات", "toggle"),
+  field("obligations", "nonCompete", "شرط عدم رقابت", "toggle"),
+  field("obligations", "ipOwnership", "مالکیت آثار و دستاوردهای شغلی", "select", {
+    options: [
+      { value: "employer", labelFa: "کارفرما" },
+      { value: "employee", labelFa: "کارگر" },
+      { value: "shared", labelFa: "مشترک" },
+    ],
+  }),
+  field("obligations", "trainingBond", "تعهد بازپرداخت هزینهٔ آموزش", "toggle", {
+    helperFa: "در صورت توافق بر آموزش تخصصی با هزینهٔ کارفرما.",
+  }),
+  field("obligations", "specialClauses", "شروط خاص توافق‌شده", "textarea", {
+    helperFa: "هر شرط دیگری که طرفین بر آن توافق کرده‌اند، در چارچوب ماده ۱۰ قانون مدنی.",
+  }),
+  field("obligations", "terminationTerms", "شرایط خاتمه و فسخ قرارداد", "textarea"),
+  field("obligations", "latePenalty", "وجه التزام تأخیر در انجام تعهد", "money"),
+  field("obligations", "disputeResolution", "مرجع حل اختلاف", "textarea", {
+    helperFa: "مثلاً هیئت‌های تشخیص و حل اختلاف ادارهٔ کار، داوری، مراجع قضایی.",
+  }),
+  field("obligations", "governingLaw", "قانون حاکم", "select", {
+    required: true,
+    options: [
+      { value: "iran", labelFa: "قوانین جمهوری اسلامی ایران" },
+      { value: "other", labelFa: "سایر" },
+    ],
+  }),
+];
+
+const EMPLOYMENT_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "employer_id", labelFa: "کارت ملی کارفرما / نمایندهٔ او", required: true, provider: "initiator" },
+  { category: "employee_id", labelFa: "کارت ملی کارگر", required: true, provider: "counterparty" },
+  { category: "employee_passport", labelFa: "گذرنامه و پروانهٔ کار (اتباع خارجی)", required: false, provider: "either" },
+  { category: "employment_resume", labelFa: "رزومه و سابقهٔ کاری", required: false, provider: "counterparty" },
+  { category: "employment_education", labelFa: "مدارک تحصیلی", required: false, provider: "counterparty" },
+  { category: "employment_medical", labelFa: "گواهی سلامت / آزمایش‌های بدو استخدام", required: false, provider: "either" },
+  { category: "employment_order", labelFa: "ابلاغ / حکم کارگزینی", required: false, provider: "initiator" },
+  { category: "other", labelFa: "سایر پیوست‌ها", required: false, provider: "either" },
+];
+
 // ------------------------------------------------------------
 // Registry
 // ------------------------------------------------------------
@@ -1309,6 +1527,39 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     },
     createDefaultData: createGenericData,
   },
+  employment: {
+    id: "employment",
+    domain: "employment",
+    implemented: true,
+    typeFa: "قرارداد کار (استخدام)",
+    categoryFa: "استخدام",
+    descriptionFa:
+      "تنظیم قرارداد کار میان کارفرما و کارگر بر پایهٔ قانون کار، با تعیین شغل، دستمزد، ساعات کار و تعهدات تأمین اجتماعی.",
+    ctaFa: "تنظیم قرارداد استخدام",
+    keywords: [
+      "استخدام", "قرارداد کار", "کارفرما", "کارگر", "کارمند", "حقوق", "دستمزد", "بیمه",
+      "تأمین اجتماعی", "دوره آزمایشی", "استخدام نامه", "کار", "نیروی انسانی", "استخدامی",
+    ],
+    isNew: true,
+    icon: "briefcase",
+    gradient: "from-primary to-primary-container",
+    schemaVersion: 1,
+    templateVersion: "employment-v1.0.0",
+    roles: ["employer", "employee"],
+    defaultInitiatorRole: "employer",
+    wizardSteps: EMPLOYMENT_STEPS,
+    sections: sectionsFromFields(EMPLOYMENT_STEPS, EMPLOYMENT_FIELDS),
+    fields: EMPLOYMENT_FIELDS,
+    requiredDocuments: EMPLOYMENT_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد کار مطابق ماده ۷ قانون کار با توافق طرفین منعقد می‌شود و ثبت رسمی در دفتر اسناد رسمی الزامی نیست؛ با این حال، کارفرما مکلف است حق بیمهٔ کارگر را نزد سازمان تأمین اجتماعی ایصال کند. نسخهٔ ثبت‌شده و دارای تاریخ در دفاتر کارگاه، مبنای معتبر احتساب سابقهٔ کار است.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
 };
 
 /** All registered definitions. */
@@ -1381,6 +1632,8 @@ export function domainLabelFa(domain: ContractDomain): string {
       return "خدمات";
     case "business":
       return "کسب‌وکار";
+    case "employment":
+      return "استخدام";
   }
 }
 
@@ -1415,6 +1668,10 @@ export function partyRoleLabelFa(role: PartyRole): string {
       return "بنیان‌گذار";
     case "investor":
       return "سرمایه‌گذار";
+    case "employer":
+      return "کارفرما";
+    case "employee":
+      return "کارگر / کارمند";
   }
 }
 

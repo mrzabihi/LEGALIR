@@ -261,11 +261,11 @@ export default function MemoryPage() {
               className="rounded-large bg-surface p-6 shadow-elevation-1 border border-divider animate-pulse"
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className="h-8 w-8 rounded-full bg-muted/30" />
-                <div className="h-4 w-24 bg-muted/30 rounded" />
+                <div className="h-8 w-8 rounded-full bg-surface-container" />
+                <div className="h-4 w-24 bg-surface-container rounded" />
               </div>
-              <div className="h-3 w-full bg-muted/20 rounded mb-2" />
-              <div className="h-3 w-3/4 bg-muted/20 rounded" />
+              <div className="h-3 w-full bg-surface-container rounded mb-2" />
+              <div className="h-3 w-3/4 bg-surface-container rounded" />
             </div>
           ))}
         </div>
@@ -290,7 +290,7 @@ export default function MemoryPage() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary/90 transition-colors touch-target"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-primary-on text-body-2 font-medium hover:opacity-90 transition-colors touch-target"
           >
             تلاش مجدد
           </button>
@@ -315,7 +315,7 @@ export default function MemoryPage() {
           </p>
           <Link
             href="/chat"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-white text-body-2 font-medium hover:bg-primary/90 transition-colors touch-target"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-primary-on text-body-2 font-medium hover:opacity-90 transition-colors touch-target"
           >
             <IconChat size={18} />
             شروع گفتگو
@@ -398,7 +398,7 @@ export default function MemoryPage() {
                         type="button"
                         onClick={() => handleStartEdit(item)}
                         disabled={isEditing}
-                        className="rounded-full p-2 text-muted hover:text-on-surface hover:bg-muted/10 transition-colors touch-target"
+                        className="rounded-full p-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
                         aria-label="ویرایش"
                       >
                         <IconEdit size={16} />
@@ -452,7 +452,7 @@ export default function MemoryPage() {
                             !editKey.trim() ||
                             !editValue.trim()
                           }
-                          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-white text-caption font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-primary-on text-caption font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
                         >
                           <IconSave size={14} />
                           ذخیره
@@ -461,7 +461,7 @@ export default function MemoryPage() {
                           type="button"
                           onClick={handleCancelEdit}
                           disabled={updateMemory.isPending}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-divider px-4 py-1.5 text-caption text-muted hover:text-on-surface hover:bg-muted/10 transition-colors touch-target"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-divider px-4 py-1.5 text-caption text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
                         >
                           <IconClose size={14} />
                           انصراف
@@ -550,7 +550,7 @@ export default function MemoryPage() {
                 type="button"
                 onClick={handleCancelDelete}
                 disabled={deleteMemory.isPending}
-                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-muted/10 transition-colors touch-target"
+                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
               >
                 انصراف
               </button>
@@ -607,7 +607,7 @@ export default function MemoryPage() {
             </div>
 
             {/* Consent Item Details */}
-            <div className="rounded-md bg-muted/5 border border-divider p-3 mb-4">
+            <div className="rounded-medium bg-surface-container border border-divider p-3 mb-4">
               <dl className="space-y-1">
                 <div className="flex items-center justify-between">
                   <dt className="text-caption text-muted">کلید:</dt>
@@ -648,7 +648,7 @@ export default function MemoryPage() {
                 type="button"
                 onClick={handleCancelConsent}
                 disabled={updateMemory.isPending}
-                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-muted/10 transition-colors touch-target"
+                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
               >
                 <IconClose size={14} className="inline-block ml-1" />
                 انصراف
@@ -665,7 +665,7 @@ export default function MemoryPage() {
                 type="button"
                 onClick={handleApproveConsent}
                 disabled={updateMemory.isPending}
-                className="rounded-full bg-primary px-5 py-2 text-white text-body-2 font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors touch-target inline-flex items-center gap-1.5"
+                className="rounded-full bg-primary px-5 py-2 text-primary-on text-body-2 font-medium hover:opacity-90 disabled:opacity-50 transition-colors touch-target inline-flex items-center gap-1.5"
               >
                 {updateMemory.isPending ? (
                   <>

@@ -28,6 +28,7 @@ import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ConfirmDialog, snackbar } from "@legalir/ui";
 import { useContracts } from "@/hooks/useContracts";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useCreatePropertyContract,
   useDeletePropertyContract,
@@ -52,9 +53,26 @@ import { ContractCategoryChips } from "./contract-category-chips";
 import { ContractTemplateGrid } from "./contract-template-grid";
 import { MyContractsSection } from "./my-contracts-section";
 
-export function ContractList() {
+// How long typing must pause before the buffered query is applied to the
+// grid and the URL. Long enough to finish a word, short enough to feel
+// eager; the Enter key bypasses it and applies at once.
+const SEARCH_DEBOUNCE_MS = 400;
+
+interface ContractListProps {
+  /**
+   * Rendered right BELOW the search card — the hub's shared view switcher.
+   * A slot (not a fixed child) so the hub owns ONE switcher element for
+   * both views while the search card that must precede it lives here.
+   */
+  headerSlot?: React.ReactNode;
+}
+
+export function ContractList({ headerSlot }: ContractListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // The mobile filter drawer is opened from the search card (below), so its
+  // open state lives here and is handed down to the section that owns it.
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   // --- URL-backed state (single source of truth) ---------------------
   // The template category and the contract filter state are two
@@ -90,7 +108,24 @@ export function ContractList() {
     [writeParams]
   );
 
-  const setQuery = (value: string) => setFilters({ ...filters, query: value });
+  // --- Search: type freely, query on pause --------------------------
+  // `searchInput` is what the user is typing; the query that actually
+  // filters the grid (and lands in the URL) is only written once typing
+  // pauses. Enter bypasses the wait and applies at once. This keeps the
+  // URL — and every result — quiet between keystrokes instead of
+  // re-filtering on every character.
+  const [searchInput, setSearchInput] = React.useState(filters.query);
+  const debouncedQuery = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+  React.useEffect(() => {
+    if (debouncedQuery === filters.query) return;
+    setFilters({ ...filters, query: debouncedQuery });
+  }, [debouncedQuery, filters, setFilters]);
+
+  const submitQuery = () => {
+    trackContractEvent("contract_search_performed", { query: searchInput });
+    if (searchInput !== filters.query) setFilters({ ...filters, query: searchInput });
+  };
+
   const setCategory = (value: TemplateCategory) => {
     writeParams((params) => {
       if (value === "all") params.delete("category");
@@ -189,22 +224,45 @@ export function ContractList() {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // How many finer filters are active — surfaced as a count on the mobile
+  // filter trigger inside the search card.
+  const finerActiveCount =
+    filters.draft.length +
+    filters.analysis.length +
+    filters.types.length +
+    (filters.dateRange !== "any" ? 1 : 0);
+
   return (
-    <div className="space-y-8" dir="rtl">
-      {/* Search — directly under the hub's page title, driving both sections. */}
-      <ContractSearch
-        value={filters.query}
-        onChange={setQuery}
-        onSubmit={() => trackContractEvent("contract_search_performed", { query: filters.query })}
-      />
+    <div className="space-y-6" dir="rtl">
+      {/* One tight top block: the search card, then the hub's view switcher
+          directly BELOW it. Keeping them in the same wrapper lets the gap
+          between them be small without fighting the outer `space-y-6`. */}
+      <div className="space-y-3">
+        <ContractSearch
+          value={searchInput}
+          onChange={setSearchInput}
+          onSubmit={submitQuery}
+          onOpenFilters={() => setDrawerOpen(true)}
+          filterCount={finerActiveCount}
+        />
+        {headerSlot}
+      </div>
 
       {/* SECTION 1 — what can I build? */}
-      <section className="space-y-4" aria-labelledby="templates-heading">
-        <div className="space-y-3">
+      <section className="space-y-3.5" aria-labelledby="templates-heading">
+        <div className="space-y-1">
           <h2 id="templates-heading" className="text-h4 text-on-surface">
             قالب‌های قرارداد
           </h2>
-          <ContractCategoryChips value={category} onChange={setCategory} />
+          <p className="text-body-2 text-on-surface-variant">
+            قرارداد موردنظرت را انتخاب و تدوین را شروع کن.
+          </p>
+          {/* The category chips sit one small step below the intro, so the
+              heading, the one-line helper and the filters read as one block
+              rather than three stacked rows. */}
+          <div className="pt-1.5">
+            <ContractCategoryChips value={category} onChange={setCategory} />
+          </div>
         </div>
 
         <ContractTemplateGrid
@@ -227,6 +285,8 @@ export function ContractList() {
         filters={filters}
         onFiltersChange={setFilters}
         onStart={scrollToTemplates}
+        drawerOpen={drawerOpen}
+        onDrawerOpenChange={setDrawerOpen}
       />
 
       {/* Delete-draft confirmation. Nothing is deleted until the user

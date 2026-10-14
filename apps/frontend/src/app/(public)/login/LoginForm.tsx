@@ -61,7 +61,7 @@ export function LoginForm() {
   const isValidMobile = normalized !== null;
 
   return (
-    <div className="rounded-xl bg-surface border border-neutral-200 shadow-sm p-8">
+    <div className="rounded-medium bg-surface border border-neutral-200 shadow-sm p-8">
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <TextField
           id="mobile"

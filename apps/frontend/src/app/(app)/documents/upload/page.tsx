@@ -252,7 +252,7 @@ function ChooseSource({
       <button
         type="button"
         onClick={onLibrary}
-        className="flex w-full items-center gap-4 rounded-xl border border-divider/60 bg-surface p-4 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
+        className="flex w-full items-center gap-4 rounded-medium border border-divider bg-surface p-4 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-primary-50 text-primary-700">
           <IconDocument size={22} />
@@ -271,7 +271,7 @@ function ChooseSource({
       <button
         type="button"
         onClick={onUpload}
-        className="flex w-full items-center gap-4 rounded-xl border border-divider/60 bg-surface p-4 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
+        className="flex w-full items-center gap-4 rounded-medium border border-divider bg-surface p-4 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-primary-50 text-primary-700">
           <IconUpload size={22} />
@@ -304,7 +304,7 @@ function LibraryStep({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-1 rounded-medium px-2 py-1 text-caption text-primary hover:bg-primary/10 transition-colors touch-target"
+        className="inline-flex items-center gap-1 rounded-medium px-2 py-1 text-caption text-primary hover:bg-surface-hover transition-colors touch-target"
       >
         <IconArrowBack size={16} />
         بازگشت
@@ -323,7 +323,7 @@ function LibraryStep({
               key={doc.id}
               type="button"
               onClick={() => onSelect(doc.id)}
-              className="flex w-full items-center gap-3 rounded-xl border border-divider/60 bg-surface p-3 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
+              className="flex w-full items-center gap-3 rounded-medium border border-divider bg-surface p-3 text-start shadow-elevation-1 transition-all duration-short3 hover:border-primary-300 hover:shadow-elevation-3 touch-target"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-50 text-primary-700">
                 <IconDocument size={20} />
@@ -357,7 +357,7 @@ function UploadStep({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-1 rounded-medium px-2 py-1 text-caption text-primary hover:bg-primary/10 transition-colors touch-target"
+        className="inline-flex items-center gap-1 rounded-medium px-2 py-1 text-caption text-primary hover:bg-surface-hover transition-colors touch-target"
       >
         <IconArrowBack size={16} />
         بازگشت
@@ -379,7 +379,7 @@ function ProcessingStep({
   return (
     <div className="space-y-4">
       {/* File summary card */}
-      <div className="flex items-center gap-3 rounded-xl border border-divider/60 bg-surface p-4 shadow-elevation-1">
+      <div className="flex items-center gap-3 rounded-medium border border-divider bg-surface p-4 shadow-elevation-1">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-primary-50 text-primary-700">
           <IconDocument size={22} />
         </div>
@@ -417,7 +417,7 @@ function DoneStep({
 }) {
   return (
     <div className="flex flex-col items-center gap-4 py-8 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success-container">
         <IconCheck size={32} className="text-success" />
       </div>
       <div>

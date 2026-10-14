@@ -41,7 +41,7 @@ export function PageContextHeader({ service, className = "" }: PageContextHeader
           <li>
             <Link
               href="/dashboard"
-              className="rounded-small px-1 py-0.5 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="rounded-small px-1 py-0.5 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               داشبورد
             </Link>

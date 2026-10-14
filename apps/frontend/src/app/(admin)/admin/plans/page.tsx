@@ -14,21 +14,32 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAdminPlans,
   useAdminPlan,
   useUpdateAdminPlan,
   useCreateAdminPlan,
   useSetAdminPlanStatus,
+  useAdminReports,
   useAdminMe,
 } from "@/hooks/useAdmin";
-import { toPersianNumber } from "@/lib/persian-utils";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
+import { matchesText } from "@/lib/search/normalize";
 import { computeDiscountPercent, applyDiscount, type DiscountKind } from "@/lib/usage/plan-pricing";
 import type { AdminPlanUpdate, AdminPlanCreateInput } from "@/lib/api/admin";
 import type { Plan, PlanStatus, SubscriptionPlan } from "@legalir/types";
 import { Dialog, snackbar } from "@legalir/ui";
 import { PlanCard } from "@/components/subscription/plan-card";
+import {
+  StackedBarChart,
+  ChartFrame,
+  ChartSkeleton,
+  ChartEmpty,
+  type StackRow,
+  type StackSegment,
+} from "@/components/admin/charts";
 import {
   PageHeader,
   DataTable,
@@ -46,6 +57,7 @@ import {
   SearchInput,
   FilterPills,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
 
 // ---------------------------------------------------------------------------
@@ -823,6 +835,56 @@ function PlanFormDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Plan mix over time (قالب «پلن‌ها»: نمودار میله‌ای انباشته روی بازهٔ زمانی)
+// ---------------------------------------------------------------------------
+// Selling orders stacked by plan, one column per day. `planMix` is derived from
+// the SAME real sales ledger the reports page reads — one source, one window —
+// so a segment can never disagree with the by-plan table elsewhere. A plan with
+// no sale on a day draws a zero-height segment, never a gap that would shift the
+// stack; an empty window shows an explicit empty state, not a bare axis.
+function PlanMixChart() {
+  const reports = useAdminReports(30);
+  const mix = reports.data?.planMix;
+
+  const segments: StackSegment[] = (mix?.plans ?? []).map((p) => ({
+    key: p.planCode,
+    label: p.planNameFa,
+  }));
+  const rows: StackRow[] = (mix?.days ?? []).map((d) => ({
+    label: toPersianDate(d.date, { month: "short", day: "numeric" }),
+    values: d.values,
+  }));
+  const total = rows.reduce((s, r) => s + r.values.reduce((a, v) => a + v, 0), 0);
+
+  return (
+    <Section
+      title="ترکیب پلن‌ها در بازه"
+      subtitle="تعداد سفارش‌های فروش به تفکیک پلن در هر روز سی روز گذشته."
+    >
+      <ChartFrame
+        title="سفارش‌ها به تفکیک پلن در طول زمان"
+        subtitle="هر میله یک روز است؛ بخش‌های رنگی سهم هر پلن از سفارش‌های آن روز را نشان می‌دهند."
+      >
+        {reports.isLoading ? (
+          <ChartSkeleton height={200} />
+        ) : reports.isError || !mix ? (
+          <ChartEmpty message="دادهٔ ترکیب پلن‌ها در دسترس نیست." />
+        ) : total === 0 ? (
+          <ChartEmpty message="در این بازه سفارشی ثبت نشده است." />
+        ) : (
+          <StackedBarChart
+            rows={rows}
+            segments={segments}
+            ariaLabel="ترکیب پلن‌ها در طول زمان"
+            formatTotal={(n) => `${toPersianNumber(n)} سفارش`}
+          />
+        )}
+      </ChartFrame>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -839,16 +901,15 @@ export default function AdminPlansPage() {
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null);
 
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const rows = plans.data?.items ?? [];
     return rows
       .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
       .filter(
         (p) =>
-          !q ||
-          p.nameFa.toLowerCase().includes(q) ||
-          p.code.toLowerCase().includes(q) ||
-          (p.tags ?? []).some((t) => t.toLowerCase().includes(q))
+          !search.trim() ||
+          // Shared normalisation lane: Persian/Arabic digits and letter forms
+          // in the query (and stored tags) fold before matching.
+          matchesText(search, p.nameFa, p.code, ...(p.tags ?? []))
       )
       .sort((a, b) => {
         const ao = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
@@ -857,6 +918,12 @@ export default function AdminPlansPage() {
         return a.createdAt.localeCompare(b.createdAt);
       });
   }, [plans.data, search, statusFilter]);
+
+  const pager = useClientPagination(visible);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, search, statusFilter]);
 
   async function changeStatus(code: string, status: PlanStatus) {
     try {
@@ -894,6 +961,8 @@ export default function AdminPlansPage() {
         </InfoBanner>
       )}
 
+      <PlanMixChart />
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="جست‌وجوی نام، شناسه یا برچسب…" />
         <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
@@ -906,6 +975,7 @@ export default function AdminPlansPage() {
         emptyMessage="پلنی با این فیلتر یافت نشد."
       >
         {() => (
+          <>
           <DataTable
             head={
               <tr>
@@ -918,7 +988,7 @@ export default function AdminPlansPage() {
               </tr>
             }
           >
-            {visible.map((p) => {
+            {pager.pageItems.map((p) => {
               const meta = STATUS_META[p.status];
               const transitions = ALLOWED_STATUS_TRANSITIONS[p.status];
               return (
@@ -983,6 +1053,17 @@ export default function AdminPlansPage() {
               );
             })}
           </DataTable>
+
+          <Pagination
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={pager.total}
+            totalPages={pager.totalPages}
+            itemLabel="پلن"
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </StateView>
 

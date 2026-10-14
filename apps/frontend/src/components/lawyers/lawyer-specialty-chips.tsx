@@ -30,14 +30,14 @@ export function LawyerSpecialtyChips({ specializations }: LawyerSpecialtyChipsPr
       {visible.map((s) => (
         <span
           key={s.category}
-          className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-0.5 text-caption text-primary-700"
+          className="rounded-full border border-primary bg-primary-container px-2.5 py-0.5 text-caption text-primary"
         >
           {specialtyLabel(s.category)}
         </span>
       ))}
       {overflow > 0 && (
         <span
-          className="rounded-full border border-divider/60 bg-surface-container px-2.5 py-0.5 text-caption text-muted"
+          className="rounded-full border border-divider bg-surface-container px-2.5 py-0.5 text-caption text-muted"
           aria-label={`${toPersianNumber(overflow)} تخصص دیگر`}
         >
           +{toPersianNumber(overflow)}

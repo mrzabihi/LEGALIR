@@ -19,22 +19,34 @@ import type { NextRequest } from "next/server";
 import { requirePermission } from "@/lib/rbac";
 import {
   getLawyerProfileById,
-  setReviewHidden,
   deleteReviewRow,
   listLawyerReviewRows,
+  moderateReview,
+  resolveReviewReports,
+  reviewStatus,
   computePerformance,
 } from "@/lib/lawyer-db";
 import { recordAudit } from "@/lib/admin/audit";
 import { requestMeta, readJson } from "@/lib/admin/http";
-import type { LawyerAuditAction } from "@legalir/types";
+import type { LawyerAuditAction, LawyerReviewStatus } from "@legalir/types";
 
-const ACTIONS = ["hide", "restore", "delete"] as const;
+const ACTIONS = ["publish", "hide", "restore", "reject", "delete"] as const;
 type ReviewAction = (typeof ACTIONS)[number];
 
 const AUDIT_FOR: Record<ReviewAction, LawyerAuditAction> = {
+  publish: "LAWYER_REVIEW_RESTORE",
   hide: "LAWYER_REVIEW_HIDE",
   restore: "LAWYER_REVIEW_RESTORE",
+  reject: "LAWYER_REVIEW_HIDE",
   delete: "LAWYER_REVIEW_DELETE",
+};
+
+/** The moderation status each action lands on (delete is handled separately). */
+const STATUS_FOR: Record<Exclude<ReviewAction, "delete">, LawyerReviewStatus> = {
+  publish: "PUBLISHED",
+  hide: "HIDDEN",
+  restore: "PUBLISHED",
+  reject: "REJECTED",
 };
 
 export async function POST(
@@ -63,14 +75,64 @@ export async function POST(
   if (!row) {
     return NextResponse.json({ code: "NOT_FOUND", message: "نظر یافت نشد" }, { status: 404 });
   }
+  const beforeStatus = reviewStatus(row);
 
-  const ok =
-    action === "delete"
-      ? deleteReviewRow(id, reviewId)
-      : setReviewHidden(id, reviewId, action === "hide");
-  if (!ok) {
+  // Withholding a review (hide/reject) is a decision and is never anonymous.
+  const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+  if ((action === "hide" || action === "reject") && reason.length < 3) {
+    return NextResponse.json(
+      {
+        code: "REASON_REQUIRED",
+        message: "ثبت دلیل برای پنهان‌سازی/رد نظر الزامی است",
+        fieldErrors: [{ path: "reason", reason: "دلیل را وارد کنید" }],
+      },
+      { status: 400 }
+    );
+  }
+
+  if (action === "delete") {
+    if (!deleteReviewRow(id, reviewId)) {
+      return NextResponse.json({ code: "NOT_FOUND", message: "نظر یافت نشد" }, { status: 404 });
+    }
+    recordAudit({
+      actorUserId: auth.ctx.userId,
+      actorRole: auth.ctx.role,
+      orgId: auth.ctx.orgId,
+      action: AUDIT_FOR[action],
+      resourceType: "lawyer_review",
+      resourceId: reviewId,
+      reason: reason || null,
+      before: { status: beforeStatus, rating: row.rating, lawyerId: id },
+      after: { status: null },
+      ...requestMeta(request),
+    });
+    return NextResponse.json({
+      data: { reviewId, action, performance: computePerformance(id) },
+    });
+  }
+
+  // Apply the status transition (records a review event) in one code path.
+  const updated = moderateReview({
+    lawyerId: id,
+    reviewId,
+    toStatus: STATUS_FOR[action],
+    reason: reason || null,
+    actorUserId: auth.ctx.userId,
+    actorRole: auth.ctx.role,
+  });
+  if (!updated) {
     return NextResponse.json({ code: "NOT_FOUND", message: "نظر یافت نشد" }, { status: 404 });
   }
+  // Deciding a reported review also closes its open reports.
+  const resolvedReports =
+    action === "hide" || action === "reject" || action === "publish"
+      ? resolveReviewReports(
+          reviewId,
+          action === "publish" ? "DISMISSED" : "RESOLVED",
+          reason || null,
+          auth.ctx.userId
+        )
+      : 0;
 
   recordAudit({
     actorUserId: auth.ctx.userId,
@@ -79,14 +141,14 @@ export async function POST(
     action: AUDIT_FOR[action],
     resourceType: "lawyer_review",
     resourceId: reviewId,
-    reason: typeof body?.reason === "string" ? body.reason : null,
-    before: { hidden: Boolean(row.hidden), rating: row.rating, lawyerId: id },
-    after: { hidden: action === "delete" ? null : action === "hide" },
+    reason: reason || null,
+    before: { status: beforeStatus, rating: row.rating, lawyerId: id },
+    after: { status: STATUS_FOR[action], resolvedReports },
     ...requestMeta(request),
   });
 
   // Return the recomputed rating so the caller can show the immediate effect.
   return NextResponse.json({
-    data: { reviewId, action, performance: computePerformance(id) },
+    data: { reviewId, action, status: STATUS_FOR[action], performance: computePerformance(id) },
   });
 }

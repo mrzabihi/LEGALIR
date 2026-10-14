@@ -114,7 +114,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
               "peer w-full resize-none bg-transparent px-3 pt-6 pb-2",
               "text-bodyMedium text-onSurface border-none outline-none",
               "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100",
-              "placeholder:text-onSurfaceVariant/60 transition-opacity duration-short3",
+              "placeholder:text-muted transition-opacity duration-short3",
               autoResize ? "overflow-hidden" : "",
             ].join(" ")}
             {...rest}

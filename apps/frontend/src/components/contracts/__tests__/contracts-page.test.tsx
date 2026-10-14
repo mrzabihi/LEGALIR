@@ -40,7 +40,15 @@ import { MyContractsSection } from "../my-contracts-section";
 import { UserContractCard } from "../user-contract-card";
 import { ContractTemplateCard } from "../contract-template-card";
 import { ContractWorkspaceHeader } from "../builder/contract-workspace-header";
-import { getContractDefinition } from "@/lib/contracts/registry";
+import { getContractDefinition, implementedContractDefinitions } from "@/lib/contracts/registry";
+import {
+  CONTRACT_ARTWORK,
+  contractArtwork,
+  hasContractArtwork,
+} from "@/lib/contracts/artwork";
+import { hasContractVisual } from "@/lib/contracts/visuals";
+import fs from "node:fs";
+import path from "node:path";
 
 // ------------------------------------------------------------
 // Fixtures
@@ -257,6 +265,54 @@ describe("ContractTemplateGrid (SECTION 1)", () => {
     );
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart.mock.calls[0]![0].id).toBe("property_rent");
+  });
+});
+
+// ------------------------------------------------------------
+// Contract artwork (one image per type)
+// ------------------------------------------------------------
+
+describe("contract artwork", () => {
+  it("maps all eight photo contract types to a distinct public asset", () => {
+    const photoTypes = [
+      "property_rent",
+      "property_sale",
+      "vehicle_sale",
+      "debt",
+      "freelance",
+      "nda",
+      "saas",
+      "startup",
+    ];
+    const paths = photoTypes.map((t) => contractArtwork(t));
+    // Every one resolves, and no two share an image (a duplicate would
+    // mean a contract is showing the wrong picture).
+    expect(paths.every((p) => typeof p === "string" && p.length > 0)).toBe(true);
+    expect(new Set(paths).size).toBe(photoTypes.length);
+    // Each path is root-relative (portable, no `D:\` machine paths).
+    for (const p of paths) expect(p!.startsWith("/assets/contracts/")).toBe(true);
+  });
+
+  it("falls back to null (SVG scene) for a type with no photograph", () => {
+    expect(hasContractArtwork("employment")).toBe(false);
+    expect(contractArtwork("employment")).toBeNull();
+  });
+
+  it("every mapped image actually exists in public/ and is non-empty", () => {
+    // Guards the "images must be present in the final build" requirement:
+    // a typo'd filename would 404 in production, so assert each file ships.
+    for (const [type, rel] of Object.entries(CONTRACT_ARTWORK)) {
+      const abs = path.join(process.cwd(), "public", rel);
+      expect(fs.existsSync(abs), `missing artwork for ${type}: ${rel}`).toBe(true);
+      expect(fs.statSync(abs).size, `empty artwork for ${type}: ${rel}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every implemented type either has artwork or the SVG fallback scene", () => {
+    for (const def of implementedContractDefinitions()) {
+      const hasEither = hasContractArtwork(def.id) || hasContractVisual(def.id);
+      expect(hasEither, `no visual for ${def.id}`).toBe(true);
+    }
   });
 });
 

@@ -33,8 +33,6 @@ import {
 } from "@/components/admin/ui";
 import {
   IconCheck,
-  IconChevronLeft,
-  IconChevronRight,
   IconClock,
   IconDownload,
   IconRefresh,
@@ -416,58 +414,6 @@ export function QualityPanel({ flags }: { flags: AnalyticsDataQualityFlag[] }) {
         </ul>
       )}
     </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Pagination
-// ---------------------------------------------------------------------------
-
-/** A minimal RTL pager for the drill-down tables. Emits a 1-based page. */
-export function Pager({
-  page,
-  pageSize,
-  total,
-  onChange,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  onChange: (page: number) => void;
-}) {
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const to = Math.min(total, page * pageSize);
-
-  return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-caption text-muted">
-      <span>
-        نمایش {toPersianNumber(from)} تا {toPersianNumber(to)} از {toPersianNumber(total)} ردیف
-      </span>
-      <div className="flex items-center gap-1.5">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={page <= 1}
-          onClick={() => onChange(page - 1)}
-          startIcon={<IconChevronRight size={14} />}
-        >
-          قبلی
-        </Button>
-        <span className="tabular-nums">
-          {toPersianNumber(page)} / {toPersianNumber(pageCount)}
-        </span>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={page >= pageCount}
-          onClick={() => onChange(page + 1)}
-          endIcon={<IconChevronLeft size={14} />}
-        >
-          بعدی
-        </Button>
-      </div>
-    </div>
   );
 }
 

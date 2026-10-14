@@ -1,7 +1,7 @@
 // ============================================================
 // LEGALIR — Admin panel navigation registry
 // ============================================================
-// The eighteen sections of the platform admin panel, in display order.
+// The nineteen sections of the platform admin panel, in display order.
 // This is the SINGLE source of truth for the admin menu: the shell renders
 // from it and each entry names the `Permission` that gates it. The
 // permission is a UX affordance only — every admin API re-checks the same
@@ -26,7 +26,7 @@ export interface AdminNavItem {
   permission: Permission;
 }
 
-/** The eighteen admin sections, in product order. */
+/** The nineteen admin sections, in product order. */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     key: "overview",
@@ -64,6 +64,17 @@ export const ADMIN_NAV: AdminNavItem[] = [
     permission: "admin:lawyer:verify",
   },
   {
+    key: "contracts",
+    path: "/admin/contracts",
+    titleFa: "قراردادها و بررسی حقوقی",
+    hintFa: "صف بررسی و تأیید قراردادها پیش از صدور",
+    icon: "Document",
+    // The review drawer POSTs a decision, which the server gates on
+    // `admin:contracts:review`; the link is gated by the same permission so a
+    // `read`-only role never opens a section it cannot act in.
+    permission: "admin:contracts:review",
+  },
+  {
     key: "services",
     path: "/admin/services",
     titleFa: "خدمات و پرچم‌های ویژگی",
@@ -93,6 +104,17 @@ export const ADMIN_NAV: AdminNavItem[] = [
     titleFa: "فروش، پرداخت و بازگشت",
     hintFa: "سفارش‌ها و تعدیل‌های مالی",
     icon: "Coin",
+    permission: "admin:billing:read",
+  },
+  {
+    key: "coupons",
+    path: "/admin/coupons",
+    titleFa: "کدهای تخفیف",
+    hintFa: "کاتالوگ کدهای تخفیف و سهمیهٔ مصرف",
+    icon: "Sparkle",
+    // The coupon API gates reads on `admin:billing:read` and writes on
+    // `admin:billing:manage` (see the admin dispatcher `permissionFor`). The
+    // link uses the same read permission as the orders section it belongs to.
     permission: "admin:billing:read",
   },
   {

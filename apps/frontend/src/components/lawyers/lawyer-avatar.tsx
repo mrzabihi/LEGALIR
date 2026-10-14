@@ -55,7 +55,7 @@ export function LawyerAvatar({
       className={`relative shrink-0 ${className}`}
       style={{ width: size, height: size }}
     >
-      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary/10 shadow-elevation-1 ring-2 ring-surface">
+      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary-container shadow-elevation-1 ring-2 ring-surface">
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -73,7 +73,7 @@ export function LawyerAvatar({
           <span
             role="img"
             aria-label={`تصویر نمایه ${name}`}
-            className="select-none font-semibold text-primary-700"
+            className="select-none font-semibold text-primary"
             style={{ fontSize: Math.round(size * 0.32) }}
           >
             {initials(name)}

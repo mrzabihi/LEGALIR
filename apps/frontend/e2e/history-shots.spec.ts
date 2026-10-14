@@ -82,12 +82,14 @@ test("capture history, archive, and delete modal", async ({ page, request }) => 
     await page.request.patch("/api/v1/history", { data: { id: firstId, archived: false } });
   }
 
-  // 3) Delete confirmation modal (from the active view)
+  // 3) Delete confirmation modal (from the active view). Delete is now a
+  //    secondary action, so open the row's ⋮ menu first.
   await page.goto("/history");
   await page.getByText("تاریخچه").first().waitFor({ timeout: APP_READY_TIMEOUT });
-  const del = page.getByLabel("حذف").first();
-  await del.waitFor({ timeout: APP_READY_TIMEOUT });
-  await del.click();
+  const rowMenu = page.getByLabel("گزینه‌های این سابقه").first();
+  await rowMenu.waitFor({ timeout: APP_READY_TIMEOUT });
+  await rowMenu.click();
+  await page.getByRole("menuitem", { name: "حذف" }).click();
   await page.getByText("حذف دائمی این مورد؟").waitFor({ timeout: 5000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: "e2e/__shots__/history-delete-modal.png" });

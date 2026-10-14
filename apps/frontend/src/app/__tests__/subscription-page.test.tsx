@@ -8,17 +8,101 @@ import {
   fixturePlans,
   fixtureV1SubscriptionGold,
   fixtureV1EntitlementsResponse,
-  fixtureV1UsageResponse,
 } from "@legalir/testing";
 import type {
   PlanCode,
   CheckoutQuote,
   CheckoutOrderView,
   CouponValidationResponse,
+  SubscriptionUsageSummary,
+  V1Subscription,
+  V1SubscriptionHistoryItem,
+  V1SubscriptionHistoryResponse,
 } from "@legalir/types";
 import SubscriptionPage from "@/app/(app)/subscription/page";
 
 const API_BASE = "http://localhost:8000";
+
+// ---------------------------------------------------------------------------
+// Usage-engine fixture — today's ENERGY (credit), period quotas, reward points
+// ---------------------------------------------------------------------------
+
+const usageSummary: SubscriptionUsageSummary = {
+  hasSubscription: true,
+  planCode: "gold",
+  planNameFa: "طلا",
+  expiresAt: "2027-07-01T00:00:00Z",
+  daysRemaining: 262,
+  subscriptionExpired: false,
+  daily: {
+    usageDate: "2026-07-05",
+    requestLimit: 150,
+    requestUsed: 12,
+    requestsRemaining: 138,
+    pointsTotal: 1000,
+    pointsUsed: 250,
+    pointsRemaining: 750,
+    resetAt: "2026-07-06T20:30:00.000Z",
+  },
+  period: [
+    { quotaType: "AI_MESSAGES", nameFa: "پیام هوش مصنوعی", limit: 4500, used: 127, remaining: 4373, unlimited: false },
+    { quotaType: "DOCUMENT_ANALYSIS", nameFa: "تحلیل سند", limit: 15, used: 3, remaining: 12, unlimited: false },
+  ],
+  rewardPoints: 320,
+  allowRewardPointsAfterLimit: true,
+};
+
+const noSubscriptionUsage: SubscriptionUsageSummary = {
+  ...usageSummary,
+  hasSubscription: false,
+  planCode: null,
+  planNameFa: null,
+  expiresAt: null,
+  daysRemaining: null,
+  subscriptionExpired: false,
+  daily: {
+    ...usageSummary.daily,
+    pointsTotal: 0,
+    pointsUsed: 0,
+    pointsRemaining: 0,
+    requestLimit: 0,
+    requestUsed: 0,
+    requestsRemaining: 0,
+  },
+  period: [],
+  rewardPoints: 0,
+};
+
+// ---------------------------------------------------------------------------
+// Purchase history fixture — two real records
+// ---------------------------------------------------------------------------
+
+const historyItems: V1SubscriptionHistoryItem[] = [
+  {
+    id: "sub-silver-1",
+    planNameFa: "نقره",
+    planCode: "silver",
+    amount: 2_500_000,
+    currency: "IRT",
+    startAt: "2026-05-01T00:00:00Z",
+    endAt: "2026-05-31T00:00:00Z",
+    status: "expired",
+    statusFa: "منقضی‌شده",
+    purchasedAt: "2026-05-01T00:00:00Z",
+  },
+  {
+    id: "sub-gold-001",
+    planNameFa: "طلا",
+    planCode: "gold",
+    amount: 3_500_000,
+    currency: "IRT",
+    startAt: "2026-07-01T00:00:00Z",
+    endAt: "2027-07-01T00:00:00Z",
+    status: "active",
+    statusFa: "فعال",
+    purchasedAt: "2026-07-01T00:00:00Z",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Server-computed checkout fixtures
@@ -107,26 +191,35 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface SetupOptions {
+  /** Final amount /quote returns; 0 drives the free-activation path. */
+  quoteFinalAmount?: number;
+  /** Order status the /orders commit returns. */
+  orderStatus?: CheckoutOrderView["status"];
+  /** Whether the coupon validate route accepts the code. */
+  couponValid?: boolean;
+  /** The current subscription (null = no active subscription). */
+  subscription?: V1Subscription | null;
+  /** The history the page lists. */
+  history?: V1SubscriptionHistoryItem[];
+  /** The usage-engine summary the page renders. */
+  usage?: SubscriptionUsageSummary;
+}
+
 // Setup authenticated MSW handlers (no cookie check). The checkout routes are
 // parameterised so a test can pin the final amount (free vs gateway path), the
 // order status the commit returns, and whether a coupon validates.
-function setupAuthHandlers(
-  opts: {
-    /** Final amount /quote returns; 0 drives the free-activation path. */
-    quoteFinalAmount?: number;
-    /** Order status the /orders commit returns. */
-    orderStatus?: CheckoutOrderView["status"];
-    /** Whether the coupon validate route accepts the code. */
-    couponValid?: boolean;
-  } = {}
-) {
+function setupAuthHandlers(opts: SetupOptions = {}) {
   const quoteFinalAmount = opts.quoteFinalAmount ?? 2_500_000;
   const orderStatus =
     opts.orderStatus ?? (quoteFinalAmount === 0 ? "no_payment_required" : "awaiting_payment");
+  const subscription =
+    opts.subscription === undefined ? fixtureV1SubscriptionGold : opts.subscription;
+  const history = opts.history ?? historyItems;
+  const usage = opts.usage ?? usageSummary;
 
   function quoteFor(couponCode?: string | null): CheckoutQuote {
     if (couponCode) {
-      // A valid 100%-off coupon zeroes the total → the free-activation path.
       return makeQuote(0, {
         coupon: {
           code: couponCode,
@@ -144,15 +237,30 @@ function setupAuthHandlers(
   server.use(
     http.get(`${API_BASE}/api/v1/subscriptions/current`, async () => {
       await delay(50);
-      return HttpResponse.json(ok(fixtureV1SubscriptionGold));
+      return HttpResponse.json(ok(subscription));
     }),
     http.get(`${API_BASE}/api/v1/entitlements`, async () => {
       await delay(50);
-      return HttpResponse.json(ok(fixtureV1EntitlementsResponse));
+      return HttpResponse.json(
+        ok(
+          subscription
+            ? fixtureV1EntitlementsResponse
+            : { entitlements: [], planCode: null, planNameFa: null }
+        )
+      );
     }),
-    http.get(`${API_BASE}/api/v1/usage`, async () => {
+    http.get(`${API_BASE}/api/v1/subscription/usage`, async () => {
       await delay(50);
-      return HttpResponse.json(ok(fixtureV1UsageResponse));
+      return HttpResponse.json(ok(usage));
+    }),
+    http.get(`${API_BASE}/api/v1/subscription-history`, async () => {
+      await delay(50);
+      return HttpResponse.json(
+        ok({
+          items: history,
+          pagination: { page: 1, pageSize: 20, total: history.length, totalPages: 1 },
+        } satisfies V1SubscriptionHistoryResponse)
+      );
     }),
     http.get(`${API_BASE}/api/v1/plans`, async () => {
       await delay(50);
@@ -192,12 +300,24 @@ function setupAuthHandlers(
     }),
     http.post(`${API_BASE}/api/v1/checkout/orders`, async () => {
       await delay(80);
-      return HttpResponse.json(
-        ok({ order: makeOrder(orderStatus), messageFa: "سفارش ثبت شد." }),
-        { status: 201 }
-      );
+      return HttpResponse.json(ok({ order: makeOrder(orderStatus), messageFa: "سفارش ثبت شد." }), {
+        status: 201,
+      });
     })
   );
+}
+
+function renderPage() {
+  return render(
+    <TestWrapper>
+      <SubscriptionPage />
+    </TestWrapper>
+  );
+}
+
+/** Switch to a tab by its visible label. */
+function gotoTab(label: "وضعیت اشتراک" | "تاریخچه خرید" | "پلن‌ها") {
+  fireEvent.click(screen.getByRole("tab", { name: label }));
 }
 
 describe("Subscription Page", () => {
@@ -206,16 +326,136 @@ describe("Subscription Page", () => {
   });
 
   // ==========================================
-  // Plan Display
+  // Tabs
   // ==========================================
-  describe("Plan Display", () => {
-    it("renders all three plans from MSW", async () => {
+  describe("Tabs", () => {
+    it("renders the three separated tabs", async () => {
       setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
+      renderPage();
+
+      const tabs = await screen.findAllByRole("tab");
+      expect(tabs.map((t) => t.textContent)).toEqual(
+        expect.arrayContaining(["وضعیت اشتراک", "تاریخچه خرید", "پلن‌ها"])
       );
+    });
+  });
+
+  // ==========================================
+  // Status tab — energy + current subscription
+  // ==========================================
+  describe("Status tab", () => {
+    it("shows today's energy (credit) from the usage engine", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      await waitFor(() => {
+        expect(screen.getByText("انرژی امروز اشتراک")).toBeInTheDocument();
+      });
+      // 750 remaining of 1000 — the real points figures, Persian-formatted.
+      expect(screen.getAllByText(/۷۵۰/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("shows the active subscription with its real dates", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      // The panel heading only exists once the data has loaded (the tab button
+      // shares the same text, so query the heading to avoid resolving early).
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+
+      expect(screen.getAllByText("فعال").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("تاریخ شروع")).toBeInTheDocument();
+      expect(screen.getByText("تاریخ پایان")).toBeInTheDocument();
+      expect(screen.getByText("تمدید خودکار")).toBeInTheDocument();
+    });
+
+    it("shows the period quotas for an active subscription", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      await screen.findByRole("heading", { name: "سهمیه‌های دوره" }, { timeout: 5000 });
+      expect(screen.getByText("پیام هوش مصنوعی")).toBeInTheDocument();
+    });
+
+    it("shows an empty state AND the purchasable plans when there is no active subscription", async () => {
+      setupAuthHandlers({ subscription: null, usage: noSubscriptionUsage });
+      renderPage();
+
+      await waitFor(() => {
+        expect(screen.getByText("اشتراک فعالی ندارید")).toBeInTheDocument();
+      });
+
+      // The plans are surfaced right here — the user needn't hunt for them.
+      expect(screen.getByText("پلن‌های پیشنهادی")).toBeInTheDocument();
+      expect(screen.getByText("مشاهده و مقایسهٔ همه")).toBeInTheDocument();
+      // The compact plan cards resolve on their own (delayed) query.
+      expect(await screen.findByText("نقره")).toBeInTheDocument();
+    });
+  });
+
+  // ==========================================
+  // History tab — records + per-record details
+  // ==========================================
+  describe("History tab", () => {
+    it("lists every purchase with its status and amount", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("تاریخچه خرید");
+
+      // The history panel heading is unique (the tab is a button, not a heading).
+      await screen.findByRole("heading", { name: "تاریخچه خرید" }, { timeout: 5000 });
+      // Both records are present (desktop table + mobile card variants).
+      expect(screen.getAllByText("نقره").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("طلا").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("منقضی‌شده").length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("opens the details of the exact record whose «جزئیات» was clicked", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("تاریخچه خرید");
+
+      const detailsButtons = await screen.findAllByText("جزئیات");
+      // The first record in the fixture is the expired silver purchase.
+      fireEvent.click(detailsButtons[0]!);
+
+      await waitFor(() => {
+        expect(screen.getByText("جزئیات خرید")).toBeInTheDocument();
+      });
+      // The record's own id is shown (mono) — proving it is THIS record.
+      expect(screen.getByText("sub-silver-1")).toBeInTheDocument();
+      expect(screen.getByText("شناسهٔ اشتراک")).toBeInTheDocument();
+      expect(screen.getByText("مبلغ پرداختی")).toBeInTheDocument();
+    });
+
+    it("shows an empty state when there is no purchase history", async () => {
+      setupAuthHandlers({ history: [] });
+      renderPage();
+
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("تاریخچه خرید");
+
+      await waitFor(() => {
+        expect(screen.getByText("تاریخچه‌ای وجود ندارد")).toBeInTheDocument();
+      });
+      expect(screen.getByText("مشاهده پلن‌ها")).toBeInTheDocument();
+    });
+  });
+
+  // ==========================================
+  // Plans tab — plan cards
+  // ==========================================
+  describe("Plans tab", () => {
+    it("renders all three plans with their real limits", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("پلن‌ها");
 
       await waitFor(
         () => {
@@ -224,15 +464,15 @@ describe("Subscription Page", () => {
         },
         { timeout: 5000 }
       );
+      expect(screen.getAllByText("توکن ماهانه").length).toBeGreaterThanOrEqual(1);
     });
 
-    it("displays discounted prices with crossed-out original prices", async () => {
+    it("shows discounted prices with crossed-out original prices", async () => {
       setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
+
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("پلن‌ها");
 
       await waitFor(
         () => {
@@ -245,187 +485,13 @@ describe("Subscription Page", () => {
       expect(struckPrices.length).toBeGreaterThanOrEqual(3);
     });
 
-    it("shows Persian-formatted currency", async () => {
+    it("highlights the current plan card", async () => {
       setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getAllByText("نقره")[0]).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("پلن‌ها");
 
-      // Sale prices displayed in Persian digits with "تومان"
-      expect(screen.getAllByText(/تومان/).length).toBeGreaterThanOrEqual(3);
-    });
-
-    it("shows duration on each plan card", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          const planCards = screen.getAllByText(/درخواست روزانه/);
-          expect(planCards.length).toBeGreaterThanOrEqual(3);
-        },
-        { timeout: 5000 }
-      );
-
-      // "۳۰ روز" appears in both plan cards AND in the subscription card
-      // (it's the same text for duration). Since the fixture duration is 30 days,
-      // we should find at least 3 occurrences
-      const durationElements = screen.getAllByText(/۳۰ روز/);
-      expect(durationElements.length).toBeGreaterThanOrEqual(3);
-    });
-
-    it("exposes usage limits on each plan card", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          const dailyReq = screen.getAllByText("درخواست روزانه");
-          expect(dailyReq.length).toBeGreaterThanOrEqual(3);
-        },
-        { timeout: 5000 }
-      );
-
-      expect(screen.getAllByText("توکن ماهانه").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("پیام هوش مصنوعی")[0]).toBeInTheDocument();
-      expect(screen.getAllByText("تحلیل سند")[0]).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // Usage Limits & Remaining Quota
-  // ==========================================
-  describe("Usage Limits", () => {
-    it("renders usage summary with progress bars", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("مصرف")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      const progressBars = screen.getAllByRole("progressbar");
-      expect(progressBars.length).toBeGreaterThanOrEqual(3);
-    });
-
-    it("shows remaining quota in Persian", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("مصرف")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      const remainingLabels = screen.getAllByText(/باقی‌مانده/);
-      expect(remainingLabels.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("shows days remaining until reset", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText(/روز تا بازنشانی/)).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-    });
-  });
-
-  // ==========================================
-  // Current Subscription Card
-  // ==========================================
-  describe("Current Subscription Card", () => {
-    it("shows active subscription status", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      // "طلا" appears in both the subscription card heading and plan cards
-      const goldElements = screen.getAllByText("طلا");
-      expect(goldElements.length).toBeGreaterThanOrEqual(2);
-      expect(screen.getAllByText("فعال").length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("shows auto-renewal status", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("تمدید خودکار:")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-    });
-
-    it("highlights current plan card", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      // The current-plan badge lives on the plan card, which resolves on its
-      // own (delayed) query — await it rather than racing the skeletons.
       expect(await screen.findByText("اشتراک فعلی")).toBeInTheDocument();
     });
   });
@@ -434,24 +500,19 @@ describe("Subscription Page", () => {
   // Plan Selection → Order-review modal
   // ==========================================
   describe("Plan Selection", () => {
-    it("opens the order-review modal when selecting a plan", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
+    async function openCheckout() {
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("پلن‌ها");
       // On an active gold subscription the silver plan is a non-upgrade
       // selectable plan, so its CTA label is «خرید اشتراک».
       fireEvent.click(await screen.findByText("خرید اشتراک"));
+    }
+
+    it("opens the order-review modal when selecting a plan", async () => {
+      setupAuthHandlers();
+      renderPage();
+
+      await openCheckout();
 
       await waitFor(() => {
         expect(screen.getByText("بازبینی و تأیید سفارش")).toBeInTheDocument();
@@ -460,21 +521,9 @@ describe("Subscription Page", () => {
 
     it("closes the modal on cancel", async () => {
       setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      fireEvent.click(await screen.findByText("خرید اشتراک"));
-
+      await openCheckout();
       await waitFor(() => {
         expect(screen.getByText("بازبینی و تأیید سفارش")).toBeInTheDocument();
       });
@@ -488,26 +537,12 @@ describe("Subscription Page", () => {
 
     it("renders the server-computed invoice breakdown", async () => {
       setupAuthHandlers({ quoteFinalAmount: 2_500_000 });
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
+      await openCheckout();
 
-      fireEvent.click(await screen.findByText("خرید اشتراک"));
-
-      // The breakdown lines and the single deciding figure come straight from
-      // the quote response — the modal computes nothing itself.
       expect(await screen.findByText("مبلغ پایه پلن")).toBeInTheDocument();
       expect(screen.getByText("مبلغ نهایی")).toBeInTheDocument();
-      expect(screen.getAllByText(/تومان/).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -515,34 +550,24 @@ describe("Subscription Page", () => {
   // Checkout flow — behaviour is decided by the server's final amount
   // ==========================================
   describe("Checkout Flow", () => {
+    async function openCheckout() {
+      await screen.findByRole("heading", { name: "وضعیت اشتراک" }, { timeout: 5000 });
+      gotoTab("پلن‌ها");
+      fireEvent.click(await screen.findByText("خرید اشتراک"));
+    }
+
     it("activates a free (zero-total) subscription and shows a tracking number", async () => {
       setupAuthHandlers({ quoteFinalAmount: 0, orderStatus: "no_payment_required" });
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      fireEvent.click(await screen.findByText("خرید اشتراک"));
-
-      // Wait for the server quote to land (the invoice renders only then) so the
-      // confirm button is enabled — clicking a loading quote's button is a no-op.
+      await openCheckout();
       await screen.findByText("مبلغ پایه پلن");
-      // Zero total → no gateway option, a single free-activation button.
       const confirm = await screen.findByText("تأیید و فعال‌سازی اشتراک");
       fireEvent.click(confirm);
 
       await waitFor(() => {
         expect(screen.getByText("اشتراک فعال شد")).toBeInTheDocument();
       });
-      // The server's order reference is surfaced verbatim.
       expect(screen.getByText("LR-2026-000123")).toBeInTheDocument();
     });
 
@@ -550,28 +575,13 @@ describe("Subscription Page", () => {
       setupAuthHandlers({ quoteFinalAmount: 2_500_000, orderStatus: "awaiting_payment" });
       const showSpy = vi.spyOn(snackbar, "show");
       try {
-        render(
-          <TestWrapper>
-            <SubscriptionPage />
-          </TestWrapper>
-        );
+        renderPage();
 
-        await waitFor(
-          () => {
-            expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-          },
-          { timeout: 5000 }
-        );
-
-        fireEvent.click(await screen.findByText("خرید اشتراک"));
-
-        // Wait for the quote so the gateway button is enabled (not a loading no-op).
+        await openCheckout();
         await screen.findByText("مبلغ پایه پلن");
         const payBtn = await screen.findByText("پرداخت و فعال‌سازی");
         fireEvent.click(payBtn);
 
-        // The gateway is inactive: a notice is shown and NOTHING is activated —
-        // no fabricated success, no order, no tracking number.
         await waitFor(() => {
           expect(showSpy).toHaveBeenCalled();
         });
@@ -587,26 +597,14 @@ describe("Subscription Page", () => {
 
     it("re-quotes to a free total after applying a valid coupon", async () => {
       setupAuthHandlers({ quoteFinalAmount: 2_500_000, couponValid: true });
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      fireEvent.click(await screen.findByText("خرید اشتراک"));
+      await openCheckout();
 
       const couponInput = await screen.findByLabelText("کد تخفیف");
       fireEvent.change(couponInput, { target: { value: "legal1404" } });
       fireEvent.click(screen.getByText("اعمال"));
 
-      // The server re-derives the whole breakdown once the coupon applies.
       await waitFor(() => {
         expect(screen.getByText("رایگان")).toBeInTheDocument();
       });
@@ -615,20 +613,9 @@ describe("Subscription Page", () => {
 
     it("shows the server's message and does not apply an invalid coupon", async () => {
       setupAuthHandlers({ quoteFinalAmount: 2_500_000, couponValid: false });
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      fireEvent.click(await screen.findByText("خرید اشتراک"));
+      await openCheckout();
 
       const couponInput = await screen.findByLabelText("کد تخفیف");
       fireEvent.change(couponInput, { target: { value: "EXPIRED" } });
@@ -639,34 +626,20 @@ describe("Subscription Page", () => {
           screen.getByText("مهلت استفاده از این کد تخفیف به پایان رسیده است.")
         ).toBeInTheDocument();
       });
-      // The coupon was not applied → the gateway path is still in force.
       expect(screen.getByText("پرداخت و فعال‌سازی")).toBeInTheDocument();
     });
 
     it("reverts to the paid total when the applied coupon is removed", async () => {
       setupAuthHandlers({ quoteFinalAmount: 2_500_000, couponValid: true });
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("وضعیت اشتراک")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      fireEvent.click(await screen.findByText("خرید اشتراک"));
+      await openCheckout();
 
       const couponInput = await screen.findByLabelText("کد تخفیف");
       fireEvent.change(couponInput, { target: { value: "legal1404" } });
       fireEvent.click(screen.getByText("اعمال"));
-      // Applied → free total.
       await waitFor(() => expect(screen.getByText("رایگان")).toBeInTheDocument());
 
-      // Removing re-keys the quote back to the server's paid total.
       fireEvent.click(screen.getByText("حذف"));
       await waitFor(() => {
         expect(screen.getByText("پرداخت و فعال‌سازی")).toBeInTheDocument();
@@ -676,49 +649,19 @@ describe("Subscription Page", () => {
   });
 
   // ==========================================
-  // Locked / Upgrade Feature States
+  // Boolean feature states
   // ==========================================
-  describe("Locked Features", () => {
+  describe("Boolean features", () => {
     it("shows boolean features as active or inactive", async () => {
       setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
+      renderPage();
 
-      await waitFor(
-        () => {
-          expect(screen.getByText("قابلیت‌های ویژه")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
+      await waitFor(() => {
+        expect(screen.getByText("قابلیت‌های ویژه")).toBeInTheDocument();
+      });
 
-      const advRef = screen.getAllByText("منابع پیشرفته");
-      expect(advRef.length).toBeGreaterThanOrEqual(1);
-
-      const priProc = screen.getAllByText("اولویت پردازش");
-      expect(priProc.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("shows inactive label for disabled boolean features", async () => {
-      setupAuthHandlers();
-      render(
-        <TestWrapper>
-          <SubscriptionPage />
-        </TestWrapper>
-      );
-
-      await waitFor(
-        () => {
-          expect(screen.getByText("قابلیت‌های ویژه")).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-
-      // "PRIORITY_PROCESSING" is disabled in pro plan → shows "غیرفعال"
-      const inactiveLabels = screen.getAllByText("غیرفعال");
-      expect(inactiveLabels.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("منابع پیشرفته").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("غیرفعال").length).toBeGreaterThanOrEqual(1);
     });
   });
 });

@@ -1086,6 +1086,22 @@ export const IRAN_PROVINCES: IranProvince[] = [
   },
 ];
 
+/**
+ * The full national set of Iran's provinces (name-only), for address entry —
+ * a lawyer's profile, a user's profile, an organization's registration. This
+ * is deliberately broader than {@link IRAN_PROVINCES} (the *covered*
+ * marketplace geography, which additionally carries the city lists the
+ * marketplace facets are built from). Address forms must never narrow a
+ * person to only the provinces where the marketplace currently has lawyers.
+ */
+export const IRAN_PROVINCE_NAMES: readonly string[] = [
+  "تهران", "البرز", "اصفهان", "فارس", "خراسان رضوی", "خوزستان", "آذربایجان شرقی",
+  "آذربایجان غربی", "گیلان", "مازندران", "کرمان", "یزد", "قم", "قزوین", "زنجان",
+  "همدان", "کردستان", "کرمانشاه", "لرستان", "مرکزی", "سمنان", "گلستان", "اردبیل",
+  "بوشهر", "هرمزگان", "چهارمحال و بختیاری", "کهگیلویه و بویراحمد", "ایلام",
+  "خراسان شمالی", "خراسان جنوبی", "سیستان و بلوچستان",
+] as const;
+
 /** All city names across every province (deduplicated). */
 export const IRAN_CITIES: string[] = [...new Set(IRAN_PROVINCES.flatMap((p) => p.cities))];
 

@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { TextField } from "@legalir/ui";
 import { IconClose, IconSearch, IconServices, IconLawBook } from "@/lib/icons";
-import { PromoPanel } from "@/components/shared";
+import { PageIntroBanner, PromoPanel } from "@/components/shared";
 import {
   CATALOG_CATEGORIES,
   CATALOG_SIZE,
@@ -47,6 +47,7 @@ import {
 } from "@/lib/services/catalog";
 import {
   CampaignBanner,
+  CampaignPhotoBanner,
   CategoryShortcuts,
   NewServices,
   ServiceBanner,
@@ -131,55 +132,54 @@ export default function ServicesPage() {
       {/* ============================================================
           1. Intro + search
           ============================================================ */}
-      <header className="mb-5 grid gap-4 laptop:grid-cols-[minmax(0,1fr)_minmax(0,420px)] laptop:items-end laptop:gap-8">
-        <div className="min-w-0">
+      <PageIntroBanner
+        className="mb-5"
+        eyebrow={
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-3 py-1 text-caption text-on-surface-variant">
             <IconServices size={14} />
             {CATALOG_SIZE.toLocaleString("fa-IR")} خدمت حقوقی
           </span>
-          <h1 className="mt-3 text-h2 font-bold text-on-surface">خدمات لیگالیر</h1>
-          <p className="mt-1.5 max-w-2xl text-body-2 leading-relaxed text-on-surface-variant">
-            خدمات حقوقی قانون‌مدار لیگالیر — از پرسش و تحلیل سند تا تنظیم قرارداد، محاسبه‌گرهای
-            دقیق و مشاوره با وکیل انسانی.
-          </p>
-        </div>
-
-        <form
-          role="search"
-          onSubmit={(e) => e.preventDefault()}
-          className="w-full"
-          aria-label="جستجو در خدمات"
-        >
-          <TextField
-            ref={searchRef}
-            type="search"
-            label="جستجو در خدمات"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && query) {
-                e.preventDefault();
-                clearSearch();
+        }
+        title="خدمات لیگالیر"
+        description="خدمات حقوقی قانون‌مدار لیگالیر — از پرسش و تحلیل سند تا تنظیم قرارداد، محاسبه‌گرهای دقیق و مشاوره با وکیل انسانی."
+        actions={
+          <form
+            role="search"
+            onSubmit={(e) => e.preventDefault()}
+            className="w-full laptop:w-[420px]"
+            aria-label="جستجو در خدمات"
+          >
+            <TextField
+              ref={searchRef}
+              type="search"
+              label="جستجو در خدمات"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && query) {
+                  e.preventDefault();
+                  clearSearch();
+                }
+              }}
+              placeholder="مثلاً: اظهارنامه، مهریه، NDA"
+              leadingIcon={<IconSearch size={20} />}
+              endAdornment={
+                query ? (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    aria-label="پاک کردن جستجو"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <IconClose size={18} />
+                  </button>
+                ) : undefined
               }
-            }}
-            placeholder="مثلاً: اظهارنامه، مهریه، NDA"
-            leadingIcon={<IconSearch size={20} />}
-            endAdornment={
-              query ? (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  aria-label="پاک کردن جستجو"
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <IconClose size={18} />
-                </button>
-              ) : undefined
-            }
-            fullWidth
-          />
-        </form>
-      </header>
+              fullWidth
+            />
+          </form>
+        }
+      />
 
       {/* ============================================================
           Search mode — flat, scannable results
@@ -218,7 +218,7 @@ export default function ServicesPage() {
               <button
                 type="button"
                 onClick={clearSearch}
-                className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-white transition-colors hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
+                className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
               >
                 نمایش همه خدمات
               </button>
@@ -261,7 +261,9 @@ export default function ServicesPage() {
           {/* ============================================================
               3. Primary campaign — human lawyer consultation
               ============================================================ */}
-          <CampaignBanner banner={PRIMARY_CAMPAIGN} size="hero" className="mb-6" />
+          {/* Photographic treatment: the handshake photo spans the panel and
+              the copy sits over its dark right side. */}
+          <CampaignPhotoBanner banner={PRIMARY_CAMPAIGN} size="hero" className="mb-6" />
 
           {/* ============================================================
               4. The six service banners
@@ -298,8 +300,20 @@ export default function ServicesPage() {
             cta="مشاهده منابع حقوقی"
             href="/legal-library"
             icon={IconLawBook}
-            imageSide="end"
             size="panel"
+            // Photographic treatment: the archival-library artwork — shelves
+            // on the left, an empty ivory field on the right — becomes the
+            // section background. The copy takes that quiet right side, and
+            // `objectPosition: left` keeps the shelves framed on every
+            // breakpoint (a phone crop turns portrait and overflows both
+            // edges). `art` is unused when `photo` is set.
+            photo={{
+              src: "/assets/promo/legalir-banner-legal-sources.webp",
+              srcSm: "/assets/promo/legalir-banner-legal-sources-sm.webp",
+              width: 1280,
+              height: 720,
+              objectPosition: "left center",
+            }}
             className="mb-10"
           />
 
@@ -393,7 +407,7 @@ export default function ServicesPage() {
             </p>
             <Link
               href="/chat?service=legal_consultation"
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-white transition-colors hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
+              className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
             >
               شروع گفت‌وگو با مشاور هوش مصنوعی
             </Link>

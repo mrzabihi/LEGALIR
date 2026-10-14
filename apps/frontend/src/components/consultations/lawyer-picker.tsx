@@ -23,7 +23,7 @@ import { LawyerAvailabilityBadge } from "@/components/lawyers/lawyer-availabilit
 import { availabilityView } from "@/lib/lawyers/availability";
 import { IconSearch, IconRefresh, IconInfo } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { LEGAL_CATEGORY_FA, type LawyerListItem } from "@legalir/types";
+import { IRAN_PROVINCES, LEGAL_CATEGORY_FA, type LawyerListItem } from "@legalir/types";
 import { formatToman } from "./consultation-status";
 
 interface LawyerPickerProps {
@@ -132,7 +132,7 @@ export function LawyerPicker({
           className={[
             "rounded-full px-3.5 py-1.5 text-caption font-medium transition",
             mode === "browse"
-              ? "bg-primary text-white"
+              ? "bg-primary text-primary-on"
               : "bg-surface-container text-muted hover:text-on-surface",
           ].join(" ")}
         >
@@ -144,7 +144,7 @@ export function LawyerPicker({
           className={[
             "rounded-full px-3.5 py-1.5 text-caption font-medium transition",
             mode === "match"
-              ? "bg-primary text-white"
+              ? "bg-primary text-primary-on"
               : "bg-surface-container text-muted hover:text-on-surface",
           ].join(" ")}
         >
@@ -169,10 +169,7 @@ export function LawyerPicker({
             onChange={(e) => setProvince(e.target.value)}
             options={[
               { value: "", label: "همه استان‌ها" },
-              { value: "تهران", label: "تهران" },
-              { value: "اصفهان", label: "اصفهان" },
-              { value: "فارس", label: "فارس" },
-              { value: "خراسان رضوی", label: "خراسان رضوی" },
+              ...IRAN_PROVINCES.map((p) => ({ value: p.nameFa, label: p.nameFa })),
             ]}
             fullWidth
           />
@@ -204,7 +201,7 @@ export function LawyerPicker({
       )}
 
       {mode === "browse" && browse.isError && (
-        <div className="flex flex-col items-center gap-2 rounded-large bg-error/10 p-5 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-large bg-error-container p-5 text-center">
           <p className="text-body-2 text-error">خطا در بارگذاری وکلا</p>
           <button
             type="button"
@@ -218,13 +215,13 @@ export function LawyerPicker({
       )}
 
       {mode === "match" && match.isError && (
-        <div className="rounded-large bg-error/10 p-5 text-center text-body-2 text-error">
+        <div className="rounded-large bg-error-container p-5 text-center text-body-2 text-error">
           یافتن وکیل ناموفق بود. دوباره تلاش کنید.
         </div>
       )}
 
       {mode === "match" && match.data && match.data.candidates.length === 0 && (
-        <div className="flex flex-col items-center gap-2 rounded-large border border-divider/60 bg-surface p-6 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-large border border-divider bg-surface p-6 text-center">
           <IconInfo size={26} className="text-muted" />
           <p className="text-body-2 text-muted">
             وکیل واجد شرایطی برای این موضوع یافت نشد.

@@ -2,9 +2,23 @@
 // LEGALIR — «ساخت جدید» create-action sheet (non-modal)
 // ============================================================
 // The bottom sheet opened by the centre button of the mobile navigation.
-// It is a light, rounded surface with a two-column grid of four quick-start
-// actions. Opening the sheet never creates anything — each action is a real
-// link into an existing flow, and picking one closes the sheet and navigates.
+// It is a light, rounded surface that leads with the legal chat as ONE
+// full-width featured card, above a two-column grid of three specialist
+// actions (two in the first row, one in the second), and closes with a
+// distinct «مشاوره با وکلا» card — a human service, set apart from the AI
+// quick-starts by its gold accent. Opening the sheet never creates anything —
+// each action is a real link into an existing flow, and picking one closes the
+// sheet and navigates.
+//
+// VISUALS. The brand "soft shapes" illustration (a light, legal-themed
+// artwork) sits as a whisper behind the header and the featured card, fading
+// into the plain sheet surface so every card stays fully legible, and dimmed
+// further in the dark theme. Cards share one radius/spacing language drawn
+// from the design system; the only accent hues are the brand green (services)
+// and the brand gold (the single small emphasis + the human-consultation
+// card). Entrances are short and stagger slightly, and are neutralised by the
+// global `prefers-reduced-motion` guard; decorative hover motion is gated to
+// fine pointers via `can-hover:`.
 //
 // NON-MODAL BY DESIGN. The bar must stay usable while the sheet is open, so
 // this sheet deliberately does NOT:
@@ -30,7 +44,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { createActions } from "@/lib/routes";
+import { createActions, lawyerConsultation } from "@/lib/routes";
 import {
   IconClose,
   IconFilePen,
@@ -38,6 +52,8 @@ import {
   IconFileText,
   IconChat,
   IconChevronUp,
+  IconChevronRight,
+  IconHandshake,
 } from "@/lib/icons";
 
 const ACTION_ICON_MAP: Record<
@@ -48,11 +64,22 @@ const ACTION_ICON_MAP: Record<
   FileSearch: IconFileSearch,
   FileText: IconFileText,
   Chat: IconChat,
+  Handshake: IconHandshake,
 };
 
-/** Collapsed detent: enough to show the header + all four actions, but never
- *  taller than 85% of the viewport. Expanded detent: 85% of the viewport. */
-const COLLAPSED_MAX_PX = 360;
+/**
+ * The brand "soft shapes" artwork — one illustration, a lighter 512w
+ * derivative on phones and the 1024w file from `tablet` up. Decorative only
+ * (`alt=""`, `aria-hidden`) — it sits behind the header and the featured card
+ * at a whisper of opacity, so it never competes with the copy.
+ */
+const SOFT_SHAPES_SRC = "/assets/promo/legalir-soft-shapes.webp";
+const SOFT_SHAPES_SRC_SM = "/assets/promo/legalir-soft-shapes-sm.webp";
+
+/** Collapsed detent: tall enough to show the header + the featured card + the
+ *  full specialist grid (two rows) without a scroll, but never taller than 85%
+ *  of the viewport. Expanded detent: 85% of the viewport. */
+const COLLAPSED_MAX_PX = 600;
 const EXPANDED_VH = 0.85;
 /** Drag distance (px) past which a release snaps to the other detent. */
 const SNAP_THRESHOLD = 64;
@@ -178,6 +205,13 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
 
   if (!mounted || typeof document === "undefined") return null;
 
+  // The sheet is one featured entry (the legal chat, full-width) above a
+  // two-column grid of the remaining specialist services. `createActions`
+  // owns the order and the featured flag (see @/lib/routes); the data
+  // guarantees exactly one featured action, so the card always renders.
+  const featuredAction = createActions.find((a) => a.featured);
+  const specialistActions = createActions.filter((a) => !a.featured);
+
   const state = open ? "open" : "closed";
   const baseHeight = expanded
     ? `${EXPANDED_VH * 100}dvh`
@@ -188,12 +222,12 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
 
   return createPortal(
     <div className="fixed inset-0 z-[60]" role="presentation">
-      {/* Backdrop — stops above the bar so the nav stays clickable. Tap to
-          dismiss. Hidden while dragging so the drag reads cleanly. */}
+      {/* Backdrop — on mobile it stops above the bar so the nav stays
+          clickable; on desktop (no bar) it covers the full height. Tap to
+          dismiss. */}
       <div
         data-sheet-backdrop
-        className="absolute inset-x-0 top-0 bg-scrim/40 animate-fade-in"
-        style={{ bottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }}
+        className="absolute inset-x-0 top-0 bottom-[calc(84px_+_env(safe-area-inset-bottom,0px))] desktop:bottom-0 bg-scrim animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -205,12 +239,36 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
         role="dialog"
         aria-label="ساخت جدید"
         data-state={state}
-        className="bottom-nav-sheet animate-sheet-up absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] border-x border-t border-divider bg-surface shadow-elevation-24"
+        className="bottom-nav-sheet animate-sheet-up absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] border-x border-t border-divider bg-surface shadow-elevation-24 isolate"
         style={{
           height,
           transition: dragOffset !== null ? "none" : undefined,
         }}
       >
+        {/* Soft-shapes artwork — a decorative whisper behind the header and the
+            featured card. It is clipped to the sheet's rounded top (the sheet
+            has `overflow-hidden`), bright on the light surface and dimmed in
+            the dark theme, and fades into the plain surface before the card
+            grid so no button ever fights the art. Purely decorative: empty
+            alt + `aria-hidden`, so it is invisible to assistive tech. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[230px] overflow-hidden opacity-90 dark:opacity-25"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={SOFT_SHAPES_SRC}
+            srcSet={`${SOFT_SHAPES_SRC_SM} 512w, ${SOFT_SHAPES_SRC} 1024w`}
+            sizes="440px"
+            alt=""
+            width={1024}
+            height={768}
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover object-top"
+          />
+          <span className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0%,transparent_58%,var(--color-surface)_100%)]" />
+        </span>
+
         {/* Header — fixed. The whole strip is the drag handle. */}
         <div
           data-drag-handle
@@ -264,36 +322,109 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
 
         {/* Body — the only scroll region. `min-h-0` lets it shrink inside the
             flex column so `overflow-y-auto` actually engages. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-2">
-          <div className="grid grid-cols-2 gap-3">
-            {createActions.map((action) => {
-              const Icon = ACTION_ICON_MAP[action.icon];
-              return (
-                <Link
-                  key={action.id}
-                  href={action.href}
-                  onClick={onClose}
-                  className="group flex min-h-[64px] items-center gap-3 rounded-2xl border border-divider bg-surface-container-low px-4 py-3.5 transition-colors hover:bg-surface-container active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-50 text-secondary-700 transition-colors group-hover:bg-secondary-100">
-                    {Icon ? <Icon size={22} /> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 pt-1.5 tablet:px-5">
+          <div className="space-y-3">
+            {/* Featured entry — the legal chat, one full-width card at the
+                top. It is the start for a user who has not yet chosen a
+                specialist service, so it reads as the primary action. */}
+            {featuredAction && (
+              <Link
+                href={featuredAction.href}
+                onClick={onClose}
+                className="create-feature-card group relative flex items-center gap-3.5 rounded-large border border-primary/30 bg-primary-container px-4 py-3.5 shadow-elevation-1 transition-[transform,border-color,box-shadow] duration-short4 ease-standard can-hover:hover:-translate-y-0.5 can-hover:hover:border-primary/50 can-hover:hover:shadow-elevation-3 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 animate-create-card animate-create-card-m1"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-medium bg-primary text-primary-on shadow-elevation-1">
+                  {(() => {
+                    const Icon = ACTION_ICON_MAP[featuredAction.icon];
+                    return Icon ? <Icon size={24} /> : null;
+                  })()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-body-1 font-semibold text-on-surface">
+                      {featuredAction.titleFa}
+                    </span>
+                    <span className="create-feature-badge rounded-full bg-[var(--brand-gold)] px-2 py-0.5 text-[10px] font-medium leading-none text-[var(--brand-teal)]">
+                      شروع پیشنهادی
+                    </span>
                   </span>
-                  <span className="text-body-2 font-medium text-on-surface">
-                    {action.titleFa}
+                  <span className="mt-1 block whitespace-pre-line text-caption leading-relaxed text-muted">
+                    {featuredAction.descriptionFa}
                   </span>
-                </Link>
-              );
-            })}
+                </span>
+                <IconChevronRight
+                  size={18}
+                  className="shrink-0 text-primary transition-transform duration-short4 ease-standard can-hover:group-hover:-translate-x-0.5"
+                />
+              </Link>
+            )}
+
+            {/* Specialist services — two-column grid from `tablet` up: the
+                first two fill row one, the third sits alone on row two. On
+                phones the grid collapses to one column in the same order, so
+                a narrow screen never forces a horizontal scroll. */}
+            <div className="grid grid-cols-1 gap-2.5 tablet:grid-cols-2">
+              {specialistActions.map((action, i) => {
+                const Icon = ACTION_ICON_MAP[action.icon];
+                return (
+                  <Link
+                    key={action.id}
+                    href={action.href}
+                    onClick={onClose}
+                    className={`group flex min-h-[84px] items-center gap-3 rounded-large border border-divider bg-surface-container-low p-3 transition-[transform,background-color,border-color,box-shadow] duration-short4 ease-standard can-hover:hover:-translate-y-0.5 can-hover:hover:border-primary/25 can-hover:hover:bg-surface-container can-hover:hover:shadow-elevation-1 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 animate-create-card animate-create-card-m${
+                      i + 2
+                    }`}
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-secondary-50 text-secondary-700 transition-colors duration-short4 ease-standard group-hover:bg-secondary-100">
+                      {Icon ? <Icon size={22} /> : null}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-body-2 font-semibold text-on-surface">
+                        {action.titleFa}
+                      </span>
+                      <span className="mt-0.5 block text-caption leading-snug text-muted">
+                        {action.descriptionFa}
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Lawyer consultation — a DISTINCT closing card. Unlike the four
+                AI quick-starts above, this one leads to a human service, so it
+                is set apart with the brand-gold accent instead of the green
+                used by the chat and the specialist grid. */}
+            <Link
+              href={lawyerConsultation.href}
+              onClick={onClose}
+              className="group relative flex items-center gap-3.5 overflow-hidden rounded-large border border-[color:color-mix(in_srgb,var(--brand-gold)_38%,transparent)] bg-[color-mix(in_srgb,var(--brand-gold)_12%,var(--color-surface))] p-3.5 transition-[transform,border-color,box-shadow] duration-short4 ease-standard can-hover:hover:-translate-y-0.5 can-hover:hover:border-[color:color-mix(in_srgb,var(--brand-gold)_62%,transparent)] can-hover:hover:shadow-elevation-2 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-gold)] animate-create-card animate-create-card-m5"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-[var(--brand-gold)] text-[var(--brand-teal)] shadow-elevation-1">
+                <IconHandshake size={22} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-body-1 font-semibold text-on-surface">
+                  {lawyerConsultation.titleFa}
+                </span>
+                <span className="mt-0.5 block text-caption leading-snug text-muted">
+                  {lawyerConsultation.descriptionFa}
+                </span>
+              </span>
+              <IconChevronRight
+                size={18}
+                className="shrink-0 text-on-surface-variant transition-transform duration-short4 ease-standard can-hover:group-hover:-translate-x-0.5"
+              />
+            </Link>
           </div>
         </div>
 
         {/* Nav-clearance spacer — keeps the floating bar (and its raised
-            centre button) off the scroll region, so wheel/touch scrolling is
-            never intercepted and the last action is never covered. */}
+            centre button) off the scroll region on mobile. It collapses on
+            desktop, where there is no bar to clear. */}
         <div
           aria-hidden="true"
-          className="shrink-0"
-          style={{ height: "calc(84px + env(safe-area-inset-bottom, 0px))" }}
+          className="h-[calc(84px_+_env(safe-area-inset-bottom,0px))] desktop:hidden shrink-0"
         />
       </div>
     </div>,

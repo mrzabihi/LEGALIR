@@ -25,6 +25,7 @@ import { useMe } from "@/hooks/useDashboard";
 import {
   fetchAdminOverview,
   fetchAdminReports,
+  fetchAdminLiveReport,
   type AdminWindow,
   fetchAdminUsers,
   fetchAdminUser,
@@ -33,8 +34,13 @@ import {
   adminEnergyAction,
   fetchAdminRequests,
   fetchAdminRequest,
+  fetchAdminDiscovery,
   assignRequestLawyer,
   changeRequestState,
+  fetchAdminContracts,
+  fetchAdminContract,
+  reviewAdminContract,
+  type AdminContractsQuery,
   fetchAdminFlags,
   updateAdminFlag,
   type UpdateFlagInput,
@@ -139,10 +145,18 @@ import {
   fetchUsageSummary,
   type AdminUsersQuery,
   type AdminRequestsQuery,
+  type AdminDiscoveryQuery,
   type AdminOrdersQuery,
   fetchAdminAnnouncements,
   createAdminAnnouncement,
   setAdminAnnouncementStatus,
+  fetchAdminCoupons,
+  fetchAdminCoupon,
+  createAdminCoupon,
+  updateAdminCoupon,
+  setAdminCouponStatus,
+  type AdminCouponDraft,
+  type AdminCouponRow,
 } from "@/lib/api/admin";
 import type {
   PlanStatus,
@@ -160,9 +174,11 @@ import type {
   AnnouncementStatus,
   CreateAnnouncementInput,
   AdminAnnouncement,
+  AdminContractReviewActionRequest,
   AdminBlogPost,
   UpsertBlogPostInput,
   GenerateBlogDraftInput,
+  CouponStatus,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -211,6 +227,83 @@ export function useAdminReports(
     staleTime: 60_000,
     retry: 1,
     enabled: options.enabled ?? true,
+  });
+}
+
+/** Default live cadence. A dashboard snapshot does not need sub-minute freshness. */
+export const LIVE_REFRESH_MS = 30_000;
+/** Back-off ceiling: after repeated failures a poll waits at most this long. */
+export const LIVE_MAX_BACKOFF_MS = 120_000;
+
+/**
+ * The polling policy for the live report, as a PURE function so it can be
+ * proven without timers. Returns the next interval in ms, or `false` to stop.
+ *  • paused  → stop (keep the last data);
+ *  • hidden  → stop (a background tab makes no requests);
+ *  • failed  → back off monotonically (base × (failures + 1)), capped;
+ *  • ok      → the base cadence.
+ */
+export function liveRefetchInterval(opts: {
+  paused: boolean;
+  hidden: boolean;
+  failures: number;
+  base?: number;
+}): number | false {
+  if (opts.paused) return false;
+  if (opts.hidden) return false;
+  const base = opts.base ?? LIVE_REFRESH_MS;
+  const failures = Math.max(0, opts.failures);
+  if (failures > 0) return Math.min(base * (failures + 1), LIVE_MAX_BACKOFF_MS);
+  return base;
+}
+
+/**
+ * The «گزارش زنده» live snapshot with ADAPTIVE polling. It is the project's
+ * first admin live mechanism, so it is deliberately conservative:
+ *
+ *   • ONE shared query key (`["admin","live",…]`) — a single request per tick,
+ *     never one per consumer, and never any parallel fan-out;
+ *   • the interval is `false` while PAUSED and while the TAB IS HIDDEN, so a
+ *     background or paused tab makes no requests at all;
+ *   • after a failed fetch the cadence grows (2×, 3×, 4× … capped) so a flapping
+ *     endpoint is never hammered; a success resets it to the base interval;
+ *   • `enabled` is tied only to the caller's permission gate — pausing does NOT
+ *     disable the query, so the last successful data stays in cache and can be
+ *     shown labelled as stale instead of disappearing.
+ *
+ * The server is the source of truth for every number; this hook only decides HOW
+ * OFTEN to ask, never WHAT to show.
+ */
+export function useAdminLiveReport(
+  rangeDays = 30,
+  options: {
+    enabled?: boolean;
+    window?: AdminWindow | null;
+    /** Operator pressed «توقف» — stop polling but keep the last data. */
+    paused?: boolean;
+    intervalMs?: number;
+  } = {}
+) {
+  const paused = options.paused ?? false;
+  const base = options.intervalMs ?? LIVE_REFRESH_MS;
+
+  return useQuery({
+    queryKey: ["admin", "live", rangeDays, options.window?.from ?? null, options.window?.to ?? null],
+    queryFn: () => fetchAdminLiveReport(rangeDays, options.window),
+    enabled: options.enabled ?? true,
+    staleTime: base / 2,
+    retry: 1,
+    refetchIntervalInBackground: false,
+    refetchInterval: (query) =>
+      liveRefetchInterval({
+        paused,
+        hidden: typeof document !== "undefined" && document.hidden,
+        // `errorUpdateCount` is the number of failed fetches for this observer;
+        // the policy backs off monotonically and caps so a broken endpoint is
+        // retried gently rather than hammered.
+        failures: query.state.errorUpdateCount ?? 0,
+        base,
+      }),
   });
 }
 
@@ -377,6 +470,16 @@ export function useAdminRequest(id: string | null) {
   });
 }
 
+export function useAdminDiscovery(query: AdminDiscoveryQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "discovery", query],
+    queryFn: () => fetchAdminDiscovery(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useAssignRequestLawyer() {
   const qc = useQueryClient();
   return useMutation({
@@ -397,6 +500,49 @@ export function useChangeRequestState() {
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
       qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Contracts — the admin review queue (§6/§7)
+// ---------------------------------------------------------------------------
+
+export function useAdminContracts(query: AdminContractsQuery = {}) {
+  return useQuery({
+    queryKey: ["admin", "contracts", query],
+    queryFn: () => fetchAdminContracts(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminContract(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "contracts", "detail", id],
+    queryFn: () => fetchAdminContract(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Record a review decision (approve / reject / request_info / cancel). A
+ * decision moves the contract's state, so both the queue slice and the
+ * detail must refetch — the row's approval badge and the decision panel both
+ * change. On an approve we also refresh the public verification surfaces the
+ * owner reads.
+ */
+export function useAdminContractReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AdminContractReviewActionRequest }) =>
+      reviewAdminContract(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
     },
   });
 }
@@ -1124,13 +1270,19 @@ export function useChangeStaffRole() {
   });
 }
 
-export function useAdminAudit(query: AdminAuditQuery = {}) {
+export function useAdminAudit(
+  query: AdminAuditQuery = {},
+  options: { enabled?: boolean } = {}
+) {
   return useQuery({
     queryKey: ["admin", "audit", query],
     queryFn: () => fetchAdminAudit(query),
     staleTime: 30_000,
     retry: 1,
     placeholderData: (prev) => prev,
+    // The endpoint requires `admin:audit:read`; when the viewer lacks it the
+    // section is hidden and the request must not fire (no 403 in the console).
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -1145,6 +1297,8 @@ export function useAdminLawyers(
     lifecycle?: AdminLawyerStatus;
     featured?: boolean;
     search?: string;
+    page?: number;
+    pageSize?: number;
   } = {}
 ) {
   return useQuery({
@@ -1156,6 +1310,8 @@ export function useAdminLawyers(
       params.lifecycle ?? null,
       params.featured ?? null,
       params.search ?? null,
+      params.page ?? null,
+      params.pageSize ?? null,
     ],
     queryFn: () => fetchAdminLawyers(params),
     staleTime: 30_000,
@@ -1302,7 +1458,7 @@ export function useSetAdminLawyerFeatured() {
   });
 }
 
-/** Moderate a single review (hide / restore / delete). */
+/** Moderate a single review (publish / hide / restore / reject / delete). */
 export function useModerateAdminLawyerReview() {
   const qc = useQueryClient();
   return useMutation({
@@ -1314,7 +1470,7 @@ export function useModerateAdminLawyerReview() {
     }: {
       id: string;
       reviewId: string;
-      action: "hide" | "restore" | "delete";
+      action: "publish" | "hide" | "restore" | "reject" | "delete";
       reason?: string;
     }) => moderateAdminLawyerReview(id, reviewId, { action, reason }),
     onSuccess: (_result, { id }) => invalidateLawyer(qc, id),
@@ -1402,14 +1558,6 @@ export function useUsageSummary(rangeDays = 30) {
     retry: 1,
   });
 }
-  fetchAdminCoupons,
-  fetchAdminCoupon,
-  createAdminCoupon,
-  updateAdminCoupon,
-  setAdminCouponStatus,
-  type AdminCouponDraft,
-  type AdminCouponRow,
-  CouponStatus,
 
 // ---------------------------------------------------------------------------
 // Discount coupons (billing)

@@ -13,6 +13,9 @@
 import { apiClient } from "./client";
 import type {
   AdminOverview,
+  AdminLiveReport,
+  AdminSalesSplit,
+  AdminLivePoint,
   AdminOrderListResponse,
   AdminOrder,
   AdminOrderReceipt,
@@ -76,6 +79,17 @@ import type {
   LegalRequest,
   LegalRequestEvent,
   LegalRequestState,
+  LegalRequestDiscovery,
+  DiscoveryIntent,
+  AdminContractListResponse,
+  AdminContractReviewActionRequest,
+  ContractAdminReviewDetail,
+  ContractAdminReviewStatus,
+  ContractCompleteness,
+  ContractLegalBasisReport,
+  ContractTypeId,
+  PropertyContract,
+  PropertyContractState,
   AdminAnnouncement,
   AnnouncementStatus,
   CreateAnnouncementInput,
@@ -94,6 +108,7 @@ import type {
   AdminLawyerStatus,
   LawyerProfile,
   LawyerReviewRecord,
+  LawyerReviewReportRecord,
   LawyerExpertise,
   LawyerLocation,
   LawyerPricing,
@@ -103,6 +118,8 @@ import type {
   LawyerLicenseStatus,
   LawyerGender,
   LawyerAvatarType,
+  Coupon,
+  CouponStatus,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -121,7 +138,8 @@ export interface AdminUserRow {
   /** Readable, server-generated system id (`LG-…`), or null. */
   publicId: string | null;
   displayName: string | null;
-  mobileMasked: string;
+  /** Full canonical mobile (`+989xxxxxxxxx`); display LTR within the RTL panel. */
+  mobile: string;
   email: string | null;
   role: PlatformRole;
   accountType: string;
@@ -134,6 +152,8 @@ export interface AdminUsersResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** Total pages matching the query (server-clamped page lives within 1..totalPages). */
+  totalPages: number;
 }
 
 export interface AdminUserDetail extends AdminUserRow {
@@ -145,6 +165,8 @@ export interface AdminRequestsQuery {
   pageSize?: number;
   search?: string;
   state?: string;
+  /** Tri-state discovery filter: `"yes"` keeps only discovery requests. */
+  discovery?: "yes" | "no";
 }
 
 export interface AdminRequestRow {
@@ -157,6 +179,12 @@ export interface AdminRequestRow {
   orgId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** True when the request came through the path-discovery intake. */
+  hasDiscovery: boolean;
+  /** How the recorded analysis was produced, or null when there is none. */
+  discoverySource: "ai" | "rules" | null;
+  /** The legal area the engine inferred, or null. */
+  inferredCategory: string | null;
 }
 
 export interface AdminRequestsResponse {
@@ -164,12 +192,22 @@ export interface AdminRequestsResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** Total pages matching the query. */
+  totalPages: number;
 }
 
 export interface AdminReportsResponse {
   rangeDays: number;
   byPlan: { planCode: string; planNameFa: string; count: number; amount: number }[];
   daily: { date: string; count: number; amount: number }[];
+  /**
+   * Selling orders stacked by plan over the window (one row per day, values
+   * aligned to `plans` by index) — the data behind the plan-mix stacked bar.
+   */
+  planMix: {
+    plans: { planCode: string; planNameFa: string }[];
+    days: { date: string; values: number[] }[];
+  };
 }
 
 export interface AdminSettingsResponse {
@@ -250,6 +288,14 @@ export interface AdminSupportResponse {
  */
 export type AdminLawyerRow = AdminLawyerListItem;
 
+export interface AdminLawyersResponse {
+  items: AdminLawyerRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 /** A single recorded admin decision (previous → new, actor, reason, time). */
 export interface AdminLawyerDecision {
   newStatus: LawyerVerificationStatus;
@@ -293,7 +339,23 @@ export interface AdminLawyerDetail {
   messages: AdminLawyerMessageRow[];
   /** Every review row (including hidden) for in-drawer moderation. */
   reviews: LawyerReviewRecord[];
-  stats: { messagesSent: number; decisions: number; reviews: number };
+  /** Per-review moderation history + reports, keyed by review id. */
+  moderation: Record<
+    string,
+    {
+      events: {
+        id: string;
+        fromStatus: string | null;
+        toStatus: string;
+        reason: string | null;
+        actorUserId: string;
+        actorRole: string;
+        createdAt: string;
+      }[];
+      reports: LawyerReviewReportRecord[];
+    }
+  >;
+  stats: { messagesSent: number; decisions: number; reviews: number; openReports: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -387,6 +449,18 @@ export function fetchAdminReports(
   return apiClient.get<AdminReportsResponse>(`${A}/reports${windowParams(rangeDays, window)}`);
 }
 
+/**
+ * A compact live snapshot of the SAME ledger the overview reads. Same range
+ * parameters (`rangeDays` + an explicit window), so a KPI card and the live
+ * block beside it always describe the identical window.
+ */
+export function fetchAdminLiveReport(
+  rangeDays = 30,
+  window?: AdminWindow | null
+): Promise<AdminLiveReport> {
+  return apiClient.get<AdminLiveReport>(`${A}/live${windowParams(rangeDays, window)}`);
+}
+
 // ---------------------------------------------------------------------------
 // Users & requests
 // ---------------------------------------------------------------------------
@@ -448,7 +522,77 @@ export function adminEnergyAction(
 
 export function fetchAdminRequests(query: AdminRequestsQuery = {}): Promise<AdminRequestsResponse> {
   return apiClient.get<AdminRequestsResponse>(
-    `${A}/requests${qs({ page: query.page, pageSize: query.pageSize, search: query.search, state: query.state })}`
+    `${A}/requests${qs({ page: query.page, pageSize: query.pageSize, search: query.search, state: query.state, discovery: query.discovery })}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Path-discovery intake (§ dedicated panel)
+// ---------------------------------------------------------------------------
+
+export interface AdminDiscoveryQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  /** Filter by how the analysis was produced. */
+  source?: "ai" | "rules";
+}
+
+/** One request as it appears in the discovery panel's list. */
+export interface AdminDiscoveryRow {
+  id: string;
+  title: string;
+  state: string;
+  userDisplayName: string | null;
+  inferredCategory: string | null;
+  /** The help-type the user picked, or null when they let us infer. */
+  explicitIntent: DiscoveryIntent | null;
+  /** The one-line restatement the engine produced. */
+  summaryFa: string;
+  confidence: number | null;
+  needsLawyer: boolean;
+  source: "ai" | "rules";
+  /** The engine's top-ranked path. */
+  topIntent: DiscoveryIntent | null;
+  /** The path the user actually chose, or null if not yet chosen. */
+  selectedIntent: DiscoveryIntent | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminDiscoveryIntentStat {
+  intent: DiscoveryIntent;
+  recommended: number;
+  primary: number;
+  chosen: number;
+}
+
+export interface AdminDiscoveryStats {
+  total: number;
+  bySource: { ai: number; rules: number };
+  avgConfidence: number | null;
+  needsLawyer: number;
+  withDocument: number;
+  explicitIntent: number;
+  byIntent: AdminDiscoveryIntentStat[];
+  byCategory: { key: string; count: number }[];
+  byState: { key: string; count: number }[];
+}
+
+export interface AdminDiscoveryResponse {
+  stats: AdminDiscoveryStats;
+  items: AdminDiscoveryRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export function fetchAdminDiscovery(
+  query: AdminDiscoveryQuery = {}
+): Promise<AdminDiscoveryResponse> {
+  return apiClient.get<AdminDiscoveryResponse>(
+    `${A}/discovery${qs({ page: query.page, pageSize: query.pageSize, search: query.search, source: query.source })}`
   );
 }
 
@@ -473,6 +617,8 @@ export interface AdminRequestDetail {
     orgId: string | null;
     caseId: string | null;
     conversationId: string | null;
+    /** The path-discovery record, or null when the request skipped the intake. */
+    discovery: LegalRequestDiscovery | null;
     createdAt: string;
     updatedAt: string;
   };
@@ -506,6 +652,107 @@ export function changeRequestState(
     state,
     note,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Contracts — the admin review queue (§6/§7)
+// ---------------------------------------------------------------------------
+// The operator surface over the contract lifecycle: list every contract,
+// open one to judge the rendered document, and record the ONE decision the
+// backend allows (approve / reject / request_info / cancel). The decision is
+// enforced server-side against the review's bound version hash — the client
+// carries no approval logic.
+
+export interface AdminContractsQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  /** The admin-review status filter. */
+  status?: ContractAdminReviewStatus;
+  /** The contract type filter. */
+  type?: ContractTypeId;
+}
+
+export function fetchAdminContracts(
+  query: AdminContractsQuery = {}
+): Promise<AdminContractListResponse> {
+  return apiClient.get<AdminContractListResponse>(
+    `${A}/contracts${qs({
+      page: query.page,
+      pageSize: query.pageSize,
+      search: query.search,
+      status: query.status,
+      type: query.type,
+    })}`
+  );
+}
+
+/** One clause of the rendered document the admin is asked to judge. */
+export interface AdminContractClause {
+  id: string;
+  headingFa: string;
+  paragraphs: string[];
+  conditional: boolean;
+}
+
+/** The full review context for one contract — the SAME render the preview/PDF use. */
+export interface AdminContractDetail {
+  contract: {
+    id: string;
+    referenceCode: string;
+    type: ContractTypeId;
+    typeFa: string;
+    title: string;
+    state: PropertyContractState;
+    stateFa: string;
+    progress: number;
+    ownerLabelFa: string;
+    partySummaryFa: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  completeness: ContractCompleteness;
+  parties: { id: string; role: string; nameFa: string; isInitiator: boolean }[];
+  currentVersion: {
+    id: string;
+    versionNumber: number;
+    documentHash: string;
+    createdAt: string;
+  } | null;
+  versions: { id: string; versionNumber: number; documentHash: string; createdAt: string }[];
+  rendered: {
+    titleFa: string;
+    preambleFa: string;
+    clauses: AdminContractClause[];
+    footerFa: string;
+  };
+  /** §2 — the non-binding legal-basis annex for the clauses above. */
+  legalBasis: ContractLegalBasisReport;
+  adminReview: ContractAdminReviewDetail | null;
+  approved: boolean;
+  stamp: { applied: boolean; text: string; disclaimerFa: string };
+}
+
+export function fetchAdminContract(id: string): Promise<AdminContractDetail> {
+  return apiClient.get<AdminContractDetail>(`${A}/contracts/${encodeURIComponent(id)}`);
+}
+
+/** The response of a review decision: the updated contract, review and approval flag. */
+export interface AdminContractReviewResponse {
+  contract: PropertyContract;
+  review: ContractAdminReviewDetail;
+  approved: boolean;
+}
+
+/** Record the review decision for the ONE open review (POST). */
+export function reviewAdminContract(
+  id: string,
+  input: AdminContractReviewActionRequest
+): Promise<AdminContractReviewResponse> {
+  return apiClient.post<AdminContractReviewResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}`,
+    input
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1153,6 +1400,62 @@ export function setAdminAnnouncementStatus(
 }
 
 // ---------------------------------------------------------------------------
+// Discount coupons (billing panel)
+// ---------------------------------------------------------------------------
+// The coupon catalog the checkout applies. Every write is audited server-side;
+// a used coupon is never physically deleted (archive only), so historical
+// orders keep their reference. `usageCount` is recomputed by the server.
+
+/** A coupon row as the admin list/detail returns it (coupon + live usage). */
+export interface AdminCouponRow extends Coupon {
+  usageCount: number;
+}
+
+/** The editable subset of a coupon (undefined = leave a field untouched). */
+export interface AdminCouponDraft {
+  title?: string;
+  code?: string;
+  kind?: "percent" | "fixed";
+  value?: number;
+  percentCap?: number;
+  eligiblePlans?: string[];
+  startsAt?: string;
+  endsAt?: string;
+  minOrderAmount?: number;
+  totalUses?: number;
+  perUserLimit?: number;
+  status?: CouponStatus;
+  internalNotes?: string;
+  currency?: string;
+}
+
+export function fetchAdminCoupons(): Promise<{ items: AdminCouponRow[] }> {
+  return apiClient.get<{ items: AdminCouponRow[] }>(`${A}/coupons`);
+}
+
+export function fetchAdminCoupon(id: string): Promise<AdminCouponRow> {
+  return apiClient.get<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`);
+}
+
+export function createAdminCoupon(input: AdminCouponDraft): Promise<AdminCouponRow> {
+  return apiClient.post<AdminCouponRow>(`${A}/coupons`, input);
+}
+
+export function updateAdminCoupon(
+  id: string,
+  input: AdminCouponDraft
+): Promise<AdminCouponRow> {
+  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, input);
+}
+
+export function setAdminCouponStatus(
+  id: string,
+  status: CouponStatus
+): Promise<AdminCouponRow> {
+  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, { status });
+}
+
+// ---------------------------------------------------------------------------
 // Support tickets
 // ---------------------------------------------------------------------------
 
@@ -1283,14 +1586,18 @@ export function fetchAdminLawyers(params: {
   lifecycle?: AdminLawyerStatus;
   featured?: boolean;
   search?: string;
-} = {}): Promise<{ items: AdminLawyerRow[]; total: number }> {
-  return apiClient.get<{ items: AdminLawyerRow[]; total: number }>(
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<AdminLawyersResponse> {
+  return apiClient.get<AdminLawyersResponse>(
     `${A}/lawyers${qs({
       bucket: params.bucket,
       status: params.status,
       lifecycle: params.lifecycle,
       featured: params.featured === undefined ? undefined : String(params.featured),
       search: params.search,
+      page: params.page,
+      pageSize: params.pageSize,
     })}`
   );
 }
@@ -1414,11 +1721,14 @@ export function setAdminLawyerFeatured(
   });
 }
 
-/** Moderate a single review: hide (soft) / restore (undo hide) / delete. */
+/**
+ * Moderate a single review: publish (approve a pending review) / hide /
+ * restore / reject / delete. Withholding (hide, reject) requires a reason.
+ */
 export function moderateAdminLawyerReview(
   id: string,
   reviewId: string,
-  input: { action: "hide" | "restore" | "delete"; reason?: string }
+  input: { action: "publish" | "hide" | "restore" | "reject" | "delete"; reason?: string }
 ): Promise<unknown> {
   return apiClient.post(
     `${A}/lawyers/${encodeURIComponent(id)}/reviews/${encodeURIComponent(reviewId)}`,
@@ -1452,6 +1762,9 @@ export function fetchAdminKnowledge(params?: {
 // Re-export the domain types the pages need, so a page imports from one place.
 export type {
   AdminOverview,
+  AdminLiveReport,
+  AdminSalesSplit,
+  AdminLivePoint,
   AdminKpi,
   AdminAttentionItem,
   AdminBreakdownItem,
@@ -1506,61 +1819,3 @@ export type {
   UsageLedgerSummary,
   ActivityType,
 };
-  Coupon,
-  CouponStatus,
-// ---------------------------------------------------------------------------
-// Discount coupons (billing panel)
-// ---------------------------------------------------------------------------
-// The coupon catalog the checkout applies. Every write is audited server-side;
-// a used coupon is never physically deleted (archive only), so historical
-// orders keep their reference. `usageCount` is recomputed by the server.
-
-/** A coupon row as the admin list/detail returns it (coupon + live usage). */
-export interface AdminCouponRow extends Coupon {
-  usageCount: number;
-}
-
-/** The editable subset of a coupon (undefined = leave a field untouched). */
-export interface AdminCouponDraft {
-  title?: string;
-  code?: string;
-  kind?: "percent" | "fixed";
-  value?: number;
-  percentCap?: number;
-  eligiblePlans?: string[];
-  startsAt?: string;
-  endsAt?: string;
-  minOrderAmount?: number;
-  totalUses?: number;
-  perUserLimit?: number;
-  status?: CouponStatus;
-  internalNotes?: string;
-  currency?: string;
-}
-
-export function fetchAdminCoupons(): Promise<{ items: AdminCouponRow[] }> {
-  return apiClient.get<{ items: AdminCouponRow[] }>(`${A}/coupons`);
-}
-
-export function fetchAdminCoupon(id: string): Promise<AdminCouponRow> {
-  return apiClient.get<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`);
-}
-
-export function createAdminCoupon(input: AdminCouponDraft): Promise<AdminCouponRow> {
-  return apiClient.post<AdminCouponRow>(`${A}/coupons`, input);
-}
-
-export function updateAdminCoupon(
-  id: string,
-  input: AdminCouponDraft
-): Promise<AdminCouponRow> {
-  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, input);
-}
-
-export function setAdminCouponStatus(
-  id: string,
-  status: CouponStatus
-): Promise<AdminCouponRow> {
-  return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, { status });
-}
-

@@ -15,9 +15,9 @@ export function ConsultationBanner() {
   return (
     <div
       role="note"
-      className="mb-4 flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4"
+      className="mb-4 flex items-start gap-3 rounded-large border border-primary bg-primary-container p-4"
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-primary">
         <IconBalance size={20} />
       </span>
       <div className="min-w-0">
@@ -36,7 +36,7 @@ export function ConsultationBanner() {
 /** A quieter inline note used inside the wizard's review step. */
 export function InfoSharingNotice() {
   return (
-    <div className="flex items-start gap-2 rounded-xl bg-surface-container p-3 text-caption text-muted">
+    <div className="flex items-start gap-2 rounded-medium bg-surface-container p-3 text-caption text-muted">
       <IconInfo size={16} className="mt-0.5 shrink-0" />
       <span>
         با ارسال این درخواست، خلاصه موضوع و پیوست‌هایی که انتخاب می‌کنید برای وکیل نمایش داده

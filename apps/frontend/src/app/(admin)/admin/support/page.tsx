@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useSupportTickets,
   useUpdateSupportTicket,
@@ -39,7 +39,9 @@ import {
   FilterPills,
   IdChip,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 
 const STATUS_TONES: Record<
   SupportTicketStatus,
@@ -281,6 +283,11 @@ export default function AdminSupportPage() {
     status: (status || undefined) as SupportTicketStatus | undefined,
   });
 
+  const tickets = query.data?.items ?? [];
+  const pager = useClientPagination(tickets);
+  const { reset: resetPager } = pager;
+  useEffect(() => resetPager(), [resetPager, status]);
+
   const filters = useMemo(
     () => [
       { value: "", label: "همه" },
@@ -328,60 +335,72 @@ export default function AdminSupportPage() {
         isEmpty={(d) => d.items.length === 0}
         emptyMessage="تیکتی با این فیلتر یافت نشد."
       >
-        {(data) => (
-          <DataTable
-            head={
-              <tr>
-                <Th>موضوع</Th>
-                <Th>اولویت</Th>
-                <Th>وضعیت</Th>
-                <Th>SLA</Th>
-                <Th>آخرین به‌روزرسانی</Th>
-                <Th>جزئیات</Th>
-              </tr>
-            }
-          >
-            {data.items.map((t) => {
-              const overdue = isOverdue(t);
-              return (
-                <tr key={t.id}>
-                  <Td className="max-w-[280px]">
-                    <span className="block truncate font-medium text-on-surface" title={t.subject}>
-                      {t.subject}
-                    </span>
-                    <span className="text-caption text-muted">
-                      {t.requesterName} · {t.category}
-                    </span>
-                  </Td>
-                  <Td>
-                    <Badge tone={PRIORITY_TONES[t.priority]}>
-                      {SUPPORT_PRIORITY_FA[t.priority]}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <Badge tone={STATUS_TONES[t.status]}>{SUPPORT_STATUS_FA[t.status]}</Badge>
-                  </Td>
-                  <Td>
-                    {overdue ? (
-                      <Badge tone="danger">خارج از SLA</Badge>
-                    ) : (
-                      <span className="text-caption text-muted">
-                        {t.dueAt ? toPersianDate(t.dueAt) : "—"}
-                      </span>
-                    )}
-                  </Td>
-                  <Td className="whitespace-nowrap text-caption text-muted">
-                    {toRelativeTime(t.updatedAt)}
-                  </Td>
-                  <Td>
-                    <Button size="sm" variant="secondary" onClick={() => setSelected(t)}>
-                      مشاهده
-                    </Button>
-                  </Td>
+        {() => (
+          <>
+            <DataTable
+              head={
+                <tr>
+                  <Th>موضوع</Th>
+                  <Th>اولویت</Th>
+                  <Th>وضعیت</Th>
+                  <Th>SLA</Th>
+                  <Th>آخرین به‌روزرسانی</Th>
+                  <Th>جزئیات</Th>
                 </tr>
-              );
-            })}
-          </DataTable>
+              }
+            >
+              {pager.pageItems.map((t) => {
+                const overdue = isOverdue(t);
+                return (
+                  <tr key={t.id}>
+                    <Td className="max-w-[280px]">
+                      <span className="block truncate font-medium text-on-surface" title={t.subject}>
+                        {t.subject}
+                      </span>
+                      <span className="text-caption text-muted">
+                        {t.requesterName} · {t.category}
+                      </span>
+                    </Td>
+                    <Td>
+                      <Badge tone={PRIORITY_TONES[t.priority]}>
+                        {SUPPORT_PRIORITY_FA[t.priority]}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Badge tone={STATUS_TONES[t.status]}>{SUPPORT_STATUS_FA[t.status]}</Badge>
+                    </Td>
+                    <Td>
+                      {overdue ? (
+                        <Badge tone="danger">خارج از SLA</Badge>
+                      ) : (
+                        <span className="text-caption text-muted">
+                          {t.dueAt ? toPersianDate(t.dueAt) : "—"}
+                        </span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-caption text-muted">
+                      {toRelativeTime(t.updatedAt)}
+                    </Td>
+                    <Td>
+                      <Button size="sm" variant="secondary" onClick={() => setSelected(t)}>
+                        مشاهده
+                      </Button>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </DataTable>
+
+            <Pagination
+              page={pager.page}
+              pageSize={pager.pageSize}
+              total={pager.total}
+              totalPages={pager.totalPages}
+              itemLabel="تیکت"
+              onPageChange={pager.setPage}
+              onPageSizeChange={pager.setPageSize}
+            />
+          </>
         )}
       </StateView>
 

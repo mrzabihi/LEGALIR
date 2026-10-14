@@ -119,7 +119,7 @@ export function AttachDocumentModal({
         className={[
           "relative flex w-full flex-col bg-surface shadow-elevation-3",
           "max-h-[85vh] tablet:max-h-[80vh] tablet:max-w-lg",
-          "rounded-t-2xl tablet:rounded-large",
+          "rounded-t-large tablet:rounded-large",
           "animate-slide-up-fade",
         ].join(" ")}
       >
@@ -132,7 +132,7 @@ export function AttachDocumentModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-onSurface/[0.08]"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover"
             aria-label="بستن"
           >
             <IconClose size={18} />
@@ -146,7 +146,7 @@ export function AttachDocumentModal({
             label="جستجوی سند"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="جستجوی سند..."
+            placeholder="مثلاً: قرارداد، اظهارنامه، لایحه"
             leadingIcon={<IconSearch size={18} />}
             inputSize="small"
             fullWidth
@@ -174,7 +174,7 @@ export function AttachDocumentModal({
               <button
                 type="button"
                 onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 rounded-medium px-3 py-2 text-bodySmall text-primary transition-colors hover:bg-primary/10"
+                className="inline-flex items-center gap-1.5 rounded-medium px-3 py-2 text-bodySmall text-primary transition-colors hover:bg-surface-hover"
               >
                 <IconRefresh size={16} />
                 تلاش مجدد
@@ -217,10 +217,10 @@ export function AttachDocumentModal({
                 >
                   <span
                     className={[
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-medium",
                       isPicked
                         ? "bg-control-selected text-control-selected-foreground"
-                        : "bg-primary/10 text-primary",
+                        : "bg-primary-container text-primary",
                     ].join(" ")}
                     aria-hidden="true"
                   >
@@ -241,7 +241,7 @@ export function AttachDocumentModal({
                       "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                       isPicked
                         ? "border-control-selected bg-control-selected text-control-selected-foreground"
-                        : "border-outline/40 text-transparent",
+                        : "border-outline text-transparent",
                     ].join(" ")}
                     aria-hidden="true"
                   >
@@ -259,7 +259,7 @@ export function AttachDocumentModal({
             onClick={handleUploadNew}
             className="mb-2 flex w-full items-center gap-3 rounded-medium px-3 py-2.5 text-start transition-colors hover:bg-surface-hover"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-medium bg-primary text-primary-on">
               <IconUpload size={18} />
             </span>
             <span className="min-w-0 flex-1">
@@ -283,7 +283,7 @@ export function AttachDocumentModal({
             <button
               type="button"
               onClick={() => onConfirm(picked)}
-              className="flex-1 rounded-medium bg-primary px-4 py-2.5 text-bodySmall font-medium text-white transition-colors hover:bg-primary-variant"
+              className="flex-1 rounded-medium bg-primary px-4 py-2.5 text-bodySmall font-medium text-primary-on transition-colors hover:bg-primary-variant"
             >
               افزودن {picked.length > 0 ? `(${picked.length})` : ""}
             </button>

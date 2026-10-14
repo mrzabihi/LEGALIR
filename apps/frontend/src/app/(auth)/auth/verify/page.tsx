@@ -110,7 +110,7 @@ function OtpVerifyForm() {
   const isLocked = displayError?.includes("بیش از حد");
 
   return (
-    <div className="rounded-2xl bg-white p-8 md:p-10 shadow-2xl border border-neutral-100">
+    <div className="rounded-large bg-white p-8 md:p-10 shadow-2xl border border-neutral-100">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-h2 text-primary-900 mb-2">تأیید کد یکبار مصرف</h1>
@@ -177,7 +177,7 @@ function OtpVerifyForm() {
         {displayError && (
           <div
             id="otp-error"
-            className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error text-center justify-center"
+            className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error text-center justify-center"
             role="alert"
           >
             <svg

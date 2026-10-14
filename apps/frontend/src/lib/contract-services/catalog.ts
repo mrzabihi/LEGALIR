@@ -21,7 +21,9 @@
 // ============================================================
 
 import type { ComponentType, SVGProps } from "react";
+import type { ContractTypeId } from "@legalir/types";
 import { normalizePersian } from "@/lib/persian-utils";
+import { CATEGORY_GRADIENT } from "@/lib/contracts/palette";
 import {
   IconArchive,
   IconBalance,
@@ -120,7 +122,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "استخدام، کارآموزی و دورکاری",
     anchor: "cat-employment",
     icon: IconBriefcase,
-    gradient: "from-blue-500 to-indigo-500",
+    gradient: CATEGORY_GRADIENT["employment"],
   },
   {
     id: "real-estate",
@@ -128,7 +130,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "اجاره تجاری، پیش‌فروش، مشارکت در ساخت و سرقفلی",
     anchor: "cat-real-estate",
     icon: IconBusiness,
-    gradient: "from-emerald-500 to-teal-500",
+    gradient: CATEGORY_GRADIENT["real-estate"],
   },
   {
     id: "contracting",
@@ -136,7 +138,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "پیمانکاری، پیمانکار تک‌نفره و قرارداد خدمات",
     anchor: "cat-contracting",
     icon: IconGavel,
-    gradient: "from-amber-600 to-yellow-500",
+    gradient: CATEGORY_GRADIENT["contracting"],
   },
   {
     id: "technology",
@@ -144,7 +146,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "توسعه نرم‌افزار، طراحی سایت، پشتیبانی و لایسنس",
     anchor: "cat-technology",
     icon: IconCode,
-    gradient: "from-cyan-500 to-sky-600",
+    gradient: CATEGORY_GRADIENT["technology"],
   },
   {
     id: "finance",
@@ -152,7 +154,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "اقرارنامه بدهی، تقسیط و سرمایه‌گذاری",
     anchor: "cat-finance",
     icon: IconCoin,
-    gradient: "from-rose-500 to-pink-500",
+    gradient: CATEGORY_GRADIENT["finance"],
   },
   {
     id: "business",
@@ -160,7 +162,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "شراکت تجاری، نمایندگی، بازاریابی، توزیع و تأمین",
     anchor: "cat-business",
     icon: IconHandshake,
-    gradient: "from-violet-500 to-purple-500",
+    gradient: CATEGORY_GRADIENT["business"],
   },
   {
     id: "vehicle",
@@ -168,7 +170,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "خرید و فروش اقساطی خودرو",
     anchor: "cat-vehicle",
     icon: IconCar,
-    gradient: "from-orange-500 to-amber-500",
+    gradient: CATEGORY_GRADIENT["vehicle"],
   },
   {
     id: "corporate",
@@ -176,7 +178,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "توافق سهامداران و خروج شریک",
     anchor: "cat-corporate",
     icon: IconBalance,
-    gradient: "from-secondary-600 to-secondary-800",
+    gradient: CATEGORY_GRADIENT["corporate"],
   },
   {
     id: "family",
@@ -184,7 +186,7 @@ export const CONTRACT_CATEGORIES: ContractCategory[] = [
     description: "توافق‌های خانواده و تقسیم ارث",
     anchor: "cat-family",
     icon: IconUsers,
-    gradient: "from-indigo-500 to-violet-600",
+    gradient: CATEGORY_GRADIENT["family"],
   },
 ];
 
@@ -212,6 +214,13 @@ export interface ContractService {
   /** Search-only terms (aliases, sub-types). Never rendered verbatim. */
   keywords: string[];
   status: ContractServiceStatus;
+  /**
+   * Links an `active` service to its registered contract type, so the
+   * detail page can deep-link straight into the real wizard
+   * (`/contracts/new?type=<typeId>`). Absent for services that have no
+   * registered type yet — which is every `coming-soon` service.
+   */
+  typeId?: ContractTypeId;
   /** Future capabilities introduced on the detail page (no form). */
   features: string[];
   /** Lawyer specializations this service most relates to (primary first). */
@@ -240,18 +249,20 @@ export const CONTRACT_SERVICES: ContractService[] = [
     category: "employment",
     icon: IconBriefcase,
     keywords: ["استخدام", "کارمند", "کارفرما", "قرارداد کار", "نیروی انسانی", "حقوق", "مزایا"],
-    status: "coming-soon",
+    status: "active",
+    typeId: "employment",
     features: [
-      "مشخصات طرفین (کارفرما و کارمند)",
+      "مشخصات طرفین (کارفرمای حقیقی/حقوقی و کارگر)",
       "عنوان شغلی، شرح وظایف و محل کار",
-      "حقوق، مزایا و نحوه پرداخت",
-      "مدت همکاری، ساعات کار و تعطیلات",
-      "تعهدات طرفین و شرایط فسخ یا خاتمه همکاری",
+      "حقوق پایه، مزایا و نحوه پرداخت",
+      "مدت همکاری، دورهٔ آزمایشی، ساعات کار و مرخصی",
+      "تعهدات کارفرما در قبال بیمهٔ تأمین اجتماعی و مالیات",
+      "تعهدات متقابل، شروط خاص و شرایط خاتمهٔ همکاری",
     ],
     recommendedLawyerSpecialties: ["labor", "contract"],
-    seoTitle: "قرارداد استخدام | تنظیم قرارداد استخدام",
+    seoTitle: "قرارداد استخدام | تنظیم قرارداد کار آنلاین",
     metaDescription:
-      "خدمت تنظیم قرارداد استخدام در لیگالیر به‌زودی فعال می‌شود؛ در این صفحه جزئیات و قابلیت‌های آینده این خدمت معرفی شده است.",
+      "تنظیم قرارداد استخدام (قرارداد کار) میان کارفرما و کارگر بر پایهٔ قانون کار؛ تعیین شغل، دستمزد، ساعات کار، بیمهٔ تأمین اجتماعی و مدارک لازم، با پیش‌نمایش، امضا و آرشیو نسخه‌ها.",
   },
   {
     id: "internship-contract",
@@ -930,6 +941,28 @@ export function popularContractServices(): ContractService[] {
     CONTRACT_SERVICES.find((s) => s.id === id)
   ).filter((s): s is ContractService => Boolean(s));
 }
+
+// ============================================================
+// Status-filtered views
+// ============================================================
+// The catalog holds BOTH shipped and not-yet-shipped services. The
+// «بزودی» panel must show only the ones still in development, so the
+// page filters on status rather than assuming the whole catalog is
+// upcoming. Activation is a one-line status change in CONTRACT_SERVICES;
+// these helpers follow it automatically.
+
+/** Services that are live and open the real contract wizard. */
+export function activeContractServices(): ContractService[] {
+  return CONTRACT_SERVICES.filter((s) => s.status === "active");
+}
+
+/** Services still in development, shown under «بزودی». */
+export function comingSoonContractServices(): ContractService[] {
+  return CONTRACT_SERVICES.filter((s) => s.status === "coming-soon");
+}
+
+/** How many services are still in development. */
+export const COMING_SOON_CONTRACT_SERVICE_COUNT = comingSoonContractServices().length;
 
 // ============================================================
 // Lookups

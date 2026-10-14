@@ -22,7 +22,7 @@ function actorLabel(ev: LegalRequestEvent): string {
 
 export function ConsultationTimeline({ events }: { events: LegalRequestEvent[] }) {
   return (
-    <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+    <section className="rounded-large border border-divider bg-surface p-5">
       <h2 className="mb-4 flex items-center gap-2 text-h3 text-on-surface">
         <IconHistory size={18} />
         تاریخچه وضعیت
@@ -30,7 +30,7 @@ export function ConsultationTimeline({ events }: { events: LegalRequestEvent[] }
       {events.length === 0 ? (
         <p className="text-body-2 text-muted">هنوز رویدادی ثبت نشده است.</p>
       ) : (
-        <ol className="relative space-y-4 border-r border-divider/70 pr-5">
+        <ol className="relative space-y-4 border-r border-divider pr-5">
           {events.map((ev) => (
             <li key={ev.id} className="relative">
               <span className="absolute -right-[26px] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary ring-4 ring-surface" />

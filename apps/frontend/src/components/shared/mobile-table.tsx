@@ -73,7 +73,7 @@ export function MobileTable({
               <tr
                 key={rowKey(row, idx)}
                 className={[
-                  "hover:bg-surfaceVariant/50 transition-colors",
+                  "hover:bg-surface-container transition-colors",
                   onRowClick ? "cursor-pointer" : "",
                 ].join(" ")}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}

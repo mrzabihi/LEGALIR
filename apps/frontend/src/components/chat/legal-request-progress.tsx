@@ -55,13 +55,13 @@ function StepMarker({ status }: { status: StageStatus }) {
   switch (status) {
     case "COMPLETED":
       return (
-        <span className={`${base} border-primary bg-primary text-white`} aria-hidden="true">
+        <span className={`${base} border-primary bg-primary text-primary-on`} aria-hidden="true">
           <IconCheck size={13} />
         </span>
       );
     case "SKIPPED":
       return (
-        <span className={`${base} border-outline/40 text-muted`} aria-hidden="true">
+        <span className={`${base} border-outline text-muted`} aria-hidden="true">
           <IconCheck size={13} />
         </span>
       );
@@ -73,7 +73,7 @@ function StepMarker({ status }: { status: StageStatus }) {
       );
     case "WAITING":
       return (
-        <span className={`${base} border-amber-500 text-amber-600`} aria-hidden="true">
+        <span className={`${base} border-warning text-warning`} aria-hidden="true">
           <IconInfo size={13} />
         </span>
       );
@@ -85,8 +85,8 @@ function StepMarker({ status }: { status: StageStatus }) {
       );
     default:
       return (
-        <span className={`${base} border-outline/40 text-muted`} aria-hidden="true">
-          <span className="h-1.5 w-1.5 rounded-full bg-outline/50" />
+        <span className={`${base} border-outline text-muted`} aria-hidden="true">
+          <span className="h-1.5 w-1.5 rounded-full bg-outline" />
         </span>
       );
   }
@@ -158,7 +158,7 @@ export function LegalRequestProgress({
     <div
       className={[
         "rounded-large border bg-surface",
-        isFailed ? "border-error/30" : isWaiting ? "border-amber-500/40" : "border-divider",
+        isFailed ? "border-error" : isWaiting ? "border-warning" : "border-divider",
         compact ? "p-3" : "p-4",
       ].join(" ")}
       role="status"
@@ -171,10 +171,10 @@ export function LegalRequestProgress({
           className={[
             "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
             isFailed
-              ? "bg-error/10 text-error"
+              ? "bg-error-container text-error"
               : isWaiting
-                ? "bg-amber-500/10 text-amber-600"
-                : "bg-primary/10 text-primary",
+                ? "bg-warning-container text-warning"
+                : "bg-primary-container text-primary",
           ].join(" ")}
           aria-hidden="true"
         >
@@ -211,10 +211,10 @@ export function LegalRequestProgress({
 
       {/* Waiting-for-user questions (§16, §17) */}
       {isWaiting && run.pendingQuestions.length > 0 && (
-        <ul className="mt-3 space-y-1.5 rounded-medium bg-amber-500/[0.06] p-3">
+        <ul className="mt-3 space-y-1.5 rounded-medium bg-warning-container p-3">
           {run.pendingQuestions.map((q, i) => (
             <li key={i} className="flex gap-2 text-bodySmall text-onSurface">
-              <span className="text-amber-600" aria-hidden="true">
+              <span className="text-warning" aria-hidden="true">
                 {toPersianNumber(i + 1)}.
               </span>
               <span>{q}</span>
@@ -229,7 +229,7 @@ export function LegalRequestProgress({
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-caption font-medium text-white transition hover:bg-primary-700"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-caption font-medium text-primary-on transition hover:bg-primary-700 hover:text-white"
           >
             <IconRefresh size={14} />
             تلاش مجدد
@@ -239,7 +239,7 @@ export function LegalRequestProgress({
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption text-muted transition hover:bg-error/10 hover:text-error"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption text-muted transition hover:bg-error-container hover:text-error"
           >
             <IconStop size={14} />
             توقف
@@ -249,7 +249,7 @@ export function LegalRequestProgress({
           type="button"
           onClick={() => setExpanded((e) => !e)}
           aria-expanded={expanded}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-caption text-muted transition hover:bg-onSurface/[0.06]"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-caption text-muted transition hover:bg-surface-hover"
         >
           {showSummaryOnly ? "مشاهده روند بررسی" : "مشاهده مراحل"}
           <IconChevronDown
@@ -280,7 +280,7 @@ export function LegalRequestProgress({
                           : step.status === "FAILED"
                             ? "text-error"
                             : step.status === "WAITING"
-                              ? "font-medium text-amber-700"
+                              ? "font-medium text-warning"
                               : "text-muted",
                     ].join(" ")}
                   >

@@ -116,7 +116,7 @@ export function QuotaExhaustedModal({ open, onClose, code, usage }: QuotaExhaust
       <div className="space-y-4">
         {/* Countdown to reset — only meaningful for the daily credit */}
         {!isPeriodQuota && !noSubscription && (
-          <div className="rounded-large bg-surfaceVariant/50 p-4 text-center">
+          <div className="rounded-large bg-surface-container p-4 text-center">
             <p className="text-bodySmall text-onSurfaceVariant mb-2">
               زمان باقی‌مانده تا بازنشانی اعتبار
             </p>
@@ -134,14 +134,14 @@ export function QuotaExhaustedModal({ open, onClose, code, usage }: QuotaExhaust
         {/* Usage summary — today's credit and the persistent reward points */}
         {usage && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between rounded-medium bg-surfaceVariant/30 px-4 py-3">
+            <div className="flex items-center justify-between rounded-medium bg-surface-container px-4 py-3">
               <span className="text-bodySmall text-onSurfaceVariant">اعتبار امروز</span>
               <span className="text-labelMedium text-onSurface tabular-nums" dir="ltr">
                 {toPersianNumber(usage.daily.pointsRemaining)} /{" "}
                 {toPersianNumber(usage.daily.pointsTotal)}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-medium bg-surfaceVariant/30 px-4 py-3">
+            <div className="flex items-center justify-between rounded-medium bg-surface-container px-4 py-3">
               <span className="text-bodySmall text-onSurfaceVariant">امتیازهای شما</span>
               <span className="text-labelMedium text-onSurface tabular-nums" dir="ltr">
                 {toPersianNumber(usage.rewardPoints)}

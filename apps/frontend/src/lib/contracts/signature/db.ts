@@ -119,6 +119,42 @@ export function cancelInFlightRequests(contractId: string, reason: string): numb
   return cancelled.length;
 }
 
+/**
+ * Retire any in-flight request whose deadline has passed. A request
+ * that outlives its expiry can never be signed, so asking to sign one
+ * is refused for the REAL reason (REQUEST_EXPIRED) rather than a
+ * generic conflict. Emits REQUEST_EXPIRED once, when the request is
+ * first observed as overdue.
+ */
+export function sweepExpiredRequests(contractId: string): number {
+  const rows = readTable<SignatureRequest>(T_REQUESTS);
+  const terminal = new Set(["COMPLETED", "DECLINED", "EXPIRED", "CANCELLED"]);
+  const now = Date.now();
+  const expired: SignatureRequest[] = [];
+  for (const row of rows) {
+    if (row.contractId !== contractId) continue;
+    if (terminal.has(row.status)) continue;
+    if (!row.expiresAt || new Date(row.expiresAt).getTime() > now) continue;
+    row.status = "EXPIRED";
+    row.updatedAt = new Date().toISOString();
+    expired.push(row);
+  }
+  if (expired.length === 0) return 0;
+  writeTable(T_REQUESTS, rows);
+  for (const row of expired) {
+    appendSignatureEvent({
+      signatureRequestId: row.id,
+      contractId,
+      participantId: null,
+      type: "REQUEST_EXPIRED",
+      descriptionFa: "مهلت امضای این درخواست به پایان رسید.",
+      contractVersionId: row.contractVersionId,
+      documentHash: row.documentHash,
+    });
+  }
+  return expired.length;
+}
+
 // ------------------------------------------------------------
 // Participants
 // ------------------------------------------------------------

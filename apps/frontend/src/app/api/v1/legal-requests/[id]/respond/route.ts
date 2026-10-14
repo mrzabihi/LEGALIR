@@ -24,7 +24,10 @@ import { getRequestById, transitionRequest } from "@/lib/legal-request-db";
 import { getLawyerProfileByUserId } from "@/lib/lawyer-db";
 import { createCase, addCaseTimelineEvent } from "@/lib/case-db";
 import { recordActivity } from "@/lib/db";
-import { LEGAL_REQUEST_STATE_FA } from "@legalir/types";
+import { runIdempotent } from "@/lib/api/idempotency-store";
+import { LEGAL_REQUEST_STATE_FA, type LegalRequest } from "@legalir/types";
+
+type ErrorPayload = { code: string; message: string };
 
 export async function POST(
   request: NextRequest,
@@ -61,67 +64,79 @@ export async function POST(
     );
   }
 
-  const to = body.action === "accept" ? "ACCEPTED" : "DECLINED";
+  // Idempotency: a retried decision (or a double-tapped accept) replays the
+  // first outcome instead of re-running the transition / case creation.
+  const result = await runIdempotent<LegalRequest | ErrorPayload>(
+    request,
+    `legal-request:respond:${id}`,
+    auth.ctx.userId,
+    async () => {
+      const to = body.action === "accept" ? "ACCEPTED" : "DECLINED";
 
-  // On accept, create the Case once and link it back to the request.
-  let patch: { caseId?: string } | undefined;
-  if (to === "ACCEPTED" && !existing.caseId) {
-    const caseId = crypto.randomUUID();
-    createCase({
-      id: caseId,
-      userId: existing.userId,
-      title: existing.title,
-      description: `پرونده ایجادشده از درخواست «${existing.title}»`,
-      category: existing.category,
-      priority: "medium",
-    });
-    addCaseTimelineEvent({
-      id: crypto.randomUUID(),
-      caseId,
-      eventType: "case_created",
-      title: "ایجاد پرونده از درخواست",
-      description: `پرونده از درخواست «${existing.title}» ایجاد شد`,
-      metadata: { requestId: id },
-    });
-    patch = { caseId };
-  }
+      // On accept, create the Case once and link it back to the request.
+      let patch: { caseId?: string } | undefined;
+      if (to === "ACCEPTED" && !existing.caseId) {
+        const caseId = crypto.randomUUID();
+        createCase({
+          id: caseId,
+          userId: existing.userId,
+          title: existing.title,
+          description: `پرونده ایجادشده از درخواست «${existing.title}»`,
+          category: existing.category,
+          priority: "medium",
+        });
+        addCaseTimelineEvent({
+          id: crypto.randomUUID(),
+          caseId,
+          eventType: "case_created",
+          title: "ایجاد پرونده از درخواست",
+          description: `پرونده از درخواست «${existing.title}» ایجاد شد`,
+          metadata: { requestId: id },
+        });
+        patch = { caseId };
+      }
 
-  const result = transitionRequest({
-    requestId: id,
-    to,
-    actorId: auth.ctx.userId,
-    actorRole: auth.ctx.role,
-    note: body.note ?? null,
-    patch,
-  });
+      const transition = transitionRequest({
+        requestId: id,
+        to,
+        actorId: auth.ctx.userId,
+        actorRole: auth.ctx.role,
+        note: body.note ?? null,
+        patch,
+      });
 
-  if (!result.ok) {
-    // The only legal source state is WAITING_FOR_ACCEPTANCE; anything
-    // else is a stale or repeated decision.
-    return NextResponse.json(
-      {
-        code: "ILLEGAL_TRANSITION",
-        message: `تغییر وضعیت از «${LEGAL_REQUEST_STATE_FA[existing.state]}» به «${LEGAL_REQUEST_STATE_FA[to]}» مجاز نیست`,
-      },
-      { status: 409 }
-    );
-  }
+      if (!transition.ok) {
+        // The only legal source state is WAITING_FOR_ACCEPTANCE; anything
+        // else is a stale or repeated decision.
+        return {
+          status: 409,
+          body: {
+            code: "ILLEGAL_TRANSITION",
+            message: `تغییر وضعیت از «${LEGAL_REQUEST_STATE_FA[existing.state]}» به «${LEGAL_REQUEST_STATE_FA[to]}» مجاز نیست`,
+          } as ErrorPayload,
+        };
+      }
 
-  // Surface the decision in the client's activity feed. Keyed by the
-  // request id so repeated decisions update one row rather than pile up.
-  recordActivity({
-    userId: existing.userId,
-    type: "case",
-    title: existing.title,
-    status: to,
-    statusFa: LEGAL_REQUEST_STATE_FA[to],
-    description:
-      to === "ACCEPTED"
-        ? `وکیل «${profile.fullName}» درخواست مشاوره شما را پذیرفت`
-        : `وکیل «${profile.fullName}» درخواست مشاوره شما را نپذیرفت`,
-    category: existing.category,
-    sourceId: `legal-request-${id}`,
-  });
+      // Surface the decision in the client's activity feed. Keyed by the
+      // request id so repeated decisions update one row rather than pile up.
+      recordActivity({
+        userId: existing.userId,
+        type: "case",
+        title: existing.title,
+        status: to,
+        statusFa: LEGAL_REQUEST_STATE_FA[to],
+        description:
+          to === "ACCEPTED"
+            ? `وکیل «${profile.fullName}» درخواست مشاوره شما را پذیرفت`
+            : `وکیل «${profile.fullName}» درخواست مشاوره شما را نپذیرفت`,
+        category: existing.category,
+        sourceId: `legal-request-${id}`,
+      });
 
-  return NextResponse.json({ data: result.request });
+      return { status: 200, body: transition.request! };
+    }
+  );
+
+  const isError = typeof result.body === "object" && result.body !== null && "code" in result.body;
+  return NextResponse.json(isError ? result.body : { data: result.body }, { status: result.status });
 }

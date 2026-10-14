@@ -8,6 +8,7 @@
 // ============================================================
 
 import { readTable, writeTable } from "@/lib/db";
+import { matchesRow } from "@/lib/search/normalize";
 import type { AdminAuditEntry, AuditResult } from "@legalir/types";
 
 const TABLE = "admin_audit_log";
@@ -126,10 +127,7 @@ export function listAudit(query: AuditQuery = {}): {
   if (query.resourceId) rows = rows.filter((r) => r.resourceId === query.resourceId);
   if (query.result) rows = rows.filter((r) => r.result === query.result);
   if (query.search) {
-    const q = query.search.toLowerCase();
-    rows = rows.filter(
-      (r) => r.action.toLowerCase().includes(q) || r.resourceId.toLowerCase().includes(q)
-    );
+    rows = rows.filter((r) => matchesRow(query.search!, { texts: [r.action, r.resourceId] }));
   }
   rows = rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 

@@ -41,7 +41,28 @@ export default function NewConversationPage() {
         title: trimmed,
         category: selectedCategory ?? undefined,
       });
-      router.push(`/chat/${result.id}?service=${serviceType}`);
+
+      // Carry the one-shot prefill params this entry arrived with (from
+      // /new → /Suggest_law) into the conversation workspace, which already
+      // consumes and strips them: `?ask=` seeds the composer and
+      // `?attachedDocument*` pre-selects the attachment tray — never an
+      // auto-send, the user stays in control.
+      const params = new URLSearchParams();
+      params.set("service", serviceType);
+      if (typeof window !== "undefined") {
+        const incoming = new URLSearchParams(window.location.search);
+        for (const key of [
+          "ask",
+          "attachedDocumentId",
+          "attachedDocumentName",
+          "attachedDocumentMime",
+          "attachedDocumentSize",
+        ]) {
+          const value = incoming.get(key);
+          if (value) params.set(key, value);
+        }
+      }
+      router.push(`/chat/${result.id}?${params.toString()}`);
     } catch {
       setTitleError("خطا در ایجاد گفتگو");
     }
@@ -97,7 +118,7 @@ export default function NewConversationPage() {
         disabled={createMutation.isPending}
         className={[
           "w-full rounded-medium px-6 py-3 text-button transition-colors touch-target",
-          "bg-primary text-white hover:bg-primary-variant",
+          "bg-primary text-primary-on hover:bg-primary-variant",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         ].join(" ")}
       >

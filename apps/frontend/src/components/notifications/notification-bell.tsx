@@ -101,24 +101,24 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
         type="button"
         onClick={handleBellClick}
         className={[
-          "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors touch-target-min shrink-0",
+          "relative flex h-8 w-8 items-center justify-center rounded-full transition-colors touch-target-pad shrink-0",
           isSidebar
             ? open
               ? "bg-glass-state-strong text-glass-ivory"
               : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory"
             : open
-              ? "bg-primary-50 text-primary-700"
-              : "text-neutral-600 hover:bg-neutral-100",
+              ? "bg-secondary-50/80 text-secondary-800 [[data-theme=dark]_&]:bg-secondary-500/15 [[data-theme=dark]_&]:text-secondary-200"
+              : "text-on-surface-variant hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 [[data-theme=dark]_&]:hover:bg-surface-container-high",
         ].join(" ")}
         aria-label={ariaLabel}
         aria-expanded={isNarrow ? undefined : open}
         aria-haspopup={isNarrow ? undefined : "dialog"}
         title="اعلان‌ها"
       >
-        <IconBell size={21} />
+        <IconBell size={18} />
         {unreadCount > 0 && (
           <span
-            className="absolute -top-0.5 -end-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white animate-notification-pulse"
+            className="absolute -top-1 -end-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-error px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[color:var(--color-surface)] animate-notification-pulse"
             aria-hidden="true"
           >
             {badge}
@@ -130,7 +130,7 @@ export function NotificationBell({ variant = "default" }: { variant?: "default" 
       {open && (
         <div
           className={[
-            "hidden tablet:block absolute top-full mt-3 w-[22rem] rounded-2xl bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in",
+            "hidden tablet:block absolute top-full mt-3 w-[22rem] rounded-large bg-surface border border-divider shadow-elevation-8 z-50 overflow-hidden animate-scale-in",
             // On the sidebar the bell hugs the screen's right edge, so the
             // popover must open leftward (start-0 in RTL) to stay on screen.
             isSidebar ? "start-0 origin-top-start" : "end-0 origin-top-end",
@@ -197,7 +197,7 @@ function NotificationPreview({
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-divider/70 max-h-[22rem] overflow-y-auto">
+        <div className="divide-y divide-divider max-h-[22rem] overflow-y-auto">
           {items.map((item) => (
             <NotificationItem
               key={item.id}
@@ -212,7 +212,7 @@ function NotificationPreview({
       <Link
         href="/notifications"
         onClick={onNavigate}
-        className="border-t border-divider px-4 py-3 text-center text-body-2 text-primary font-medium hover:bg-surface-container/60 transition-colors"
+        className="border-t border-divider px-4 py-3 text-center text-body-2 text-primary font-medium hover:bg-surface-container transition-colors"
       >
         مشاهده همه اعلان‌ها
       </Link>

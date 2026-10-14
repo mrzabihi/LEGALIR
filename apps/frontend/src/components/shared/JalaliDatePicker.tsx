@@ -227,7 +227,7 @@ export function JalaliDatePicker({
           type="button"
           onClick={apply}
           disabled={disabled}
-          className="mt-1 w-full shrink-0 rounded-medium border border-primary/40 px-3 py-2 text-caption text-primary transition-colors hover:bg-primary-50 touch-target disabled:opacity-50 tablet:w-auto"
+          className="mt-1 w-full shrink-0 rounded-medium border border-primary px-3 py-2 text-caption text-primary transition-colors hover:bg-primary-50 touch-target disabled:opacity-50 tablet:w-auto"
         >
           اعمال
         </button>

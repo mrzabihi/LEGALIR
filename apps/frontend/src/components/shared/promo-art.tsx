@@ -22,6 +22,11 @@
 //   PromoPanel  — full-width editorial panel: image + copy + one CTA
 //   PromoModule — compact secondary module for the signed-in dashboard
 //
+// `PromoPanel` has a second skin: pass a `photo` and the image stops being
+// a framed square beside the copy and becomes the section *background*,
+// with the copy laid over its quiet side (used by the legal-sources
+// section on /services). The square-art SVG path is untouched.
+//
 // All copy and CTAs are selectable HTML. Nothing is baked into the art.
 // ============================================================
 
@@ -84,6 +89,25 @@ export function PromoArt({ art, alt, sizes, className = "" }: PromoArtProps) {
 // PromoPanel — editorial panel: image + copy + one CTA
 // ------------------------------------------------------------
 
+/** A full-bleed photographic background. When set, the photo *is* the
+ *  panel and the copy sits over its quiet side; `art`/`imageSide` are then
+ *  unused. Mirrors `BannerPhoto` in the services catalog. */
+export interface PromoPanelPhoto {
+  /** Full-resolution webp (≈1280w), path under `/public`. */
+  src: string;
+  /** Half-resolution webp (≈640w) for narrow viewports. */
+  srcSm: string;
+  /** Native pixel size of `src` — the frame's aspect ratio. */
+  width: number;
+  height: number;
+  /** CSS `object-position` — which slice of the photo survives the crop,
+   *  so the informative part stays framed at every breakpoint. */
+  objectPosition: string;
+  /** Which edge the copy hugs from `tablet` up. The photo's subject should
+   *  sit on the *opposite* side. Defaults to `start` (the right in RTL). */
+  copySide?: "start" | "end";
+}
+
 interface PromoPanelProps {
   art: PromoArtKey;
   eyebrow: string;
@@ -96,6 +120,9 @@ interface PromoPanelProps {
   imageSide?: "start" | "end";
   /** `feature` is the larger landing-page treatment. */
   size?: "feature" | "panel";
+  /** When present, renders the photographic treatment instead of the
+   *  framed square art — the image becomes the section background. */
+  photo?: PromoPanelPhoto;
   className?: string;
 }
 
@@ -109,9 +136,115 @@ export function PromoPanel({
   icon: Icon,
   imageSide = "end",
   size = "panel",
+  photo,
   className = "",
 }: PromoPanelProps) {
   const isFeature = size === "feature";
+
+  // ---- Photographic treatment ----
+  // The image is the section background and the copy sits over its quiet
+  // side. The copy hugs the START edge (the right in RTL) — the side the
+  // crop keeps — and a LIGHT ivory scrim sinks in from that same edge, so
+  // the dark text keeps its contrast while the informative side of the
+  // photo stays crisp. On a phone the copy spans the frame, so the veil is
+  // stronger there and lighter from `tablet` up, where the copy already
+  // sits over the quiet side.
+  if (photo) {
+    const copySide = photo.copySide ?? "start";
+    const startClass = copySide === "start" ? "tablet:items-start" : "tablet:items-end";
+    const to = copySide === "start" ? "left" : "right";
+    const ivoryScrim = `linear-gradient(to ${to}, rgba(252,246,232,0.82) 0%, rgba(252,246,232,0.5) 42%, rgba(252,246,232,0) 80%)`;
+    return (
+      <section
+        className={[
+          "overflow-hidden rounded-xlarge border border-[color:var(--color-outline-variant)]",
+          "bg-surface shadow-elevation-1",
+          className,
+        ].join(" ")}
+      >
+        <div className="relative isolate min-h-[300px] overflow-hidden tablet:min-h-[340px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photo.src}
+            srcSet={`${photo.srcSm} ${Math.round(photo.width / 2)}w, ${photo.src} ${photo.width}w`}
+            sizes="(min-width: 1024px) 1024px, 100vw"
+            alt=""
+            aria-hidden="true"
+            width={photo.width}
+            height={photo.height}
+            loading="lazy"
+            decoding="async"
+            style={{ objectPosition: photo.objectPosition }}
+            className="absolute inset-0 -z-10 h-full w-full object-cover"
+          />
+          {/* Light coverage: a flat ivory veil lifts the whole photo off the
+              page (stronger on phones, where the copy spans the frame), and
+              a directional ivory scrim sinks in behind the copy so the dark
+              text never fights the artwork. Both are LIGHT — the photo reads
+              brighter, never muddier. */}
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 bg-[rgba(252,246,232,0.45)] tablet:bg-[rgba(252,246,232,0.22)]"
+          />
+          {/* Brand grade — a whisper of green/teal so the photo feels on-brand,
+              never a neutral grey wash. */}
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 bg-[linear-gradient(118deg,rgba(29,98,78,0.12)_0%,rgba(34,46,45,0.04)_46%,transparent_72%)]"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 -z-10"
+            style={{ background: ivoryScrim }}
+          />
+
+          {/* Copy */}
+          <div
+            className={[
+              "relative z-10 flex h-full min-h-[inherit] flex-col justify-center gap-4 p-5 tablet:p-7 laptop:p-8",
+              startClass,
+            ].join(" ")}
+          >
+            <div className="w-full max-w-xl">
+              {/* The photo is a FIXED light surface, so every ink here is a
+                  fixed brand colour — never a theme token. `text-on-surface`
+                  would turn light in the dark theme and vanish on the ivory. */}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_24%,transparent)] bg-[color-mix(in_srgb,var(--brand-green)_10%,transparent)] px-3 py-1 text-caption font-medium text-[var(--brand-green)] backdrop-blur-sm">
+                <Icon size={14} />
+                {eyebrow}
+              </span>
+
+              <h2
+                className={[
+                  "mt-3 font-bold leading-snug text-[var(--brand-teal)]",
+                  isFeature ? "text-h3 tablet:text-h2" : "text-h4 tablet:text-h3",
+                ].join(" ")}
+              >
+                {title}
+              </h2>
+
+              <p
+                className={[
+                  "mt-2 leading-relaxed text-[color-mix(in_srgb,var(--brand-teal)_82%,transparent)]",
+                  isFeature ? "text-body-1 max-w-xl" : "text-body-2 max-w-lg",
+                ].join(" ")}
+              >
+                {message}
+              </p>
+
+              <Link
+                href={href}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--brand-green)] px-5 py-2.5 text-button font-semibold text-[var(--brand-ivory)] shadow-elevation-2 transition-[background-color,transform] duration-short4 ease-standard hover:bg-[color-mix(in_srgb,var(--brand-green)_88%,black)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2 touch-target"
+              >
+                {cta}
+                <IconChevronLeft size={16} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -157,7 +290,7 @@ export function PromoPanel({
 
           <Link
             href={href}
-            className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-semibold text-white shadow-elevation-1 transition-colors hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-semibold text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
           >
             {cta}
             <IconChevronLeft size={16} />
@@ -210,7 +343,7 @@ export function PromoModule({
   return (
     <section
       className={[
-        "group relative isolate overflow-hidden rounded-2xl",
+        "group relative isolate overflow-hidden rounded-large",
         // Brand hairline + a brand wash behind the content. The wash and the
         // glow are decorative layers (`-z-10`) so every foreground keeps its
         // normal token colour and WCAG contrast in both themes.

@@ -27,7 +27,7 @@ vi.mock("@/lib/legal-corpus", () => ({
   readCorpus: () => ({ sources: [] }),
 }));
 
-import { buildOverview } from "@/lib/admin/metrics";
+import { buildOverview, planDailyMix } from "@/lib/admin/metrics";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -177,5 +177,30 @@ describe("buildOverview — explicit window", () => {
     expect(reqKpi.value).toBe(1);
     expect(ov.comparison).not.toBeNull();
     expect(ov.comparison!.windowDays).toBe(31);
+  });
+});
+
+describe("planDailyMix — plan-mix stacked series", () => {
+  beforeEach(() => seed({}));
+
+  it("stacks selling orders by plan with a fixed, aligned plan axis", () => {
+    seed({
+      subscriptions: [
+        { id: "s1", user_id: "u1", plan_code: "gold", plan_name_fa: "طلایی", amount: 100, currency: "IRT", status: "active", status_fa: "فعال", purchased_at: daysAgo(1) },
+        { id: "s2", user_id: "u1", plan_code: "gold", plan_name_fa: "طلایی", amount: 100, currency: "IRT", status: "active", status_fa: "فعال", purchased_at: daysAgo(1) },
+        { id: "s3", user_id: "u2", plan_code: "silver", plan_name_fa: "نقره‌ای", amount: 50, currency: "IRT", status: "active", status_fa: "فعال", purchased_at: daysAgo(2) },
+      ],
+    });
+    const mix = planDailyMix(7);
+    // Plans are ordered by total volume: gold (2) before silver (1).
+    expect(mix.plans.map((p) => p.planCode)).toEqual(["gold", "silver"]);
+    // Every day carries one value per plan — a fixed axis, no gaps.
+    for (const d of mix.days) expect(d.values).toHaveLength(2);
+    expect(mix.days.length).toBeGreaterThanOrEqual(7);
+    // The stack sums to the whole earning-sale count over the window.
+    const total = mix.days.reduce((s, d) => s + d.values.reduce((a, v) => a + v, 0), 0);
+    expect(total).toBe(3);
+    // A day with no sale contributes zeros, never a missing/undefined value.
+    for (const d of mix.days) for (const v of d.values) expect(typeof v).toBe("number");
   });
 });

@@ -82,7 +82,7 @@ export function LawyerCarousel({
         disabled={!canScrollStart}
         aria-label="نمایش وکلای قبلی"
         className={[
-          "absolute -start-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-divider/60 bg-surface text-on-surface shadow-elevation-2 transition-opacity hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-0 tablet:flex",
+          "absolute -start-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-divider bg-surface text-on-surface shadow-elevation-2 transition-opacity hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-0 tablet:flex",
           showArrows ? "opacity-100" : "opacity-0",
         ].join(" ")}
       >
@@ -116,7 +116,7 @@ export function LawyerCarousel({
         disabled={!canScrollEnd}
         aria-label="نمایش وکلای بعدی"
         className={[
-          "absolute -end-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-divider/60 bg-surface text-on-surface shadow-elevation-2 transition-opacity hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-0 tablet:flex",
+          "absolute -end-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-divider bg-surface text-on-surface shadow-elevation-2 transition-opacity hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-0 tablet:flex",
           showArrows ? "opacity-100" : "opacity-0",
         ].join(" ")}
       >

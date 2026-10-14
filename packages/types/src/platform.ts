@@ -161,6 +161,11 @@ export type Permission =
   | "admin:overview:read"
   | "admin:requests:read"
   | "admin:requests:manage"
+  // Compulsory internal review of generated contracts. A contract cannot be
+  // issued or signed until an admin has approved the exact version, so the
+  // queue is gated by its own permission pair (read vs decide).
+  | "admin:contracts:read"
+  | "admin:contracts:review"
   | "admin:lawyer:read"
   // Granular lawyer-management capabilities (Super Admin / ADMIN_LAWYERS).
   // `admin:lawyer:verify` above covers the review decision; these cover the
@@ -350,6 +355,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:overview:read",
     "admin:users:read",
     "admin:requests:read",
+    "admin:contracts:read",
+    "admin:contracts:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -420,6 +427,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:users:manage",
     "admin:requests:read",
     "admin:requests:manage",
+    "admin:contracts:read",
+    "admin:contracts:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -475,6 +484,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:users:manage",
     "admin:requests:read",
     "admin:requests:manage",
+    "admin:contracts:read",
+    "admin:contracts:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -1036,6 +1047,23 @@ export interface LawyerListItem {
 }
 
 /**
+ * The moderation lifecycle of a client review. Only PUBLISHED reviews are
+ * counted toward a lawyer's rating and shown on the public profile; every
+ * other state is either awaiting a decision (PENDING), withheld after a
+ * report (REPORTED), or terminal (HIDDEN/REJECTED). Legacy rows that predate
+ * this field were already public, so an absent status is read as PUBLISHED.
+ */
+export type LawyerReviewStatus = "PENDING" | "PUBLISHED" | "REPORTED" | "HIDDEN" | "REJECTED";
+
+export const LAWYER_REVIEW_STATUS_FA: Record<LawyerReviewStatus, string> = {
+  PENDING: "در انتظار بررسی",
+  PUBLISHED: "منتشرشده",
+  REPORTED: "گزارش‌شده",
+  HIDDEN: "پنهان‌شده",
+  REJECTED: "ردشده",
+};
+
+/**
  * A stored review record (the admin-manageable form of `LawyerReview`).
  * `hidden` soft-hides a review from the public profile without deleting it,
  * so a moderation action is reversible and auditable.
@@ -1053,6 +1081,10 @@ export interface LawyerReviewRecord {
   hidden: boolean;
   /** Reviewer is a verified client (from a completed engagement). */
   verifiedEngagement: boolean;
+  /** Moderation lifecycle state (PUBLISHED is the only publicly visible one). */
+  status: LawyerReviewStatus;
+  /** Open reports against this review, awaiting a moderator decision. */
+  openReports: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -1088,6 +1120,60 @@ export interface LawyerReview {
   createdAt: string;
   /** True when the review is tied to a completed engagement. */
   verifiedEngagement?: boolean;
+}
+
+/** The payload a client submits when creating or editing their review. */
+export interface LawyerReviewSubmitInput {
+  /** 1–5. */
+  rating: number;
+  comment: string;
+}
+
+/**
+ * What the current viewer may do about reviewing a lawyer — computed
+ * server-side so the UI never guesses eligibility. `existing` is the viewer's
+ * own review (any status) when they already have one; `editableUntil` is the
+ * ISO instant after which an edit is no longer allowed.
+ */
+export interface LawyerReviewEligibility {
+  canReview: boolean;
+  /** Why `canReview` is false (a Persian message), else null. */
+  reason: string | null;
+  existing: {
+    id: string;
+    rating: number;
+    comment: string;
+    status: LawyerReviewStatus;
+    createdAt: string;
+    updatedAt: string;
+    editableUntil: string | null;
+  } | null;
+}
+
+/** A report of an inappropriate review, filed by a viewer. */
+export interface LawyerReviewReportInput {
+  reason: string;
+}
+
+export const LAWYER_REVIEW_REPORT_STATUS_FA: Record<"OPEN" | "RESOLVED" | "DISMISSED", string> = {
+  OPEN: "در انتظار بررسی",
+  RESOLVED: "رسیدگی‌شده",
+  DISMISSED: "ردشده",
+};
+
+/** One filed report against a review (append-only history of moderation). */
+export interface LawyerReviewReportRecord {
+  id: string;
+  reviewId: string;
+  lawyerId: string;
+  /** The reporting user's id, or null when filed anonymously/systemically. */
+  reporterUserId: string | null;
+  reason: string;
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  resolutionNote: string | null;
+  resolvedByUserId: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
 }
 
 /**
@@ -1228,6 +1314,9 @@ export interface AdminLawyerListItem {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** The full owning user's mobile (canonical `+989…`), shown masked-by-default. */
+  mobile: string;
+  /** The four-middle-digit-masked form of {@link mobile} (display default). */
   mobileMasked: string;
   bucket: LawyerDecisionBucket;
   lastDecision: {
@@ -1839,15 +1928,28 @@ export interface LegalRequest {
   updatedAt: string;
 }
 
+/**
+ * Who may see an event's note. `internal` marks an operator/support note that
+ * must NEVER be projected into the client- or lawyer-facing timeline; the
+ * admin surfaces read the raw row. Absent = `public` (legacy rows).
+ */
+export type LegalRequestEventVisibility = "public" | "internal";
+
 export interface LegalRequestEvent {
   id: string;
   requestId: string;
   fromState: LegalRequestState | null;
   toState: LegalRequestState;
-  /** Who caused the transition (user id, or "system"). */
-  actorId: string;
+  /**
+   * Who caused the transition (user id, or "system"). Optional because the
+   * client-facing projection deliberately drops it — a raw actor user id is
+   * never returned to a client or lawyer.
+   */
+  actorId?: string;
   actorRole: PlatformRole | "system";
   note: string | null;
+  /** Defaults to `public` when absent. `internal` is stripped before projection. */
+  noteVisibility?: LegalRequestEventVisibility;
   createdAt: string;
 }
 

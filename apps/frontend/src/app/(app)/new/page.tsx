@@ -45,6 +45,7 @@ import {
   IconSparkle,
 } from "@/lib/icons";
 import { CampaignBanner } from "@/components/services/campaign-banner";
+import { StartRequestPanel } from "@/components/services/start-request-panel";
 import { SECONDARY_CAMPAIGN, type IconComponent } from "@/lib/services/catalog";
 
 // ============================================================
@@ -333,6 +334,11 @@ export default function NewServicePage() {
         </div>
       </header>
 
+      {/* Smart intake — describe the problem in your own words, optionally
+          attach a document, and get routed to the right existing flow.
+          A launcher entry point, not a separate product. */}
+      <StartRequestPanel />
+
       {/* Zones in order, with the contract-relevant campaign slotted
           straight under the contract zone. */}
       {SECTION_ORDER.map((category) => (
@@ -357,7 +363,7 @@ export default function NewServicePage() {
         </p>
         <Link
           href="/services"
-          className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-6 py-2.5 text-button font-medium text-white transition-colors hover:bg-primary-600 touch-target"
+          className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-600 hover:text-white touch-target"
         >
           رفتن به فهرست کامل خدمات
           <IconChevronRight size={16} />

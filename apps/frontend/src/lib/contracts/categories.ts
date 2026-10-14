@@ -44,6 +44,7 @@ const TYPE_CATEGORY: Record<ContractTypeId, TemplateCategory> = {
   nda: "business",
   saas: "business",
   startup: "business",
+  employment: "business",
 };
 
 /** The bucket a contract type is filed under. */

@@ -46,7 +46,7 @@ export function SourceDetailDrawer({ sourceId, onClose }: SourceDetailDrawerProp
           <h2 className="text-titleMedium text-onSurface">جزئیات منبع</h2>
           <button
             onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target"
             aria-label="بستن"
           >
             <IconClose size={20} />
@@ -94,7 +94,7 @@ export function SourceDetailDrawer({ sourceId, onClose }: SourceDetailDrawerProp
                 {versions.map((ver) => (
                   <div
                     key={ver.id}
-                    className="rounded-medium bg-surfaceVariant/30 p-3"
+                    className="rounded-medium bg-surface-container p-3"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-labelMedium text-onSurface">

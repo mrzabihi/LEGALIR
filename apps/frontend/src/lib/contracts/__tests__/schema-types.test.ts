@@ -1,9 +1,9 @@
 // ============================================================
 // LEGALIR — Schema-driven contract type tests
 // ============================================================
-// The six non-property types (vehicle, debt, freelance, nda, saas,
-// startup) share ONE rendering path: the registry declares their
-// fields, the generic SchemaStep renders them, the completeness
+// The non-property types (vehicle, debt, freelance, nda, saas,
+// startup, employment) share ONE rendering path: the registry declares
+// their fields, the generic SchemaStep renders them, the completeness
 // scorer reads `values.<key>`, and the template engine turns each
 // wizard step into a clause. These tests lock that contract in so a
 // new type can never silently regress to "not implemented".
@@ -27,6 +27,7 @@ const SCHEMA_TYPES: SchemaContractType[] = [
   "nda",
   "saas",
   "startup",
+  "employment",
 ];
 
 function genericContract(type: SchemaContractType): PropertyContract {
@@ -200,5 +201,68 @@ describe("schema-driven types — template", () => {
     const contract = genericContract("saas");
     const rendered = renderContract(contract, [], []);
     expect(rendered.clauses.some((c) => c.id.startsWith("generic."))).toBe(false);
+  });
+});
+
+describe("employment — conditional requirements (requiredWhen)", () => {
+  function employmentWith(values: Record<string, unknown>): PropertyContract {
+    const contract = genericContract("employment");
+    return {
+      ...contract,
+      data: { schemaVersion: 1, values, customClauses: [] } as unknown as GenericContractData,
+    };
+  }
+
+  function sectionPercent(contract: PropertyContract, key: string): number {
+    const result = computeCompleteness(contract, [], []);
+    return result.sections.find((s) => s.key === key)!.percent;
+  }
+
+  it("completes the employer section for a natural person without company fields", () => {
+    const contract = employmentWith({
+      employerKind: "natural",
+      employerName: "نام کارفرما",
+      employerNationalId: "0079123456",
+      employerAddress: "نشانی",
+      employerPhone: "02100000000",
+    });
+    expect(sectionPercent(contract, "employer")).toBe(100);
+  });
+
+  it("still blocks the employer section for a legal entity until company fields are filled", () => {
+    const partial = employmentWith({
+      employerKind: "legal",
+      employerAddress: "نشانی",
+      employerPhone: "02100000000",
+    });
+    expect(sectionPercent(partial, "employer")).toBeLessThan(100);
+
+    const complete = employmentWith({
+      employerKind: "legal",
+      employerCompanyName: "شرکت نمونه",
+      employerCompanyId: "14000000000",
+      employerRepresentative: "نام نماینده",
+      employerRepresentativeNationalId: "0079123456",
+      employerAddress: "نشانی",
+      employerPhone: "02100000000",
+    });
+    expect(sectionPercent(complete, "employer")).toBe(100);
+  });
+
+  it("switches the employee branch between national id and passport/work permit", () => {
+    const iranian = employmentWith({
+      employeeNationality: "iranian",
+      employeeName: "نام کارگر",
+      employeeNationalId: "0079123456",
+      employeePhone: "09120000000",
+    });
+    expect(sectionPercent(iranian, "employee")).toBe(100);
+
+    const foreignIncomplete = employmentWith({
+      employeeNationality: "foreign",
+      employeeName: "نام کارگر",
+      employeePhone: "09120000000",
+    });
+    expect(sectionPercent(foreignIncomplete, "employee")).toBeLessThan(100);
   });
 });

@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Drawer, ConfirmDialog, snackbar } from "@legalir/ui";
 import {
   useAdminBlog,
@@ -25,7 +25,9 @@ import {
   useGenerateBlogDraft,
   useAdminMe,
 } from "@/hooks/useAdmin";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { toPersianNumber, toPersianDate, toRelativeTime } from "@/lib/persian-utils";
+import { matchesText } from "@/lib/search/normalize";
 import { BLOG_POST_STATUS_FA, type AdminBlogPost, type GeneratedBlogDraft } from "@legalir/types";
 import {
   PageHeader,
@@ -49,6 +51,7 @@ import {
   InfoBanner,
   ExportButton,
   Tabs,
+  Pagination,
   type TabItem,
 } from "@/components/admin/ui";
 import { AnnouncementPanel } from "@/components/admin/announcement-panel";
@@ -334,17 +337,19 @@ function PostsSection({ canManage }: { canManage: boolean }) {
 
   const items = query.data?.items ?? [];
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return items.filter((p) => {
       if (statusFilter && p.status !== statusFilter) return false;
-      if (!q) return true;
-      return (
-        p.titleFa.toLowerCase().includes(q) ||
-        p.slug.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q)
-      );
+      if (!search.trim()) return true;
+      // Shared normalisation lane (Persian/Arabic digits + letter forms).
+      return matchesText(search, p.titleFa, p.slug, p.category);
     });
   }, [items, search, statusFilter]);
+
+  const pager = useClientPagination(filtered);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, search, statusFilter]);
 
   const counts = useMemo(
     () => ({
@@ -440,6 +445,7 @@ function PostsSection({ canManage }: { canManage: boolean }) {
         }
       >
         {() => (
+          <>
           <DataTable
             head={
               <tr>
@@ -452,7 +458,7 @@ function PostsSection({ canManage }: { canManage: boolean }) {
               </tr>
             }
           >
-            {filtered.map((p) => (
+            {pager.pageItems.map((p) => (
               <tr key={p.id}>
                 <Td className="max-w-[320px]">
                   <div className="flex items-center gap-2">
@@ -510,6 +516,17 @@ function PostsSection({ canManage }: { canManage: boolean }) {
               </tr>
             ))}
           </DataTable>
+
+          <Pagination
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={pager.total}
+            totalPages={pager.totalPages}
+            itemLabel="مقاله"
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </StateView>
 

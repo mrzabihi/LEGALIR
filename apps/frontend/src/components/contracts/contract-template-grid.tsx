@@ -1,13 +1,27 @@
 // ============================================================
 // LEGALIR — Contract template grid (SECTION 1)
 // ============================================================
-// The first thing the page answers: "چه قراردادی می‌توانم بسازم؟"
+// The first thing the page answers: «چه قراردادی می‌توانم بسازم؟»
 //
 // It renders every IMPLEMENTED definition from the registry — so a new
 // domain appears here the moment its definition is registered — filtered
 // by the shared search query and the category chips, ranked by the
-// Persian-aware scorer, and capped at eight cards until the user asks
-// for the rest.
+// Persian-aware scorer, and capped until the user asks for the rest.
+//
+// ONE layout everywhere: a horizontally-snapping rail. Every card has a
+// fixed height and a fixed width at each breakpoint, so a row never looks
+// ragged and each card is exactly the same size as its neighbours:
+//
+//   • Phone  — a native touch scroller. Each card is ~76vw so the next
+//     card peeks in, signalling "there is more to the side". Snap points
+//     keep a card settled at the inline edge. The rail scrolls INSIDE
+//     itself; the page never scrolls sideways (it is the only
+//     `overflow-x` on the surface).
+//   • Tablet+ — the same rail, but cards ELASTICALLY fill the row width
+//     (two per row from `tablet`, three from `laptop`) — so they are
+//     larger than a fixed pixel width and scale with the viewport. A pair
+//     of round ‹ › buttons floats on the edges so a pointer user can page
+//     through without a trackpad gesture; each fades out at its end.
 // ============================================================
 
 "use client";
@@ -18,10 +32,13 @@ import { implementedContractDefinitions } from "@/lib/contracts/registry";
 import { searchTemplates } from "@/lib/contracts/search";
 import { matchesTemplateCategory, type TemplateCategory } from "@/lib/contracts/categories";
 import { ContractTemplateCard } from "./contract-template-card";
-import { IconChevronDown } from "@/lib/icons";
+import { IconChevronDown, IconChevronLeft, IconChevronRightSmall } from "@/lib/icons";
 
 /** How many templates are shown before the "view all" toggle. */
 const INITIAL_LIMIT = 8;
+
+/** Every card is exactly this tall, at every width, so a rail is uniform. */
+const TRACK_HEIGHT = "h-[372px]";
 
 interface ContractTemplateGridProps {
   query: string;
@@ -42,10 +59,55 @@ export function ContractTemplateGrid({
 }: ContractTemplateGridProps) {
   const [expanded, setExpanded] = React.useState(false);
 
-  // Collapse back to the capped view whenever the filters change, so
-  // the user always sees the top of a fresh result set.
+  // The scroll rail, shared with the two edge buttons. `canPrev`/`canNext`
+  // mirror its position so each arrow fades out once the rail reaches its
+  // end. RTL reports `scrollLeft` as a negative offset from the start, so
+  // the position is compared by magnitude — sign-agnostic.
+  const trackRef = React.useRef<HTMLDivElement>(null);
+  const [canPrev, setCanPrev] = React.useState(false);
+  const [canNext, setCanNext] = React.useState(false);
+
+  const syncArrows = React.useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const pos = Math.abs(el.scrollLeft);
+    setCanPrev(pos > 2);
+    setCanNext(pos < maxScroll - 2);
+  }, []);
+
+  // Re-measure on scroll, on resize, and whenever the visible set changes
+  // (a new search, or the "view all" expansion) so the arrows track the
+  // rail's real content width rather than a stale one.
+  React.useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    syncArrows();
+    el.addEventListener("scroll", syncArrows, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncArrows) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", syncArrows);
+      ro?.disconnect();
+    };
+  }, [syncArrows, query, category, expanded]);
+
+  // Page roughly one screenful per click, in the reading direction: `dir`
+  // 1 shows the NEXT cards (toward the inline end).
+  const page = (dir: 1 | -1) => {
+    const el = trackRef.current;
+    if (!el || typeof el.scrollBy !== "function") return;
+    const step = Math.max(el.clientWidth * 0.85, 260);
+    const rtl = getComputedStyle(el).direction === "rtl";
+    el.scrollBy({ left: (rtl ? -1 : 1) * dir * step, behavior: "smooth" });
+  };
+
+  // Collapse back to the capped view AND rewind the rail whenever the
+  // filters change, so the user always sees the top of a fresh result set.
   React.useEffect(() => {
     setExpanded(false);
+    const el = trackRef.current;
+    if (el && typeof el.scrollTo === "function") el.scrollTo({ left: 0 });
   }, [query, category]);
 
   const results = React.useMemo(() => {
@@ -80,27 +142,54 @@ export function ContractTemplateGrid({
 
   return (
     <div className="space-y-4">
-      {/* 2 → 3 → 5 columns. Two per row even on phones, so the grid reads as a
-          proper 2-up list rather than one full-width card per row. Five only at
-          `wide` (1440px+): below that the sidebar leaves too little room for
-          five readable cards. `auto-rows-fr` makes every row the same height
-          (not just within a row) and `h-full` lets each card stretch to fill
-          it, so all cards are exactly equal. */}
-      <div className="grid grid-cols-2 laptop:grid-cols-3 wide:grid-cols-5 auto-rows-fr gap-3 tablet:gap-4">
-        {visible.map((def, i) => (
-          <div
-            key={def.id}
-            className="animate-slide-up-fade h-full"
-            style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
-          >
-            <ContractTemplateCard
-              definition={def}
-              onStart={onStart}
-              starting={startingTypeId === def.id}
-              disabled={startingTypeId !== null}
-            />
-          </div>
-        ))}
+      {/* The relative wrapper hosts the two floating arrows; the rail is its
+          only in-flow child. The rail's negative margin bleeds it to the
+          page's own gutter (p-4) so a card's edge aligns with the header
+          above; it is reset from `tablet:` where the rail sits flush.
+          `overscroll-x-contain` keeps a hard swipe from chaining to the
+          page. Every card is a fixed height and a fixed per-breakpoint
+          width, so the rail is uniform. */}
+      <div className="relative">
+        <div
+          ref={trackRef}
+          className={`scrollbar-hide -mx-4 flex ${TRACK_HEIGHT} snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-1 tablet:mx-0 tablet:gap-4 tablet:px-0`}
+        >
+          {visible.map((def, i) => (
+            <div
+              key={def.id}
+              className="animate-slide-up-fade h-full w-[76vw] shrink-0 snap-start tablet:w-[calc((100%-1rem)/2)] laptop:w-[calc((100%-2rem)/3)]"
+              style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
+            >
+              <ContractTemplateCard
+                definition={def}
+                onStart={onStart}
+                starting={startingTypeId === def.id}
+                disabled={startingTypeId !== null}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Pointer navigation for tablet+. Touch users page by swiping, so
+            the buttons stay hidden on phones. Each fades out at its end. */}
+        <button
+          type="button"
+          onClick={() => page(-1)}
+          disabled={!canPrev}
+          aria-label="قبلی"
+          className="absolute start-1 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[color:var(--color-outline-variant)] bg-surface/95 text-on-surface shadow-elevation-3 backdrop-blur-md transition-opacity duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-0 tablet:inline-flex"
+        >
+          <IconChevronRightSmall size={20} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => page(1)}
+          disabled={!canNext}
+          aria-label="بعدی"
+          className="absolute end-1 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[color:var(--color-outline-variant)] bg-surface/95 text-on-surface shadow-elevation-3 backdrop-blur-md transition-opacity duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-0 tablet:inline-flex"
+        >
+          <IconChevronLeft size={20} aria-hidden="true" />
+        </button>
       </div>
 
       {hasOverflow && !expanded && (
@@ -111,7 +200,7 @@ export function ContractTemplateGrid({
               setExpanded(true);
               onViewAll?.();
             }}
-            className="inline-flex items-center gap-1.5 h-10 rounded-medium px-5 text-labelLarge text-primary hover:bg-primary/10 transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            className="inline-flex h-10 items-center gap-1.5 rounded-medium px-5 text-labelLarge text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           >
             مشاهده همه قراردادها
             <IconChevronDown size={18} />

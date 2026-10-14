@@ -153,7 +153,7 @@ export function MessageInput({
             disabled={disabled}
             className={[
               "w-12 h-12 flex items-center justify-center rounded-full transition-colors touch-target shrink-0",
-              pickerOpen ? "bg-primary/10 text-primary" : "text-muted hover:bg-onSurface/[0.08]",
+              pickerOpen ? "bg-primary-container text-primary" : "text-muted hover:bg-surface-hover",
               disabled ? "opacity-50 cursor-not-allowed" : "",
             ].join(" ")}
             aria-label="افزودن سند"
@@ -185,7 +185,7 @@ export function MessageInput({
         {isGenerating && onStop ? (
           <button
             onClick={onStop}
-            className="w-12 h-12 flex items-center justify-center rounded-full bg-error text-white hover:bg-error/90 transition-colors touch-target shrink-0"
+            className="w-12 h-12 flex items-center justify-center rounded-full bg-error text-white hover:opacity-90 transition-colors touch-target shrink-0"
             aria-label="توقف تولید"
           >
             <IconStop size={20} />
@@ -197,8 +197,8 @@ export function MessageInput({
             className={[
               "w-12 h-12 flex items-center justify-center rounded-full transition-colors touch-target shrink-0",
               value.trim() && !disabled
-                ? "bg-primary text-white hover:bg-primary-variant"
-                : "bg-outline/10 text-muted cursor-not-allowed",
+                ? "bg-primary text-primary-on hover:bg-primary-variant"
+                : "bg-surface-container text-muted cursor-not-allowed",
             ].join(" ")}
             aria-label="ارسال پیام"
           >

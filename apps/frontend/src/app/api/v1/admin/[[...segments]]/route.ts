@@ -18,7 +18,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { requirePermission } from "@/lib/rbac";
-import { readTable, findUserById, normalizeStoredMobile } from "@/lib/db";
+import { readTable, findUserById } from "@/lib/db";
+import { toE164Display } from "@legalir/validation";
 import {
   ADMIN_EXPORT_PERMISSION,
   lawyerDecisionBucket,
@@ -31,7 +32,16 @@ import {
 } from "@legalir/types";
 
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
-import { buildOverview, revenueByPlan, dailySales, resolvedRangeDays } from "@/lib/admin/metrics";
+import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
+import { matchesRow } from "@/lib/search/normalize";
+import {
+  buildOverview,
+  revenueByPlan,
+  dailySales,
+  planDailyMix,
+  resolvedRangeDays,
+} from "@/lib/admin/metrics";
+import { buildLiveReport } from "@/lib/admin/live-report";
 import { listFlags, updateFlag } from "@/lib/admin/flags";
 import {
   listOrders,
@@ -209,12 +219,6 @@ interface LegalRequestRow {
   updatedAt: string;
 }
 
-function mask(mobile: string): string {
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
-}
-
 const ok = <T>(data: T) => NextResponse.json({ data });
 
 type Body = Record<string, unknown>;
@@ -246,6 +250,14 @@ function explicitWindow(url: URL): { from: string; to: string } | null {
 const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResponse> = {
   overview: ({ url }) => ok(buildOverview(intParam(url, "rangeDays", 30), explicitWindow(url))),
 
+  /**
+   * A compact live snapshot of the SAME real ledger the overview reads. It is a
+   * separate route so the «گزارش زنده» block can poll it on its own cadence with
+   * a light payload, without re-pulling the whole overview. Gated on the same
+   * `admin:overview:read` permission (see permissionFor).
+   */
+  live: ({ url }) => ok(buildLiveReport(intParam(url, "rangeDays", 30), explicitWindow(url))),
+
   reports: ({ url }) => {
     const days = intParam(url, "rangeDays", 30);
     const win = explicitWindow(url);
@@ -253,13 +265,14 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       rangeDays: resolvedRangeDays(days, win),
       byPlan: revenueByPlan(days, win),
       daily: dailySales(days, win),
+      planMix: planDailyMix(days, win),
     });
   },
 
   users: ({ url }) => {
-    const page = intParam(url, "page", 1);
-    const pageSize = Math.min(100, intParam(url, "pageSize", 25));
-    const q = (url.searchParams.get("search") ?? "").toLowerCase();
+    const page = resolvePage(url.searchParams.get("page"));
+    const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
+    const search = url.searchParams.get("search") ?? "";
     const role = url.searchParams.get("role") ?? "";
     const subs = readTable<{ user_id: string; status_fa?: string; status?: string }>("subscriptions");
     const activeIds = new Set(
@@ -267,42 +280,48 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
     );
     let rows = readTable<UserRow>("users");
     if (role) rows = rows.filter((u) => (u.role ?? "USER") === role);
-    if (q) {
-      rows = rows.filter(
-        (u) =>
-          (u.displayName ?? "").toLowerCase().includes(q) ||
-          mask(u.mobile).includes(q) ||
-          u.id.toLowerCase().includes(q) ||
-          (u.publicId ?? "").toLowerCase().includes(q)
+    if (search.trim()) {
+      // Search runs over the WHOLE table (not the current page) and matches a
+      // mobile in ANY format — `09122842174`, `9122842174`, `+98…`, Persian
+      // digits — alongside the display name and the system id.
+      rows = rows.filter((u) =>
+        matchesRow(search, {
+          phones: [u.mobile],
+          texts: [u.displayName, u.id, u.publicId, toE164Display(u.mobile)],
+        })
       );
     }
-    const items = rows
+    const mapped = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((u) => ({
         id: u.id,
         publicId: u.publicId ?? null,
         displayName: u.displayName,
-        mobileMasked: mask(u.mobile),
+        mobile: toE164Display(u.mobile),
         email: u.email,
         role: u.role ?? "USER",
         accountType: u.platformAccountType ?? "PERSONAL",
         hasActiveSubscription: activeIds.has(u.id),
         createdAt: u.createdAt,
       }));
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-    return ok({ items: items.slice(start, start + pageSize), total, page, pageSize });
+    const p = paginate(mapped, page, pageSize);
+    return ok({
+      items: p.items,
+      total: p.total,
+      page: p.page,
+      pageSize: p.pageSize,
+      totalPages: p.totalPages,
+    });
   },
 
   requests: ({ url }) => {
-    const page = intParam(url, "page", 1);
-    const pageSize = Math.min(100, intParam(url, "pageSize", 25));
+    const page = resolvePage(url.searchParams.get("page"));
+    const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
     const state = url.searchParams.get("state");
-    const q = (url.searchParams.get("search") ?? "").toLowerCase();
+    const search = url.searchParams.get("search") ?? "";
     let rows = readTable<LegalRequestRow>("legal_requests");
     if (state) rows = rows.filter((r) => r.state === state);
-    if (q) rows = rows.filter((r) => r.title.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
-    const items = rows
+    const mapped = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((r) => {
         const user = findUserById(r.userId);
@@ -317,10 +336,20 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
         };
-      });
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-    return ok({ items: items.slice(start, start + pageSize), total, page, pageSize });
+      })
+      .filter((r) =>
+        search.trim()
+          ? matchesRow(search, { texts: [r.title, r.id, r.userDisplayName] })
+          : true
+      );
+    const p = paginate(mapped, page, pageSize);
+    return ok({
+      items: p.items,
+      total: p.total,
+      page: p.page,
+      pageSize: p.pageSize,
+      totalPages: p.totalPages,
+    });
   },
 
   flags: () => ok({ items: listFlags() }),
@@ -528,7 +557,7 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
         id: user.id,
         publicId: user.publicId ?? null,
         displayName: user.displayName,
-        mobileMasked: mask(user.mobile),
+        mobile: toE164Display(user.mobile),
         email: user.email,
         role: user.role ?? "USER",
         accountType: user.platformAccountType ?? "PERSONAL",
@@ -1646,6 +1675,8 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         actorId: actor.userId,
         actorRole: actor.role,
         note: lawyerId ? "تخصیص وکیل توسط پشتیبانی" : "حذف وکیل توسط پشتیبانی",
+        // Admin-initiated: keep the support note out of the client/lawyer timeline.
+        noteVisibility: "internal",
       });
       if (!res.ok) {
         if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
@@ -1676,6 +1707,8 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         actorId: actor.userId,
         actorRole: actor.role,
         note: typeof body["note"] === "string" ? (body["note"] as string) : "تغییر وضعیت توسط پشتیبانی",
+        // Admin-originated note: never surfaced in the client/lawyer timeline.
+        noteVisibility: "internal",
       });
       if (!res.ok) {
         if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
@@ -1762,6 +1795,9 @@ function permissionFor(method: string, segments: string[]): Permission {
   const [a, b] = segments;
   switch (a) {
     case "overview": return "admin:overview:read";
+    // The live snapshot is a projection of the overview, so it needs the same
+    // read permission — a viewer who cannot read the overview cannot read it.
+    case "live": return "admin:overview:read";
     case "reports": return method === "GET" ? "admin:reports:read" : "admin:reports:export";
     case "exports":
       // §9 — exporting a surface requires the READ permission of that very

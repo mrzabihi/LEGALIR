@@ -118,7 +118,7 @@ export default function RegisterTypePage() {
           >
             {/* Icon — centred, same size on every card */}
             <span
-              className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 shrink-0 transition-colors ${
+              className={`inline-flex items-center justify-center w-14 h-14 rounded-large mb-4 shrink-0 transition-colors ${
                 track.primary
                   ? "bg-primary-700 text-white shadow-elevation-1"
                   : "bg-primary-700/10 text-primary-700 group-hover:bg-primary-700 group-hover:text-white"

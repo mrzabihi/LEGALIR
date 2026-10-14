@@ -85,7 +85,7 @@ export function Footer() {
 
           {/* Newsletter Signup Placeholder */}
           <div className="border-t border-neutral-200 pt-10 mb-10">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 max-w-2xl">
+            <div className="bg-white rounded-medium p-6 shadow-sm border border-neutral-200 max-w-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex-1">
                   <h3 className="text-button font-semibold text-on-surface mb-1">
@@ -109,7 +109,7 @@ export function Footer() {
                   </div>
                   <button
                     type="button"
-                    className="h-12 px-5 rounded-lg bg-primary text-white text-button font-medium hover:bg-primary/90 active:bg-primary/80 transition-colors duration-200 whitespace-nowrap"
+                    className="h-12 px-5 rounded-medium bg-primary text-primary-on text-button font-medium hover:opacity-90 active:opacity-80 transition-colors duration-200 whitespace-nowrap"
                   >
                     ثبت
                   </button>

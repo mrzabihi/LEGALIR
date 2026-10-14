@@ -123,7 +123,7 @@ export function Drawer({
             <h2 className="text-titleLarge text-onSurface">{title}</h2>
             <button
               onClick={onClose}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors"
               aria-label="بستن منو"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">

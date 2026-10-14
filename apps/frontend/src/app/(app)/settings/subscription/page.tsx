@@ -47,11 +47,11 @@ function BenefitsList() {
   }
 
   return (
-    <ul className="divide-y divide-divider/70">
+    <ul className="divide-y divide-divider">
       {enabled.map((e) => (
         <li key={e.featureKey} className="flex items-center justify-between gap-4 py-3">
           <span className="flex items-center gap-2.5 min-w-0">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success-container text-success">
               <IconCheck size={14} />
             </span>
             <span className="text-body-2 text-on-surface truncate">{e.nameFa}</span>

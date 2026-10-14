@@ -310,13 +310,13 @@ export function LawyerFilterBar({
       "shrink-0 rounded-full border px-4 py-2 text-caption font-medium transition-all touch-target-min",
       selected
         ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-        : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
+        : "border-divider bg-surface text-on-surface hover:border-control-selected",
     ].join(" ");
 
   return (
     <section
       aria-label="فیلتر و جستجوی وکلا"
-      className="mb-5 rounded-2xl border border-divider/60 bg-surface p-3 shadow-elevation-1 tablet:p-4"
+      className="mb-5 rounded-large border border-divider bg-surface p-3 shadow-elevation-1 tablet:p-4"
     >
       {/* Search + advanced trigger */}
       <div className="flex items-center gap-2">
@@ -336,12 +336,12 @@ export function LawyerFilterBar({
             type="button"
             onClick={onOpenAdvanced}
             aria-label="فیلترهای بیشتر"
-            className="relative flex h-12 shrink-0 items-center gap-1.5 rounded-xl border border-divider/60 bg-surface px-3 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="relative flex h-12 shrink-0 items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <IconFilter size={18} />
             <span className="hidden mobile-l:inline">فیلترها</span>
             {quickFilterCount > 0 && (
-              <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
+              <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-on">
                 {toPersianNumber(quickFilterCount)}
               </span>
             )}
@@ -359,7 +359,7 @@ export function LawyerFilterBar({
           onClick={() => scrollChips("start")}
           disabled={!canScrollStart}
           aria-label="نمایش دسته‌های قبلی"
-          className="hidden shrink-0 items-center justify-center rounded-full border border-divider/60 bg-surface p-2 text-on-surface transition-colors hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-30 tablet:inline-flex"
+          className="hidden shrink-0 items-center justify-center rounded-full border border-divider bg-surface p-2 text-on-surface transition-colors hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-30 tablet:inline-flex"
         >
           <IconChevronRightSmall size={18} />
         </button>
@@ -399,7 +399,7 @@ export function LawyerFilterBar({
           onClick={() => scrollChips("end")}
           disabled={!canScrollEnd}
           aria-label="نمایش دسته‌های بعدی"
-          className="hidden shrink-0 items-center justify-center rounded-full border border-divider/60 bg-surface p-2 text-on-surface transition-colors hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-30 tablet:inline-flex"
+          className="hidden shrink-0 items-center justify-center rounded-full border border-divider bg-surface p-2 text-on-surface transition-colors hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-30 tablet:inline-flex"
         >
           <IconChevronLeft size={18} />
         </button>
@@ -445,7 +445,7 @@ export function LawyerFilterBar({
 
       {/* Active filters + result count */}
       {(chips.length > 0 || (showResultCount && resultCount > 0)) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-divider/60 pt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-divider pt-3">
           {chips.length > 0 && (
             <>
               <span className="text-caption font-medium text-muted">فیلترهای فعال:</span>
@@ -462,7 +462,7 @@ export function LawyerFilterBar({
               <button
                 type="button"
                 onClick={onClearAll}
-                className="ms-1 rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="ms-1 rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 پاک کردن همه
               </button>

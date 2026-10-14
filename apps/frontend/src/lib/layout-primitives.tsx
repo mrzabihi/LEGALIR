@@ -123,9 +123,11 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
 
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
-        {/* Top Bar */}
+        {/* Top Bar — slim, uniform chrome. Height stays compact on phones
+            (48px) and rises one step on desktop (56px); the components inside
+            never change, so the header reads the same at every width. */}
         {topBar && (
-          <header className="relative z-30 shrink-0 h-14 tablet:h-16 border-b border-divider bg-surface/80 backdrop-blur-lg flex items-center px-3 tablet:px-5 gap-3">
+          <header className="relative z-30 shrink-0 h-12 desktop:h-14 border-b border-divider/70 bg-surface flex items-center px-2 tablet:px-4 gap-1 tablet:gap-2">
             {topBar}
           </header>
         )}

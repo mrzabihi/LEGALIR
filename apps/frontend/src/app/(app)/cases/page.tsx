@@ -1,65 +1,62 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+// ============================================================
+// LEGALIR — /cases (client list)
+// ============================================================
+// A compact, single-column MD3 scan-list of the user's cases: one low
+// header, one search toolbar, a status chip row, a results line, then
+// flat rows. Each row shows the identity (category-tinted tile, title,
+// status + priority), one low-emphasis meta line, and exactly ONE
+// primary action («مشاهده پرونده») plus a ⋮ menu carrying the real,
+// owner-only supplementary operations (copy reference · archive).
+//
+// All data logic is unchanged: the same `/api/v1/cases` query, the same
+// `?create=true` deep link, the same create modal and idempotency key.
+// ============================================================
+
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { TextField, Textarea, Select } from "@legalir/ui";
+import { TextField, Textarea, Select, Dialog, Button, snackbar } from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
-import { IconAdd, IconSearch, IconBalance } from "@/lib/icons";
-import { PromoArt } from "@/components/shared";
+import { toPersianDate } from "@/lib/persian-utils";
+import { IconAdd, IconBalance, IconArchive, IconCopy, IconWarning, IconClose } from "@/lib/icons";
+import {
+  CompactPageHeader,
+  SearchField,
+  FilterChips,
+  ResultsBar,
+  OverflowMenu,
+  StatusBadge,
+  PromoArt,
+  type ActiveFilter,
+} from "@/components/shared";
+import type { StatusTone } from "@/components/shared";
 
 // ============================================================
-// Status Badge Component
+// Status → shared tone + priority → shared tone
 // ============================================================
 
-const STATUS_COLORS: Record<CaseStatus, string> = {
-  DRAFT: "bg-neutral-100 text-neutral-700 border-neutral-200",
-  ACTIVE: "bg-blue-50 text-blue-700 border-blue-200",
-  UNDER_REVIEW: "bg-amber-50 text-amber-700 border-amber-200",
-  WAITING_DOCUMENTS: "bg-purple-50 text-purple-700 border-purple-200",
-  LAWYER_ASSIGNED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  CLOSED: "bg-green-50 text-green-700 border-green-200",
-  ARCHIVED: "bg-neutral-100 text-neutral-500 border-neutral-200",
+const CASE_STATUS_TONE: Record<CaseStatus, StatusTone> = {
+  DRAFT: "neutral",
+  ACTIVE: "info",
+  UNDER_REVIEW: "warning",
+  WAITING_DOCUMENTS: "warning",
+  LAWYER_ASSIGNED: "brand",
+  CLOSED: "success",
+  ARCHIVED: "neutral",
 };
 
-const PRIORITY_COLORS: Record<CasePriority, string> = {
-  low: "bg-neutral-50 text-neutral-600 border-neutral-200",
-  medium: "bg-blue-50 text-blue-600 border-blue-200",
-  high: "bg-amber-50 text-amber-600 border-amber-200",
-  urgent: "bg-red-50 text-red-600 border-red-200",
+const PRIORITY_TONE: Record<CasePriority, StatusTone> = {
+  low: "neutral",
+  medium: "info",
+  high: "warning",
+  urgent: "error",
 };
-
-const CATEGORY_GRADIENTS: Record<CaseCategory, string> = {
-  family: "from-pink-500 to-rose-500",
-  contract: "from-blue-500 to-indigo-500",
-  property: "from-amber-500 to-orange-500",
-  employment: "from-emerald-500 to-teal-500",
-  business: "from-violet-500 to-purple-500",
-  criminal: "from-red-500 to-rose-500",
-  financial: "from-cyan-500 to-blue-500",
-  tax: "from-stone-500 to-neutral-500",
-  other: "from-slate-500 to-gray-500",
-};
-
-function StatusBadge({ status }: { status: CaseStatus }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-caption font-medium ${STATUS_COLORS[status]}`}>
-      {CASE_STATUS_FA[status]}
-    </span>
-  );
-}
-
-function PriorityBadge({ priority }: { priority: CasePriority }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-caption font-medium ${PRIORITY_COLORS[priority]}`}>
-      {CASE_PRIORITY_FA[priority]}
-    </span>
-  );
-}
 
 // ============================================================
-// Create Case Modal
+// Create Case Modal (logic unchanged)
 // ============================================================
 
 const CATEGORIES: CaseCategory[] = ["family", "contract", "property", "employment", "business", "criminal", "financial", "tax", "other"];
@@ -96,17 +93,19 @@ function CreateCaseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-surface rounded-2xl shadow-elevation-4 w-full max-w-lg mx-4 p-6 animate-in"
+        className="mx-4 w-full max-w-lg rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-6 shadow-elevation-16 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-h3 text-on-surface font-bold">ثبت پرونده جدید</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" aria-label="بستن">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-muted">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-titleLarge font-bold text-on-surface">ثبت پرونده جدید</h2>
+          <button
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors duration-short3 hover:bg-surface-hover"
+            aria-label="بستن"
+          >
+            <IconClose size={18} />
           </button>
         </div>
 
@@ -152,14 +151,14 @@ function CreateCaseModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 h-11 rounded-xl border border-divider text-on-surface text-body-2 font-medium hover:bg-neutral-50 transition-colors"
+              className="h-11 flex-1 rounded-medium border border-[color:var(--color-outline-variant)] text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
             >
               انصراف
             </button>
             <button
               type="submit"
               disabled={creating || !form.title.trim()}
-              className="flex-1 h-11 rounded-xl bg-primary text-white text-body-2 font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 flex-1 rounded-medium bg-primary text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {creating ? "در حال ثبت..." : "ثبت پرونده"}
             </button>
@@ -167,6 +166,48 @@ function CreateCaseModal({
         </form>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// Archive confirmation (DELETE = owner-only internal archive)
+// ============================================================
+
+function ArchiveCaseDialog({
+  target,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  target: CaseListItem | null;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog
+      open={target !== null}
+      onClose={onCancel}
+      maxWidth="sm"
+      actions={
+        <>
+          <Button variant="text" onClick={onCancel} disabled={pending}>
+            انصراف
+          </Button>
+          <Button variant="filled" onClick={onConfirm} loading={pending}>
+            بایگانی کن
+          </Button>
+        </>
+      }
+    >
+      <h2 className="mb-3 text-headlineSmall text-on-surface">بایگانی این پرونده؟</h2>
+      <p className="text-body-2 leading-relaxed text-on-surface-variant">
+        پرونده
+        <span className="font-medium text-on-surface"> «{target?.title ?? ""}» </span>
+        در لیگالیر بایگانی می‌شود. این یک اقدام داخلی است و تغییری در روند مرجع قضایی ایجاد نمی‌کند؛
+        مهلت‌های باز و یادآورهای آن باقی می‌مانند.
+      </p>
+    </Dialog>
   );
 }
 
@@ -179,9 +220,13 @@ export default function CasesPage() {
   const searchParams = useSearchParams();
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<CaseListItem | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   // Auto-open create modal when navigated from workflow ACTION phase
   useEffect(() => {
@@ -190,20 +235,33 @@ export default function CasesPage() {
     }
   }, [searchParams]);
 
+  // Debounce the query so continuous Persian typing reaches the API calmly.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fetchCases = useCallback(() => {
     setLoading(true);
+    setError(false);
     const params = new URLSearchParams();
-    if (search.trim()) params.set("search", search.trim());
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
     if (statusFilter !== "all") params.set("status", statusFilter);
 
     fetch(`/api/v1/cases?${params.toString()}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("failed");
+        return r.json();
+      })
       .then((j) => {
         setCases(j.data?.items ?? []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, [search, statusFilter]);
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
+  }, [debouncedSearch, statusFilter]);
 
   useEffect(() => {
     fetchCases();
@@ -214,143 +272,272 @@ export default function CasesPage() {
     router.push(`/cases/${id}`);
   };
 
-  const statusFilters = [
-    { key: "all", label: "همه" },
-    ...Object.entries(CASE_STATUS_FA).map(([key, label]) => ({ key, label })),
-  ];
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setStatusFilter("all");
+  }, []);
+
+  const handleCopyRef = useCallback((ref: string) => {
+    navigator.clipboard
+      .writeText(ref)
+      .then(() => snackbar.show({ message: "شناسه کپی شد", variant: "success" }))
+      .catch(() => snackbar.show({ message: "کپی ناموفق بود", variant: "error" }));
+  }, []);
+
+  const handleConfirmArchive = useCallback(async () => {
+    if (!archiveTarget) return;
+    setArchiving(true);
+    try {
+      const res = await fetch(`/api/v1/cases/${archiveTarget.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("failed");
+      snackbar.show({ message: "پرونده بایگانی شد", variant: "success" });
+      setArchiveTarget(null);
+      fetchCases();
+    } catch {
+      snackbar.show({ message: "بایگانی ناموفق بود؛ دوباره تلاش کنید", variant: "error" });
+    } finally {
+      setArchiving(false);
+    }
+  }, [archiveTarget, fetchCases]);
+
+  const statusFilters = useMemo(
+    () => [
+      { key: "all", label: "همه" },
+      ...Object.entries(CASE_STATUS_FA).map(([key, label]) => ({ key, label })),
+    ],
+    []
+  );
+
+  const hasFilters = search.trim() !== "" || statusFilter !== "all";
+
+  const activeFilters: ActiveFilter[] = [];
+  if (search.trim()) {
+    activeFilters.push({ key: "search", label: `جست‌وجو: ${search.trim()}`, onRemove: () => setSearch("") });
+  }
+  if (statusFilter !== "all") {
+    activeFilters.push({
+      key: "status",
+      label: CASE_STATUS_FA[statusFilter as CaseStatus] ?? statusFilter,
+      onRemove: () => setStatusFilter("all"),
+    });
+  }
 
   return (
-    <div className="p-4 tablet:p-6 max-w-6xl mx-auto" dir="rtl">
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-h2 text-on-surface mb-1">پرونده‌های من</h1>
-          <p className="text-body-2 text-muted">مدیریت و پیگیری پرونده‌های حقوقی</p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-5 py-2.5 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-sm touch-target"
-        >
-          <IconAdd size={20} />
-          پرونده جدید
-        </button>
+    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl">
+      <CompactPageHeader
+        title="پرونده‌های من"
+        description="مدیریت و پیگیری پرونده‌های حقوقی"
+        actions={
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:w-auto"
+          >
+            <IconAdd size={20} />
+            پرونده جدید
+          </button>
+        }
+      />
+
+      {/* Toolbar — search owns the space; status chips scroll in their own row. */}
+      <div className="mt-4 flex flex-col gap-3">
+        <SearchField
+          label="جست‌وجو در پرونده‌ها"
+          placeholder="مثلاً: اجاره، اظهارنامه، ملکی"
+          value={search}
+          onChange={setSearch}
+        />
+        <FilterChips
+          options={statusFilters}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          ariaLabel="فیلتر وضعیت پرونده"
+        />
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="flex flex-col tablet:flex-row gap-3 mb-6">
-        <div className="flex-1 max-w-xl">
-          <TextField
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجو در پرونده‌ها..."
-            aria-label="جستجو در پرونده‌ها"
-            fullWidth
-            leadingIcon={<IconSearch size={20} />}
-          />
-        </div>
-
-        {/* Status Filter Chips */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-          {statusFilters.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setStatusFilter(f.key)}
-              className={[
-                "shrink-0 rounded-xl border px-3 py-1.5 text-caption font-medium transition-all touch-target",
-                statusFilter === f.key
-                  ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-                  : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
-              ].join(" ")}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Loading State */}
+      {/* Loading */}
       {loading && (
-        <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-3 gap-4">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-40 rounded-2xl bg-surface border border-divider/60 skeleton-shimmer" />
+        <div className="mt-4 space-y-2.5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 tablet:p-4"
+            >
+              <div className="h-10 w-10 shrink-0 animate-pulse rounded-medium bg-surface-container" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-1/3 animate-pulse rounded bg-surface-container" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-surface-container" />
+              </div>
+              <div className="h-9 w-24 shrink-0 animate-pulse rounded-full bg-surface-container" />
+            </div>
           ))}
         </div>
       )}
 
-      {/* Empty State */}
-      {/* The case-related artwork lives *only* here. A populated list is
-          the user's own data and must never be displaced by a generic
-          advertisement, so the visual is scoped to the empty state where
-          it adds context instead of competing with real cases. */}
-      {!loading && cases.length === 0 && (
-        <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <div className="w-full max-w-[220px]">
-            <PromoArt art="two" alt="" sizes="(min-width: 600px) 220px, 200px" />
+      {/* Error */}
+      {!loading && error && (
+        <div className="mt-4 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <IconWarning size={44} className="text-error" />
           </div>
-          <p className="text-body-1 text-muted font-medium">هنوز پرونده‌ای ثبت نشده است</p>
-          <p className="text-body-2 text-muted/60">
-            اولین پرونده حقوقی خود را ثبت کنید تا LEGALIR در مدیریت آن به شما کمک کند
-          </p>
+          <h3 className="mb-2 text-titleMedium text-on-surface">خطا در دریافت پرونده‌ها</h3>
+          <p className="mb-6 text-body-2 text-on-surface-variant">اتصال برقرار نشد؛ دوباره تلاش کنید.</p>
           <button
-            onClick={() => setShowCreate(true)}
-            className="mt-3 rounded-xl bg-gradient-to-r from-primary-700 to-primary-800 text-white px-6 py-2.5 text-button font-medium hover:from-primary-800 hover:to-primary-900 transition-all shadow-md shadow-primary/20 active:scale-[0.98] touch-target"
+            onClick={fetchCases}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
           >
-            ثبت اولین پرونده
+            تلاش مجدد
           </button>
         </div>
       )}
 
-      {/* Cases Grid */}
-      {!loading && cases.length > 0 && (
-        <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-3 gap-4">
-          {cases.map((c) => (
-            <Link
-              key={c.id}
-              href={`/cases/${c.id}`}
-              className="group rounded-2xl bg-surface border border-divider/60 p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+      {/* Empty — the case artwork lives only here, never over real data. */}
+      {!loading && !error && cases.length === 0 && (
+        <div className="mt-4 flex flex-col items-center gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface py-14 text-center">
+          <div className="w-full max-w-[200px]">
+            <PromoArt art="two" alt="" sizes="(min-width: 600px) 200px, 180px" />
+          </div>
+          <p className="text-body-1 font-medium text-on-surface">
+            {hasFilters ? "نتیجه‌ای یافت نشد" : "هنوز پرونده‌ای ثبت نشده است"}
+          </p>
+          <p className="max-w-md text-body-2 text-on-surface-variant">
+            {hasFilters
+              ? "با تغییر فیلترها یا جست‌وجو دوباره امتحان کنید"
+              : "اولین پرونده حقوقی خود را ثبت کنید تا LEGALIR در مدیریت آن به شما کمک کند"}
+          </p>
+          {hasFilters ? (
+            <button
+              onClick={clearAllFilters}
+              className="mt-2 inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
             >
-              {/* Category gradient accent + icon */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`h-10 w-10 rounded-lg bg-gradient-to-br ${CATEGORY_GRADIENTS[c.category]} flex items-center justify-center shrink-0 shadow-sm`}>
-                  <IconBalance size={16} className="text-white" />
-                </div>
-                <span className="text-caption text-muted">{CASE_CATEGORY_FA[c.category]}</span>
-              </div>
-
-              <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary-700 transition-colors line-clamp-2">
-                {c.title}
-              </h3>
-
-              {/* The LEGALIR internal reference — never an official court number. */}
-              {c.internalRef && (
-                <p className="text-caption text-muted/70 mb-2" dir="ltr">
-                  شناسه لیگالیر: {c.internalRef}
-                </p>
-              )}
-
-              {/* Badges */}
-              <div className="flex items-center gap-2 mt-auto pt-3 border-t border-divider/40">
-                <StatusBadge status={c.status} />
-                <PriorityBadge priority={c.priority} />
-                <div className="mr-auto flex items-center gap-3 text-caption text-muted">
-                  {c.documentCount > 0 && (
-                    <span>{c.documentCount} سند</span>
-                  )}
-                  {c.taskCount > 0 && (
-                    <span>{c.taskCount} وظیفه</span>
-                  )}
-                </div>
-              </div>
-            </Link>
-          ))}
+              <IconClose size={18} />
+              پاک کردن فیلترها
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="mt-2 inline-flex h-10 items-center gap-2 rounded-full bg-primary px-6 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
+            >
+              <IconAdd size={18} />
+              ثبت اولین پرونده
+            </button>
+          )}
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Compact list */}
+      {!loading && !error && cases.length > 0 && (
+        <div className="mt-4 space-y-2.5">
+          <ResultsBar
+            countLabel={`${cases.length} نتیجه`}
+            filters={activeFilters}
+            onClearAll={clearAllFilters}
+            className="px-0.5"
+          />
+
+          <div className="space-y-2.5">
+            {cases.map((c) => (
+              <article
+                key={c.id}
+                className="flex flex-col gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4"
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary-on-container"
+                    aria-hidden="true"
+                  >
+                    <IconBalance size={20} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
+                        {c.title}
+                      </h3>
+                      <StatusBadge label={CASE_STATUS_FA[c.status]} tone={CASE_STATUS_TONE[c.status]} />
+                      <StatusBadge
+                        label={CASE_PRIORITY_FA[c.priority]}
+                        tone={PRIORITY_TONE[c.priority]}
+                        dot={false}
+                      />
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
+                      <span className="font-medium text-on-surface-variant">{CASE_CATEGORY_FA[c.category]}</span>
+                      {c.internalRef && (
+                        <>
+                          <span aria-hidden="true" className="text-divider">·</span>
+                          <span dir="ltr">{c.internalRef}</span>
+                        </>
+                      )}
+                      {c.documentCount > 0 && (
+                        <>
+                          <span aria-hidden="true" className="text-divider">·</span>
+                          <span>{c.documentCount} سند</span>
+                        </>
+                      )}
+                      {c.taskCount > 0 && (
+                        <>
+                          <span aria-hidden="true" className="text-divider">·</span>
+                          <span>{c.taskCount} وظیفه</span>
+                        </>
+                      )}
+                      <span aria-hidden="true" className="text-divider">·</span>
+                      <span>آخرین به‌روزرسانی: {toPersianDate(c.updatedAt)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
+                  <Link
+                    href={`/cases/${c.id}`}
+                    className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+                  >
+                    مشاهده پرونده
+                  </Link>
+
+                  <OverflowMenu
+                    label="گزینه‌های این پرونده"
+                    size="small"
+                    className="shrink-0"
+                    items={[
+                      ...(c.internalRef
+                        ? [
+                            {
+                              key: "copy",
+                              label: "کپی شناسه",
+                              icon: <IconCopy size={16} />,
+                              onSelect: () => handleCopyRef(c.internalRef!),
+                            },
+                          ]
+                        : []),
+                      {
+                        key: "archive",
+                        label: "بایگانی",
+                        icon: <IconArchive size={16} />,
+                        destructive: true,
+                        onSelect: () => setArchiveTarget(c),
+                      },
+                    ]}
+                  />
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showCreate && (
         <CreateCaseModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
       )}
+
+      <ArchiveCaseDialog
+        target={archiveTarget}
+        pending={archiving}
+        onCancel={() => {
+          if (!archiving) setArchiveTarget(null);
+        }}
+        onConfirm={handleConfirmArchive}
+      />
     </div>
   );
 }

@@ -129,7 +129,7 @@ export default function MobileLoginPage() {
   const passwordDisplayError = passwordValidationError || passwordError;
 
   return (
-    <div className="rounded-2xl bg-white p-8 md:p-10 shadow-2xl border border-neutral-100">
+    <div className="rounded-large bg-surface p-8 md:p-10 shadow-elevation-16 border border-divider">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-h2 text-primary-900 mb-2">ورود به حساب کاربری</h1>
@@ -139,15 +139,15 @@ export default function MobileLoginPage() {
       </div>
 
       {/* Tab / Segmented Control */}
-      <div className="flex rounded-xl bg-neutral-100 p-1.5 mb-8" role="tablist" aria-label="نحوه ورود">
+      <div className="flex rounded-medium bg-surface-container p-1.5 mb-8" role="tablist" aria-label="نحوه ورود">
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === "password"}
           onClick={() => handleTabChange("password")}
-          className={`flex-1 rounded-lg py-3 text-body-2 font-medium transition-all duration-200 ${
+          className={`flex-1 rounded-medium py-3 text-body-2 font-medium transition-all duration-200 ${
             activeTab === "password"
-              ? "bg-white text-primary-800 shadow-sm"
+              ? "bg-surface text-primary-800 shadow-elevation-1"
               : "text-neutral-500 hover:text-neutral-700"
           }`}
         >
@@ -158,9 +158,9 @@ export default function MobileLoginPage() {
           role="tab"
           aria-selected={activeTab === "otp"}
           onClick={() => handleTabChange("otp")}
-          className={`flex-1 rounded-lg py-3 text-body-2 font-medium transition-all duration-200 ${
+          className={`flex-1 rounded-medium py-3 text-body-2 font-medium transition-all duration-200 ${
             activeTab === "otp"
-              ? "bg-white text-primary-800 shadow-sm"
+              ? "bg-surface text-primary-800 shadow-elevation-1"
               : "text-neutral-500 hover:text-neutral-700"
           }`}
         >
@@ -231,7 +231,7 @@ export default function MobileLoginPage() {
           {passwordDisplayError && (
             <div
               id="password-error"
-              className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error"
+              className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error"
               role="alert"
             >
               <svg
@@ -330,7 +330,7 @@ export default function MobileLoginPage() {
           {otpDisplayError && (
             <div
               id="otp-mobile-error"
-              className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error"
+              className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error"
               role="alert"
             >
               <svg
@@ -389,7 +389,7 @@ export default function MobileLoginPage() {
         </form>
       )}
 
-      <div className="flex items-center justify-between mt-8 pt-6 border-t border-neutral-200">
+      <div className="flex items-center justify-between mt-8 pt-6 border-t border-divider">
         <Link
           href="/auth/register"
           className="text-body-2 text-primary-700 font-medium hover:text-primary-800 transition-colors"

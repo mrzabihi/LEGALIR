@@ -13,21 +13,24 @@
 
 import { useState } from "react";
 import {
+  Button,
   Card,
   DataTable,
+  Pagination,
+  SearchInput,
   Section,
   StateView,
   StatCard,
   Td,
   Th,
-  Button,
 } from "@/components/admin/ui";
 import { BarChart, ChartEmpty, ChartFrame, catColor } from "@/components/admin/charts";
 import { useAnalyticsCustomers, useAnalyticsRanking } from "@/hooks/useAnalytics";
 import { toPersianNumber, toPersianCurrency, toRelativeTime } from "@/lib/persian-utils";
+import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 import type { AnalyticsRangeQuery, PurchaseRankingQuery } from "@/lib/api/analytics";
 import type { CustomerAnalyticsReport, LrfmSegment } from "@legalir/types";
-import { AnalyticsExportButton, Pager, QualityPanel, WindowCaption } from "./kit";
+import { AnalyticsExportButton, QualityPanel, WindowCaption } from "./kit";
 
 const KPI_GRID = "grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-4";
 
@@ -75,8 +78,10 @@ function CustomersBody({
   data: CustomerAnalyticsReport;
 }) {
   const [sort, setSort] = useState<NonNullable<PurchaseRankingQuery["sort"]>>("net");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const ranking = useAnalyticsRanking(range, { sort, page, pageSize: 20 });
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const ranking = useAnalyticsRanking(range, { sort, search: search || undefined, page, pageSize });
 
   const returningPct =
     data.buyerCount === 0
@@ -220,21 +225,32 @@ function CustomersBody({
         title="رتبه‌بندی خرید"
         subtitle="خریدهای هر کاربر در بازهٔ انتخابی، با مبلغ ناخالص، بازگشتی و خالص، اولین/آخرین خرید و آخرین فعالیت."
       >
-        <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5">
-          <span className="text-caption text-muted">مرتب‌سازی:</span>
-          {SORT_OPTIONS.map((o) => (
-            <Button
-              key={o.value}
-              size="sm"
-              variant={sort === o.value ? "tonal" : "ghost"}
-              onClick={() => {
-                setSort(o.value);
-                setPage(1);
-              }}
-            >
-              {o.label}
-            </Button>
-          ))}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <SearchInput
+            value={search}
+            onChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            placeholder="جست‌وجوی نام، موبایل یا شناسه…"
+            className="w-full max-w-xs"
+          />
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <span className="text-caption text-muted">مرتب‌سازی:</span>
+            {SORT_OPTIONS.map((o) => (
+              <Button
+                key={o.value}
+                size="sm"
+                variant={sort === o.value ? "tonal" : "ghost"}
+                onClick={() => {
+                  setSort(o.value);
+                  setPage(1);
+                }}
+              >
+                {o.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <StateView
@@ -286,11 +302,16 @@ function CustomersBody({
                   </tr>
                 ))}
               </DataTable>
-              <Pager
+              <Pagination
                 page={pageData.page}
                 pageSize={pageData.pageSize}
                 total={pageData.total}
-                onChange={setPage}
+                itemLabel="کاربر"
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
               />
             </>
           )}

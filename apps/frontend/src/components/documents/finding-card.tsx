@@ -20,30 +20,30 @@ const SEVERITY_CONFIG: Record<
 > = {
   critical: {
     label: "بحرانی",
-    badgeClass: "bg-red-100 text-red-800 border-red-200",
-    barColor: "bg-red-600",
+    badgeClass: "bg-error-container text-error border-error",
+    barColor: "bg-error",
   },
   high: {
     label: "زیاد",
-    badgeClass: "bg-orange-100 text-orange-800 border-orange-200",
-    barColor: "bg-orange-500",
+    badgeClass: "bg-warning-container text-warning border-warning",
+    barColor: "bg-warning-400",
   },
   medium: {
     label: "متوسط",
-    badgeClass: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    barColor: "bg-yellow-600",
+    badgeClass: "bg-warning-container text-warning border-warning",
+    barColor: "bg-warning-700",
   },
   low: {
     label: "کم",
-    badgeClass: "bg-green-100 text-green-800 border-green-200",
-    barColor: "bg-green-600",
+    badgeClass: "bg-success-container text-success border-success",
+    barColor: "bg-success",
   },
 };
 
 const CONFIDENCE_THRESHOLDS = [
-  { min: 80, label: "اطمینان بالا", className: "text-green-600" },
-  { min: 50, label: "اطمینان متوسط", className: "text-yellow-600" },
-  { min: 0, label: "اطمینان پایین", className: "text-red-600" },
+  { min: 80, label: "اطمینان بالا", className: "text-success" },
+  { min: 50, label: "اطمینان متوسط", className: "text-warning" },
+  { min: 0, label: "اطمینان پایین", className: "text-error" },
 ];
 
 function getConfidenceLabel(confidence: number): {
@@ -53,7 +53,7 @@ function getConfidenceLabel(confidence: number): {
   for (const t of CONFIDENCE_THRESHOLDS) {
     if (confidence >= t.min) return { label: t.label, className: t.className };
   }
-  return { label: "اطمینان پایین", className: "text-red-600" };
+  return { label: "اطمینان پایین", className: "text-error" };
 }
 
 // ============================================================
@@ -70,8 +70,8 @@ export function FindingCard({ finding }: FindingCardProps) {
 
   const severityConfig = SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG['low'];
 
-  const barColor = severityConfig?.barColor ?? 'bg-gray-400';
-  const badgeClass = severityConfig?.badgeClass ?? 'bg-gray-100 text-gray-800 border-gray-200';
+  const barColor = severityConfig?.barColor ?? 'bg-muted';
+  const badgeClass = severityConfig?.badgeClass ?? 'bg-surface-container text-muted border-divider';
   const label = severityConfig?.label ?? 'نامشخص';
   const confidenceInfo = getConfidenceLabel(confidence);
 
@@ -117,12 +117,12 @@ export function FindingCard({ finding }: FindingCardProps) {
 
       {/* Recommendation */}
       {recommendation && (
-        <div className="rounded-medium bg-blue-50 border border-blue-100 p-3">
+        <div className="rounded-medium bg-info-container border border-info p-3">
           <div className="flex items-start gap-2">
-            <IconInfo size={18} className="text-blue-600 shrink-0 mt-0.5" />
+            <IconInfo size={18} className="text-info shrink-0 mt-0.5" />
             <div>
-              <p className="text-caption font-medium text-blue-800 mb-0.5">توصیه:</p>
-              <p className="text-caption text-blue-700 leading-relaxed">
+              <p className="text-caption font-medium text-info mb-0.5">توصیه:</p>
+              <p className="text-caption text-info leading-relaxed">
                 {recommendation}
               </p>
             </div>
@@ -131,7 +131,7 @@ export function FindingCard({ finding }: FindingCardProps) {
       )}
 
       {/* Bottom meta: confidence + citation */}
-      <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-divider/50">
+      <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-divider">
         {/* Confidence */}
         <span
           className={`text-caption font-medium ${confidenceInfo.className}`}

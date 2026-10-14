@@ -66,7 +66,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
           className={[
             "block h-[32px] w-[52px] rounded-full border-2",
             "bg-control-unselected-bg border-control-unselected-border",
-            "peer-focus-visible:ring-2 peer-focus-visible:ring-control-focus/40 peer-focus-visible:ring-offset-1",
+            "peer-focus-visible:ring-2 peer-focus-visible:ring-control-focus peer-focus-visible:ring-offset-1",
             "peer-disabled:bg-control-disabled-bg peer-disabled:border-control-disabled-text",
             "peer-checked:bg-control-selected peer-checked:border-control-selected",
             "transition-[background-color,border-color,box-shadow] duration-200 ease-standard",

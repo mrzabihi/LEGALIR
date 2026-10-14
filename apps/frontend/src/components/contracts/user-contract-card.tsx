@@ -1,21 +1,22 @@
 // ============================================================
-// LEGALIR — User contract card (work item)
+// LEGALIR — User contract row (work item)
 // ============================================================
-// A USER contract card is a work item, not an inspiration. Where a
-// template card leads with a big illustration and a specific CTA, this
-// one leads with the contract's IDENTITY and its STATE OF WORK:
+// A USER contract is a work item, not an inspiration. Where a template
+// card leads with an illustration and a specific CTA, this one is a
+// compact, single-column scan row that leads with the contract's
+// IDENTITY and its STATE OF WORK:
 //
-//   thumbnail · draft badge · title · type · id · party names ·
-//   progress · last change · analysis badge · primary action · ⋮ menu
+//   tile · title · status badge · type · id · progress · last change ·
+//   analysis badge · ONE primary action · ⋮ menu
 //
 // The card shows BOTH axes, because they answer different questions:
-//   • the DRAFT badge  — how far along the document is;
-//   • the ANALYSIS badge — what the AI review of the last fixed
-//     version said (or that it has not run / is stale).
+//   • the status badge   — how far along the document is;
+//   • the analysis badge — what the AI review of the last fixed version
+//     said (or that it has not run / is stale).
 //
 // The primary action is the single verb for the current state, derived
 // from BOTH axes («ادامه تکمیل», «بررسی نسخه جدید», «مشاهده نتیجه
-// بررسی»), so the card always tells the user what the next step is.
+// بررسی»); everything else (copy id, delete draft) lives in the ⋮ menu.
 // ============================================================
 
 "use client";
@@ -33,8 +34,8 @@ import {
 import { ContractVisual } from "@/lib/contracts/visuals";
 import { toRelativeTime } from "@/lib/persian-utils";
 import { IconArrowBack, IconCopy, IconDelete } from "@/lib/icons";
+import { OverflowMenu } from "@/components/shared";
 import { ContractStatusBadge } from "./contract-status-badge";
-import { ContractCardMenu, type ContractCardMenuItem } from "./contract-card-menu";
 
 interface UserContractCardProps {
   contract: UnifiedContract;
@@ -54,70 +55,76 @@ export function UserContractCard({ contract, onDelete, onCopyId }: UserContractC
     contract.archived
   );
 
-  const menuItems: ContractCardMenuItem[] = [];
-  if (onCopyId) {
-    menuItems.push({
-      key: "copy",
-      labelFa: "کپی شناسه قرارداد",
-      icon: <IconCopy size={16} />,
-      onSelect: () => onCopyId(contract),
-    });
-  }
-  if (contract.deletable && onDelete) {
-    menuItems.push({
-      key: "delete",
-      labelFa: "حذف پیش‌نویس",
-      icon: <IconDelete size={16} />,
-      destructive: true,
-      onSelect: () => onDelete(contract),
-    });
-  }
+  const menuItems = [
+    ...(onCopyId
+      ? [
+          {
+            key: "copy",
+            label: "کپی شناسه قرارداد",
+            icon: <IconCopy size={16} />,
+            onSelect: () => onCopyId(contract),
+          },
+        ]
+      : []),
+    ...(contract.deletable && onDelete
+      ? [
+          {
+            key: "delete",
+            label: "حذف پیش‌نویس",
+            icon: <IconDelete size={16} />,
+            destructive: true,
+            onSelect: () => onDelete(contract),
+          },
+        ]
+      : []),
+  ];
 
   return (
-    <div className="rounded-large border border-divider bg-surface p-4 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary/40 transition-all duration-short3">
-      <div className="flex items-start gap-3">
-        {/* Quiet thumbnail — anchors the row without competing with the
-            status and progress, which are the point of this card. */}
-        <div className="hidden mobile-l:block h-14 w-20 shrink-0 overflow-hidden rounded-medium bg-surface-container-low">
+    <article className="flex flex-col gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        {/* Quiet tile — anchors the row without competing with the status
+            and progress, which are the point of this row. */}
+        <div
+          className="h-11 w-11 shrink-0 overflow-hidden rounded-medium bg-surface-container-low"
+          aria-hidden="true"
+        >
           <ContractVisual type={contract.type} className="h-full w-full" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <Link
               href={href}
               className="min-w-0 rounded-small focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
             >
-              <h3 className="truncate text-titleSmall text-on-surface">{contract.title}</h3>
+              <h3 className="truncate text-titleSmall font-semibold text-on-surface">
+                {contract.title}
+              </h3>
             </Link>
             <ContractStatusBadge status={contract.status} label={contract.stateFa} />
           </div>
 
-          <p className="mt-1 truncate text-caption text-muted">
-            {contract.typeFa}
-            {contract.subtitleFa ? ` · ${contract.subtitleFa}` : ""}
-          </p>
-
-          {/* The contract id — the same value the «کپی شناسه» action
-              copies, shown so the user can match a card to a document. */}
-          <p className="mt-0.5 truncate font-mono text-labelSmall text-muted" dir="ltr">
-            {contract.referenceCode}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
+            <span className="font-medium">{contract.typeFa}</span>
+            {contract.subtitleFa && (
+              <>
+                <span aria-hidden="true" className="text-divider">·</span>
+                <span>{contract.subtitleFa}</span>
+              </>
+            )}
+            <span aria-hidden="true" className="text-divider">·</span>
+            {/* The contract id — the same value the «کپی شناسه» action copies. */}
+            <span className="font-mono" dir="ltr">{contract.referenceCode}</span>
+            <span aria-hidden="true" className="text-divider">·</span>
+            <span>آخرین تغییر: {toRelativeTime(contract.updatedAt)}</span>
+          </div>
 
           {/* Progress — the server-computed completeness for OS
-              contracts; V1 contracts have no progress, so the bar is
-              replaced by the last-change line alone. */}
+              contracts; V1 contracts carry no progress, so only the
+              analysis row is shown. */}
           {contract.source === "os" && (
-            <div className="mt-3">
-              <div className="mb-1 flex items-center justify-between text-labelSmall text-muted">
-                <span>
-                  {contract.currentStepTitleFa
-                    ? `مرحله: ${contract.currentStepTitleFa}`
-                    : "پیشرفت تکمیل"}
-                </span>
-                <span>{contract.progress}٪</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container-high">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-surface-container-high">
                 <div
                   className={`h-full rounded-full ${
                     contract.progress === 100 ? "bg-success" : "bg-primary"
@@ -125,33 +132,43 @@ export function UserContractCard({ contract, onDelete, onCopyId }: UserContractC
                   style={{ width: `${contract.progress}%` }}
                 />
               </div>
+              <span className="text-caption text-on-surface-variant">
+                {contract.currentStepTitleFa ? `مرحله: ${contract.currentStepTitleFa}` : "پیشرفت تکمیل"}
+              </span>
+              <span className="text-caption font-medium text-on-surface-variant">
+                {contract.progress}٪
+              </span>
+              <AnalysisBadge status={contract.analysisStatus} />
             </div>
           )}
 
-          {/* The AI-review axis — a SEPARATE badge from the draft badge,
-              because it answers a different question. It is always
-              labelled as an AI review, never a legal verdict. */}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <AnalysisBadge status={contract.analysisStatus} />
-            <span className="text-labelSmall text-muted">
-              آخرین تغییر: {toRelativeTime(contract.updatedAt)}
-            </span>
-          </div>
+          {contract.source !== "os" && (
+            <div className="mt-1.5">
+              <AnalysisBadge status={contract.analysisStatus} />
+            </div>
+          )}
         </div>
-
-        {menuItems.length > 0 && <ContractCardMenu items={menuItems} />}
       </div>
 
-      <div className="mt-4 flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
         <Link
           href={href}
-          className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-medium bg-primary px-5 text-labelLarge text-primary-on transition-all duration-short3 hover:state-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
         >
           {actionLabel}
-          <IconArrowBack size={18} aria-hidden="true" />
+          <IconArrowBack size={16} aria-hidden="true" />
         </Link>
+
+        {menuItems.length > 0 && (
+          <OverflowMenu
+            label="گزینه‌های این قرارداد"
+            size="small"
+            className="shrink-0"
+            items={menuItems}
+          />
+        )}
       </div>
-    </div>
+    </article>
   );
 }
 

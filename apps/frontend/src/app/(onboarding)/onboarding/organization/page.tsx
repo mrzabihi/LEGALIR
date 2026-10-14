@@ -17,20 +17,13 @@ import {
   useRemoveSignatory,
 } from "@/hooks/useOnboarding";
 import {
+  IRAN_PROVINCE_NAMES,
   ORGANIZATION_LEGAL_TYPE_FA,
   type OrganizationLegalType,
 } from "@legalir/types";
 import { Select, TextField } from "@legalir/ui";
 
 const LEGAL_TYPES = Object.keys(ORGANIZATION_LEGAL_TYPE_FA) as OrganizationLegalType[];
-
-const IRAN_PROVINCES = [
-  "تهران", "البرز", "اصفهان", "فارس", "خراسان رضوی", "خوزستان", "آذربایجان شرقی",
-  "آذربایجان غربی", "گیلان", "مازندران", "کرمان", "یزد", "قم", "قزوین", "زنجان",
-  "همدان", "کردستان", "کرمانشاه", "لرستان", "مرکزی", "سمنان", "گلستان", "اردبیل",
-  "بوشهر", "هرمزگان", "چهارمحال و بختیاری", "کهگیلویه و بویراحمد", "ایلام",
-  "خراسان شمالی", "خراسان جنوبی", "سیستان و بلوچستان",
-] as const;
 
 export default function OrganizationOnboardingPage() {
   const router = useRouter();
@@ -191,7 +184,7 @@ export default function OrganizationOnboardingPage() {
             disabled={createOrg.isPending}
             placeholder="انتخاب کنید"
             fullWidth
-            options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
+            options={IRAN_PROVINCE_NAMES.map((p) => ({ value: p, label: p }))}
           />
           <TextField
             id="city"
@@ -266,7 +259,7 @@ export default function OrganizationOnboardingPage() {
         />
 
         {error && (
-          <div className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error" role="alert">
+          <div className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error" role="alert">
             <span>{error}</span>
           </div>
         )}
@@ -410,7 +403,7 @@ function SignatoriesStep({ orgId, onDone }: { orgId: string; onDone: () => void 
         </div>
 
         {error && (
-          <div className="rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error" role="alert">
+          <div className="rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error" role="alert">
             {error}
           </div>
         )}

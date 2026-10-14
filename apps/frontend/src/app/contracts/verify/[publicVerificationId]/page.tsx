@@ -16,6 +16,7 @@
 
 import { use, useEffect, useState } from "react";
 import type { ContractVerificationInfo } from "@legalir/types";
+import { CONTRACT_REVIEW_STAMP_DISCLAIMER_FA } from "@legalir/types";
 import { fetchVerification } from "@/lib/api/property-contracts";
 import { formatIsoJalali } from "@/lib/contracts/dates";
 import { IconCheck, IconContract, IconShield } from "@/lib/icons";
@@ -78,7 +79,7 @@ export default function VerifyContractPage({
         ) : (
           <div className="space-y-4">
             {/* Genuine banner */}
-            <div className="rounded-large bg-success-50 border border-success/30 p-5 flex items-start gap-3">
+            <div className="rounded-large bg-success-container border border-success p-5 flex items-start gap-3">
               <IconCheck className="w-6 h-6 text-success-700 shrink-0 mt-0.5" />
               <div>
                 <h2 className="text-titleSmall text-success-900">این سند در لیگالیر ثبت شده است</h2>
@@ -114,8 +115,30 @@ export default function VerifyContractPage({
               </div>
             </div>
 
+            {/* The LEGALIR review stamp — internal review only */}
+            {info.reviewed && info.stampLabelFa && (
+              <div className="rounded-large bg-surface p-5 shadow-elevation-1 border-2 border-dashed border-[#1C4E9C]">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-titleMedium font-bold text-[#1C4E9C]">
+                    {info.stampLabelFa}
+                  </span>
+                  {info.reviewedAt && (
+                    <span className="text-caption text-[#1C4E9C]">
+                      تاریخ بررسی: {formatIsoJalali(info.reviewedAt.slice(0, 10))}
+                    </span>
+                  )}
+                </div>
+                {info.reviewingOfficeFa && (
+                  <p className="text-body-2 text-on-surface-variant mt-2">
+                    واحد بررسی: {info.reviewingOfficeFa}
+                  </p>
+                )}
+                <p className="text-caption text-muted mt-2">{CONTRACT_REVIEW_STAMP_DISCLAIMER_FA}</p>
+              </div>
+            )}
+
             {/* Legal boundary — never claim ownership transfer */}
-            <div className="rounded-large bg-info-50 border border-info/30 p-5">
+            <div className="rounded-large bg-info-container border border-info p-5">
               <h3 className="text-titleSmall text-info-900 mb-1">ثبت رسمی</h3>
               <p className="text-body-2 text-info-800">
                 نهایی‌سازی در لیگالیر به معنای انتقال رسمی مالکیت نیست. انتقال مالکیت ملک تنها با ثبت

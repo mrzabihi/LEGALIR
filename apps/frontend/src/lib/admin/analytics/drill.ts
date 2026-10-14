@@ -18,7 +18,9 @@
 
 import type { AdminOrderListResponse, OrderStatus } from "@legalir/types";
 import { listOrders } from "@/lib/admin/orders";
-import { maskMobile, readSubscriptions, readUsers, type UserRow } from "./sources";
+import { toE164Display } from "@legalir/validation";
+import { matchesRow } from "@/lib/search/normalize";
+import { readSubscriptions, readUsers, type UserRow } from "./sources";
 import { resolveRange, withinWindow, type ResolvedRange } from "./range";
 
 /** The window a drill-down list should be scoped to. */
@@ -95,7 +97,7 @@ export interface DrillUserRow {
   id: string;
   publicId: string | null;
   displayName: string | null;
-  mobileMasked: string;
+  mobile: string;
   email: string | null;
   role: string;
   accountType: string;
@@ -132,7 +134,7 @@ function toDrillUser(u: UserRow, active: Set<string>): DrillUserRow {
     id: u.id,
     publicId: u.publicId ?? null,
     displayName: u.displayName,
-    mobileMasked: maskMobile(u.mobile),
+    mobile: toE164Display(u.mobile),
     email: u.email,
     role: u.role ?? "USER",
     accountType: u.platformAccountType ?? "PERSONAL",
@@ -162,12 +164,11 @@ export function listDrillUsers(
   }
   if (query.role) rows = rows.filter((u) => (u.role ?? "USER") === query.role);
   if (q) {
-    rows = rows.filter(
-      (u) =>
-        (u.displayName ?? "").toLowerCase().includes(q) ||
-        maskMobile(u.mobile).includes(q) ||
-        u.id.toLowerCase().includes(q) ||
-        (u.publicId ?? "").toLowerCase().includes(q)
+    rows = rows.filter((u) =>
+      matchesRow(query.search!, {
+        phones: [u.mobile],
+        texts: [u.displayName, u.id, u.publicId, toE164Display(u.mobile)],
+      })
     );
   }
 

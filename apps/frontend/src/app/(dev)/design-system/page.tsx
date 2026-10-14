@@ -61,7 +61,7 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
   return (
     <div>
       <h3 className="text-titleSmall text-onSurfaceVariant mb-2">{title}</h3>
-      <div className="flex flex-wrap items-center gap-3 p-3 bg-surfaceVariant/30 rounded-medium border border-divider/50">
+      <div className="flex flex-wrap items-center gap-3 p-3 bg-surface-container rounded-medium border border-divider">
         {children}
       </div>
     </div>
@@ -83,12 +83,12 @@ export default function DesignSystemPage() {
   return (
     <div className="min-h-screen bg-background" dir="rtl" lang="fa-IR">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm border-b border-divider">
+      <header className="sticky top-0 z-10 bg-surface backdrop-blur-sm border-b border-divider">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setDrawerOpen(true)}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08]"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover"
               aria-label="منو"
             >
               <IconMenu size={22} />
@@ -526,7 +526,7 @@ export default function DesignSystemPage() {
             {["گزینه اول", "گزینه دوم", "گزینه سوم"].map((item) => (
               <button
                 key={item}
-                className="w-full text-start p-3 rounded-medium hover:bg-onSurface/[0.08] transition-colors text-bodyMedium"
+                className="w-full text-start p-3 rounded-medium hover:bg-surface-hover transition-colors text-bodyMedium"
                 onClick={() => setDrawerOpen(false)}
               >
                 {item}

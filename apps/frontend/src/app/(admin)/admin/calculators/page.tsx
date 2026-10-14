@@ -64,7 +64,9 @@ import {
   TextInput,
   TextArea,
   Select,
+  Pagination,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { IconSettings, IconShieldCheck, IconHistory } from "@/lib/icons";
 
 const ACCESS_TIERS: CalculatorAccessTier[] = ["free", "subscription", "purchase", "restricted"];
@@ -147,6 +149,25 @@ export default function AdminCalculatorsPage() {
     return map;
   }, [rulesQuery.data]);
 
+  const boardRows = boardQuery.data?.items ?? [];
+  const boardPager = useClientPagination(boardRows);
+
+  const calculators = useMemo(
+    () =>
+      (query.data?.calculators ?? []).filter((c) =>
+        scope === "" ? true : scope === "available" ? c.available : !c.available
+      ),
+    [query.data, scope]
+  );
+  const calculatorsPager = useClientPagination(calculators);
+  const { reset: resetCalculatorsPage } = calculatorsPager;
+  useEffect(() => {
+    resetCalculatorsPage();
+  }, [resetCalculatorsPage, scope]);
+
+  const datasets = query.data?.datasets ?? [];
+  const datasetsPager = useClientPagination(datasets);
+
   return (
     <div>
       <PageHeader
@@ -196,7 +217,8 @@ export default function AdminCalculatorsPage() {
             isEmpty={(d) => d.items.length === 0}
             emptyMessage="ماشین‌حسابی یافت نشد."
           >
-            {(data) => (
+            {() => (
+              <>
               <DataTable
                 head={
                   <tr>
@@ -211,7 +233,7 @@ export default function AdminCalculatorsPage() {
                   </tr>
                 }
               >
-                {data.items.map((row) => {
+                {boardPager.pageItems.map((row) => {
                   const datasets = row.datasetIds
                     .map((id) => ruleByDataset.get(id))
                     .filter((x): x is CalculatorRuleSummary => Boolean(x));
@@ -302,6 +324,17 @@ export default function AdminCalculatorsPage() {
                   );
                 })}
               </DataTable>
+
+              <Pagination
+                page={boardPager.page}
+                pageSize={boardPager.pageSize}
+                total={boardPager.total}
+                totalPages={boardPager.totalPages}
+                itemLabel="محاسبه‌گر"
+                onPageChange={boardPager.setPage}
+                onPageSizeChange={boardPager.setPageSize}
+              />
+              </>
             )}
           </StateView>
         </Section>
@@ -360,11 +393,9 @@ export default function AdminCalculatorsPage() {
           isEmpty={(d) => d.calculators.length === 0}
           emptyMessage="ماشین‌حسابی ثبت نشده است."
         >
-          {(data) => {
-            const rows = data.calculators.filter((c) =>
-              scope === "" ? true : scope === "available" ? c.available : !c.available
-            );
+          {() => {
             return (
+              <>
               <DataTable
                 head={
                   <tr>
@@ -378,7 +409,7 @@ export default function AdminCalculatorsPage() {
                   </tr>
                 }
               >
-                {rows.map((c) => (
+                {calculatorsPager.pageItems.map((c) => (
                   <tr key={c.id} className={c.enabled ? "" : "opacity-60"}>
                     <Td className="max-w-[260px]">
                       <span
@@ -447,6 +478,17 @@ export default function AdminCalculatorsPage() {
                   </tr>
                 ))}
               </DataTable>
+
+              <Pagination
+                page={calculatorsPager.page}
+                pageSize={calculatorsPager.pageSize}
+                total={calculatorsPager.total}
+                totalPages={calculatorsPager.totalPages}
+                itemLabel="محاسبه‌گر"
+                onPageChange={calculatorsPager.setPage}
+                onPageSizeChange={calculatorsPager.setPageSize}
+              />
+              </>
             );
           }}
         </StateView>
@@ -462,7 +504,8 @@ export default function AdminCalculatorsPage() {
           isEmpty={(d) => d.datasets.length === 0}
           emptyMessage="مجموعه‌داده‌ای ثبت نشده است."
         >
-          {(data) => (
+          {() => (
+            <>
             <DataTable
               head={
                 <tr>
@@ -477,7 +520,7 @@ export default function AdminCalculatorsPage() {
                 </tr>
               }
             >
-              {data.datasets.map((d) => (
+              {datasetsPager.pageItems.map((d) => (
                 <tr key={d.id}>
                   <Td className="max-w-[240px]">
                     <span
@@ -537,6 +580,17 @@ export default function AdminCalculatorsPage() {
                 </tr>
               ))}
             </DataTable>
+
+            <Pagination
+              page={datasetsPager.page}
+              pageSize={datasetsPager.pageSize}
+              total={datasetsPager.total}
+              totalPages={datasetsPager.totalPages}
+              itemLabel="مجموعه‌داده"
+              onPageChange={datasetsPager.setPage}
+              onPageSizeChange={datasetsPager.setPageSize}
+            />
+            </>
           )}
         </StateView>
       </Section>

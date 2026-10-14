@@ -57,7 +57,7 @@ export default function ChatListPage() {
             <h1 className="text-h2 text-on-surface">گفتگوها</h1>
             <Link
               href={`/chat/new?service=${serviceType}`}
-              className="rounded-medium bg-primary text-white px-5 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
+              className="rounded-medium bg-primary text-primary-on px-5 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
             >
               گفتگوی جدید
             </Link>
@@ -79,7 +79,7 @@ export default function ChatListPage() {
       {/* Desktop empty state */}
       <main className="hidden tablet:flex flex-1 flex-col items-center justify-center p-8">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary-container flex items-center justify-center">
             <IconChat size={32} className="text-primary" />
           </div>
           <h2 className="text-h3 text-onSurface mb-2">
@@ -94,7 +94,7 @@ export default function ChatListPage() {
           </div>
           <Link
             href={`/chat/new?service=${serviceType}`}
-            className="inline-flex items-center gap-2 rounded-medium bg-primary text-white px-6 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
+            className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-6 py-3 text-button hover:bg-primary-variant transition-colors touch-target"
           >
             شروع گفتگوی جدید
           </Link>

@@ -37,7 +37,7 @@ const PAID_ORDER: AdminOrder = {
   referenceId: "sub-1",
   userId: "u1",
   userDisplayName: "زهرا محمدی",
-  userMobileMasked: "0912•••0003",
+  userMobileMasked: "0912****003",
   orgId: null,
   planCode: "gold",
   planNameFa: "اشتراک طلایی",
@@ -70,7 +70,7 @@ describe("buildOrderReceipt — paid order", () => {
     expect(r.paidAt).toBe("2026-03-10T09:30:00.000Z");
     expect(r.statusFa).toBe("موفق");
     expect(r.serviceFa).toBe("اشتراک طلایی");
-    expect(r.payerMobileMasked).toBe("0912•••0003");
+    expect(r.payerMobileMasked).toBe("0912****003");
     expect(r.gatewaySimulated).toBe(true);
     expect(r.hasDocument).toBe(true);
     expect(r.documentMime).toBe("application/pdf");
@@ -116,17 +116,17 @@ describe("buildOrderReceipt — unpaid order yields no receipt", () => {
     // The informational fields still reflect the real order — only the
     // receipt-specific ones are withheld.
     expect(r.amount).toBe(450_000);
-    expect(r.payerMobileMasked).toBe("0912•••0003");
+    expect(r.payerMobileMasked).toBe("0912****003");
   });
 });
 
 describe("maskMobile", () => {
-  it("keeps the first four and last four digits", () => {
-    expect(maskMobile("09120000003")).toBe("0912•••0003");
+  it("hides exactly the four middle digits with the panel-wide rule", () => {
+    expect(maskMobile("09120000003")).toBe("0912****003");
   });
 
-  it("falls back to a full mask for very short numbers", () => {
-    expect(maskMobile("123")).toBe("••••");
+  it("masks all but the last two digits for very short numbers", () => {
+    expect(maskMobile("123")).toBe("*23");
   });
 });
 

@@ -338,8 +338,8 @@ export default function DocumentDetailPage() {
       {/* (D) NO-MODEL mode — a real document, but no model connected */}
       {!aiStatusLoading && !scenario && !aiConnected && (
         <>
-          <div className="mt-6 flex items-start gap-3 rounded-large border border-warning/30 bg-warning/5 p-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/10">
+          <div className="mt-6 flex items-start gap-3 rounded-large border border-warning bg-warning-container p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-container">
               <IconWarning size={22} className="text-warning" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">

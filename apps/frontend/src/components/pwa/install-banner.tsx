@@ -92,7 +92,7 @@ export function InstallBanner() {
         role="region"
         aria-label="نصب لیگالیر"
         data-pwa-install-banner
-        className="desktop:hidden fixed inset-x-3 z-30 mx-auto flex max-w-[440px] animate-slide-up-fade flex-col gap-3 rounded-2xl border border-glass-border bg-glass-surface-strong p-3.5 backdrop-blur-xl [box-shadow:var(--bottom-nav-shadow)]"
+        className="desktop:hidden fixed inset-x-3 z-30 mx-auto flex max-w-[440px] animate-slide-up-fade flex-col gap-3 rounded-large border border-glass-border bg-glass-surface-strong p-3.5 backdrop-blur-xl [box-shadow:var(--bottom-nav-shadow)]"
         style={{ bottom: BANNER_BOTTOM }}
       >
         <div className="flex items-start gap-3">
@@ -101,7 +101,7 @@ export function InstallBanner() {
             alt=""
             width={40}
             height={40}
-            className="h-10 w-10 shrink-0 rounded-xl"
+            className="h-10 w-10 shrink-0 rounded-medium"
             draggable={false}
           />
           <div className="min-w-0 flex-1">
@@ -126,7 +126,7 @@ export function InstallBanner() {
           <button
             type="button"
             onClick={handleInstall}
-            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[color:var(--bottom-nav-accent)] px-4 text-labelLarge font-semibold text-[color:var(--bottom-nav-badge-text)] transition-[filter] hover:brightness-105 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bottom-nav-body)]"
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-medium bg-[color:var(--bottom-nav-accent)] px-4 text-labelLarge font-semibold text-[color:var(--bottom-nav-badge-text)] transition-[filter] hover:brightness-105 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bottom-nav-body)]"
           >
             <IconInstall size={18} />
             نصب لیگالیر
@@ -134,7 +134,7 @@ export function InstallBanner() {
           <button
             type="button"
             onClick={handleDismiss}
-            className="flex h-10 items-center justify-center rounded-xl px-4 text-labelLarge font-medium text-glass-ivory-muted transition-colors hover:bg-glass-state focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)]"
+            className="flex h-10 items-center justify-center rounded-medium px-4 text-labelLarge font-medium text-glass-ivory-muted transition-colors hover:bg-glass-state focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)]"
           >
             بعداً
           </button>
@@ -181,7 +181,7 @@ function InstallGuideSheet({
   return createPortal(
     <div className="fixed inset-0 z-[80]" role="presentation">
       <div
-        className="absolute inset-0 bg-scrim/50 animate-fade-in"
+        className="absolute inset-0 bg-scrim animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -213,7 +213,7 @@ function InstallGuideSheet({
             const Icon = STEP_ICON_MAP[step.icon];
             return (
               <li key={i} className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-50 text-secondary-700">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-medium bg-secondary-50 text-secondary-700">
                   <Icon size={20} />
                 </span>
                 <span className="pt-1.5 text-body-2 text-on-surface">{step.text}</span>
@@ -223,7 +223,7 @@ function InstallGuideSheet({
         </ol>
 
         {guide.note && (
-          <p className="mx-5 mb-6 rounded-xl bg-surface-container-low px-4 py-3 text-caption text-on-surface-variant">
+          <p className="mx-5 mb-6 rounded-medium bg-surface-container-low px-4 py-3 text-caption text-on-surface-variant">
             {guide.note}
           </p>
         )}

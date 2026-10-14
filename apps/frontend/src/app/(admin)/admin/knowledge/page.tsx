@@ -18,8 +18,9 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useKnowledgeInventory } from "@/hooks/useKnowledge";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   IconShield,
@@ -37,6 +38,7 @@ import {
   StateView,
   FilterPills,
   ExportButton,
+  Pagination,
 } from "@/components/admin/ui";
 import type { KnowledgeInventoryItem } from "@legalir/types";
 
@@ -115,6 +117,13 @@ export default function AdminKnowledgePage() {
   });
 
   const data = query.data;
+
+  const sources = data?.items ?? [];
+  const pager = useClientPagination(sources);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, tier, verificationStatus]);
 
   const tierCounts = useMemo(() => {
     const counts = data?.byTier ?? {};
@@ -202,12 +211,24 @@ export default function AdminKnowledgePage() {
         isEmpty={(d) => d.items.length === 0}
         emptyMessage="منبعی با این فیلتر یافت نشد."
       >
-        {(d) => (
-          <ul className="divide-y divide-divider overflow-hidden rounded-large border border-divider">
-            {d.items.map((item) => (
-              <SourceRow key={`${item.origin}-${item.id}`} item={item} />
-            ))}
-          </ul>
+        {() => (
+          <>
+            <ul className="divide-y divide-divider overflow-hidden rounded-large border border-divider">
+              {pager.pageItems.map((item) => (
+                <SourceRow key={`${item.origin}-${item.id}`} item={item} />
+              ))}
+            </ul>
+
+            <Pagination
+              page={pager.page}
+              pageSize={pager.pageSize}
+              total={pager.total}
+              totalPages={pager.totalPages}
+              itemLabel="منبع"
+              onPageChange={pager.setPage}
+              onPageSizeChange={pager.setPageSize}
+            />
+          </>
         )}
       </StateView>
 

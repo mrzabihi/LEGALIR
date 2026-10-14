@@ -34,10 +34,10 @@ const _STATUS_LABELS: Record<string, string> = {
 };
 
 const RISK_COLORS: Record<string, string> = {
-  low: "bg-success/10 text-success",
-  medium: "bg-warning/10 text-warning",
-  high: "bg-error/10 text-error",
-  critical: "bg-error/20 text-error",
+  low: "bg-success-container text-success",
+  medium: "bg-warning-container text-warning",
+  high: "bg-error-container text-error",
+  critical: "bg-error-container text-error",
 };
 
 interface ConversationListProps {
@@ -75,7 +75,7 @@ export function ConversationList({
           <h2 className="text-titleMedium text-onSurface">گفتگوها</h2>
           <Link
             href="/chat/new"
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary-variant transition-colors touch-target"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-primary-on hover:bg-primary-variant transition-colors touch-target"
             aria-label="گفتگوی جدید"
           >
             <IconAdd size={20} />
@@ -122,7 +122,7 @@ export function ConversationList({
             <p className="text-bodyMedium text-muted mb-3">گفتگویی ندارید</p>
             <Link
               href="/chat/new"
-              className="inline-flex items-center gap-2 rounded-medium bg-primary text-white px-4 py-2 text-button hover:bg-primary-variant transition-colors"
+              className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-4 py-2 text-button hover:bg-primary-variant transition-colors"
             >
               <IconAdd size={16} />
               شروع گفتگوی جدید
@@ -147,8 +147,8 @@ export function ConversationList({
                     "flex items-start gap-3 px-3 py-3 rounded-medium transition-colors",
                     "touch-target",
                     isActive
-                      ? "bg-primary/10"
-                      : "hover:bg-onSurface/[0.05]",
+                      ? "bg-primary-container"
+                      : "hover:bg-surface-hover",
                     isArchived ? "opacity-50 cursor-default" : "",
                   ].join(" ")}
                   aria-current={isActive ? "page" : undefined}

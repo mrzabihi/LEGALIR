@@ -18,6 +18,7 @@ import {
   requireContract,
 } from "@/lib/contracts/api-helpers";
 import { getVersion, listVersions } from "@/lib/contracts/db";
+import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { renderContractPdf } from "@/lib/contracts/pdf";
 
 interface Params {
@@ -47,10 +48,29 @@ export async function GET(request: Request, { params }: Params) {
   const version = getVersion(contract.id, versionId);
   if (!version) return notFound("نسخه یافت نشد");
 
+  // The stamp is drawn ONLY when the requested version still carries a
+  // valid, bound admin approval. This re-derives the gate from the
+  // version's OWN hash, so an older unapproved version can never be
+  // exported with the stamp, and a draft carries the watermark instead.
+  const approval = currentVersionApproval(contract, version.documentHash);
+
   const baseUrl = url.origin;
   let bytes: Uint8Array;
   try {
-    bytes = await renderContractPdf({ contract, version, baseUrl });
+    bytes = await renderContractPdf({
+      contract,
+      version,
+      baseUrl,
+      stamp: approval
+        ? {
+            applied: true,
+            reviewId: approval.id,
+            reviewedAt: approval.decidedAt ?? undefined,
+            reviewingOfficeFa: approval.reviewingOfficeFa,
+            reviewerInitials: approval.reviewerInitials,
+          }
+        : { applied: false },
+    });
   } catch {
     return conflict("تولید فایل PDF ناموفق بود.", "PDF_FAILED");
   }

@@ -72,9 +72,9 @@ export default function NotificationSettingsPage() {
       {/* Entry point to the history — preferences and history are distinct. */}
       <Link
         href="/notifications"
-        className="group mb-6 flex items-center gap-4 rounded-large border border-divider bg-surface p-5 shadow-elevation-1 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        className="group mb-6 flex items-center gap-4 rounded-large border border-divider bg-surface p-5 shadow-elevation-1 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary">
           <IconBell size={22} />
         </span>
         <div className="min-w-0 flex-1">

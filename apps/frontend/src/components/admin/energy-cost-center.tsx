@@ -50,6 +50,7 @@ import {
 } from "@/hooks/useAdmin";
 import type { SaveCostProfileInput } from "@/lib/api/admin";
 import { toPersianNumber, toPersianDate, toRelativeTime } from "@/lib/persian-utils";
+import { matchesText } from "@/lib/search/normalize";
 import {
   PageHeader,
   StatCard,
@@ -70,8 +71,10 @@ import {
   Tabs,
   ExportButton,
   InfoBanner,
+  Pagination,
   type TabItem,
 } from "@/components/admin/ui";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { LineChart, BarChart, DonutChart, ChartFrame, ChartEmpty } from "@/components/admin/charts";
 import {
   IconBolt,
@@ -124,8 +127,6 @@ const CREDIT_SOURCE_FA: Record<UsageLedgerEntry["creditSource"], string> = {
   REWARD: "پاداش",
   NONE: "—",
 };
-
-const PAGE_SIZE = 20;
 
 function errMessage(err: unknown, fallback: string): string {
   return err && typeof err === "object" && "message" in err
@@ -931,15 +932,18 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
 
   const items = profiles.data?.items ?? [];
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (p) =>
-        p.nameFa.toLowerCase().includes(q) ||
-        p.serviceKey.toLowerCase().includes(q) ||
-        ACTIVITY_LABEL[p.activity].toLowerCase().includes(q)
+    if (!search.trim()) return items;
+    // Shared normalisation lane (Persian/Arabic digits + letter forms).
+    return items.filter((p) =>
+      matchesText(search, p.nameFa, p.serviceKey, ACTIVITY_LABEL[p.activity])
     );
   }, [items, search]);
+
+  const pager = useClientPagination(filtered);
+  const { reset: resetProfilesPage } = pager;
+  useEffect(() => {
+    resetProfilesPage();
+  }, [resetProfilesPage, search]);
 
   async function toggleEnabled(p: ServiceCostProfile, enabled: boolean) {
     try {
@@ -980,6 +984,7 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
           filtered.length === 0 ? (
             <EmptyBlock message="سرویسی مطابق جست‌وجو یافت نشد." />
           ) : (
+            <>
             <DataTable
               minWidth={820}
               head={
@@ -994,7 +999,7 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
                 </tr>
               }
             >
-              {filtered.map((p) => {
+              {pager.pageItems.map((p) => {
                 const units = Object.entries(p.unitCosts);
                 const models = Object.keys(p.modelMultipliers);
                 return (
@@ -1057,6 +1062,17 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
                 );
               })}
             </DataTable>
+
+            <Pagination
+              page={pager.page}
+              pageSize={pager.pageSize}
+              total={pager.total}
+              totalPages={pager.totalPages}
+              itemLabel="سرویس"
+              onPageChange={pager.setPage}
+              onPageSizeChange={pager.setPageSize}
+            />
+            </>
           )
         }
       </StateView>
@@ -1076,7 +1092,6 @@ function LedgerSection() {
   const [serviceKey, setServiceKey] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [page, setPage] = useState(0);
 
   const query = useMemo(
     () => ({
@@ -1090,14 +1105,15 @@ function LedgerSection() {
 
   const ledger = useUsageLedger(query);
   const items = ledger.data?.items ?? [];
+  const pager = useClientPagination(items);
+  const { reset: resetLedgerPage } = pager;
 
   // Reset to the first page whenever the filter set changes.
   useEffect(() => {
-    setPage(0);
-  }, [query]);
+    resetLedgerPage();
+  }, [resetLedgerPage, query]);
 
-  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const pageItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const { pageItems } = pager;
   const serviceOptions = profiles.data?.items ?? [];
 
   return (
@@ -1228,32 +1244,15 @@ function LedgerSection() {
               ))}
             </DataTable>
 
-            {pageCount > 1 && (
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <span className="text-caption text-muted">
-                  {toPersianNumber(items.length)} تراکنش · صفحهٔ {toPersianNumber(page + 1)} از{" "}
-                  {toPersianNumber(pageCount)}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={page === 0}
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  >
-                    قبلی
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={page >= pageCount - 1}
-                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                  >
-                    بعدی
-                  </Button>
-                </div>
-              </div>
-            )}
+            <Pagination
+              page={pager.page}
+              pageSize={pager.pageSize}
+              total={pager.total}
+              totalPages={pager.totalPages}
+              itemLabel="تراکنش"
+              onPageChange={pager.setPage}
+              onPageSizeChange={pager.setPageSize}
+            />
           </>
         )}
       </StateView>

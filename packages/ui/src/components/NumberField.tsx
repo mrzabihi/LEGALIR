@@ -162,7 +162,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
                 group ? "tabular-nums" : "",
                 inputSize === "small" ? "text-bodySmall py-1.5" : "text-bodyMedium py-1.5",
                 "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100",
-                "placeholder:text-onSurfaceVariant/60 transition-opacity duration-short3",
+                "placeholder:text-muted transition-opacity duration-short3",
               ]
                 .filter(Boolean)
                 .join(" ")}

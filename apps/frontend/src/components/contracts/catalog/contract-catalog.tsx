@@ -28,6 +28,8 @@ import {
   populatedContractCategories,
   searchContractServices,
   type ContractCategoryId,
+  type ContractService,
+  type ContractServiceStatus,
 } from "@/lib/contract-services";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { IconContract, IconSparkle } from "@/lib/icons";
@@ -58,11 +60,19 @@ interface ContractCatalogProps {
    * by default so the standalone discovery page reads plain `?q=`/`?category=`.
    */
   paramPrefix?: string;
+  /**
+   * Restrict the catalog to a single lifecycle status. The «بزودی» panel
+   * passes `"coming-soon"` so an activated service disappears from the
+   * upcoming list the moment its status flips. Omitted → the whole
+   * catalog, preserving the standalone discovery page's behaviour.
+   */
+  filterStatus?: ContractServiceStatus;
 }
 
 export function ContractCatalog({
   embedded = false,
   paramPrefix = "",
+  filterStatus,
 }: ContractCatalogProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
@@ -98,12 +108,30 @@ export function ContractCatalog({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const results = useMemo(() => searchContractServices(query, category), [query, category]);
+  // Restrict to a single status when the host asks for it (the «بزودی»
+  // panel passes `"coming-soon"`). Filters every downstream list so an
+  // activated service leaves the upcoming view in one place.
+  const byStatus = useCallback(
+    (list: ContractService[]) =>
+      filterStatus ? list.filter((s) => s.status === filterStatus) : list,
+    [filterStatus]
+  );
+
+  const results = useMemo(
+    () => byStatus(searchContractServices(query, category)),
+    [query, category, byStatus]
+  );
 
   const isFiltering = query.trim() !== "" || category !== "all";
 
-  const popular = useMemo(() => popularContractServices(), []);
-  const populated = useMemo(() => populatedContractCategories(), []);
+  const popular = useMemo(() => byStatus(popularContractServices()), [byStatus]);
+  const populated = useMemo(
+    () =>
+      populatedContractCategories().filter(
+        (c) => byStatus(contractServicesByCategory(c.id)).length > 0
+      ),
+    [byStatus]
+  );
 
   return (
     <div
@@ -156,7 +184,7 @@ export function ContractCatalog({
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-primary-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               پاک کردن فیلترها
             </button>
@@ -214,7 +242,7 @@ export function ContractCatalog({
 
             <div className="space-y-8">
               {populated.map((cat) => {
-                const items = contractServicesByCategory(cat.id);
+                const items = byStatus(contractServicesByCategory(cat.id));
                 const CatIcon = cat.icon;
                 return (
                   <div key={cat.id} id={cat.anchor} className="scroll-mt-24">

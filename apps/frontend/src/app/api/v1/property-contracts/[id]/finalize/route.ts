@@ -23,9 +23,14 @@ import {
   requireContract,
 } from "@/lib/contracts/api-helpers";
 import { getVersion, listApprovals, listParties, updateContractForUser } from "@/lib/contracts/db";
+import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 import { evaluateRegistrationPolicy } from "@/lib/contracts/registration-policy";
+import {
+  CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
+  CONTRACT_REVIEW_STAMP_TEXT,
+} from "@legalir/types";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -55,6 +60,22 @@ export async function POST(request: Request, { params }: Params) {
     return conflict("همه طرفین باید قرارداد را امضا کنند.", "NOT_ALL_SIGNED");
   }
 
+  // THE COMPULSORY GATE: the signed content must carry a valid LEGALIR
+  // admin approval before a final version is stamped or issued. Because
+  // a snapshot is a deterministic function of the content, the approved
+  // hash and the signed version's hash must match; if the content moved
+  // on after approval the approval no longer holds.
+  const signedVersion = contract.currentVersionId
+    ? getVersion(contract.id, contract.currentVersionId)
+    : null;
+  const approval = currentVersionApproval(contract, signedVersion?.documentHash ?? null);
+  if (!approval) {
+    return conflict(
+      "نسخه امضاشده باید تأیید واحد بررسی حقوقی لیگالیر را داشته باشد.",
+      "ADMIN_APPROVAL_REQUIRED"
+    );
+  }
+
   const outcome = evaluateRegistrationPolicy(contract.type);
 
   try {
@@ -75,6 +96,21 @@ export async function POST(request: Request, { params }: Params) {
   });
   if (!updated) return conflict("نهایی‌سازی ناموفق بود.", "FINALIZE_FAILED");
 
+  // The review stamp is now part of the final document's metadata: the
+  // admin approval that authorised this exact version is recorded with
+  // the reviewer, the date and the disclaimer, so the stamp is never
+  // mistaken for a court/notary/registry seal.
+  const stamp = {
+    applied: true,
+    text: CONTRACT_REVIEW_STAMP_TEXT,
+    disclaimerFa: CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
+    reviewId: approval.id,
+    reviewedAt: approval.decidedAt,
+    reviewingOfficeFa: approval.reviewingOfficeFa,
+    reviewerId: approval.reviewerId,
+    reviewerInitials: approval.reviewerInitials,
+  };
+
   audit({
     contractId: contract.id,
     actorId: userId,
@@ -86,6 +122,7 @@ export async function POST(request: Request, { params }: Params) {
       documentHash: version.documentHash,
       postSignState: outcome.postSignState,
       requiresNotaryVisit: outcome.requiresNotaryVisit,
+      stamp,
     },
   });
 
@@ -105,6 +142,7 @@ export async function POST(request: Request, { params }: Params) {
       bodyFa: outcome.bodyFa,
       requiresNotaryVisit: outcome.requiresNotaryVisit,
     },
+    stamp,
   });
 }
 

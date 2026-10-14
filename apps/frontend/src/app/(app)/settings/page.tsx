@@ -99,15 +99,15 @@ export default function SettingsPage() {
           <Link
             key={card.href}
             href={card.href}
-            className={`group flex items-center gap-4 rounded-large border bg-surface p-5 shadow-elevation-1 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
-              card.tone === "danger" ? "border-error/40" : "border-divider"
+            className={`group flex items-center gap-4 rounded-large border bg-surface p-5 shadow-elevation-1 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              card.tone === "danger" ? "border-error" : "border-divider"
             }`}
           >
             <span
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium ${
                 card.tone === "danger"
-                  ? "bg-error/10 text-error"
-                  : "bg-primary/10 text-primary"
+                  ? "bg-error-container text-error"
+                  : "bg-primary-container text-primary"
               }`}
             >
               {card.icon}

@@ -170,7 +170,7 @@ function RelatedSources({
           <Link
             key={source.id}
             href={`/legal-library/${source.id}`}
-            className="flex items-start gap-3 p-4 rounded-large border border-divider bg-surface hover:border-primary-300 hover:bg-primary-50/50 transition-all group/source"
+            className="flex items-start gap-3 p-4 rounded-large border border-divider bg-surface hover:border-primary-300 hover:bg-primary-50 transition-all group/source"
           >
             <span className="inline-flex items-center justify-center h-8 w-8 rounded-medium bg-primary-50 text-primary-700 text-labelSmall shrink-0 mt-0.5 group-hover/source:bg-primary-100 transition-colors">
               <IconLinkSource size={16} />
@@ -207,7 +207,7 @@ function RelatedServices({
           <Link
             key={service.id}
             href={service.href}
-            className="p-5 rounded-large bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-100/50 hover:shadow-elevation-4 transition-all group/service"
+            className="p-5 rounded-large bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-100 hover:shadow-elevation-4 transition-all group/service"
           >
             <h4 className="text-titleMedium text-primary-800 mb-2 group-hover/service:text-primary-600 transition-colors">
               {service.title}
@@ -238,7 +238,7 @@ function PrevNext({
       {previousPost ? (
         <Link
           href={`/blog/${previousPost.slug}`}
-          className="group flex items-start gap-3 p-4 rounded-large border border-divider bg-surface hover:border-primary-300 hover:bg-primary-50/50 transition-all"
+          className="group flex items-start gap-3 p-4 rounded-large border border-divider bg-surface hover:border-primary-300 hover:bg-primary-50 transition-all"
         >
           <span className="text-muted group-hover:text-primary-600 transition-colors mt-0.5 shrink-0">
             <IconArrowForward size={20} />
@@ -257,7 +257,7 @@ function PrevNext({
       {nextPost && (
         <Link
           href={`/blog/${nextPost.slug}`}
-          className="group flex items-start gap-3 p-4 rounded-large border border-divider bg-surface hover:border-primary-300 hover:bg-primary-50/50 transition-all tablet:text-left"
+          className="group flex items-start gap-3 p-4 rounded-large border border-divider bg-surface hover:border-primary-300 hover:bg-primary-50 transition-all tablet:text-left"
         >
           <div className="min-w-0">
             <span className="text-caption text-muted block mb-1">مقاله بعدی</span>
@@ -404,12 +404,12 @@ export default async function BlogArticlePage({ params }: PageProps) {
     <>
       <header className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-12 tablet:py-16">
         <div className="mx-auto max-w-4xl px-4">
-          <div className="flex items-center gap-2 text-caption text-primary-200/70 mb-6">
+          <div className="flex items-center gap-2 text-caption text-primary-200 opacity-70 mb-6">
             <Link href="/blog" className="hover:text-white transition-colors">
               وبلاگ
             </Link>
-            <span className="text-primary-300/50">/</span>
-            <span className="text-primary-100/80">{post.category}</span>
+            <span className="text-primary-300 opacity-50">/</span>
+            <span className="text-primary-100 opacity-80">{post.category}</span>
           </div>
 
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-labelSmall bg-white/15 text-white/90 border border-white/20 mb-4">
@@ -419,17 +419,17 @@ export default async function BlogArticlePage({ params }: PageProps) {
 
           <h1 className="text-h1 text-white mb-4 leading-snug">{post.titleFa}</h1>
 
-          <div className="flex flex-wrap items-center gap-4 text-body-2 text-primary-100/70">
+          <div className="flex flex-wrap items-center gap-4 text-body-2 text-primary-100 opacity-70">
             <span className="flex items-center gap-1.5">
               <IconPerson size={16} />
               {post.author}
             </span>
-            <span className="text-primary-200/40 hidden tablet:inline">|</span>
+            <span className="text-primary-200 opacity-40 hidden tablet:inline">|</span>
             <span className="flex items-center gap-1.5">
               <IconCalendar size={16} />
               {publishedAt}
             </span>
-            <span className="text-primary-200/40 hidden tablet:inline">|</span>
+            <span className="text-primary-200 opacity-40 hidden tablet:inline">|</span>
             <span className="tabular-nums">{post.readingTime} دقیقه مطالعه</span>
           </div>
         </div>

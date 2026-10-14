@@ -296,7 +296,7 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
         <div className="flex gap-3">
           <button
             onClick={handleSubmit}
-            className="rounded-medium bg-primary text-white px-5 py-3 text-button touch-target"
+            className="rounded-medium bg-primary text-primary-on px-5 py-3 text-button touch-target"
           >
             تلاش مجدد
           </button>
@@ -389,14 +389,14 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
         {currentStep < totalSteps ? (
           <button
             onClick={handleNext}
-            className="rounded-medium bg-primary text-white px-6 py-3 text-button touch-target"
+            className="rounded-medium bg-primary text-primary-on px-6 py-3 text-button touch-target"
           >
             بعدی
           </button>
         ) : (
           <button
             onClick={handleSubmit}
-            className="rounded-medium bg-primary text-white px-6 py-3 text-button touch-target"
+            className="rounded-medium bg-primary text-primary-on px-6 py-3 text-button touch-target"
             aria-label="تولید پیش‌نویس قرارداد"
           >
             تولید پیش‌نویس

@@ -25,7 +25,7 @@ export function OfflineState() {
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="rounded-medium bg-primary text-white px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
+          className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
         >
           تلاش مجدد
         </button>
@@ -52,7 +52,7 @@ export function ForbiddenState({
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="rounded-large bg-surface p-8 shadow-elevation-4 max-w-md">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-warning/10 flex items-center justify-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-warning-container flex items-center justify-center">
           <svg
             width="32"
             height="32"
@@ -72,7 +72,7 @@ export function ForbiddenState({
         {actionLabel && onAction && (
           <button
             onClick={onAction}
-            className="rounded-medium bg-primary text-white px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
+            className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
           >
             {actionLabel}
           </button>
@@ -111,17 +111,17 @@ export function NotFoundState({
 export function SkeletonPageGrid({ count = 6 }: { count?: number }) {
   return (
     <div className="p-4 tablet:p-6 max-w-6xl mx-auto" aria-busy="true" aria-label="در حال بارگذاری">
-      <div className="h-8 w-48 rounded-medium bg-muted/20 mb-6 animate-pulse" />
+      <div className="h-8 w-48 rounded-medium bg-surface-container mb-6 animate-pulse" />
       <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-3 gap-4">
         {Array.from({ length: count }).map((_, i) => (
           <div
             key={i}
             className="rounded-large border border-divider bg-surface p-6 animate-pulse"
           >
-            <div className="mb-3 h-5 w-24 rounded-small bg-muted/20" />
-            <div className="mb-2 h-4 w-full rounded-small bg-muted/10" />
-            <div className="mb-2 h-4 w-3/4 rounded-small bg-muted/10" />
-            <div className="h-4 w-1/2 rounded-small bg-muted/10" />
+            <div className="mb-3 h-5 w-24 rounded-small bg-surface-container" />
+            <div className="mb-2 h-4 w-full rounded-small bg-surface-container" />
+            <div className="mb-2 h-4 w-3/4 rounded-small bg-surface-container" />
+            <div className="h-4 w-1/2 rounded-small bg-surface-container" />
           </div>
         ))}
       </div>
@@ -134,7 +134,7 @@ export function SkeletonPageGrid({ count = 6 }: { count?: number }) {
 export function SkeletonPageList({ count = 5 }: { count?: number }) {
   return (
     <div className="p-4 tablet:p-6 max-w-4xl mx-auto" aria-busy="true" aria-label="در حال بارگذاری">
-      <div className="h-8 w-48 rounded-medium bg-muted/20 mb-6 animate-pulse" />
+      <div className="h-8 w-48 rounded-medium bg-surface-container mb-6 animate-pulse" />
       <div className="space-y-3">
         {Array.from({ length: count }).map((_, i) => (
           <div
@@ -142,11 +142,11 @@ export function SkeletonPageList({ count = 5 }: { count?: number }) {
             className="rounded-large border border-divider bg-surface p-5 animate-pulse"
           >
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-muted/30 shrink-0" />
+              <div className="w-10 h-10 rounded-full bg-surface-container shrink-0" />
               <div className="flex-1 space-y-3">
-                <div className="h-5 bg-muted/30 rounded w-2/3" />
-                <div className="h-4 bg-muted/20 rounded w-1/3" />
-                <div className="h-4 bg-muted/20 rounded w-full" />
+                <div className="h-5 bg-surface-container rounded w-2/3" />
+                <div className="h-4 bg-surface-container rounded w-1/3" />
+                <div className="h-4 bg-surface-container rounded w-full" />
               </div>
             </div>
           </div>
@@ -167,7 +167,7 @@ export function RetryBanner({ message, onRetry }: RetryBannerProps) {
   return (
     <div
       role="alert"
-      className="rounded-large bg-error/5 border border-error/20 p-4 flex items-center justify-between gap-4"
+      className="rounded-large bg-error-container border border-error p-4 flex items-center justify-between gap-4"
     >
       <p className="text-body-2 text-error">{message}</p>
       <button

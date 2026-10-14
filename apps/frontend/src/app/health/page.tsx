@@ -211,9 +211,9 @@ export default function HealthPage() {
 
   const statusBadge = (status: CheckResult["status"]) => {
     const map = {
-      ok: { bg: "bg-success/10 text-success", label: "OK" },
-      warn: { bg: "bg-warning/10 text-warning", label: "WARN" },
-      fail: { bg: "bg-error/10 text-error", label: "FAIL" },
+      ok: { bg: "bg-success-container text-success", label: "OK" },
+      warn: { bg: "bg-warning-container text-warning", label: "WARN" },
+      fail: { bg: "bg-error-container text-error", label: "FAIL" },
     };
     const s = map[status];
     return (
@@ -248,7 +248,7 @@ export default function HealthPage() {
             <button
               onClick={rerun}
               disabled={running}
-              className="rounded-medium bg-primary px-4 py-2 text-sm text-white font-button hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="rounded-medium bg-primary px-4 py-2 text-sm text-primary-on font-button hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {running ? "در حال بررسی..." : "بررسی مجدد"}
             </button>
@@ -264,14 +264,14 @@ export default function HealthPage() {
         </div>
 
         {/* Results */}
-        <div className="rounded-large border border-muted/10 bg-surface">
+        <div className="rounded-large border border-divider bg-surface">
           {results.length === 0 && (
             <div className="p-8 text-center text-muted">در حال بررسی...</div>
           )}
           {results.map((r) => (
             <div
               key={r.name}
-              className="flex items-center justify-between gap-4 border-b border-muted/5 px-6 py-4 last:border-b-0"
+              className="flex items-center justify-between gap-4 border-b border-divider px-6 py-4 last:border-b-0"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-body-2 text-on-surface font-medium">{r.name}</p>
@@ -283,7 +283,7 @@ export default function HealthPage() {
         </div>
 
         {/* App info */}
-        <footer className="mt-8 rounded-large border border-muted/10 bg-surface p-6">
+        <footer className="mt-8 rounded-large border border-divider bg-surface p-6">
           <h2 className="text-h3 text-on-surface mb-3">اطلاعات برنامه</h2>
           <div className="grid gap-2 text-body-2">
             <InfoRow label="محیط" value={appEnv.isProduction ? "Production" : appEnv.isTest ? "Test" : "Development"} />
@@ -315,7 +315,7 @@ function SummaryCard({
   color?: string;
 }) {
   return (
-    <div className="rounded-medium border border-muted/10 bg-surface p-4 text-center">
+    <div className="rounded-medium border border-divider bg-surface p-4 text-center">
       <p className={`text-h2 ${color}`}>{value}</p>
       <p className="text-caption text-muted mt-1">{label}</p>
     </div>

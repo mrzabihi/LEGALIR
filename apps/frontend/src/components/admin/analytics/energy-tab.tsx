@@ -14,22 +14,24 @@
 
 import { useState } from "react";
 import {
+  Button,
   Card,
   DataTable,
+  Pagination,
   SearchInput,
   Section,
   StateView,
   StatCard,
   Td,
   Th,
-  Button,
 } from "@/components/admin/ui";
 import { BarChart, ChartEmpty, ChartFrame, DonutChart, catColor } from "@/components/admin/charts";
 import { useAnalyticsEnergy, useAnalyticsEnergyUsers } from "@/hooks/useAnalytics";
 import { toPersianNumber, toRelativeTime } from "@/lib/persian-utils";
+import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 import type { AnalyticsRangeQuery, EnergyUsersQuery } from "@/lib/api/analytics";
 import type { EnergyReport } from "@legalir/types";
-import { AnalyticsExportButton, Pager, QualityPanel, WindowCaption, comparisonTrend } from "./kit";
+import { AnalyticsExportButton, QualityPanel, WindowCaption, comparisonTrend } from "./kit";
 import { IconBolt, IconClock, IconCoin, IconRefresh } from "@/lib/icons";
 
 const KPI_GRID = "grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-4";
@@ -65,12 +67,13 @@ function EnergyBody({
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<NonNullable<EnergyUsersQuery["sort"]>>("balance");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
 
   const users = useAnalyticsEnergyUsers(range, {
     search: search || undefined,
     sort,
     page,
-    pageSize: 20,
+    pageSize,
   });
   const t = data.totals;
 
@@ -308,11 +311,16 @@ function EnergyBody({
                   </tr>
                 ))}
               </DataTable>
-              <Pager
+              <Pagination
                 page={pageData.page}
                 pageSize={pageData.pageSize}
                 total={pageData.total}
-                onChange={setPage}
+                itemLabel="کاربر"
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
               />
             </>
           )}

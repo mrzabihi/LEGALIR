@@ -40,6 +40,7 @@ import {
 } from "./sources";
 import { resolveRange, toWindowInfo, withinWindow, type ResolveRangeInput } from "./range";
 import { analyticsDataQuality } from "./quality";
+import { matchesRow } from "@/lib/search/normalize";
 
 const DAY_MS = 86_400_000;
 
@@ -438,12 +439,16 @@ export function listPurchaseRanking(
   });
 
   if (query.search) {
-    const q = query.search.trim().toLowerCase();
-    items = items.filter(
-      (r) =>
-        (r.displayName ?? "").toLowerCase().includes(q) ||
-        r.mobileMasked.includes(q) ||
-        r.userId.toLowerCase().includes(q)
+    // Shared normalisation lane: Persian/Arabic digits and letter forms fold to
+    // their western/latin equivalents before matching. The phone lane matches
+    // the RAW stored mobile — never the masked `0912***2174` — so a number query
+    // works even though the column renders masked; the raw value stays
+    // server-side and only `mobileMasked` is returned to the row.
+    items = items.filter((r) =>
+      matchesRow(query.search!, {
+        phones: [idx.get(r.userId)?.mobile],
+        texts: [r.displayName ?? "", r.mobileMasked, r.userId],
+      })
     );
   }
 

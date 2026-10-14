@@ -7,6 +7,7 @@
 "use client";
 
 import { useMe, useDashboardSummary, useUsageSummary, useBlogPosts } from "@/hooks/useDashboard";
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import {
   HeroSection,
   LibraryBanner,
@@ -38,13 +39,25 @@ export default function DashboardPage() {
   // Profile Completion Incentive — evaluates eligibility after data loads.
   const promptController = useProfileCompletionPrompt();
 
+  // Hydration guard. The shell (AppLayout/TopBar/Sidebar) fetches the shared
+  // `["me"]` query, and because `(app)/loading.tsx` nests this page in its own
+  // Suspense boundary the shell can hydrate — and resolve `me` — before this
+  // page does. React Query feeds the live `getCurrentResult()` to both
+  // snapshots, so without this flag the hydration render would read *resolved*
+  // data while the server rendered the loading branch → hydration mismatch.
+  // Passing `isPending || !hydrated` keeps the loading branch identical to the
+  // server until hydration completes; each widget's own `isLoading` prop is the
+  // same expression once hydrated.
+  const hydrated = useIsHydrated();
+  const loading = me.isPending || !hydrated;
+  const dashboardLoading = dashboard.isPending || !hydrated;
+  const blogLoading = blog.isPending || !hydrated;
+
   const displayName = me.data?.profile?.displayName ?? null;
   const activities = dashboard.data?.recentActivity;
-  // `isPending` (no data yet) — NOT `isLoading` (isPending && isFetching).
-  // During SSR no fetch starts, so `isLoading` is false on the server but true
-  // on the client's first render, which makes the loading branch a hydration
-  // mismatch. `isPending` is true on both sides, so the skeleton is stable.
-  const hasNoActivity = !dashboard.isPending && (!activities || activities.length === 0);
+  // `hasNoActivity` also gates the "شروع کنید!" empty-state CTA, so it must be
+  // false during the loading branch (the server's pending render).
+  const hasNoActivity = !dashboard.isPending && hydrated && (!activities || activities.length === 0);
 
   const heroStats = {
     dailyUsed: dashboard.data?.dailyTrialsUsed ?? 0,
@@ -62,7 +75,7 @@ export default function DashboardPage() {
       {/* ── 1) OVERVIEW ─────────────────────────────────────── */}
       <HeroSection
         displayName={displayName}
-        isLoading={me.isPending}
+        isLoading={loading}
         stats={heroStats}
       />
 
@@ -74,7 +87,7 @@ export default function DashboardPage() {
       {/* Profile Completion — from /api/v1/me */}
       <ProfileCompletionCard
         profile={me.data?.profile}
-        isLoading={me.isPending}
+        isLoading={loading}
       />
 
       {/* ── 2) ACTIONS ──────────────────────────────────────── */}
@@ -91,19 +104,19 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 items-stretch gap-4 mb-6">
         <RecentActivities
           items={activities}
-          isLoading={dashboard.isPending}
+          isLoading={dashboardLoading}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
         <ActiveRequests
           items={dashboard.data?.activeRequests ?? []}
-          isLoading={dashboard.isPending}
+          isLoading={dashboardLoading}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
         <SmartRecommendations
           items={dashboard.data?.recommendations ?? []}
-          isLoading={dashboard.isPending}
+          isLoading={dashboardLoading}
           error={dashboard.error as Error | null}
           onRetry={() => dashboard.refetch()}
         />
@@ -132,7 +145,7 @@ export default function DashboardPage() {
 
       <RecentDocuments
         items={dashboard.data?.recentDocuments ?? []}
-        isLoading={dashboard.isPending}
+        isLoading={dashboardLoading}
         error={dashboard.error as Error | null}
         onRetry={() => dashboard.refetch()}
       />
@@ -152,10 +165,10 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {blog.isPending ? (
+        {blogLoading ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-32 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
+              <div key={i} className="h-32 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
             ))}
           </div>
         ) : blog.data?.items && blog.data.items.length > 0 ? (
@@ -164,7 +177,7 @@ export default function DashboardPage() {
               <Link
                 key={post.id}
                 href={`/blog/${post.slug}`}
-                className="group rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+                className="group rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
               >
                 <span className="inline-flex items-center gap-1 w-fit text-caption text-secondary-700 bg-secondary-50 border border-[color-mix(in_srgb,var(--color-secondary-200)_60%,transparent)] rounded-full px-2.5 py-0.5 mb-3">
                   {post.category}
@@ -182,7 +195,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-6 text-center">
+          <div className="rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-6 text-center">
             <p className="text-body-2 text-muted">هنوز مطلبی در وبلاگ منتشر نشده است.</p>
           </div>
         )}
@@ -190,9 +203,9 @@ export default function DashboardPage() {
 
       {/* Empty state CTA when no activity exists */}
       {hasNoActivity && (
-        <section className="mb-6 rounded-2xl bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-8 text-center">
+        <section className="mb-6 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-8 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
+            <div className="h-16 w-16 rounded-large bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
@@ -207,7 +220,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href={getServiceById("legal_consultation")?.href ?? "/chat"}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-5 py-2.5 text-body-2 font-medium hover:bg-primary-600 transition-colors touch-target shadow-elevation-1"
+              className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-5 py-2.5 text-body-2 font-medium hover:bg-primary-600 hover:text-white transition-colors touch-target shadow-elevation-1"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -216,7 +229,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href={getServiceById("document_analysis")?.href ?? "/documents"}
-              className="inline-flex items-center gap-2 rounded-xl border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-medium border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -226,7 +239,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href={getServiceById("contract_drafting")?.href ?? "/contracts"}
-              className="inline-flex items-center gap-2 rounded-xl border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
+              className="inline-flex items-center gap-2 rounded-medium border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

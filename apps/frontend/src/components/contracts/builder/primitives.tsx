@@ -232,7 +232,7 @@ export function ToggleRow({
   return (
     <label
       className={`flex items-start justify-between gap-4 rounded-medium border border-divider px-3 py-2.5 cursor-pointer transition-colors ${
-        checked ? "bg-primary-50/60 border-primary/30" : "bg-surface"
+        checked ? "bg-primary-container border-primary" : "bg-surface"
       } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
     >
       <span className="min-w-0">
@@ -396,10 +396,10 @@ export function Notice({
   children: React.ReactNode;
 }) {
   const tones: Record<string, string> = {
-    info: "bg-info-50 border-info/30 text-on-surface",
-    warning: "bg-warning-50 border-warning/40 text-on-surface",
-    success: "bg-success-50 border-success/30 text-on-surface",
-    error: "bg-error-50 border-error/30 text-on-surface",
+    info: "bg-info-container border-info text-on-surface",
+    warning: "bg-warning-container border-warning text-on-surface",
+    success: "bg-success-container border-success text-on-surface",
+    error: "bg-error-container border-error text-on-surface",
   };
   return (
     <div className={`rounded-medium border px-3 py-2.5 text-body-2 ${tones[tone]}`}>

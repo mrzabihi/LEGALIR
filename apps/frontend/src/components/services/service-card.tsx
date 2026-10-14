@@ -86,7 +86,7 @@ export function ServiceCard({ item }: ServiceCardProps) {
                 <span
                   key={refId}
                   title={law.title}
-                  className="inline-flex items-center rounded-full border border-primary/15 bg-primary/5 px-2.5 py-0.5 text-caption text-primary-700"
+                  className="inline-flex items-center rounded-full border border-primary bg-primary-container px-2.5 py-0.5 text-caption text-primary"
                 >
                   {law.articleSection}
                 </span>

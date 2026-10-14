@@ -25,15 +25,14 @@
 // The centre button is a verb *and* a destination: tapping it first sends the
 // user to `/new` (the full «ساخت جدید» launcher) and then raises the sheet, so
 // dismissing the sheet never dumps the user back on the previous page — they
-// land on the launcher they just "opened". A pending-arrival ref keeps the
-// sheet's own navigation from being mistaken for a normal route change (which
-// still closes the sheet, preserving the tap-a-destination behaviour above).
+// land on the launcher they just "opened". That create flow lives in
+// `useCreateAction` (shared with the desktop sidebar), so both entry points
+// behave identically.
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { bottomNavDestinations, getActiveBottomNavPath } from "@/lib/routes";
 import {
   IconHome,
@@ -44,6 +43,7 @@ import {
   IconClose,
 } from "@/lib/icons";
 import { CreateActionSheet } from "./create-action-sheet";
+import { useCreateAction } from "./use-create-action";
 
 const NAV_ICON_MAP: Record<
   string,
@@ -61,41 +61,10 @@ const NAV_ICON_MAP: Record<
 
 export function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const activePath = getActiveBottomNavPath(pathname);
 
-  const [sheetOpen, setSheetOpen] = useState(false);
-
-  // Set while the centre button is navigating to `/new` *and* opening the
-  // sheet, so the route-change effect below can tell "I opened the launcher"
-  // apart from "the user tapped a destination" (which must close the sheet).
-  const openingLauncherRef = useRef(false);
-
-  const closeSheet = () => setSheetOpen(false);
-
-  // The centre action: land on `/new` first, then raise the sheet. The
-  // launcher stays mounted underneath, so dismissing the sheet leaves the
-  // user on the full «ساخت جدید» page (their goal was never the sheet alone).
-  function handleCenterAction() {
-    if (sheetOpen) {
-      openingLauncherRef.current = false;
-      setSheetOpen(false);
-      return;
-    }
-    openingLauncherRef.current = true;
-    if (pathname !== "/new") router.push("/new");
-    setSheetOpen(true);
-  }
-
-  // Close the sheet on any route change (link tap, browser back/forward) —
-  // except the arrival at `/new` that our own centre tap just triggered, which
-  // must keep the sheet up over the launcher.
-  useEffect(() => {
-    const isOwnLauncherArrival = openingLauncherRef.current && pathname === "/new";
-    openingLauncherRef.current = false;
-    if (isOwnLauncherArrival) return;
-    setSheetOpen(false);
-  }, [pathname]);
+  // The create flow is shared with the desktop sidebar (see useCreateAction).
+  const { open: sheetOpen, toggle: handleCenterAction, close: closeSheet } = useCreateAction();
 
   return (
     <>
@@ -193,7 +162,7 @@ export function BottomNav() {
         </span>
       </nav>
 
-      <CreateActionSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <CreateActionSheet open={sheetOpen} onClose={closeSheet} />
     </>
   );
 }

@@ -26,7 +26,9 @@ import {
   useAdminPlans,
   useAdminMe,
 } from "@/hooks/useAdmin";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
+import { matchesText } from "@/lib/search/normalize";
 import type { AdminCouponDraft, AdminCouponRow } from "@/lib/api/admin";
 import { Dialog, snackbar } from "@legalir/ui";
 import { COUPON_KIND_FA } from "@legalir/types";
@@ -47,6 +49,7 @@ import {
   Section,
   SearchInput,
   FilterPills,
+  Pagination,
 } from "@/components/admin/ui";
 
 // ---------------------------------------------------------------------------
@@ -615,19 +618,23 @@ export default function AdminCouponsPage() {
   }, [plansQuery.data]);
 
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const rows = coupons.data?.items ?? [];
     return rows
       .filter((c) => (statusFilter === "all" ? true : c.status === statusFilter))
       .filter(
         (c) =>
-          !q ||
-          c.code.toLowerCase().includes(q) ||
-          c.title.toLowerCase().includes(q) ||
-          (c.eligiblePlans ?? []).some((p) => p.toLowerCase().includes(q))
+          !search.trim() ||
+          // Shared normalisation lane (Persian/Arabic digits + letter forms).
+          matchesText(search, c.code, c.title, ...(c.eligiblePlans ?? []))
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [coupons.data, search, statusFilter]);
+
+  const pager = useClientPagination(visible);
+  const { reset: resetPager } = pager;
+  useEffect(() => {
+    resetPager();
+  }, [resetPager, search, statusFilter]);
 
   async function changeStatus(id: string, status: CouponStatus) {
     try {
@@ -678,6 +685,7 @@ export default function AdminCouponsPage() {
         emptyMessage="کد تخفیفی با این فیلتر یافت نشد."
       >
         {() => (
+          <>
           <DataTable
             head={
               <tr>
@@ -691,7 +699,7 @@ export default function AdminCouponsPage() {
               </tr>
             }
           >
-            {visible.map((c) => {
+            {pager.pageItems.map((c) => {
               const meta = STATUS_META[c.status];
               const transitions = ALLOWED_STATUS_TRANSITIONS[c.status];
               const totalLabel = c.totalUses === 0 ? "نامحدود" : toPersianNumber(c.totalUses);
@@ -775,6 +783,17 @@ export default function AdminCouponsPage() {
               );
             })}
           </DataTable>
+
+          <Pagination
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={pager.total}
+            totalPages={pager.totalPages}
+            itemLabel="کد تخفیف"
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </StateView>
 

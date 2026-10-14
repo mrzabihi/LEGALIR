@@ -6,7 +6,8 @@
 // operator works with: avatar, professional rank, issuing organisation,
 // primary specialty, cities, experience, displayed rating + review count,
 // verification state, lifecycle (فعال/غیرفعال/معلق/حذف‌شده), featured flag,
-// masked applicant mobile and the last recorded decision.
+// the applicant mobile (full `mobile` + a four-middle-digit `mobileMasked`) and
+// the last recorded decision.
 //
 // This reads the SAME profile rows the public /lawyers marketplace reads, so
 // a change here is reflected there immediately (there is no second copy).
@@ -25,32 +26,28 @@ import {
   toAdminLawyerListItem,
   resolveAdminLifecycle,
 } from "@/lib/lawyer-db";
-import { findUserById, normalizeStoredMobile } from "@/lib/db";
+import { findUserById } from "@/lib/db";
 import {
   lawyerDecisionBucket,
   taxonomySearchText,
-  normalizeFa,
   type LawyerDecisionBucket,
   type LawyerVerificationStatus,
   type AdminLawyerStatus,
 } from "@legalir/types";
+import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
+import { matchesRow } from "@/lib/search/normalize";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 
 const BUCKETS: LawyerDecisionBucket[] = ["REVIEW", "APPROVED", "REJECTED", "SUSPENDED"];
 const LIFECYCLES: AdminLawyerStatus[] = ["ACTIVE", "INACTIVE", "SUSPENDED", "DELETED"];
-
-/** Mask a mobile for the admin listing (first 4 + last 4). */
-function maskMobile(mobile: string | undefined): string {
-  if (!mobile) return "—";
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
-}
 
 export async function GET(request: NextRequest) {
   const auth = requirePermission(request, "admin:lawyer:read");
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
+  const page = resolvePage(url.searchParams.get("page"));
+  const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
   const bucketParam = url.searchParams.get("bucket");
   const statusParam = url.searchParams.get("status");
   const lifecycleParam = url.searchParams.get("lifecycle");
@@ -71,34 +68,35 @@ export async function GET(request: NextRequest) {
   if (featuredParam === "false") rows = rows.filter((l) => l.featured !== true);
 
   if (search) {
-    const q = normalizeFa(search.toLowerCase());
     rows = rows.filter((l) => {
       const user = findUserById(l.userId);
       const specialtyLabels = [
         ...(l.expertise ?? []).map((e) => taxonomySearchText(e.taxonomyNodeId)),
         ...l.specializations.map((s) => taxonomySearchText(s.category)),
       ].join(" ");
-      const haystack = normalizeFa(
-        [
+      // Phone lane matches the FULL stored mobile (so `09122842174` works), the
+      // text lane keeps the existing Persian-normalized name/licence/city match.
+      return matchesRow(search, {
+        phones: [user?.mobile],
+        texts: [
           l.fullName,
-          l.licenseNumber ?? "",
-          l.licenseAuthority ?? "",
+          l.licenseNumber,
+          l.licenseAuthority,
           specialtyLabels,
           ...l.locations.map((loc) => `${loc.province} ${loc.city}`),
-          maskMobile(user?.mobile),
-        ].join(" ")
-      );
-      return haystack.includes(q);
+        ],
+      });
     });
   }
 
-  const items = rows
+  const mapped = rows
     .map((l) => {
       const decision = latestStatusDecision(l.id);
       const user = findUserById(l.userId);
       return toAdminLawyerListItem(
         l,
-        maskMobile(user?.mobile),
+        user?.mobile ?? "",
+        maskMobileMiddle(user?.mobile),
         decision
           ? {
               newStatus: decision.newStatus as LawyerVerificationStatus,
@@ -112,5 +110,8 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-  return NextResponse.json({ data: { items, total: items.length } });
+  const p = paginate(mapped, page, pageSize);
+  return NextResponse.json({
+    data: { items: p.items, total: p.total, page: p.page, pageSize: p.pageSize, totalPages: p.totalPages },
+  });
 }

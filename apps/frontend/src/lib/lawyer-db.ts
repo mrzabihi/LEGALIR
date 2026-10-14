@@ -2,13 +2,15 @@
 // LEGALIR — Lawyer Domain (JSON tables + queries)
 // ============================================================
 // Tables:
-//   lawyer_profiles  — one row per lawyer (LawyerProfile)
-//   lawyer_reviews   — client reviews (feeds performance.averageRating)
+//   lawyer_profiles        — one row per lawyer (LawyerProfile)
+//   lawyer_reviews         — client reviews (feeds performance.averageRating)
+//   lawyer_review_events   — append-only moderation history per review
+//   lawyer_review_reports  — reports filed against a review
 //
 // Performance metrics are DERIVED from real events, never fabricated:
 //   acceptedRequests / completedCases  ← legal_requests + cases
 //   medianResponseMinutes              ← request acceptance timestamps
-//   averageRating / reviewCount        ← lawyer_reviews
+//   averageRating / reviewCount        ← PUBLISHED lawyer_reviews only
 // ============================================================
 
 import { readTable, writeTable } from "./db";
@@ -24,6 +26,9 @@ import type {
   LawyerDetail,
   LawyerReview,
   LawyerReviewRecord,
+  LawyerReviewStatus,
+  LawyerReviewEligibility,
+  LawyerReviewReportRecord,
   LawyerDisplaySettings,
   LawyerMarketplaceVisibility,
   AdminLawyerStatus,
@@ -51,10 +56,53 @@ export interface LawyerReviewRow {
   comment: string;
   /** Soft-hide flag set by a review moderator. Absent = visible. */
   hidden?: boolean;
+  /**
+   * Moderation lifecycle. Absent (legacy rows) means the review predates the
+   * status model and was already published, so it reads as PUBLISHED.
+   * `hidden` is kept in lock-step with this for any legacy reader.
+   */
+  status?: LawyerReviewStatus;
   /** Review tied to a completed engagement. Absent = false. */
   verifiedEngagement?: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+/** One append-only record of a review's moderation state change. */
+export interface LawyerReviewEventRow {
+  id: string;
+  reviewId: string;
+  lawyerId: string;
+  fromStatus: LawyerReviewStatus | null;
+  toStatus: LawyerReviewStatus;
+  /** Mandatory justification when a moderator acts. */
+  reason: string | null;
+  actorUserId: string;
+  actorRole: string;
+  createdAt: string;
+}
+
+/** A filed report against a review (its own lifecycle). */
+export interface LawyerReviewReportRow {
+  id: string;
+  reviewId: string;
+  lawyerId: string;
+  reporterUserId: string | null;
+  reason: string;
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  resolutionNote: string | null;
+  resolvedByUserId: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * The moderation lifecycle of a review row. Legacy rows carry no `status`;
+ * they were visible before the field existed, so they read as PUBLISHED.
+ */
+export function reviewStatus(row: LawyerReviewRow): LawyerReviewStatus {
+  if (row.status) return row.status;
+  return row.hidden ? "HIDDEN" : "PUBLISHED";
 }
 
 /**
@@ -92,13 +140,24 @@ export function getLawyerProfileByUserId(userId: string): LawyerProfile | undefi
 }
 
 /**
- * The PUBLIC reviews for a lawyer — hidden reviews are excluded, so a
- * moderation action immediately changes the visible list AND the derived
- * rating (both read through this function).
+ * The review statuses visible on the public profile. A REPORTED review is
+ * still shown (and still counted) — it only leaves the public surface once a
+ * moderator HIDEs or REJECTs it. This keeps "report" a flag, not a removal.
+ */
+const PUBLICLY_VISIBLE_REVIEW_STATUSES: ReadonlySet<LawyerReviewStatus> = new Set([
+  "PUBLISHED",
+  "REPORTED",
+]);
+
+/**
+ * The PUBLIC reviews for a lawyer — PENDING, HIDDEN and REJECTED rows are
+ * excluded, so a moderation action immediately changes the visible list AND
+ * the derived rating (both read through this function). A REPORTED review
+ * stays visible until a moderator decides it.
  */
 export function listLawyerReviews(lawyerId: string): LawyerReviewRow[] {
   return readTable<LawyerReviewRow>("lawyer_reviews")
-    .filter((r) => r.lawyerId === lawyerId && !r.hidden)
+    .filter((r) => r.lawyerId === lawyerId && PUBLICLY_VISIBLE_REVIEW_STATUSES.has(reviewStatus(r)))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -109,20 +168,258 @@ export function listLawyerReviewRows(lawyerId: string): LawyerReviewRow[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** The admin-facing review records (with hide state) for a lawyer. */
+/** The admin-facing review records (with moderation state) for a lawyer. */
 export function listLawyerReviewRecords(lawyerId: string): LawyerReviewRecord[] {
-  return listLawyerReviewRows(lawyerId).map((r) => ({
-    id: r.id,
-    lawyerId: r.lawyerId,
-    authorName: "کاربر لگالیر",
-    authorUserId: r.authorUserId || null,
-    rating: r.rating,
-    comment: r.comment,
-    hidden: Boolean(r.hidden),
-    verifiedEngagement: Boolean(r.verifiedEngagement),
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt ?? r.createdAt,
-  }));
+  const reports = readTable<LawyerReviewReportRow>("lawyer_review_reports");
+  return listLawyerReviewRows(lawyerId).map((r) => {
+    const status = reviewStatus(r);
+    return {
+      id: r.id,
+      lawyerId: r.lawyerId,
+      authorName: "کاربر لگالیر",
+      authorUserId: r.authorUserId || null,
+      rating: r.rating,
+      comment: r.comment,
+      hidden: status === "HIDDEN" || status === "REJECTED",
+      status,
+      openReports: reports.filter((rep) => rep.reviewId === r.id && rep.status === "OPEN").length,
+      verifiedEngagement: Boolean(r.verifiedEngagement),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt ?? r.createdAt,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Review moderation history & reports
+// ---------------------------------------------------------------------------
+
+/** Append one moderation record for a review. */
+export function recordReviewEvent(row: LawyerReviewEventRow): LawyerReviewEventRow {
+  const rows = readTable<LawyerReviewEventRow>("lawyer_review_events");
+  rows.push(row);
+  writeTable("lawyer_review_events", rows);
+  return row;
+}
+
+/** The moderation history for a review, oldest first. */
+export function listReviewEvents(reviewId: string): LawyerReviewEventRow[] {
+  return readTable<LawyerReviewEventRow>("lawyer_review_events")
+    .filter((e) => e.reviewId === reviewId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/** The reports filed against a review, newest first. */
+export function listReviewReports(reviewId: string): LawyerReviewReportRow[] {
+  return readTable<LawyerReviewReportRow>("lawyer_review_reports")
+    .filter((r) => r.reviewId === reviewId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function createReviewReport(row: LawyerReviewReportRow): LawyerReviewReportRow {
+  const rows = readTable<LawyerReviewReportRow>("lawyer_review_reports");
+  rows.push(row);
+  writeTable("lawyer_review_reports", rows);
+  return row;
+}
+
+/** Resolve every OPEN report on a review at once. Returns how many changed. */
+export function resolveReviewReports(
+  reviewId: string,
+  status: "RESOLVED" | "DISMISSED",
+  resolutionNote: string | null,
+  resolvedByUserId: string
+): number {
+  const rows = readTable<LawyerReviewReportRow>("lawyer_review_reports");
+  let changed = 0;
+  const now = new Date().toISOString();
+  for (const r of rows) {
+    if (r.reviewId === reviewId && r.status === "OPEN") {
+      r.status = status;
+      r.resolutionNote = resolutionNote;
+      r.resolvedByUserId = resolvedByUserId;
+      r.resolvedAt = now;
+      changed += 1;
+    }
+  }
+  if (changed > 0) writeTable("lawyer_review_reports", rows);
+  return changed;
+}
+
+/**
+ * Apply a moderation transition to a review: it sets the new status (keeping
+ * the legacy `hidden` mirror in step) and appends an event so the change is
+ * never silent. Returns the updated row, or undefined when not found.
+ */
+export function moderateReview(params: {
+  lawyerId: string;
+  reviewId: string;
+  toStatus: LawyerReviewStatus;
+  reason: string | null;
+  actorUserId: string;
+  actorRole: string;
+}): LawyerReviewRow | undefined {
+  const rows = readTable<LawyerReviewRow>("lawyer_reviews");
+  const idx = rows.findIndex((r) => r.id === params.reviewId && r.lawyerId === params.lawyerId);
+  if (idx === -1) return undefined;
+  const prev = rows[idx]!;
+  const fromStatus = reviewStatus(prev);
+  const now = new Date().toISOString();
+  const next: LawyerReviewRow = {
+    ...prev,
+    status: params.toStatus,
+    hidden: params.toStatus === "HIDDEN" || params.toStatus === "REJECTED",
+    updatedAt: now,
+  };
+  rows[idx] = next;
+  writeTable("lawyer_reviews", rows);
+  recordReviewEvent({
+    id: `lrev-${crypto.randomUUID()}`,
+    reviewId: params.reviewId,
+    lawyerId: params.lawyerId,
+    fromStatus,
+    toStatus: params.toStatus,
+    reason: params.reason,
+    actorUserId: params.actorUserId,
+    actorRole: params.actorRole,
+    createdAt: now,
+  });
+  return next;
+}
+
+/** The viewer's own review of a lawyer (any status), if any. */
+export function findReviewByUser(lawyerId: string, userId: string): LawyerReviewRow | undefined {
+  return listLawyerReviewRows(lawyerId).find((r) => r.authorUserId === userId);
+}
+
+/**
+ * True when `userId` has a genuinely COMPLETED (or closed-after-completion)
+ * consultation with `lawyerId`. A review may only be filed against a real,
+ * finished engagement — never a request still in flight, declined or
+ * cancelled. This is the eligibility gate the review routes enforce.
+ */
+export function hasCompletedEngagement(userId: string, lawyerId: string): boolean {
+  return listRequestsForLawyer(lawyerId).some((r) => {
+    if (r.userId !== userId) return false;
+    if (r.state === "COMPLETED") return true;
+    // CLOSED is reachable from CANCELLED and DECLINED too (see
+    // LEGAL_REQUEST_TRANSITIONS) and neither of those is a lawyer-only move, so
+    // a bare CLOSED row proves nothing — a client could cancel-then-close an
+    // untouched request to forge a "verified" review. Only a request whose
+    // history actually reached COMPLETED counts: the genuine closed-after-
+    // completion case.
+    if (r.state !== "CLOSED") return false;
+    return listRequestEvents(r.id).some((e) => e.toState === "COMPLETED");
+  });
+}
+
+/** How long (days) after submitting a review the author may still edit it. */
+export const REVIEW_EDIT_WINDOW_DAYS = 30;
+
+/** The instant after which a review's author may no longer edit it. */
+export function reviewEditDeadline(row: LawyerReviewRow): string {
+  return new Date(new Date(row.createdAt).getTime() + REVIEW_EDIT_WINDOW_DAYS * 86_400_000).toISOString();
+}
+
+/**
+ * What `userId` may do about reviewing `lawyerId`, computed server-side so the
+ * UI never guesses. `existing` is the viewer's own review (any status).
+ */
+export function buildReviewEligibility(lawyerId: string, userId: string): LawyerReviewEligibility {
+  const existing = findReviewByUser(lawyerId, userId);
+  const engaged = hasCompletedEngagement(userId, lawyerId);
+
+  if (existing) {
+    const editableUntil = reviewEditDeadline(existing);
+    const withinWindow = Date.now() < new Date(editableUntil).getTime();
+    const editable = withinWindow && existing.status !== "REJECTED";
+    return {
+      canReview: editable,
+      reason: editable ? null : withinWindow
+        ? "این نظر رد شده است و قابل ویرایش نیست."
+        : "مهلت ویرایش نظر شما به پایان رسیده است.",
+      existing: {
+        id: existing.id,
+        rating: existing.rating,
+        comment: existing.comment,
+        status: reviewStatus(existing),
+        createdAt: existing.createdAt,
+        updatedAt: existing.updatedAt ?? existing.createdAt,
+        editableUntil,
+      },
+    };
+  }
+
+  return {
+    canReview: engaged,
+    reason: engaged
+      ? null
+      : "برای ثبت نظر باید یک مشاورهٔ تکمیل‌شده با این وکیل داشته باشید.",
+    existing: null,
+  };
+}
+
+/**
+ * Submit a client review, or edit the viewer's existing one. On create a new
+ * row starts PENDING (a moderator publishes it); on edit the status is left
+ * untouched and only the content changes. Returns the stored row.
+ */
+export function upsertClientReview(params: {
+  lawyerId: string;
+  authorUserId: string;
+  rating: number;
+  comment: string;
+  verifiedEngagement: boolean;
+  /** When set, replaces the row's content (edit path). */
+  replaceId?: string;
+}): LawyerReviewRow {
+  const rows = readTable<LawyerReviewRow>("lawyer_reviews");
+  const now = new Date().toISOString();
+  if (params.replaceId) {
+    const idx = rows.findIndex((r) => r.id === params.replaceId && r.authorUserId === params.authorUserId);
+    if (idx !== -1) {
+      const next: LawyerReviewRow = {
+        ...rows[idx]!,
+        rating: params.rating,
+        comment: params.comment,
+        updatedAt: now,
+      };
+      rows[idx] = next;
+      writeTable("lawyer_reviews", rows);
+      return next;
+    }
+  }
+  const row: LawyerReviewRow = {
+    id: `lrw-${crypto.randomUUID()}`,
+    lawyerId: params.lawyerId,
+    authorUserId: params.authorUserId,
+    rating: params.rating,
+    comment: params.comment,
+    status: "PENDING",
+    hidden: false,
+    verifiedEngagement: params.verifiedEngagement,
+    createdAt: now,
+    updatedAt: now,
+  };
+  rows.push(row);
+  writeTable("lawyer_reviews", rows);
+  return row;
+}
+
+/** A report record projected for the admin surface. */
+export function toReviewReportRecord(row: LawyerReviewReportRow): LawyerReviewReportRecord {
+  return {
+    id: row.id,
+    reviewId: row.reviewId,
+    lawyerId: row.lawyerId,
+    reporterUserId: row.reporterUserId,
+    reason: row.reason,
+    status: row.status,
+    resolutionNote: row.resolutionNote,
+    resolvedByUserId: row.resolvedByUserId,
+    resolvedAt: row.resolvedAt,
+    createdAt: row.createdAt,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +576,20 @@ export function resolveDisplay(
 }
 
 /**
+ * Whether synthetic/demo lawyer rows may be served to clients. Demo data is
+ * seeded only in development (see `lib/db.ts`), but a `.data` snapshot taken
+ * in dev can still be deployed — so the two public gates below hard-drop demo
+ * rows whenever the app runs in production. This is the env/API-level split
+ * the brief asks for: a real environment never renders «نمونه» profiles.
+ *
+ * Admins are unaffected: every admin surface reads `listLawyerProfiles`
+ * directly, not these public gates, so demo rows stay manageable in the panel.
+ */
+export function demoLawyersVisible(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
+/**
  * Whether a profile may be served on the PUBLIC site. The single gate the
  * public detail route uses: a profile must be VERIFIED (or SUSPENDED, whose
  * profile stays reachable for transparency) AND actually published — a HIDDEN
@@ -287,6 +598,7 @@ export function resolveDisplay(
  * can never disagree.
  */
 export function isPubliclyViewable(profile: LawyerProfile): boolean {
+  if (profile.isDemo && !demoLawyersVisible()) return false;
   if ((profile.visibility ?? "PUBLIC") === "HIDDEN") return false;
   if (profile.deletedAt) return false;
   return profile.verificationStatus === "VERIFIED" || profile.verificationStatus === "SUSPENDED";
@@ -424,6 +736,8 @@ export function queryLawyers(filters: LawyerSearchFilters): LawyerListResponse {
   // Marketplace visibility: HIDDEN profiles never appear in the listing. A
   // SUSPENDED lawyer stays visible (transparency) — see withStatusAvailability.
   rows = rows.filter((l) => (l.visibility ?? "PUBLIC") !== "HIDDEN");
+  // Demo rows are seeded in dev only; never leak them to a real environment.
+  if (!demoLawyersVisible()) rows = rows.filter((l) => !l.isDemo);
 
   /** Every taxonomy node id a lawyer is tagged on. */
   const nodesOf = (l: LawyerProfile): string[] => {
@@ -693,18 +1007,27 @@ export function setAvatar(
   return updateLawyerProfile(id, { avatarUrl, avatarType });
 }
 
-/** Hide or restore a single review (soft moderation). */
+/**
+ * Hide or restore a single review (soft moderation). Thin wrapper over
+ * `moderateReview` so the legacy call site and the new status model share one
+ * code path — the hide flag and the status can never drift apart.
+ */
 export function setReviewHidden(
   lawyerId: string,
   reviewId: string,
-  hidden: boolean
+  hidden: boolean,
+  actor?: { userId: string; role: string }
 ): boolean {
-  const rows = readTable<LawyerReviewRow>("lawyer_reviews");
-  const idx = rows.findIndex((r) => r.id === reviewId && r.lawyerId === lawyerId);
-  if (idx === -1) return false;
-  rows[idx] = { ...rows[idx]!, hidden, updatedAt: new Date().toISOString() };
-  writeTable("lawyer_reviews", rows);
-  return true;
+  return Boolean(
+    moderateReview({
+      lawyerId,
+      reviewId,
+      toStatus: hidden ? "HIDDEN" : "PUBLISHED",
+      reason: null,
+      actorUserId: actor?.userId ?? "system",
+      actorRole: actor?.role ?? "system",
+    })
+  );
 }
 
 /** Permanently remove a review row. */
@@ -722,6 +1045,7 @@ export function deleteReviewRow(lawyerId: string, reviewId: string): boolean {
  */
 export function toAdminLawyerListItem(
   profile: LawyerProfile,
+  mobile: string,
   mobileMasked: string,
   lastDecision: {
     newStatus: LawyerVerificationStatus;
@@ -761,6 +1085,7 @@ export function toAdminLawyerListItem(
     deletedAt: profile.deletedAt ?? null,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
+    mobile,
     mobileMasked,
     bucket,
     lastDecision,

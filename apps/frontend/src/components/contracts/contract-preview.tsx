@@ -63,9 +63,9 @@ export function ContractPreview({ version, disclaimer }: ContractPreviewProps) {
                   <span
                     className={`text-caption rounded-small px-2 py-0.5 ${
                       clause.importance === "essential"
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary-container text-primary"
                         : clause.importance === "recommended"
-                          ? "bg-blue-100 text-blue-700"
+                          ? "bg-info-container text-info-700"
                           : "bg-surface-container text-muted"
                     }`}
                   >

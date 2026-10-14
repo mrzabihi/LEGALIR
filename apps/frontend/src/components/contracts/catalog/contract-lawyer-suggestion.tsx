@@ -81,7 +81,7 @@ export function ContractLawyerSuggestion({
         </div>
         <Link
           href="/lawyers"
-          className="hidden shrink-0 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 tablet:inline"
+          className="hidden shrink-0 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary tablet:inline"
         >
           مشاهده همه وکلا
         </Link>
@@ -96,12 +96,12 @@ export function ContractLawyerSuggestion({
       )}
 
       {isError && !loading && (
-        <div className="flex flex-col items-center gap-2 rounded-large bg-error/10 p-5 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-large bg-error-container p-5 text-center">
           <p className="text-body-2 text-error">دریافت فهرست وکلا با مشکل مواجه شد.</p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-caption text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-caption text-primary transition hover:bg-primary-container"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -123,7 +123,7 @@ export function ContractLawyerSuggestion({
         </div>
       )}
 
-      <p className="mt-4 text-[11px] leading-relaxed text-on-surface-variant/70">
+      <p className="mt-4 text-[11px] leading-relaxed text-on-surface-variant opacity-70">
         {toPersianNumber(lawyers.length)} وکیل از میان وکلای تأییدشده نمایش داده شده است. وکلای
         نمونه با نشان «نمونه» مشخص می‌شوند.
       </p>

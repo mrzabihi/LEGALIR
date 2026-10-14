@@ -96,7 +96,7 @@ export default function SupportPage() {
         <div className="desktop:col-span-3 space-y-6">
           {/* FAQ Section */}
           <section
-            className={`rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 ${
+            className={`rounded-large bg-surface p-6 shadow-elevation-1 border border-divider ${
               tab === "faq" ? "" : "hidden desktop:block"
             }`}
           >
@@ -107,7 +107,7 @@ export default function SupportPage() {
                 return (
                   <div
                     key={faq.id}
-                    className="rounded-xl border border-divider/40 overflow-hidden"
+                    className="rounded-medium border border-divider overflow-hidden"
                   >
                     <button
                       onClick={() => setOpenFaq(isOpen ? null : faq.id)}
@@ -145,14 +145,14 @@ export default function SupportPage() {
 
           {/* Contact Info */}
           <section
-            className={`rounded-2xl bg-surface p-6 shadow-sm border border-divider/60 ${
+            className={`rounded-large bg-surface p-6 shadow-elevation-1 border border-divider ${
               tab === "contact" ? "" : "hidden desktop:block"
             }`}
           >
             <h2 className="text-h3 text-on-surface mb-4 font-bold">تماس با ما</h2>
             <div className="grid tablet:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container/50 border border-divider/30">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="flex items-start gap-3 p-4 rounded-medium bg-surface-container border border-divider">
+                <div className="h-10 w-10 rounded-medium bg-primary-container flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
                     <rect x="2" y="4" width="20" height="16" rx="2" />
                     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
@@ -164,8 +164,8 @@ export default function SupportPage() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container/50 border border-divider/30">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="flex items-start gap-3 p-4 rounded-medium bg-surface-container border border-divider">
+                <div className="h-10 w-10 rounded-medium bg-primary-container flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                   </svg>
@@ -176,8 +176,8 @@ export default function SupportPage() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container/50 border border-divider/30">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="flex items-start gap-3 p-4 rounded-medium bg-surface-container border border-divider">
+                <div className="h-10 w-10 rounded-medium bg-primary-container flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
                     <circle cx="12" cy="10" r="3" />
                     <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z" />
@@ -189,8 +189,8 @@ export default function SupportPage() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container/50 border border-divider/30">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="flex items-start gap-3 p-4 rounded-medium bg-surface-container border border-divider">
+                <div className="h-10 w-10 rounded-medium bg-primary-container flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 6v6l4 2" />
@@ -207,7 +207,7 @@ export default function SupportPage() {
 
         {/* Right column: AI Assistant */}
         <div className={`desktop:col-span-2 ${tab === "chat" ? "" : "hidden desktop:block"}`}>
-          <div className="rounded-2xl bg-surface shadow-sm border border-divider/60 overflow-hidden min-h-[500px]">
+          <div className="rounded-large bg-surface shadow-elevation-1 border border-divider overflow-hidden min-h-[500px]">
             <AiAssistantPanel pageContext="support" mode="page" />
           </div>
         </div>

@@ -25,6 +25,7 @@ import type {
   ConsultationMessageView,
   ConsultationViewerRole,
   LegalRequest,
+  LegalRequestEvent,
   V1DocumentDetail,
 } from "@legalir/types";
 
@@ -49,6 +50,25 @@ function senderName(senderUserId: string, lawyerUserId: string | null): string {
     return lawyerDisplayName(senderUserId);
   }
   return displayName(senderUserId);
+}
+
+/**
+ * Project a request event for the client/lawyer timeline. The raw row carries
+ * the actor's user id and possibly an internal note; neither belongs in the
+ * case room. `internal` events keep their state change (the timeline still
+ * shows *that* the status moved) but their note is replaced with a neutral
+ * label, and the raw `actorId` is dropped entirely.
+ */
+function toTimelineEvent(ev: LegalRequestEvent): LegalRequestEvent {
+  return {
+    id: ev.id,
+    requestId: ev.requestId,
+    fromState: ev.fromState,
+    toState: ev.toState,
+    actorRole: ev.actorRole,
+    note: ev.noteVisibility === "internal" ? "تغییر وضعیت توسط پشتیبانی" : ev.note,
+    createdAt: ev.createdAt,
+  };
 }
 
 /** Attachment metadata for the documents linked to a request. */
@@ -101,7 +121,7 @@ export function buildConsultationDetail(
 
   return {
     request,
-    events: listRequestEvents(request.id),
+    events: listRequestEvents(request.id).map(toTimelineEvent),
     viewerRole,
     lawyer: lawyerProfile ? toLawyerDetail(lawyerProfile) : null,
     messages,

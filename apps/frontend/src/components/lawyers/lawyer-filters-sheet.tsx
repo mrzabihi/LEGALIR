@@ -116,7 +116,7 @@ function Chip({
         "shrink-0 rounded-full border px-3 py-1.5 text-caption font-medium transition-all",
         selected
           ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-          : "border-divider/60 bg-surface text-on-surface hover:border-control-selected/50",
+          : "border-divider bg-surface text-on-surface hover:border-control-selected",
       ].join(" ")}
     >
       {children}
@@ -165,7 +165,7 @@ export function LawyerFiltersSheet({
   return createPortal(
     <div className="fixed inset-0 z-[60]" role="presentation">
       <div
-        className="absolute inset-0 bg-scrim/40 animate-fade-in"
+        className="absolute inset-0 bg-scrim animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -186,7 +186,7 @@ export function LawyerFiltersSheet({
             type="button"
             onClick={onClose}
             aria-label="بستن"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <IconClose size={20} />
           </button>
@@ -212,7 +212,7 @@ export function LawyerFiltersSheet({
             </div>
 
             {dependentSpecialties.length > 0 && (
-              <div className="mt-3 rounded-xl border border-divider/60 bg-surface-container/40 p-3">
+              <div className="mt-3 rounded-medium border border-divider bg-surface-container p-3">
                 <p className="mb-2 text-caption text-muted">زیرتخصص</p>
                 <div className="flex flex-wrap gap-2">
                   {dependentSpecialties.map((s) => (
@@ -371,7 +371,7 @@ export function LawyerFiltersSheet({
           <button
             type="button"
             onClick={() => setDraft(EMPTY_LAWYER_FILTERS)}
-            className="flex-1 rounded-xl border border-divider/60 bg-surface px-4 py-3 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="flex-1 rounded-medium border border-divider bg-surface px-4 py-3 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             پاک کردن
           </button>
@@ -381,7 +381,7 @@ export function LawyerFiltersSheet({
               onApply(draft);
               onClose();
             }}
-            className="flex-1 rounded-xl bg-primary px-4 py-3 text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-[0.98]"
+            className="flex-1 rounded-medium bg-primary px-4 py-3 text-button font-medium text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
           >
             اعمال فیلترها
           </button>

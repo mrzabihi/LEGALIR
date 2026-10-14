@@ -127,7 +127,7 @@ export default function ForgotPasswordPage() {
 
   // ---- Render ----
   return (
-    <div className="rounded-large bg-neutral-0/95 backdrop-blur-sm p-8 shadow-elevation-8 border border-neutral-200/50">
+    <div className="rounded-large bg-surface backdrop-blur-sm p-8 shadow-elevation-8 border border-divider">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-h2 text-neutral-900 mb-2">بازیابی رمز عبور</h1>
@@ -232,7 +232,7 @@ export default function ForgotPasswordPage() {
 
           {requestError && (
             <div
-              className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error"
+              className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error"
               role="alert"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -301,7 +301,7 @@ export default function ForgotPasswordPage() {
           )}
 
           {verifyError && (
-            <div className="flex items-center justify-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error" role="alert">
+            <div className="flex items-center justify-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error" role="alert">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
@@ -383,7 +383,7 @@ export default function ForgotPasswordPage() {
           />
 
           {(step3Error || resetError) && (
-            <div className="flex items-center gap-2 rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error" role="alert">
+            <div className="flex items-center gap-2 rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error" role="alert">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />

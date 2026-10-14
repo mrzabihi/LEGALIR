@@ -26,9 +26,9 @@ function CandidateCard({ candidate }: { candidate: MatchCandidate }) {
   return (
     <Link
       href={`/lawyers/${lawyer.id}`}
-      className="group flex items-center gap-3 rounded-xl border border-divider/60 bg-surface p-3 transition-all hover:border-primary/40 hover:shadow-elevation-1"
+      className="group flex items-center gap-3 rounded-medium border border-divider bg-surface p-3 transition-all hover:border-primary hover:shadow-elevation-1"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary">
         <IconPerson size={22} />
       </div>
       <div className="min-w-0 flex-1">
@@ -37,14 +37,14 @@ function CandidateCard({ candidate }: { candidate: MatchCandidate }) {
             {lawyer.fullName}
           </span>
           {lawyer.isDemo && (
-            <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-caption text-amber-700">
+            <span className="shrink-0 rounded-full border border-warning bg-warning-container px-1.5 py-0.5 text-caption text-warning">
               نمونه
             </span>
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-caption text-muted">
           {rating !== null && (
-            <span className="inline-flex items-center gap-1 text-amber-600">
+            <span className="inline-flex items-center gap-1 text-warning">
               <IconStar size={12} />
               {toPersianNumber(rating)}
             </span>
@@ -85,7 +85,7 @@ export function EscalationCta({ category }: { category?: string | null }) {
       {match.isPending && (
         <div className="space-y-2">
           {Array.from({ length: INLINE_MATCH_LIMIT }).map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-surface-container" />
+            <div key={i} className="h-16 animate-pulse rounded-medium bg-surface-container" />
           ))}
         </div>
       )}
@@ -99,7 +99,7 @@ export function EscalationCta({ category }: { category?: string | null }) {
       )}
 
       {!match.isPending && candidates.length === 0 && (
-        <p className="rounded-xl bg-surface-container px-3 py-3 text-bodySmall text-muted">
+        <p className="rounded-medium bg-surface-container px-3 py-3 text-bodySmall text-muted">
           {category
             ? "در حال حاضر وکیلی برای این موضوع در دسترس نیست. می‌توانید فهرست کامل را ببینید."
             : "موضوع گفتگو مشخص نشده است. فهرست کامل وکلا را ببینید."}
@@ -108,7 +108,7 @@ export function EscalationCta({ category }: { category?: string | null }) {
 
       <Link
         href={marketplaceHref}
-        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-5 py-3 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98]"
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-5 py-3 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98]"
       >
         مشاهده سایر وکلا
         {categoryLabel ? ` در ${categoryLabel}` : ""}

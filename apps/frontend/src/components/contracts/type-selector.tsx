@@ -102,7 +102,7 @@ export function ContractTypeSelector({
           disabled={!selectedType}
           className={`rounded-medium px-6 py-3 text-button transition-colors touch-target ${
             selectedType
-              ? "bg-primary text-white hover:bg-primary-dark"
+              ? "bg-primary text-primary-on hover:bg-primary-700 hover:text-white"
               : "bg-surface-container text-muted cursor-not-allowed"
           }`}
           aria-label="ادامه به پرسشنامه"

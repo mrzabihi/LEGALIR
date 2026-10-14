@@ -56,7 +56,7 @@ function AttachmentCard({ attachment }: { attachment: V1ContractAttachment }) {
         aria-expanded={open}
         className="w-full flex items-start gap-3 p-4 text-right hover:bg-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <span className="h-10 w-10 rounded-medium bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+        <span className="h-10 w-10 rounded-medium bg-primary-container flex items-center justify-center shrink-0 mt-0.5">
           <IconFile size={20} className="text-primary" />
         </span>
         <span className="flex-1 min-w-0">
@@ -81,9 +81,9 @@ function AttachmentCard({ attachment }: { attachment: V1ContractAttachment }) {
       </button>
 
       {open && (
-        <div className="border-t border-divider bg-surface-container/40 p-4 space-y-3">
+        <div className="border-t border-divider bg-surface-container p-4 space-y-3">
           {attachment.sections.map((section) => (
-            <div key={section.id} className="rounded-medium bg-surface p-3 border border-divider/60">
+            <div key={section.id} className="rounded-medium bg-surface p-3 border border-divider">
               <h4 className="text-body-2 font-medium text-onSurface mb-1.5">
                 {section.title}
               </h4>

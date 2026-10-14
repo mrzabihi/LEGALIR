@@ -19,6 +19,7 @@ import {
   requireContract,
 } from "@/lib/contracts/api-helpers";
 import { getVersion, listVersions } from "@/lib/contracts/db";
+import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { renderContractDocx } from "@/lib/contracts/docx";
 
 interface Params {
@@ -48,9 +49,25 @@ export async function GET(request: Request, { params }: Params) {
   const version = getVersion(contract.id, versionId);
   if (!version) return notFound("نسخه یافت نشد");
 
+  // The stamp is drawn ONLY for a version that still carries a valid,
+  // bound admin approval; an unapproved version is watermarked.
+  const approval = currentVersionApproval(contract, version.documentHash);
+
   let bytes: Uint8Array;
   try {
-    bytes = renderContractDocx({ contract, version });
+    bytes = renderContractDocx({
+      contract,
+      version,
+      stamp: approval
+        ? {
+            applied: true,
+            reviewId: approval.id,
+            reviewDateIso: approval.decidedAt ?? undefined,
+            reviewingOfficeFa: approval.reviewingOfficeFa,
+            reviewerInitials: approval.reviewerInitials,
+          }
+        : { applied: false },
+    });
   } catch {
     return conflict("تولید فایل Word ناموفق بود.", "DOCX_FAILED");
   }

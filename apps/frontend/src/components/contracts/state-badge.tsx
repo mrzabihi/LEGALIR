@@ -7,21 +7,21 @@ import { V1_CONTRACT_STATE_LABELS } from "@legalir/types";
 
 const stateStyles: Record<V1ContractState, string> = {
   draft: "bg-surface-container text-muted border border-divider",
-  collecting: "bg-amber-50 text-amber-700 border border-amber-200",
-  generated: "bg-blue-50 text-blue-700 border border-blue-200",
-  under_review: "bg-purple-50 text-purple-700 border border-purple-200",
-  approved: "bg-green-50 text-green-700 border border-green-200",
-  exported: "bg-teal-50 text-teal-700 border border-teal-200",
+  collecting: "bg-warning-container text-warning border border-warning",
+  generated: "bg-info-container text-info-700 border border-info-300",
+  under_review: "bg-secondary-container text-secondary-variant border border-secondary-300",
+  approved: "bg-success-container text-success border border-success-300",
+  exported: "bg-surface-container-high text-muted border border-divider",
   archived: "bg-surface-container-high text-muted border border-divider",
 };
 
 const stateDotColors: Record<V1ContractState, string> = {
   draft: "bg-muted",
-  collecting: "bg-amber-500",
-  generated: "bg-blue-500",
-  under_review: "bg-purple-500",
-  approved: "bg-green-500",
-  exported: "bg-teal-500",
+  collecting: "bg-warning",
+  generated: "bg-info",
+  under_review: "bg-secondary",
+  approved: "bg-success",
+  exported: "bg-surface-container-highest",
   archived: "bg-muted",
 };
 

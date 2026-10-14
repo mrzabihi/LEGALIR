@@ -12,8 +12,10 @@
 // ============================================================
 
 import type { ContractVerificationInfo } from "@legalir/types";
+import { CONTRACT_REVIEW_STAMP_TEXT } from "@legalir/types";
 import { notFound, ok } from "@/lib/contracts/api-helpers";
 import { getContractByPublicId, getVersion, listParties } from "@/lib/contracts/db";
+import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { verificationStatusFa } from "@/lib/contracts/registration-policy";
 
 interface Params {
@@ -36,6 +38,11 @@ export async function GET(_request: Request, { params }: Params) {
     .map((p) => `${p.identity.firstName} ${p.identity.lastName}`.trim())
     .filter((n) => n.length > 0);
 
+  // The stamp is derived, never stored: it is shown only when the
+  // FINAL version still carries a valid, bound admin approval — the
+  // same check the sign/finalize gates use. Public-safe fields only.
+  const approval = currentVersionApproval(contract, version.documentHash);
+
   const info: ContractVerificationInfo = {
     referenceCode: contract.referenceCode,
     typeFa: contract.typeFa,
@@ -44,6 +51,15 @@ export async function GET(_request: Request, { params }: Params) {
     finalizedAt: contract.finalizedAt ?? version.createdAt,
     statusFa: verificationStatusFa(contract.type, contract.state),
     partyNames,
+    reviewed: approval !== null,
+    ...(approval
+      ? {
+          stampLabelFa: CONTRACT_REVIEW_STAMP_TEXT,
+          reviewedAt: approval.decidedAt ?? undefined,
+          reviewingOfficeFa: approval.reviewingOfficeFa,
+          reviewId: approval.id,
+        }
+      : {}),
   };
 
   return ok(info);

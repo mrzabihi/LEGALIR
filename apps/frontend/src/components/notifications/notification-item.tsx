@@ -112,7 +112,7 @@ export function NotificationItem({ item, onActivate, compact = false }: Notifica
   const className = [
     "flex items-start gap-3 w-full text-start transition-colors duration-short3 ease-standard",
     compact ? "px-4 py-3" : "px-4 py-3.5",
-    item.read ? "hover:bg-surface-container/60" : "bg-primary/[0.04] hover:bg-primary/[0.07]",
+    item.read ? "hover:bg-surface-container" : "bg-primary-container",
   ].join(" ");
 
   const ariaLabel = `${CATEGORY_LABEL[item.category]}: ${item.title}${item.read ? "" : " — خوانده‌نشده"}`;

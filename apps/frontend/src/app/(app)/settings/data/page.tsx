@@ -57,7 +57,7 @@ export default function DataSettingsPage() {
           <button
             type="button"
             disabled
-            className="inline-flex items-center gap-1.5 rounded-full border border-error/30 px-4 py-2 text-body-2 text-error opacity-50 cursor-not-allowed transition"
+            className="inline-flex items-center gap-1.5 rounded-full border border-error px-4 py-2 text-body-2 text-error opacity-50 cursor-not-allowed transition"
           >
             <IconDelete size={16} />
             حذف تاریخچه خروجی‌ها

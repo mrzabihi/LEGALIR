@@ -27,12 +27,16 @@ import {
   updateLawyerProfile,
   resolveAdminLifecycle,
   listLawyerReviewRecords,
+  listLawyerReviewRows,
+  listReviewEvents,
+  listReviewReports,
+  toReviewReportRecord,
 } from "@/lib/lawyer-db";
 import {
   findUserById,
   listMessagesForLawyerProfile,
-  normalizeStoredMobile,
 } from "@/lib/db";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
 import { recordAudit } from "@/lib/admin/audit";
 import { requestMeta, readJson } from "@/lib/admin/http";
 import {
@@ -44,12 +48,9 @@ import {
   type LawyerPricing,
 } from "@legalir/types";
 
-/** Mask a mobile (first 4 + last 4) — the panel never shows a full number. */
+/** Mask a mobile with the panel-wide rule (four middle digits) for the drawer. */
 function maskMobile(mobile: string | undefined): string {
-  if (!mobile) return "—";
-  const m = normalizeStoredMobile(mobile);
-  if (m.length <= 8) return "••••";
-  return `${m.slice(0, 4)}•••${m.slice(-4)}`;
+  return maskMobileMiddle(mobile);
 }
 
 export async function GET(
@@ -70,6 +71,18 @@ export async function GET(
   const messages = listMessagesForLawyerProfile(id);
   const reviews = listLawyerReviewRecords(id);
   const latest = history[0] ?? null;
+
+  // Per-review moderation history + reports, so the drawer can show why a
+  // review is withheld and who decided — without a second round-trip.
+  const moderation = Object.fromEntries(
+    listLawyerReviewRows(id).map((r) => [
+      r.id,
+      {
+        events: listReviewEvents(r.id),
+        reports: listReviewReports(r.id).map(toReviewReportRecord),
+      },
+    ])
+  );
 
   return NextResponse.json({
     data: {
@@ -94,10 +107,13 @@ export async function GET(
       lastDecision: latest,
       messages,
       reviews,
+      /** reviewId → { events, reports }, for the drawer's moderation panel. */
+      moderation,
       stats: {
         messagesSent: messages.length,
         decisions: history.length,
         reviews: reviews.length,
+        openReports: reviews.reduce((n, r) => n + r.openReports, 0),
       },
     },
   });

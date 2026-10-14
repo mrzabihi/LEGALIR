@@ -40,7 +40,7 @@ export default function ContactPage() {
       <section className="bg-gradient-to-b from-primary-800 to-primary-900 text-white py-16 tablet:py-20">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <h1 className="text-h1 text-white mb-4">تماس با LEGALIR</h1>
-          <p className="text-body-1 text-primary-100/80 max-w-xl mx-auto leading-relaxed">
+          <p className="text-body-1 text-primary-100 opacity-80 max-w-xl mx-auto leading-relaxed">
             ما آماده پاسخگویی به سوالات و دریافت نظرات شما هستیم
           </p>
         </div>
@@ -54,9 +54,9 @@ export default function ContactPage() {
               <Link
                 key={method.title}
                 href={method.href}
-                className="rounded-xl bg-surface p-6 shadow-sm hover:shadow-elevation-4 transition-all border border-neutral-200 text-center group"
+                className="rounded-medium bg-surface p-6 shadow-sm hover:shadow-elevation-4 transition-all border border-neutral-200 text-center group"
               >
-                <div className="h-14 w-14 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700 mx-auto mb-4 group-hover:bg-primary-100 transition-colors">
+                <div className="h-14 w-14 rounded-medium bg-primary-50 flex items-center justify-center text-primary-700 mx-auto mb-4 group-hover:bg-primary-100 transition-colors">
                   <method.icon size={26} />
                 </div>
                 <h3 className="text-h3 text-primary-800 mb-2">{method.title}</h3>
@@ -71,8 +71,8 @@ export default function ContactPage() {
           </div>
 
           {/* In-App Support Card */}
-          <div className="rounded-xl bg-surface border border-neutral-200 shadow-sm p-8 text-center">
-            <div className="h-14 w-14 rounded-xl bg-primary-50 flex items-center justify-center text-primary-700 mx-auto mb-4">
+          <div className="rounded-medium bg-surface border border-neutral-200 shadow-sm p-8 text-center">
+            <div className="h-14 w-14 rounded-medium bg-primary-50 flex items-center justify-center text-primary-700 mx-auto mb-4">
               <IconChat size={26} />
             </div>
             <h2 className="text-h2 text-primary-800 mb-3">پشتیبانی درون برنامه</h2>
@@ -90,7 +90,7 @@ export default function ContactPage() {
           </div>
 
           {/* Platform Info */}
-          <div className="mt-6 p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+          <div className="mt-6 p-4 rounded-medium bg-neutral-50 border border-neutral-200 text-center">
             <p className="text-caption text-neutral-400">
               LEGALIR نسخه ۰.۱.۰ — در مرحله توسعه. ساعات پاسخگویی: شنبه تا چهارشنبه ۹ صبح تا ۶ عصر
             </p>

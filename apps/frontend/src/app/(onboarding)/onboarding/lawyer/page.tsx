@@ -11,7 +11,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLawyerOnboarding, useSubmitLawyerOnboarding } from "@/hooks/useOnboarding";
-import { LAWYER_ACTIVITY_TYPE_FA, type LawyerActivityType } from "@legalir/types";
+import {
+  IRAN_PROVINCE_NAMES,
+  LAWYER_ACTIVITY_TYPE_FA,
+  type LawyerActivityType,
+} from "@legalir/types";
 import { Select, Textarea, TextField, SelectableOption } from "@legalir/ui";
 
 const ACTIVITY_TYPES = Object.keys(LAWYER_ACTIVITY_TYPE_FA) as LawyerActivityType[];
@@ -19,14 +23,6 @@ const ACTIVITY_TYPES = Object.keys(LAWYER_ACTIVITY_TYPE_FA) as LawyerActivityTyp
 const SPECIALIZATIONS = [
   "قراردادها", "املاک", "خانواده", "تجارت", "مطالبات", "کار",
   "کیفری", "مالیات", "مالکیت فکری", "سایر",
-] as const;
-
-const IRAN_PROVINCES = [
-  "تهران", "البرز", "اصفهان", "فارس", "خراسان رضوی", "خوزستان", "آذربایجان شرقی",
-  "آذربایجان غربی", "گیلان", "مازندران", "کرمان", "یزد", "قم", "قزوین", "زنجان",
-  "همدان", "کردستان", "کرمانشاه", "لرستان", "مرکزی", "سمنان", "گلستان", "اردبیل",
-  "بوشهر", "هرمزگان", "چهارمحال و بختیاری", "کهگیلویه و بویراحمد", "ایلام",
-  "خراسان شمالی", "خراسان جنوبی", "سیستان و بلوچستان",
 ] as const;
 
 const labelClass = "block text-body-2 text-neutral-700 font-medium mb-2";
@@ -211,7 +207,7 @@ export default function LawyerOnboardingPage() {
             disabled={submit.isPending}
             placeholder="انتخاب کنید"
             fullWidth
-            options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
+            options={IRAN_PROVINCE_NAMES.map((p) => ({ value: p, label: p }))}
           />
           <TextField
             id="city"
@@ -253,7 +249,7 @@ export default function LawyerOnboardingPage() {
         />
 
         {error && (
-          <div className="rounded-medium bg-error-container/30 border border-error/20 px-4 py-3 text-body-2 text-error" role="alert">
+          <div className="rounded-medium bg-error-container border border-error px-4 py-3 text-body-2 text-error" role="alert">
             {error}
           </div>
         )}

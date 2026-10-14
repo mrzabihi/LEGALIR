@@ -18,6 +18,8 @@ import type {
 } from "@legalir/types";
 import { latestSignatureRequestDetail } from "./signature/db";
 import { activeLawyerReviewDetail, latestAiReview, listReviewComments } from "./review-db";
+import { currentVersionApproval, latestAdminReview } from "./admin-review";
+import { getVersion } from "./db";
 import {
   buildLifecycleSteps,
   deriveLifecycleStage,
@@ -54,13 +56,39 @@ export function buildLifecycleView(
     policy.policy.officialRegistrationRequired
   );
 
-  // A contract may be prepared for signature once its content is frozen
-  // and it is not already in flight. The version is created by the
-  // prepare step, so this is a read of the same truth the state machine
-  // enforces.
-  const canPrepareForSignature =
+  // The admin-review axis. `adminReview` is the newest review of any
+  // status (so a decision stays visible); `adminApproved` is true only
+  // when the CURRENT version still carries a valid, bound approval.
+  const currentVersion = contract.currentVersionId
+    ? getVersion(contract.id, contract.currentVersionId)
+    : null;
+  const adminReview = latestAdminReview(contract.id);
+  const approved = currentVersionApproval(contract, currentVersion?.documentHash ?? null);
+
+  // A contract may be submitted to the admin queue once its content is
+  // frozen as a version and it is not already in flight, in the queue,
+  // or freshly approved. This mirrors the submit action in the admin
+  // route so the UI never offers a call the server would reject.
+  const canSubmitForAdminReview =
+    !!contract.currentVersionId &&
+    !approved &&
     !signatureRequest &&
     (contract.state === "READY_FOR_REVIEW" ||
+      contract.state === "COUNTERPARTY_REVIEW" ||
+      contract.state === "ADMIN_APPROVED" ||
+      contract.state === "REJECTED" ||
+      contract.state === "CHANGES_REQUESTED" ||
+      contract.state === "DRAFT") &&
+    !isEditable(contract.state);
+
+  // The compulsory gate: a signature may only be PREPARED once the
+  // current version carries an admin approval. This is the UI's read of
+  // the same invariant the sign route enforces server-side.
+  const canPrepareForSignature =
+    !signatureRequest &&
+    !!approved &&
+    (contract.state === "ADMIN_APPROVED" ||
+      contract.state === "READY_FOR_REVIEW" ||
       contract.state === "COUNTERPARTY_REVIEW" ||
       contract.state === "READY_TO_SIGN") &&
     !isEditable(contract.state);
@@ -72,10 +100,10 @@ export function buildLifecycleView(
   const canSign = isSignable(contract.state) && !!signatureRequest && !lawyerBlocks;
 
   // Finalization is the last step: every party has signed the current
-  // version and the contract has reached SIGNED. SIGNED is the only
-  // state the finalize route accepts, so this is a read of the same
-  // truth the route enforces.
-  const canFinalize = contract.state === "SIGNED";
+  // version, the contract has reached SIGNED, AND the signed version
+  // carries a valid admin approval. The finalize route enforces the same
+  // two conditions, so the UI never offers a call the server would reject.
+  const canFinalize = contract.state === "SIGNED" && approved !== null;
 
   return {
     stage,
@@ -85,10 +113,13 @@ export function buildLifecycleView(
     signatureRequest,
     lawyerReview,
     aiReview,
+    adminReview,
+    adminApproved: approved !== null,
     comments,
     canPrepareForSignature,
     canSign,
     canFinalize,
+    canSubmitForAdminReview,
   };
 }
 

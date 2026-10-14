@@ -44,6 +44,10 @@ const IDEMPOTENT_CREATE_PATTERNS = [
   "/api/v1/ai-runs",
   "/api/auth/otp/request",
   "/api/auth/otp/verify",
+  // Consultation flow: creating a request and the lawyer's accept/decline
+  // decision are both exactly-once operations (double-click / retry safe).
+  "/api/v1/legal-requests",
+  "/api/v1/legal-requests/", // .../respond, .../transition
 ] as const;
 
 /**

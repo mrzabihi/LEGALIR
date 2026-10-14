@@ -88,7 +88,7 @@ export function CalculatorControls({
                 type="button"
                 onClick={onClearQuery}
                 aria-label="پاک کردن جستجو"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <IconClose size={18} />
               </button>

@@ -80,7 +80,7 @@ export function ProcessingPipeline({ stage, progress = 0 }: ProcessingPipelinePr
                     isDone
                       ? "border-success bg-success text-white"
                       : isActive
-                        ? "border-primary bg-primary text-white shadow-elevation-3"
+                        ? "border-primary bg-primary text-primary-on shadow-elevation-3"
                         : "border-divider bg-surface text-muted",
                   ].join(" ")}
                   aria-current={isActive ? "step" : undefined}
@@ -113,9 +113,9 @@ export function ProcessingPipeline({ stage, progress = 0 }: ProcessingPipelinePr
       </ol>
 
       {/* Active stage detail */}
-      <div className="mt-6 rounded-large border border-divider/60 bg-surface p-5 shadow-elevation-1">
+      <div className="mt-6 rounded-large border border-divider bg-surface p-5 shadow-elevation-1">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-50 text-primary-700">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary">
             {STAGES[activeIndex]?.icon}
           </div>
           <div className="min-w-0 flex-1">

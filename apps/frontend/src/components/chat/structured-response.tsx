@@ -94,8 +94,8 @@ export function StructuredResponse({
             className={[
               "rounded-medium p-4 animate-fade-in",
               isDisclaimer
-                ? "bg-warning/[0.06] border border-warning/20"
-                : "bg-surfaceVariant/30",
+                ? "bg-warning-container border border-warning"
+                : "bg-surface-container",
             ].join(" ")}
           >
             <h4 className="text-labelLarge text-onSurface font-medium mb-2 flex items-center gap-2">
@@ -112,7 +112,7 @@ export function StructuredResponse({
                     <button
                       key={ref.id}
                       onClick={() => onCitationClick?.(ref)}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-labelSmall px-2.5 py-1 hover:bg-primary/20 transition-colors"
+                      className="inline-flex items-center gap-1 rounded-full bg-primary-container text-primary text-labelSmall px-2.5 py-1 hover:bg-surface-hover transition-colors"
                       aria-label={`منبع: ${ref.locator}`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-primary" />

@@ -9,6 +9,7 @@
 
 import { readTable, writeTable, findUserById } from "@/lib/db";
 import { maskMobile } from "./orders";
+import { matchesRow } from "@/lib/search/normalize";
 import type {
   SupportTicket,
   SupportTicketMessage,
@@ -44,9 +45,9 @@ export function listTickets(query: SupportQuery = {}): SupportTicket[] {
   if (query.priority) rows = rows.filter((t) => t.priority === query.priority);
   if (query.assigneeUserId) rows = rows.filter((t) => t.assigneeUserId === query.assigneeUserId);
   if (query.search) {
-    const q = query.search.toLowerCase();
-    rows = rows.filter(
-      (t) => t.subject.toLowerCase().includes(q) || t.requesterName.toLowerCase().includes(q)
+    // Shared normalisation lane (Persian/Arabic digits + letter forms).
+    rows = rows.filter((t) =>
+      matchesRow(query.search!, { texts: [t.subject, t.requesterName] })
     );
   }
   return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

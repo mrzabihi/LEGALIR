@@ -59,6 +59,7 @@ import {
   IconPerson,
   IconLogout,
   IconLibrary,
+  IconSparkle,
 } from "@/lib/icons";
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
@@ -79,6 +80,7 @@ const ICONS: Record<string, IconComponent> = {
   Document: IconDocument,
   Download: IconDownload,
   Grid: IconGrid,
+  Sparkle: IconSparkle,
   Shield: IconShield,
   Settings: IconSettings,
 };

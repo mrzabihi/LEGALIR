@@ -11,7 +11,8 @@
 
 import Link from "next/link";
 import { useConsultations } from "@/hooks/useConsultations";
-import { IconAdd, IconArrowBack, IconInfo, IconRefresh } from "@/lib/icons";
+import { IconAdd, IconArrowBack, IconHeadset, IconInfo, IconRefresh } from "@/lib/icons";
+import { PageIntroBanner } from "@/components/shared";
 import { LEGAL_CATEGORY_FA } from "@legalir/types";
 import { ConsultationStatusBadge, formatDateTime } from "@/components/consultations/consultation-status";
 
@@ -20,37 +21,37 @@ export default function ConsultationsPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="mb-2 text-h2 text-on-surface">مشاوره‌های من</h1>
-          <p className="text-body-2 text-muted">
-            درخواست‌های مشاوره خود را پیگیری کنید و پس از پذیرش وکیل، در همین پرونده گفت‌وگو کنید.
-          </p>
-        </div>
-        <Link
-          href="/consultations/new"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-button font-medium text-white transition hover:bg-primary-700 active:scale-[0.98]"
-        >
-          <IconAdd size={18} />
-          مشاوره جدید
-        </Link>
-      </div>
+      <PageIntroBanner
+        className="mb-6"
+        icon={IconHeadset}
+        title="مشاوره‌های من"
+        description="درخواست‌های مشاوره خود را پیگیری کنید و پس از پذیرش وکیل، در همین پرونده گفت‌وگو کنید."
+        actions={
+          <Link
+            href="/consultations/new"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-medium bg-primary px-4 py-2.5 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98] tablet:w-auto"
+          >
+            <IconAdd size={18} />
+            مشاوره جدید
+          </Link>
+        }
+      />
 
       {isLoading && (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-surface-container" />
+            <div key={i} className="h-20 animate-pulse rounded-large bg-surface-container" />
           ))}
         </div>
       )}
 
       {isError && (
-        <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-6 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
           <p className="text-body-1 text-error">خطا در بارگذاری مشاوره‌ها</p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary-container"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -74,7 +75,7 @@ export default function ConsultationsPage() {
             <li key={r.id}>
               <Link
                 href={`/consultations/${r.id}`}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-divider/60 bg-surface p-5 transition-all hover:border-primary/40 hover:shadow-elevation-1"
+                className="flex items-center justify-between gap-4 rounded-large border border-divider bg-surface p-5 transition-all hover:border-primary hover:shadow-elevation-1"
               >
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-body-1 font-semibold text-on-surface">{r.title}</h2>

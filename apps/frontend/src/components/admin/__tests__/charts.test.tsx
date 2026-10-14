@@ -12,7 +12,14 @@
 
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
-import { LineChart, type ChartPoint } from "@/components/admin/charts";
+import {
+  LineChart,
+  StackedBarChart,
+  ProgressRing,
+  type ChartPoint,
+  type StackRow,
+  type StackSegment,
+} from "@/components/admin/charts";
 
 function series(values: number[]): ChartPoint[] {
   return values.map((value, i) => ({
@@ -81,5 +88,78 @@ describe("LineChart", () => {
     const items = container.querySelectorAll("ul.sr-only li");
     expect(items).toHaveLength(revenue.length);
     expect(items[5]!.textContent).toContain("۱۴٬۵۸۰٬۰۰۰");
+  });
+});
+
+describe("StackedBarChart", () => {
+  const segments: StackSegment[] = [
+    { key: "paid", label: "پرداخت‌شده" },
+    { key: "free", label: "رایگان" },
+    { key: "unpaid", label: "بی‌پرداخت" },
+  ];
+
+  it("splits each bar into parts proportional to the real values", () => {
+    const rows: StackRow[] = [{ label: "سفارش‌ها", values: [4, 1, 1] }];
+    const { container } = render(
+      <StackedBarChart rows={rows} segments={segments} ariaLabel="ترکیب سفارش‌ها" />
+    );
+    const parts = [...container.querySelectorAll("li[class*='grid'] div[role='img'] span")];
+    const widths = parts.map((p) => (p as HTMLElement).style.width);
+    expect(widths).toEqual(["66.66666666666666%", "16.666666666666664%", "16.666666666666664%"]);
+  });
+
+  it("skips a zero part rather than drawing a sliver", () => {
+    const rows: StackRow[] = [{ label: "سفارش‌ها", values: [3, 0, 1] }];
+    const { container } = render(
+      <StackedBarChart rows={rows} segments={segments} ariaLabel="ترکیب سفارش‌ها" />
+    );
+    const parts = [...container.querySelectorAll("li[class*='grid'] div[role='img'] span")];
+    expect(parts).toHaveLength(2); // the zero segment is omitted
+  });
+
+  it("mirrors the split into a screen-reader list with the real values", () => {
+    const rows: StackRow[] = [{ label: "سفارش‌ها", values: [4, 1, 1] }];
+    const { container } = render(
+      <StackedBarChart rows={rows} segments={segments} ariaLabel="ترکیب سفارش‌ها" />
+    );
+    const item = container.querySelector("ul.sr-only li");
+    expect(item?.textContent).toContain("پرداخت‌شده ۴");
+    expect(item?.textContent).toContain("بی‌پرداخت ۱");
+  });
+});
+
+describe("ProgressRing", () => {
+  it("draws a share against the tracked whole (not a full ring)", () => {
+    const { container } = render(
+      <ProgressRing value={1} total={4} centerLabel="پرداخت‌شده" ariaLabel="سهم" />
+    );
+    const ring = container.querySelectorAll("circle")[1]!;
+    const nums = (ring.getAttribute("stroke-dasharray") ?? "").split(" ").map(Number);
+    const shown = nums[0]!;
+    const rest = nums[1]!;
+    // The arc is a quarter of the circumference — 1 of 4 reads as 1 of 4.
+    expect(shown).toBeCloseTo(rest / 3, 3);
+  });
+
+  it("shows the share as a Persian percentage with the real counts", () => {
+    const { container } = render(
+      <ProgressRing value={1} total={4} centerLabel="پرداخت‌شده" ariaLabel="سهم" />
+    );
+    expect(container.textContent).toContain("۲۵٪");
+    expect(container.textContent).toContain("۱ از ۴");
+  });
+
+  it("renders nothing when the whole is zero (no meaningless ring)", () => {
+    const { container } = render(
+      <ProgressRing value={0} total={0} centerLabel="پرداخت‌شده" ariaLabel="سهم" />
+    );
+    expect(container.querySelector("svg")).toBeNull();
+  });
+
+  it("clamps a value that exceeds the whole to a full ring", () => {
+    const { container } = render(
+      <ProgressRing value={9} total={4} centerLabel="پرداخت‌شده" ariaLabel="سهم" />
+    );
+    expect(container.textContent).toContain("۱۰۰٪");
   });
 });

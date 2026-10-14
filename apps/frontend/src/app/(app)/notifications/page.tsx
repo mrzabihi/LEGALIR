@@ -79,7 +79,7 @@ export default function NotificationsPage() {
           <IconBell size={26} className="shrink-0 text-on-surface" />
           <h1 className="text-h2 text-on-surface">اعلان‌ها</h1>
           {unreadCount > 0 && (
-            <span className="shrink-0 rounded-full bg-error/10 px-2.5 py-0.5 text-caption font-medium text-error">
+            <span className="shrink-0 rounded-full bg-error-container px-2.5 py-0.5 text-caption font-medium text-error">
               {toPersianNumber(unreadCount)} خوانده‌نشده
             </span>
           )}
@@ -92,7 +92,7 @@ export default function NotificationsPage() {
             className={[
               "inline-flex items-center justify-center gap-1.5 rounded-large px-4 text-labelLarge font-medium text-primary transition-colors duration-short3",
               // Phones: a full-width, 44px-tall button (comfortable touch target).
-              "min-h-11 w-full border border-divider bg-surface hover:bg-primary/[0.06]",
+              "min-h-11 w-full border border-divider bg-surface hover:bg-surface-hover",
               // Tablet+: back to the compact inline link.
               "tablet:min-h-0 tablet:w-auto tablet:border-0 tablet:bg-transparent tablet:px-0 tablet:text-caption tablet:hover:underline",
             ].join(" ")}
@@ -146,11 +146,11 @@ export default function NotificationsPage() {
             ))}
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-6 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
             <p className="text-body-1 text-error">خطا در دریافت اعلان‌ها</p>
             <button
               onClick={() => refetch()}
-              className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+              className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
             >
               <IconRefresh size={16} />
               تلاش مجدد
@@ -163,7 +163,7 @@ export default function NotificationsPage() {
             <p className="text-body-2 text-muted max-w-sm">{EMPTY_TEXT[tab].hint}</p>
           </div>
         ) : (
-          <div className="divide-y divide-divider/70 overflow-hidden rounded-large bg-surface border border-divider">
+          <div className="divide-y divide-divider overflow-hidden rounded-large bg-surface border border-divider">
             {visible.map((item) => (
               <NotificationItem key={item.id} item={item} onActivate={handleActivate} />
             ))}

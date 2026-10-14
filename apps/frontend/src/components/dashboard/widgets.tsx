@@ -630,6 +630,13 @@ export function LibraryBanner() {
 // ============================================================
 // PromoBanner — subscription upgrade CTA
 // ============================================================
+// A photographic upgrade band. The backdrop is a dark-green editorial scene
+// (a courthouse facade with the golden scales of justice) whose subject sits
+// on the left, so the RTL reading side — the right — holds a clean green
+// field for the copy. The artwork is paired with a warm gold bloom (the light
+// effect) and a slow hover zoom (the motion), matching the landing campaign
+// banners. The CTA and badge carry the brand gold; text is brand ivory so it
+// clears contrast against the scrim.
 
 interface PromoBannerProps {
   planCode: string | null | undefined;
@@ -655,34 +662,57 @@ export function PromoBanner({ planCode }: PromoBannerProps) {
   if (!info) return null;
 
   return (
-    <div className="relative rounded-large bg-gradient-to-r from-warning-50 via-warning-100 to-warning-50 border border-warning-200 p-5 mb-6 overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[rgba(252,211,77,0.20)] blur-2xl" />
+    <section
+      aria-label={info.title}
+      className="group relative mb-6 overflow-hidden rounded-large border border-[color:color-mix(in_srgb,var(--brand-gold)_34%,transparent)] shadow-elevation-1"
+    >
+      {/* Photographic backdrop — a courthouse facade with the golden scales
+          of justice. The subject sits left; the scrim is heaviest on the
+          right (the RTL reading side) so the copy clears contrast while the
+          artwork still reads as a photograph. */}
+      <div className="absolute inset-0" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/promo/legalir-banner-subscription.webp"
+          srcSet="/assets/promo/legalir-banner-subscription-sm.webp 900w, /assets/promo/legalir-banner-subscription.webp 1800w"
+          sizes="(min-width: 1024px) 900px, 100vw"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-long2 ease-standard group-hover:scale-[1.04]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(255deg,rgba(11,18,30,0.92)_0%,rgba(11,18,30,0.7)_52%,rgba(11,18,30,0.28)_100%)]" />
+        {/* Warm gold bloom — the light effect, echoing the artwork's gilded
+            scales; it warms on hover. */}
+        <div className="absolute -top-10 -end-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--brand-gold)_45%,transparent)_0%,transparent_70%)] opacity-60 blur-2xl transition-opacity duration-long1 ease-standard group-hover:opacity-100" />
       </div>
-      <div className="relative flex items-center justify-between gap-4 flex-wrap">
+
+      <div className="relative flex flex-col items-center gap-4 p-5 text-center tablet:flex-row tablet:justify-between tablet:p-6 tablet:text-right">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-medium bg-warning-500 flex items-center justify-center shrink-0 shadow-elevation-1">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-gold)_22%,transparent)] text-[var(--brand-ivory)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--brand-gold)_55%,transparent)] backdrop-blur-md">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
-          </div>
-          <div>
-            <p className="text-body-1 text-on-surface font-semibold">{info.title}</p>
-            <p className="text-caption text-on-surface-variant mt-0.5">{info.desc}</p>
+          </span>
+          <div className="min-w-0 max-w-xl">
+            <p className="text-titleSmall font-semibold text-[var(--brand-ivory)] drop-shadow-[0_1px_6px_rgba(11,18,30,0.65)]">
+              {info.title}
+            </p>
+            <p className="mt-0.5 text-caption text-[color-mix(in_srgb,var(--brand-ivory)_86%,transparent)] drop-shadow-[0_1px_5px_rgba(11,18,30,0.65)]">
+              {info.desc}
+            </p>
           </div>
         </div>
+
         <Link
           href={info.href}
-          className="shrink-0 inline-flex items-center gap-2 rounded-full bg-warning-500 text-white px-5 py-2.5 text-button font-semibold hover:bg-warning-600 active:scale-95 transition-all duration-short4 ease-standard touch-target shadow-elevation-1"
+          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[var(--brand-gold)] px-5 py-2.5 text-button font-semibold text-[var(--brand-teal)] shadow-elevation-2 transition-[background-color,transform] duration-short4 ease-standard hover:bg-[var(--brand-gold-deep)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ivory)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent touch-target"
         >
           {info.cta}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
+          <IconChevronRight size={15} rtlFlip />
         </Link>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1472,18 +1502,28 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
       className="mb-6"
       background={
         <>
-          {/* The card's artwork — a legal editorial on brand green/ivory/gold.
-              Kept faint by a theme-aware surface scrim so it reads as texture,
-              never as a competing image behind legible list copy. */}
+          {/* The card's artwork — a soft ivory editorial of document-analysis
+              motifs (faint legal papers + a magnifier) on the brand
+              ivory/gold/sage field. `object-cover` + `object-center` is the
+              picture equivalent of `background-size: cover` and
+              `background-position: center`, so the abstract always fills the
+              card without ever stretching or overflowing. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/assets/legalir-dashboard-recent-docs.webp"
+            src="/assets/legalir-dashboard-recent-docs-abstract.webp"
             alt=""
             loading="lazy"
             decoding="async"
             className="absolute inset-0 h-full w-full object-cover object-center"
           />
-          <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-surface-container-low)_68%,transparent)]" />
+          {/* Legibility scrim — theme-aware, so the same listing stays legible
+              in both themes. Light theme keeps a light veil so the ivory
+              artwork still reads as an image; dark theme lays a heavier navy
+              veil so the card sits in the dark surface family with white text.
+              On top, a soft top-down gradient deepens only where the title and
+              first row begin, leaving the artwork visible toward the foot. */}
+          <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-surface)_40%,transparent)] dark:bg-[color-mix(in_srgb,var(--color-surface)_74%,transparent)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_46%,transparent)_0%,transparent_42%)] dark:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_74%,transparent)_0%,color-mix(in_srgb,var(--color-surface)_52%,transparent)_100%)]" />
         </>
       }
     >
@@ -1494,9 +1534,9 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
             <Link
               key={doc.id}
               href="/documents"
-              className="flex items-center gap-3 p-3 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-high)_55%,transparent)] border border-[color:var(--color-outline-variant)] hover:bg-[color-mix(in_srgb,var(--color-surface-container-high)_82%,transparent)] transition-colors touch-target group"
+              className="flex items-center gap-3 p-3 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-high)_58%,transparent)] border border-[color:color-mix(in_srgb,var(--color-outline-variant)_80%,transparent)] shadow-elevation-1 hover:bg-[color-mix(in_srgb,var(--color-surface-container-high)_88%,transparent)] hover:shadow-elevation-2 transition-[background-color,box-shadow,border-color] duration-short4 ease-standard touch-target group"
             >
-              <span className="text-xl shrink-0 w-10 h-10 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-highest)_70%,transparent)] flex items-center justify-center transition-colors">
+              <span className="text-xl shrink-0 w-10 h-10 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-highest)_70%,transparent)] border border-[color:color-mix(in_srgb,var(--color-outline-variant)_55%,transparent)] flex items-center justify-center transition-colors">
                 {doc.mime?.includes("pdf") ? "📄" : doc.mime?.includes("image") ? "🖼️" : "📎"}
               </span>
               <div className="flex-1 min-w-0">

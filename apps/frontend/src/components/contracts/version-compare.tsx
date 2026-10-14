@@ -54,7 +54,7 @@ export function ContractVersionCompare({ versions, onClose }: VersionCompareProp
             {new Date(older.createdAt).toLocaleDateString("fa-IR")}
           </p>
         </div>
-        <div className="rounded-medium bg-primary/5 border border-primary/20 p-3 text-center">
+        <div className="rounded-medium bg-primary-container border border-primary p-3 text-center">
           <span className="text-caption text-primary">نسخه جدیدتر</span>
           <p className="text-body-1 font-medium text-on-surface">
             نسخه {newer.versionNumber}

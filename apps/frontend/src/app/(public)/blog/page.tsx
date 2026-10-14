@@ -58,7 +58,7 @@ function BlogCard({ post }: { post: V1BlogListItem }) {
   const cover = POST_COVERS[post.slug];
 
   return (
-    <article className="group rounded-xl bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-all duration-medium1 overflow-hidden flex flex-col">
+    <article className="group rounded-medium bg-surface border border-neutral-200 shadow-sm hover:shadow-elevation-4 transition-all duration-medium1 overflow-hidden flex flex-col">
       {/* Cover — real artwork when the post ships one, otherwise the
           deterministic category gradient. Capped at 748×300 so the thumbnail
           stays small on the listing page at every breakpoint. */}
@@ -100,7 +100,7 @@ function BlogCard({ post }: { post: V1BlogListItem }) {
       {/* Card content */}
       <div className="flex flex-col flex-1 p-5">
         <div className="flex items-center gap-2 mb-3">
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-labelSmall bg-primary-50 text-primary-700 border border-primary-200/60">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-labelSmall bg-primary-50 text-primary-700 border border-primary-200">
             <IconCategory size={12} />
             {post.category}
           </span>
@@ -160,7 +160,7 @@ function LoadingState() {
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="rounded-xl bg-surface border border-neutral-200 overflow-hidden"
+              className="rounded-medium bg-surface border border-neutral-200 overflow-hidden"
             >
               <div className="h-48 skeleton-shimmer" />
               <div className="p-5 space-y-3">
@@ -210,7 +210,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 
 function BlogHero() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-white via-secondary-50/40 to-white">
+    <section className="relative overflow-hidden bg-gradient-to-b from-white via-secondary-50 to-white">
       {/* ROW 1 — Blog heading + description */}
       <div className="mx-auto max-w-6xl px-4 pt-12 text-center tablet:pt-16">
         <h1 className="text-[clamp(1.75rem,5vw,4rem)] font-bold leading-[1.35] text-primary-800">
@@ -237,7 +237,7 @@ function BlogHero() {
           loading="eager"
           decoding="async"
           fetchPriority="high"
-          className="mx-auto block h-auto w-full select-none rounded-2xl ring-1 ring-black/5 shadow-[0_18px_50px_-24px_rgba(15,23,42,0.35)]"
+          className="mx-auto block h-auto w-full select-none rounded-large ring-1 ring-black/5 shadow-[0_18px_50px_-24px_rgba(15,23,42,0.35)]"
         />
       </div>
     </section>
@@ -312,7 +312,7 @@ export default function BlogPage() {
       {featuredPost && activeCategory === "همه" && !searchQuery.trim() && (
         <section className="bg-neutral-50 border-b border-neutral-200">
           <div className="mx-auto max-w-6xl px-4 py-12">
-            <div className="rounded-xl overflow-hidden bg-surface border border-neutral-200 shadow-elevation-1 hover:shadow-elevation-4 transition-all duration-medium1">
+            <div className="rounded-medium overflow-hidden bg-surface border border-neutral-200 shadow-elevation-1 hover:shadow-elevation-4 transition-all duration-medium1">
               <div className="grid tablet:grid-cols-2">
                 <div className="relative min-h-[280px] overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -328,7 +328,7 @@ export default function BlogPage() {
                 </div>
 
                 <div className="p-8 flex flex-col justify-center">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-labelSmall bg-secondary-50 text-secondary-700 border border-secondary-200/60 mb-4 w-fit">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-labelSmall bg-secondary-50 text-secondary-700 border border-secondary-200 mb-4 w-fit">
                     <IconCategory size={12} />
                     {featuredPost.category}
                     <span className="inline-block w-1 h-1 rounded-full bg-secondary-400 mx-0.5" />
@@ -385,14 +385,14 @@ export default function BlogPage() {
                   setSearchQuery(e.target.value);
                   setActiveCategory("همه");
                 }}
-                placeholder="جستجو در مقالات..."
+                placeholder="مثلاً: اجاره، مهریه، قرارداد"
                 leadingIcon={<IconSearch size={18} />}
                 endAdornment={
                   searchQuery ? (
                     <button
                       type="button"
                       onClick={() => setSearchQuery("")}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-on-surface/[0.08]"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover"
                       aria-label="پاک کردن جستجو"
                     >
                       <IconClose size={16} />

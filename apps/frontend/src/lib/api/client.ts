@@ -42,6 +42,12 @@ interface RequestOptions {
   skipIdempotency?: boolean;
   /** Custom correlation ID (for chained requests) */
   correlationId?: string;
+  /**
+   * An explicit idempotency key. When supplied it is used verbatim instead of
+   * a freshly generated one — callers mint ONE key per logical attempt and
+   * reuse it across retries so the server can dedupe (double-click / retry).
+   */
+  idempotencyKey?: string;
 }
 
 // --- Generic Request ---
@@ -62,9 +68,10 @@ async function request<T>(
     [CORRELATION_HEADER]: correlationId,
   };
 
-  // Inject idempotency key for create/mutate operations
+  // Inject idempotency key for create/mutate operations. An explicit key
+  // (reused across retries) always wins over a freshly generated one.
   if (requiresIdempotencyKey(method, path) && !options.skipIdempotency) {
-    headers[IDEMPOTENCY_HEADER] = generateIdempotencyKey();
+    headers[IDEMPOTENCY_HEADER] = options.idempotencyKey ?? generateIdempotencyKey();
   }
 
   const fetchOptions: RequestInit = {
@@ -101,7 +108,7 @@ async function requestForm<T>(
   };
 
   if (requiresIdempotencyKey("POST", path) && !options.skipIdempotency) {
-    headers[IDEMPOTENCY_HEADER] = generateIdempotencyKey();
+    headers[IDEMPOTENCY_HEADER] = options.idempotencyKey ?? generateIdempotencyKey();
   }
 
   return send<T>(url, {
@@ -187,7 +194,7 @@ async function authRequest<T>(
   };
 
   if (requiresIdempotencyKey(method, path) && !options.skipIdempotency) {
-    headers[IDEMPOTENCY_HEADER] = generateIdempotencyKey();
+    headers[IDEMPOTENCY_HEADER] = options.idempotencyKey ?? generateIdempotencyKey();
   }
 
   let response: Response;

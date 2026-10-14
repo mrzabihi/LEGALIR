@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAdminRequests, useAdminMe } from "@/hooks/useAdmin";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
+import { toPersianDate } from "@/lib/persian-utils";
 import { LEGAL_REQUEST_STATE_FA, LEGAL_CATEGORY_FA } from "@legalir/types";
 import {
   PageHeader,
@@ -23,13 +23,15 @@ import {
   Td,
   Badge,
   StateView,
-  TextInput,
+  SearchInput,
   Button,
   IdChip,
   FilterPills,
+  Pagination,
   ExportButton,
 } from "@/components/admin/ui";
-import { IconSearch, IconEdit } from "@/lib/icons";
+import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
+import { IconEdit } from "@/lib/icons";
 import { RequestDetailDrawer } from "@/components/admin/request-detail-drawer";
 
 const STATE_TONES: Record<string, "neutral" | "success" | "warning" | "danger" | "info" | "brand"> = {
@@ -52,22 +54,19 @@ export default function AdminRequestsPage() {
   const [search, setSearch] = useState("");
   const [state, setState] = useState<string>("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Debounce the search box so the list re-queries on a pause, not per key.
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
-  useEffect(() => setPage(1), [debouncedSearch]);
+  useEffect(() => setPage(1), [debouncedSearch, state, pageSize]);
 
   const query = useAdminRequests({
     search: debouncedSearch,
     state: state || undefined,
     page,
-    pageSize: 25,
+    pageSize,
   });
-
-  const totalPages = query.data
-    ? Math.max(1, Math.ceil(query.data.total / query.data.pageSize))
-    : 1;
 
   const stateFilters = useMemo(
     () => [
@@ -86,25 +85,13 @@ export default function AdminRequestsPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-muted">
-            <IconSearch size={16} />
-          </span>
-          <TextInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجو در عنوان یا شناسه"
-            className="ps-9"
-          />
-        </div>
-        <FilterPills
-          options={stateFilters}
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setPage(1);
-          }}
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="جستجو در عنوان، کاربر یا شناسه"
+          className="min-w-[240px] flex-1"
         />
+        <FilterPills options={stateFilters} value={state} onChange={setState} />
       </div>
 
       <StateView
@@ -164,30 +151,15 @@ export default function AdminRequestsPage() {
               ))}
             </DataTable>
 
-            <div className="mt-3 flex items-center justify-between text-caption text-muted">
-              <span>{toPersianNumber(data.total)} درخواست</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  قبلی
-                </Button>
-                <span className="tabular-nums">
-                  {toPersianNumber(data.page)} / {toPersianNumber(totalPages)}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  بعدی
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              page={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              totalPages={data.totalPages}
+              itemLabel="درخواست"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </StateView>

@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { snackbar } from "@legalir/ui";
 import {
   useAdminLawyers,
@@ -40,11 +40,14 @@ import {
   StateView,
   Button,
   IdChip,
+  MaskedMobile,
   FilterPills,
   InfoBanner,
   TextInput,
+  Pagination,
   ExportButton,
 } from "@/components/admin/ui";
+import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 import { LawyerAvatar } from "@/components/lawyers";
 import { LawyerDetailDrawer, BUCKET_TONES } from "@/components/admin/lawyer-detail-drawer";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
@@ -77,13 +80,27 @@ export default function AdminLawyersPage() {
   // the search button — never on every keystroke.
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  // Any change to the query narrows the result set, so return to page 1. The
+  // ref mirror lets the guard skip the set when we are already on page 1 —
+  // otherwise a re-applied change would schedule a redundant bailout render
+  // (and re-invoke the query hook once more for nothing).
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  useEffect(() => {
+    if (pageRef.current !== 1) setPage(1);
+  }, [appliedSearch, lifecycle, pageSize]);
 
   // Each applied term gets its own cache key, so a late response for an old
   // term can never overwrite the results of the newer one.
   const query = useAdminLawyers({
     lifecycle: lifecycle === "ALL" ? undefined : lifecycle,
     search: appliedSearch || undefined,
+    page,
+    pageSize,
   });
   const feature = useSetAdminLawyerFeatured();
 
@@ -98,9 +115,8 @@ export default function AdminLawyersPage() {
   }, [searchInput, appliedSearch]);
 
   // Enter in the field, or the search button: commit now and short-circuit the
-  // pending debounce. Repeating the applied term is a no-op. (This list is
-  // unpaginated — a single full page — so a new term simply replaces results
-  // rather than needing a page reset.)
+  // pending debounce. Repeating the applied term is a no-op. The page resets to
+  // the first window whenever the applied term changes (see the effect above).
   function commitSearch() {
     const term = searchInput.trim();
     if (term === appliedSearch) return;
@@ -189,12 +205,12 @@ export default function AdminLawyersPage() {
               head={
                 <tr>
                   <Th>وکیل</Th>
+                  <Th>موبایل</Th>
                   <Th>پایه / سازمان</Th>
                   <Th>تخصص اصلی</Th>
                   <Th>شهر</Th>
                   <Th>سابقه</Th>
                   <Th>امتیاز</Th>
-                  <Th>نظرات</Th>
                   <Th>تأیید</Th>
                   <Th>وضعیت</Th>
                   <Th>برجسته</Th>
@@ -229,6 +245,9 @@ export default function AdminLawyersPage() {
                       </div>
                     </Td>
                     <Td className="whitespace-nowrap">
+                      <MaskedMobile value={l.mobile} className="text-caption" />
+                    </Td>
+                    <Td className="whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-caption text-on-surface-variant">
                           {l.professionalRank
@@ -254,13 +273,18 @@ export default function AdminLawyersPage() {
                     <Td className="whitespace-nowrap text-caption">
                       {l.yearsExperience != null ? `${toPersianNumber(l.yearsExperience)} سال` : "—"}
                     </Td>
-                    <Td className="whitespace-nowrap tabular-nums">
-                      {l.displayRating != null
-                        ? toPersianNumber(Number(l.displayRating.toFixed(1)))
-                        : "—"}
-                    </Td>
-                    <Td className="whitespace-nowrap tabular-nums">
-                      {toPersianNumber(l.displayReviewCount)}
+                    <Td className="whitespace-nowrap">
+                      {l.displayRating != null && l.displayReviewCount > 0 ? (
+                        <span className="tabular-nums text-on-surface">
+                          {toPersianNumber(Number(l.displayRating.toFixed(1)))}
+                          <span className="text-muted"> از ۵</span>
+                          <span className="ms-1 text-caption text-muted">
+                            ({toPersianNumber(l.displayReviewCount)} رأی)
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-caption text-muted">بدون امتیاز</span>
+                      )}
                     </Td>
                     <Td>
                       <Badge tone={BUCKET_TONES[l.bucket]}>{LAWYER_DECISION_BUCKET_FA[l.bucket]}</Badge>
@@ -303,7 +327,15 @@ export default function AdminLawyersPage() {
               })}
             </DataTable>
 
-            <div className="mt-3 text-caption text-muted">{toPersianNumber(data.total)} وکیل</div>
+            <Pagination
+              page={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              totalPages={data.totalPages}
+              itemLabel="وکیل"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </StateView>

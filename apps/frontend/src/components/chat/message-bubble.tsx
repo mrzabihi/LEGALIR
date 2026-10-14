@@ -50,7 +50,7 @@ export function MessageBubble({
     >
       {/* Assistant avatar */}
       {isAssistant && (
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
           <span className="text-primary text-labelSmall font-bold" aria-hidden="true">ل</span>
         </div>
       )}
@@ -66,10 +66,10 @@ export function MessageBubble({
           className={[
             "rounded-large px-4 py-3",
             isUser
-              ? "bg-primary text-white rounded-br-small"
+              ? "bg-primary text-primary-on rounded-br-small"
               : "bg-surface border border-divider rounded-bl-small",
             isFailed || isBlocked
-              ? "bg-error/[0.06] border-error/20"
+              ? "bg-error-container border-error"
               : "",
           ].join(" ")}
         >

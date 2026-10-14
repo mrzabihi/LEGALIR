@@ -68,10 +68,10 @@ export function SelectableOption({
       className={[
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5",
         "text-caption font-medium transition-colors duration-150 ease-standard touch-target",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-control-focus/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-control-focus",
         selected
           ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-          : "border-control-unselected-border bg-control-unselected-bg text-onSurfaceVariant hover:border-control-selected/50 hover:text-onSurface",
+          : "border-control-unselected-border bg-control-unselected-bg text-onSurfaceVariant hover:border-control-selected hover:text-onSurface",
         disabled ? "opacity-[0.38] pointer-events-none" : "",
         className,
       ]
@@ -122,10 +122,10 @@ export function SelectableCard({
       className={[
         "flex w-full items-start gap-3 rounded-large border-2 p-4 text-start",
         "transition-colors duration-150 ease-standard touch-target",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-control-focus/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-control-focus",
         selected
           ? "border-control-selected-border bg-control-selected-surface"
-          : "border-control-unselected-border bg-control-unselected-bg hover:border-control-selected/40",
+          : "border-control-unselected-border bg-control-unselected-bg hover:border-control-selected",
         disabled ? "opacity-[0.38] pointer-events-none" : "",
         className,
       ]

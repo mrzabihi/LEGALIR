@@ -399,7 +399,7 @@ export default function ConversationPage() {
                       <p className="text-body-2 text-muted mb-4">گفتگو جمع شده است</p>
                       <button
                         onClick={() => setIsMinimized(false)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-6 py-3 text-button font-medium hover:bg-primary-700 transition-colors active:scale-[0.98] shadow-md"
+                        className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-6 py-3 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98] shadow-md"
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <path d="M5 12h14M12 5l7 7-7 7" />
@@ -500,7 +500,7 @@ export default function ConversationPage() {
               <h2 className="text-titleSmall text-onSurface">گفتگوها</h2>
               <button
                 onClick={() => setMobileDrawerOpen(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-onSurface/[0.08] transition-colors touch-target"
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors touch-target"
                 aria-label="بستن منو"
               >
                 <IconClose size={20} />
@@ -577,7 +577,7 @@ function AttachedDocumentViewer({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-onSurface/[0.08]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover"
             aria-label="بستن نمایشگر"
           >
             <IconClose size={18} />

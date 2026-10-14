@@ -28,6 +28,8 @@ import {
   type AdminExportKind,
 } from "@legalir/types";
 import { toPersianNumber } from "@/lib/persian-utils";
+import { maskMobileMiddle } from "@/lib/admin/mobile";
+import { PAGE_SIZE_OPTIONS } from "@/lib/admin/pagination";
 import { adminSectionTitle } from "@/lib/admin-nav";
 import { downloadAdminExport } from "@/lib/api/admin";
 import { useAdminMe } from "@/hooks/useAdmin";
@@ -40,9 +42,12 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconChevronLeft,
+  IconChevronRight,
   IconSearch,
   IconClose,
   IconDownload,
+  IconEye,
+  IconEyeOff,
 } from "@/lib/icons";
 
 // ---------------------------------------------------------------------------
@@ -112,7 +117,11 @@ export function CardHeader({
           {subtitle && <p className="mt-0.5 text-caption text-muted">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
@@ -155,7 +164,11 @@ export function Section({
           </h2>
           {subtitle && <p className="mt-0.5 text-body-2 text-muted">{subtitle}</p>}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+            {actions}
+          </div>
+        )}
       </div>
       {children}
     </section>
@@ -385,12 +398,12 @@ export function StatCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-end justify-between gap-2">
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-x-2 gap-y-1.5">
         <p
           className={
             isUnavailable
-              ? "text-h4 font-semibold leading-snug text-muted"
-              : `text-h2 font-bold leading-none tabular-nums ${t.value}`
+              ? "min-w-0 break-words text-h4 font-semibold leading-snug text-muted"
+              : `min-w-0 break-words text-h2 font-bold leading-none tabular-nums ${t.value}`
           }
           title={valueTitle}
         >
@@ -792,6 +805,201 @@ export function Td({
     >
       {children}
     </td>
+  );
+}
+
+/**
+ * A mobile number rendered left-to-right inside the RTL panel. `isolate` +
+ * `dir="ltr"` keep the digits, country code and any `+` prefix in the correct
+ * order regardless of the surrounding Persian text, while the row still lays
+ * out RTL. Shown in full — never masked, truncated or wrapped. The E.164 value
+ * it wraps (`+989…`) is complete; `dir="ltr"` is the ONLY direction control,
+ * never a code-point trick or string reversal.
+ */
+export function MobileNumber({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <bdi
+      dir="ltr"
+      className={`inline-block tabular-nums whitespace-nowrap text-start ${className}`}
+      style={{ unicodeBidi: "isolate" }}
+    >
+      {children}
+    </bdi>
+  );
+}
+
+/**
+ * A mobile rendered MASKED by default, with a per-cell reveal toggle. This is
+ * the panel-wide default for a user's or lawyer's number: four middle digits
+ * are hidden (see {@link maskMobileMiddle}) until the operator clicks the eye,
+ * which reveals the full value LTR — re-hidden on a second click. The reveal
+ * state is LOCAL to the cell and never escapes it: nothing lands in the URL,
+ * localStorage, a tooltip, an HTML `title`, alt text or the DOM of a
+ * neighbouring row, so a masked screenshot carries no full numbers.
+ *
+ * The mask is a privacy affordance, not an authorization boundary — the
+ * server still authorizes the caller and decides what the endpoint returns.
+ */
+export function MaskedMobile({
+  value,
+  className = "",
+}: {
+  /** The full value the row owns (any stored shape); masking is display-only. */
+  value: string | null | undefined;
+  className?: string;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const full = value ?? "";
+  const hasValue = full.trim().length > 0;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <bdi
+        dir="ltr"
+        className={`tabular-nums whitespace-nowrap text-start ${className}`}
+        style={{ unicodeBidi: "isolate" }}
+      >
+        {revealed ? full : maskMobileMiddle(full)}
+      </bdi>
+      {hasValue && (
+        <button
+          type="button"
+          onClick={() => setRevealed((r) => !r)}
+          aria-pressed={revealed}
+          aria-label={revealed ? "مخفی‌کردن شماره موبایل" : "نمایش شماره موبایل"}
+          title={revealed ? "مخفی‌کردن شماره" : "نمایش شماره"}
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {revealed ? (
+            <IconEyeOff size={15} aria-hidden="true" />
+          ) : (
+            <IconEye size={15} aria-hidden="true" />
+          )}
+        </button>
+      )}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pagination
+// ---------------------------------------------------------------------------
+// The ONE pager every admin list uses. It speaks the shared 10/20/100 page-size
+// contract (see lib/admin/pagination) so the control and the API can never
+// disagree. RTL-first and responsive: the summary collapses on mobile while the
+// size selector and first/prev/next/last buttons stay reachable. The page and
+// page-size values are CONTROLLED — the page owns them (URL or state) so a page
+// can persist them; this component only renders and emits.
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  totalPages,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
+  itemLabel = "نتیجه",
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  /** Optional — derived from total/pageSize when omitted. */
+  totalPages?: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  pageSizeOptions?: readonly number[];
+  /** Noun after the count, e.g. «کاربر» / «سفارش» / «نتیجه». */
+  itemLabel?: string;
+}) {
+  const pages = Math.max(1, totalPages ?? Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  const atFirst = page <= 1;
+  const atLast = page >= pages;
+
+  return (
+    <div className="mt-3 flex flex-col gap-3 text-caption text-muted sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <span className="tabular-nums">
+        نمایش {toPersianNumber(from)} تا {toPersianNumber(to)} از {toPersianNumber(total)} {itemLabel}
+      </span>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {onPageSizeChange && (
+          <label className="flex items-center gap-2">
+            <span className="hidden sm:inline">در هر صفحه</span>
+            <span
+              role="group"
+              aria-label="تعداد رکورد در هر صفحه"
+              className="flex items-center overflow-hidden rounded-medium border border-divider"
+            >
+              {pageSizeOptions.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  aria-pressed={pageSize === size}
+                  onClick={() => onPageSizeChange(size)}
+                  className={`px-3 py-1.5 tabular-nums transition-colors ${
+                    pageSize === size
+                      ? "bg-primary text-on-primary"
+                      : "bg-surface text-on-surface-variant hover:bg-surface-hover"
+                  }`}
+                >
+                  {toPersianNumber(size)}
+                </button>
+              ))}
+            </span>
+          </label>
+        )}
+
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atFirst}
+            onClick={() => onPageChange(1)}
+            title="صفحهٔ اول"
+            ariaLabel="صفحهٔ اول"
+            startIcon={<IconChevronRight size={14} aria-hidden="true" />}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atFirst}
+            onClick={() => onPageChange(page - 1)}
+            title="صفحهٔ قبل"
+          >
+            قبلی
+          </Button>
+          <span className="px-1 tabular-nums whitespace-nowrap">
+            {toPersianNumber(page)} / {toPersianNumber(pages)}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atLast}
+            onClick={() => onPageChange(page + 1)}
+            title="صفحهٔ بعد"
+          >
+            بعدی
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={atLast}
+            onClick={() => onPageChange(pages)}
+            title="صفحهٔ آخر"
+            ariaLabel="صفحهٔ آخر"
+            startIcon={<IconChevronLeft size={14} aria-hidden="true" />}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 

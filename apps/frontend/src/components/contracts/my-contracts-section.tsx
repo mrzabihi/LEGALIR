@@ -43,7 +43,8 @@ import {
 } from "@/lib/contracts/filters";
 import { trackContractEvent } from "@/lib/contracts/analytics";
 import { Dialog, Drawer, Select } from "@legalir/ui";
-import { IconClose, IconFilter, IconHistory, IconRefresh } from "@/lib/icons";
+import { IconFilter, IconHistory, IconRefresh } from "@/lib/icons";
+import { ResultsBar, type ActiveFilter } from "@/components/shared";
 import { UserContractCard } from "./user-contract-card";
 import { ContractsEmptyState } from "./contracts-empty-state";
 import { ContractFilterPanel } from "./contract-filter-panel";
@@ -68,6 +69,14 @@ interface MyContractsSectionProps {
   onFiltersChange: (next: ContractFilterState) => void;
   /** Called when the user asks to start a contract from the empty state. */
   onStart?: () => void;
+  /**
+   * The mobile filter drawer is CONTROLLED by the page, because the trigger
+   * that opens it now lives in the search card (up in the toolbar), while the
+   * drawer itself lives here where the filter model already is. Optional so
+   * the component still renders standalone (unit tests) with it closed.
+   */
+  drawerOpen?: boolean;
+  onDrawerOpenChange?: (open: boolean) => void;
 }
 
 /** True when any axis beyond the coarse tab is narrowing the list. */
@@ -90,10 +99,12 @@ export function MyContractsSection({
   filters,
   onFiltersChange,
   onStart,
+  drawerOpen = false,
+  onDrawerOpenChange,
 }: MyContractsSectionProps) {
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
+  const setDrawerOpen = (open: boolean) => onDrawerOpenChange?.(open);
 
   const typeOptions = React.useMemo(() => contractTypeOptions(contracts), [contracts]);
 
@@ -106,6 +117,14 @@ export function MyContractsSection({
 
   const chips = React.useMemo(() => activeFilterChips(filters), [filters]);
   const finerActive = hasFinerFilters(filters);
+
+  // The shared results bar takes the same active filters, each individually
+  // removable, so this list reads with one results/clear vocabulary.
+  const activeFilterList: ActiveFilter[] = React.useMemo(
+    () => chips.map((chip) => ({ key: `${chip.group}:${chip.value}`, label: chip.labelFa, onRemove: () => removeChip(chip) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chips, filters]
+  );
 
   // The «ادامه دهید» block and the grouped view are only meaningful on
   // the unfiltered «همه» view — a filtered list is shown flat.
@@ -143,29 +162,11 @@ export function MyContractsSection({
 
   return (
     <section className="space-y-4" aria-labelledby="my-contracts-heading">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="my-contracts-heading" className="text-h4 text-on-surface">
-          قراردادهای من
-        </h2>
-
-        {/* Mobile: the finer axes live in a drawer. */}
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          className="tablet:hidden inline-flex h-10 items-center gap-1.5 rounded-medium border border-divider px-3 text-labelLarge text-on-surface"
-        >
-          <IconFilter size={18} />
-          فیلترها
-          {finerActive && (
-            <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
-              {filters.draft.length +
-                filters.analysis.length +
-                filters.types.length +
-                (filters.dateRange !== "any" ? 1 : 0)}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* The mobile filter trigger now lives in the search card above, so
+          this heading is a clean full-width line. */}
+      <h2 id="my-contracts-heading" className="text-h4 text-on-surface">
+        قراردادهای من
+      </h2>
 
       {/* Desktop filter bar — the coarse tabs on one row, the finer axes
           behind «فیلترهای بیشتر», and the sort control. */}
@@ -192,7 +193,7 @@ export function MyContractsSection({
             "shrink-0 inline-flex h-10 items-center gap-1.5 rounded-medium border px-3 text-labelLarge transition-colors",
             finerActive
               ? "border-primary text-primary"
-              : "border-divider text-on-surface hover:border-control-selected/50",
+              : "border-divider text-on-surface hover:border-control-selected",
           ].join(" ")}
         >
           <IconFilter size={18} />
@@ -225,32 +226,11 @@ export function MyContractsSection({
 
       {/* Result count + the removable active-filter chips. */}
       {!isLoading && !isError && contracts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-caption text-muted">
-            {visible.length} قرارداد
-          </span>
-          {chips.map((chip) => (
-            <button
-              key={`${chip.group}:${chip.value}`}
-              type="button"
-              onClick={() => removeChip(chip)}
-              className="inline-flex h-7 items-center gap-1 rounded-full border border-divider bg-surface px-2.5 text-caption text-on-surface transition-colors hover:border-error/40 hover:text-error"
-              aria-label={`حذف فیلتر ${chip.labelFa}`}
-            >
-              {chip.labelFa}
-              <IconClose size={12} />
-            </button>
-          ))}
-          {chips.length > 0 && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-caption text-primary hover:underline"
-            >
-              پاک کردن همه
-            </button>
-          )}
-        </div>
+        <ResultsBar
+          countLabel={`${visible.length} قرارداد`}
+          filters={activeFilterList}
+          onClearAll={clearFilters}
+        />
       )}
 
       {isLoading ? (
@@ -287,7 +267,7 @@ export function MyContractsSection({
           {/* «ادامه دهید» — the drafts the user can pick up right now.
               Hidden entirely when there are none. */}
           {drafts.length > 0 && (
-            <div className="rounded-large border border-primary/30 bg-primary/[0.04] p-4">
+            <div className="rounded-large border border-primary bg-primary-container p-4">
               <div className="mb-3 flex items-center gap-2">
                 <IconHistory size={18} className="text-primary" />
                 <h3 className="text-titleSmall text-on-surface">ادامه دهید</h3>
@@ -295,7 +275,7 @@ export function MyContractsSection({
                   {drafts.length} قرارداد نیمه‌تمام
                 </span>
               </div>
-              <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2.5">
                 {drafts.slice(0, 4).map((contract) => (
                   <UserContractCard
                     key={contract.id}
@@ -323,7 +303,7 @@ export function MyContractsSection({
                         {group.contracts.length}
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-2.5">
                       {shown.map((contract) => (
                         <UserContractCard
                           key={contract.id}
@@ -348,7 +328,7 @@ export function MyContractsSection({
                 );
               })
             : (
-              <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2.5">
                 {visible.map((contract) => (
                   <UserContractCard
                     key={contract.id}
@@ -477,7 +457,7 @@ function TabChip({
       className={`shrink-0 h-9 rounded-full border px-3.5 text-labelMedium transition-colors ${
         selected
           ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-          : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected/50"
+          : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected"
       }`}
     >
       {label}

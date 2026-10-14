@@ -56,7 +56,11 @@ export function assertTransition(
   if (!canTransition(from, to)) throw new IllegalTransitionError(from, to);
 }
 
-/** States in which the contract data may still be edited. */
+/**
+ * States in which the contract data may still be edited. `REJECTED` is
+ * included so a rejected contract can be corrected and resubmitted; the
+ * moment its content changes, any prior admin approval is invalidated.
+ */
 const EDITABLE_STATES: PropertyContractState[] = [
   "DRAFT",
   "PARTIES_PENDING",
@@ -64,6 +68,7 @@ const EDITABLE_STATES: PropertyContractState[] = [
   "DOCUMENTS_PENDING",
   "TERMS_PENDING",
   "CHANGES_REQUESTED",
+  "REJECTED",
 ];
 
 /** True when the working data may be modified in this state. */

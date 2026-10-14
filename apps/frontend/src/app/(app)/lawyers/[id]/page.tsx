@@ -16,7 +16,7 @@
 import { use } from "react";
 import Link from "next/link";
 import { useLawyer } from "@/hooks/useLawyers";
-import { LawyerAvatar } from "@/components/lawyers";
+import { LawyerAvatar, LawyerReviewForm, ReviewReportControl } from "@/components/lawyers";
 import {
   IconStar,
   IconCheckCircle,
@@ -29,7 +29,7 @@ import {
   IconLawBook,
   IconGavel,
 } from "@/lib/icons";
-import { toPersianNumber } from "@/lib/persian-utils";
+import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { removalReason, SUSPENDED_REASON_FA } from "@/lib/lawyers/availability";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
 import {
@@ -58,7 +58,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-divider/60 bg-surface p-5">
+    <section className="rounded-large border border-divider bg-surface p-5">
       <h2 className="mb-3 flex items-center gap-2 text-h3 text-on-surface">
         {icon}
         {title}
@@ -75,7 +75,7 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-        <div className="h-64 animate-pulse rounded-2xl bg-surface-container" />
+        <div className="h-64 animate-pulse rounded-large bg-surface-container" />
       </div>
     );
   }
@@ -83,11 +83,11 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
   if (isError || !lawyer) {
     return (
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-        <div className="flex flex-col items-center gap-3 rounded-large bg-error/10 p-8 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-8 text-center">
           <p className="text-body-1 text-error">وکیل یافت نشد یا در دسترس نیست</p>
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary/10"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
           >
             <IconRefresh size={16} />
             تلاش مجدد
@@ -124,7 +124,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
   const jurisdictions = lawyer.jurisdictions ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
+    <div className="mx-auto max-w-4xl p-4 pb-28 tablet:p-6 tablet:pb-6" dir="rtl">
       <Link
         href="/lawyers"
         className="mb-4 inline-flex items-center gap-1.5 text-body-2 text-muted transition hover:text-primary"
@@ -138,7 +138,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
       {suspended && (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-xl border border-error-200 bg-error-100 px-4 py-3 text-body-2 text-error-700"
+          className="mb-4 flex items-start gap-2 rounded-medium border border-error bg-error-container px-4 py-3 text-body-2 text-error"
         >
           <IconError size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span className="font-medium">{SUSPENDED_REASON_FA}</span>
@@ -146,8 +146,8 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
       )}
 
       {/* Header */}
-      <div className="relative mb-6 overflow-hidden rounded-2xl border border-divider/60 bg-surface p-6 shadow-sm">
-        <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-primary-600 to-primary-800" />
+      <div className="relative mb-6 overflow-hidden rounded-large border border-divider bg-surface p-6 shadow-elevation-1">
+        <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[var(--brand-green)] to-[var(--brand-teal)]" />
         <div className="flex flex-col gap-4 tablet:flex-row tablet:items-start">
           <LawyerAvatar
             name={lawyer.fullName}
@@ -159,24 +159,27 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-h2 text-on-surface">{lawyer.fullName}</h1>
               {lawyer.featured && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-caption text-primary-700">
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary-container px-2.5 py-0.5 text-caption text-primary">
                   برگزیده
                 </span>
               )}
               {lawyer.verificationStatus === "VERIFIED" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-0.5 text-caption text-success">
+                <span
+                  title="پروانهٔ این وکیل توسط تیم لیگالیر بررسی و تأیید شده است."
+                  className="inline-flex items-center gap-1 rounded-full bg-success-container px-2.5 py-0.5 text-caption text-success"
+                >
                   <IconCheckCircle size={14} />
                   تأییدشده
                 </span>
               )}
               {suspended && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-error/10 px-2.5 py-0.5 text-caption text-error">
+                <span className="inline-flex items-center gap-1 rounded-full bg-error-container px-2.5 py-0.5 text-caption text-error">
                   <IconError size={14} />
                   معلق
                 </span>
               )}
               {lawyer.isDemo && (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-caption text-amber-700">
+                <span className="rounded-full border border-warning bg-warning-container px-2.5 py-0.5 text-caption text-warning">
                   نمونه
                 </span>
               )}
@@ -202,13 +205,18 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                 {lawyer.licenseYear ? ` · سال ${toPersianNumber(lawyer.licenseYear)}` : ""}
               </p>
             )}
+            {lawyer.verifiedAt && (
+              <p className="mt-1 text-caption text-muted">
+                آخرین بررسی مدارک: {toPersianDate(lawyer.verifiedAt)}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Performance — derived from real events */}
-      <div className="mb-6 grid grid-cols-2 gap-3 tablet:grid-cols-4">
-        <div className="rounded-2xl border border-divider/60 bg-surface p-4 text-center">
+      {/* Performance — derived from real events, never fabricated */}
+      <div className="mb-2 grid grid-cols-2 gap-3 tablet:grid-cols-4">
+        <div className="rounded-large border border-divider bg-surface p-4 text-center">
           <div className="mb-1 flex items-center justify-center gap-1 text-amber-600">
             <IconStar size={18} />
             <span className="text-h3">
@@ -219,23 +227,27 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
             {displayReviewCount > 0 ? `${toPersianNumber(displayReviewCount)} نظر` : "بدون نظر"}
           </p>
         </div>
-        <div className="rounded-2xl border border-divider/60 bg-surface p-4 text-center">
+        <div className="rounded-large border border-divider bg-surface p-4 text-center">
           <div className="mb-1 text-h3 text-on-surface">{toPersianNumber(perf.acceptedRequests)}</div>
           <p className="text-caption text-muted">درخواست پذیرفته‌شده</p>
         </div>
-        <div className="rounded-2xl border border-divider/60 bg-surface p-4 text-center">
+        <div className="rounded-large border border-divider bg-surface p-4 text-center">
           <div className="mb-1 text-h3 text-on-surface">{toPersianNumber(perf.completedCases)}</div>
           <p className="text-caption text-muted">پرونده تکمیل‌شده</p>
         </div>
-        <div className="rounded-2xl border border-divider/60 bg-surface p-4 text-center">
+        <div className="rounded-large border border-divider bg-surface p-4 text-center">
           <div className="mb-1 text-h3 text-on-surface">
             {perf.medianResponseMinutes !== null
               ? `${toPersianNumber(perf.medianResponseMinutes)} د`
-              : "—"}
+              : "نامشخص"}
           </div>
           <p className="text-caption text-muted">میانه زمان پاسخ</p>
         </div>
       </div>
+      <p className="mb-6 text-caption text-muted">
+        این آمار از رویدادهای واقعی لیگالیر (درخواست‌های پذیرفته‌شده، پرونده‌های تکمیل‌شده و نظرات
+        منتشرشده) در کل دورهٔ فعالیت وکیل محاسبه می‌شود.
+      </p>
 
       <div className="grid grid-cols-1 gap-6 tablet:grid-cols-3">
         <div className="space-y-6 tablet:col-span-2">
@@ -246,20 +258,20 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                 {lawyer.specializations.map((s) => (
                   <span
                     key={s.category}
-                    className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-caption text-primary-700"
+                    className="rounded-full border border-primary bg-primary-container px-3 py-1 text-caption text-primary"
                   >
                     {specialtyLabel(s.category)} · {toPersianNumber(s.yearsExperience)} سال
                   </span>
                 ))}
               </div>
             ) : (
-              <ul className="divide-y divide-divider/70">
+              <ul className="divide-y divide-divider">
                 {expertise.map((e) => (
                   <li key={e.id} className="flex items-start justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 text-body-2 text-on-surface">
                         {e.isPrimary && (
-                          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-caption text-primary-700">
+                          <span className="rounded-small bg-primary-container px-1.5 py-0.5 text-caption text-primary">
                             اصلی
                           </span>
                         )}
@@ -277,16 +289,14 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
             )}
           </SectionCard>
 
-          {/* Services offered */}
-          <SectionCard title="خدمات قابل ارائه" icon={<IconBriefcase size={18} />}>
-            {services.length === 0 ? (
-              <p className="py-2 text-body-2 text-muted">خدمتی برای این وکیل ثبت نشده است.</p>
-            ) : (
+          {/* Services offered — hidden entirely when none are enabled */}
+          {services.length > 0 && (
+            <SectionCard title="خدمات قابل ارائه" icon={<IconBriefcase size={18} />}>
               <div className="flex flex-wrap gap-2">
                 {services.map((s) => (
                   <span
                     key={s.serviceId}
-                    className="rounded-full border border-divider/60 bg-surface-container/50 px-3 py-1 text-caption text-on-surface"
+                    className="rounded-full border border-divider bg-surface-container px-3 py-1 text-caption text-on-surface"
                   >
                     {lawyerServiceLabel(s.serviceId)}
                     {typeof s.priceToman === "number" && (
@@ -295,14 +305,12 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                   </span>
                 ))}
               </div>
-            )}
-          </SectionCard>
+            </SectionCard>
+          )}
 
-          {/* Education */}
-          <SectionCard title="تحصیلات" icon={<IconLawBook size={18} />}>
-            {education.length === 0 ? (
-              <p className="py-2 text-body-2 text-muted">اطلاعات تحصیلی ثبت نشده است.</p>
-            ) : (
+          {/* Education — hidden entirely when nothing is recorded */}
+          {education.length > 0 && (
+            <SectionCard title="تحصیلات" icon={<IconLawBook size={18} />}>
               <ul className="space-y-2">
                 {education.map((ed) => (
                   <li key={ed.id} className="flex items-start justify-between gap-3 text-body-2">
@@ -321,15 +329,13 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                   </li>
                 ))}
               </ul>
-            )}
-          </SectionCard>
+            </SectionCard>
+          )}
 
-          {/* Experience timeline */}
-          <SectionCard title="سوابق حرفه‌ای" icon={<IconBriefcase size={18} />}>
-            {experience.length === 0 ? (
-              <p className="py-2 text-body-2 text-muted">سابقه‌ای ثبت نشده است.</p>
-            ) : (
-              <ol className="relative space-y-4 border-s border-divider/70 ps-4">
+          {/* Experience timeline — hidden entirely when nothing is recorded */}
+          {experience.length > 0 && (
+            <SectionCard title="سوابق حرفه‌ای" icon={<IconBriefcase size={18} />}>
+              <ol className="relative space-y-4 border-s border-divider ps-4">
                 {experience.map((ex) => (
                   <li key={ex.id} className="relative">
                     <span className="absolute -start-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
@@ -353,25 +359,30 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                   </li>
                 ))}
               </ol>
-            )}
-          </SectionCard>
+            </SectionCard>
+          )}
 
           {/* Reviews */}
           <SectionCard title="نظرات موکلان">
+            {/* The client's own review surface — eligibility decided server-side. */}
+            <div className="mb-4">
+              <LawyerReviewForm lawyerId={lawyer.id} />
+            </div>
+
             {lawyer.reviews.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
                 <IconInfo size={28} className="text-muted" />
                 <p className="text-body-2 text-muted">هنوز نظری ثبت نشده است</p>
               </div>
             ) : (
-              <ul className="divide-y divide-divider/70">
+              <ul className="divide-y divide-divider">
                 {lawyer.reviews.map((r) => (
                   <li key={r.id} className="py-3">
                     <div className="mb-1 flex items-center justify-between">
                       <span className="flex items-center gap-2 text-body-2 text-on-surface">
                         {r.authorName}
                         {r.verifiedEngagement && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success-container px-1.5 py-0.5 text-[11px] text-success">
                             <IconCheckCircle size={11} />
                             موکل تأییدشده
                           </span>
@@ -383,6 +394,9 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
                       </span>
                     </div>
                     <p className="text-body-2 text-muted">{r.comment}</p>
+                    <div className="mt-1">
+                      <ReviewReportControl lawyerId={lawyer.id} reviewId={r.id} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -416,7 +430,7 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
               ) : null}
             </dl>
             {lawyer.pricing.freeFirstConsultation && (
-              <p className="mt-3 rounded-xl bg-success/10 px-3 py-2 text-caption text-success">
+              <p className="mt-3 rounded-medium bg-success-container px-3 py-2 text-caption text-success">
                 اولین مشاوره رایگان است
               </p>
             )}
@@ -433,51 +447,84 @@ function LawyerProfileView({ lawyer }: { lawyer: LawyerDetail }) {
             </SectionCard>
           )}
 
-          <SectionCard title="زمان‌های در دسترس" icon={<IconCalendar size={18} />}>
-            <ul className="space-y-1.5 text-body-2 text-muted">
-              {lawyer.availability.map((slot, i) => (
-                <li key={i} className="flex items-center justify-between">
-                  <span>{WEEKDAY_FA[slot.weekday] ?? slot.weekday}</span>
-                  <span dir="ltr">
-                    {slot.startTime}–{slot.endTime}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </SectionCard>
-
-          <SectionCard title="موقعیت و زبان">
-            <ul className="space-y-1.5 text-body-2 text-muted">
-              {lawyer.locations.map((loc, i) => (
-                <li key={i}>
-                  {loc.province} · {loc.city}
-                  {loc.remote ? " · آنلاین" : ""}
-                </li>
-              ))}
-              <li>{lawyer.languages.map((l) => l.labelFa).join("، ")}</li>
-            </ul>
-          </SectionCard>
-
-          {removed ? (
-            // Terminal state — the profile is viewable for transparency but
-            // can never start a request. The same red treatment covers both
-            // outcomes; only the copy differs.
-            <div
-              role="status"
-              className="flex items-center justify-center gap-2 rounded-xl border border-error-200 bg-error-100 px-5 py-3 text-center text-button font-medium text-error-700"
-            >
-              <IconError size={16} className="shrink-0" aria-hidden="true" />
-              {removeReasonText}
-            </div>
-          ) : (
-            <Link
-              href={`/consultations/new?lawyerId=${lawyer.id}`}
-              className="block rounded-xl bg-primary px-5 py-3 text-center text-button font-medium text-white shadow-sm transition-colors hover:bg-primary-700 active:scale-[0.98]"
-            >
-              درخواست مشاوره از این وکیل
-            </Link>
+          {lawyer.availability.length > 0 && (
+            <SectionCard title="ساعت کاری هفتگی" icon={<IconCalendar size={18} />}>
+              <ul className="space-y-1.5 text-body-2 text-muted">
+                {lawyer.availability.map((slot, i) => (
+                  <li key={i} className="flex items-center justify-between">
+                    <span>{WEEKDAY_FA[slot.weekday] ?? slot.weekday}</span>
+                    <span dir="ltr">
+                      {slot.startTime}–{slot.endTime}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 rounded-medium bg-surface-container px-3 py-2 text-caption text-muted">
+                این ساعات، ساعت کاری هفتگی وکیل است و به‌معنای امکان رزرو نوبت آنلاین نیست. برای
+                شروع، درخواست مشاوره ارسال کنید تا زمان دقیق هماهنگ شود.
+              </p>
+            </SectionCard>
           )}
+
+          {(lawyer.locations.length > 0 || lawyer.languages.length > 0) && (
+            <SectionCard title="موقعیت و زبان">
+              <ul className="space-y-1.5 text-body-2 text-muted">
+                {lawyer.locations.map((loc, i) => (
+                  <li key={i}>
+                    {loc.province} · {loc.city}
+                    {loc.remote ? " · آنلاین" : ""}
+                  </li>
+                ))}
+                {lawyer.languages.length > 0 && (
+                  <li>{lawyer.languages.map((l) => l.labelFa).join("، ")}</li>
+                )}
+              </ul>
+            </SectionCard>
+          )}
+
+          {/* Desktop CTA, in the sidebar. The mobile twin is the sticky bar below. */}
+          <div className="hidden tablet:block">
+            {removed ? (
+              // Terminal state — the profile is viewable for transparency but
+              // can never start a request. The same red treatment covers both
+              // outcomes; only the copy differs.
+              <div
+                role="status"
+                className="flex items-center justify-center gap-2 rounded-medium border border-error bg-error-container px-5 py-3 text-center text-button font-medium text-error"
+              >
+                <IconError size={16} className="shrink-0" aria-hidden="true" />
+                {removeReasonText}
+              </div>
+            ) : (
+              <Link
+                href={`/consultations/new?lawyerId=${lawyer.id}`}
+                className="block rounded-medium bg-primary px-5 py-3 text-center text-button font-medium text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
+              >
+                درخواست مشاوره از این وکیل
+              </Link>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Mobile sticky action bar — the primary CTA never leaves the viewport. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-divider bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur tablet:hidden">
+        {removed ? (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 rounded-medium border border-error-200 bg-error-100 px-5 py-3 text-center text-button font-medium text-error-700"
+          >
+            <IconError size={16} className="shrink-0" aria-hidden="true" />
+            {removeReasonText}
+          </div>
+        ) : (
+          <Link
+            href={`/consultations/new?lawyerId=${lawyer.id}`}
+            className="block rounded-medium bg-primary px-5 py-3 text-center text-button font-medium text-primary-on shadow-sm transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
+          >
+            درخواست مشاوره از این وکیل
+          </Link>
+        )}
       </div>
     </div>
   );

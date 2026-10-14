@@ -1,8 +1,11 @@
 // ============================================================
 // LEGALIR — Favicon / Web App Icon generator
-// Derives the full PWA icon set from the approved master mark
-// (scripts/assets/legalir-app-icon.png — the gold emblem on a
-// green squircle). Preserves the brand; does NOT redesign it.
+// Derives the full icon set from the approved masters. Preserves
+// the brand; does NOT redesign it.
+//   • PWA / home-screen icons — the gold emblem on a green
+//     squircle (scripts/assets/legalir-app-icon.png).
+//   • Browser favicon — the standalone gold book-shield emblem
+//     (scripts/assets/legalir-favicon.png).
 // Run: node scripts/generate-icons.mjs
 // ============================================================
 
@@ -14,6 +17,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "../public");
 const source = path.resolve(__dirname, "assets/legalir-app-icon.png");
+// Browser favicon: the standalone brand emblem (gold book-shield on
+// transparency) — the same mark the mobile navbar centre action uses.
+const faviconSource = path.resolve(__dirname, "assets/legalir-favicon.png");
 
 // Gold-emblem bounding box inside the 1254x1254 master (measured).
 const EMBLEM_BBOX = { left: 287, top: 209, width: 680, height: 841 };
@@ -33,9 +39,9 @@ async function main() {
   const green = (size, scale) => greenIcon(size, scale);
 
   const pngBuffers = {
-    "favicon-16.png": await any(16),
-    "favicon-32.png": await any(32),
-    "favicon-48.png": await any(48),
+    "favicon-16.png": await favicon(16),
+    "favicon-32.png": await favicon(32),
+    "favicon-48.png": await favicon(48),
     "apple-touch-icon.png": await green(180, APPLE_EMBLEM_SCALE),
     "icon-192.png": await any(192),
     "icon-512.png": await any(512),
@@ -47,13 +53,21 @@ async function main() {
     fs.writeFileSync(path.join(publicDir, name), buf);
   }
 
-  // Pack favicon.ico from the 16/32/48 PNGs (Vista+ PNG-encoded ICO)
+  // Pack favicon.ico from the same emblem frames (Vista+ PNG-encoded ICO) so
+  // the tab icon matches the PNG favicons exactly, at every size.
   fs.writeFileSync(
     path.join(publicDir, "favicon.ico"),
-    buildIco([pngBuffers["favicon-16.png"], pngBuffers["favicon-32.png"], pngBuffers["favicon-48.png"]]),
+    buildIco([
+      pngBuffers["favicon-16.png"],
+      pngBuffers["favicon-32.png"],
+      pngBuffers["favicon-48.png"],
+      await favicon(64),
+      await favicon(128),
+      await favicon(256),
+    ]),
   );
 
-  console.log("Generated:", Object.keys(pngBuffers).join(", "), "+ favicon.ico");
+  console.log("Generated:", Object.keys(pngBuffers).join(", "), "+ favicon.ico (16…256)");
 }
 
 // The master's squircle is drawn to the canvas-edge midpoints with black matte
@@ -139,6 +153,26 @@ async function greenIcon(size, scale) {
   return sharp(greenBackground(size))
     .composite([{ input: em.buf, raw: { width: em.width, height: em.height, channels: 4 }, top, left }])
     .flatten({ background: GREEN_FLATTEN })
+    .png()
+    .toBuffer();
+}
+
+// Browser favicon: the standalone gold book-shield emblem, cropped to its
+// content and centred on transparency with a small breathing margin so the
+// shield's pointed base never clips at 16–48px on any tab-bar chrome.
+const FAVICON_EMBLEM_SCALE = 0.9; // of the canvas — leaves ~5% margin each side
+
+async function favicon(size) {
+  const trimmed = await sharp(faviconSource).trim({ threshold: 12 }).png().toBuffer();
+  const inner = Math.round(size * FAVICON_EMBLEM_SCALE);
+  const emblem = await sharp(trimmed)
+    .resize(inner, inner, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  return sharp({
+    create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: emblem, gravity: "center" }])
     .png()
     .toBuffer();
 }

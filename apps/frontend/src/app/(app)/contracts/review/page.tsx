@@ -196,7 +196,7 @@ function ContractReviewFlow() {
             <li>
               <Link
                 href="/contracts"
-                className="rounded-small px-1 py-0.5 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="rounded-small px-1 py-0.5 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 قراردادها
               </Link>
@@ -214,7 +214,7 @@ function ContractReviewFlow() {
 
         <div className="flex items-start gap-3">
           <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-container text-primary"
             aria-hidden="true"
           >
             <IconFileSearch size={22} />
@@ -332,7 +332,7 @@ function Stepper({ current }: { current: number }) {
                 active
                   ? "bg-primary text-primary-on"
                   : done
-                    ? "bg-primary/15 text-primary"
+                    ? "bg-primary-container text-primary"
                     : "bg-surface-container-high text-muted",
               ].join(" ")}
               aria-current={active ? "step" : undefined}

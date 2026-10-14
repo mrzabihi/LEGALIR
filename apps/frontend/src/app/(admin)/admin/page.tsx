@@ -23,10 +23,15 @@
 
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { SegmentedControl } from "@legalir/ui";
-import { useAdminOverview, useAdminReports, useAdminMe } from "@/hooks/useAdmin";
+import {
+  useAdminOverview,
+  useAdminReports,
+  useAdminLiveReport,
+  useAdminMe,
+} from "@/hooks/useAdmin";
 import type { AdminWindow } from "@/lib/api/admin";
 import {
   toPersianNumber,
@@ -54,8 +59,12 @@ import {
   LineChart,
   BarChart,
   DonutChart,
+  StackedBarChart,
+  ProgressRing,
   Sparkline,
   catColor,
+  type StackRow,
+  type StackSegment,
   type ChartPoint,
   type BarDatum,
 } from "@/components/admin/charts";
@@ -83,6 +92,10 @@ import {
   IconFileText,
   IconChevronLeft,
   IconCategory,
+  IconStop,
+  IconCheckCircle,
+  IconCloud,
+  IconRetry,
 } from "@/lib/icons";
 import type { AdminKpi, AdminOverview } from "@legalir/types";
 
@@ -463,6 +476,361 @@ const SEVERITY: Record<
 };
 
 // ---------------------------------------------------------------------------
+// Live report (گزارش زنده)
+// ---------------------------------------------------------------------------
+// A compact, self-refreshing view of the SAME real ledger the KPIs read. It is
+// the panel's first live surface, so it is intentionally modest: one shared
+// poll (see `useAdminLiveReport`), a visible pause, and — when the fetch fails —
+// the last good snapshot is kept and LABELLED stale instead of vanishing.
+// Nothing here is simulated: every number is a real server sum/count.
+
+/** Poll cadence (ms). Kept in sync with `useAdminLiveReport`'s default. */
+const LIVE_REFRESH_MS = 30_000;
+/** A snapshot older than this many cadences reads as «داده با تأخیر». */
+const LIVE_DELAY_FACTOR = 2.5;
+
+/** Live status as the operator should read it. */
+type LiveStatus = "connecting" | "fresh" | "delayed" | "offline" | "paused" | "denied";
+
+const LIVE_STATUS: Record<
+  LiveStatus,
+  { labelFa: string; dot: string; text: string; icon: IconComponent }
+> = {
+  connecting: { labelFa: "در حال اتصال", dot: "bg-warning", text: "text-warning", icon: IconCloud },
+  fresh: { labelFa: "به‌روز", dot: "bg-success", text: "text-success", icon: IconCheckCircle },
+  delayed: { labelFa: "داده با تأخیر", dot: "bg-warning", text: "text-warning", icon: IconClock },
+  offline: { labelFa: "ارتباط با سرویس برقرار نیست", dot: "bg-error", text: "text-error", icon: IconError },
+  paused: { labelFa: "متوقف", dot: "bg-muted", text: "text-muted", icon: IconStop },
+  denied: { labelFa: "دسترسی لازم نیست", dot: "bg-error", text: "text-error", icon: IconError },
+};
+
+/** A ticking clock so the "last update" age refreshes without a real re-render. */
+function useNow(intervalMs = 15_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+/** One money figure with its definition surfaced as a tooltip (§3). */
+function LiveMoneyCard({
+  labelFa,
+  value,
+  formulaFa,
+  icon: Icon,
+  emphasis = false,
+}: {
+  labelFa: string;
+  value: number;
+  formulaFa: string;
+  icon: IconComponent;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-large border border-divider p-3 ${
+        emphasis ? "bg-primary/5" : "bg-surface"
+      }`}
+      title={formulaFa}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-medium ${
+            emphasis ? "bg-primary/10 text-primary" : "bg-surface-container-high text-muted"
+          }`}
+        >
+          <Icon size={14} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-caption font-medium text-muted">
+          {labelFa}
+          <span className="ms-1 align-middle text-muted" aria-hidden="true">
+            <IconInfo size={12} className="inline" />
+          </span>
+        </span>
+      </div>
+      <p className="mt-1.5 text-body-1 font-bold tabular-nums text-onSurface" title={formulaFa}>
+        {toPersianCurrency(value)}
+      </p>
+    </div>
+  );
+}
+
+function LiveReportSection({
+  rangeDays,
+  windowParam,
+  comparisonLabel,
+}: {
+  rangeDays: number;
+  windowParam: AdminWindow | null;
+  comparisonLabel: string;
+}) {
+  const [paused, setPaused] = useState(false);
+  const now = useNow();
+
+  const live = useAdminLiveReport(rangeDays, {
+    enabled: true,
+    window: windowParam,
+    paused,
+  });
+
+  const data = live.data;
+  const lastAt = live.dataUpdatedAt || (data ? new Date(data.generatedAt).getTime() : 0);
+  const ageMs = lastAt ? Math.max(0, now - lastAt) : 0;
+
+  const denied =
+    live.isError &&
+    typeof (live.error as { status?: number } | null)?.status === "number" &&
+    (live.error as { status?: number }).status === 403;
+
+  let status: LiveStatus;
+  if (denied) status = "denied";
+  else if (!data) status = live.isError ? "offline" : "connecting";
+  else if (paused) status = "paused";
+  else if (live.isError) status = "offline";
+  else if (ageMs > LIVE_REFRESH_MS * LIVE_DELAY_FACTOR) status = "delayed";
+  else status = "fresh";
+
+  const st = LIVE_STATUS[status];
+  const StatusIcon = st.icon;
+  const stale = status === "offline" || status === "delayed" || status === "denied";
+
+  // Sales split (all real sums from the live ledger).
+  const split = data?.sales;
+  const dailyPoints: ChartPoint[] =
+    data?.dailyCollected.map((d) => ({
+      label: toPersianDate(d.date, { month: "2-digit", day: "2-digit" }),
+      tooltipLabel: toPersianDate(d.date),
+      value: d.value,
+    })) ?? [];
+  const dailyTotal = data?.dailyCollected.reduce((s, d) => s + d.value, 0) ?? 0;
+
+  const countSegments: StackSegment[] = [
+    { key: "paid", label: "پرداخت‌شده", color: "var(--color-success-500)" },
+    { key: "free", label: "رایگان", color: "var(--color-info-500)" },
+    { key: "unpaid", label: "بی‌پرداخت", color: "var(--color-warning-500)" },
+  ];
+  const countRows: StackRow[] =
+    split && split.count + split.unpaidCount > 0
+      ? [{ label: "سفارش‌های بازه", values: [split.paidCount, split.freeCount, split.unpaidCount] }]
+      : [];
+  const orderTotal = split ? split.paidCount + split.freeCount + split.unpaidCount : 0;
+
+  return (
+    <Section
+      title="گزارش زنده"
+      subtitle="خلاصهٔ لحظه‌ای فروش و فعالیت، از همان دفتر واقعی؛ به‌صورت خودکار تازه می‌شود."
+      infoFa="این بخش از یک نقطهٔ پایانی سبک تغذیه می‌شود و در فاصله‌های ۳۰ ثانیه‌ای تازه می‌شود؛ در تب پنهان یا حالت «توقف» درخواستی فرستاده نمی‌شود."
+      actions={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border border-divider bg-surface px-2.5 py-1 text-caption font-medium ${st.text}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${st.dot}`} />
+            <StatusIcon size={13} aria-hidden="true" />
+            {st.labelFa}
+          </span>
+          <span className="hidden text-caption text-muted tablet:inline">
+            آخرین به‌روزرسانی: {lastAt ? toRelativeTime(lastAt) : "—"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPaused((p) => !p)}
+            className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 py-2 text-caption font-medium text-on-surface-variant transition-colors hover:bg-surface-hover"
+            aria-pressed={paused}
+          >
+            {paused ? <IconRefresh size={14} /> : <IconStop size={14} />}
+            {paused ? "ادامه" : "توقف"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void live.refetch()}
+            disabled={live.isFetching}
+            className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 py-2 text-caption font-medium text-on-surface-variant transition-colors hover:bg-surface-hover disabled:opacity-50"
+            aria-label="به‌روزرسانی گزارش زنده"
+          >
+            <IconRefresh size={14} className={live.isFetching ? "animate-spin" : ""} />
+            به‌روزرسانی
+          </button>
+        </div>
+      }
+    >
+      {status === "denied" || !data ? (
+        status === "connecting" ? (
+          <ChartSkeleton height={200} />
+        ) : (
+          <Card className="flex items-start gap-2 p-4 text-body-2 text-muted">
+            <IconError size={18} className="mt-0.5 shrink-0 text-error" aria-hidden="true" />
+            <span>
+              {denied
+                ? "برای مشاهدهٔ گزارش زنده به مجوز «مشاهدهٔ نمای کلی» نیاز است."
+                : "ارتباط با سرویس گزارش برقرار نشد. پس از رفع مشکل، این بخش به‌صورت خودکار تازه می‌شود."}
+            </span>
+          </Card>
+        )
+      ) : (
+        <div className="flex flex-col gap-4">
+          {/* Stale / pause notice — the last good snapshot is kept, clearly flagged. */}
+          {stale && (
+            <div
+              role="status"
+              className="flex items-center gap-2 rounded-medium border border-s-2 border-divider border-s-warning bg-surface-container-low px-3 py-2 text-caption text-warning"
+            >
+              <IconWarning size={15} aria-hidden="true" />
+              <span>
+                آخرین دادهٔ موفق نگه داشته شده و ممکن است کهنه باشد.
+                {status === "delayed" ? " نرخ تازه‌سازی کندتر از حالت عادی است." : ""}
+              </span>
+            </div>
+          )}
+          {status === "paused" && (
+            <div className="flex items-center gap-2 rounded-medium border border-divider bg-surface-container-low px-3 py-2 text-caption text-muted">
+              <IconStop size={15} aria-hidden="true" />
+              <span>به‌روزرسانی خودکار متوقف است؛ دادهٔ نمایش‌داده‌شده از آخرین دریافت موفق است.</span>
+            </div>
+          )}
+
+          {/* Monetary split — nominal / discount / collected / refunded / net (§3). */}
+          <div className="grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-3 desktop:grid-cols-5">
+            <LiveMoneyCard
+              labelFa="مبلغ اسمی"
+              value={split!.baseAmount}
+              formulaFa="مجموع قیمت پایهٔ (پیش از تخفیف) سفارش‌های قطعی‌شدهٔ بازه — نه مبلغ وصول‌شده."
+              icon={IconBalance}
+            />
+            <LiveMoneyCard
+              labelFa="تخفیف اعمال‌شده"
+              value={split!.discountAmount}
+              formulaFa="مجموع تخفیف اعمال‌شده روی سفارش‌های بازه."
+              icon={IconCoin}
+            />
+            <LiveMoneyCard
+              labelFa="مبلغ وصول‌شده"
+              value={split!.collectedAmount}
+              formulaFa="مجموع پول واقعاً دریافتی در بازه؛ سفارش رایگان با درآمد صفر شمرده می‌شود."
+              icon={IconBalance}
+              emphasis
+            />
+            <LiveMoneyCard
+              labelFa="مبلغ بازگشتی"
+              value={split!.refundedAmount}
+              formulaFa="مجموع بازگشت‌های وجه تکمیل‌شده مرتبط با سفارش‌های بازه."
+              icon={IconRetry}
+            />
+            <LiveMoneyCard
+              labelFa="مبلغ خالص"
+              value={split!.netAmount}
+              formulaFa="مبلغ وصول‌شده منهای بازگشت‌های تکمیل‌شدهٔ بازه."
+              icon={IconBalance}
+            />
+          </div>
+
+          {/* Live charts — daily collected trend + order-status composition. */}
+          <div className="grid grid-cols-1 gap-4 desktop:grid-cols-12">
+            <div className="desktop:col-span-8">
+              <ChartFrame
+                title="درآمد وصول‌شدهٔ روزانه"
+                subtitle={`مجموع مبلغ وصول‌شده در هر روز (تومان)، ${toPersianNumber(rangeDays)} روز گذشته.`}
+              >
+                {dailyTotal > 0 ? (
+                  <LineChart
+                    points={dailyPoints}
+                    ariaLabel={`روند روزانهٔ درآمد وصول‌شده در ${toPersianNumber(rangeDays)} روز گذشته`}
+                    seriesName="درآمد وصول‌شده"
+                    unit="تومان"
+                    color="var(--control-selected)"
+                    axisFont={18}
+                  />
+                ) : (
+                  <ChartEmpty message="در این بازه دریافتی ثبت نشده است." />
+                )}
+              </ChartFrame>
+            </div>
+
+            <div className="desktop:col-span-4">
+              <ChartFrame
+                title="ترکیب سفارش‌ها"
+                subtitle="سفارش‌های قطعی‌شده (پرداخت‌شده/رایگان) در برابر سفارش‌های بی‌پرداخت بازه."
+              >
+                {orderTotal > 0 ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <ProgressRing
+                      value={split!.paidCount}
+                      total={orderTotal}
+                      label="سهم سفارش‌های پرداخت‌شده"
+                      centerLabel="پرداخت‌شده"
+                      ariaLabel={`سهم سفارش‌های پرداخت‌شده از کل سفارش‌های بازه: ${toPersianNumber(
+                        split!.paidCount
+                      )} از ${toPersianNumber(orderTotal)}.`}
+                      size={132}
+                      thickness={14}
+                    />
+                    <div className="w-full">
+                      <StackedBarChart
+                        rows={countRows}
+                        segments={countSegments}
+                        ariaLabel="ترکیب سفارش‌های بازه به تفکیک وضعیت"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <ChartEmpty message="در این بازه سفارشی ثبت نشده است." />
+                )}
+              </ChartFrame>
+            </div>
+          </div>
+
+          {/* Activity + honesty footnotes. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-muted">
+            <span>
+              کاربران جدید:{" "}
+              <strong className="font-semibold text-on-surface-variant">
+                {toPersianNumber(data.newUsers)}
+              </strong>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              درخواست‌های جدید:{" "}
+              <strong className="font-semibold text-on-surface-variant">
+                {toPersianNumber(data.newRequests)}
+              </strong>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              درخواست‌های باز:{" "}
+              <strong className="font-semibold text-on-surface-variant">
+                {toPersianNumber(data.openRequests)}
+              </strong>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              بازگشت در انتظار تأیید:{" "}
+              <strong className="font-semibold text-on-surface-variant">
+                {toPersianNumber(data.refundPending)}
+              </strong>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              مقایسه با {comparisonLabel}: شاخص‌های کارت‌های بالا.
+            </span>
+          </div>
+
+          <p className="text-caption leading-relaxed text-muted">
+            «تعهد خدمات اشتراکی» (بخش سرویس‌نشده) و «سود» در این سیستم فرمول تأییدشده‌ای ندارند و
+            نمایش داده نمی‌شوند؛ تنها ارقام قابل‌اتکا گزارش شده‌اند. سفارش با تخفیف ۱۰۰٪ در تعداد
+            فروش شمرده می‌شود اما در «مبلغ وصول‌شده» صفر است.
+          </p>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -559,6 +927,7 @@ export default function AdminOverviewPage() {
               reports={reports}
               canReadReports={canReadReports}
               rangeDays={rangeDays}
+              windowParam={windowParam}
             />
           )}
         </StateView>
@@ -576,11 +945,13 @@ function OverviewBody({
   reports,
   canReadReports,
   rangeDays,
+  windowParam,
 }: {
   data: AdminOverview;
   reports: ReturnType<typeof useAdminReports>;
   canReadReports: boolean;
   rangeDays: number;
+  windowParam: AdminWindow | null;
 }) {
   const [series, setSeries] = useState<"revenue" | "requests">("revenue");
 
@@ -882,6 +1253,13 @@ function OverviewBody({
           </ChartFrame>
         </div>
       </div>
+
+      {/* 3.5 · Live report — same real ledger, self-refreshing */}
+      <LiveReportSection
+        rangeDays={rangeDays}
+        windowParam={windowParam}
+        comparisonLabel={comparisonLabel}
+      />
 
       {/* 4 · Comparison + recent activity */}
       <div className="grid grid-cols-1 gap-4 desktop:grid-cols-12">
