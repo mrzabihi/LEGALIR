@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   useRedirectAuthenticated(pathname === "/auth/profile");
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-primary-950 via-primary-900 to-primary-800 flex items-center justify-center px-4 py-12">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-primary-950 via-primary-900 to-primary-800 flex items-center justify-center px-4 py-12">
       {/* Dot pattern overlay */}
       <div
         className="absolute inset-0 pointer-events-none opacity-30"
