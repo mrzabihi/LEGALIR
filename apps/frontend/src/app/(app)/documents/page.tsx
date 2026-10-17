@@ -66,10 +66,6 @@ export default function DocumentsPage() {
   const { data, isLoading, isError, refetch } = useDocuments(listParams);
 
   // --- Navigation ---
-  const handleDocumentClick = (id: string) => {
-    router.push(`/documents/${id}`);
-  };
-
   const handleUploadClick = () => {
     router.push("/documents/upload");
   };
@@ -89,7 +85,6 @@ export default function DocumentsPage() {
           onSearchChange={setSearch}
           onStatusChange={(val) => setStatus(val as V1DocumentFilter)}
           onSortChange={(val) => setSort(val as "newest" | "oldest" | "name")}
-          onDocumentClick={handleDocumentClick}
           onRetry={() => refetch()}
           onDelete={setPendingDelete}
         />

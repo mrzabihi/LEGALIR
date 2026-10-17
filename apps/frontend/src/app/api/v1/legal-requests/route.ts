@@ -24,7 +24,10 @@ import { isSupportedCategory } from "@/lib/intake-schemas";
 import { runIdempotent } from "@/lib/api/idempotency-store";
 import type { LegalRequest } from "@legalir/types";
 
-type ErrorPayload = { code: string; message: string };
+interface ErrorPayload {
+  code: string;
+  message: string;
+}
 
 export async function GET(request: NextRequest) {
   const auth = requireAuth(request);

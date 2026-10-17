@@ -59,7 +59,7 @@ export function OverflowMenu({
   const rootRef = React.useRef<HTMLDivElement>(null);
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const itemRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const itemRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
 
   const close = React.useCallback((returnFocus = true) => {
     setOpen(false);

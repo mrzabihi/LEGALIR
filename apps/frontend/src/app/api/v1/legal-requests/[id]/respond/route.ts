@@ -27,7 +27,10 @@ import { recordActivity } from "@/lib/db";
 import { runIdempotent } from "@/lib/api/idempotency-store";
 import { LEGAL_REQUEST_STATE_FA, type LegalRequest } from "@legalir/types";
 
-type ErrorPayload = { code: string; message: string };
+interface ErrorPayload {
+  code: string;
+  message: string;
+}
 
 export async function POST(
   request: NextRequest,

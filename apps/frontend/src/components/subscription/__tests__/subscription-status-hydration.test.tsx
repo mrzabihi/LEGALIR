@@ -37,7 +37,7 @@ vi.mock("@/hooks/useSubscription", () => ({
       ? {
           isLoading: false,
           isError: false,
-          refetch: () => {},
+          refetch: () => undefined,
           data: {
             id: "s1",
             userId: "u-1",
@@ -51,7 +51,7 @@ vi.mock("@/hooks/useSubscription", () => ({
             cancelledAt: null,
           },
         }
-      : { isLoading: true, isError: false, data: undefined, refetch: () => {} },
+      : { isLoading: true, isError: false, data: undefined, refetch: () => undefined },
 }));
 
 import { SubscriptionStatusDetails } from "@/components/subscription/subscription-status";

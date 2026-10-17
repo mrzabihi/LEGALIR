@@ -44,7 +44,7 @@ export async function POST(
   const body = (await readJson(request)) as { rating?: number; comment?: string } | null;
   const rating = Number(body?.rating);
   const comment = typeof body?.comment === "string" ? body.comment.trim() : "";
-  const errors: Array<{ path: string; reason: string }> = [];
+  const errors: { path: string; reason: string }[] = [];
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
     errors.push({ path: "rating", reason: "امتیاز باید بین ۱ تا ۵ باشد" });
   }

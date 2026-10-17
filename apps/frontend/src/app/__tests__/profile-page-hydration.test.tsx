@@ -31,12 +31,13 @@ const h = vi.hoisted(() => ({ shellWarm: false, forceUnguarded: false }));
 
 vi.mock("@/hooks/useIsHydrated", async () => {
   const ReactRuntime = await import("react");
-  const noop = () => () => {};
+  const noop = () => () => undefined;
   return {
-    useIsHydrated: () =>
-      h.forceUnguarded
-        ? true
-        : ReactRuntime.useSyncExternalStore(noop, () => true, () => false),
+    useIsHydrated: () => {
+      // Always call the store hook; only the RESULT is forced in control mode.
+      const hydrated = ReactRuntime.useSyncExternalStore(noop, () => true, () => false);
+      return h.forceUnguarded ? true : hydrated;
+    },
   };
 });
 
@@ -95,7 +96,7 @@ vi.mock("@/hooks/usePhase11", () => ({
 }));
 
 vi.mock("@/hooks/useAccount", () => ({
-  useUpdateAccountType: () => ({ mutate: () => {}, isPending: false }),
+  useUpdateAccountType: () => ({ mutate: () => undefined, isPending: false }),
 }));
 
 vi.mock("@/hooks/useOnboarding", () => ({

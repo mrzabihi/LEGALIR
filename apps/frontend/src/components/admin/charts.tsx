@@ -1016,8 +1016,15 @@ export function DonutChart({
 
   return (
     <div
+      // `stack` sits inside a KPI-grid cell, whose width is decided by the
+      // grid — not by this chart. Without `w-full min-w-0` the flex root sizes
+      // itself to the legend's max-content width and overflows the card, so the
+      // last percentages were clipped on a narrow column. Constraining the root
+      // lets the legend's `flex-1 truncate` label absorb the difference.
       className={`flex flex-col items-center ${
-        layout === "stack" ? "gap-3" : "gap-4 tablet:flex-row tablet:items-center tablet:justify-center"
+        layout === "stack"
+          ? "w-full min-w-0 gap-3"
+          : "gap-4 tablet:flex-row tablet:items-center tablet:justify-center"
       }`}
     >
       <div className="relative shrink-0" style={{ width: size, height: size }}>

@@ -68,7 +68,7 @@ export const propertyContractKeys = {
   documents: (id: string) => [...propertyContractKeys.detail(id), "documents"] as const,
   payments: (id: string) => [...propertyContractKeys.detail(id), "payments"] as const,
   versions: (id: string) => [...propertyContractKeys.detail(id), "versions"] as const,
-  audit: (id: string, filters: string = "") =>
+  audit: (id: string, filters = "") =>
     [...propertyContractKeys.detail(id), "audit", filters] as const,
 };
 

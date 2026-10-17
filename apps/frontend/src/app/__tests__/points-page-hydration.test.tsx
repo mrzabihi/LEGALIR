@@ -40,12 +40,13 @@ const h = vi.hoisted(() => ({ shellWarm: false, forceUnguarded: false }));
 // where it always reports `true` (the pre-fix read of a warm query).
 vi.mock("@/hooks/useIsHydrated", async () => {
   const ReactRuntime = await import("react");
-  const noop = () => () => {};
+  const noop = () => () => undefined;
   return {
-    useIsHydrated: () =>
-      h.forceUnguarded
-        ? true
-        : ReactRuntime.useSyncExternalStore(noop, () => true, () => false),
+    useIsHydrated: () => {
+      // Always call the store hook; only the RESULT is forced in control mode.
+      const hydrated = ReactRuntime.useSyncExternalStore(noop, () => true, () => false);
+      return h.forceUnguarded ? true : hydrated;
+    },
   };
 });
 

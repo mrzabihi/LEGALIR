@@ -22,7 +22,11 @@
 
 import { useSyncExternalStore } from "react";
 
-const subscribe = () => () => {};
+// There is no external state to subscribe to: the snapshot is a constant on
+// each side of the hydration boundary, so the unsubscribe is a no-op.
+const subscribe = () => () => {
+  /* nothing to unsubscribe from */
+};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
 

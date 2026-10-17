@@ -45,7 +45,31 @@ test("donut breakpoint edges", async ({ page, request }) => {
             spill: c ? r.left < c.left - 1 || r.right > c.right + 1 : null,
           };
         });
-      // Widest offenders when the page overflows.
+      // Elements whose painted box escapes `main` — the actual page overflow.
+      const mainEl = document.querySelector("main");
+      const mainRight = mainEl ? mainEl.getBoundingClientRect().right : 0;
+      const mainLeft = mainEl ? mainEl.getBoundingClientRect().left : 0;
+      const escape = Array.from(document.querySelectorAll<HTMLElement>("main *"))
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0) return false;
+          return r.right > mainRight + 1 || r.left < mainLeft - 1;
+        })
+        .filter(
+          (el) =>
+            !el.closest(".sr-only") &&
+            !String(el.className).includes("overflow-x-auto") &&
+            !String(el.className).includes("truncate")
+        )
+        .slice(0, 8)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 60)} ` +
+            `w=${Math.round(r.width)} right=${Math.round(r.right)} (main ${Math.round(mainRight)}) ` +
+            `"${(el.textContent ?? "").trim().slice(0, 30)}"`
+          );
+        });
       const spill = Array.from(document.querySelectorAll<HTMLElement>("body *"))
         .filter(
           (el) =>
@@ -80,14 +104,15 @@ test("donut breakpoint edges", async ({ page, request }) => {
         sw: doc.scrollWidth,
         cw: doc.clientWidth,
         rings,
-        spill,
+        spill: spill.slice(0, 3),
+        escape,
         header: header ? Math.round(header.getBoundingClientRect().width) : null,
         hkids,
       };
     });
     console.log(
       `W=${width} pageOverflow=${out.sw > out.cw + 1} header=${out.header} [${out.hkids.join(" ")}]\n` +
-        `  rings=${JSON.stringify(out.rings)}\n  ${out.spill.join("\n  ")}`
+        `  ESCAPE:\n    ${out.escape.join("\n    ")}\n  ${out.spill.join("\n  ")}`
     );
   }
 });

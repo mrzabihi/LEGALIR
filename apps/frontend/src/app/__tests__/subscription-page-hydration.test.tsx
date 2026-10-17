@@ -26,12 +26,13 @@ const h = vi.hoisted(() => ({ shellWarm: false, forceUnguarded: false }));
 
 vi.mock("@/hooks/useIsHydrated", async () => {
   const ReactRuntime = await import("react");
-  const noop = () => () => {};
+  const noop = () => () => undefined;
   return {
-    useIsHydrated: () =>
-      h.forceUnguarded
-        ? true
-        : ReactRuntime.useSyncExternalStore(noop, () => true, () => false),
+    useIsHydrated: () => {
+      // Always call the store hook; only the RESULT is forced in control mode.
+      const hydrated = ReactRuntime.useSyncExternalStore(noop, () => true, () => false);
+      return h.forceUnguarded ? true : hydrated;
+    },
   };
 });
 
@@ -66,7 +67,7 @@ vi.mock("@/hooks/useSubscription", () => ({
       ? {
           isLoading: false,
           isError: false,
-          refetch: () => {},
+          refetch: () => undefined,
           data: {
             id: "s1",
             userId: "u-1",
@@ -80,17 +81,17 @@ vi.mock("@/hooks/useSubscription", () => ({
             cancelledAt: null,
           },
         }
-      : { isLoading: true, isError: false, data: undefined, refetch: () => {} },
+      : { isLoading: true, isError: false, data: undefined, refetch: () => undefined },
   // Page-owned — stays pending on both server and client, so the status tab
   // renders the same skeleton either way and `hasActiveSubscription` is the
   // only value that changes across the hydration boundary.
-  useSubscriptionUsage: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => {} }),
-  useEntitlements: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => {} }),
-  usePlansV1: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => {} }),
+  useSubscriptionUsage: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
+  useEntitlements: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
+  usePlansV1: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
 }));
 
 vi.mock("@/hooks/usePhase11", () => ({
-  useSubscriptionHistory: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => {} }),
+  useSubscriptionHistory: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
 }));
 
 import SubscriptionPage from "@/app/(app)/subscription/page";

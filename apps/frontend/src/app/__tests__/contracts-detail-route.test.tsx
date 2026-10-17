@@ -23,7 +23,7 @@ const harness = vi.hoisted(() => ({
     isLoading: false,
     isError: false,
     error: null as unknown,
-    refetch: () => {},
+    refetch: () => undefined,
   },
   v1: { data: undefined as unknown, isLoading: false },
   v1RequestedId: null as string | null,
@@ -69,7 +69,7 @@ async function renderRoute(id: string) {
 }
 
 beforeEach(() => {
-  harness.os = { data: undefined, isLoading: false, isError: false, error: null, refetch: () => {} };
+  harness.os = { data: undefined, isLoading: false, isError: false, error: null, refetch: () => undefined };
   harness.v1 = { data: undefined, isLoading: false };
   harness.v1RequestedId = null;
 });
