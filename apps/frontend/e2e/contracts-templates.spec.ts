@@ -151,7 +151,9 @@ test.describe("Configurable-contract listing", () => {
     const box = page.getByRole("searchbox", { name: "جستجوی قرارداد" });
     await waitForHydration(box);
     await box.fill("ملک");
-    await expect(page).toHaveURL(/q=/, { timeout: 5_000 });
+    // The write is a settled-debounce effect, so it lands ~350ms after the
+    // last keystroke; the budget only has to absorb a dev-server compile.
+    await expect(page).toHaveURL(/q=/, { timeout: APP_READY_TIMEOUT });
 
     const url = new URL(page.url());
     expect(url.searchParams.get("q")).toBe("ملک");
@@ -178,7 +180,7 @@ test.describe("Configurable-contract listing", () => {
     const box = page.getByRole("searchbox", { name: "جستجوی قرارداد" });
     await waitForHydration(box);
     await box.fill("محرمانگی");
-    await expect(page).toHaveURL(/q=/, { timeout: 5_000 });
+    await expect(page).toHaveURL(/q=/, { timeout: APP_READY_TIMEOUT });
     // The search must NARROW the real catalogue, not merely decorate it.
     await expect.poll(async () => catalogCards(page).count()).toBeLessThan(all);
 
