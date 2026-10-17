@@ -33,6 +33,28 @@ export const CONTRACT_ARTWORK: Record<string, string> = {
   nda: "/assets/contracts/06-nda.jpg",
   saas: "/assets/contracts/07-saas-agreement.jpg",
   startup: "/assets/contracts/08-startup-partnership.jpg",
+  // Commercial, cloud and employment contracts — drawn from the second
+  // artwork set (blueprint scenes on the brand-green field).
+  commercial_rent: "/assets/contracts/09-commercial-lease.jpg",
+  commercial_sale: "/assets/contracts/10-commercial-sale.jpg",
+  cloud_iaas: "/assets/contracts/11-cloud-iaas.jpg",
+  cloud_paas: "/assets/contracts/12-cloud-paas.jpg",
+  employment: "/assets/contracts/13-employment.jpg",
+};
+
+/**
+ * Contract SERVICE id → artwork. The `/contracts` «به‌زودی» catalog is a
+ * different catalogue (28 services, keyed by service id), so it cannot
+ * share the registry map above. Only the services that ship with art are
+ * listed; the rest keep the icon-only card.
+ */
+export const CONTRACT_SERVICE_ARTWORK: Record<string, string> = {
+  "commercial-lease-contract": "/assets/contracts/09-commercial-lease.jpg",
+  "pre-sale-contract": "/assets/contracts/14-presale.jpg",
+  "contracting-agreement": "/assets/contracts/16-contracting.jpg",
+  "remote-work-contract": "/assets/contracts/15-remote-work.jpg",
+  "internship-contract": "/assets/contracts/17-internship.jpg",
+  "employment-contract": "/assets/contracts/13-employment.jpg",
 };
 
 /** The artwork path for a contract type, or null when it has none. */
@@ -43,4 +65,9 @@ export function contractArtwork(type: string): string | null {
 /** True when a photograph exists for this contract type. */
 export function hasContractArtwork(type: string): boolean {
   return type in CONTRACT_ARTWORK;
+}
+
+/** The artwork path for a catalog SERVICE id, or null when it has none. */
+export function contractServiceArtwork(serviceId: string): string | null {
+  return CONTRACT_SERVICE_ARTWORK[serviceId] ?? null;
 }

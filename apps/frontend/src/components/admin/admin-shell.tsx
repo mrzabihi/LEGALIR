@@ -87,8 +87,12 @@ const ICONS: Record<string, IconComponent> = {
 
 const RAIL_W = "w-20";
 const FULL_W = "w-72";
-const RAIL_MS = "tablet:ms-20";
-const FULL_MS = "tablet:ms-72";
+// The persistent sidebar starts at `laptop`, not `tablet`: a 288px rail on a
+// 600px tablet leaves a 306px main column, which is narrower than the header's
+// fixed controls (search 176 + bell 32 + user 111 + gaps) and forced the whole
+// page to scroll sideways. From tablet to laptop the sidebar is a drawer.
+const RAIL_MS = "laptop:ms-20";
+const FULL_MS = "laptop:ms-72";
 
 // ---------------------------------------------------------------------------
 // Collapse persistence (client-only; first paint stays expanded so SSR and the
@@ -474,7 +478,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-surface-container-low" dir="rtl">
       {/* Desktop sidebar — fixed on the inline-start edge (right in RTL). */}
       <aside
-        className={`fixed inset-y-0 start-0 z-30 hidden flex-col border-e border-divider bg-surface tablet:flex ${
+        className={`fixed inset-y-0 start-0 z-30 hidden flex-col border-e border-divider bg-surface laptop:flex ${
           collapsed ? RAIL_W : FULL_W
         }`}
       >
@@ -526,7 +530,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile drawer — same nav, slides in from the start edge. */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-40 tablet:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-40 laptop:hidden" role="dialog" aria-modal="true">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setDrawerOpen(false)}
@@ -566,7 +570,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="منو"
-            className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-hover tablet:hidden"
+            className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-hover laptop:hidden"
           >
             <IconMenu size={20} />
           </button>

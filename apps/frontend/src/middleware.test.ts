@@ -96,4 +96,34 @@ describe("middleware — admin subdomain", () => {
   it("does not rewrite the auth flow on the subdomain", () => {
     expect(isNext(middleware(makeReq("http://admin.localhost:3000/auth/mobile", { host: "admin.localhost:3000" })))).toBe(true);
   });
+
+  // The console's home is `/admin`. Operators type `/dashboard`, which the
+  // generic prefix rule turned into `/admin/dashboard` — a page that does not
+  // exist, so the entry point rendered a 404 (and, with a broken 404 route, a
+  // 500). It must land on the real home instead.
+  it("resolves the subdomain /dashboard onto the console home", () => {
+    const res = middleware(
+      makeReq("http://admin.localhost:3000/dashboard", {
+        host: "admin.localhost:3000",
+        session: SESSION,
+      })
+    );
+    const target = rewriteTarget(res);
+    expect(target).not.toContain("/admin/dashboard");
+    expect(new URL(target!).pathname).toBe("/admin");
+  });
+
+  it("sends a guest on the subdomain /dashboard to login with the HOME as intent", () => {
+    const res = middleware(
+      makeReq("http://admin.localhost:3000/dashboard", { host: "admin.localhost:3000" })
+    );
+    expect(res.status).toBe(307);
+    expect(locationOf(res).searchParams.get("intent")).toBe("/admin");
+  });
+
+  it("redirects the main-host /admin/dashboard alias to /admin", () => {
+    const res = middleware(makeReq("http://localhost:3000/admin/dashboard", { session: SESSION }));
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/admin");
+  });
 });

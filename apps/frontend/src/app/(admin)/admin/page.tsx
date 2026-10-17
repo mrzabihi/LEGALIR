@@ -285,10 +285,16 @@ function groupKpis(kpis: AdminKpi[]): { group: KpiGroup; items: AdminKpi[] }[] {
   return result;
 }
 
-// Column count follows the real content width: one column on a phone, two once
-// there is room, three at tablet (a 256px rail plus four columns crushed the
-// labels), and four only at desktop.
-const KPI_GRID = "grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-3 desktop:grid-cols-4";
+// Column count follows the real content width, not the viewport label:
+//   · a 288px sidebar on a 600px tablet leaves a 306px column, where three
+//     cards were ~90px each — narrower than a money figure — so the grid stays
+//     2-up through tablet;
+//   · 3-up needs the laptop rail, and 4-up needs ≥1200px of viewport, because
+//     below that the sidebar leaves the cards ~12px short of a `nowrap` figure
+//     (measured at 1024–1150px: the grid, not any single card, then pushed the
+//     page 40–80px sideways).
+const KPI_GRID =
+  "grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:grid-cols-2 laptop:grid-cols-3 min-[1200px]:grid-cols-4";
 
 /**
  * One KPI card, wired straight from the returned metric. Presentational only —
@@ -348,6 +354,7 @@ function KpiDonutCard({
   emptyMessage,
   href,
   moreLabel = "مشاهدهٔ جزئیات",
+  className = "",
 }: {
   title: string;
   hint?: string;
@@ -358,6 +365,8 @@ function KpiDonutCard({
   emptyMessage: string;
   href?: string;
   moreLabel?: string;
+  /** Grid placement — the ring needs a full row at the 2-up phone width. */
+  className?: string;
 }) {
   const total = slices.reduce((s, x) => s + x.value, 0);
   const body = (
@@ -382,8 +391,11 @@ function KpiDonutCard({
             slices={slices}
             ariaLabel={ariaLabel}
             centerLabel={centerLabel}
-            size={132}
-            thickness={18}
+            // 120px keeps the ring + legend inside the narrowest cell the
+            // KPI grid can produce (a 4-up grid at 1024px leaves 131px of
+            // card interior), so the ring never has to be clipped.
+            size={120}
+            thickness={16}
             layout="stack"
           />
         ) : (
@@ -408,7 +420,7 @@ function KpiDonutCard({
       <Link
         href={href}
         aria-label={`${title} — ${moreLabel}`}
-        className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+        className={`group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${className}`}
       >
         <Card interactive className={cls}>
           {body}
@@ -416,7 +428,7 @@ function KpiDonutCard({
       </Link>
     );
   }
-  return <Card className={cls}>{body}</Card>;
+  return <Card className={`${cls} ${className}`}>{body}</Card>;
 }
 
 // Accent bar/tile colours come from the shared `ACCENT_TOKENS` map (ui.tsx),
@@ -1400,6 +1412,11 @@ function OverviewBody({
                     centerLabel={donut.centerLabel}
                     emptyMessage={donut.emptyMessage}
                     href={donut.href}
+                    // The ring plus its legend needs a real column width, not a
+                    // share of one: at 375–599px the 2-up grid leaves ~123px of
+                    // card interior. It therefore takes the full row wherever
+                    // the grid is 2-up and drops to one column from laptop up.
+                    className="mobile-l:col-span-2 laptop:col-span-1"
                   />
                 )}
               </div>

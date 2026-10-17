@@ -127,7 +127,9 @@ function currentVersionSignatures(contractId: string, documentHash: string | nul
 async function notifySignersOfFinalApproval(
   contract: PropertyContract,
   contractVersionId: string,
-  documentHash: string
+  // Kept in the signature so every call site states which sealed version it
+  // is notifying about; the version check itself is by id (see below).
+  _documentHash: string
 ): Promise<
   {
     participantId: string;

@@ -42,6 +42,8 @@ apps/frontend/.audit/
 apps/frontend/e2e/__shots__/
 e2e/__shots__/
 debug.log
+# Lint-run scratch output written by tooling; never source
+apps/frontend/.lint.json
 
 # Database
 .data/

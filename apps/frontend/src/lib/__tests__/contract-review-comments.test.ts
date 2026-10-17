@@ -281,7 +281,7 @@ describe("operator view — the full thread, internal notes included", () => {
     expect(res.status).toBe(200);
 
     const { data } = (await res.json()) as {
-      data: { comments: Array<{ contractVersionId: string; visibility?: string }> };
+      data: { comments: { contractVersionId: string; visibility?: string }[] };
     };
     const all = reviewDb.listReviewComments(CONTRACT_ID);
     expect(data.comments).toHaveLength(all.length);

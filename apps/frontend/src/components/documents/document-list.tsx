@@ -110,12 +110,10 @@ const RISK_TONE: Record<string, string> = {
 
 function DocumentRow({
   document: doc,
-  onOpen,
   onDelete,
   onRetried,
 }: {
   document: V1DocumentListItem;
-  onOpen: (id: string) => void;
   onDelete?: (document: V1DocumentListItem) => void;
   onRetried?: () => void;
 }) {
@@ -257,7 +255,6 @@ interface DocumentListProps {
   onSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSortChange: (value: string) => void;
-  onDocumentClick: (id: string) => void;
   onRetry: () => void;
   /** Opens the delete-confirmation dialog for a document. */
   onDelete?: (document: V1DocumentListItem) => void;
@@ -273,7 +270,6 @@ export function DocumentList({
   onSearchChange,
   onStatusChange,
   onSortChange,
-  onDocumentClick,
   onRetry,
   onDelete,
 }: DocumentListProps) {
@@ -389,7 +385,6 @@ export function DocumentList({
               <DocumentRow
                 key={doc.id}
                 document={doc}
-                onOpen={onDocumentClick}
                 onDelete={onDelete}
                 onRetried={onRetry}
               />

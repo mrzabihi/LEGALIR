@@ -101,7 +101,7 @@ export async function PUT(request: Request, { params }: Params) {
     return badRequest("نقش انتخاب‌شده برای این قرارداد معتبر نیست", "INVALID_ROLE");
   }
 
-  let existing = isRepresentative
+  const existing = isRepresentative
     ? all.find(
         (p) =>
           p.role === "legal_representative" &&

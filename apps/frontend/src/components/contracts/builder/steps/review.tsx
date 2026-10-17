@@ -22,7 +22,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Checkbox, Chip, Dialog, OTPInput, ProgressLinear, Textarea } from "@legalir/ui";
+import { Button, Checkbox, Chip, Dialog, OTPInput, ProgressLinear } from "@legalir/ui";
 import {
   IconCheck,
   IconChat,
@@ -66,7 +66,6 @@ import { contractPdfUrl, contractDocxUrl } from "@/lib/api/property-contracts";
 import {
   CONTRACT_ADMIN_REVIEW_STATUS_FA,
   SIGNATURE_PARTICIPANT_STATUS_FA,
-  type ContractReviewComment,
   type LawyerReviewFindingSeverity,
   type SignatureInvitation,
   type SignatureParticipant,
@@ -160,7 +159,6 @@ export function ReviewStep() {
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
   const [mobileMasked, setMobileMasked] = useState<string | null>(null);
-  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [otpChannel, setOtpChannel] = useState<"sms" | "dev-console">("dev-console");
   const [consent, setConsent] = useState(false);
   // The participant awaiting a wet-ink scan upload.
@@ -389,7 +387,6 @@ export function ReviewStep() {
     setOtpError(null);
     setConsent(false);
     setMobileMasked(null);
-    setOtpExpiresAt(null);
     await run(async () => {
       const res = await requestOtp.mutateAsync({
         id: contract.id,
@@ -405,7 +402,6 @@ export function ReviewStep() {
         return;
       }
       setMobileMasked(res.mobileMasked);
-      setOtpExpiresAt(res.expiresAt);
       // The «ارسال شد» wording is only used for a real SMS; the dev
       // console transport is named explicitly so nobody believes a
       // phone received a code that never left the server.

@@ -43,6 +43,19 @@ const nextConfig: NextConfig = {
     },
   }),
 
+  // `/contracts/template` (singular) is the address operators type by hand;
+  // the real route is the plural listing. Redirect rather than 404 so a
+  // bookmark or a shared link never dead-ends.
+  async redirects() {
+    return [
+      {
+        source: "/contracts/template",
+        destination: "/contracts/templates",
+        permanent: true,
+      },
+    ];
+  },
+
   // Transpile shared packages
   transpilePackages: [
     "@legalir/types",

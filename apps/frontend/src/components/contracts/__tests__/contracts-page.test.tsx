@@ -47,7 +47,9 @@ import { getContractDefinition, implementedContractDefinitions } from "@/lib/con
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   CONTRACT_ARTWORK,
+  CONTRACT_SERVICE_ARTWORK,
   contractArtwork,
+  contractServiceArtwork,
   hasContractArtwork,
 } from "@/lib/contracts/artwork";
 import { hasContractVisual } from "@/lib/contracts/visuals";
@@ -275,7 +277,7 @@ describe("ContractTemplateGrid (SECTION 1)", () => {
 // ------------------------------------------------------------
 
 describe("contract artwork", () => {
-  it("maps all eight photo contract types to a distinct public asset", () => {
+  it("maps every photo contract type to a distinct public asset", () => {
     const photoTypes = [
       "property_rent",
       "property_sale",
@@ -285,6 +287,11 @@ describe("contract artwork", () => {
       "nda",
       "saas",
       "startup",
+      "commercial_rent",
+      "commercial_sale",
+      "cloud_iaas",
+      "cloud_paas",
+      "employment",
     ];
     const paths = photoTypes.map((t) => contractArtwork(t));
     // Every one resolves, and no two share an image (a duplicate would
@@ -296,17 +303,35 @@ describe("contract artwork", () => {
   });
 
   it("falls back to null (SVG scene) for a type with no photograph", () => {
-    expect(hasContractArtwork("employment")).toBe(false);
-    expect(contractArtwork("employment")).toBeNull();
+    // `cloud_baas` is the one registered type with neither a composition
+    // nor a service page, so it is the live example of the fallback.
+    expect(hasContractArtwork("cloud_baas")).toBe(false);
+    expect(contractArtwork("cloud_baas")).toBeNull();
+  });
+
+  it("maps the illustrated catalog services to their own assets", () => {
+    const serviceIds = [
+      "commercial-lease-contract",
+      "pre-sale-contract",
+      "contracting-agreement",
+      "remote-work-contract",
+      "internship-contract",
+    ];
+    const paths = serviceIds.map((id) => contractServiceArtwork(id));
+    expect(paths.every((p) => typeof p === "string" && p.length > 0)).toBe(true);
+    for (const p of paths) expect(p!.startsWith("/assets/contracts/")).toBe(true);
+    // An unillustrated service yields null so the card keeps its icon.
+    expect(contractServiceArtwork("goodwill-contract")).toBeNull();
   });
 
   it("every mapped image actually exists in public/ and is non-empty", () => {
     // Guards the "images must be present in the final build" requirement:
     // a typo'd filename would 404 in production, so assert each file ships.
-    for (const [type, rel] of Object.entries(CONTRACT_ARTWORK)) {
+    const maps = { ...CONTRACT_ARTWORK, ...CONTRACT_SERVICE_ARTWORK };
+    for (const [key, rel] of Object.entries(maps)) {
       const abs = path.join(process.cwd(), "public", rel);
-      expect(fs.existsSync(abs), `missing artwork for ${type}: ${rel}`).toBe(true);
-      expect(fs.statSync(abs).size, `empty artwork for ${type}: ${rel}`).toBeGreaterThan(0);
+      expect(fs.existsSync(abs), `missing artwork for ${key}: ${rel}`).toBe(true);
+      expect(fs.statSync(abs).size, `empty artwork for ${key}: ${rel}`).toBeGreaterThan(0);
     }
   });
 

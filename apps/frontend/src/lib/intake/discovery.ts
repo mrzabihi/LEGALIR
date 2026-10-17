@@ -129,6 +129,10 @@ export function discoveryCategoryLabel(slug: string | null): string | null {
 /** Strip control chars, collapse whitespace and clamp length. */
 export function cleanText(input: string, max: number): string {
   return input
+    // Matching control characters is the WHOLE purpose of this sanitiser,
+    // so the generic "don't put control chars in a regex" rule is a false
+    // positive here — it exists to catch accidental escapes, not this.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
     .trim()

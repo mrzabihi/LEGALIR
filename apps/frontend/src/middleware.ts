@@ -74,7 +74,25 @@ export function middleware(request: NextRequest) {
   // subdomain. The auth flow is excluded so signing in still works.
   const isAuthFlow = pathname.startsWith("/auth") || isGuestOnly(pathname);
   const subdomainRewrites = onAdminHost && !pathname.startsWith("/admin") && !isAuthFlow;
-  const effectivePath = subdomainRewrites ? `/admin${pathname === "/" ? "" : pathname}` : pathname;
+  // The console's HOME is `/admin`. Operators type `/dashboard` (and the main
+  // app's post-login intent carries that path), which naively becomes
+  // `/admin/dashboard` — a route that does not exist, so the entry point
+  // landed on a 404. Resolve it to the real home instead.
+  const mappedPath = subdomainRewrites
+    ? `/admin${pathname === "/" ? "" : pathname}`
+    : pathname;
+  const isAdminHomeAlias = mappedPath === "/admin/dashboard";
+  const effectivePath = isAdminHomeAlias ? "/admin" : mappedPath;
+
+  // On the MAIN host there is no rewrite step, so the alias must move the
+  // browser itself — otherwise `/admin/dashboard` would still be looked up
+  // as a page and 404. The subdomain keeps the operator's typed URL and
+  // renders the home under it (same as every other subdomain path).
+  if (isAdminHomeAlias && !subdomainRewrites) {
+    const home = request.nextUrl.clone();
+    home.pathname = "/admin";
+    return NextResponse.redirect(home);
+  }
 
   // Check for session cookie (set by the auth API / MSW handler)
   // In dev mode with MSW, the auth-store manages session client-side in localStorage.

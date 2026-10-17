@@ -44,11 +44,9 @@ export function PartyBankingEditor({ role }: { role: PartyRole }) {
 
   const set = <K extends keyof PartyBankingInfo>(key: K, value: PartyBankingInfo[K]) => {
     setBanking((prev) => ({ ...prev, [key]: value }));
-    setServerErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
-    });
+    setServerErrors((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([field]) => field !== key))
+    );
     setSaved(false);
   };
 
