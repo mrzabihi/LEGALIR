@@ -14,6 +14,7 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Button } from "@legalir/ui";
 import { IconArrowBack, IconCalculator } from "@/lib/icons";
 import {
   applyCalculatorQuery,
@@ -119,13 +120,9 @@ export function AllCalculators() {
           <p className="max-w-sm text-body-2 text-on-surface-variant">
             عبارت دیگری را امتحان کنید یا فیلترها را پاک کنید تا فهرست کامل نمایش داده شود.
           </p>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
-          >
+          <Button type="button" onClick={clearFilters} className="mt-2">
             پاک کردن جستجو و فیلترها
-          </button>
+          </Button>
         </div>
       ) : (
         <ul className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4">

@@ -248,14 +248,60 @@ function EmploymentScene({ accent }: { accent: string }) {
   );
 }
 
+/** Commercial property — a storefront with an awning, door and sign. */
+function CommercialScene({ accent }: { accent: string }) {
+  return (
+    <Scene accent={accent}>
+      <rect x="60" y="70" width="128" height="70" rx="4" />
+      <path d="M52 70 H196 L188 52 H60 Z" />
+      <line x1="84" y1="52" x2="84" y2="70" />
+      <line x1="108" y1="52" x2="108" y2="70" />
+      <line x1="132" y1="52" x2="132" y2="70" />
+      <line x1="156" y1="52" x2="156" y2="70" />
+      <rect x="76" y="92" width="34" height="26" rx="3" />
+      <line x1="144" y1="140" x2="144" y2="92" />
+      <line x1="144" y1="92" x2="172" y2="92" />
+      <line x1="172" y1="92" x2="172" y2="140" />
+      {/* Sign board beside the shop */}
+      <rect x="216" y="58" width="56" height="38" rx="6" />
+      <line x1="228" y1="72" x2="260" y2="72" />
+      <line x1="228" y1="82" x2="250" y2="82" />
+      <line x1="244" y1="96" x2="244" y2="140" />
+    </Scene>
+  );
+}
+
+/** Cloud services — a cloud over a stack of managed resources. */
+function CloudServiceScene({ accent }: { accent: string }) {
+  return (
+    <Scene accent={accent}>
+      <path d="M108 78 A18 18 0 0 1 126 60 A22 22 0 0 1 166 58 A17 17 0 0 1 186 78 A14 14 0 0 1 184 106 H110 A14 14 0 0 1 108 78 Z" />
+      {/* Resource stack */}
+      <rect x="96" y="118" width="108" height="10" rx="4" />
+      <rect x="96" y="132" width="108" height="10" rx="4" />
+      <line x1="140" y1="106" x2="140" y2="118" />
+      <circle cx="112" cy="123" r="2.5" fill={accent} stroke="none" />
+      <circle cx="112" cy="137" r="2.5" fill={accent} stroke="none" />
+      {/* Linked node */}
+      <circle cx="244" cy="112" r="14" />
+      <line x1="204" y1="126" x2="232" y2="118" />
+    </Scene>
+  );
+}
+
 const SCENES: Record<string, (props: { accent: string }) => React.ReactElement> = {
   property_rent: RentScene,
   property_sale: SaleScene,
+  commercial_rent: CommercialScene,
+  commercial_sale: CommercialScene,
   vehicle_sale: VehicleScene,
   debt: DebtScene,
   freelance: FreelanceScene,
   nda: NdaScene,
   saas: SaasScene,
+  cloud_iaas: CloudServiceScene,
+  cloud_paas: CloudServiceScene,
+  cloud_baas: CloudServiceScene,
   startup: StartupScene,
   employment: EmploymentScene,
 };

@@ -104,13 +104,22 @@ export function ChartFrame({
 export function ChartSkeleton({ height = 220 }: { height?: number }) {
   return (
     <Card className="p-4 tablet:p-5">
-      <div className="h-4 w-40 rounded-small bg-surface-container-high skeleton-shimmer" />
-      <div className="mt-1.5 h-3 w-28 rounded-small bg-surface-container-high skeleton-shimmer" />
-      <div
-        className="mt-4 rounded-large bg-surface-container-high skeleton-shimmer"
-        style={{ height }}
-        aria-busy="true"
-      />
+      <div role="status" aria-busy="true">
+        <span className="sr-only">در حال بارگذاری نمودار…</span>
+        <div
+          aria-hidden="true"
+          className="h-4 w-40 rounded-small bg-surface-container-high skeleton-shimmer"
+        />
+        <div
+          aria-hidden="true"
+          className="mt-1.5 h-3 w-28 rounded-small bg-surface-container-high skeleton-shimmer"
+        />
+        <div
+          aria-hidden="true"
+          className="mt-4 rounded-large bg-surface-container-high skeleton-shimmer"
+          style={{ height }}
+        />
+      </div>
     </Card>
   );
 }
@@ -118,10 +127,11 @@ export function ChartSkeleton({ height = 220 }: { height?: number }) {
 export function ChartEmpty({ message, height = 180 }: { message: string; height?: number }) {
   return (
     <div
+      role="status"
       className="flex flex-col items-center justify-center rounded-large border border-dashed border-divider px-4 text-center"
       style={{ height }}
     >
-      <IconDatabase size={26} className="mb-2 text-muted" />
+      <IconDatabase size={26} className="mb-2 text-muted" aria-hidden="true" />
       <p className="text-body-2 text-muted">{message}</p>
     </div>
   );
@@ -286,6 +296,28 @@ export function LineChart({
   const gradientId = useSafeId("line-grad");
   const [hovered, setHovered] = useState<number | null>(null);
 
+  // Keyboard access to the same tooltip the pointer gets. The chart is a single
+  // tab stop (never one per day): arrows step the highlighted point, Home/End
+  // jump to the ends, and Escape dismisses. Direction follows the RTL reading
+  // order — ArrowLeft advances, ArrowRight returns — matching `Tabs`.
+  const pointCount = points.length;
+  function onKeyDown(e: React.KeyboardEvent<SVGSVGElement>) {
+    if (pointCount === 0) return;
+    if (e.key === "Escape") {
+      setHovered(null);
+      return;
+    }
+    const current = hovered ?? pointCount - 1;
+    let next: number;
+    if (e.key === "ArrowLeft") next = Math.min(pointCount - 1, current + 1);
+    else if (e.key === "ArrowRight") next = Math.max(0, current - 1);
+    else if (e.key === "Home") next = pointCount - 1;
+    else if (e.key === "End") next = 0;
+    else return;
+    e.preventDefault();
+    setHovered(next);
+  }
+
   const plotLeft = PAD_L;
   const plotRight = VIEW_W - GUTTER_R;
   const plotW = plotRight - plotLeft;
@@ -332,7 +364,6 @@ export function LineChart({
     <div className="relative">
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className="block h-auto w-full"
         // The geometry is placed right-to-left by hand (index 0 on the right),
         // so the canvas itself is LTR. Without this the SVG inherits the RTL
         // page direction, which flips `text-anchor="end"` to the left and
@@ -340,6 +371,11 @@ export function LineChart({
         style={{ direction: "ltr" }}
         role="img"
         aria-label={ariaLabel}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        onFocus={() => setHovered((h) => h ?? pointCount - 1)}
+        onBlur={() => setHovered(null)}
+        className="block h-auto w-full rounded-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -586,7 +622,8 @@ export function BarChart({
                 title={`${b.label}: ${text}`}
               >
                 <div
-                  className="h-full rounded-full transition-[width] duration-short4 ease-standard"
+                  aria-hidden="true"
+                  className="h-full rounded-full transition-[width] duration-short4 ease-standard motion-reduce:transition-none"
                   style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: b.color ?? "var(--chart-cat-1)" }}
                 />
               </div>
@@ -646,6 +683,26 @@ export function GroupedBarChart({
   const [hovered, setHovered] = useState<number | null>(null);
   const fmt = valueFormat ?? ((n: number) => toPersianNumber(n));
 
+  // Same keyboard contract as `LineChart`: one tab stop for the whole plot,
+  // arrows walk the categories in RTL reading order, Escape dismisses.
+  const categoryCount = categories.length;
+  function onKeyDown(e: React.KeyboardEvent<SVGSVGElement>) {
+    if (categoryCount === 0) return;
+    if (e.key === "Escape") {
+      setHovered(null);
+      return;
+    }
+    const current = hovered ?? categoryCount - 1;
+    let next: number;
+    if (e.key === "ArrowLeft") next = Math.min(categoryCount - 1, current + 1);
+    else if (e.key === "ArrowRight") next = Math.max(0, current - 1);
+    else if (e.key === "Home") next = categoryCount - 1;
+    else if (e.key === "End") next = 0;
+    else return;
+    e.preventDefault();
+    setHovered(next);
+  }
+
   const plotLeft = PAD_L;
   const plotRight = VIEW_W - GUTTER_R;
   const plotW = plotRight - plotLeft;
@@ -674,10 +731,14 @@ export function GroupedBarChart({
     <div className="relative">
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className="block h-auto w-full"
         style={{ direction: "ltr" }}
         role="img"
         aria-label={ariaLabel}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        onFocus={() => setHovered((h) => h ?? categoryCount - 1)}
+        onBlur={() => setHovered(null)}
+        className="block h-auto w-full rounded-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {/* Gridlines + value axis (right gutter) */}
         {ticks.map((v) => {
@@ -858,31 +919,42 @@ export function Sparkline({
   const areaPath = `${linePath} L ${geom[geom.length - 1]!.x.toFixed(1)} ${SPARK_H} L ${geom[0]!.x.toFixed(1)} ${SPARK_H} Z`;
 
   return (
-    <svg
-      viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
-      className={`block w-full ${className}`}
-      style={{ height, direction: "ltr" }}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={ariaLabel}
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${gradientId})`} />
-      <path
-        d={linePath}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <div>
+      <svg
+        viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+        className={`block w-full ${className}`}
+        style={{ height, direction: "ltr" }}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={ariaLabel}
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${gradientId})`} />
+        <path
+          d={linePath}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {/* The glyph carries no readable numbers, so the same series is mirrored
+          as text for screen readers — index order matches the drawn order. */}
+      <ul className="sr-only">
+        {values.map((v, i) => (
+          <li key={i}>
+            مقدار {toPersianNumber(i + 1)}: {toPersianNumber(v)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

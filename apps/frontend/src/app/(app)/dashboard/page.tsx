@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import { getServiceById } from "@/lib/services";
 import { PromoModule } from "@/components/shared";
+import { DiscoveryEntryCard } from "@/components/services";
 import { IconServices } from "@/lib/icons";
 
 export default function DashboardPage() {
@@ -93,6 +94,11 @@ export default function DashboardPage() {
       {/* ── 2) ACTIONS ──────────────────────────────────────── */}
       <QuickActions />
 
+      {/* Smart path discovery — the entry for a user who has a problem but
+          does not yet know which service fits. Placed right after the quick
+          actions so it is impossible to miss on first visit. */}
+      <DiscoveryEntryCard className="mb-6" />
+
       {/* Promo Banner — upgrade CTA */}
       <PromoBanner
         planCode={dashboard.data?.subscription?.planCode}
@@ -130,17 +136,31 @@ export default function DashboardPage() {
       <SubscriptionUsageCard />
 
       {/* ── 5) SECONDARY ────────────────────────────────────── */}
-      {/* Compact promo module — a secondary surface, deliberately small
-          and placed below the user's own work (activities, requests,
-          usage) so it never competes with their active tasks. */}
+      {/* Legal-services promo banner — a full-bleed photographic surface
+          (the SUSBS-GOLD poster), placed below the user's own work
+          (activities, requests, usage) so it never competes with their
+          active tasks. The photo carries the panel; the copy sits over its
+          quiet right-hand side and the standard «مرور خدمات» link opens the
+          catalog. */}
       <PromoModule
-        art="five"
+        eyebrow="خدمات حقوقی"
         title="خدمات حقوقی روی همه دستگاه‌ها"
         message="پرونده، سند و قراردادهایتان را از موبایل یا رایانه مدیریت کنید — همه‌چیز همگام و در دسترس."
         cta="مرور خدمات"
         href="/services"
         icon={IconServices}
         className="mb-6"
+        photo={{
+          src: "/assets/promo/legalir-banner-legal-services.webp",
+          srcSm: "/assets/promo/legalir-banner-legal-services-sm.webp",
+          width: 1600,
+          height: 535,
+          // Phone crop: keep the courthouse + scales framed, pin toward the
+          // subject (the 2168:725 source is far wider than the portrait frame).
+          objectPositionMobile: "30% center",
+          // Gentle baseline darkening; the directional wash adds the rest.
+          scrim: 0.34,
+        }}
       />
 
       <RecentDocuments

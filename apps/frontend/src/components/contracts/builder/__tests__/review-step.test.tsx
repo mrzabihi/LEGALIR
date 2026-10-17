@@ -77,6 +77,7 @@ function contract(overrides: Partial<PropertyContractDetail> = {}): PropertyCont
     typeFa: "اجاره‌نامه",
     state: "READY_FOR_REVIEW",
     initiatorRole: "landlord",
+    initiatorSide: "first",
     title: "اجاره‌نامه آپارتمان",
     currentStep: "review",
     progress: 100,
@@ -109,6 +110,7 @@ const FLAGS: ContractFeatureFlags = {
   LAWYER_REVIEW_ENABLED: true,
   AI_CONTRACT_REVIEW_ENABLED: true,
   CERTIFIED_SIGNATURE_ENABLED: false,
+  CONTRACT_STAMP_ENABLED: true,
 };
 
 function lifecycleView(
@@ -120,10 +122,13 @@ function lifecycleView(
     registrationStatus: "NOT_REQUIRED",
     registrationStatusFa: "ثبت رسمی لازم نیست",
     signatureRequest: null,
+    invitations: [],
     lawyerReview: null,
     aiReview: null,
     adminReview: null,
     adminApproved: false,
+    stamped: false,
+    officialStamp: null,
     comments: [],
     canPrepareForSignature: false,
     canSign: false,
@@ -155,6 +160,7 @@ function completedRequest(): SignatureRequestDetail {
         contractId: "ctr-1",
         partyId: null,
         roleFa: "موجر",
+        nameFa: "علی رضایی",
         mobileMasked: "0912***0003",
         mobile: "09120000003",
         status: "SIGNED",

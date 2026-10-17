@@ -202,6 +202,7 @@ function EnergyBody({
           <Card className="p-4 text-body-2 text-muted">کاربری با موجودی ثبت نشده است.</Card>
         ) : (
           <DataTable
+            bare
             head={
               <tr>
                 <Th>کاربر</Th>

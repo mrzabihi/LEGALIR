@@ -104,3 +104,50 @@ describe("renderContractPdf — Persian shaping", () => {
     expect(text).toContain("طرفین قرارداد");
   });
 });
+
+// ============================================================
+// The official LEGALIR stamp — the real PNG is drawn on the document
+// ============================================================
+// The stamp master is drawn ONLY when the renderer is told the approved
+// hash matches the master bytes on disk (the two-gate rule lives in the
+// callers; here we prove the renderer paints it and refuses a foreign mark).
+// This spec runs at the real cwd, so the bundled font + the private stamp
+// asset both resolve.
+
+/** SHA-256 of the committed stamp master (apps/frontend/assets/legalir). */
+const REAL_STAMP_SHA256 =
+  "129352b0ba24626b82d8b929d2df871251d96f1c88d920bff16fdf49e449e1c8";
+
+describe("renderContractPdf — the official PNG stamp", () => {
+  it("draws the real master when the sha matches, and falls back when it does not", async () => {
+    const withOfficial = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      stamp: {
+        applied: true,
+        reviewedAt: "2026-08-09T10:00:00Z",
+        reviewingOfficeFa: "واحد بررسی حقوقی لیگالیر",
+        reviewerInitials: "م.م",
+        officialStamp: { sha256: REAL_STAMP_SHA256, version: "legalir-review-stamp-1" },
+      },
+    });
+    expect(String.fromCharCode(...withOfficial.slice(0, 5))).toBe("%PDF-");
+
+    // A hash that does NOT match the master must NOT draw the image — the
+    // renderer falls back to the reviewed text mark, so a foreign or
+    // missing asset can never be stamped onto the document.
+    const fallback = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      stamp: {
+        applied: true,
+        reviewedAt: "2026-08-09T10:00:00Z",
+        officialStamp: { sha256: "0".repeat(64), version: "legalir-review-stamp-1" },
+      },
+    });
+    expect(String.fromCharCode(...fallback.slice(0, 5))).toBe("%PDF-");
+    expect(withOfficial.length).not.toBe(fallback.length);
+  });
+});

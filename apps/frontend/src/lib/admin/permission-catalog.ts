@@ -176,6 +176,8 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   // --- Contract review queue ---
   "admin:contracts:read": { fa: "مشاهده صف بررسی قراردادها", group: "requests" },
   "admin:contracts:review": { fa: "تأیید/رد و بررسی قراردادها", group: "requests" },
+  "admin:contracts:stamp:read": { fa: "مشاهده وضعیت مهر رسمی لیگالیر", group: "requests" },
+  "admin:contracts:stamp:manage": { fa: "صدور مهر رسمی لیگالیر (مدیر ارشد)", group: "requests" },
   // --- Content & knowledge ---
   "admin:content:read": { fa: "مشاهده محتوا و وبلاگ", group: "content" },
   "admin:content:manage": { fa: "مدیریت محتوا و وبلاگ", group: "content" },

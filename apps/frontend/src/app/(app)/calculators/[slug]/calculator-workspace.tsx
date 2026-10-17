@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { TextField, Select, Checkbox, MoneyField } from "@legalir/ui";
+import { Button, TextField, Select, Checkbox, MoneyField } from "@legalir/ui";
 import {
   getCalculator,
   runCalculatorWithRules,
@@ -397,25 +397,24 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
           {/* Stepper navigation */}
           {useStepper && (
             <div className="mt-5 flex items-center justify-between gap-3">
-              <button
+              <Button
                 type="button"
+                variant="outlined"
                 onClick={() => setStep(Math.max(0, activeStep - 1))}
                 disabled={activeStep === 0}
-                className="rounded-medium border border-[color:var(--color-outline-variant)] px-4 py-2 text-button text-on-surface disabled:opacity-40 hover:border-[color:var(--color-primary)] transition-colors duration-short4"
               >
                 مرحله قبل
-              </button>
+              </Button>
               <span className="text-caption text-on-surface-variant tabular-nums">
                 مرحله {toPersianDigits(activeStep + 1)} از {toPersianDigits(visibleGroups.length)}
               </span>
-              <button
+              <Button
                 type="button"
                 onClick={() => setStep(Math.min(visibleGroups.length - 1, activeStep + 1))}
                 disabled={activeStep === visibleGroups.length - 1}
-                className="rounded-medium bg-primary text-primary-on px-4 py-2 text-button font-medium disabled:opacity-40 hover:bg-primary-700 hover:text-white transition-colors duration-short4"
               >
                 مرحله بعد
-              </button>
+              </Button>
             </div>
           )}
         </section>
@@ -453,16 +452,18 @@ export function CalculatorWorkspace({ slug }: { slug: string }) {
                 این محاسبه‌گر دارای هزینهٔ انرژی است و هنگام اجرا از اعتبار شما کسر
                 می‌شود. با زدن دکمهٔ زیر محاسبه انجام و نتیجه نمایش داده می‌شود.
               </p>
-              <button
+              <Button
                 type="button"
+                fullWidth
+                loading={submitting}
                 onClick={computeCharged}
-                disabled={submitting}
-                className="w-full rounded-medium bg-primary text-primary-on px-4 py-2.5 text-button font-semibold hover:bg-primary-700 hover:text-white transition-colors disabled:opacity-50"
               >
-                {submitting
-                  ? "در حال محاسبه…"
-                  : `محاسبه (${toPersianDigits(policy?.energyCost ?? 0)} امتیاز انرژی)`}
-              </button>
+                {submitting ? (
+                  "در حال محاسبه…"
+                ) : (
+                  `محاسبه (${toPersianDigits(policy?.energyCost ?? 0)} امتیاز انرژی)`
+                )}
+              </Button>
             </div>
           ) : null}
         </section>

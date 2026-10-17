@@ -40,6 +40,7 @@ function genericContract(type: SchemaContractType): PropertyContract {
     typeFa: def.typeFa,
     state: "DRAFT",
     initiatorRole: def.defaultInitiatorRole,
+    initiatorSide: "first",
     title: def.typeFa,
     currentStep: def.wizardSteps[0]!.id,
     progress: 0,
@@ -67,7 +68,7 @@ function party(role: ContractParty["role"]): ContractParty {
       firstName: "نام",
       lastName: "خانوادگی",
       fatherName: "",
-      nationalId: "0079123456",
+      nationalId: "0012345679",
       birthCertificateNumber: "",
       birthCertificatePlace: "",
       birthDate: null,
@@ -75,8 +76,13 @@ function party(role: ContractParty["role"]): ContractParty {
       address: "",
       postalCode: "",
     },
+    personKind: "natural",
+    nationality: "iranian",
+    representativeOfPartyId: null,
+    representativePositionFa: "",
     ownershipShare: null,
     powerOfAttorney: null,
+    banking: null,
     isInitiator: true,
     createdAt: "2026-09-20T00:00:00.000Z",
   };
@@ -150,7 +156,22 @@ describe("schema-driven types — completeness", () => {
       ...contract,
       data: { schemaVersion: 1, values, customClauses: [] } as unknown as GenericContractData,
     };
-    const parties = def.roles.map((r) => party(r));
+    // The payment step names the recipient whose bank details it needs;
+    // those live on the party record, never in the contract values.
+    const bankingRole = def.wizardSteps.find((s) => s.bankingFor)?.bankingFor;
+    const parties = def.roles.map((r) =>
+      r === bankingRole
+        ? {
+            ...party(r),
+            banking: {
+              bankName: "بانک ملی",
+              accountNumber: "1234567890",
+              iban: "IR000000000000000000000000",
+              cardNumber: "6037990000000000",
+            },
+          }
+        : party(r)
+    );
     const documents = def.requiredDocuments
       .filter((d) => d.required)
       .map((d) => ({
@@ -197,15 +218,44 @@ describe("schema-driven types — template", () => {
     expect(renderContractText(renderContract(filled, parties, []))).toBe(text);
   });
 
-  it("omits clauses for steps whose fields are all empty", () => {
-    const contract = genericContract("saas");
+  it("renders required fields with the draft placeholder, never an empty optional line", () => {
+    const contract = genericContract("nda");
     const rendered = renderContract(contract, [], []);
-    expect(rendered.clauses.some((c) => c.id.startsWith("generic."))).toBe(false);
+
+    // A draft must visibly show what is still missing. Required fields of
+    // an applicable branch render with the ellipsis placeholder …
+    const scope = rendered.clauses.find((c) => c.id === "generic.scope")!;
+    expect(
+      scope.paragraphs.some((p) => p.startsWith("نوع توافق محرمانگی: ") && p.includes("……………"))
+    ).toBe(true);
+
+    // … while an EMPTY OPTIONAL field adds no line at all.
+    const terms = rendered.clauses.find((c) => c.id === "generic.terms")!;
+    expect(terms.paragraphs.some((p) => p.startsWith("موارد مستثنی از محرمانگی"))).toBe(false);
+  });
+
+  it("omits a conditionally required field while its branch is not chosen", () => {
+    const contract = genericContract("employment");
+    const indefinite: PropertyContract = {
+      ...contract,
+      data: {
+        schemaVersion: 1,
+        values: { contractType: "indefinite" },
+        customClauses: [],
+      } as unknown as GenericContractData,
+    };
+    const rendered = renderContract(indefinite, [], []);
+    const term = rendered.clauses.find((c) => c.id === "generic.term")!;
+
+    // `endDate` is required only for definite/task-based contracts, so an
+    // indefinite draft must not show an irrelevant blank for it.
+    expect(term.paragraphs.some((p) => p.startsWith("تاریخ پایان قرارداد"))).toBe(false);
+    expect(term.paragraphs.some((p) => p.startsWith("تاریخ شروع قرارداد"))).toBe(true);
   });
 });
 
-describe("employment — conditional requirements (requiredWhen)", () => {
-  function employmentWith(values: Record<string, unknown>): PropertyContract {
+describe("employment — party branches (identity recorded once on the party)", () => {
+  function employmentContract(values: Record<string, unknown> = {}): PropertyContract {
     const contract = genericContract("employment");
     return {
       ...contract,
@@ -213,56 +263,218 @@ describe("employment — conditional requirements (requiredWhen)", () => {
     };
   }
 
-  function sectionPercent(contract: PropertyContract, key: string): number {
-    const result = computeCompleteness(contract, [], []);
-    return result.sections.find((s) => s.key === key)!.percent;
+  function employmentParty(
+    role: ContractParty["role"],
+    overrides: Partial<ContractParty> = {}
+  ): ContractParty {
+    return { ...party(role), contractId: "cnt-employment", ...overrides };
   }
 
-  it("completes the employer section for a natural person without company fields", () => {
-    const contract = employmentWith({
-      employerKind: "natural",
-      employerName: "نام کارفرما",
-      employerNationalId: "0079123456",
-      employerAddress: "نشانی",
-      employerPhone: "02100000000",
-    });
-    expect(sectionPercent(contract, "employer")).toBe(100);
+  function identity(
+    overrides: Partial<ContractParty["identity"]> = {}
+  ): ContractParty["identity"] {
+    return { ...party("employer").identity, ...overrides };
+  }
+
+  function partiesPercent(parties: ContractParty[]): number {
+    const result = computeCompleteness(employmentContract(), parties, []);
+    return result.sections.find((s) => s.key === "parties")!.percent;
+  }
+
+  it("counts a natural-person employer complete without any company fields", () => {
+    expect(
+      partiesPercent([employmentParty("employer"), employmentParty("employee")])
+    ).toBe(100);
   });
 
-  it("still blocks the employer section for a legal entity until company fields are filled", () => {
-    const partial = employmentWith({
-      employerKind: "legal",
-      employerAddress: "نشانی",
-      employerPhone: "02100000000",
+  it("blocks a legal-entity employer until its representative is a separate, linked person", () => {
+    const legal = employmentParty("employer", {
+      personKind: "legal",
+      identity: identity({
+        firstName: "",
+        lastName: "",
+        nationalId: "",
+        companyName: "شرکت نمونه",
+        companyRegistrationNumber: "14000000000",
+        address: "نشانی شرکت",
+      }),
     });
-    expect(sectionPercent(partial, "employer")).toBeLessThan(100);
 
-    const complete = employmentWith({
-      employerKind: "legal",
-      employerCompanyName: "شرکت نمونه",
-      employerCompanyId: "14000000000",
-      employerRepresentative: "نام نماینده",
-      employerRepresentativeNationalId: "0079123456",
-      employerAddress: "نشانی",
-      employerPhone: "02100000000",
+    // The entity's own registration is complete, but the authorized
+    // representative is a SEPARATE person and must be recorded.
+    expect(partiesPercent([legal, employmentParty("employee")])).toBe(0);
+
+    const rep = employmentParty("legal_representative", {
+      representativeOfPartyId: legal.id,
+      representativePositionFa: "مدیرعامل",
     });
-    expect(sectionPercent(complete, "employer")).toBe(100);
+    expect(partiesPercent([legal, rep, employmentParty("employee")])).toBe(100);
   });
 
-  it("switches the employee branch between national id and passport/work permit", () => {
-    const iranian = employmentWith({
-      employeeNationality: "iranian",
-      employeeName: "نام کارگر",
-      employeeNationalId: "0079123456",
-      employeePhone: "09120000000",
-    });
-    expect(sectionPercent(iranian, "employee")).toBe(100);
+  it("switches the employee branch between a national id and passport data", () => {
+    // Iranian: the national id is required and no passport data is asked.
+    expect(
+      partiesPercent([employmentParty("employer"), employmentParty("employee")])
+    ).toBe(100);
 
-    const foreignIncomplete = employmentWith({
-      employeeNationality: "foreign",
-      employeeName: "نام کارگر",
-      employeePhone: "09120000000",
+    // Foreign: the Iranian national id is NOT required, but nationality,
+    // passport and Gregorian birth data are.
+    const foreignIncomplete = employmentParty("employee", {
+      nationality: "foreign",
+      identity: identity({ nationalId: "" }),
     });
-    expect(sectionPercent(foreignIncomplete, "employee")).toBeLessThan(100);
+    expect(partiesPercent([employmentParty("employer"), foreignIncomplete])).toBe(0);
+
+    const foreignComplete = employmentParty("employee", {
+      nationality: "foreign",
+      identity: identity({
+        nationalId: "",
+        nationalityCountryFa: "افغانستان",
+        passportNumber: "P1234567",
+        passportExpiry: "2030-01-01",
+        birthPlace: "کابل",
+        birthDateGregorian: "1995-03-21",
+      }),
+    });
+    expect(partiesPercent([employmentParty("employer"), foreignComplete])).toBe(100);
+  });
+
+  it("requires the employee's bank details on the wages section", () => {
+    const contract = employmentContract({
+      baseSalary: { amount: 20_000_000, currency: "IRR" },
+      wagePeriod: "monthly",
+    });
+
+    const wagesPercent = (parties: ContractParty[]): number =>
+      computeCompleteness(contract, parties, []).sections.find((s) => s.key === "wages")!
+        .percent;
+
+    // Banking lives on the party record (`bankingFor: "employee"`), so an
+    // empty banking block leaves the payment section incomplete.
+    expect(wagesPercent([employmentParty("employee")])).toBeLessThan(100);
+
+    const paid = employmentParty("employee", {
+      banking: {
+        bankName: "بانک ملی",
+        accountNumber: "1234567890",
+        iban: "IR000000000000000000000000",
+        cardNumber: "6037990000000000",
+      },
+    });
+    expect(wagesPercent([paid])).toBe(100);
+  });
+});
+
+// ============================================================
+// Repeating rows (instalment schedules etc.)
+// ============================================================
+// A `repeatable` field is a user-managed list. These tests pin the three
+// properties the brief demands: rows print as a real table, an empty
+// scaffold row is never printed, and a required schedule cannot pass
+// completeness on scaffold rows alone.
+
+describe("repeatable fields — add / edit / delete rows", () => {
+  function debtContract(values: Record<string, unknown>): PropertyContract {
+    const contract = genericContract("debt");
+    return {
+      ...contract,
+      data: { schemaVersion: 1, values, customClauses: [] } as unknown as GenericContractData,
+    };
+  }
+
+  it("declares the instalment field with a column set the printer can draw", () => {
+    const def = getContractDefinition("debt");
+    const instalments = def.fields.find((f) => f.key === "instalments")!;
+    expect(instalments.kind).toBe("repeatable");
+    expect(instalments.columns?.map((c) => c.key)).toEqual(["dueDate", "amount", "note"]);
+    expect(instalments.columns?.map((c) => c.labelFa)).toEqual(["سررسید", "مبلغ قسط", "توضیح"]);
+  });
+
+  it("prints each row as a table row, with the headers printed once", () => {
+    const contract = debtContract({
+      repaymentMethod: "instalments",
+      instalments: [
+        { dueDate: "2026-11-01", amount: { amount: 500_000_000, currency: "IRR" }, note: "قسط اول" },
+        { dueDate: "2026-12-01", amount: { amount: 500_000_000, currency: "IRR" }, note: "قسط دوم" },
+      ],
+    });
+    const rendered = renderContract(contract, [], []);
+    const loan = rendered.clauses.find((c) => c.id === "generic.loan")!;
+
+    const table = loan.blocks?.find((b) => b.kind === "table" && b.table.captionFa === "برنامهٔ اقساط");
+    expect(table).toBeDefined();
+    if (table?.kind !== "table") throw new Error("expected a table block");
+    expect(table.table.columnsFa).toEqual(["سررسید", "مبلغ قسط", "توضیح"]);
+    expect(table.table.rowsFa).toHaveLength(2);
+    // Dates and money are formatted, never raw ISO / raw IRR integers.
+    expect(table.table.rowsFa[0]![0]).not.toBe("2026-11-01");
+    expect(table.table.rowsFa[0]![0]).toContain("۱۴۰۵");
+    expect(table.table.rowsFa[0]![1]).toContain("۵۰");
+    expect(table.table.rowsFa[1]![2]).toBe("قسط دوم");
+  });
+
+  it("never prints a blank scaffold row", () => {
+    const contract = debtContract({
+      repaymentMethod: "instalments",
+      instalments: [
+        { dueDate: null, amount: null, note: null },
+        { dueDate: "2026-11-01", amount: { amount: 1_000, currency: "IRR" }, note: null },
+      ],
+    });
+    const rendered = renderContract(contract, [], []);
+    const loan = rendered.clauses.find((c) => c.id === "generic.loan")!;
+    const table = loan.blocks?.find((b) => b.kind === "table" && b.table.captionFa === "برنامهٔ اقساط");
+    if (table?.kind !== "table") throw new Error("expected a table block");
+    expect(table.table.rowsFa).toHaveLength(1);
+  });
+
+  it("does not count scaffold-only rows as a completed required schedule", () => {
+    const contract = debtContract({
+      amount: { amount: 1_000_000, currency: "IRR" },
+      loanDate: "2026-10-01",
+      dueDate: "2027-10-01",
+      repaymentMethod: "instalments",
+      instalments: [{ dueDate: null, amount: null, note: null }],
+    });
+    const loanSection = computeCompleteness(contract, [], []).sections.find(
+      (s) => s.key === "loan"
+    )!;
+    expect(loanSection.percent).toBeLessThan(100);
+
+    const filled: PropertyContract = {
+      ...contract,
+      data: {
+        ...(contract.data as GenericContractData),
+        values: {
+          ...(contract.data as GenericContractData).values,
+          instalments: [{ dueDate: "2026-11-01", amount: { amount: 1_000_000, currency: "IRR" }, note: null }],
+        },
+      },
+    };
+    expect(
+      computeCompleteness(filled, [], []).sections.find((s) => s.key === "loan")!.percent
+    ).toBe(100);
+  });
+
+  it("prints a legacy free-text answer verbatim instead of dropping it", () => {
+    const contract = debtContract({
+      repaymentMethod: "instalments",
+      instalmentTerms: "سه قسط مساوی هر ماه",
+    });
+    void contract;
+    const commercial = genericContract("commercial_sale");
+    const legacy: PropertyContract = {
+      ...commercial,
+      data: {
+        schemaVersion: 1,
+        values: { hasInstalments: true, instalmentTerms: "سه قسط مساوی هر ماه" },
+        customClauses: [],
+      } as unknown as GenericContractData,
+    };
+    const rendered = renderContract(legacy, [], []);
+    const financial = rendered.clauses.find((c) => c.id === "generic.financial")!;
+    expect(
+      financial.paragraphs.some((p) => p.includes("سه قسط مساوی هر ماه"))
+    ).toBe(true);
   });
 });

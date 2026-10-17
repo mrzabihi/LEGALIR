@@ -2570,12 +2570,15 @@ export const handlers = [
 
   http.post(`${API_BASE}/api/v1/lawyers/match`, async () => {
     await delay(150);
+    const breakdown = { specialty: 0.35, location: 0.15, price: 0.1, rating: 0.2, experience: 0.15, availability: 0.05 };
     return HttpResponse.json(
       ok({
         candidates: fixtureLawyerListResponse.items.map((lawyer, i) => ({
           lawyer,
-          score: 1 - i * 0.1,
-          reasons: [],
+          // Score is 0–100 to match the real MatchCandidate contract.
+          score: 100 - i * 10,
+          breakdown,
+          reasonsFa: [lawyer.professionalTitle],
         })),
       })
     );

@@ -315,10 +315,40 @@ export function listParties(contractId: string): ContractParty[] {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-/** Upsert a party by (contractId, role) — one party per role. */
+/**
+ * Upsert a party.
+ *
+ * A contract holds at most one party per PRIMARY role (موجر/مستأجر،
+ * کارفرما/کارگر…), but a legal entity additionally has its own authorised
+ * representative row. Both therefore need a stable identity:
+ *
+ *   1. an explicit `id` always wins — the form keeps the row it loaded;
+ *   2. a representative is keyed by the entity it represents, so two legal
+ *      entities on one contract each keep their own representative;
+ *   3. otherwise the row is keyed by `(contractId, role)`.
+ *
+ * This is what makes the identity a single, addressable record: the form,
+ * the preview, the signature link and the PDF all reference the same id.
+ */
 export function upsertParty(party: ContractParty): ContractParty {
   const rows = readTable<ContractParty>(T_PARTIES);
-  const idx = rows.findIndex((p) => p.contractId === party.contractId && p.role === party.role);
+  let idx = -1;
+
+  if (party.id) {
+    idx = rows.findIndex((p) => p.contractId === party.contractId && p.id === party.id);
+  }
+  if (idx < 0 && party.role === "legal_representative" && party.representativeOfPartyId) {
+    idx = rows.findIndex(
+      (p) =>
+        p.contractId === party.contractId &&
+        p.role === "legal_representative" &&
+        p.representativeOfPartyId === party.representativeOfPartyId
+    );
+  }
+  if (idx < 0) {
+    idx = rows.findIndex((p) => p.contractId === party.contractId && p.role === party.role);
+  }
+
   if (idx >= 0) {
     rows[idx] = { ...rows[idx]!, ...party, id: rows[idx]!.id };
     writeTable(T_PARTIES, rows);
@@ -327,6 +357,21 @@ export function upsertParty(party: ContractParty): ContractParty {
   rows.push(party);
   writeTable(T_PARTIES, rows);
   return party;
+}
+
+/** The representative row of a legal entity, when one exists. */
+export function getRepresentativeFor(
+  contractId: string,
+  entityPartyId: string
+): ContractParty | null {
+  return (
+    readTable<ContractParty>(T_PARTIES).find(
+      (p) =>
+        p.contractId === contractId &&
+        p.role === "legal_representative" &&
+        p.representativeOfPartyId === entityPartyId
+    ) ?? null
+  );
 }
 
 export function getParty(contractId: string, partyId: string): ContractParty | null {
@@ -579,11 +624,16 @@ function deepMerge(
 const REFERENCE_KIND: Record<ContractTypeId, string> = {
   property_rent: "RENT",
   property_sale: "SALE",
+  commercial_rent: "CRENT",
+  commercial_sale: "CSALE",
   vehicle_sale: "VEHICLE",
   debt: "DEBT",
   freelance: "FREELANCE",
   nda: "NDA",
   saas: "SAAS",
+  cloud_iaas: "IAAS",
+  cloud_paas: "PAAS",
+  cloud_baas: "BAAS",
   startup: "STARTUP",
   employment: "EMPLOY",
 };

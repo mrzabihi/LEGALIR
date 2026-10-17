@@ -80,6 +80,37 @@ export interface UnifiedContract {
   raw: PropertyContractListItem | V1ContractListItem;
 }
 
+/**
+ * Some legacy rows were written through a charset-less path and persisted
+ * as «??? ??? ???», «????? ???», or a mixture like «???? ????? و ???
+ * ?????». Testing for "has a letter" is not enough: the conjunction «و»
+ * survives such a round-trip, so the mixed strings would pass. A run of
+ * two or more question marks is the reliable signal — real Persian UI
+ * copy never contains one.
+ *
+ * Nothing is ever rewritten on the server; this only decides what a card
+ * may DISPLAY.
+ */
+function isUsableText(value: string | null | undefined): boolean {
+  return Boolean(value) && /[\p{L}\p{N}]/u.test(value!) && !/\?{2,}/u.test(value!);
+}
+
+/**
+ * A stored title that is not usable as a heading falls back to the
+ * server's own Persian type name — the heading is never invented.
+ */
+function displayTitle(title: string, typeFa: string): string {
+  return isUsableText(title) ? title : typeFa;
+}
+
+/**
+ * A subtitle that is not usable is dropped rather than printed, so the
+ * next meaningful fallback wins.
+ */
+function usableText(value: string | null | undefined): string {
+  return isUsableText(value) ? value! : "";
+}
+
 /** Fold a Contract-OS list item into the unified shape. */
 export function toUnifiedPropertyContract(item: PropertyContractListItem): UnifiedContract {
   const status = draftStatusForPropertyState(item.state);
@@ -88,7 +119,7 @@ export function toUnifiedPropertyContract(item: PropertyContractListItem): Unifi
     source: "os",
     type: item.type,
     typeFa: item.typeFa,
-    title: item.title,
+    title: displayTitle(item.title, item.typeFa),
     referenceCode: item.referenceCode,
     status,
     analysisStatus: item.analysisStatus,
@@ -97,7 +128,9 @@ export function toUnifiedPropertyContract(item: PropertyContractListItem): Unifi
     lastAnalyzedAt: item.lastAnalyzedAt,
     stateFa: item.stateFa,
     progress: item.progress,
-    subtitleFa: item.locationFa !== "بدون نشانی" ? item.locationFa : item.partySummaryFa,
+    subtitleFa:
+      usableText(item.locationFa !== "بدون نشانی" ? item.locationFa : "") ||
+      usableText(item.partySummaryFa),
     currentStepTitleFa: item.currentStepTitleFa,
     updatedAt: item.updatedAt,
     createdAt: item.createdAt,
@@ -116,7 +149,7 @@ export function toUnifiedV1Contract(item: V1ContractListItem): UnifiedContract {
     source: "v1",
     type: item.type,
     typeFa: item.typeFa,
-    title: item.title,
+    title: displayTitle(item.title, item.typeFa),
     referenceCode: item.id,
     status,
     // The legacy V1 workspace has no AI-review axis, so it is always

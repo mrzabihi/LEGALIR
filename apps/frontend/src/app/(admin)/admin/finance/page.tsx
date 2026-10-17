@@ -42,6 +42,7 @@ import {
   Select,
   Field,
   InfoBanner,
+  InlineNotice,
   FilterPills,
   IdChip,
   Section,
@@ -78,17 +79,7 @@ function errMessage(err: unknown, fallback: string): string {
 
 function Feedback({ value }: { value: { tone: "error" | "success"; text: string } | null }) {
   if (!value) return null;
-  return (
-    <div
-      className={`mb-4 rounded-large border p-3 text-body-2 ${
-        value.tone === "error"
-          ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-          : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-      }`}
-    >
-      {value.text}
-    </div>
-  );
+  return <InlineNotice tone={value.tone}>{value.text}</InlineNotice>;
 }
 
 function CommissionRules({ canManage }: { canManage: boolean }) {
@@ -251,7 +242,7 @@ function SettlementDetail({ id, canManage }: { id: string; canManage: boolean })
   if (detail.isLoading)
     return <Card className="p-4 text-body-2 text-muted">در حال بارگذاری…</Card>;
   if (detail.isError || !detail.data)
-    return <Card className="p-4 text-body-2 text-red-600">خطا در دریافت تسویه</Card>;
+    return <Card className="p-4 text-body-2 text-error-600" role="alert">خطا در دریافت تسویه</Card>;
 
   const s = detail.data;
   const reachable = SETTLEMENT_TRANSITIONS[s.status];

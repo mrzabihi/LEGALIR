@@ -30,7 +30,7 @@ import { matchesText } from "@/lib/search/normalize";
 import { computeDiscountPercent, applyDiscount, type DiscountKind } from "@/lib/usage/plan-pricing";
 import type { AdminPlanUpdate, AdminPlanCreateInput } from "@/lib/api/admin";
 import type { Plan, PlanStatus, SubscriptionPlan } from "@legalir/types";
-import { Dialog, snackbar } from "@legalir/ui";
+import { Dialog, SwitchRow, snackbar } from "@legalir/ui";
 import { PlanCard } from "@/components/subscription/plan-card";
 import {
   StackedBarChart,
@@ -53,6 +53,7 @@ import {
   Field,
   Select,
   InfoBanner,
+  InlineNotice,
   Section,
   SearchInput,
   FilterPills,
@@ -501,16 +502,12 @@ function PlanFormDialog({
         {!isCreate && detail.isLoading ? (
           <p className="p-4 text-body-2 text-muted">در حال بارگذاری…</p>
         ) : !isCreate && detail.isError ? (
-          <p className="p-4 text-body-2 text-red-600">خطا در دریافت پلن</p>
+          <p role="alert" className="p-4 text-body-2 text-error-600">خطا در دریافت پلن</p>
         ) : (
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 desktop:grid-cols-[minmax(0,1fr)_360px]">
             {/* ---------------- Left: the form ---------------- */}
             <div className="min-w-0">
-              {error && (
-                <div className="mb-4 rounded-large border border-red-200 bg-red-50 p-3 text-body-2 text-red-700 dark:bg-red-900/20 dark:text-red-300">
-                  {error}
-                </div>
-              )}
+              {error && <InlineNotice tone="error">{error}</InlineNotice>}
 
               <Section title="اطلاعات عمومی">
                 <div className="grid grid-cols-1 gap-x-4 gap-y-4 tablet:grid-cols-2">
@@ -727,15 +724,15 @@ function PlanFormDialog({
                     />
                   </Field>
                 </div>
-                <label className="mt-4 inline-flex cursor-pointer items-center gap-2 text-body-2 text-on-surface-variant">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-brand"
+                <div className="mt-4 rounded-medium border border-divider px-3 py-1.5">
+                  <SwitchRow
+                    label="ایجاد قرارداد نامحدود"
                     checked={current?.contractCreationUnlimited ?? false}
-                    onChange={(e) => set({ contractCreationUnlimited: e.target.checked })}
+                    onChange={(e) =>
+                      set({ contractCreationUnlimited: e.target.checked })
+                    }
                   />
-                  ایجاد قرارداد نامحدود
-                </label>
+                </div>
               </Section>
 
               <Section title="ویژگی‌ها" subtitle="هر ویژگی در یک خط.">

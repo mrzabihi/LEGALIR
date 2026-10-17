@@ -16,9 +16,10 @@ import type {
   ContractLifecycleView,
   PropertyContract,
 } from "@legalir/types";
-import { latestSignatureRequestDetail } from "./signature/db";
+import { latestSignatureRequest, latestSignatureRequestDetail, listInvitations } from "./signature/db";
 import { activeLawyerReviewDetail, latestAiReview, listReviewComments } from "./review-db";
 import { currentVersionApproval, latestAdminReview } from "./admin-review";
+import { currentVersionStamp } from "./stamp-review";
 import { getVersion } from "./db";
 import {
   buildLifecycleSteps,
@@ -27,7 +28,7 @@ import {
   isAtSignatureStage,
   registrationStatusFa,
 } from "./lifecycle";
-import { isEditable, isSignable } from "./state-machine";
+import { canTransition, isEditable, isSignable } from "./state-machine";
 import { evaluateRegistrationPolicy } from "./registration-policy";
 
 /**
@@ -46,6 +47,10 @@ export function buildLifecycleView(
   // signature the request is COMPLETED, and the participant list plus
   // the event trail must stay visible as the record of what happened.
   const signatureRequest = latestSignatureRequestDetail(contract.id);
+  // Invitations belong to the request, not to the contract: an invitation
+  // for an older request must never surface under a newer one.
+  const latestRequest = latestSignatureRequest(contract.id);
+  const invitations = latestRequest ? listInvitations(latestRequest.id) : [];
   const lawyerReview = activeLawyerReviewDetail(contract.id);
   const aiReview = latestAiReview(contract.id);
   const comments = listReviewComments(contract.id);
@@ -65,21 +70,21 @@ export function buildLifecycleView(
   const adminReview = latestAdminReview(contract.id);
   const approved = currentVersionApproval(contract, currentVersion?.documentHash ?? null);
 
+  // The official seal is the SECOND, stronger gate: a Super-Admin stamp
+  // request applied to the current version hash whose stamp master is still
+  // byte-identical. A content change or a swapped asset voids it here too.
+  const seal = currentVersionStamp(contract, currentVersion?.documentHash ?? null);
+
   // A contract may be submitted to the admin queue once its content is
   // frozen as a version and it is not already in flight, in the queue,
-  // or freshly approved. This mirrors the submit action in the admin
-  // route so the UI never offers a call the server would reject.
+  // or freshly approved. The legal-transition table is the SAME source
+  // the submit route asserts against, so the UI can never offer a call
+  // the server would reject — and can never hide one it would allow.
   const canSubmitForAdminReview =
     !!contract.currentVersionId &&
     !approved &&
     !signatureRequest &&
-    (contract.state === "READY_FOR_REVIEW" ||
-      contract.state === "COUNTERPARTY_REVIEW" ||
-      contract.state === "ADMIN_APPROVED" ||
-      contract.state === "REJECTED" ||
-      contract.state === "CHANGES_REQUESTED" ||
-      contract.state === "DRAFT") &&
-    !isEditable(contract.state);
+    canTransition(contract.state, "PENDING_ADMIN_REVIEW");
 
   // The compulsory gate: a signature may only be PREPARED once the
   // current version carries an admin approval. This is the UI's read of
@@ -111,10 +116,20 @@ export function buildLifecycleView(
     registrationStatus,
     registrationStatusFa: registrationStatusFa(registrationStatus),
     signatureRequest,
+    invitations,
     lawyerReview,
     aiReview,
     adminReview,
     adminApproved: approved !== null,
+    stamped: seal !== null,
+    officialStamp: seal
+      ? {
+          approvedByLabelFa: seal.approvedByLabelFa,
+          approvedAt: seal.appliedAt,
+          reasonFa: seal.reasonFa,
+          documentHash: seal.documentHash,
+        }
+      : null,
     comments,
     canPrepareForSignature,
     canSign,

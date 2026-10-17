@@ -10,7 +10,7 @@
 
 "use client";
 
-import { Drawer, Select, SelectableOption } from "@legalir/ui";
+import { Drawer, Select, SelectableOption, Button } from "@legalir/ui";
 import {
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_ORDER,
@@ -99,20 +99,12 @@ export function ContractsFilterSheet({
         />
 
         <div className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClear}
-            className="h-11 flex-1 rounded-medium border border-outline text-labelLarge text-primary transition-colors hover:state-hover"
-          >
+          <Button type="button" variant="outlined" onClick={onClear} fullWidth className="flex-1">
             پاک کردن
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 flex-1 rounded-medium bg-primary text-labelLarge text-primary-on transition-colors hover:state-hover"
-          >
+          </Button>
+          <Button type="button" onClick={onClose} fullWidth className="flex-1">
             اعمال
-          </button>
+          </Button>
         </div>
       </div>
     </Drawer>

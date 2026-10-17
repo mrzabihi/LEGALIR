@@ -30,7 +30,7 @@ import { useClientPagination } from "@/hooks/useClientPagination";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { matchesText } from "@/lib/search/normalize";
 import type { AdminCouponDraft, AdminCouponRow } from "@/lib/api/admin";
-import { Dialog, snackbar } from "@legalir/ui";
+import { Checkbox, Dialog, snackbar } from "@legalir/ui";
 import { COUPON_KIND_FA } from "@legalir/types";
 import type { CouponKind, CouponStatus, SubscriptionPlan } from "@legalir/types";
 import {
@@ -46,6 +46,7 @@ import {
   Field,
   Select,
   InfoBanner,
+  InlineNotice,
   Section,
   SearchInput,
   FilterPills,
@@ -373,11 +374,7 @@ function CouponFormDialog({
           </>
         }
       >
-        {error && (
-          <div className="mb-4 rounded-large border border-red-200 bg-red-50 p-3 text-body-2 text-red-700 dark:bg-red-900/20 dark:text-red-300">
-            {error}
-          </div>
-        )}
+        {error && <InlineNotice tone="error">{error}</InlineNotice>}
 
         <Section title="اطلاعات داخلی">
           <div className="grid grid-cols-1 gap-x-4 gap-y-4 tablet:grid-cols-2">
@@ -497,18 +494,17 @@ function CouponFormDialog({
           ) : (
             <div className="grid grid-cols-1 gap-2 tablet:grid-cols-2 desktop:grid-cols-3">
               {plans.map((p) => (
-                <label
+                <div
                   key={p.code}
-                  className="flex cursor-pointer items-center gap-2 rounded-large border border-divider px-3 py-2 text-body-2 text-on-surface-variant"
+                  className="flex items-center gap-2 rounded-large border border-divider px-3 py-2.5"
                 >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-brand"
+                  <Checkbox
+                    label={<span className="truncate">{p.nameFa}</span>}
                     checked={draft.eligiblePlans.includes(p.code)}
                     onChange={() => togglePlan(p.code)}
+                    className="min-w-0"
                   />
-                  <span className="truncate">{p.nameFa}</span>
-                </label>
+                </div>
               ))}
             </div>
           )}

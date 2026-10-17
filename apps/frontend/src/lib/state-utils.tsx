@@ -4,6 +4,7 @@
 // ============================================================
 
 import type { ReactNode } from "react";
+import { Button } from "@legalir/ui";
 
 // --- Offline State ---
 
@@ -23,12 +24,7 @@ export function OfflineState() {
         <p className="text-body-2 text-muted mb-6">
           لطفاً اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
-        >
-          تلاش مجدد
-        </button>
+        <Button onClick={() => window.location.reload()}>تلاش مجدد</Button>
       </div>
     </div>
   );
@@ -69,14 +65,7 @@ export function ForbiddenState({
         </div>
         <h2 className="text-h2 text-on-surface mb-2">{title}</h2>
         <p className="text-body-2 text-muted mb-6">{message}</p>
-        {actionLabel && onAction && (
-          <button
-            onClick={onAction}
-            className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
-          >
-            {actionLabel}
-          </button>
-        )}
+        {actionLabel && onAction && <Button onClick={onAction}>{actionLabel}</Button>}
       </div>
     </div>
   );
@@ -170,12 +159,12 @@ export function RetryBanner({ message, onRetry }: RetryBannerProps) {
       className="rounded-large bg-error-container border border-error p-4 flex items-center justify-between gap-4"
     >
       <p className="text-body-2 text-error">{message}</p>
-      <button
-        onClick={onRetry}
-        className="shrink-0 rounded-medium bg-error text-white px-4 py-2 text-caption font-medium hover:opacity-90 transition-opacity touch-target"
-      >
+      {/* A retry inside an error banner is the recovery action, not a
+          destructive one — `filled` keeps the brand recovery language while
+          the surrounding banner carries the error colour. */}
+      <Button onClick={onRetry} size="small" className="shrink-0">
         تلاش مجدد
-      </button>
+      </Button>
     </div>
   );
 }

@@ -75,21 +75,57 @@ function setupConversationHandlers() {
         { status: 201 }
       );
     }),
-    http.post(`${API_BASE}/api/v1/conversations/:id/messages`, async ({ request }) => {
-      await delay(100);
-      const body = (await request.json()) as { content: string };
-      return HttpResponse.json(
-        ok({
-          ...fixtureV1StructuredMessage,
-          id: `msg-${Date.now()}`,
-          conversationId: "conv-rent-001",
-          role: "assistant" as const,
-          content: `پاسخ به: "${body.content}"`,
-          status: "completed" as const,
+    // The REAL chat transport: the SSE gateway. The page streams through this
+    // endpoint (there is no non-streaming message POST). The mock emits the
+    // same frames the gateway does — status, pipeline stages, text chunks, and
+    // a final `done` carrying the persisted ids/sections/references.
+    http.post(`${API_BASE}/api/v1/ai/stream`, async ({ request }) => {
+      await delay(50);
+      await request.json();
+      const frames = [
+        { type: "status", status: "queued" },
+        { type: "processing.started", requestId: "run-test", totalStages: 5 },
+        {
+          type: "stage.started",
+          requestId: "run-test",
+          stage: "IDENTIFY",
+          stageNumber: 1,
+          totalStages: 5,
+        },
+        {
+          type: "stage.completed",
+          requestId: "run-test",
+          stage: "IDENTIFY",
+          status: "COMPLETED",
+        },
+        { type: "chunk", text: "پاسخ ", index: 0 },
+        { type: "chunk", text: "تحلیلی", index: 1 },
+        { type: "status", status: "succeeded" },
+        {
+          type: "done",
+          requestId: "run-test",
+          messageId: "msg-asst-test",
           sections: fixtureV1StructuredMessage.sections,
           references: fixtureV1References,
-        })
-      );
+          userMessageId: "msg-usr-test",
+          userAttachments: [],
+        },
+      ];
+      const body = frames.map((f) => `data: ${JSON.stringify(f)}\n\n`).join("");
+      return new HttpResponse(body, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }),
+    // Health endpoint the connection indicator probes (§6).
+    http.get(`${API_BASE}/api/v1/ai/stream`, async () => {
+      return HttpResponse.json({
+        provider: "mock",
+        model: "legalir-mock-v1",
+        configured: false,
+        healthy: true,
+        providerRequested: "mock",
+      });
     }),
     http.patch(`${API_BASE}/api/v1/conversations/:id`, async () => {
       await delay(50);
@@ -252,44 +288,7 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
         expect(screen.getByText("گفتگوی خالی")).toBeInTheDocument();
       });
 
-      // Override POST to also add to localMessages
-      server.use(
-        http.post(`${API_BASE}/api/v1/conversations/:id/messages`, async ({ request }) => {
-          await delay(100);
-          const body = (await request.json()) as { content: string };
-          const msg = {
-            id: `msg-${Date.now()}`,
-            conversationId: "conv-empty-test",
-            role: "user" as const,
-            content: body.content,
-            status: "sent" as const,
-            createdAt: new Date().toISOString(),
-          };
-          localMessages.push(msg);
-          const asstMsg = {
-            id: `msg-asst-${Date.now()}`,
-            conversationId: "conv-empty-test",
-            role: "assistant" as const,
-            content: "پاسخ تحلیلی",
-            status: "completed" as const,
-            sections: fixtureV1StructuredMessage.sections,
-            createdAt: new Date().toISOString(),
-          };
-          localMessages.push(asstMsg);
-          return HttpResponse.json(
-            ok({
-              ...fixtureV1StructuredMessage,
-              id: asstMsg.id,
-              conversationId: "conv-empty-test",
-              role: "assistant" as const,
-              content: asstMsg.content,
-              status: "completed" as const,
-              sections: fixtureV1StructuredMessage.sections,
-              references: fixtureV1References,
-            })
-          );
-        })
-      );
+      // The stream handler from setupConversationHandlers() drives this turn.
 
       // Type and send a message. The composer placeholder is context-aware
       // (§10); with no service in the URL it falls back to the generic prompt.
@@ -340,41 +339,6 @@ describe("Phase 7 — AI Legal Chat Workspace", () => {
               messages: localMessages,
               aiRuns: [],
               references: [],
-            })
-          );
-        }),
-        http.post(`${API_BASE}/api/v1/conversations/:id/messages`, async ({ request }) => {
-          await delay(100);
-          const body = (await request.json()) as { content: string };
-          const userMsg = {
-            id: `msg-${Date.now()}`,
-            conversationId: "conv-sections-test",
-            role: "user" as const,
-            content: body.content,
-            status: "sent" as const,
-            createdAt: new Date().toISOString(),
-          };
-          localMessages.push(userMsg);
-          const asstMsg = {
-            id: `msg-asst-${Date.now()}`,
-            conversationId: "conv-sections-test",
-            role: "assistant" as const,
-            content: "پاسخ تحلیلی",
-            status: "completed" as const,
-            sections: fixtureV1StructuredMessage.sections,
-            createdAt: new Date().toISOString(),
-          };
-          localMessages.push(asstMsg);
-          return HttpResponse.json(
-            ok({
-              ...fixtureV1StructuredMessage,
-              id: asstMsg.id,
-              conversationId: "conv-sections-test",
-              role: "assistant" as const,
-              content: asstMsg.content,
-              status: "completed" as const,
-              sections: fixtureV1StructuredMessage.sections,
-              references: fixtureV1References,
             })
           );
         })

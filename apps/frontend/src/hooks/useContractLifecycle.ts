@@ -286,6 +286,10 @@ export function useAddReviewComment() {
       partyId?: string;
       clauseRef?: string | null;
       kind?: "comment" | "change_request" | "approval_note";
+      /** Reply to an existing comment on the same version. */
+      parentId?: string | null;
+      /** `internal` (default) or shared `parties`. */
+      visibility?: "internal" | "parties";
     }) => addReviewComment(id, params),
     onSuccess: (_res, variables) => invalidateLifecycle(queryClient, variables.id),
   });

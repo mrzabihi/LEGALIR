@@ -187,6 +187,7 @@ const PROPERTY_STATE_DRAFT: Record<PropertyContractState, ContractDraftStatus> =
   READY_TO_SIGN: "ready",
   PARTIALLY_SIGNED: "ready",
   SIGNED: "ready",
+  AMENDMENT_IN_PROGRESS: "in_progress",
   READY_FOR_OFFICIAL_REGISTRATION: "ready",
   FINALIZED: "ready",
   CANCELLED: "started",

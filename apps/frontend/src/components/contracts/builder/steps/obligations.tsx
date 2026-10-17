@@ -67,9 +67,13 @@ const TERMINATION_GROUNDS: {
   { key: "failureToVacate", label: "عدم تخلیه در موعد مقرر" },
 ];
 
+const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
+
 function RentObligations() {
-  const { data, patchData } = useWizard();
+  const { data, patchData, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertyRentData;
+  // Inline errors only after a blocked advance attempt, never on a fresh draft.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setCosts = (patch: Partial<RentCosts>) => patchData({ costs: { ...d.costs, ...patch } });
   const setRules = (patch: Partial<PropertyRentData["usageRules"]>) =>
@@ -90,6 +94,14 @@ function RentObligations() {
               value={d.costs[row.key]}
               onChange={(v) => setCosts({ [row.key]: v } as Partial<RentCosts>)}
               options={COST_BEARERS}
+              // «آب» is the one cost every lease must allocate; the rest are
+              // optional, so only that field carries the required marker.
+              required={row.key === "water"}
+              errorText={
+                showErrors && row.key === "water" && !d.costs.water
+                  ? REQUIRED_ERROR
+                  : undefined
+              }
             />
           ))}
         </FieldGrid>
@@ -209,8 +221,9 @@ const PRIOR_DEBT_BEARERS: { value: "seller" | "buyer" | "other"; label: string }
 ];
 
 function SaleObligations() {
-  const { data, patchData } = useWizard();
+  const { data, patchData, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertySaleData;
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setObligations = (patch: Partial<PropertySaleData["obligations"]>) =>
     patchData({ obligations: { ...d.obligations, ...patch } });
@@ -241,6 +254,10 @@ function SaleObligations() {
           value={d.obligations.priorDebtsBearer}
           onChange={(v) => setObligations({ priorDebtsBearer: v })}
           options={PRIOR_DEBT_BEARERS}
+          required
+          errorText={
+            showErrors && !d.obligations.priorDebtsBearer ? REQUIRED_ERROR : undefined
+          }
         />
         {d.obligations.priorDebtsBearer === "buyer" && (
           <Notice tone="warning">

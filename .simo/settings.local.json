@@ -151,7 +151,8 @@
       "Bash(find \"src/app/\\(app\\)/contracts\" -type f)",
       "Bash(CID=\"cnt-employment-3ee7ebb4\")",
       "Bash(ls \"src/app/\\(public\\)\")",
-      "Bash(ls \"src/app/\\(marketing\\)\")"
+      "Bash(ls \"src/app/\\(marketing\\)\")",
+      "Skill(update-config)"
     ]
   }
 }

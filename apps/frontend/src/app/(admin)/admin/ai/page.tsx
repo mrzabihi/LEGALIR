@@ -43,12 +43,14 @@ import {
   Select,
   Field,
   InfoBanner,
+  InlineNotice,
   FilterPills,
   Section,
   StatCard,
   ExportButton,
   Pagination,
 } from "@/components/admin/ui";
+import { Switch } from "@legalir/ui";
 import { useClientPagination } from "@/hooks/useClientPagination";
 
 const KIND_OPTIONS: AiProviderKind[] = ["openai", "anthropic", "azure", "openrouter", "custom"];
@@ -61,17 +63,7 @@ function errMessage(err: unknown, fallback: string): string {
 
 function Feedback({ value }: { value: { tone: "error" | "success"; text: string } | null }) {
   if (!value) return null;
-  return (
-    <div
-      className={`mb-4 rounded-large border p-3 text-body-2 ${
-        value.tone === "error"
-          ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-          : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-      }`}
-    >
-      {value.text}
-    </div>
-  );
+  return <InlineNotice tone={value.tone}>{value.text}</InlineNotice>;
 }
 
 function ProviderForm({ canManage, secretReady }: { canManage: boolean; secretReady: boolean }) {
@@ -187,15 +179,13 @@ function ProviderForm({ canManage, secretReady }: { canManage: boolean; secretRe
                 onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
               />
             </Field>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 text-body-2 text-on-surface-variant">
-                <input
-                  type="checkbox"
-                  checked={Boolean(form.isDefault)}
-                  onChange={(e) => setForm((f) => ({ ...f, isDefault: e.target.checked }))}
-                />
-                ارائه‌دهنده پیش‌فرض
-              </label>
+            <div className="rounded-medium border border-divider px-3 py-1.5">
+              <Switch
+                checked={Boolean(form.isDefault)}
+                onChange={(e) => setForm((f) => ({ ...f, isDefault: e.target.checked }))}
+                label="ارائه‌دهنده پیش‌فرض"
+                tone="selection"
+              />
             </div>
           </div>
           <div className="mt-3">
@@ -550,17 +540,17 @@ function Metrics() {
               />
               <StatCard label="Fallback" value={m.fallbackCount} tone="warning" />
               <StatCard label="مجموع توکن" value={m.totalTokens} />
-              {m.estimatedCostToman === null ? (
-                <Card className="p-4">
-                  <p className="text-caption text-muted">هزینه تخمینی</p>
-                  <p className="mt-1 text-h3 font-bold text-amber-600 dark:text-amber-400">
-                    ناموجود
-                  </p>
-                  <p className="mt-1 text-caption text-muted">ارائه‌دهنده هزینه گزارش نمی‌کند.</p>
-                </Card>
-              ) : (
-                <StatCard label="هزینه تخمینی (تومان)" value={m.estimatedCostToman} />
-              )}
+              {/* The provider can genuinely omit cost. The card keeps the KPI
+                  shell — label → value → explanation — and the value slot says
+                  «ناموجود» instead of a ۰ that would read as a real measurement.
+                  The label text is identical to the available variant. */}
+              <StatCard
+                label={m.estimatedCostToman === null ? "هزینه تخمینی" : "هزینه تخمینی (تومان)"}
+                value={m.estimatedCostToman ?? 0}
+                unavailable={m.estimatedCostToman === null}
+                unavailableLabel="ناموجود"
+                hint={m.estimatedCostToman === null ? "ارائه‌دهنده هزینه گزارش نمی‌کند." : undefined}
+              />
               <StatCard
                 label="میانه تأخیر"
                 value={m.latencyP50Ms === null ? "—" : `${toPersianNumber(m.latencyP50Ms)}ms`}

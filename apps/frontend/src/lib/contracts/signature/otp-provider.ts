@@ -16,7 +16,11 @@
 // The demo code 405405 is accepted in development so the flow is
 // testable end-to-end without an SMS gateway — the same convention the
 // login OTP uses. In production the code is delivered by the SMS
-// adapter and 405405 is not special.
+// adapter (`@/lib/sms/gateway`) and 405405 is not special.
+//
+// Delivery is a REAL await against that adapter. The returned `channel`
+// says what actually carried the code (`sms`, `dev-console`, or `none`
+// on failure), so a caller can never present a delivery it did not make.
 // ============================================================
 
 import crypto from "node:crypto";
@@ -26,6 +30,7 @@ import type {
   ChallengeVerified,
   SignatureProvider,
 } from "./provider";
+import { getSmsGateway } from "@/lib/sms/gateway";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -89,7 +94,11 @@ class OtpSignatureProvider implements SignatureProvider {
     return "ELECTRONIC_CONFIRMATION";
   }
 
-  requestChallenge(params: { subject: string; mobile: string }): ChallengeIssued {
+  async requestChallenge(params: {
+    subject: string;
+    mobile: string;
+    messageFa?: string;
+  }): Promise<ChallengeIssued> {
     const { subject, mobile } = params;
     const now = Date.now();
 
@@ -97,17 +106,36 @@ class OtpSignatureProvider implements SignatureProvider {
     if (recent.length >= RATE_MAX) {
       return {
         sent: false,
+        channel: "none",
         destinationMasked: maskMobile(mobile),
         expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
         remainingAttempts: 0,
       };
     }
-    recent.push(now);
-    rateLog.set(subject, recent);
 
     // In development the code is fixed so the flow is testable; in
     // production it is random and delivered by the SMS adapter.
     const code = process.env.NODE_ENV === "production" ? generateCode() : DEV_OTP;
+
+    // Deliver BEFORE recording the rate hit: a delivery that fails must
+    // not consume the signer's quota.
+    const delivery = await getSmsGateway().send({
+      to: mobile,
+      body: params.messageFa ?? `کد تأیید و امضای الکترونیکی لیگالیر: ${code}`,
+      tag: "signature-otp",
+    });
+    if (!delivery.ok) {
+      return {
+        sent: false,
+        channel: "none",
+        destinationMasked: maskMobile(mobile),
+        expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
+        remainingAttempts: 0,
+      };
+    }
+
+    recent.push(now);
+    rateLog.set(subject, recent);
 
     challenges.set(subject, {
       codeHash: hashCode(code),
@@ -117,6 +145,7 @@ class OtpSignatureProvider implements SignatureProvider {
 
     return {
       sent: true,
+      channel: delivery.channel,
       destinationMasked: maskMobile(mobile),
       expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
       remainingAttempts: MAX_ATTEMPTS,

@@ -31,7 +31,7 @@ import {
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { computeCompleteness, isReadyForReview } from "@/lib/contracts/completeness";
-import { insertReviewComment } from "@/lib/contracts/review-db";
+import { insertReviewComment, listReviewComments } from "@/lib/contracts/review-db";
 import { createPendingReview, openAdminReview } from "@/lib/contracts/admin-review";
 import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
@@ -52,6 +52,13 @@ interface ReviewBody {
   body?: string;
   clauseRef?: string | null;
   kind?: "comment" | "change_request" | "approval_note";
+  /** Reply to an existing comment on the SAME version. */
+  parentId?: string | null;
+  /**
+   * `internal` (default) stays in the drafter's workspace and never reaches
+   * the counterparty, the signer page or the PDF; `parties` is shared.
+   */
+  visibility?: "internal" | "parties";
 }
 
 export async function POST(request: Request, { params }: Params) {
@@ -93,15 +100,33 @@ function addComment(userId: string, contract: PropertyContract, body: ReviewBody
     ? parties.find((p) => p.id === body.partyId)
     : parties.find((p) => p.isInitiator);
 
+  // A reply must stay inside the same version thread: a note written
+  // against an older revision is about text that may no longer exist, and
+  // attaching it to the current version would silently mis-date it.
+  let parentId: string | null = null;
+  if (body.parentId) {
+    const parent = listReviewComments(contract.id).find((c) => c.id === body.parentId);
+    if (!parent) return badRequest("نظر مورد پاسخ یافت نشد.", "PARENT_NOT_FOUND");
+    if (parent.contractVersionId !== contract.currentVersionId) {
+      return conflict(
+        "پاسخ فقط به نظرهای همین نسخه امکان‌پذیر است.",
+        "PARENT_VERSION_MISMATCH"
+      );
+    }
+    parentId = parent.id;
+  }
+
   const comment = insertReviewComment({
     contractId: contract.id,
     contractVersionId: contract.currentVersionId,
     partyId: party?.id ?? null,
     authorLabelFa: party ? partyRoleLabelFa(party.role) : "کاربر",
     authorKind: "party",
+    visibility: body.visibility ?? "internal",
     kind: body.kind ?? "comment",
     body: text,
     clauseRef: body.clauseRef ?? null,
+    parentId,
   });
 
   audit({

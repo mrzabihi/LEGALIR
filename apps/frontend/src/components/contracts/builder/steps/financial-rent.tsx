@@ -32,9 +32,13 @@ const AGREEMENT_KINDS: { value: RentAgreementKind; label: string }[] = [
   { value: "rent_only", label: "اجاره بدون ودیعه" },
 ];
 
+const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
+
 export function FinancialRentStep() {
-  const { data, patchData } = useWizard();
+  const { data, patchData, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertyRentData;
+  // Inline errors only after a blocked advance attempt, never on a fresh draft.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setTerms = (patch: Partial<PropertyRentData["terms"]>) =>
     patchData({ terms: { ...d.terms, ...patch } });
@@ -79,6 +83,8 @@ export function FinancialRentStep() {
           value={d.terms.agreementKind}
           onChange={(v) => setTerms({ agreementKind: v })}
           options={AGREEMENT_KINDS}
+          required
+          errorText={showErrors && !d.terms.agreementKind ? REQUIRED_ERROR : undefined}
         />
       </SectionCard>
 
@@ -136,12 +142,23 @@ export function FinancialRentStep() {
             label="تاریخ شروع اجاره"
             value={d.durations.startDate}
             onChange={onStartChange}
+            required
+            errorMessage={
+              showErrors && !d.durations.startDate ? REQUIRED_ERROR : undefined
+            }
           />
           <DateField
             label="تاریخ پایان اجاره"
             value={d.durations.endDate}
             onChange={onEndChange}
-            errorMessage={endBeforeStart ? END_BEFORE_START_FA : undefined}
+            required
+            errorMessage={
+              endBeforeStart
+                ? END_BEFORE_START_FA
+                : showErrors && !d.durations.endDate
+                  ? REQUIRED_ERROR
+                  : undefined
+            }
           />
         </FieldGrid>
         <DateField

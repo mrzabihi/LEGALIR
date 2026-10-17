@@ -21,6 +21,7 @@ import type {
   LawyerReviewFinding,
   LawyerReviewRequest,
   LawyerReviewRequestDetail,
+  ReviewCommentVisibility,
 } from "@legalir/types";
 import { readTable, writeTable } from "@/lib/db";
 
@@ -33,9 +34,36 @@ const T_AI = "contract-ai-reviews";
 // Review comments
 // ------------------------------------------------------------
 
-export function listReviewComments(contractId: string): ContractReviewComment[] {
+export interface ListCommentsOptions {
+  /** Only comments bound to this exact version. Omit for the full history. */
+  versionId?: string;
+  /**
+   * The reader's visibility. A counterparty or the public signer page must
+   * never receive `internal` notes; the drafter and authorised staff pass
+   * `"internal"` to read everything.
+   */
+  maxVisibility?: ReviewCommentVisibility;
+}
+
+/**
+ * Comments on a contract, oldest first.
+ *
+ * Every comment carries the version it was written against, so a reader
+ * can always tell whether a note is about the text in front of them or
+ * about a revision that has since changed. Filtering is opt-in: the
+ * workspace shows the full thread with its versions labelled, while the
+ * counterparty-facing paths pass `versionId` + `maxVisibility: "parties"`.
+ */
+export function listReviewComments(
+  contractId: string,
+  options: ListCommentsOptions = {}
+): ContractReviewComment[] {
+  const visible = (c: ContractReviewComment) =>
+    options.maxVisibility === "parties" ? (c.visibility ?? "internal") === "parties" : true;
   return readTable<ContractReviewComment>(T_COMMENTS)
     .filter((c) => c.contractId === contractId)
+    .filter((c) => (options.versionId ? c.contractVersionId === options.versionId : true))
+    .filter(visible)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 

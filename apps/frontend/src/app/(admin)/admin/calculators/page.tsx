@@ -17,7 +17,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Drawer, Switch, snackbar } from "@legalir/ui";
+import { Drawer, Switch, SwitchRow, snackbar } from "@legalir/ui";
 import {
   useAdminMe,
   useCalculatorsInventory,
@@ -423,7 +423,7 @@ export default function AdminCalculatorsPage() {
                       </span>
                       {c.warningsFa.length > 0 && (
                         <span
-                          className="mt-0.5 block truncate text-caption text-amber-700 dark:text-amber-300"
+                          className="mt-0.5 block truncate text-caption text-warning-700 dark:text-warning-300"
                           title={c.warningsFa.join(" • ")}
                         >
                           {c.warningsFa[0]}
@@ -718,14 +718,13 @@ function CalculatorSettingEditor({
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-large border border-divider p-3">
-        <div>
-          <p className="font-medium text-on-surface">فعال بودن</p>
-          <p className="mt-0.5 text-caption text-muted">
-            با خاموش‌کردن، اجرای این ماشین‌حساب برای همهٔ کاربران در سرور مسدود می‌شود.
-          </p>
-        </div>
-        <Switch checked={enabled} onChange={(e) => setEnabled(e.target.checked)} label="فعال" />
+      <div className="rounded-large border border-divider p-3">
+        <SwitchRow
+          label="فعال بودن"
+          description="با خاموش‌کردن، اجرای این ماشین‌حساب برای همهٔ کاربران در سرور مسدود می‌شود."
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
       </div>
 
       <Field label="سطح دسترسی">
@@ -1031,6 +1030,7 @@ function CalculatorRuleEditor({
           <p className="text-caption font-medium text-on-surface-variant">تاریخچهٔ نسخه‌ها</p>
           <div className="overflow-hidden rounded-large border border-divider">
             <DataTable
+              bare
               head={
                 <tr>
                   <Th>نسخه</Th>
@@ -1097,7 +1097,7 @@ function RulePreviewPanel({ preview }: { preview: RulePublishPreview }) {
           {[...errors, ...warnings].map((issue, i) => (
             <li
               key={i}
-              className={issue.severity === "error" ? "text-error-600 dark:text-error-400" : "text-amber-700 dark:text-amber-300"}
+              className={issue.severity === "error" ? "text-error-600 dark:text-error-400" : "text-warning-700 dark:text-warning-300"}
             >
               <span dir="ltr">{issue.fieldPath || "—"}</span>: {issue.messageFa}
             </li>
@@ -1108,6 +1108,7 @@ function RulePreviewPanel({ preview }: { preview: RulePublishPreview }) {
       {preview.samples.length > 0 && (
         <div className="overflow-hidden rounded-medium border border-divider">
           <DataTable
+            bare
             head={
               <tr>
                 <Th>ماشین‌حساب</Th>
@@ -1166,12 +1167,13 @@ function RuleFieldEditor({
       );
     case "boolean":
       return (
-        <div className="flex items-center justify-between gap-4 rounded-large border border-divider p-3">
-          <div>
-            <p className="font-medium text-on-surface">{field.labelFa}</p>
-            <p className="mt-0.5 text-caption text-muted" dir="ltr">{field.key}</p>
-          </div>
-          <Switch checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} label={field.labelFa} />
+        <div className="rounded-large border border-divider p-3">
+          <SwitchRow
+            label={field.labelFa}
+            description={field.key}
+            checked={Boolean(value)}
+            onChange={(e) => onChange(e.target.checked)}
+          />
         </div>
       );
     case "string":
@@ -1218,7 +1220,11 @@ function MapFieldEditor({
               {k}
             </span>
             {valueKind === "boolean" ? (
-              <Switch checked={Boolean(v)} onChange={(e) => onChange({ ...record, [k]: e.target.checked })} label={k} />
+              <Switch
+                checked={Boolean(v)}
+                onChange={(e) => onChange({ ...record, [k]: e.target.checked })}
+                aria-label={k}
+              />
             ) : (
               <TextInput
                 dir="ltr"

@@ -23,6 +23,11 @@ import type { SignatureAssuranceLevel, SignatureProviderId } from "@legalir/type
 /** The outcome of sending a challenge. */
 export interface ChallengeIssued {
   sent: boolean;
+  /**
+   * The transport that actually carried the code. `dev-console` means it
+   * reached the server log, NOT a phone, and the UI says so.
+   */
+  channel: "sms" | "dev-console" | "none";
   /** Masked destination for display, e.g. 0912***0003. */
   destinationMasked: string;
   expiresAt: string;
@@ -53,7 +58,12 @@ export interface SignatureProvider {
    * scopes the challenge (contract + participant), so two signers can
    * never share a challenge.
    */
-  requestChallenge(params: { subject: string; mobile: string }): ChallengeIssued;
+  requestChallenge(params: {
+    subject: string;
+    mobile: string;
+    /** Human-readable body when the provider delivers by SMS. */
+    messageFa?: string;
+  }): Promise<ChallengeIssued>;
   /** Verify a challenge code for the same subject. */
   verifyChallenge(params: { subject: string; code: string }): ChallengeVerified;
   /** Drop any outstanding challenge for the subject (after success). */

@@ -175,6 +175,38 @@ test.describe("Contracts hub", () => {
     { name: "1440", width: 1440, height: 900 },
   ];
 
+  // The template rail bleeds to the page gutter on a phone. scroll-snap
+  // aligns to the SCROLLPORT and ignores padding, so without
+  // `scroll-padding-inline-start` the rail settles at a negative offset
+  // and the first card sits flush against the screen edge. At rest it
+  // must be at its own inline start, with the card fully inside.
+  test("template rail rests at its inline start on a phone", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/contracts");
+    await expect(page.getByRole("heading", { level: 1, name: "تنظیم قرارداد" })).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+    // The rail renders from the client-side registry, so it is present
+    // as soon as the island hydrates — wait for it before measuring.
+    await expect(page.locator("div.snap-x")).toBeVisible({ timeout: APP_READY_TIMEOUT });
+
+    const rail = await page.evaluate(() => {
+      const el = document.querySelector("div.snap-x") as HTMLElement | null;
+      const first = el?.firstElementChild as HTMLElement | null;
+      if (!el || !first) return null;
+      const railRect = el.getBoundingClientRect();
+      const cardRect = first.getBoundingClientRect();
+      return {
+        scrollStart: Math.abs(el.scrollLeft),
+        cardFullyInside: cardRect.right <= railRect.right + 1 && cardRect.left >= railRect.left - 1,
+      };
+    });
+
+    expect(rail).not.toBeNull();
+    expect(rail!.scrollStart).toBeLessThanOrEqual(2);
+    expect(rail!.cardFullyInside).toBe(true);
+  });
+
   for (const viewport of VIEWPORTS) {
     test(`no horizontal overflow at ${viewport.name}px`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -188,11 +220,12 @@ test.describe("Contracts hub", () => {
       });
       expect(activeOverflow).toBeLessThanOrEqual(1);
 
-      // Same guarantee on the future-services view.
+      // Same guarantee on the future-services view. The view switch is a
+      // router transition, so it gets the same budget as the first paint.
       await page.getByRole("tab", { name: "بزودی" }).click();
       await expect(
         page.getByRole("heading", { name: "قراردادهای در دست توسعه" }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: APP_READY_TIMEOUT });
       const comingOverflow = await page.evaluate(() => {
         const doc = document.documentElement;
         return doc.scrollWidth - doc.clientWidth;

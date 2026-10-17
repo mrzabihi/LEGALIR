@@ -109,11 +109,20 @@ export function fetchParties(id: string): Promise<ContractParty[]> {
 export function saveParty(
   id: string,
   party: {
+    /** Stable party id — keeps the same person across steps/preview/PDF. */
+    id?: string;
     role: ContractParty["role"];
     capacity?: ContractParty["capacity"];
+    personKind?: ContractParty["personKind"];
+    nationality?: ContractParty["nationality"];
     identity?: Partial<ContractParty["identity"]>;
+    banking?: ContractParty["banking"];
+    representativeOfPartyId?: string | null;
+    representativePositionFa?: string;
     ownershipShare?: ContractParty["ownershipShare"];
     powerOfAttorney?: ContractParty["powerOfAttorney"];
+    /** Reject incomplete branch data instead of saving a partial draft. */
+    requireComplete?: boolean;
   }
 ): Promise<ContractParty> {
   return apiClient.put(`/api/v1/property-contracts/${id}/parties`, party);

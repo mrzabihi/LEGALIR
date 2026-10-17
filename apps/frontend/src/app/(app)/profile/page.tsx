@@ -71,6 +71,7 @@ import type { Profile, V1SubscriptionHistoryItem, PlatformAccountType } from "@l
 import {
   ACCOUNT_TYPE_FA,
   ACCOUNT_TYPE_DESCRIPTION_FA,
+  IRAN_PROVINCE_NAMES,
   ORG_MEMBER_ROLE_FA,
   ORGANIZATION_STATUS_FA,
   ORGANIZATION_LEGAL_TYPE_FA,
@@ -133,14 +134,6 @@ const PRIMARY_USE_CASE_OPTIONS = [
   { value: "document_analysis", label: "تحلیل سند" },
   { value: "legal_education", label: "آموزش حقوقی" },
   { value: "legal_management", label: "مدیریت امور حقوقی" },
-] as const;
-
-const IRAN_PROVINCES = [
-  "تهران", "البرز", "اصفهان", "فارس", "خراسان رضوی", "خوزستان", "آذربایجان شرقی",
-  "آذربایجان غربی", "گیلان", "مازندران", "کرمان", "یزد", "قم", "قزوین", "زنجان",
-  "همدان", "کردستان", "کرمانشاه", "لرستان", "مرکزی", "سمنان", "گلستان", "اردبیل",
-  "بوشهر", "هرمزگان", "چهارمحال و بختیاری", "کهگیلویه و بویراحمد", "ایلام",
-  "خراسان شمالی", "خراسان جنوبی", "سیستان و بلوچستان",
 ] as const;
 
 function persianCount(n: number | undefined): string {
@@ -280,19 +273,19 @@ function CircularRing({ pct, size = 64, strokeWidth = 5, color }: {
 
 function CheckRow({ done, label, value }: { done: boolean; label: string; value?: string }) {
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-divider/60 last:border-b-0">
+    <div className="flex items-center gap-3 py-2.5 border-b border-divider last:border-b-0">
       <span
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-          done ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-300"
+          done ? "bg-success-container text-success" : "bg-surface-container text-muted"
         }`}
         aria-hidden="true"
       >
-        {done ? <IconCheck size={14} /> : <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" />}
+        {done ? <IconCheck size={14} /> : <span className="h-1.5 w-1.5 rounded-full bg-muted" />}
       </span>
       <span className="min-w-0 flex-1 text-body-2 text-onSurface">{label}</span>
       <span
         className={`shrink-0 max-w-[55%] truncate text-caption ${
-          done ? "text-muted" : "text-amber-700 font-medium"
+          done ? "text-muted" : "text-warning font-medium"
         }`}
         dir="auto"
       >
@@ -367,7 +360,7 @@ function CompletionChecklist({ profile, onEdit }: { profile: Profile | null; onE
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
           <div
-            className={`h-full rounded-full transition-all duration-700 ${completion.rounded >= 100 ? "bg-emerald-500" : "bg-primary"}`}
+            className={`h-full rounded-full transition-all duration-700 ${completion.rounded >= 100 ? "bg-success" : "bg-primary"}`}
             style={{ width: `${completion.percentage}%` }}
           />
         </div>
@@ -581,7 +574,7 @@ function ProfileEditDialog({
                 value={draft.province}
                 onChange={(e) => patch("province", e.target.value)}
                 fullWidth
-                options={IRAN_PROVINCES.map((p) => ({ value: p, label: p }))}
+                options={IRAN_PROVINCE_NAMES.map((p) => ({ value: p, label: p }))}
               />
             </div>
             <div className="mt-4">
@@ -760,7 +753,7 @@ function AvatarDialog({
       <div className="flex flex-col items-center gap-6">
         {/* Live preview */}
         <div className="relative">
-          <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-surface shadow-elevation-2 ring-1 ring-divider/60">
+          <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-surface shadow-elevation-2 ring-1 ring-divider">
             {previewSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={previewSrc} alt="پیش‌نمایش تصویر پروفایل" className="h-full w-full object-cover" />
@@ -771,7 +764,7 @@ function AvatarDialog({
             )}
           </div>
           {uploading && (
-            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-scrim/40">
+            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-scrim">
               <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />
             </span>
           )}
@@ -797,7 +790,7 @@ function AvatarDialog({
                   aria-label={`تصویر ${preset.label}`}
                   disabled={busy}
                   className={[
-                    "flex flex-col items-center gap-1 rounded-xl p-1.5 transition-colors touch-target",
+                    "flex flex-col items-center gap-1 rounded-medium p-1.5 transition-colors touch-target",
                     selected ? "bg-primary-50 ring-2 ring-primary" : "hover:bg-neutral-100",
                   ].join(" ")}
                 >
@@ -819,7 +812,7 @@ function AvatarDialog({
         </div>
 
         {/* Upload */}
-        <div className="w-full rounded-xl border border-divider/60 bg-neutral-50 p-4">
+        <div className="w-full rounded-large border border-divider bg-neutral-50 p-4">
           <p className="mb-1 text-body-2 font-medium text-onSurface">بارگذاری تصویر</p>
           <p className="mb-3 text-caption text-muted">
             فرمت‌های مجاز: PNG، JPEG، WebP — حداکثر حجم ۲ مگابایت.
@@ -849,7 +842,7 @@ function AvatarDialog({
         </div>
 
         {error && (
-          <p className="flex items-center gap-2 self-start rounded-lg bg-error/10 px-3 py-2 text-caption text-error">
+          <p className="flex items-center gap-2 self-start rounded-medium bg-error-container px-3 py-2 text-caption text-error">
             <IconWarning size={16} />
             {error}
           </p>
@@ -908,15 +901,15 @@ function HubCard({
       : statusTone === "success"
         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
         : statusTone === "amber"
-          ? "bg-amber-50 text-amber-700 border-amber-200"
-          : "bg-neutral-100 text-neutral-600 border-neutral-200";
+          ? "bg-warning-container text-warning border-warning"
+          : "bg-surface-container text-muted border-divider";
 
   return (
     <Link
       href={href}
-      className="group flex items-center gap-4 rounded-xl border border-divider/60 bg-surface p-4 shadow-elevation-1 transition-all duration-200 hover:border-primary-300 hover:shadow-elevation-3"
+      className="group flex items-center gap-4 rounded-large border border-divider bg-surface p-4 shadow-elevation-1 transition-all duration-200 hover:border-primary-300 hover:shadow-elevation-3"
     >
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconClass} transition-colors group-hover:bg-primary-100`}>
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium ${iconClass} transition-colors group-hover:bg-primary-container`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -930,7 +923,7 @@ function HubCard({
           {status}
         </span>
       )}
-      <IconArrowBack size={18} rtlFlip className="shrink-0 text-neutral-300 transition-all group-hover:text-primary-500 group-hover:-translate-x-0.5" />
+      <IconArrowBack size={18} rtlFlip className="shrink-0 text-muted transition-all group-hover:text-primary group-hover:-translate-x-0.5" />
     </Link>
   );
 }
@@ -1069,7 +1062,7 @@ export default function AccountHubPage() {
       {/* Profile Summary — one cohesive identity section   */}
       {/* (avatar · name · completion · account type · mobile) */}
       {/* ================================================ */}
-      <section className="rounded-2xl overflow-hidden border border-divider/60 shadow-elevation-1 mb-6">
+      <section className="rounded-large overflow-hidden border border-divider shadow-elevation-1 mb-6">
         {/* Hero band — identity at a glance */}
         <div className="relative bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 p-6 overflow-hidden">
           <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -1102,8 +1095,8 @@ export default function AccountHubPage() {
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption ${
                     completionPct >= 100
-                      ? "bg-emerald-400/20 text-emerald-100"
-                      : "bg-amber-400/20 text-amber-100"
+                      ? "bg-success-container text-success"
+                      : "bg-warning-container text-warning"
                   }`}
                 >
                   {completionPct >= 100 ? "پروفایل تکمیل است" : `تکمیل پروفایل ${toPersianNumber(completionPct)}٪`}
@@ -1126,7 +1119,7 @@ export default function AccountHubPage() {
         {/* Identity rows — verified mobile + account type */}
         <div className="bg-surface p-5">
           {/* Verified mobile — read-only, with a short reason */}
-          <div className="flex flex-col gap-3 rounded-xl border border-divider/60 bg-neutral-50 p-4 tablet:flex-row tablet:items-center tablet:justify-between">
+          <div className="flex flex-col gap-3 rounded-large border border-divider bg-neutral-50 p-4 tablet:flex-row tablet:items-center tablet:justify-between">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700">
                 <IconPhone size={18} />
@@ -1165,7 +1158,7 @@ export default function AccountHubPage() {
             ) : activeOrg ? (
               /* Organization member — show the entity + the user's role.
                  A user is never converted into a company. */
-              <div className="rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+              <div className="rounded-large border border-primary bg-primary-container p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-body-1 font-semibold text-onSurface truncate">
@@ -1217,7 +1210,7 @@ export default function AccountHubPage() {
                 </div>
                 <Link
                   href="/onboarding/organization"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-primary-700 px-4 py-3 text-body-2 font-medium text-primary-700 hover:bg-primary-50 transition-colors touch-target"
+                  className="inline-flex items-center justify-center gap-2 rounded-medium border-2 border-primary px-4 py-3 text-body-2 font-medium text-primary hover:bg-primary-container transition-colors touch-target"
                 >
                   <IconBalance size={18} />
                   ثبت یا افزودن شرکت
@@ -1231,7 +1224,7 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       {/* Profile Details — completion checklist            */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconPerson size={22} />}>جزئیات پروفایل</SectionTitle>
         <CompletionChecklist profile={profile} onEdit={() => setEditOpen(true)} />
       </section>
@@ -1242,14 +1235,14 @@ export default function AccountHubPage() {
       <section className="mb-6">
         <Link
           href="/blog"
-          className="group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-primary-800 to-primary-900 p-6 shadow-elevation-2 transition-all duration-200 hover:shadow-elevation-4"
+          className="group relative block overflow-hidden rounded-large bg-gradient-to-br from-primary-800 to-primary-900 p-6 shadow-elevation-2 transition-all duration-200 hover:shadow-elevation-4"
         >
           <div className="absolute inset-0 opacity-10 pointer-events-none" aria-hidden="true">
             <div className="absolute -top-6 -left-6 w-28 h-28 rounded-full border-2 border-white" />
             <div className="absolute bottom-2 right-10 w-20 h-20 rounded-full border border-white/60" />
           </div>
           <div className="relative flex items-center gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-medium bg-white/15 text-white">
               <IconLawBook size={24} />
             </span>
             <div className="min-w-0 flex-1">
@@ -1269,7 +1262,7 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       {/* فضای حقوقی من */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconBalance size={22} />}>فضای حقوقی من</SectionTitle>
         <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
           <HubCard
@@ -1322,14 +1315,14 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       {/* اشتراک */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconSubscription size={22} />}>اشتراک</SectionTitle>
 
         {/* Canonical status — same source as the header chip and sidebar badge */}
         <SubscriptionStatusDetails className="mb-4" />
 
         {/* درخواست امروز — donut: consumed vs remaining (matches dashboard) */}
-        <div className="rounded-xl bg-info-50 border border-info-100 p-4 dark:bg-info-container dark:border-divider">
+        <div className="rounded-medium bg-info-container border border-info p-4">
           <div className="flex items-center gap-3">
             <div
               className="relative w-11 h-11 shrink-0"
@@ -1388,7 +1381,7 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       {/* سرویس‌های متصل */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconShield size={22} />}>سرویس‌های متصل</SectionTitle>
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
@@ -1402,7 +1395,7 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       {/* تنظیمات */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5 mb-6">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5 mb-6">
         <SectionTitle icon={<IconSettings size={22} />}>تنظیمات</SectionTitle>
 
         {/* Settings destinations */}
@@ -1431,7 +1424,7 @@ export default function AccountHubPage() {
       {/* ================================================ */}
       {/* راهنما و محصول */}
       {/* ================================================ */}
-      <section className="rounded-2xl bg-surface border border-divider/60 shadow-elevation-1 p-5">
+      <section className="rounded-large bg-surface border border-divider shadow-elevation-1 p-5">
         <SectionTitle icon={<IconInfo size={22} />}>راهنما و محصول</SectionTitle>
         <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
           <HubCard href="/about" icon={<IconInfo size={22} />} title="درباره لیگالیر" description="آشنایی با پلتفرم و خدمات" />

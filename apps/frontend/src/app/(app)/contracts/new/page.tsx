@@ -16,16 +16,53 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { IconArrowBack, IconArrowForward, IconContract, IconHome } from "@/lib/icons";
+import {
+  IconArrowBack,
+  IconArrowForward,
+  IconBriefcase,
+  IconBusiness,
+  IconCar,
+  IconCloud,
+  IconCoin,
+  IconContract,
+  IconDatabase,
+  IconHome,
+  IconShield,
+  IconUsers,
+} from "@/lib/icons";
 import { implementedContractDefinitions } from "@/lib/contracts/registry";
 import { useCreatePropertyContract } from "@/hooks/usePropertyContracts";
 import { DEFAULT_PROPERTY_KIND } from "@/lib/api/property-contracts";
-import type { ContractTypeId, PropertyContractType } from "@legalir/types";
+import {
+  CLOUD_SERVICE_MODEL_DESCRIPTIONS_FA,
+  CLOUD_SERVICE_MODEL_LABELS_FA,
+  cloudContractTypeFor,
+  type CloudServiceModel,
+  type ContractTypeId,
+  type PropertyContractType,
+} from "@legalir/types";
 
 const ICONS: Record<string, React.ReactNode> = {
   home: <IconHome className="w-6 h-6" />,
   key: <IconContract className="w-6 h-6" />,
+  store: <IconBusiness className="w-6 h-6" />,
+  server: <IconDatabase className="w-6 h-6" />,
+  car: <IconCar className="w-6 h-6" />,
+  coin: <IconCoin className="w-6 h-6" />,
+  briefcase: <IconBriefcase className="w-6 h-6" />,
+  shield: <IconShield className="w-6 h-6" />,
+  cloud: <IconCloud className="w-6 h-6" />,
+  users: <IconUsers className="w-6 h-6" />,
 };
+
+// Cloud service is ONE family with three service models. The picker shows a
+// single «خدمات ابری» card and asks for IaaS / PaaS / BaaS BEFORE any draft is
+// created, so the service model is chosen deliberately rather than inferred
+// from whichever card the user tapped. The chosen model maps to its own
+// registered contract type, so it is recorded in the type and in the document
+// title/specs from the first save onward.
+const CLOUD_TYPE_IDS: ContractTypeId[] = ["cloud_iaas", "cloud_paas", "cloud_baas"];
+const CLOUD_MODELS: CloudServiceModel[] = ["iaas", "paas", "baas"];
 
 export default function ContractCenterPage() {
   const router = useRouter();
@@ -33,8 +70,13 @@ export default function ContractCenterPage() {
   const create = useCreatePropertyContract();
   const [error, setError] = useState<string | null>(null);
   const [pendingType, setPendingType] = useState<ContractTypeId | null>(null);
+  const [cloudOpen, setCloudOpen] = useState(false);
 
   const definitions = implementedContractDefinitions();
+  // One card per family: the three cloud types collapse into a single
+  // «خدمات ابری» card that first asks which service model to draft.
+  const listedDefinitions = definitions.filter((d) => !CLOUD_TYPE_IDS.includes(d.id));
+  const cloudDefinition = definitions.find((d) => d.id === "cloud_iaas") ?? null;
 
   const start = useCallback(
     async (typeId: ContractTypeId) => {
@@ -53,6 +95,14 @@ export default function ContractCenterPage() {
       }
     },
     [create, definitions, router]
+  );
+
+  const startCloud = useCallback(
+    (model: CloudServiceModel) => {
+      setCloudOpen(false);
+      void start(cloudContractTypeFor(model));
+    },
+    [start]
   );
 
   // Deep-link support: `/contracts/new?type=nda` (used by the /services
@@ -97,7 +147,7 @@ export default function ContractCenterPage() {
       )}
 
       <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4">
-        {definitions.map((def) => (
+        {listedDefinitions.map((def) => (
           <button
             key={def.id}
             type="button"
@@ -123,7 +173,93 @@ export default function ContractCenterPage() {
             </div>
           </button>
         ))}
+
+        {cloudDefinition && (
+          <button
+            type="button"
+            onClick={() => setCloudOpen(true)}
+            disabled={create.isPending}
+            className="text-right rounded-large border border-divider bg-surface p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary transition-all disabled:opacity-60"
+          >
+            <div
+              className={`w-12 h-12 rounded-medium bg-gradient-to-br ${cloudDefinition.gradient} flex items-center justify-center text-white mb-3`}
+            >
+              {ICONS[cloudDefinition.icon] ?? <IconContract className="w-6 h-6" />}
+            </div>
+            <h2 className="text-titleMedium text-on-surface">قرارداد خدمات ابری</h2>
+            <p className="text-caption text-muted mt-1 leading-6">
+              پیش از شروع، نوع خدمت ابری — زیرساخت (IaaS)، بستر (PaaS) یا بک‌اند (BaaS) — را انتخاب
+              می‌کنید و همان مدل در عنوان و مشخصات قرارداد ثبت می‌شود.
+            </p>
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-labelSmall rounded-small bg-surface-container px-2 py-0.5 text-muted">
+                کسب‌وکار
+              </span>
+              <span className="text-labelLarge text-primary inline-flex items-center gap-1">
+                انتخاب نوع خدمت
+                <IconArrowBack className="w-4 h-4" />
+              </span>
+            </div>
+          </button>
+        )}
       </div>
+
+      {cloudOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCloudOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cloud-model-title"
+            className="w-full max-w-lg rounded-large bg-surface p-5 shadow-elevation-5"
+          >
+            <h2 id="cloud-model-title" className="text-titleMedium text-on-surface">
+              نوع خدمت ابری را انتخاب کنید
+            </h2>
+            <p className="text-caption text-muted mt-1 leading-6">
+              انتخاب شما تعیین می‌کند کدام فیلدها، سطوح سرویس و تعهدات در قرارداد بیاید؛ مدل انتخابی
+              در عنوان و مشخصات قرارداد ثبت می‌شود.
+            </p>
+            <div className="mt-4 space-y-2">
+              {CLOUD_MODELS.map((model) => {
+                const typeId = cloudContractTypeFor(model);
+                const busy = pendingType === typeId && create.isPending;
+                return (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => startCloud(model)}
+                    disabled={create.isPending}
+                    className="w-full text-right rounded-medium border border-divider bg-surface-container-low p-3 hover:border-primary hover:bg-surface-container transition-colors disabled:opacity-60"
+                  >
+                    <span className="block text-labelLarge text-on-surface">
+                      {CLOUD_SERVICE_MODEL_LABELS_FA[model]}
+                    </span>
+                    <span className="block text-caption text-muted mt-0.5 leading-6">
+                      {CLOUD_SERVICE_MODEL_DESCRIPTIONS_FA[model]}
+                    </span>
+                    <span className="block text-caption text-primary mt-1">
+                      {busy ? "در حال ایجاد…" : "انتخاب و شروع"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCloudOpen(false)}
+              className="mt-4 w-full rounded-medium border border-divider py-2 text-labelLarge text-muted hover:text-on-surface"
+            >
+              انصراف
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 rounded-large border border-divider bg-surface-container-low p-4">
         <h3 className="text-titleSmall text-on-surface mb-1">قراردادهای در جریان</h3>

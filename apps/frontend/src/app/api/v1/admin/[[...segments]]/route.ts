@@ -28,6 +28,7 @@ import {
   type Permission,
   type PlatformRole,
   type LegalRequestState,
+  type LegalRequestDiscovery,
   type AnnouncementAudience,
 } from "@legalir/types";
 
@@ -42,6 +43,7 @@ import {
   resolvedRangeDays,
 } from "@/lib/admin/metrics";
 import { buildLiveReport } from "@/lib/admin/live-report";
+import { buildDiscoveryStats, hasDiscovery } from "@/lib/admin/discovery-stats";
 import { listFlags, updateFlag } from "@/lib/admin/flags";
 import {
   listOrders,
@@ -217,6 +219,12 @@ interface LegalRequestRow {
   orgId: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The path-discovery record, when the request came through the
+   * «از کجا شروع کنم؟» intake. Additive and optional — a request that did
+   * not go through the flow simply has no field.
+   */
+  discovery?: LegalRequestDiscovery;
 }
 
 const ok = <T>(data: T) => NextResponse.json({ data });
@@ -319,8 +327,13 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
     const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
     const state = url.searchParams.get("state");
     const search = url.searchParams.get("search") ?? "";
+    // Tri-state discovery filter: "yes" keeps only requests that came through
+    // the path-discovery flow, "no" only the rest, anything else keeps all.
+    const discovery = url.searchParams.get("discovery");
     let rows = readTable<LegalRequestRow>("legal_requests");
     if (state) rows = rows.filter((r) => r.state === state);
+    if (discovery === "yes") rows = rows.filter((r) => hasDiscovery(r));
+    else if (discovery === "no") rows = rows.filter((r) => !hasDiscovery(r));
     const mapped = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((r) => {
@@ -335,6 +348,12 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
           orgId: r.orgId,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
+          // The discovery outcome, projected so the list can tell at a glance
+          // whether the request came through the intake and how it was
+          // analysed — without a second round-trip to the detail endpoint.
+          hasDiscovery: hasDiscovery(r),
+          discoverySource: r.discovery?.source ?? null,
+          inferredCategory: r.discovery?.inferredCategory ?? null,
         };
       })
       .filter((r) =>
@@ -344,6 +363,57 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       );
     const p = paginate(mapped, page, pageSize);
     return ok({
+      items: p.items,
+      total: p.total,
+      page: p.page,
+      pageSize: p.pageSize,
+      totalPages: p.totalPages,
+    });
+  },
+
+  // The dedicated discovery intake surface. Returns cohort-wide statistics
+  // (computed over the FULL table, never the current page) plus a filterable,
+  // paginated list of the requests that carry a discovery record — each with
+  // the engine's top pick and the user's actual choice kept distinct.
+  discovery: ({ url }) => {
+    const page = resolvePage(url.searchParams.get("page"));
+    const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
+    const search = url.searchParams.get("search") ?? "";
+    const source = url.searchParams.get("source"); // "ai" | "rules"
+    const rows = readTable<LegalRequestRow>("legal_requests");
+    const stats = buildDiscoveryStats(rows);
+    const items = rows
+      .filter((r) => hasDiscovery(r))
+      .filter((r) => (source ? r.discovery?.source === source : true))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((r) => {
+        const user = findUserById(r.userId);
+        const d = r.discovery!;
+        return {
+          id: r.id,
+          title: r.title,
+          state: r.state,
+          userDisplayName: user?.displayName ?? null,
+          inferredCategory: d.inferredCategory,
+          explicitIntent: d.explicitIntent,
+          summaryFa: d.summaryFa,
+          confidence: d.confidence,
+          needsLawyer: d.needsLawyer,
+          source: d.source,
+          topIntent: d.paths[0]?.intent ?? null,
+          selectedIntent: d.paths.find((p) => p.selected)?.intent ?? null,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        };
+      })
+      .filter((r) =>
+        search.trim()
+          ? matchesRow(search, { texts: [r.title, r.summaryFa, r.id, r.userDisplayName] })
+          : true
+      );
+    const p = paginate(items, page, pageSize);
+    return ok({
+      stats,
       items: p.items,
       total: p.total,
       page: p.page,
@@ -596,6 +666,9 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
           orgId: req.orgId,
           caseId: req.caseId,
           conversationId: req.conversationId,
+          // The recorded path-discovery analysis, when the request went through
+          // the «از کجا شروع کنم؟» intake. Null for requests that did not.
+          discovery: req.discovery ?? null,
           createdAt: req.createdAt,
           updatedAt: req.updatedAt,
         },
@@ -1813,6 +1886,9 @@ function permissionFor(method: string, segments: string[]): Permission {
       }
       return method === "GET" ? "admin:users:read" : "admin:users:manage";
     case "requests": return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
+    // The discovery analytics surface reads the same records the requests
+    // section does, so it is gated by the same read permission.
+    case "discovery": return "admin:requests:read";
     case "flags": return "admin:flags:manage";
     // Reading the catalog is a plans-read capability; CREATE/EDIT/PUBLISH a
     // plan is a system-level change, reserved to the super-admin (matches the

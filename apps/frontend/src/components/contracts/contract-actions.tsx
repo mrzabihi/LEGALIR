@@ -9,6 +9,7 @@ import { V1_CONTRACT_STATE_TRANSITIONS } from "@legalir/types";
 import { useUpdateContract, useArchiveContract, useGenerateContract } from "@/hooks/useContracts";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@legalir/ui";
 
 interface ContractActionsProps {
   contractId: string;
@@ -78,18 +79,12 @@ export function ContractActions({
               آیا از بایگانی این قرارداد اطمینان دارید؟ این عمل قابل بازگشت نیست.
             </p>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmingArchive(false)}
-                className="rounded-medium bg-surface-container text-on-surface px-4 py-2 text-button touch-target border border-divider"
-              >
+              <Button variant="ghost" onClick={() => setConfirmingArchive(false)}>
                 انصراف
-              </button>
-              <button
-                onClick={handleArchive}
-                className="rounded-medium bg-error text-white px-4 py-2 text-button touch-target"
-              >
+              </Button>
+              <Button variant="danger" onClick={handleArchive}>
                 بایگانی
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -19,8 +19,9 @@
     "test": "npm run test -w apps/frontend",
     "test:coverage": "npm run test -w apps/frontend -- --coverage",
     "test:e2e": "npx playwright test -c apps/frontend/playwright.config.ts",
+    "check:assets": "npm run check:assets -w apps/frontend",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
-    "validate": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "validate": "npm run check:assets && npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

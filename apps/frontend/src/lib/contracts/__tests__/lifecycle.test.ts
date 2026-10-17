@@ -236,25 +236,32 @@ describe("lifecycle — signature assurance wording", () => {
 // ------------------------------------------------------------
 
 describe("lifecycle — OTP provider", () => {
-  it("issues a challenge and accepts the development code", () => {
+  it("issues a challenge and accepts the development code", async () => {
     const subject = `t-${Math.random()}`;
-    const issued = otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
+    const issued = await otpSignatureProvider.requestChallenge({
+      subject,
+      mobile: "09120000003",
+    });
+    // In the test environment the gateway is the dev-console transport:
+    // the code really is "delivered" to the server log, not a phone, and
+    // the outcome says so.
     expect(issued.sent).toBe(true);
+    expect(issued.channel).toBe("dev-console");
     expect(issued.destinationMasked).toBe("0912***0003");
     expect(otpSignatureProvider.verifyChallenge({ subject, code: "405405" }).ok).toBe(true);
   });
 
-  it("rejects a wrong code", () => {
+  it("rejects a wrong code", async () => {
     const subject = `t-${Math.random()}`;
-    otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
+    await otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
     const result = otpSignatureProvider.verifyChallenge({ subject, code: "000000" });
     expect(result.ok).toBe(false);
     expect(result.code).toBe("INVALID_CODE");
   });
 
-  it("is single-use — a verified challenge cannot be replayed", () => {
+  it("is single-use — a verified challenge cannot be replayed", async () => {
     const subject = `t-${Math.random()}`;
-    otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
+    await otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
     expect(otpSignatureProvider.verifyChallenge({ subject, code: "405405" }).ok).toBe(true);
     const replay = otpSignatureProvider.verifyChallenge({ subject, code: "405405" });
     expect(replay.ok).toBe(false);
@@ -270,9 +277,9 @@ describe("lifecycle — OTP provider", () => {
     expect(result.code).toBe("NO_CHALLENGE");
   });
 
-  it("destroys the challenge after too many failed attempts", () => {
+  it("destroys the challenge after too many failed attempts", async () => {
     const subject = `t-${Math.random()}`;
-    otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
+    await otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" });
     for (let i = 0; i < 5; i += 1) {
       otpSignatureProvider.verifyChallenge({ subject, code: "000000" });
     }
@@ -281,19 +288,20 @@ describe("lifecycle — OTP provider", () => {
     expect(result.code).toBe("TOO_MANY_ATTEMPTS");
   });
 
-  it("rate-limits repeated challenge requests for one subject", () => {
+  it("rate-limits repeated challenge requests for one subject", async () => {
     const subject = `t-${Math.random()}`;
-    const results = [0, 1, 2, 3].map(() =>
-      otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" })
-    );
+    const results = [];
+    for (let i = 0; i < 4; i += 1) {
+      results.push(await otpSignatureProvider.requestChallenge({ subject, mobile: "09120000003" }));
+    }
     expect(results.slice(0, 3).every((r) => r.sent)).toBe(true);
     expect(results[3]!.sent).toBe(false);
   });
 
-  it("scopes challenges per subject so two signers never share one", () => {
+  it("scopes challenges per subject so two signers never share one", async () => {
     const a = `a-${Math.random()}`;
     const b = `b-${Math.random()}`;
-    otpSignatureProvider.requestChallenge({ subject: a, mobile: "09120000003" });
+    await otpSignatureProvider.requestChallenge({ subject: a, mobile: "09120000003" });
     expect(otpSignatureProvider.verifyChallenge({ subject: b, code: "405405" }).ok).toBe(false);
   });
 });

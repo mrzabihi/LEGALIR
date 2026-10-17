@@ -1765,6 +1765,121 @@ html {
   transform: scale(0.98);
 }
 
+/* ============================================================
+   LANDING — progressive reveal & ambient motion
+   ============================================================
+   The landing page mounts <LandingReveal/> (a single client island).
+   It adds `reveal-ready` to <html> only after hydration, then reveals
+   each [data-reveal] element the first time it enters the viewport.
+   Until it runs, the markup is fully visible, so:
+     • a no-JS visitor always reads every section,
+     • nothing above the fold can flash (those nodes are revealed in
+       the same task that adds the class),
+     • only transform/opacity animate — no layout shift.
+   `data-reveal-delay="1..6"` staggers siblings by 60ms steps.
+   Under `prefers-reduced-motion` everything is shown at rest. */
+.reveal-ready [data-reveal]:not(.is-revealed) {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+}
+[data-reveal] {
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-reveal][data-reveal-delay="1"] { transition-delay: 60ms; }
+[data-reveal][data-reveal-delay="2"] { transition-delay: 120ms; }
+[data-reveal][data-reveal-delay="3"] { transition-delay: 180ms; }
+[data-reveal][data-reveal-delay="4"] { transition-delay: 240ms; }
+[data-reveal][data-reveal-delay="5"] { transition-delay: 300ms; }
+[data-reveal][data-reveal-delay="6"] { transition-delay: 360ms; }
+
+/* The hero's procedural light: one oversized, low-opacity gradient
+   sheet that drifts a couple of percent over ~30s. Transform-only, so
+   it stays on the compositor; disabled on phones (memory/battery) and
+   when the visitor asks for reduced motion. */
+@keyframes landing-aurora-drift {
+  0%   { transform: translate3d(-1.5%, -1%, 0) scale(1.06); }
+  50%  { transform: translate3d(1.5%, 1.5%, 0) scale(1.12); }
+  100% { transform: translate3d(-0.5%, 0.5%, 0) scale(1.08); }
+}
+.landing-aurora {
+  animation: landing-aurora-drift 32s ease-in-out infinite alternate;
+}
+@media (max-width: 599px) {
+  .landing-aurora {
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-aurora {
+    animation: none !important;
+  }
+  .reveal-ready [data-reveal]:not(.is-revealed) {
+    opacity: 1;
+    transform: none;
+  }
+  [data-reveal] {
+    transition: none !important;
+  }
+}
+
+/* «چطور کار میکند» — the connector line draws itself when the diagram
+   scrolls in, from the reading edge outward. Purely decorative; the
+   line is at rest (full length) without JS and under reduced motion. */
+.landing-step-line {
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s,
+    opacity 0.4s ease-out 0.12s;
+}
+[dir="rtl"] .landing-step-line {
+  transform-origin: right center;
+}
+.landing-step-line-v {
+  transform-origin: center top;
+  transform: scaleY(1);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s,
+    opacity 0.4s ease-out 0.12s;
+}
+/* The horizontal connector is its own [data-reveal] node; the vertical
+   segments live inside a step, so they follow the step's reveal state. */
+.reveal-ready .landing-step-line:not(.is-revealed) {
+  transform: scaleX(0);
+}
+.reveal-ready [data-reveal]:not(.is-revealed) .landing-step-line-v {
+  transform: scaleY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-step-line,
+  .landing-step-line-v {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* Hero parallax — a *whisper*: the decorative artwork sinks ~4% as the
+   first screen scrolls away. Implemented with CSS scroll-driven
+   animation only where the engine supports it, so there is no JS, no
+   scroll listener, and no motion at all on older browsers. Never
+   applied to text. */
+@supports (animation-timeline: scroll()) {
+  @keyframes landing-hero-sink {
+    from { transform: translate3d(0, 0, 0) scale(1.06); }
+    to   { transform: translate3d(0, 4%, 0) scale(1.12); }
+  }
+  .landing-parallax {
+    animation: landing-hero-sink linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 100vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landing-parallax {
+      animation: none !important;
+    }
+  }
+}
+
 /* Geometric pattern background overlay */
 .bg-geometric-pattern {
   background-image:
@@ -2319,6 +2434,576 @@ html {
   }
 }
 
+/* ============================================================
+   Contract document — A4 sheet (screen = print = PDF)
+   ============================================================
+   `components/contracts/document/a4-document.tsx` distributes blocks
+   into fixed A4 page boxes. The SAME box is used on screen, in the
+   hidden measurer and in print, so screen, print and the server PDF
+   (pdf-lib, 210×297mm) agree. Colours are fixed (not themed) because a
+   contract sheet must print identically regardless of dark mode. */
+
+.a4-document {
+  --a4-ink: #222e2d;
+  --a4-muted: #5b6b66;
+  --a4-line: #d8ddd9;
+  --a4-accent: #1d624e;
+  --a4-gold: #c69b38;
+  --a4-page-w: 210mm;
+  --a4-page-h: 297mm;
+  --a4-pad-x: 18mm;
+  --a4-pad-top: 16mm;
+  --a4-pad-bottom: 10mm;
+  color: var(--a4-ink);
+}
+
+.a4-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Phones: shrink the whole sheet with `zoom` so the A4 geometry is
+   preserved (a width:100% page would break the print layout). */
+@media (max-width: 860px) {
+  .a4-pages {
+    zoom: 0.62;
+  }
+}
+@media (max-width: 520px) {
+  .a4-pages {
+    zoom: 0.46;
+  }
+}
+
+.a4-page {
+  position: relative;
+  width: var(--a4-page-w);
+  min-height: var(--a4-page-h);
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(34, 46, 45, 0.14);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  break-inside: avoid;
+}
+
+.a4-page-inner {
+  flex: 1 1 auto;
+  padding: var(--a4-pad-top) var(--a4-pad-x) 4mm;
+}
+
+/* Slim running head on pages 2+: identity only, never body text. */
+.a4-running-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--a4-line);
+  font-size: 8.5px;
+  color: var(--a4-muted);
+}
+
+.a4-running-type {
+  font-weight: 700;
+  color: var(--a4-accent);
+}
+
+.a4-running-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  direction: ltr;
+}
+
+.a4-page-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.a4-block {
+  min-width: 0;
+}
+
+/* --- Letterhead --- */
+
+.a4-letterhead {
+  border-bottom: 1.5px solid var(--a4-accent);
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+}
+
+/* Logo and identification block hug the TOP-LEFT corner. `direction: ltr`
+   anchors the group to the physical left edge; the meta text itself stays
+   RTL so Persian reads correctly. The title is a separate, centred line. */
+.a4-letterhead-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 16px;
+  direction: ltr;
+}
+
+.a4-letterhead-ident {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.a4-letterhead-logo {
+  height: 42px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.a4-letterhead-meta {
+  direction: rtl;
+  text-align: right;
+  font-size: 10px;
+  line-height: 1.9;
+  color: var(--a4-muted);
+}
+
+.a4-doc-type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--a4-accent);
+}
+
+.a4-doc-ref,
+.a4-doc-state {
+  font-size: 10px;
+}
+
+.a4-doc-state {
+  font-weight: 600;
+  color: var(--a4-ink);
+}
+
+.a4-doc-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8.5px;
+  word-break: break-all;
+  opacity: 0.8;
+}
+
+.a4-doc-title {
+  margin: 12px 0 0;
+  font-size: 19px;
+  line-height: 1.7;
+  font-weight: 700;
+  text-align: center;
+  color: var(--a4-ink);
+}
+
+/* --- Review mark (only on an approved version) --- */
+
+.a4-review-stamp {
+  margin-top: 10px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 2px dashed #1c4e9c;
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: #1c4e9c;
+}
+
+.a4-review-stamp-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.a4-review-stamp-meta,
+.a4-review-stamp-note {
+  font-size: 9px;
+  line-height: 1.7;
+  max-width: 130mm;
+}
+
+/* --- Official seal + print-only hologram (Super-Admin stamped only) --- */
+
+.a4-official-mark {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4mm;
+}
+
+.a4-seal,
+.a4-hologram {
+  display: block;
+  width: 22mm;
+  height: 22mm;
+  object-fit: contain;
+}
+
+.a4-hologram-wrap {
+  position: relative;
+  width: 22mm;
+  height: 22mm;
+}
+
+/* The ink exists in the DOM on every surface, but is only PAINTED by
+   print media — a screen preview must never look like a printed
+   hologram. Keeping it in the DOM (not conditionally rendered) means the
+   print/PDF output is the authoritative carrier of the security text. */
+.a4-hologram-ink {
+  display: none;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #000;
+  text-align: center;
+  direction: ltr;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 800;
+  white-space: nowrap;
+  text-shadow:
+    0 0 1.1mm #fff,
+    0 0 0.4mm #fff;
+}
+
+.a4-hologram-ink-brand {
+  top: 49.3%;
+  font-size: 5.4px;
+  letter-spacing: 0.2px;
+}
+
+.a4-hologram-ink-serial {
+  top: 57%;
+  font-size: 5.2px;
+  letter-spacing: 1.1px;
+}
+
+.a4-official-meta {
+  font-size: 9px;
+  line-height: 1.7;
+  color: var(--a4-accent);
+  font-weight: 600;
+}
+
+@media print {
+  .a4-hologram-ink {
+    display: block;
+  }
+}
+
+/* --- Clause text --- */
+
+.a4-clause-heading {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.9;
+  color: var(--a4-accent);
+}
+
+.a4-paragraph {
+  margin: 0;
+  font-size: 11px;
+  line-height: 2.05;
+  text-align: justify;
+  color: #26302e;
+}
+
+/* --- Tables ---
+   Structured answers (parties, money rows, schedules, delivery items) are
+   drawn as real tables. Cells wrap instead of overflowing, the heading row
+   repeats when a table crosses a page, and a row is never split mid-cell. */
+
+.a4-table-wrap {
+  margin: 2px 0;
+}
+
+.a4-table-caption {
+  margin: 0 0 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--a4-accent);
+}
+
+.a4-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 9.8px;
+  line-height: 1.85;
+  color: #26302e;
+}
+
+.a4-table th,
+.a4-table td {
+  border: 1px solid #cdd7d2;
+  padding: 4px 6px;
+  text-align: right;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.a4-table th {
+  background: #f1f6f3;
+  color: var(--a4-accent);
+  font-weight: 700;
+  font-size: 9.6px;
+}
+
+.a4-table tbody tr:nth-child(even) td {
+  background: #fafcfb;
+}
+
+.a4-table thead {
+  display: table-header-group;
+}
+
+.a4-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* --- Signatures --- */
+
+.a4-signatures {
+  border-top: 1px solid var(--a4-line);
+  padding-top: 10px;
+}
+
+.a4-signature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.a4-signature-box {
+  border: 1px dashed #b9c4bf;
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.a4-signature-role {
+  font-size: 10px;
+  color: var(--a4-muted);
+}
+
+.a4-signature-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--a4-ink);
+}
+
+.a4-signature-id,
+.a4-signature-date,
+.a4-signature-state {
+  font-size: 9.5px;
+  color: var(--a4-muted);
+}
+
+.a4-signature-state {
+  margin-top: auto;
+  font-weight: 600;
+  color: var(--a4-accent);
+}
+
+.a4-footer-note {
+  margin-top: 10px;
+  font-size: 9px;
+  line-height: 1.8;
+  color: var(--a4-muted);
+}
+
+/* --- Legal-basis annex --- */
+
+.a4-annex-disclaimer {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 1.9;
+  color: var(--a4-muted);
+  background: #f4f7f5;
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.a4-annex-heading {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--a4-ink);
+}
+
+.a4-annex-item {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 1.9;
+  color: #3d4a46;
+}
+
+/* --- Watermark (draft only) --- */
+
+.a4-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.a4-watermark span {
+  transform: rotate(-32deg);
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  color: rgba(34, 46, 45, 0.1);
+  user-select: none;
+}
+
+/* --- Footer / page number --- */
+
+.a4-page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3mm var(--a4-pad-x) 6mm;
+  border-top: 1px solid var(--a4-line);
+  font-size: 8.5px;
+  color: var(--a4-muted);
+}
+
+/* --- Hidden measurer --- */
+
+.a4-measurer {
+  position: absolute;
+  inset-inline-start: -10000px;
+  top: 0;
+  width: var(--a4-page-w);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.a4-measurer .a4-page {
+  box-shadow: none;
+}
+
+/* The measurer's content box must match `.a4-page-inner` exactly, so a
+   measured block height is the height it will occupy on a real page. */
+.a4-page-content {
+  padding: var(--a4-pad-top) var(--a4-pad-x) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* --- Document actions --- */
+
+.a4-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.a4-actions-meta {
+  font-size: 12px;
+  color: var(--a4-muted);
+}
+
+.a4-actions-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.a4-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid var(--a4-line);
+  background: #ffffff;
+  color: var(--a4-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.a4-action-button:hover {
+  background: #f4f7f5;
+}
+
+.a4-action-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ============================================================
+   Print: ONLY the printable document
+   ============================================================
+   While a document is being printed it is portalled to <body> as
+   `.a4-print-root`. Everything else is display:none — visibility alone
+   would leave the tall wizard page in flow and emit blank sheets. */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body > *:not(.a4-print-root) {
+    display: none !important;
+  }
+
+  .a4-print-root {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  .a4-print-root .a4-page {
+    box-shadow: none;
+    margin: 0;
+    width: 210mm;
+    min-height: 297mm;
+    height: 297mm;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+
+  .a4-print-root .a4-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .a4-print-root .a4-actions,
+  .a4-measurer,
+  .no-print {
+    display: none !important;
+  }
+}
+
 /* Reduced motion: respect user preference */
 @media (prefers-reduced-motion: reduce) {
   .scroll-reveal,
@@ -2330,6 +3015,7 @@ html {
   .animate-gradient,
   .animate-float,
   .animate-glow,
+  .animate-slide-up-fade,
   .skeleton-shimmer {
     animation: none !important;
   }

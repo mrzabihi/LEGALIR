@@ -26,27 +26,28 @@ import { Button, Checkbox, Chip, Dialog, OTPInput, ProgressLinear, Textarea } fr
 import {
   IconCheck,
   IconChat,
+  IconCopy,
   IconDownload,
   IconFileText,
   IconLawBook,
+  IconRefresh,
+  IconSend,
   IconShield,
   IconWarning,
 } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice } from "../primitives";
+import { SectionCard, Notice, ChoiceField } from "../primitives";
 import { LivePreview } from "../live-preview";
+import { ContractCommentComposer } from "../contract-comments";
+import type { A4SignatureMark } from "../../document/a4-document";
 import { LifecycleStepper } from "../lifecycle-stepper";
 import { getContractDefinition } from "@/lib/contracts/registry";
+import { renderContract } from "@/lib/contracts/template";
 import { stateLabelFa } from "@/lib/contracts/state-machine";
-import { formatIsoJalali } from "@/lib/contracts/dates";
-import {
-  useContractAudit,
-  useFinalizeContract,
-  useSubmitForReview,
-} from "@/hooks/usePropertyContracts";
+import { formatIsoJalali, formatIsoJalaliDateTime } from "@/lib/contracts/dates";
+import { useFinalizeContract, useSubmitForReview } from "@/hooks/usePropertyContracts";
 import {
   useAcceptLawyerReview,
-  useAddReviewComment,
   useCancelLawyerReview,
   useCompleteLawyerReview,
   useContractLifecycle,
@@ -55,14 +56,20 @@ import {
   useCreateSignatureRequest,
   useDecideLawyerFinding,
   useDeclineSignature,
+  useIssueInvitations,
   useRecordPhysicalSignature,
   useRequestSignatureOtp,
+  useRevokeInvitation,
   useVerifySignatureOtp,
 } from "@/hooks/useContractLifecycle";
 import { contractPdfUrl, contractDocxUrl } from "@/lib/api/property-contracts";
-import type {
-  LawyerReviewFindingSeverity,
-  SignatureParticipant,
+import {
+  CONTRACT_ADMIN_REVIEW_STATUS_FA,
+  SIGNATURE_PARTICIPANT_STATUS_FA,
+  type ContractReviewComment,
+  type LawyerReviewFindingSeverity,
+  type SignatureInvitation,
+  type SignatureParticipant,
 } from "@legalir/types";
 
 /** The version of the consent text the signer agrees to. */
@@ -76,6 +83,54 @@ const SEVERITY_LABELS_FA: Record<LawyerReviewFindingSeverity, string> = {
   critical: "بحرانی",
 };
 
+type InvitationTone = "ready" | "pending" | "ok" | "warn" | "error";
+
+/**
+ * The per-recipient invitation state. Every fact is read from the server
+ * (`deliveryStatus` / `deliveryChannel` / `status` on the invitation, plus
+ * the participant's own signing state) — the UI never infers that a link
+ * was delivered.
+ */
+function invitationStatus(
+  participant: SignatureParticipant,
+  invitation: SignatureInvitation | undefined
+): { labelFa: string; tone: InvitationTone } {
+  if (!invitation) return { labelFa: "آمادهٔ ارسال", tone: "ready" };
+  if (participant.status === "SIGNED") return { labelFa: "امضا شد", tone: "ok" };
+  if (participant.status === "DECLINED") return { labelFa: "از امضا خودداری کرد", tone: "error" };
+  if (invitation.status === "REVOKED") {
+    return { labelFa: "لغو شد — نیازمند ارسال مجدد", tone: "warn" };
+  }
+  if (invitation.status === "EXPIRED") {
+    return { labelFa: "مهلت تمام شد — نیازمند ارسال مجدد", tone: "warn" };
+  }
+  if (invitation.deliveryStatus === "FAILED") {
+    return { labelFa: "ارسال ناموفق — نیازمند ارسال مجدد", tone: "error" };
+  }
+  if (participant.status === "VIEWED") return { labelFa: "مشاهده شد", tone: "ok" };
+  if (invitation.deliveryChannel === "dev-console") {
+    return {
+      labelFa: "در کنسول توسعه ثبت شد (پیامک واقعی ارسال نشده است)",
+      tone: "warn",
+    };
+  }
+  return { labelFa: "ارسال شد — در انتظار مشاهده", tone: "pending" };
+}
+
+const INVITATION_TONE_CLASS: Record<InvitationTone, string> = {
+  ready: "text-muted",
+  pending: "text-primary",
+  ok: "text-success",
+  warn: "text-warning",
+  error: "text-error",
+};
+
+/** True while the request can still receive links (not terminal). */
+function requestAcceptsInvitations(status: string): boolean {
+  return status !== "COMPLETED" && status !== "DECLINED" && status !== "EXPIRED" && status !== "CANCELLED";
+}
+
+
 export function ReviewStep() {
   const router = useRouter();
   const { contract, data, parties, payments, completeness } = useWizard();
@@ -85,6 +140,8 @@ export function ReviewStep() {
   const view = lifecycle.data;
 
   const prepare = useCreateSignatureRequest();
+  const issueInvitations = useIssueInvitations();
+  const revokeInvitation = useRevokeInvitation();
   const requestOtp = useRequestSignatureOtp();
   const verifyOtp = useVerifySignatureOtp();
   const decline = useDeclineSignature();
@@ -95,21 +152,8 @@ export function ReviewStep() {
   const decideFinding = useDecideLawyerFinding();
   const cancelLawyer = useCancelLawyerReview();
   const createAi = useCreateAiReview();
-  const addComment = useAddReviewComment();
   const finalize = useFinalizeContract();
   const submit = useSubmitForReview();
-
-  // §9.2 — the searchable audit trail.
-  const [auditActor, setAuditActor] = useState("");
-  const [auditAction, setAuditAction] = useState("");
-  const [auditFrom, setAuditFrom] = useState("");
-  const [auditTo, setAuditTo] = useState("");
-  const audit = useContractAudit(contract.id, {
-    actor: auditActor || undefined,
-    action: auditAction || undefined,
-    from: auditFrom || undefined,
-    to: auditTo || undefined,
-  });
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [signTarget, setSignTarget] = useState<SignatureParticipant | null>(null);
@@ -117,17 +161,79 @@ export function ReviewStep() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [mobileMasked, setMobileMasked] = useState<string | null>(null);
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [otpChannel, setOtpChannel] = useState<"sms" | "dev-console">("dev-console");
   const [consent, setConsent] = useState(false);
-  const [commentBody, setCommentBody] = useState("");
   // The participant awaiting a wet-ink scan upload.
   const [physicalTarget, setPhysicalTarget] = useState<SignatureParticipant | null>(null);
   const physicalInputRef = useRef<HTMLInputElement>(null);
+
+  // Invitations. The RAW token is returned by the server exactly once, so
+  // it is kept in this state only for as long as the page lives: it is the
+  // manual fallback when SMS delivery failed. Nothing about the token is
+  // persisted client-side.
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [issuedTokens, setIssuedTokens] = useState<Record<string, string>>({});
+  const [copiedParticipantId, setCopiedParticipantId] = useState<string | null>(null);
 
   const currentVersion = contract.versions.find((v) => v.id === contract.currentVersionId);
   const request = view?.signatureRequest ?? null;
   const lawyerReview = view?.lawyerReview ?? null;
   const aiReview = view?.aiReview ?? null;
   const comments = view?.comments ?? [];
+
+  // The comment being replied to. A reply inherits the parent's version —
+  // the server refuses a cross-version reply — so only a note on the
+  // CURRENT version offers the action.
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const replyTarget = replyTo ? comments.find((c) => c.id === replyTo) ?? null : null;
+
+  /** The clause list the document prints, so an anchor always exists. */
+  const commentClauses = useMemo(
+    () => renderContract({ ...contract, data }, parties, payments).clauses,
+    [contract, data, parties, payments]
+  );
+
+  /**
+   * Threads, oldest first. A reply always shares its parent's version, so
+   * walking to the root can never leave one revision. An orphaned reply is
+   * promoted to the top instead of silently disappearing.
+   */
+  const commentThreads = useMemo(() => {
+    const byId = new Map(comments.map((c) => [c.id, c]));
+    const rootIdOf = (comment: (typeof comments)[number]): string => {
+      let current = comment;
+      const seen = new Set<string>([current.id]);
+      while (current.parentId && byId.has(current.parentId) && !seen.has(current.parentId)) {
+        current = byId.get(current.parentId)!;
+        seen.add(current.id);
+      }
+      return current.id;
+    };
+    const roots: typeof comments = [];
+    const replies = new Map<string, typeof comments>();
+    for (const comment of comments) {
+      const rootId = rootIdOf(comment);
+      if (rootId === comment.id) {
+        roots.push(comment);
+      } else {
+        const list = replies.get(rootId) ?? [];
+        list.push(comment);
+        replies.set(rootId, list);
+      }
+    }
+    return roots.map((root) => ({ root, replies: replies.get(root.id) ?? [] }));
+  }, [comments]);
+
+  /** The version a note was written against, in the reader's terms. */
+  function commentVersionLabelFa(comment: (typeof comments)[number]): string {
+    const isCurrent = comment.contractVersionId === contract.currentVersionId;
+    const version = contract.versions.find((v) => v.id === comment.contractVersionId);
+    if (!version) return isCurrent ? "نسخهٔ جاری" : "نسخهٔ پیشین";
+    return isCurrent ? `نسخه ${version.versionNumber} (جاری)` : `نسخه ${version.versionNumber}`;
+  }
+
+  const commentClauseLabel = (ref: string | null | undefined): string | null =>
+    ref ? commentClauses.find((c) => c.id === ref)?.headingFa ?? ref : null;
 
   const signedParticipantIds = useMemo(
     () =>
@@ -137,12 +243,140 @@ export function ReviewStep() {
     [request]
   );
 
+  /**
+   * Real signature state per role, for the document's signature section.
+   * The A4 sheet shows «امضا شده» + the signing date instead of a blank
+   * line, so the preview and the printed copy agree with the DB.
+   */
+  const signatureMarks = useMemo(() => {
+    const marks: Record<string, A4SignatureMark> = {};
+    for (const participant of request?.participants ?? []) {
+      marks[participant.roleFa] = {
+        signedAt: participant.signedAt,
+        statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[participant.status],
+      };
+    }
+    return marks;
+  }, [request]);
+
+  /** Each participant's latest invitation, keyed by participant id. */
+  const invitationsByParticipant = useMemo(() => {
+    const map = new Map<string, SignatureInvitation>();
+    for (const invitation of view?.invitations ?? []) {
+      map.set(invitation.participantId, invitation);
+    }
+    return map;
+  }, [view?.invitations]);
+
+  /**
+   * Understandable, contract-level status history for the drafting page.
+   * Raw audit rows (actor/service/action, e.g. `contract.created`) stay in
+   * the backend for security and support and are displayed only in the
+   * authorised admin area — this timeline is derived from the lifecycle
+   * data the page already shows.
+   */
+  const statusTimeline = useMemo(() => {
+    const items: { id: string; labelFa: string; at: string | null }[] = [];
+    if (currentVersion) {
+      items.push({
+        id: "version",
+        labelFa: `نسخه ${currentVersion.versionNumber} تثبیت شد`,
+        at: currentVersion.createdAt,
+      });
+    }
+    if (request) {
+      items.push({
+        id: "request",
+        labelFa: "درخواست تأیید و امضای الکترونیکی ایجاد شد",
+        at: request.createdAt,
+      });
+      for (const participant of request.participants) {
+        if (participant.status === "SIGNED") {
+          items.push({
+            id: `sign-${participant.id}`,
+            labelFa: `امضای ${participant.roleFa} ثبت شد`,
+            at: participant.signedAt,
+          });
+        } else if (participant.status === "DECLINED") {
+          items.push({
+            id: `decline-${participant.id}`,
+            labelFa: `${participant.roleFa} از امضا خودداری کرد`,
+            at: participant.declinedAt,
+          });
+        } else if (participant.status === "VIEWED") {
+          items.push({
+            id: `view-${participant.id}`,
+            labelFa: `${participant.roleFa} سند را مشاهده کرد`,
+            at: participant.viewedAt,
+          });
+        }
+      }
+    }
+    const admin = view?.adminReview;
+    if (admin) {
+      items.push({
+        id: "admin-review",
+        labelFa: `بررسی ادمین: ${CONTRACT_ADMIN_REVIEW_STATUS_FA[admin.status]}`,
+        at: admin.decidedAt ?? admin.submittedAt,
+      });
+    }
+    if (contract.finalizedAt) {
+      items.push({
+        id: "finalized",
+        labelFa: "قرارداد نهایی و بایگانی شد",
+        at: contract.finalizedAt,
+      });
+    }
+    return items;
+  }, [contract.finalizedAt, currentVersion, request, view?.adminReview]);
+
   async function run(fn: () => Promise<unknown>) {
     setActionError(null);
     try {
       await fn();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "عملیات ناموفق بود");
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Invitations — send the draft to the parties
+  // ----------------------------------------------------------
+
+  async function sendInvitations(participantIds?: string[]) {
+    await run(async () => {
+      const res = await issueInvitations.mutateAsync({ id: contract.id, participantIds });
+      const tokens: Record<string, string> = {};
+      for (const invitation of res.invitations) {
+        tokens[invitation.participantId] = invitation.token;
+      }
+      setIssuedTokens((prev) => ({ ...prev, ...tokens }));
+      setInviteDialogOpen(false);
+    });
+  }
+
+  /** Replace an unusable invitation with a fresh link for one party. */
+  async function resendInvitation(
+    participant: SignatureParticipant,
+    invitation: SignatureInvitation | undefined
+  ) {
+    await run(async () => {
+      if (invitation && invitation.status === "ACTIVE") {
+        await revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id });
+      }
+      await sendInvitations([participant.id]);
+    });
+  }
+
+  async function copyInviteLink(participantId: string, token: string) {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/contracts/sign/${token}`
+      );
+      setCopiedParticipantId(participantId);
+      window.setTimeout(() => setCopiedParticipantId(null), 2000);
+    } catch {
+      setActionError("کپی لینک در این مرورگر ممکن نبود؛ لینک را دستی انتخاب کنید.");
     }
   }
 
@@ -172,6 +406,10 @@ export function ReviewStep() {
       }
       setMobileMasked(res.mobileMasked);
       setOtpExpiresAt(res.expiresAt);
+      // The «ارسال شد» wording is only used for a real SMS; the dev
+      // console transport is named explicitly so nobody believes a
+      // phone received a code that never left the server.
+      setOtpChannel(res.channel ?? "dev-console");
       setSignTarget(participant);
     });
   }
@@ -343,6 +581,141 @@ export function ReviewStep() {
           </button>
         </div>
       </SectionCard>
+
+      {/* ------------------------------------------------------
+          Invitations — send the DRAFT to the parties
+          ------------------------------------------------------ */}
+      {request && (
+        <SectionCard
+          title="ارسال پیش‌نویس به طرفین"
+          description={`نسخه ${currentVersion?.versionNumber ?? "—"} — لینک اختصاصی هر طرف که فقط به همان قرارداد و همان نسخه گره خورده است`}
+        >
+          <div className="space-y-2">
+            {request.participants.map((participant) => {
+              const invitation = invitationsByParticipant.get(participant.id);
+              const status = invitationStatus(participant, invitation);
+              const token = issuedTokens[participant.id];
+              const needsResend = status.tone === "warn" || status.tone === "error";
+              return (
+                <div
+                  key={participant.id}
+                  className="rounded-medium border border-divider px-3 py-2.5 space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-body-2 text-on-surface">
+                        {participant.roleFa}
+                        {participant.nameFa ? ` — ${participant.nameFa}` : ""}
+                      </p>
+                      <p className="text-caption text-muted" dir="ltr">
+                        {participant.mobile}
+                      </p>
+                    </div>
+                    <span className={`text-caption ${INVITATION_TONE_CLASS[status.tone]}`}>
+                      {status.labelFa}
+                    </span>
+                  </div>
+
+                  {/* The raw token is surfaced ONLY when delivery did not
+                      reach a phone, so the drafter can hand the link over
+                      themselves instead of believing a message arrived. */}
+                  {token && needsResend && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="text-caption text-muted break-all" dir="ltr">
+                        /contracts/sign/{token}
+                      </code>
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<IconCopy className="w-3.5 h-3.5" />}
+                        onClick={() => void copyInviteLink(participant.id, token)}
+                      >
+                        {copiedParticipantId === participant.id ? "کپی شد" : "کپی لینک"}
+                      </Button>
+                    </div>
+                  )}
+
+                  {(invitation || token) && (
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<IconRefresh className="w-3.5 h-3.5" />}
+                        onClick={() => void resendInvitation(participant, invitation)}
+                        disabled={
+                          issueInvitations.isPending ||
+                          revokeInvitation.isPending ||
+                          participant.status === "SIGNED"
+                        }
+                      >
+                        ارسال مجدد لینک
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-caption text-muted">
+              شمارهٔ موبایل هر طرف از اطلاعات ثبت‌شدهٔ همان طرف خوانده می‌شود؛ نیازی به
+              وارد کردن دوبارهٔ شماره نیست.
+            </p>
+            <Button
+              startIcon={<IconSend className="w-4 h-4" />}
+              onClick={() => setInviteDialogOpen(true)}
+              loading={issueInvitations.isPending}
+              disabled={!requestAcceptsInvitations(request.status)}
+            >
+              ارسال پیش‌نویس به طرفین
+            </Button>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* Confirmation — the drafter sees each name and destination
+          number BEFORE anything is sent. */}
+      <Dialog
+        open={inviteDialogOpen}
+        onClose={() => setInviteDialogOpen(false)}
+        title="ارسال پیش‌نویس به طرفین"
+        description="لینک اختصاصی امضا برای هر طرف از طریق پیامک ارسال می‌شود."
+        actions={
+          <>
+            <Button variant="text" onClick={() => setInviteDialogOpen(false)}>
+              انصراف
+            </Button>
+            <Button
+              onClick={() => void sendInvitations()}
+              loading={issueInvitations.isPending}
+            >
+              ارسال به همهٔ طرفین
+            </Button>
+          </>
+        }
+      >
+        <ul className="space-y-2">
+          {(request?.participants ?? []).map((participant) => (
+            <li
+              key={participant.id}
+              className="rounded-medium border border-divider px-3 py-2 flex items-center justify-between gap-3 flex-wrap"
+            >
+              <span className="text-body-2 text-on-surface">
+                {participant.roleFa}
+                {participant.nameFa ? ` — ${participant.nameFa}` : ""}
+              </span>
+              <span className="text-body-2 text-on-surface font-mono" dir="ltr">
+                {participant.mobile}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-caption text-muted">
+          اگر ارسال پیامک ناموفق باشد، وضعیت همان طرف «ارسال ناموفق» نمایش داده می‌شود و لینک
+          را می‌توانید به‌صورت دستی برای او بفرستید.
+        </p>
+      </Dialog>
 
       {/* ------------------------------------------------------
           Signature panel
@@ -592,132 +965,114 @@ export function ReviewStep() {
       {/* ------------------------------------------------------
           Review comments
           ------------------------------------------------------ */}
-      <SectionCard title="نظرها و درخواست‌های اصلاح" description="روی نسخه جاری">
-        {comments.length > 0 ? (
-          <div className="space-y-2">
-            {comments.map((comment) => (
-              <div key={comment.id} className="rounded-medium border border-divider p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-labelLarge text-on-surface">{comment.authorLabelFa}</span>
-                  <span className="text-caption text-muted">
-                    {formatIsoJalali(comment.createdAt.slice(0, 10))}
-                  </span>
-                </div>
-                <p className="mt-1 text-body-2 text-on-surface whitespace-pre-line">
-                  {comment.body}
-                </p>
-              </div>
-            ))}
-          </div>
+      <SectionCard
+        title="نظرها و درخواست‌های اصلاح"
+        description="جدا از متن رسمی قرارداد — هر نظر به نسخه‌ای که برای آن نوشته شده گره خورده است"
+      >
+        <Notice tone="info">
+          نظرها بخشی از متن قرارداد نیستند و در سند چاپی نمی‌آیند. برای اعمال یک درخواست تغییر
+          باید بند اصلی در مرحلهٔ مربوط ویرایش و نسخهٔ جدید تثبیت شود.
+        </Notice>
+
+        {commentThreads.length === 0 ? (
+          <p className="mt-3 text-body-2 text-muted">هنوز نظری ثبت نشده است.</p>
         ) : (
-          <p className="text-body-2 text-muted">هنوز نظری ثبت نشده است.</p>
+          <ul className="mt-3 space-y-3">
+            {commentThreads.map(({ root, replies }) => (
+              <li key={root.id} className="space-y-2">
+                {[root, ...replies].map((comment, index) => {
+                  const shared = (comment.visibility ?? "internal") === "parties";
+                  const isCurrent = comment.contractVersionId === contract.currentVersionId;
+                  return (
+                    <div
+                      key={comment.id}
+                      className={`rounded-medium border p-3 ${
+                        index === 0 ? "border-divider" : "border-divider ms-6 border-s-2"
+                      } ${replyTo === comment.id ? "border-primary" : ""}`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-labelLarge text-on-surface">
+                          {comment.authorLabelFa}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-caption text-muted">
+                            {commentVersionLabelFa(comment)}
+                          </span>
+                          <span className="text-caption text-muted">
+                            {formatIsoJalaliDateTime(comment.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                      {commentClauseLabel(comment.clauseRef) && (
+                        <p className="mt-1 text-caption text-primary">
+                          بند مرتبط: {commentClauseLabel(comment.clauseRef)}
+                        </p>
+                      )}
+                      <p className="mt-1 text-body-2 text-on-surface whitespace-pre-line">
+                        {comment.body}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-caption text-muted">
+                          {shared ? "مشترک با طرفین" : "داخلی — برای طرفین ارسال نمی‌شود"}
+                          {comment.kind === "change_request" ? " · درخواست اصلاح" : ""}
+                        </span>
+                        {isCurrent && contract.currentVersionId && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            startIcon={<IconChat className="w-3.5 h-3.5" />}
+                            onClick={() => setReplyTo(comment.id)}
+                          >
+                            پاسخ
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </li>
+            ))}
+          </ul>
         )}
 
-        <div className="mt-3 space-y-2">
-          <Textarea
-            label="نظر یا درخواست اصلاح"
-            value={commentBody}
-            onChange={(e) => setCommentBody(e.target.value)}
-            rows={3}
-            placeholder="نظر یا درخواست اصلاح خود را بنویسید…"
-            fullWidth
+        <div className="mt-4">
+          <ContractCommentComposer
+            contractId={contract.id}
+            currentVersionId={contract.currentVersionId}
+            clauses={commentClauses}
+            replyTo={replyTo}
+            replyToLabelFa={replyTarget?.authorLabelFa}
+            onCancelReply={() => setReplyTo(null)}
+            initialVisibility={replyTarget?.visibility ?? "internal"}
           />
-          <Button
-            size="small"
-            disabled={!commentBody.trim() || !contract.currentVersionId}
-            loading={addComment.isPending}
-            onClick={() =>
-              void run(async () => {
-                await addComment.mutateAsync({ id: contract.id, body: commentBody.trim() });
-                setCommentBody("");
-              })
-            }
-          >
-            ثبت نظر
-          </Button>
         </div>
       </SectionCard>
 
       {/* ------------------------------------------------------
-          Audit trail — searchable (§9.2)
+          Readable status history — contract-level only. The raw audit
+          trail (actor/service/action ids) is kept in the backend and is
+          shown only in the authorised admin area, never on this page.
           ------------------------------------------------------ */}
       <SectionCard
-        title="تاریخچهٔ بررسی و حسابرسی"
-        description="همه رخدادهای این قرارداد — قابل جست‌وجو بر اساس کنشگر، نوع و تاریخ"
+        title="روند قرارداد"
+        description="وضعیت‌های این قرارداد، به ترتیب زمان"
       >
-        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-2">
-          <label className="text-caption text-muted">
-            کنشگر
-            <select
-              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
-              value={auditActor}
-              onChange={(e) => setAuditActor(e.target.value)}
-            >
-              <option value="">همه</option>
-              {(audit.data?.actors ?? []).map((a) => (
-                <option key={a.actorId} value={a.actorId}>
-                  {a.actorLabel}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-caption text-muted">
-            نوع کنش
-            <input
-              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
-              placeholder="مثلاً signature."
-              value={auditAction}
-              onChange={(e) => setAuditAction(e.target.value)}
-            />
-          </label>
-          <label className="text-caption text-muted">
-            از تاریخ
-            <input
-              type="date"
-              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
-              value={auditFrom}
-              onChange={(e) => setAuditFrom(e.target.value)}
-            />
-          </label>
-          <label className="text-caption text-muted">
-            تا تاریخ
-            <input
-              type="date"
-              className="mt-1 w-full rounded-medium border border-divider bg-surface px-2 h-9 text-body-2"
-              value={auditTo}
-              onChange={(e) => setAuditTo(e.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="mt-3 space-y-2">
-          {audit.isLoading ? (
-            <p className="text-body-2 text-muted">در حال بارگذاری…</p>
-          ) : (audit.data?.entries.length ?? 0) === 0 ? (
-            <p className="text-body-2 text-muted">رخدادی با این فیلترها یافت نشد.</p>
-          ) : (
-            audit.data!.entries.map((entry) => (
-              <div
-                key={entry.id}
+        {statusTimeline.length > 0 ? (
+          <ol className="space-y-2">
+            {statusTimeline.map((item) => (
+              <li
+                key={item.id}
                 className="rounded-medium border border-divider px-3 py-2 flex items-start justify-between gap-3 flex-wrap"
               >
-                <div className="min-w-0">
-                  <p className="text-body-2 text-on-surface">{entry.descriptionFa}</p>
-                  <p className="text-caption text-muted">
-                    {entry.actorLabel} — {entry.action}
-                  </p>
-                </div>
+                <span className="text-body-2 text-on-surface">{item.labelFa}</span>
                 <span className="text-caption text-muted shrink-0">
-                  {formatIsoJalali(entry.createdAt.slice(0, 10))}
+                  {item.at ? formatIsoJalali(item.at.slice(0, 10)) : ""}
                 </span>
-              </div>
-            ))
-          )}
-        </div>
-        {audit.data && (
-          <p className="mt-2 text-caption text-muted">
-            نمایش {audit.data.entries.length} از {audit.data.total} رخداد.
-          </p>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-body-2 text-muted">هنوز رویداد قابل‌نمایشی ثبت نشده است.</p>
         )}
       </SectionCard>
 
@@ -789,6 +1144,14 @@ export function ReviewStep() {
           contract={{ ...contract, data }}
           parties={parties}
           payments={payments}
+          versionNumber={currentVersion?.versionNumber ?? null}
+          documentHash={currentVersion?.documentHash ?? null}
+          signatureMarks={signatureMarks}
+          pdfHref={
+            contract.currentVersionId
+              ? contractPdfUrl(contract.id, contract.currentVersionId)
+              : undefined
+          }
           stamp={
             view?.adminApproved
               ? {
@@ -797,6 +1160,18 @@ export function ReviewStep() {
                   reviewingOfficeFa: view.adminReview?.reviewingOfficeFa,
                   reviewerInitials: view.adminReview?.reviewerInitials,
                   reviewId: view.adminReview?.id,
+                  // The OFFICIAL seal is drawn only for a version a Super
+                  // Admin stamped; the assets are permission-gated routes,
+                  // never public files.
+                  official: view.stamped === true,
+                  sealHref: view.stamped
+                    ? `/api/v1/property-contracts/${contract.id}/stamp-asset/seal`
+                    : undefined,
+                  hologramHref: view.stamped
+                    ? `/api/v1/property-contracts/${contract.id}/stamp-asset/hologram`
+                    : undefined,
+                  approvedByLabelFa: view.officialStamp?.approvedByLabelFa ?? null,
+                  approvedAt: view.officialStamp?.approvedAt ?? null,
                 }
               : { applied: false }
           }
@@ -809,7 +1184,9 @@ export function ReviewStep() {
         onClose={() => setSignTarget(null)}
         title="تأیید و امضای الکترونیکی"
         description={
-          mobileMasked ? `کد تأیید به شماره ${mobileMasked} ارسال شد.` : "کد تأیید ارسال شد."
+          otpChannel === "sms"
+            ? `کد تأیید به شماره ${mobileMasked ?? ""} پیامک شد.`
+            : "کد تأیید در محیط توسعه در کنسول سرور ثبت شد (پیامک واقعی ارسال نشده است)."
         }
         actions={
           <>

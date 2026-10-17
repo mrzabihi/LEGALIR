@@ -139,7 +139,7 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
         <div className="flex flex-col items-center py-4 text-center">
           <div
             className={`mb-4 flex h-16 w-16 items-center justify-center rounded-full ${
-              activated ? "bg-success/10" : "bg-warning/10"
+              activated ? "bg-success-container" : "bg-warning-container"
             }`}
           >
             {activated ? (
@@ -157,7 +157,7 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
               : `سفارش ${order.planNameFa} ثبت شد؛ برای فعال‌سازی باید پرداخت تکمیل شود.`}
           </p>
 
-          <dl className="w-full space-y-2 rounded-xl border border-divider/60 bg-surface-container/40 p-4 text-right">
+          <dl className="w-full space-y-2 rounded-large border border-divider bg-surface-container p-4 text-right">
             <Row label="شماره پیگیری" value={order.referenceId} mono />
             <Row label="پلن" value={order.planNameFa} />
             {order.startAt && order.endAt && (
@@ -212,7 +212,7 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
       }
     >
       {/* Plan + period */}
-      <div className="mb-4 rounded-xl border border-divider/50 bg-surface-container/40 p-4">
+      <div className="mb-4 rounded-large border border-divider bg-surface-container p-4">
         <div className="flex items-center justify-between">
           <span className="text-body-2 text-muted">پلن</span>
           <span className="text-body-2 font-semibold text-on-surface">
@@ -234,7 +234,7 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
             کد تخفیف
           </label>
           {appliedCode ? (
-            <div className="flex items-center justify-between rounded-xl border border-success/30 bg-success/5 px-3 py-2.5">
+            <div className="flex items-center justify-between rounded-medium border border-success bg-success-container px-3 py-2.5">
               <span className="text-body-2 font-medium text-success" dir="ltr">
                 {appliedCode}
               </span>
@@ -264,7 +264,7 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
                 }}
                 placeholder="مثلاً LEGAL1404"
                 disabled={validateMutation.isPending}
-                className="h-11 min-w-0 flex-1 rounded-lg border border-divider bg-surface px-3 text-body-2 text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
+                className="h-11 min-w-0 flex-1 rounded-small border border-divider bg-surface px-3 text-body-2 text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
               />
               <Button
                 variant="outlined"
@@ -304,19 +304,19 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
       {loading ? (
         <div className="space-y-3" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-7 animate-pulse rounded-lg bg-surfaceVariant/60" />
+            <div key={i} className="h-7 animate-pulse rounded-small bg-surface-container" />
           ))}
         </div>
       ) : quoteFailed ? (
-        <div className="rounded-xl border border-error/20 bg-error/5 p-4 text-center">
+        <div className="rounded-large border border-error bg-error-container p-4 text-center">
           <p className="text-body-2 text-error">خطا در دریافت اطلاعات سفارش.</p>
           <Button variant="text" onClick={() => quoteQuery.refetch()}>
             تلاش مجدد
           </Button>
         </div>
       ) : quote ? (
-        <div className="rounded-xl border border-divider/50 p-1">
-          <dl className="divide-y divide-divider/40">
+        <div className="rounded-large border border-divider p-1">
+          <dl className="divide-y divide-divider">
             {quote.lines.map((line) => (
               <div key={line.key} className="flex items-center justify-between px-3 py-2.5">
                 <dt className="text-body-2 text-muted">
@@ -338,7 +338,7 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
           </dl>
 
           {/* Final amount — the single deciding figure, on its own brand row */}
-          <div className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-3">
+          <div className="flex items-center justify-between rounded-medium bg-primary-container px-3 py-3">
             <span className="text-body-1 font-semibold text-on-surface">مبلغ نهایی</span>
             <span className="text-h3 font-bold text-primary">
               {quote.finalAmount === 0 ? "رایگان" : toPersianCurrency(quote.finalAmount)}
@@ -350,10 +350,10 @@ export function CheckoutModal({ open, plan, onClose }: CheckoutModalProps) {
       {/* Status note */}
       {!loading && !quoteFailed && quote && (
         <div
-          className={`mt-4 flex items-start gap-2 rounded-xl border p-3 text-caption ${
+          className={`mt-4 flex items-start gap-2 rounded-large border p-3 text-caption ${
             isFree
-              ? "border-success/25 bg-success/5 text-success"
-              : "border-warning/25 bg-warning/5 text-warning"
+              ? "border-success bg-success-container text-success"
+              : "border-warning bg-warning-container text-warning"
           }`}
         >
           <IconShield size={16} className="mt-0.5 shrink-0" />

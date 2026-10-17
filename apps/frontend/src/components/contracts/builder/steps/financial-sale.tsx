@@ -62,9 +62,13 @@ function emptyPayment(sequence: number): ContractPayment {
   };
 }
 
+const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
+
 export function FinancialSaleStep() {
-  const { data, patchData, payments, setPayments } = useWizard();
+  const { data, patchData, payments, setPayments, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertySaleData;
+  // Inline errors only after a blocked advance attempt, never on a fresh draft.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setTerms = (patch: Partial<PropertySaleData["terms"]>) =>
     patchData({ terms: { ...d.terms, ...patch } });
@@ -73,18 +77,40 @@ export function FinancialSaleStep() {
   // burst of keystrokes produces one PUT, not one per character.
   const [rows, setRows] = useState<ContractPayment[]>(payments);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The latest unsaved edit, kept in a ref so the unmount path can flush
+  // it. Without this a user who types an instalment and immediately hits
+  // «مرحله بعد» loses the row: the pending timer was cancelled on unmount
+  // and never replaced.
+  const pendingRef = useRef<ContractPayment[] | null>(null);
+  const setPaymentsRef = useRef(setPayments);
+  setPaymentsRef.current = setPayments;
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      if (pending) {
+        setPaymentsRef.current(pending.map((p, i) => ({ ...p, sequence: i + 1 })));
+      }
     };
   }, []);
 
+  // Adopt a server-side change (e.g. this contract refreshed after a save)
+  // only while no local edit is still waiting to be persisted.
+  useEffect(() => {
+    if (pendingRef.current === null) setRows(payments);
+  }, [payments]);
+
   const commit = (next: ContractPayment[]) => {
     setRows(next);
+    pendingRef.current = next;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      setPayments(next.map((p, i) => ({ ...p, sequence: i + 1 })));
+      timerRef.current = null;
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      if (pending) setPayments(pending.map((p, i) => ({ ...p, sequence: i + 1 })));
     }, PAYMENT_SAVE_DEBOUNCE_MS);
   };
 
@@ -113,6 +139,12 @@ export function FinancialSaleStep() {
           label="مبلغ کل (ثمن معامله)"
           value={d.terms.totalPrice}
           onChange={(v) => setTerms({ totalPrice: v ?? { amount: 0, currency: "IRR" } })}
+          required
+          errorText={
+            showErrors && (!d.terms.totalPrice || isZeroMoney(d.terms.totalPrice))
+              ? REQUIRED_ERROR
+              : undefined
+          }
         />
         {pricePerSqm && (
           <Notice tone="info">

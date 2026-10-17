@@ -33,7 +33,15 @@ import {
 } from "@/hooks/usePhase11";
 import { toPersianDate } from "@/lib/persian-utils";
 import { deriveActions, type HistoryAction, type HistoryActionKey } from "@/lib/history/actions";
-import { Button, Dialog, Select, TextField, Tooltip, snackbar } from "@legalir/ui";
+import {
+  Button,
+  buttonClasses,
+  Dialog,
+  Select,
+  TextField,
+  Tooltip,
+  snackbar,
+} from "@legalir/ui";
 import {
   CompactPageHeader,
   SearchField,
@@ -185,13 +193,9 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       </div>
       <h3 className="mb-2 text-titleMedium text-on-surface">خطا در دریافت تاریخچه</h3>
       <p className="mb-6 text-body-2 text-on-surface-variant">{message}</p>
-      <button
-        onClick={onRetry}
-        className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-      >
-        <IconRefresh size={18} />
+      <Button onClick={onRetry} startIcon={<IconRefresh size={18} />}>
         تلاش مجدد
-      </button>
+      </Button>
     </div>
   );
 }
@@ -238,11 +242,10 @@ function EmptyState({
         </button>
       ) : (
         !archivedView && (
-          <Link
-            href="/chat"
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-6 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
-          >
-            <IconChat size={18} />
+          <Link href="/chat" className={buttonClasses()}>
+            <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
+              <IconChat size={18} />
+            </span>
             شروع گفتگو
           </Link>
         )
@@ -365,21 +368,21 @@ function HistoryCard({
             (primary.href ? (
               <Link
                 href={primary.href}
-                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+                className={buttonClasses({ className: "flex-1 tablet:flex-none" })}
               >
                 {actionIcon(primary.key, 16)}
                 {primary.labelFa}
               </Link>
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={() => onAction(primary, item)}
                 disabled={busy}
-                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-50 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+                className="flex-1 tablet:flex-none"
               >
                 {actionIcon(primary.key, 16)}
                 {primary.labelFa}
-              </button>
+              </Button>
             ))}
 
           {secondary.length > 0 && (
@@ -520,24 +523,12 @@ function AdminReviewModal({
         </div>
 
         <div className="flex items-center justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="h-10 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
-          >
+          <Button variant="outlined" onClick={onCancel}>
             انصراف
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={!isValid}
-            className={[
-              "h-10 rounded-full px-5 text-body-2 font-medium transition-colors duration-short3",
-              isValid
-                ? "bg-primary text-primary-on hover:bg-primary-700 hover:text-white"
-                : "cursor-not-allowed bg-muted text-white",
-            ].join(" ")}
-          >
+          </Button>
+          <Button onClick={onConfirm} disabled={!isValid}>
             تأیید و ورود
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -530,8 +530,11 @@ function LiveMoneyCard({
 }) {
   return (
     <div
-      className={`rounded-large border border-divider p-3 ${
-        emphasis ? "bg-primary/5" : "bg-surface"
+      // `bg-primary/5` is a no-op — `primary` is a CSS variable and an opacity
+      // modifier cannot apply to a var(). `primary-soft` is the tint token that
+      // actually renders the intended wash, and gives the card a real edge.
+      className={`rounded-large border p-3 ${
+        emphasis ? "border-primary-200 bg-primary-soft" : "border-divider bg-surface"
       }`}
       title={formulaFa}
     >
@@ -539,7 +542,7 @@ function LiveMoneyCard({
         <span
           aria-hidden="true"
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-medium ${
-            emphasis ? "bg-primary/10 text-primary" : "bg-surface-container-high text-muted"
+            emphasis ? "bg-primary-soft text-primary" : "bg-surface-container-high text-muted"
           }`}
         >
           <Icon size={14} />

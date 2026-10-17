@@ -32,10 +32,14 @@ const SELLER_DOCUMENTS = [
   "آخرین قبوض آب، برق و گاز",
 ];
 
+const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
+
 export function RegistrationStep() {
-  const { contract, data, patchData } = useWizard();
+  const { contract, data, patchData, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertySaleData;
   const def = getContractDefinition(contract.type);
+  // Inline errors only after a blocked advance attempt, never on a fresh draft.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setRegistration = (patch: Partial<PropertySaleData["registration"]>) =>
     patchData({ registration: { ...d.registration, ...patch } });
@@ -61,6 +65,10 @@ export function RegistrationStep() {
             label="تاریخ توافقی حضور در دفترخانه"
             value={d.registration.agreedDate}
             onChange={(iso) => setRegistration({ agreedDate: iso })}
+            required
+            errorMessage={
+              showErrors && !d.registration.agreedDate ? REQUIRED_ERROR : undefined
+            }
           />
           <Field
             label="ساعت حضور"
@@ -72,6 +80,8 @@ export function RegistrationStep() {
             label="شهر دفترخانه"
             value={d.registration.notaryCity}
             onChange={(v) => setRegistration({ notaryCity: v })}
+            required
+            errorText={showErrors && !d.registration.notaryCity.trim() ? REQUIRED_ERROR : undefined}
           />
           <Field
             label="شماره دفترخانه"

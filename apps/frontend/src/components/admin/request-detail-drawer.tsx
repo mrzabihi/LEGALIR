@@ -29,6 +29,7 @@ import {
   InfoBanner,
 } from "@/components/admin/ui";
 import { ConsultationTimeline } from "@/components/consultations/consultation-timeline";
+import { DiscoveryAnalysis } from "@/components/admin/discovery-analysis";
 import { toPersianDate } from "@/lib/persian-utils";
 
 const STATE_TONES: Record<string, "neutral" | "success" | "warning" | "danger" | "info" | "brand"> = {
@@ -220,6 +221,14 @@ export function RequestDetailDrawer({
                 </div>
               )}
             </Section>
+
+            {/* --- Path discovery (only for requests that came through the
+                    «از کجا شروع کنم؟» intake) --- */}
+            {data.request.discovery && (
+              <Section title="مسیر پیشنهادی حقوقی">
+                <DiscoveryAnalysis discovery={data.request.discovery} />
+              </Section>
+            )}
 
             {/* --- The auditable history --- */}
             <Section title="تاریخچهٔ وضعیت">

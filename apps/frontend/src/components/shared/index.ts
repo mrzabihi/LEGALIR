@@ -7,7 +7,13 @@ export { AppSplashGate } from "./AppSplashGate";
 export { PageContextHeader } from "./PageContextHeader";
 export { PageIntroBanner, type PageIntroBannerProps } from "./page-intro-banner";
 export { Breadcrumb, type BreadcrumbItem } from "./Breadcrumb";
-export { PromoArt, PromoPanel, PromoModule, type PromoArtKey } from "./promo-art";
+export {
+  PromoArt,
+  PromoPanel,
+  PromoModule,
+  type PromoArtKey,
+  type PromoModulePhoto,
+} from "./promo-art";
 
 // --- Shared list-surface primitives (MD3 compact-list language) ---
 // One implementation of the search bar, compact header, status badge,

@@ -5,10 +5,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { TextField, Textarea, Select, RadioGroup } from "@legalir/ui";
+import { TextField, Textarea, Select, RadioGroup, Button } from "@legalir/ui";
 import type { V1ContractType, V1ContractQuestion } from "@legalir/types";
 import { useContractQuestions, useCreateContractDraft, useSaveContractDraft, useContractDraft, useDeleteContractDraft, useCreateContract, useGenerateContract } from "@/hooks/useContracts";
 import { useRouter } from "next/navigation";
+import { IconArrowBack, IconArrowForward } from "@/lib/icons";
 
 interface ContractWizardProps {
   typeId: V1ContractType;
@@ -294,18 +295,10 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
         <h3 className="text-h3 text-on-surface mb-2">خطا در تولید قرارداد</h3>
         <p className="text-body-2 text-muted mb-6">{generateError}</p>
         <div className="flex gap-3">
-          <button
-            onClick={handleSubmit}
-            className="rounded-medium bg-primary text-primary-on px-5 py-3 text-button touch-target"
-          >
-            تلاش مجدد
-          </button>
-          <button
-            onClick={onBack}
-            className="rounded-medium bg-surface-container text-on-surface px-5 py-3 text-button touch-target border border-divider"
-          >
+          <Button onClick={handleSubmit}>تلاش مجدد</Button>
+          <Button variant="outlined" onClick={onBack}>
             بازگشت
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -371,36 +364,27 @@ export function ContractWizard({ typeId, title, onBack }: ContractWizardProps) {
       {/* Navigation */}
       <div className="flex items-center justify-between pt-4 border-t border-divider">
         <div className="flex gap-3">
-          <button
-            onClick={onBack}
-            className="rounded-medium bg-surface-container text-on-surface px-4 py-3 text-button touch-target border border-divider"
-          >
+          <Button variant="outlined" onClick={onBack}>
             بازگشت
-          </button>
+          </Button>
           {currentStep > 1 && (
-            <button
+            <Button
+              variant="outlined"
               onClick={handlePrev}
-              className="rounded-medium bg-surface-container text-on-surface px-4 py-3 text-button touch-target border border-divider"
+              startIcon={<IconArrowBack size={16} />}
             >
               قبلی
-            </button>
+            </Button>
           )}
         </div>
         {currentStep < totalSteps ? (
-          <button
-            onClick={handleNext}
-            className="rounded-medium bg-primary text-primary-on px-6 py-3 text-button touch-target"
-          >
+          <Button onClick={handleNext} endIcon={<IconArrowForward size={16} />}>
             بعدی
-          </button>
+          </Button>
         ) : (
-          <button
-            onClick={handleSubmit}
-            className="rounded-medium bg-primary text-primary-on px-6 py-3 text-button touch-target"
-            aria-label="تولید پیش‌نویس قرارداد"
-          >
+          <Button onClick={handleSubmit} aria-label="تولید پیش‌نویس قرارداد">
             تولید پیش‌نویس
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -18,10 +18,10 @@
 
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { snackbar } from "@legalir/ui";
+import { snackbar, Button as SharedButton } from "@legalir/ui";
 import {
   ADMIN_EXPORT_PERMISSION,
   ADMIN_EXPORT_KIND_FA,
@@ -57,7 +57,18 @@ import {
 // ones. Kept as constants so every card in the panel agrees.
 const CARD_BASE = "rounded-large border border-divider bg-surface";
 const CARD_REST = "shadow-elevation-1";
-const CARD_LIFT = "transition-shadow hover:shadow-elevation-3";
+const CARD_LIFT =
+  "transition-shadow duration-short3 ease-standard motion-reduce:transition-none can-hover:hover:shadow-elevation-3";
+
+// ---------------------------------------------------------------------------
+// One motion language (Jitter «Animated UI Kit», adapted)
+// ---------------------------------------------------------------------------
+// Interactive surfaces move through ONE shared, short transition instead of
+// per-page one-offs: colour, shadow and a ≤1px lift resolve together on the
+// same easing. It is clamped by the global `prefers-reduced-motion` rule, so no
+// local override is needed and nothing animates permanently.
+export const MOTION_STANDARD =
+  "transition-[background-color,border-color,color,box-shadow,transform] duration-short3 ease-standard motion-reduce:transition-none";
 
 // ---------------------------------------------------------------------------
 // Card / section
@@ -68,6 +79,7 @@ export function Card({
   className = "",
   interactive = false,
   as: Tag = "div",
+  role,
 }: {
   children: ReactNode;
   className?: string;
@@ -75,9 +87,12 @@ export function Card({
   interactive?: boolean;
   /** Render as `section`/`article` when the semantics matter. */
   as?: React.ElementType;
+  /** ARIA role when the card is a state container (e.g. `alert`). */
+  role?: React.AriaRole;
 }) {
   return (
     <Tag
+      role={role}
       className={`${CARD_BASE} ${CARD_REST} ${interactive ? CARD_LIFT : ""} ${className}`}
     >
       {children}
@@ -368,6 +383,12 @@ export function StatCard({
   const t = STAT_TONES[tone];
   const isUnavailable = unavailable === true;
 
+  // A figure is a number, or a pre-formatted string made only of digits,
+  // separators, signs and percent marks. Anything containing a letter (a
+  // timezone, a status word) is prose and is allowed to wrap.
+  const isFigureValue =
+    typeof value === "number" || !/\p{L}/u.test(value);
+
   const trendClass =
     trend?.tone === "good"
       ? "bg-success-soft text-success-700"
@@ -403,15 +424,27 @@ export function StatCard({
           className={
             isUnavailable
               ? "min-w-0 break-words text-h4 font-semibold leading-snug text-muted"
-              : `min-w-0 break-words text-h2 font-bold leading-none tabular-nums ${t.value}`
+              : // A figure must never break inside itself: on a 390px phone the
+                // 2-up KPI grid leaves ~123px of card interior, where a 9-digit
+                // money value split at a separator and read as two numbers. So
+                // the digits stay atomic (`bdi` + nowrap) and the step scale is
+                // driven by the card's real width at each breakpoint: 16px at
+                // 320px, 18px once a 2-up grid fits, 20px on tablet, 24px only
+                // where a card is ≥250px wide. The unit may still fall to the
+                // next line, which is what keeps the number itself intact.
+                `min-w-0 break-words text-body-1 font-bold leading-tight tabular-nums mobile-l:text-h4 tablet:text-h3 wide:text-h2 wide:leading-none ${t.value}`
           }
           title={valueTitle}
         >
-          {isUnavailable
-            ? unavailableLabel
-            : typeof value === "number"
-              ? toPersianNumber(value)
-              : value}
+          {isUnavailable ? (
+            unavailableLabel
+          ) : isFigureValue ? (
+            <bdi className="whitespace-nowrap">
+              {typeof value === "number" ? toPersianNumber(value) : value}
+            </bdi>
+          ) : (
+            value
+          )}
           {unit && !isUnavailable && (
             <span className="ms-1 text-caption font-medium text-muted">{unit}</span>
           )}
@@ -477,7 +510,7 @@ export function StatCard({
     return (
       <Link
         href={href}
-        className={`group block ${shell} ${CARD_LIFT} ${hoverCls} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`}
+        className={`group block ${shell} ${MOTION_STANDARD} can-hover:hover:-translate-y-px can-hover:hover:shadow-elevation-3 ${hoverCls} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`}
         aria-label={moreLabel ? `${label} — ${moreLabel}` : `${label} — مشاهدهٔ جزئیات`}
       >
         {edgeBar}
@@ -547,22 +580,13 @@ export function Badge({
 // Buttons
 // ---------------------------------------------------------------------------
 
+// The admin panel used to carry its own button table. It now renders the
+// product-wide primitive, so hover/focus/pressed/loading/disabled behave
+// identically in the panel and in the app. The variant and size names the
+// admin pages already pass (`primary`, `sm`, …) are first-class aliases on
+// the shared component — there is no second visual language to maintain.
 type ButtonVariant = "primary" | "secondary" | "tonal" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
-
-const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-on-primary border-transparent hover:bg-primary-700",
-  secondary: "bg-surface border-divider text-on-surface-variant hover:bg-surface-hover",
-  tonal: "bg-primary-soft border-transparent text-primary hover:bg-primary-container",
-  ghost: "bg-transparent border-transparent text-muted hover:text-on-surface hover:bg-surface-hover",
-  danger: "bg-error text-on-error border-transparent hover:opacity-90",
-};
-
-const BUTTON_SIZES: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-caption",
-  md: "h-10 px-4 text-body-2",
-  lg: "h-11 px-5 text-body-1",
-};
 
 export function Button({
   children,
@@ -593,22 +617,21 @@ export function Button({
   ariaLabel?: string;
 }) {
   return (
-    <button
+    <SharedButton
       type={type}
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-medium border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_SIZES[size]} ${BUTTON_VARIANTS[variant]} ${className}`}
+      disabled={disabled}
+      loading={loading}
+      variant={variant}
+      size={size}
+      startIcon={startIcon}
+      endIcon={endIcon}
+      className={className}
     >
-      {loading ? (
-        <IconRefresh size={15} className="animate-spin" aria-hidden="true" />
-      ) : (
-        startIcon
-      )}
       {children}
-      {endIcon}
-    </button>
+    </SharedButton>
   );
 }
 
@@ -616,11 +639,16 @@ export function Button({
 // State view — loading · error · empty · ready
 // ---------------------------------------------------------------------------
 
-export function LoadingBlock({ rows = 4 }: { rows?: number }) {
+export function LoadingBlock({ rows = 4, label = "در حال دریافت اطلاعات…" }: { rows?: number; label?: string }) {
   return (
-    <div className="space-y-2" aria-busy="true">
+    <div className="space-y-2" role="status" aria-busy="true">
+      <span className="sr-only">{label}</span>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className={`${CARD_BASE} h-14 ${CARD_REST} skeleton-shimmer`} />
+        <div
+          key={i}
+          aria-hidden="true"
+          className={`${CARD_BASE} h-14 ${CARD_REST} skeleton-shimmer`}
+        />
       ))}
     </div>
   );
@@ -634,8 +662,11 @@ export function ErrorBlock({
   onRetry?: () => void;
 }) {
   return (
-    <Card className="p-6 text-center" as="div">
-      <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warning-soft">
+    <Card className="p-6 text-center" as="div" role="alert">
+      <span
+        aria-hidden="true"
+        className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warning-soft"
+      >
         <IconWarning size={26} className="text-warning-600" />
       </span>
       <p className="text-body-2 text-on-surface-variant">{message}</p>
@@ -698,6 +729,43 @@ export function InfoBanner({
 }
 
 /**
+ * Result of an action the operator just took (save, role change, archive…).
+ * Unlike `InfoBanner` — which is a permanent note — this is a transient result,
+ * so it is a live region: a screen reader announces it the moment it appears,
+ * and errors use `alert` so they are never missed. It enters with one short
+ * slide-up fade and is fully static under `prefers-reduced-motion`.
+ */
+export function InlineNotice({
+  tone = "info",
+  children,
+  className = "",
+}: {
+  tone?: "info" | "success" | "warning" | "error";
+  children: ReactNode;
+  className?: string;
+}) {
+  const toneClass =
+    tone === "error"
+      ? "border-error-200 bg-error-soft text-error-700"
+      : tone === "success"
+        ? "border-success-200 bg-success-soft text-success-700"
+        : tone === "warning"
+          ? "border-warning-200 bg-warning-soft text-warning-700"
+          : "border-info-200 bg-info-soft text-info-700";
+  const Icon = tone === "error" || tone === "warning" ? IconWarning : IconInfo;
+
+  return (
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className={`mb-4 flex items-start gap-2 rounded-large border p-3 text-body-2 animate-slide-up-fade motion-reduce:animate-none ${toneClass} ${className}`}
+    >
+      <Icon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+/**
  * Renders the correct state for a React Query result. Callers supply the
  * ready-render as a child function so this stays generic.
  */
@@ -738,6 +806,7 @@ export function DataTable({
   children,
   minWidth = 640,
   hover = true,
+  bare = false,
 }: {
   head: ReactNode;
   children: ReactNode;
@@ -745,16 +814,34 @@ export function DataTable({
   minWidth?: number;
   /** Row hover tint. On by default. */
   hover?: boolean;
+  /**
+   * Drop the card shell so the table can sit flush inside an existing card
+   * (`ChartFrame`, a drawer, a modal). Two nested borders read as a mis-aligned
+   * box and waste horizontal room on small screens.
+   */
+  bare?: boolean;
 }) {
   return (
-    <div className={`overflow-x-auto ${CARD_BASE} ${CARD_REST}`}>
+    // A horizontally scrollable table must be reachable by keyboard (WCAG
+    // 2.1.1): the wrapper is a focusable region so arrow keys can pan it on a
+    // narrow screen instead of the last columns being unreachable.
+    <div
+      role="region"
+      aria-label="جدول داده‌ها (برای جابه‌جایی افقی از کلیدهای جهت‌دار استفاده کنید)"
+      tabIndex={0}
+      className={`overflow-x-auto ${
+        bare ? "rounded-medium" : `${CARD_BASE} ${CARD_REST}`
+      } focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary`}
+    >
       <table className="w-full border-collapse text-body-2" style={{ minWidth }}>
         <thead className="bg-surface-container-low text-caption font-medium text-muted">
           {head}
         </thead>
         <tbody
           className={`divide-y divide-divider bg-surface ${
-            hover ? "[&>tr]:transition-colors [&>tr:hover]:bg-surface-hover" : ""
+            hover
+              ? "[&>tr]:transition-colors [&>tr]:duration-short3 [&>tr]:ease-standard [&>tr:hover]:bg-surface-hover motion-reduce:[&>tr]:transition-none"
+              : ""
           }`}
         >
           {children}
@@ -1084,16 +1171,18 @@ export function SearchInput({
         aria-label={ariaLabel}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className={`${INPUT_CLASS} ps-9 pe-9`}
+        // Same 40px control height as a `medium` Button and a `Select`, so a
+        // filter row reads as one line instead of three stray baselines.
+        className={`${INPUT_CLASS} h-10 ps-9 pe-9`}
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="پاک کردن جست‌وجو"
-          className="absolute inset-y-0 end-2 my-auto flex h-6 w-6 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover hover:text-on-surface"
+          className="absolute inset-y-0 end-2 my-auto flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors duration-short3 hover:bg-surface-hover hover:text-on-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none"
         >
-          <IconClose size={14} />
+          <IconClose size={14} aria-hidden="true" />
         </button>
       )}
     </div>
@@ -1121,7 +1210,7 @@ export function FilterPills<T extends string>({
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          className={`rounded-full border px-3.5 py-1.5 text-caption font-medium transition-colors ${
+          className={`inline-flex h-10 max-desktop:min-h-11 items-center rounded-full border px-4 text-caption font-medium transition-colors duration-short3 ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none ${
             value === o.value
               ? "border-primary bg-primary text-on-primary shadow-elevation-1"
               : "border-divider bg-surface text-muted hover:border-primary-300 hover:text-on-surface"
@@ -1157,10 +1246,34 @@ export function Tabs<T extends string>({
   onChange: (v: T) => void;
   ariaLabel: string;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Arrow keys move selection in reading order. RTL is the panel's default
+  // direction, so ArrowLeft advances to the next tab and ArrowRight returns;
+  // Home/End jump to the edges. Selection itself stays controlled by `value`.
+  function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const current = items.findIndex((t) => t.value === value);
+    if (current < 0) return;
+    let next: number;
+    if (e.key === "ArrowLeft") next = Math.min(items.length - 1, current + 1);
+    else if (e.key === "ArrowRight") next = Math.max(0, current - 1);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = items.length - 1;
+    else return;
+    e.preventDefault();
+    const target = items[next];
+    if (target && next !== current) onChange(target.value);
+    requestAnimationFrame(() => {
+      listRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+    });
+  }
+
   return (
     <div
+      ref={listRef}
       role="tablist"
       aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
       className="mb-4 flex gap-1 overflow-x-auto border-b border-divider"
     >
       {items.map((t) => {
@@ -1171,8 +1284,9 @@ export function Tabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.value)}
-            className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-body-2 font-medium transition-colors ${
+            className={`-mb-px flex min-h-10 max-desktop:min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 text-body-2 font-medium transition-colors duration-short3 ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none ${
               active
                 ? "border-primary text-primary"
                 : "border-transparent text-muted hover:border-outline-variant hover:text-on-surface"

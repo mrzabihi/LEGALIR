@@ -221,6 +221,7 @@ function SubscriptionsBody({
           <Card className="p-4 text-body-2 text-muted">پلنی در کاتالوگ ثبت نشده است.</Card>
         ) : (
           <DataTable
+            bare
             head={
               <tr>
                 <Th>پلن</Th>

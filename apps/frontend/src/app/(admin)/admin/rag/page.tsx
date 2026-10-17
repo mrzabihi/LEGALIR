@@ -62,7 +62,7 @@ import {
   type TabItem,
 } from "@/components/admin/ui";
 import { useClientPagination } from "@/hooks/useClientPagination";
-import { Drawer, snackbar } from "@legalir/ui";
+import { Drawer, Switch, snackbar, buttonClasses } from "@legalir/ui";
 import {
   IconDatabase,
   IconRefresh,
@@ -182,7 +182,7 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
                 <Card className="p-4">
                   <p className="text-caption text-muted">فایل‌های شناسایی‌شدهٔ هنوز نمایه‌نشده</p>
                   {data.status.unindexedFiles.length === 0 ? (
-                    <p className="mt-2 flex items-center gap-1.5 text-body-2 text-emerald-600 dark:text-emerald-400">
+                    <p className="mt-2 flex items-center gap-1.5 text-body-2 text-success-700 dark:text-success-300">
                       <IconCheckCircle size={16} /> همهٔ فایل‌ها نمایه شده‌اند.
                     </p>
                   ) : (
@@ -204,7 +204,7 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
                     </ul>
                   )}
                   {canManage && data.status.unindexedFiles.length > 0 && (
-                    <p className="mt-2 text-caption text-amber-600 dark:text-amber-400">
+                    <p className="mt-2 text-caption text-warning-700 dark:text-warning-300">
                       برای ورود این فایل‌ها به خط لوله، «نمایه‌سازی مجدد» را اجرا کنید.
                     </p>
                   )}
@@ -218,11 +218,17 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
       <Section
         title="پیکربندی مدل و ارائه‌دهنده"
         subtitle="ارائه‌دهنده‌های LLM در یک جای مرجع مدیریت می‌شوند؛ وضعیت زندهٔ آن‌ها اینجاست."
+        // The button's own class list on the link itself — one focus stop,
+        // one activation, identical look.
         actions={
-          <Link href="/admin/ai">
-            <Button variant="secondary" size="sm" startIcon={<IconBolt size={15} />}>
-              مدیریت ارائه‌دهنده‌ها
-            </Button>
+          <Link
+            href="/admin/ai"
+            className={buttonClasses({ variant: "secondary", size: "sm" })}
+          >
+            <span className="me-1.5 inline-flex h-4 w-4 items-center justify-center" aria-hidden="true">
+              <IconBolt size={15} />
+            </span>
+            مدیریت ارائه‌دهنده‌ها
           </Link>
         }
       >
@@ -244,7 +250,7 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
                     {p.model ?? "—"}
                   </p>
                   {!data.secretStorageConfigured && (
-                    <p className="mt-2 text-caption text-amber-600 dark:text-amber-400">
+                    <p className="mt-2 text-caption text-warning-700 dark:text-warning-300">
                       ذخیره‌سازی امن کلید پیکربندی نشده است.
                     </p>
                   )}
@@ -703,14 +709,14 @@ function ReviewForm({ source, onDone }: { source: RagSource; onDone: () => void 
         </label>
       </div>
 
-      <label className="flex items-center gap-2 text-body-2 text-on-surface-variant">
-        <input
-          type="checkbox"
+      <div className="rounded-medium border border-divider px-3 py-1.5">
+        <Switch
           checked={publishToLibrary}
           onChange={(e) => setPublishToLibrary(e.target.checked)}
+          label="انتشار در کتابخانه عمومی"
+          tone="selection"
         />
-        انتشار در کتابخانه عمومی
-      </label>
+      </div>
 
       <label className="block">
         <span className="mb-1 block text-caption font-medium text-on-surface-variant">

@@ -1,7 +1,8 @@
 "use client";
 
 import type { V1Reference } from "@legalir/types";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { IconInfo } from "@/lib/icons";
 
 export interface StructuredSection {
   id: string;
@@ -13,7 +14,12 @@ export interface StructuredSection {
 interface StructuredResponseProps {
   sections: StructuredSection[];
   references?: V1Reference[];
-  /** If true, reveal sections one by one for streaming effect */
+  /**
+   * Retained for call-site compatibility. The old staggered reveal was a
+   * client-side timer (§5 forbids fake progress); real text now arrives via
+   * the streaming assistant bubble, so sections render as they are — never on
+   * an animation.
+   */
   streaming?: boolean;
   onCitationClick?: (reference: V1Reference) => void;
   /** Section IDs to scroll to from citation navigation */
@@ -21,65 +27,60 @@ interface StructuredResponseProps {
   onScrollComplete?: () => void;
 }
 
-const SECTION_ICONS: Record<string, string> = {
-  "خلاصه": "📋",
-  "اطلاعات و فرض‌ها": "📝",
-  "تحلیل اولیه": "⚖️",
-  "ریسک‌ها": "⚠️",
-  "اقدامات پیشنهادی": "✅",
-  "منابع": "📚",
-  "هشدار حقوقی": "🛡️",
-};
+/**
+ * The reference section's real, backend-returned sources for this answer.
+ * Each chip opens the SAME source detail the citations point at — the chip
+ * label is the source's real locator, never an invented number.
+ */
+function ReferenceChips({
+  references,
+  onCitationClick,
+}: {
+  references: V1Reference[];
+  onCitationClick?: (reference: V1Reference) => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {references.map((ref) => (
+        <button
+          key={ref.id}
+          type="button"
+          onClick={() => onCitationClick?.(ref)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary-container px-2.5 py-1 text-labelSmall text-on-primary-container transition-colors hover:bg-surface-hover"
+          aria-label={`منبع: ${ref.locator}`}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+          {ref.locator}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function StructuredResponse({
   sections,
   references,
-  streaming = false,
   onCitationClick,
   scrollToSectionId,
   onScrollComplete,
 }: StructuredResponseProps) {
-  const [visibleSections, setVisibleSections] = useState<number>(
-    streaming ? 0 : sections.length
-  );
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Streaming reveal effect
+  // Scroll to a cited section when the user follows a reference (§7).
   useEffect(() => {
-    if (!streaming) {
-      setVisibleSections(sections.length);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setVisibleSections((prev) => {
-        if (prev >= sections.length) {
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 800);
-
-    return () => clearInterval(interval);
-  }, [streaming, sections.length]);
-
-  // Scroll to section when citation is clicked
-  useEffect(() => {
-    if (scrollToSectionId) {
-      const el = sectionRefs.current.get(scrollToSectionId);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        onScrollComplete?.();
-      }
+    if (!scrollToSectionId) return;
+    const el = sectionRefs.current.get(scrollToSectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      onScrollComplete?.();
     }
   }, [scrollToSectionId, onScrollComplete]);
 
   const sorted = [...sections].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="space-y-4 mt-3 legal-text">
-      {sorted.slice(0, visibleSections).map((section) => {
+    <div className="space-y-3 legal-text">
+      {sorted.map((section) => {
         const isSourceSection = section.title === "منابع";
         const isDisclaimer = section.title === "هشدار حقوقی";
 
@@ -91,43 +92,42 @@ export function StructuredResponse({
               if (el) sectionRefs.current.set(section.id, el);
               else sectionRefs.current.delete(section.id);
             }}
-            className={[
-              "rounded-medium p-4 animate-fade-in",
+            className={
               isDisclaimer
-                ? "bg-warning-container border border-warning"
-                : "bg-surface-container",
-            ].join(" ")}
+                ? "flex items-start gap-2 rounded-medium bg-warning-container p-3"
+                : ""
+            }
           >
-            <h4 className="text-labelLarge text-onSurface font-medium mb-2 flex items-center gap-2">
-              <span>{SECTION_ICONS[section.title] ?? "•"}</span>
-              {section.title}
-            </h4>
-            {isSourceSection && references && references.length > 0 ? (
-              <div>
-                <p className="text-bodyMedium text-onSurfaceVariant whitespace-pre-wrap leading-relaxed mb-2">
+            {isDisclaimer ? (
+              <>
+                <IconInfo size={16} className="mt-0.5 shrink-0 text-warning" />
+                <div>
+                  <h4 className="mb-1 text-labelSmall font-medium text-warning">
+                    {section.title}
+                  </h4>
+                  <p className="whitespace-pre-wrap text-bodySmall leading-relaxed text-onSurfaceVariant">
+                    {section.content}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* A quiet section heading — a label, not a card header. */}
+                {section.title !== "پاسخ" && (
+                  <h4 className="mb-1 text-labelMedium font-medium text-muted">
+                    {section.title}
+                  </h4>
+                )}
+                <p className="whitespace-pre-wrap text-bodyMedium leading-loose text-onSurfaceVariant">
                   {section.content}
                 </p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {references.map((ref) => (
-                    <button
-                      key={ref.id}
-                      onClick={() => onCitationClick?.(ref)}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary-container text-primary text-labelSmall px-2.5 py-1 hover:bg-surface-hover transition-colors"
-                      aria-label={`منبع: ${ref.locator}`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      {ref.locator}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className={[
-                "text-bodyMedium text-onSurfaceVariant whitespace-pre-wrap leading-loose",
-                isDisclaimer ? "text-onSurfaceVariant text-bodySmall" : "",
-              ].join(" ")}>
-                {section.content}
-              </p>
+                {isSourceSection && references && references.length > 0 && (
+                  <ReferenceChips
+                    references={references}
+                    onCitationClick={onCitationClick}
+                  />
+                )}
+              </>
             )}
           </div>
         );

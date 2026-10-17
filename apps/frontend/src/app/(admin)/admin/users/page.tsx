@@ -34,6 +34,7 @@ import {
   Button,
   IdChip,
   InfoBanner,
+  InlineNotice,
   Pagination,
   ExportButton,
 } from "@/components/admin/ui";
@@ -119,17 +120,7 @@ function AdminUsersView() {
         </InfoBanner>
       )}
 
-      {feedback && (
-        <div
-          className={`mb-4 rounded-large border p-3 text-body-2 ${
-            feedback.tone === "error"
-              ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-          }`}
-        >
-          {feedback.text}
-        </div>
-      )}
+      {feedback && <InlineNotice tone={feedback.tone}>{feedback.text}</InlineNotice>}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <SearchInput

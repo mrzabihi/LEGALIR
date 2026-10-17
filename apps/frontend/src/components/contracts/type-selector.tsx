@@ -3,8 +3,9 @@
 // ============================================================
 
 import type { V1ContractTypeInfo, V1ContractType } from "@legalir/types";
-import { SelectableCard } from "@legalir/ui";
+import { SelectableCard, Button } from "@legalir/ui";
 import { useContractTypes } from "@/hooks/useContracts";
+import { IconArrowForward } from "@/lib/icons";
 
 const typeIcons: Record<string, string> = {
   lease: "🏠",
@@ -97,18 +98,14 @@ export function ContractTypeSelector({
 
       {/* Continue Button */}
       <div className="flex justify-end pt-4">
-        <button
+        <Button
           onClick={onContinue}
           disabled={!selectedType}
-          className={`rounded-medium px-6 py-3 text-button transition-colors touch-target ${
-            selectedType
-              ? "bg-primary text-primary-on hover:bg-primary-700 hover:text-white"
-              : "bg-surface-container text-muted cursor-not-allowed"
-          }`}
+          endIcon={<IconArrowForward size={16} />}
           aria-label="ادامه به پرسشنامه"
         >
           ادامه
-        </button>
+        </Button>
       </div>
     </div>
   );

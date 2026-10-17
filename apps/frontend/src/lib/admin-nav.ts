@@ -53,6 +53,16 @@ export const ADMIN_NAV: AdminNavItem[] = [
     permission: "admin:requests:read",
   },
   {
+    key: "discovery",
+    path: "/admin/discovery",
+    titleFa: "مسیر پیشنهادی حقوقی",
+    hintFa: "تحلیل درخواست‌های «از کجا شروع کنم؟»",
+    icon: "Sparkle",
+    // The discovery analytics surface reads the same request records the
+    // requests section does and is gated by the same read permission.
+    permission: "admin:requests:read",
+  },
+  {
     key: "lawyers",
     path: "/admin/lawyers",
     titleFa: "وکلا",

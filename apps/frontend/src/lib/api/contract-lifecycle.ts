@@ -62,6 +62,8 @@ export function requestSignatureOtp(
   params: { participantId?: string; partyId?: string }
 ): Promise<{
   sent: boolean;
+  /** The real transport that carried the code, when `sent` is true. */
+  channel?: "sms" | "dev-console";
   mobileMasked: string;
   expiresAt: string;
   remainingAttempts: number;
@@ -139,7 +141,14 @@ export function issueInvitations(
   id: string,
   params: { participantIds?: string[]; expiresInHours?: number; verifyBeforeView?: boolean } = {}
 ): Promise<{
-  invitations: { participantId: string; token: string; expiresAt: string }[];
+  invitations: {
+    participantId: string;
+    token: string;
+    expiresAt: string;
+    delivered: boolean;
+    channel: "sms" | "dev-console" | null;
+    failureReasonFa: string | null;
+  }[];
   expiresAt: string;
 }> {
   return apiClient.post(`/api/v1/property-contracts/${id}/invitations`, params);
@@ -254,6 +263,10 @@ export function addReviewComment(
     partyId?: string;
     clauseRef?: string | null;
     kind?: "comment" | "change_request" | "approval_note";
+    /** Reply to an existing comment on the same version. */
+    parentId?: string | null;
+    /** `internal` (default) or shared `parties`. */
+    visibility?: "internal" | "parties";
   }
 ): Promise<{ comment: ContractReviewComment }> {
   return apiClient.post(`/api/v1/property-contracts/${id}/review`, {

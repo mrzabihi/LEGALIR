@@ -16,7 +16,7 @@ import React from "react";
 import {
   TextField,
   Select,
-  Switch,
+  SwitchRow,
   RadioGroup,
   Button,
   NumberField as NumberFieldUI,
@@ -84,6 +84,7 @@ export function Field({
   placeholder,
   helperText,
   errorText,
+  required,
   type = "text",
   inputMode,
   maxLength,
@@ -95,6 +96,8 @@ export function Field({
   placeholder?: string;
   helperText?: string;
   errorText?: string;
+  /** Marks the label as required (the asterisk is inside the label). */
+  required?: boolean;
   type?: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   maxLength?: number;
@@ -103,7 +106,7 @@ export function Field({
   return (
     <TextField
       fullWidth
-      label={label}
+      label={required ? `${label} *` : label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
@@ -127,6 +130,8 @@ export function NumberField({
   suffix,
   min = 0,
   disabled,
+  errorText,
+  required,
 }: {
   label: string;
   value: number | null;
@@ -136,16 +141,21 @@ export function NumberField({
   suffix?: string;
   min?: number;
   disabled?: boolean;
+  /** Inline validation message, shown under this exact field. */
+  errorText?: string;
+  /** Marks the label as required (the asterisk is inside the label). */
+  required?: boolean;
 }) {
   return (
     <NumberFieldUI
       fullWidth
-      label={label}
+      label={required ? `${label} *` : label}
       value={value}
       onChange={onChange}
       min={min}
       placeholder={placeholder}
       helperText={suffix ? (helperText ? `${helperText} — ${suffix}` : suffix) : helperText}
+      errorText={errorText}
       disabled={disabled}
     />
   );
@@ -163,6 +173,8 @@ export function ChoiceField<T extends string>({
   placeholder,
   helperText,
   disabled,
+  errorText,
+  required,
 }: {
   label: string;
   value: T | "";
@@ -171,16 +183,21 @@ export function ChoiceField<T extends string>({
   placeholder?: string;
   helperText?: string;
   disabled?: boolean;
+  /** Inline validation message, shown under this exact field. */
+  errorText?: string;
+  /** Marks the label as required (the asterisk is inside the label). */
+  required?: boolean;
 }) {
   return (
     <Select
       fullWidth
-      label={label}
+      label={required ? `${label} *` : label}
       value={value}
       onChange={(e) => onChange(e.target.value as T)}
       options={options}
       placeholder={placeholder}
       helperText={helperText}
+      errorText={errorText}
       disabled={disabled}
     />
   );
@@ -229,18 +246,26 @@ export function ToggleRow({
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }) {
+  // One shared switch row. The card tint marks the option as ON without
+  // fighting the switch's own colour language; the row itself is the label,
+  // so a tap anywhere on it toggles once (no nested label/button conflict).
   return (
-    <label
-      className={`flex items-start justify-between gap-4 rounded-medium border border-divider px-3 py-2.5 cursor-pointer transition-colors ${
-        checked ? "bg-primary-container border-primary" : "bg-surface"
-      } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+    <div
+      className={`rounded-medium border px-3 py-1.5 transition-colors ${
+        checked
+          ? "border-control-selected-border bg-control-selected-surface"
+          : "border-divider bg-surface"
+      }`}
     >
-      <span className="min-w-0">
-        <span className="block text-body-2 text-on-surface">{label}</span>
-        {description && <span className="block text-caption text-muted mt-0.5">{description}</span>}
-      </span>
-      <Switch checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
-    </label>
+      <SwitchRow
+        label={label}
+        description={description}
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="-mx-1"
+      />
+    </div>
   );
 }
 
@@ -254,6 +279,7 @@ export function DateField({
   onChange,
   helperText,
   errorMessage,
+  required,
   disabled,
   minYear,
   maxYear,
@@ -266,6 +292,8 @@ export function DateField({
   helperText?: string;
   /** Validation message — turns the control red and replaces the helper. */
   errorMessage?: string;
+  /** Marks the label as required (the asterisk is inside the label). */
+  required?: boolean;
   disabled?: boolean;
   /** Earliest selectable Jalali year. Omit for the default (1300). */
   minYear?: number;
@@ -276,7 +304,9 @@ export function DateField({
 }) {
   return (
     <div className="space-y-1.5">
-      <span className="block text-labelMedium text-on-surface-variant">{label}</span>
+      <span className="block text-labelMedium text-on-surface-variant">
+        {required ? `${label} *` : label}
+      </span>
       <JalaliDatePicker
         value={isoToJalaliString(value)}
         onChange={(jalali) => onChange(jalaliStringToIso(jalali))}
@@ -313,6 +343,8 @@ export function MoneyField({
   helperText,
   placeholder,
   disabled,
+  errorText,
+  required,
 }: {
   label: string;
   value: Money | null;
@@ -320,15 +352,20 @@ export function MoneyField({
   helperText?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Inline validation message, shown under this exact field. */
+  errorText?: string;
+  /** Marks the label as required (the asterisk is inside the label). */
+  required?: boolean;
 }) {
   return (
     <MoneyFieldUI
       fullWidth
-      label={label}
+      label={required ? `${label} *` : label}
       unit="IRT"
       value={value ? toToman(value) : null}
       onChange={(next) => onChange(next === null ? null : toman(next))}
       helperText={helperText}
+      errorText={errorText}
       placeholder={placeholder}
       disabled={disabled}
     />

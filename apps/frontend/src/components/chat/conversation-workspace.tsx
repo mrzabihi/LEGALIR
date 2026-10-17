@@ -16,6 +16,7 @@ import { MessageInput } from "./message-input";
 import { DisclaimerBanner } from "./disclaimer-banner";
 import { EscalationCta } from "./escalation-cta";
 import { LegalRequestProgress } from "./legal-request-progress";
+import { ConnectionStatus } from "./connection-status";
 import { useRouter } from "next/navigation";
 import { TextField } from "@legalir/ui";
 
@@ -32,7 +33,8 @@ interface ConversationWorkspaceProps {
   runStatus?: AiRunStatus | null;
   onSendMessage: (content: string) => void;
   onStopGeneration?: () => void;
-  onRetry?: (messageId: string) => void;
+  /** Retry a failed USER message by re-sending its exact content (§9). */
+  onRetryMessage?: (messageId: string) => void;
   onRename?: (title: string) => void;
   onCitationClick?: (reference: V1Reference) => void;
   scrollToSectionId?: string | null;
@@ -48,6 +50,12 @@ interface ConversationWorkspaceProps {
    * timeline entry that persists after the run finishes (§11, §18).
    */
   processingRun?: ProcessingRunView | null;
+  /**
+   * The id of the user message the in-flight progress line sits under. The
+   * line is rendered as that message's trailing element so it visually
+   * belongs to the turn that produced it (§5).
+   */
+  progressingMessageId?: string | null;
   /** Retry a failed run (only offered when the run is retryable). */
   onPipelineRetry?: () => void;
   /** Context-aware composer placeholder, derived from the service (§10). */
@@ -70,7 +78,7 @@ export function ConversationWorkspace({
   runStatus,
   onSendMessage,
   onStopGeneration,
-  onRetry,
+  onRetryMessage,
   onRename,
   onCitationClick,
   scrollToSectionId,
@@ -81,6 +89,7 @@ export function ConversationWorkspace({
   onMinimize,
   onClose,
   processingRun,
+  progressingMessageId,
   onPipelineRetry,
   composerPlaceholder,
   attachedDocuments,
@@ -99,6 +108,23 @@ export function ConversationWorkspace({
   // a «رفتن به پاسخ جدید» button appears (§23).
   const [atBottom, setAtBottom] = useState(true);
   const lastMessageStatus = messages[messages.length - 1]?.status;
+  // The last message's content length grows chunk-by-chunk while streaming —
+  // watching it keeps the view pinned to the growing reply, but only when the
+  // user is already at the bottom (§4: never yank a user who scrolled up).
+  const lastContentLength = messages[messages.length - 1]?.content?.length ?? 0;
+
+  // The message the progress line belongs under: the live turn's user message
+  // while a run is in flight, or the most recent user message when the run was
+  // restored from the backend after a refresh (§5, §8).
+  const lastUserId = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === "user") return messages[i]!.id;
+    }
+    return null;
+  })();
+  const progressTargetId = processingRun
+    ? progressingMessageId ?? lastUserId
+    : null;
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -117,7 +143,7 @@ export function ConversationWorkspace({
     if (atBottom && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, lastMessageStatus, atBottom]);
+  }, [messages.length, lastMessageStatus, lastContentLength, atBottom]);
 
   const handleRename = useCallback(() => {
     const trimmed = renameValue.trim();
@@ -191,6 +217,10 @@ export function ConversationWorkspace({
           </div>
         )}
 
+        {/* Real connection status — the device's network state AND a real
+            health check of the chat service (§6). */}
+        <ConnectionStatus />
+
         {/* Star / bookmark conversation */}
         {onToggleStar && (
           <button
@@ -235,62 +265,72 @@ export function ConversationWorkspace({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        className="flex-1 overflow-y-auto px-4 py-4"
         role="log"
         aria-live="polite"
         aria-atomic="false"
       >
-        {/* Legal request progress — a real timeline entry driven entirely by
-            backend state. It stays in the conversation after the run ends
-            (collapsing to a summary) instead of vanishing (§11, §18). */}
-        {processingRun && (
-          <div className="mb-4">
-            <LegalRequestProgress
-              run={processingRun}
-              isStreaming={isStreaming}
-              onCancel={onStopGeneration}
-              onRetry={onPipelineRetry}
-            />
-          </div>
-        )}
+        {/* One simple, centered message column (§2) — the conversation text
+            leads; nothing is wrapped in nested cards or panels. */}
+        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-4">
+          {messages.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center text-center">
+              <div className="mb-4 text-4xl">&#x2696;&#xFE0F;</div>
+              <h3 className="mb-2 text-h3 text-onSurface">
+                گفتگوی حقوقی خود را شروع کنید
+              </h3>
+              <p className="mb-6 max-w-md text-bodyMedium text-muted">
+                سوال حقوقی خود را مطرح کنید. هوش مصنوعی LEGALIR تحلیل اولیه، ریسک‌ها و اقدامات پیشنهادی را ارائه می‌دهد.
+              </p>
+              <DisclaimerBanner />
+            </div>
+          ) : (
+            <>
+              {messages.map((msg) => {
+                // Only the assistant message currently receiving real chunks
+                // is "streaming" (§4) — a persisted message never is.
+                const isAssistantStreaming =
+                  msg.role === "assistant" && msg.status === "streaming";
+                const showProgress = progressTargetId === msg.id;
+                return (
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    isStreaming={isAssistantStreaming}
+                    runStatus={isAssistantStreaming ? runStatus : null}
+                    onRetry={
+                      msg.status === "failed" && onRetryMessage
+                        ? () => onRetryMessage(msg.id)
+                        : undefined
+                    }
+                    onCitationClick={onCitationClick}
+                    onAttachmentClick={onAttachmentClick}
+                    scrollToSectionId={scrollToSectionId}
+                    onScrollComplete={onScrollComplete}
+                    trailing={
+                      showProgress && processingRun ? (
+                        <LegalRequestProgress
+                          run={processingRun}
+                          isStreaming={isStreaming}
+                          onCancel={onStopGeneration}
+                          onRetry={onPipelineRetry}
+                          compact
+                        />
+                      ) : undefined
+                    }
+                  />
+                );
+              })}
 
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="text-4xl mb-4">&#x2696;&#xFE0F;</div>
-            <h3 className="text-h3 text-onSurface mb-2">
-              گفتگوی حقوقی خود را شروع کنید
-            </h3>
-            <p className="text-bodyMedium text-muted mb-6 max-w-md">
-              سوال حقوقی خود را مطرح کنید. هوش مصنوعی LEGALIR تحلیل اولیه، ریسک‌ها و اقدامات پیشنهادی را ارائه می‌دهد.
-            </p>
-            <DisclaimerBanner />
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isStreaming={isStreaming && msg.role === "assistant"}
-              runStatus={isStreaming && msg.role === "assistant" ? runStatus : null}
-              onRetry={
-                msg.status === "failed" && onRetry
-                  ? () => onRetry(msg.id)
-                  : undefined
-              }
-              onCitationClick={onCitationClick}
-              onAttachmentClick={onAttachmentClick}
-              scrollToSectionId={scrollToSectionId}
-              onScrollComplete={onScrollComplete}
-            />
-          ))
-        )}
-
-        {/* Escalation after messages — proposes lawyers for the chat's topic */}
-        {messages.length > 0 && !isStreaming && (
-          <div className="mt-4">
-            <EscalationCta category={conversation.category} />
-          </div>
-        )}
+              {/* Escalation after messages — proposes lawyers for the topic. */}
+              {!isStreaming && (
+                <div className="mt-4">
+                  <EscalationCta category={conversation.category} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Jump-to-latest — shown only when the user has scrolled up while a

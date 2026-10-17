@@ -38,11 +38,16 @@ export const TEMPLATE_CATEGORIES: TemplateCategoryDescriptor[] = [
 const TYPE_CATEGORY: Record<ContractTypeId, TemplateCategory> = {
   property_rent: "property",
   property_sale: "property",
+  commercial_rent: "property",
+  commercial_sale: "property",
   vehicle_sale: "personal",
   debt: "personal",
   freelance: "personal",
   nda: "business",
   saas: "business",
+  cloud_iaas: "business",
+  cloud_paas: "business",
+  cloud_baas: "business",
   startup: "business",
   employment: "business",
 };

@@ -6,10 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversation,
   useConversations,
-  useSendMessage,
   useUpdateConversation,
   useConversationReferences,
-  useCancelAiRun,
 } from "@/hooks/useConversations";
 import { useDailyQuota } from "@/hooks/useDashboard";
 import { useDocumentDetail } from "@/hooks/useDocuments";
@@ -18,6 +16,7 @@ import { ConversationWorkspace } from "@/components/chat/conversation-workspace"
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ServiceContextCard } from "@/components/chat/service-context-card";
 import { SourceDetailDrawer } from "@/components/chat/source-detail-drawer";
+import { signalApiReachable } from "@/components/chat/connection-status";
 import { ReferencesTab } from "@/components/chat/references-tab";
 import { SourcesTab } from "@/components/chat/sources-tab";
 import { Tabs } from "@legalir/ui";
@@ -32,6 +31,17 @@ import {
   failLiveRun,
   cancelLiveRun,
 } from "@/lib/ai/pipeline/live-run";
+import {
+  createLiveTurn,
+  applyChunk,
+  applyRunId,
+  completeTurn,
+  failTurn,
+  cancelTurn,
+  mergeTurn,
+  isTurnFullyPersisted,
+  type LiveTurn,
+} from "@/lib/ai/live-turn";
 import { serviceTypeFromQuery, composerPlaceholder, type ServiceType } from "@/lib/ai/service-context";
 import { PageContextHeader } from "@/components/shared";
 import { DocumentViewer } from "@/components/documents/document-viewer";
@@ -55,16 +65,14 @@ export default function ConversationPage() {
   const { data: quota } = useDailyQuota();
 
   // Mutations
-  const sendMutation = useSendMessage();
   const updateMutation = useUpdateConversation();
   const archiveMutation = useUpdateConversation();
-  const cancelRunMutation = useCancelAiRun();
 
   // UI state
   const [isStreaming, setIsStreaming] = useState(false);
   const [runStatus, setRunStatus] = useState<AiRunStatus | null>(null);
-  const [streamingRunId, setStreamingRunId] = useState<string | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [selectedSourceQuote, setSelectedSourceQuote] = useState<string | null>(null);
   const [scrollToSectionId, setScrollToSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("chat");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -89,8 +97,18 @@ export default function ConversationPage() {
   // restored from the persisted run on load so a refresh keeps the timeline.
   const [processingRun, setProcessingRun] = useState<ProcessingRunView | null>(null);
 
+  // The live turn: the optimistic user message + the incrementally streaming
+  // assistant reply. Non-null only while a turn is in flight (or failed and
+  // awaiting a retry). It is merged with the persisted messages for rendering.
+  const [liveTurn, setLiveTurn] = useState<LiveTurn | null>(null);
+
   const handlePipelineEvent = useCallback((p: PipelineProgress) => {
     setProcessingRun((prev) => applyPipelineEvent(prev ?? createLiveRun(id), p));
+    // The backend run id is the trace id — keep it on the turn so a support
+    // engineer can follow a failure end-to-end (frontend → backend) (§8).
+    if (p.requestId) {
+      setLiveTurn((prev) => (prev ? applyRunId(prev, p.requestId) : prev));
+    }
   }, [id]);
 
   // Derive service context from the entry URL (?service= / ?category=).
@@ -186,11 +204,27 @@ export default function ConversationPage() {
     return () => abortRef.current?.();
   }, []);
 
-  // Messages from the detail response
-  const messages = useMemo(
+  // Messages from the detail response.
+  const serverMessages = useMemo(
     () => conversationDetail?.messages ?? [],
     [conversationDetail?.messages]
   );
+
+  // The merged view the workspace renders: persisted messages + the live turn
+  // (the optimistic user message and the streaming assistant reply). Once the
+  // refetch that follows `done` has persisted both halves, the live turn is
+  // dropped so nothing is ever duplicated (§3, §4).
+  const visibleMessages = useMemo(
+    () => mergeTurn(serverMessages, liveTurn),
+    [serverMessages, liveTurn]
+  );
+
+  useEffect(() => {
+    if (liveTurn && isTurnFullyPersisted(liveTurn, serverMessages)) {
+      setLiveTurn(null);
+    }
+  }, [liveTurn, serverMessages]);
+
   const convData = conversationDetail
     ? {
         id: conversationDetail.id,
@@ -203,6 +237,11 @@ export default function ConversationPage() {
         updatedAt: conversationDetail.updatedAt,
         userId: conversationDetail.userId,
       }
+    : null;
+
+  // The id of the user message the in-flight progress line should sit under.
+  const progressingMessageId = liveTurn
+    ? liveTurn.serverUserId ?? liveTurn.localUserId
     : null;
 
   const handleSendMessage = useCallback(
@@ -218,7 +257,13 @@ export default function ConversationPage() {
       // Capture the attachments for this turn, then clear the tray so the
       // next message starts empty (the refs are persisted server-side).
       const attachmentDocumentIds = attachedDocuments.map((d) => d.id);
+      const turnAttachments = attachedDocuments;
       setAttachedDocuments([]);
+
+      // The optimistic turn, shown the instant the user sends (§3).
+      setLiveTurn(
+        createLiveTurn({ conversationId: id, content, attachments: turnAttachments })
+      );
 
       const finish = (status: AiRunStatus) => {
         setIsStreaming(false);
@@ -234,8 +279,9 @@ export default function ConversationPage() {
         queryClient.invalidateQueries({ queryKey: ["points", "account"] });
       };
 
-      // Primary path: real SSE streaming through the LEGALIR AI gateway.
-      // Falls back to the existing message endpoint on any failure (§27).
+      // The real SSE path through the LEGALIR AI gateway. Everything the UI
+      // shows about this turn comes from here: real chunks, real stages, and
+      // the real persisted ids/sections/references on `done`.
       abortRef.current = streamChat(
         {
           conversationId: id,
@@ -246,16 +292,24 @@ export default function ConversationPage() {
         },
         {
           onStatus: (status) => setRunStatus(status),
-          onDone: () => {
-            setProcessingRun((prev) => (prev ? completeLiveRun(prev) : prev));
-            finish("succeeded");
+          onChunk: (chunk) => {
+            // Real incremental text — the assistant bubble grows as it arrives.
+            setLiveTurn((prev) => (prev ? applyChunk(prev, chunk) : prev));
           },
           onPipeline: handlePipelineEvent,
-          onError: async (err) => {
-            // Quota exhausted — show the countdown/upgrade modal instead of
-            // falling back to the non-streaming endpoint (which would also 429).
-            // The engine returns a structured code (daily credit vs a period
-            // service quota) plus the live usage summary.
+          onDone: (done) => {
+            setProcessingRun((prev) => (prev ? completeLiveRun(prev) : prev));
+            setLiveTurn((prev) => (prev ? completeTurn(prev, done) : prev));
+            // A completed real turn proves the chat service is reachable —
+            // update the connection indicator from this work rather than
+            // polling it (§6).
+            signalApiReachable();
+            finish("succeeded");
+          },
+          onError: (err) => {
+            // Quota exhausted — show the countdown/upgrade modal. The engine
+            // returns a structured code (daily credit vs a period service
+            // quota) plus the live usage summary.
             if (err.code === "QUOTA_EXHAUSTED" || err.usage) {
               setExhaustedCode(err.code);
               setExhaustedUsage(err.usage ?? null);
@@ -263,48 +317,50 @@ export default function ConversationPage() {
               setProcessingRun((prev) =>
                 prev ? failLiveRun(prev, err.message, false) : prev
               );
+              setLiveTurn((prev) => (prev ? failTurn(prev, err.message, false) : prev));
               finish("failed");
               return;
             }
-            try {
-              await sendMutation.mutateAsync({ conversationId: id, content });
-              setProcessingRun((prev) => (prev ? completeLiveRun(prev) : prev));
-              finish("succeeded");
-            } catch {
-              setProcessingRun((prev) =>
-                prev ? failLiveRun(prev, err.message, err.retryable) : prev
-              );
-              finish("failed");
-            }
+            // Any other failure: keep the user message, mark it failed, and
+            // offer a retry that re-sends the SAME content (§4, §9). We never
+            // fall back to a second endpoint — the SSE path is the only real
+            // one, so the UI stays honest about the state.
+            setProcessingRun((prev) =>
+              prev ? failLiveRun(prev, err.message, err.retryable) : prev
+            );
+            setLiveTurn((prev) =>
+              prev ? failTurn(prev, err.message, err.retryable) : prev
+            );
+            finish("failed");
           },
         }
       );
     },
-    [id, isStreaming, serviceType, attachedDocuments, sendMutation, queryClient, handlePipelineEvent]
+    [id, isStreaming, serviceType, attachedDocuments, queryClient, handlePipelineEvent]
   );
 
   const handleStopGeneration = useCallback(() => {
+    // Aborting the fetch signals the backend to record the cancellation
+    // (cancelRun). The partial reply received so far is kept (§4).
     abortRef.current?.();
     abortRef.current = null;
-    if (streamingRunId) {
-      cancelRunMutation.mutate(streamingRunId);
-    }
     setProcessingRun((prev) => (prev ? cancelLiveRun(prev) : prev));
-    setRunStatus("failed");
+    setLiveTurn((prev) => (prev ? cancelTurn(prev) : prev));
+    setRunStatus("succeeded");
     setIsStreaming(false);
-    setStreamingRunId(null);
-  }, [streamingRunId, cancelRunMutation]);
+  }, []);
 
-  const handleRetry = useCallback(
-    async (messageId: string) => {
-      if (!id) return;
-      // Re-send the last user message through the streaming path.
-      const lastUser = [...messages].reverse().find((m) => m.role === "user");
-      const content = lastUser?.content ?? "تلاش مجدد پاسخ";
-      void messageId;
-      await handleSendMessage(content);
+  // Retry the failed user message by re-sending its exact content (§9).
+  const handleRetryMessage = useCallback(
+    (messageId: string) => {
+      const failed = visibleMessages.find((m) => m.id === messageId);
+      if (!failed || failed.role !== "user") return;
+      // Clear the failed live turn first so a fresh one is created with the
+      // same content — never two bubbles for the same message.
+      setLiveTurn(null);
+      void handleSendMessage(failed.content);
     },
-    [id, messages, handleSendMessage]
+    [visibleMessages, handleSendMessage]
   );
 
   const handleRename = useCallback(
@@ -315,6 +371,7 @@ export default function ConversationPage() {
   );
 
   const handleCitationClick = useCallback((ref: V1Reference) => {
+    setSelectedSourceQuote(ref.quote ?? null);
     setSelectedSourceId(ref.sourceId);
   }, []);
 
@@ -370,7 +427,7 @@ export default function ConversationPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-pulse space-y-4 p-8">
               <div className="h-8 bg-surfaceVariant rounded-medium w-48" />
-              <div className="h-4 bg-surfaceVariant rounded-small w-96" />
+              <div className="h-4 bg-surfaceVariant rounded-medium w-96" />
             </div>
           </div>
         ) : !convData ? (
@@ -379,7 +436,7 @@ export default function ConversationPage() {
           </div>
         ) : (
           <>
-            {/* Service context card (§21) */}
+            {/* Service context — a slim one-line strip, not a heavy card (§2) */}
             <div className="shrink-0 px-4 pt-3">
               <ServiceContextCard serviceType={serviceType} compact />
             </div>
@@ -396,14 +453,11 @@ export default function ConversationPage() {
                   /* Minimized floating restore button */
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
-                      <p className="text-body-2 text-muted mb-4">گفتگو جمع شده است</p>
+                      <p className="text-bodyMedium text-muted mb-4">گفتگو جمع شده است</p>
                       <button
                         onClick={() => setIsMinimized(false)}
-                        className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-6 py-3 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98] shadow-md"
+                        className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-on px-6 py-3 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98] shadow-md"
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
                         بازکردن گفتگو
                       </button>
                     </div>
@@ -411,12 +465,12 @@ export default function ConversationPage() {
                 ) : (
                   <ConversationWorkspace
                     conversation={convData}
-                    messages={messages}
+                    messages={visibleMessages}
                     isStreaming={isStreaming}
                     runStatus={runStatus}
                     onSendMessage={handleSendMessage}
                     onStopGeneration={handleStopGeneration}
-                    onRetry={handleRetry}
+                    onRetryMessage={handleRetryMessage}
                     onRename={handleRename}
                     onCitationClick={handleCitationClick}
                     scrollToSectionId={scrollToSectionId}
@@ -427,7 +481,12 @@ export default function ConversationPage() {
                     onMinimize={() => setIsMinimized(true)}
                     onClose={() => router.push("/chat")}
                     processingRun={processingRun}
-                    onPipelineRetry={() => handleRetry("")}
+                    progressingMessageId={progressingMessageId}
+                    onPipelineRetry={() => {
+                      if (liveTurn && liveTurn.retryable) {
+                        handleRetryMessage(liveTurn.serverUserId ?? liveTurn.localUserId);
+                      }
+                    }}
                     composerPlaceholder={composerPlaceholder(serviceType)}
                     attachedDocuments={attachedDocuments}
                     onAttachedDocumentsChange={setAttachedDocuments}
@@ -457,7 +516,10 @@ export default function ConversationPage() {
                 <SourcesTab
                   references={references}
                   isLoading={detailLoading}
-                  onSourceClick={(sourceId) => setSelectedSourceId(sourceId)}
+                  onSourceClick={(sourceId) => {
+                    setSelectedSourceQuote(null);
+                    setSelectedSourceId(sourceId);
+                  }}
                 />
               </div>
             )}
@@ -468,7 +530,11 @@ export default function ConversationPage() {
       {/* Source Detail Drawer */}
       <SourceDetailDrawer
         sourceId={selectedSourceId}
-        onClose={() => setSelectedSourceId(null)}
+        highlightQuote={selectedSourceQuote}
+        onClose={() => {
+          setSelectedSourceId(null);
+          setSelectedSourceQuote(null);
+        }}
       />
 
       {/* Attached-document viewer — reuses the existing DocumentViewer. */}

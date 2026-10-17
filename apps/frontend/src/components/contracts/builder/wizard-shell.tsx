@@ -2,84 +2,25 @@
 // LEGALIR — Contract Builder wizard shell
 // ============================================================
 // The frame around every step: a progress header driven by REAL
-// field completeness, a step rail, the active step body, and a
-// sticky footer with back/next. The shell knows nothing about any
-// specific contract type — it reads the step list from the registry
-// and renders whatever the step registry maps to.
+// field completeness, the section status row (which is also the
+// navigation surface), the active step body, and a sticky footer
+// whose primary action follows the real status. The shell knows
+// nothing about any specific contract type — it reads the step list
+// from the registry and renders whatever the step registry maps to.
 // ============================================================
 
 "use client";
 
 import React, { useMemo } from "react";
 import { Button, snackbar } from "@legalir/ui";
-import { IconArrowBack, IconArrowForward, IconCheck } from "@/lib/icons";
+import { IconArrowBack, IconArrowForward } from "@/lib/icons";
 import { useWizard, WizardProvider } from "./wizard-context";
 import { stepComponentFor } from "./steps";
 import { ContractWorkspaceHeader } from "./contract-workspace-header";
+import { buildSectionSummary, SectionsSummary } from "./sections-summary";
 import type { ContractCompleteness, PropertyContractDetail } from "@legalir/types";
 import { PROPERTY_CONTRACT_STATE_LABELS } from "@legalir/types";
 import { getContractDefinition } from "@/lib/contracts/registry";
-
-// ------------------------------------------------------------
-// Step rail
-// ------------------------------------------------------------
-
-function StepRail() {
-  const { contract, stepId, stepIndex, goToStep, completeness } = useWizard();
-  const def = useMemo(() => getContractDefinition(contract.type), [contract.type]);
-
-  /** A step is "done" when every section it owns is complete. */
-  const stepDone = (id: string): boolean => {
-    const step = def.wizardSteps.find((s) => s.id === id);
-    if (!step || step.sections.length === 0) return false;
-    return step.sections.every((key) => {
-      const section = completeness.sections.find((s) => s.key === key);
-      return section ? section.percent === 100 : false;
-    });
-  };
-
-  return (
-    <nav aria-label="مراحل قرارداد" className="space-y-1">
-      {def.wizardSteps.map((step, i) => {
-        const active = step.id === stepId;
-        const done = stepDone(step.id);
-        const reachable = i <= stepIndex || done;
-        return (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => reachable && goToStep(step.id)}
-            disabled={!reachable}
-            aria-current={active ? "step" : undefined}
-            className={`w-full text-right rounded-medium px-3 py-2.5 flex items-start gap-3 transition-colors ${
-              active
-                ? "bg-primary-container text-primary-on-container"
-                : reachable
-                  ? "hover:bg-surface-container text-on-surface"
-                  : "text-muted cursor-not-allowed"
-            }`}
-          >
-            <span
-              className={`mt-0.5 shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-labelSmall ${
-                done
-                  ? "bg-success text-on-success"
-                  : active
-                    ? "bg-primary text-primary-on"
-                    : "bg-surface-container-high text-muted"
-              }`}
-            >
-              {done ? <IconCheck className="w-3.5 h-3.5" /> : i + 1}
-            </span>
-            <span className="min-w-0">
-              <span className="block text-body-2">{step.titleFa}</span>
-              <span className="block text-caption text-muted truncate">{step.descriptionFa}</span>
-            </span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
 
 // ------------------------------------------------------------
 // Body
@@ -91,6 +32,7 @@ function WizardBody() {
     stepId,
     stepIndex,
     stepCount,
+    goToStep,
     goNext,
     goPrev,
     canGoNext,
@@ -102,10 +44,22 @@ function WizardBody() {
     saveStatus,
     lastSavedAt,
     saveNow,
+    advanceBlockedReason,
+    clearAdvanceBlocked,
   } = useWizard();
   const def = useMemo(() => getContractDefinition(contract.type), [contract.type]);
   const step = def.wizardSteps.find((s) => s.id === stepId) ?? def.wizardSteps[0]!;
   const StepComponent = stepComponentFor(contract.type, step.id);
+
+  // The summary row is the page's answer to "what is still missing?" —
+  // built from the same server-computed completeness the header shows.
+  const summaryItems = useMemo(
+    () => buildSectionSummary(def.wizardSteps, completeness.sections),
+    [def.wizardSteps, completeness.sections]
+  );
+  const firstOpenStep = summaryItems.find(
+    (item) => item.state !== "complete" && item.state !== "review"
+  );
 
   const handleCopyId = () => {
     void navigator.clipboard?.writeText(contract.referenceCode).then(
@@ -132,18 +86,20 @@ function WizardBody() {
         onCopyId={handleCopyId}
       />
 
-      <div className="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 desktop:grid-cols-[260px_1fr] gap-5">
-        {/* Rail — desktop only. Its sticky offset tracks the real height of
-            the contract header (published as `--contract-header-h` by
-            `ContractWorkspaceHeader`), so it never hides under the header
-            when the header's content wraps. */}
-        <aside className="hidden desktop:block">
-          <div className="sticky top-[calc(var(--contract-header-h,128px)+1rem)] rounded-large bg-surface border border-divider p-2">
-            <StepRail />
-          </div>
-        </aside>
+      {/* Section status, one row — the page's primary orientation aid.
+          Selecting a card navigates to the step that owns it. */}
+      <div className="max-w-6xl mx-auto px-4 pt-4">
+        <SectionsSummary
+          items={summaryItems}
+          currentStepId={stepId}
+          onSelect={goToStep}
+        />
+      </div>
 
-        {/* Step body */}
+      <div className="max-w-6xl mx-auto px-4 py-5">
+        {/* Step body. The section summary above is the single navigation
+            surface — a duplicate desktop rail only split the user's
+            attention between two lists of the same steps. */}
         <main className="min-w-0 space-y-4 pb-28 desktop:pb-6">
           <div>
             <p className="text-caption text-muted">
@@ -156,6 +112,22 @@ function WizardBody() {
           {!editable && (
             <div className="rounded-medium border border-warning bg-warning-container px-3 py-2.5 text-body-2">
               این قرارداد در وضعیت فعلی قابل ویرایش نیست. برای تغییر محتوا ابتدا از طرف مقابل درخواست اصلاح کنید.
+            </div>
+          )}
+
+          {advanceBlockedReason && (
+            <div
+              role="alert"
+              className="rounded-medium border border-error bg-error-container px-3 py-2.5 text-body-2 flex items-start justify-between gap-3"
+            >
+              <span>{advanceBlockedReason}</span>
+              <button
+                type="button"
+                onClick={clearAdvanceBlocked}
+                className="text-caption underline shrink-0"
+              >
+                بستن
+              </button>
             </div>
           )}
 
@@ -172,21 +144,36 @@ function WizardBody() {
       {/* Sticky footer nav */}
       <div className="fixed bottom-0 inset-x-0 z-20 bg-surface border-t border-divider desktop:static desktop:bg-transparent desktop:border-0">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          {/* Icons are semantic (back / forward) and mirrored under RTL, so
+              the arrow always points the way the step actually moves. */}
           <Button
             variant="outlined"
             onClick={goPrev}
             disabled={!canGoPrev}
-            startIcon={<IconArrowForward className="w-4 h-4" />}
+            startIcon={<IconArrowBack className="h-4 w-4" />}
           >
             مرحله قبل
           </Button>
-          <Button
-            onClick={goNext}
-            disabled={!canGoNext}
-            endIcon={<IconArrowBack className="w-4 h-4" />}
-          >
-            {canGoNext ? "مرحله بعد" : "پایان مراحل"}
-          </Button>
+          {canGoNext ? (
+            <Button onClick={goNext} endIcon={<IconArrowForward className="h-4 w-4" />}>
+              مرحله بعد
+            </Button>
+          ) : (
+            /* On the last step the primary action acts on the REAL status:
+               it takes the user to the first section that still blocks
+               readiness, and only reads as done when nothing blocks. */
+            <Button
+              onClick={() => firstOpenStep && goToStep(firstOpenStep.stepId)}
+              disabled={!firstOpenStep}
+              endIcon={
+                firstOpenStep ? <IconArrowBack className="w-4 h-4" /> : undefined
+              }
+            >
+              {firstOpenStep
+                ? `تکمیل «${firstOpenStep.titleFa}»`
+                : "همهٔ بخش‌ها تکمیل شده"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

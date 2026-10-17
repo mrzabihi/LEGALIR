@@ -18,7 +18,7 @@ import {
   fetchSubscriptionHistory,
   fetchProfileUsage,
 } from "@/lib/api/v1";
-import type { V1MemoryUpdateRequest } from "@legalir/types";
+import type { V1MemoryListResponse, V1MemoryUpdateRequest } from "@legalir/types";
 
 // ============================================================
 // useHistory
@@ -126,7 +126,26 @@ export function useUpdateMemory() {
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string } & V1MemoryUpdateRequest) =>
       updateMemory(id, data),
-    onSuccess: () => {
+    // Optimistic: the switch flips in the same frame as the tap. The server
+    // response then reconciles the whole list with the authoritative record.
+    onMutate: async ({ id, ...data }) => {
+      await queryClient.cancelQueries({ queryKey: ["memories"] });
+      const previous = queryClient.getQueryData<V1MemoryListResponse>(["memories"]);
+      if (previous) {
+        queryClient.setQueryData<V1MemoryListResponse>(["memories"], {
+          ...previous,
+          items: previous.items.map((item) =>
+            item.id === id ? { ...item, ...data } : item
+          ),
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Failure → snap the row back to the last server truth.
+      if (context?.previous) queryClient.setQueryData(["memories"], context.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["memories"] });
     },
   });
@@ -171,6 +190,63 @@ export function useUpdatePreferences() {
     mutationFn: updatePreferences,
     onSuccess: (data) => {
       queryClient.setQueryData(["preferences"], data);
+      queryClient.setQueryData(["settings", "privacy"], data.privacy);
+    },
+  });
+}
+
+// ============================================================
+// useUpdateMemoryEnabled — the global "حافظه" switch
+// ============================================================
+// `GET /api/v1/memories` reports `memoryEnabled` as a DERIVED value:
+// `prefs.privacy.storeConversationHistory`. The switch therefore writes
+// that privacy key — never a parallel field.
+//
+// The optimistic patch touches every cache that mirrors the flag
+// (`["memories"]`, `["settings","privacy"]`, `["preferences"]`) so the
+// memory page, the privacy page and anything else reading the same data
+// flip in the same frame. On failure all of them snap back.
+
+type PrivacyCache = { storeConversationHistory?: boolean } & Record<string, unknown>;
+
+export function useUpdateMemoryEnabled() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      updatePreferences({ privacy: { storeConversationHistory: enabled } }),
+    onMutate: async (enabled) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["memories"] }),
+        queryClient.cancelQueries({ queryKey: ["settings", "privacy"] }),
+        queryClient.cancelQueries({ queryKey: ["preferences"] }),
+      ]);
+      const previous = {
+        memories: queryClient.getQueryData<V1MemoryListResponse>(["memories"]),
+        privacy: queryClient.getQueryData<PrivacyCache>(["settings", "privacy"]),
+        preferences: queryClient.getQueryData(["preferences"]),
+      };
+      queryClient.setQueryData<V1MemoryListResponse | undefined>(
+        ["memories"],
+        (old) => (old ? { ...old, memoryEnabled: enabled } : old)
+      );
+      queryClient.setQueryData<PrivacyCache | undefined>(
+        ["settings", "privacy"],
+        (old) => (old ? { ...old, storeConversationHistory: enabled } : old)
+      );
+      return previous;
+    },
+    onError: (_err, _enabled, context) => {
+      if (context?.memories) queryClient.setQueryData(["memories"], context.memories);
+      if (context?.privacy)
+        queryClient.setQueryData(["settings", "privacy"], context.privacy);
+      if (context?.preferences)
+        queryClient.setQueryData(["preferences"], context.preferences);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["preferences"], data);
+      queryClient.setQueryData(["settings", "privacy"], data.privacy);
+      queryClient.invalidateQueries({ queryKey: ["memories"] });
     },
   });
 }

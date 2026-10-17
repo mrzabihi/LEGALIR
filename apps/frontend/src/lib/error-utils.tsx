@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { ReactNode } from "react";
+import { Button } from "@legalir/ui";
 
 // --- Error display card ---
 
@@ -32,12 +33,9 @@ export function ErrorDisplay({
         <p className="text-body-2 text-muted mb-6">{message}</p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {onRetry && (
-            <button
-              onClick={onRetry}
-              className="rounded-medium bg-primary px-6 py-3 text-primary-on font-button hover:opacity-90 transition-opacity touch-target"
-            >
+            <Button onClick={onRetry}>
               تلاش مجدد
-            </button>
+            </Button>
           )}
           {children}
         </div>
@@ -64,12 +62,9 @@ export function EmptyState({ icon = " ", title, description, action }: EmptyStat
       <h3 className="text-h3 text-on-surface">{title}</h3>
       <p className="text-body-2 text-muted max-w-sm">{description}</p>
       {action && (
-        <button
-          onClick={action.onClick}
-          className="rounded-medium bg-primary px-6 py-3 text-primary-on font-button hover:opacity-90 transition-opacity touch-target mt-2"
-        >
+        <Button onClick={action.onClick} className="mt-2">
           {action.label}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Drawer,
   Switch,
+  SwitchRow,
   ConfirmDialog,
   snackbar,
 } from "@legalir/ui";
@@ -443,13 +444,13 @@ function RuleDialog({
           </Field>
         </div>
 
-        <label className="flex items-center justify-between rounded-medium border border-divider px-3 py-2">
-          <span className="text-body-2 text-on-surface-variant">قاعده فعال باشد</span>
-          <Switch
+        <div className="rounded-medium border border-divider px-3 py-1.5">
+          <SwitchRow
+            label="قاعده فعال باشد"
             checked={draft.enabled}
             onChange={(e) => setDraft((d) => ({ ...d, enabled: e.target.checked }))}
           />
-        </label>
+        </div>
 
         {error && <InfoBanner tone="warning">{error}</InfoBanner>}
 
@@ -597,16 +598,20 @@ function ProfileDrawer({
                   <TextInput dir="ltr" value={draft.serviceKey} disabled />
                 </Field>
               </div>
-              <label className="flex items-center justify-between rounded-medium border border-divider px-3 py-2">
-                <span className="text-body-2 text-on-surface-variant">
-                  اعمال این مدل هزینه (فعال)
-                </span>
-                <Switch
+              <div className="rounded-medium border border-divider px-3 py-1.5">
+                <SwitchRow
+                  label="اعمال این مدل هزینه"
+                  description="وقتی غیرفعال باشد، این مدل هزینه در محاسبهٔ انرژی لحاظ نمی‌شود."
                   checked={draft.enabled}
                   disabled={!canManage}
-                  onChange={(e) => setDraft((d) => (d ? { ...d, enabled: e.target.checked } : d))}
+                  disabledReason={
+                    !canManage ? "برای تغییر به مجوز مدیریت هزینه نیاز دارید." : undefined
+                  }
+                  onChange={(e) =>
+                    setDraft((d) => (d ? { ...d, enabled: e.target.checked } : d))
+                  }
                 />
-              </label>
+              </div>
             </div>
 
             <SectionRow title="هزینهٔ پایه و توکن‌ها">
@@ -1017,6 +1022,12 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
                       <Switch
                         checked={p.enabled}
                         disabled={!canManage}
+                        disabledReason={
+                          !canManage
+                            ? "برای تغییر به مجوز مدیریت هزینه نیاز دارید."
+                            : undefined
+                        }
+                        aria-label={`فعال بودن مدل هزینهٔ ${p.nameFa}`}
                         onChange={(e) => toggleEnabled(p, e.target.checked)}
                       />
                     </Td>

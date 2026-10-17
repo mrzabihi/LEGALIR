@@ -208,6 +208,25 @@ export function formatIsoJalaliShort(iso: string | null | undefined): string {
   return `${toFa(parts.jy)}/${toFa(String(parts.jm).padStart(2, "0"))}/${toFa(String(parts.jd).padStart(2, "0"))}`;
 }
 
+/**
+ * Format a full ISO timestamp as Jalali date + local time, e.g.
+ * «۱۴ شهریور ۱۴۰۵، ساعت ۰۹:۴۲». Used wherever an audit-like record
+ * (a comment, an event) must show exactly WHEN it happened — a bare
+ * date would make two comments on the same day look simultaneous.
+ * Returns "—" for an unparseable value.
+ */
+export function formatIsoJalaliDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  // Jalali conversion needs the LOCAL calendar date of that instant.
+  const parts = isoToJalali(toIsoDate(parsed));
+  if (!parts) return "—";
+  const hh = String(parsed.getHours()).padStart(2, "0");
+  const mm = String(parsed.getMinutes()).padStart(2, "0");
+  return `${formatJalaliParts(parts)}، ساعت ${toFa(hh)}:${toFa(mm)}`;
+}
+
 /** Whole months between two ISO dates (start → end), or null. */
 export function monthsBetween(startIso: string | null, endIso: string | null): number | null {
   const start = parseIsoDate(startIso);

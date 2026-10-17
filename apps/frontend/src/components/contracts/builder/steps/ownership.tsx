@@ -42,10 +42,15 @@ const LEGAL_ANSWERS: { value: LegalStatusAnswer; label: string }[] = [
   { value: "unknown", label: "نامشخص" },
 ];
 
+const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
+
 export function OwnershipStep() {
-  const { contract, data, patchData } = useWizard();
+  const { contract, data, patchData, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertyData;
   const isSale = contract.type === "property_sale";
+  // Errors appear only after an advance attempt was blocked, so a fresh
+  // draft is not covered in red before the user has typed anything.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setDeed = (patch: Partial<typeof d.deed>) => patchData({ deed: { ...d.deed, ...patch } });
 
@@ -68,6 +73,8 @@ export function OwnershipStep() {
             value={d.deed.deedType}
             onChange={(v) => setDeed({ deedType: v })}
             options={DEED_TYPES}
+            required
+            errorText={showErrors && !d.deed.deedType ? REQUIRED_ERROR : undefined}
           />
           <Field
             label="شماره سند"
@@ -115,6 +122,8 @@ export function OwnershipStep() {
             label="نام مالک در سند"
             value={d.deed.ownerName}
             onChange={(v) => setDeed({ ownerName: v })}
+            required
+            errorText={showErrors && !d.deed.ownerName.trim() ? REQUIRED_ERROR : undefined}
           />
         </FieldGrid>
         <DateField
@@ -135,6 +144,10 @@ export function OwnershipStep() {
               value={sale.legalStatus.inMortgage}
               onChange={(v) => setLegal({ inMortgage: v })}
               options={LEGAL_ANSWERS}
+              required
+              errorText={
+                showErrors && !sale.legalStatus.inMortgage ? REQUIRED_ERROR : undefined
+              }
             />
             {sale.legalStatus.inMortgage === "yes" && (
               <Field
@@ -150,6 +163,8 @@ export function OwnershipStep() {
               value={sale.legalStatus.seized}
               onChange={(v) => setLegal({ seized: v })}
               options={LEGAL_ANSWERS}
+              required
+              errorText={showErrors && !sale.legalStatus.seized ? REQUIRED_ERROR : undefined}
             />
 
             <ChoiceField
@@ -157,6 +172,8 @@ export function OwnershipStep() {
               value={sale.legalStatus.hasLoan}
               onChange={(v) => setLegal({ hasLoan: v })}
               options={LEGAL_ANSWERS}
+              required
+              errorText={showErrors && !sale.legalStatus.hasLoan ? REQUIRED_ERROR : undefined}
             />
             {sale.legalStatus.hasLoan === "yes" && (
               <Field
@@ -172,6 +189,10 @@ export function OwnershipStep() {
               value={sale.legalStatus.occupiedByTenant}
               onChange={(v) => setLegal({ occupiedByTenant: v })}
               options={LEGAL_ANSWERS}
+              required
+              errorText={
+                showErrors && !sale.legalStatus.occupiedByTenant ? REQUIRED_ERROR : undefined
+              }
             />
             {sale.legalStatus.occupiedByTenant === "yes" && (
               <DateField

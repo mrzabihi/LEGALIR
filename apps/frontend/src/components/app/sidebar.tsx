@@ -15,6 +15,8 @@ import { useMe } from "@/hooks/useDashboard";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { useAuthStore } from "@/stores/auth-store";
 import { SubscriptionStatusBadge } from "@/components/subscription/subscription-status";
+import { CreateActionSheet } from "./create-action-sheet";
+import { useCreateAction } from "./use-create-action";
 import {
   IconHome,
   IconServices,
@@ -78,6 +80,11 @@ export function Sidebar({ userRole }: SidebarProps) {
   const { data: meData } = useMe();
   const session = useAuthStore((s) => s.session);
 
+  // «ساخت جدید» is a verb, not a route: tapping it lands on /new (the full
+  // launcher) and then raises the create sheet — the same flow as the centre
+  // button of the mobile/PWA bar. It lives in the shared `useCreateAction`.
+  const { open: createOpen, toggle: openCreate, close: closeCreate } = useCreateAction();
+
   // The lawyer workspace is only meaningful for LAWYER accounts, so it is
   // injected here rather than in the shared route registry (which has no
   // notion of the platform role).
@@ -117,6 +124,43 @@ export function Sidebar({ userRole }: SidebarProps) {
         {desktopItems.map((item) => {
           const isActive = pathname === item.path
             || (item.path !== "/dashboard" && pathname.startsWith(item.path + "/"));
+
+          // «ساخت جدید» opens the create flow (navigate to /new, then raise the
+          // sheet) rather than navigating to a page of its own. It still reads
+          // as the current page when the user is sitting on /new.
+          if (item.path === "/new") {
+            const createActive = pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                type="button"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  openCreate();
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={createOpen}
+                aria-controls="create-action-sheet"
+                aria-current={createActive ? "page" : undefined}
+                className={[
+                  "group flex w-full items-center gap-3 px-4 py-3 rounded-xl text-body-2 text-start",
+                  "transition-all duration-short4 ease-standard",
+                  "min-h-[48px] select-none relative overflow-hidden",
+                  createActive
+                    ? "bg-glass-state-strong text-glass-ivory font-semibold"
+                    : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-gold)]",
+                ].join(" ")}
+              >
+                {createActive && (
+                  <span className="absolute end-1 top-3 bottom-3 w-0.5 rounded-full bg-[var(--sidebar-active-mark)]" aria-hidden="true" />
+                )}
+                <NavIcon icon={item.icon} isActive={createActive} />
+                <span className="truncate">{item.titleFa}</span>
+              </button>
+            );
+          }
+
           return (
             <Link
               key={item.path}
@@ -141,6 +185,9 @@ export function Sidebar({ userRole }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* The shared «ساخت جدید» quick-action panel (portals to <body>). */}
+      <CreateActionSheet open={createOpen} onClose={closeCreate} />
 
       {/* Footer: Profile + Subscription cards (side by side) */}
       <div className="px-3 py-3 border-t border-glass-border">

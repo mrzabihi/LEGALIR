@@ -189,7 +189,9 @@ export function AnnouncementPanel() {
           </div>
 
           {error && (
-            <p className="mt-3 text-caption text-error-600 dark:text-error-400">{error}</p>
+            <p role="alert" className="mt-3 text-caption text-error-700">
+              {error}
+            </p>
           )}
 
           <div className="mt-4 flex items-center justify-end gap-2">

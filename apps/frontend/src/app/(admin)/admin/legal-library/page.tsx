@@ -15,7 +15,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Drawer, ConfirmDialog, snackbar } from "@legalir/ui";
+import { Drawer, ConfirmDialog, Switch, snackbar } from "@legalir/ui";
 import {
   useAdminLegalLibrary,
   useCreateLegalSource,
@@ -391,22 +391,18 @@ function SourceEditor({
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-body-2 text-on-surface-variant">
-          <input
-            type="checkbox"
-            checked={form.featured}
-            onChange={(e) => patch("featured", e.target.checked)}
-          />
-          منبع شاخص
-        </label>
-        <label className="flex items-center gap-2 text-body-2 text-on-surface-variant">
-          <input
-            type="checkbox"
-            checked={form.popular}
-            onChange={(e) => patch("popular", e.target.checked)}
-          />
-          پربازدید
-        </label>
+        <Switch
+          checked={form.featured}
+          onChange={(e) => patch("featured", e.target.checked)}
+          label="منبع شاخص"
+          tone="selection"
+        />
+        <Switch
+          checked={form.popular}
+          onChange={(e) => patch("popular", e.target.checked)}
+          label="پربازدید"
+          tone="selection"
+        />
         <label className="flex items-center gap-2 text-body-2 text-on-surface-variant">
           وضعیت
           <Select

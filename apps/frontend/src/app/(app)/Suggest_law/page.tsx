@@ -6,19 +6,17 @@
 // and which REAL, currently-enabled routes it can offer — then lets the user
 // correct the understanding or pick a path.
 //
-// Design rules it follows (see the intake task §3–§5):
+// It is the CLIENT half of the discovery flow. The understanding is produced
+// by the server engine (`POST /api/v1/intake/analyze`) and persisted as a real
+// DRAFT `LegalRequest` (via `useDiscoveryFlow`), so:
+//   • the flow is resumable and visible in the user's history / the admin panel;
+//   • the description is never lost — the server degrades to a deterministic
+//     rules analysis whenever the model is off/unavailable/invalid, and while
+//     that call is in flight the client shows an instant, deterministic hint;
 //   • the summary separates what the USER stated from what the SYSTEM inferred,
 //     and is correctable in place (no silent data loss);
-//   • the main suggestion is offered ONLY when its backing capability is really
-//     enabled for this user (measured against the admin-managed flag engine via
-//     `useCapabilities`) — a service switched off in /admin/services is never
-//     shown as a dead button;
-//   • alternatives are limited to real, enabled routes;
-//   • the step guide reflects the chosen capability
-//     (ثبت مسئله ← انتخاب مسیر ← انجام خدمت);
-//   • it fabricates NOTHING: no legal answer, no article, no route. It only
-//     points at existing flows and carries the request through the SAME
-//     params/drafts those flows already understand.
+//   • nothing is fabricated: every path is a real, capability-enabled route,
+//     and the page points at existing flows only — no legal answer, no article.
 //
 // The request itself is handed over from /new through a guarded localStorage
 // draft (never a query string), so a description or document name can never
@@ -27,23 +25,23 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { SelectableOption, Textarea, Button } from "@legalir/ui";
 import { useCapabilities, capabilityEnabled } from "@/hooks/useCapabilities";
 import { useDailyQuota } from "@/hooks/useDashboard";
+import { useDiscoveryFlow, type DiscoverySaveState } from "@/hooks/useDiscovery";
 import { getServiceContext } from "@/lib/ai/service-context";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { cardsBySlugs } from "@/lib/calculators/catalog";
 import {
   IconArrowBack,
   IconCalculator,
   IconChat,
   IconCheck,
   IconEdit,
-  IconFile,
-  IconFilePen,
   IconFileSearch,
+  IconFilePen,
+  IconFile,
   IconGavel,
   IconHandshake,
   IconInfo,
@@ -53,24 +51,16 @@ import {
 import {
   INTAKE_CATEGORY_CHOICES,
   INTAKE_INTENT_OPTIONS,
-  INTENT_FLAG_KEY,
   buildConsultationDraft,
-  buildSuggestLawDraft,
   categoryLabel,
   describeDestination,
   destinationHref,
-  needsClarification,
-  offeredIntents,
-  readSuggestLawDraft,
   resolveDestination,
-  suggestCategorySlug,
-  suggestIntents,
   writeConsultationDraft,
-  writeSuggestLawDraft,
   type IntakeDestination,
   type IntakeIntent,
-  type SuggestLawDraft,
 } from "@/lib/intake/start-request";
+import type { LegalRequestDiscoveryPath } from "@legalir/types";
 import type { IconComponent } from "@/lib/services/catalog";
 
 // ---------------------------------------------------------------------------
@@ -84,22 +74,6 @@ const INTENT_ICON: Record<IntakeIntent, IconComponent> = {
   calculation: IconCalculator,
   next_step: IconGavel,
   lawyer: IconHandshake,
-};
-
-/** Why this route fits the request — a routing rationale, not legal advice. */
-const INTENT_WHY_FA: Record<IntakeIntent, string> = {
-  legal_question:
-    "شرح شما یک پرسش حقوقی است؛ در گفت‌وگو می‌توانی پاسخ مستند بگیری و پرسش‌های بعدی را ادامه دهی.",
-  document_review:
-    "نوشتهٔ شما به بررسی یک سند یا قرارداد اشاره دارد؛ تحلیل سند بندها و ریسک‌ها را نشان می‌دهد.",
-  draft_document:
-    "می‌خواهی سندی تنظیم یا ویرایش شود؛ پرسش‌نامهٔ تنظیم سند پیش‌نویس رسمی می‌سازد.",
-  calculation:
-    "در متن تو نشانهٔ یک محاسبهٔ حقوقی دیده می‌شود؛ محاسبه‌گر عدد را همراه با مبنای قانونی می‌دهد.",
-  next_step:
-    "به دنبال قدم بعدی هستی؛ فهرست درخواست‌ها و پرونده‌های بازت کارهای ناتمام را نشان می‌دهد.",
-  lawyer:
-    "موضوع به کمک یک وکیل انسانی اشاره دارد؛ می‌توانی درخواست مشاوره ثبت کنی و وکیل انتخاب کنی.",
 };
 
 /** What the destination needs from the user before it can run. */
@@ -134,91 +108,84 @@ function intentTitle(intent: IntakeIntent): string {
   return INTAKE_INTENT_OPTIONS.find((o) => o.id === intent)?.titleFa ?? "مسیر پیشنهادی";
 }
 
-/**
- * The real title of the destination, resolving the SPECIFIC calculator when we
- * have a slug (so «محاسبهٔ دیه» is named, not a generic box). Never invents one.
- */
-function destTitle(dest: IntakeDestination): string {
-  if (dest.kind === "calculator" && dest.slug) {
-    const card = cardsBySlugs([dest.slug])[0];
-    if (card) return card.title;
-  }
-  return describeDestination(dest).titleFa;
-}
-
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
-
-type DraftInit = SuggestLawDraft | null | undefined; // undefined = not read yet
 
 export default function SuggestLawPage() {
   const router = useRouter();
   const caps = useCapabilities();
   const { data: quota } = useDailyQuota();
 
-  const [draft, setDraft] = useState<DraftInit>(undefined);
-  // Editable mirrors of the stated request (inline correction).
-  const [text, setText] = useState("");
-  const [intent, setIntent] = useState<IntakeIntent | null>(null);
-  const [category, setCategory] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-
-  // Read the hand-off once, after mount (client-only), and seed the editors.
-  useEffect(() => {
-    const d = readSuggestLawDraft();
-    setDraft(d);
-    if (d) {
-      setText(d.text);
-      setIntent(d.intent);
-      setCategory(d.category);
-    }
-  }, []);
-
-  const document = draft?.document ?? null;
-  const hasDoc = document !== null;
-  const seeded = draft !== undefined;
-
-  const persist = useCallback(
-    (next: { text: string; intent: IntakeIntent | null; category: string | null }) => {
-      writeSuggestLawDraft(buildSuggestLawDraft({ ...next, document }));
-    },
-    [document]
-  );
-
-  // ---- Deterministic inference (hint only) ----
-  const suggestions = useMemo(
-    () => suggestIntents(text, { hasDocument: hasDoc }),
-    [text, hasDoc]
-  );
-  const inferredCategory = useMemo(() => suggestCategorySlug(text), [text]);
-
-  // ---- Capability gating (real, admin-managed flags) ----
+  // The real, admin-managed capability gate. It feeds both the instant client
+  // hint and the "which services are offered" states below.
   const isEnabled = useCallback(
     (key: string) => capabilityEnabled(caps.data, key),
     [caps.data]
   );
-  const candidates = useMemo(
-    () => offeredIntents(intent, suggestions, isEnabled),
-    [intent, suggestions, isEnabled]
-  );
 
-  const primary = candidates[0] ?? null;
-  const alternatives = candidates.slice(1);
+  const {
+    seeded,
+    hasRequest,
+    draft,
+    text,
+    intent,
+    category,
+    documentName,
+    editing,
+    setEditing,
+    setText,
+    setIntent,
+    setCategory,
+    analysis: serverAnalysis,
+    isAnalyzing,
+    analysisError,
+    reanalyze,
+    hint,
+    requestId,
+    saveState,
+    choosePath,
+  } = useDiscoveryFlow(isEnabled);
 
-  // The user's explicit help-type is currently switched off by an operator.
-  const explicitDisabled =
-    intent !== null && caps.data !== undefined && !isEnabled(INTENT_FLAG_KEY[intent]);
+  // The full attached document (id/name/mime/size) is needed to carry the file
+  // forward to the destination via the same params those flows already accept.
+  const document = draft?.document ?? null;
+  const hasDoc = document !== null;
 
-  // ---- Navigation ----
+  // The resolved understanding: the server analysis once it lands, otherwise the
+  // instant deterministic hint. Both share the exact same shape.
+  const analysis = serverAnalysis ?? hint;
+  const paths = analysis.paths;
+  const primary = paths[0] ?? null;
+  const alternatives = paths.slice(1);
+
+  // We are still waiting for the first real answer when no path is known yet
+  // and either the analysis or the capability set is still in flight.
+  const awaitingCapabilities = caps.isLoading && !caps.data;
+  const showLoading = paths.length === 0 && (isAnalyzing || awaitingCapabilities);
+
   const goToNew = () => router.push("/new");
   const goBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
     else router.push("/new");
   };
 
+  const destFor = useCallback(
+    (i: IntakeIntent): IntakeDestination =>
+      resolveDestination({
+        intent: i,
+        text,
+        documentId: document?.id ?? null,
+        category,
+      }),
+    [text, document, category]
+  );
+
   const handleGo = useCallback(
-    (dest: IntakeDestination) => {
+    (chosenIntent: IntakeIntent, dest: IntakeDestination) => {
+      // Record the pick on the persisted draft (best-effort) so the choice is
+      // visible in history and the admin panel.
+      choosePath(chosenIntent);
       // The consultation wizard reads its OWN localStorage draft (the same key
       // the intake panel writes), so the description/area/attachment arrive
       // pre-filled without re-entry.
@@ -233,14 +200,17 @@ export default function SuggestLawPage() {
       }
       router.push(destinationHref(dest, { text, document }));
     },
-    [router, text, document]
+    [choosePath, router, text, document]
   );
+
+  const retry = useCallback(() => {
+    if (caps.isError) caps.refetch();
+    reanalyze();
+  }, [caps, reanalyze]);
 
   // ============================================================
   // Render states
   // ============================================================
-
-  const showEditor = seeded && (editing || (needsClarification(text) && !category));
 
   return (
     <div className="mx-auto max-w-3xl p-4 tablet:p-6" dir="rtl">
@@ -267,89 +237,47 @@ export default function SuggestLawPage() {
         </p>
       </div>
 
-      {draft === undefined ? (
+      {!seeded ? (
         <LoadingSkeleton />
-      ) : draft === null ? (
+      ) : !hasRequest ? (
         <NoRequestState onStart={goToNew} />
       ) : (
         <div className="space-y-5">
           {/* 1 — Summary: stated vs inferred, correctable in place. */}
           <SummaryCard
             text={text}
-            documentName={document?.name ?? null}
+            documentName={documentName}
             explicitIntent={intent}
             explicitCategory={category}
-            inferredCategory={inferredCategory}
-            topSuggestion={suggestions[0] ?? "legal_question"}
-            disabledIntentNote={explicitDisabled ? intent : null}
-            editing={showEditor}
-            onToggleEdit={() => setEditing((v) => !v)}
+            inferredCategory={analysis.inferredCategory}
+            goalFa={analysis.goalFa}
+            summaryFa={analysis.summaryFa}
+            source={analysis.source}
+            confidence={analysis.confidence}
+            needsLawyer={analysis.needsLawyer}
+            ambiguities={analysis.ambiguitiesFa}
+            editing={editing}
+            onToggleEdit={() => setEditing(!editing)}
             onEditFields={
               <EditFields
                 text={text}
                 intent={intent}
                 category={category}
-                onText={(v) => {
-                  setText(v);
-                  persist({ text: v, intent, category });
-                }}
-                onIntent={(v) => {
-                  setIntent(v);
-                  persist({ text, intent: v, category });
-                }}
-                onCategory={(v) => {
-                  setCategory(v);
-                  persist({ text, intent, category: v });
-                }}
+                onText={setText}
+                onIntent={setIntent}
+                onCategory={setCategory}
               />
             }
           />
 
-          {/* 2 — Capability-gated suggestion. */}
-          {caps.isLoading && !caps.data ? (
-            <Card>
-              <p role="status" className="flex items-center gap-2 text-bodySmall text-muted">
-                <IconRefresh size={16} className="animate-spin motion-reduce:animate-none" />
-                در حال بررسی خدمات در دسترس…
-              </p>
-            </Card>
-          ) : caps.isError ? (
-            <Card>
-              <div role="alert" className="flex items-start gap-3">
-                <IconWarning size={20} className="mt-0.5 shrink-0 text-[var(--brand-gold)]" />
-                <div className="min-w-0">
-                  <p className="text-labelLarge text-on-surface">دریافت وضعیت خدمات ممکن نشد</p>
-                  <p className="mt-1 text-bodySmall text-muted">
-                    نتوانستیم خدمات در دسترس را بررسی کنیم؛ بنابراین برای پرهیز از نمایش مسیر نادرست،
-                    پیشنهادی نشان نمی‌دهیم. می‌توانی دوباره تلاش کنی.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => caps.refetch()}
-                    disabled={caps.isFetching}
-                    className="mt-3 inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 disabled:opacity-50 touch-target"
-                  >
-                    <IconRefresh
-                      size={16}
-                      className={caps.isFetching ? "animate-spin motion-reduce:animate-none" : undefined}
-                    />
-                    تلاش دوباره
-                  </button>
-                </div>
-              </div>
-            </Card>
-          ) : primary === null ? (
-            <ServiceUnavailableState onGoNew={goToNew} />
-          ) : (
-            <>
-              <PrimarySuggestion
-                intent={primary}
-                dest={resolveDestination({
-                  intent: primary,
-                  text,
-                  documentId: document?.id ?? null,
-                  category,
-                })}
+          {/* 2 — Capability-gated, server-analysed suggestion. */}
+          {primary ? (
+            <section className="space-y-4">
+              <StepGuide active={2} action={STEP_ACTION_FA[primary.intent as IntakeIntent]} />
+
+              <PrimaryPathCard
+                path={primary}
+                dest={destFor(primary.intent as IntakeIntent)}
                 hasDoc={hasDoc}
                 quota={quota}
                 onGo={handleGo}
@@ -357,23 +285,35 @@ export default function SuggestLawPage() {
 
               {alternatives.length > 0 && (
                 <Alternatives
-                  intents={alternatives}
-                  resolve={(i) =>
-                    resolveDestination({
-                      intent: i,
-                      text,
-                      documentId: document?.id ?? null,
-                      category,
-                    })
-                  }
+                  paths={alternatives}
+                  resolve={(i) => destFor(i)}
                   hasDoc={hasDoc}
                   onGo={handleGo}
                 />
               )}
-            </>
+
+              {/* Provenance / refinement notes — never overstate the analysis. */}
+              <AnalysisNotes
+                isAnalyzing={isAnalyzing}
+                analysisError={analysisError}
+                source={analysis.source}
+                onRetry={retry}
+              />
+            </section>
+          ) : showLoading ? (
+            <LoadingCard />
+          ) : (
+            <ServiceUnavailableState
+              capsError={caps.isError}
+              onRetry={retry}
+              onGoNew={goToNew}
+            />
           )}
 
-          {/* 3 — Quality & safety standing disclaimer. */}
+          {/* 3 — Draft save status, so persistence is visible, not silent. */}
+          <SaveNote state={saveState} saved={requestId !== null} />
+
+          {/* 4 — Quality & safety standing disclaimer. */}
           <Card>
             <p className="flex items-start gap-2 text-caption leading-relaxed text-muted">
               <IconWarning size={16} className="mt-0.5 shrink-0 text-[var(--brand-gold)]" />
@@ -385,7 +325,7 @@ export default function SuggestLawPage() {
             </p>
           </Card>
 
-          {/* 4 — Route-level actions. */}
+          {/* 5 — Route-level actions. */}
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="text" size="large" onClick={goToNew} startIcon={<IconEdit size={18} />}>
               ویرایش کامل در «ساخت جدید»
@@ -407,8 +347,12 @@ function SummaryCard({
   explicitIntent,
   explicitCategory,
   inferredCategory,
-  topSuggestion,
-  disabledIntentNote,
+  goalFa,
+  summaryFa,
+  source,
+  confidence,
+  needsLawyer,
+  ambiguities,
   editing,
   onToggleEdit,
   onEditFields,
@@ -418,17 +362,28 @@ function SummaryCard({
   explicitIntent: IntakeIntent | null;
   explicitCategory: string | null;
   inferredCategory: string | null;
-  topSuggestion: IntakeIntent;
-  disabledIntentNote: IntakeIntent | null;
+  goalFa: string;
+  summaryFa: string;
+  source: "ai" | "rules";
+  confidence: number | null;
+  needsLawyer: boolean;
+  ambiguities: string[];
   editing: boolean;
   onToggleEdit: () => void;
   onEditFields: ReactNode;
 }) {
+  // The rules fallback's "summary" is only a restatement of the description, so
+  // showing it as an inference would just duplicate «آنچه شما گفتید». Only the
+  // model's summary adds information, so it is shown only when it came from the
+  // model — never dressed up as something it is not.
+  const showSummary = source === "ai" && summaryFa.trim().length > 0;
+  const showGoal = goalFa.trim().length > 0;
+
   return (
     <Card>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-titleLarge font-semibold text-on-surface">برداشت ما از درخواستت</h2>
+          <h2 className="text-h4 font-semibold text-on-surface">برداشت ما از درخواستت</h2>
           <p className="mt-1 text-bodySmall text-muted">
             بخش «شما گفتید» را خودت گفته‌ای؛ بخش «حدس ما» را سیستم استنباط کرده و قابل اصلاح است.
           </p>
@@ -467,21 +422,43 @@ function SummaryCard({
           ) : (
             <Row label="حوزهٔ احتمالی" value="به‌اندازهٔ کافی روشن نیست" />
           )}
-          <Row label="مسیر احتمالی" value={intentTitle(topSuggestion)} />
+          {showSummary && <Row label="برداشت" value={summaryFa} />}
+          {showGoal && <Row label="هدف احتمالی" value={goalFa} />}
+          <Row
+            label="نیاز به وکیل"
+            value={needsLawyer ? "احتمالاً کمک وکیل لازم است" : "فعلاً لازم به نظر نمی‌رسد"}
+          />
+          {confidence !== null && (
+            <Row label="اطمینان تحلیل" value={`${toPersianNumber(confidence)}٪`} />
+          )}
         </SummaryGroup>
 
-        {disabledIntentNote && (
-          <p
-            role="status"
-            className="flex items-start gap-2 rounded-medium bg-surface-container px-3 py-2 text-caption text-muted"
-          >
-            <IconWarning size={15} className="mt-0.5 shrink-0 text-[var(--brand-gold)]" />
-            <span>
-              مسیر «{intentTitle(disabledIntentNote)}» در حال حاضر توسط مدیر سامانه غیرفعال است؛
-              نزدیک‌ترین مسیرهای فعال در ادامه نشان داده می‌شوند.
-            </span>
-          </p>
+        {ambiguities.length > 0 && (
+          <div className="rounded-medium border border-divider px-4 py-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-labelMedium text-on-surface">
+              <IconInfo size={15} className="shrink-0 text-muted" />
+              برای دقیق‌ترشدن مسیر
+            </p>
+            <ul className="list-inside list-disc space-y-1 text-caption text-muted">
+              {ambiguities.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          </div>
         )}
+
+        <p className="flex items-center gap-1.5 text-caption text-muted">
+          <span
+            aria-hidden="true"
+            className={[
+              "inline-block h-1.5 w-1.5 rounded-full",
+              source === "ai" ? "bg-primary" : "bg-[var(--brand-gold)]",
+            ].join(" ")}
+          />
+          {source === "ai"
+            ? "این برداشت با تحلیل هوش مصنوعی به‌دست آمده و قابل اصلاح است."
+            : "این برداشت با قواعد خودکار به‌دست آمده (بدون تحلیل هوش مصنوعی) و قابل اصلاح است."}
+        </p>
       </div>
     </Card>
   );
@@ -589,32 +566,28 @@ function EditFields({
 }
 
 // ============================================================
-// Section: primary suggestion + step guide
+// Section: primary path + step guide
 // ============================================================
 
-function PrimarySuggestion({
-  intent,
+function PrimaryPathCard({
+  path,
   dest,
   hasDoc,
   quota,
   onGo,
 }: {
-  intent: IntakeIntent;
+  path: LegalRequestDiscoveryPath;
   dest: IntakeDestination;
   hasDoc: boolean;
   quota: { remaining: number; total: number } | undefined;
-  onGo: (dest: IntakeDestination) => void;
+  onGo: (intent: IntakeIntent, dest: IntakeDestination) => void;
 }) {
+  const intent = path.intent as IntakeIntent;
   const Icon = INTENT_ICON[intent];
   const summary = describeDestination(dest);
-  const title = destTitle(dest);
 
   return (
     <Card>
-      <div className="mb-4">
-        <StepGuide active={2} action={STEP_ACTION_FA[intent]} />
-      </div>
-
       <span className="inline-flex items-center gap-1 rounded-full bg-primary-container px-2.5 py-0.5 text-caption font-medium text-primary">
         <IconCheck size={13} />
         پیشنهاد اصلی
@@ -628,10 +601,8 @@ function PrimarySuggestion({
           <Icon size={24} />
         </span>
         <div className="min-w-0">
-          <h2 className="text-titleLarge font-semibold text-on-surface">{title}</h2>
-          <p className="mt-1 text-bodySmall leading-relaxed text-on-surface">
-            {INTENT_WHY_FA[intent]}
-          </p>
+          <h2 className="text-h4 font-semibold text-on-surface">{path.titleFa}</h2>
+          <p className="mt-1 text-bodySmall leading-relaxed text-on-surface">{path.rationaleFa}</p>
         </div>
       </div>
 
@@ -665,7 +636,12 @@ function PrimarySuggestion({
       )}
 
       <div className="mt-5">
-        <Button variant="filled" size="large" onClick={() => onGo(dest)} startIcon={<Icon size={18} />}>
+        <Button
+          variant="filled"
+          size="large"
+          onClick={() => onGo(intent, dest)}
+          startIcon={<Icon size={18} />}
+        >
           ادامه به این مسیر
         </Button>
       </div>
@@ -713,29 +689,30 @@ function StepGuide({ active, action }: { active: 1 | 2 | 3; action: string }) {
 // ============================================================
 
 function Alternatives({
-  intents,
+  paths,
   resolve,
   hasDoc,
   onGo,
 }: {
-  intents: IntakeIntent[];
+  paths: LegalRequestDiscoveryPath[];
   resolve: (i: IntakeIntent) => IntakeDestination;
   hasDoc: boolean;
-  onGo: (dest: IntakeDestination) => void;
+  onGo: (intent: IntakeIntent, dest: IntakeDestination) => void;
 }) {
   return (
     <Card>
-      <h2 className="mb-1 text-titleLarge font-semibold text-on-surface">گزینه‌های دیگر</h2>
+      <h2 className="mb-1 text-h4 font-semibold text-on-surface">گزینه‌های دیگر</h2>
       <p className="mb-3 text-bodySmall text-muted">
         اگر مسیر بالا دقیقاً همان چیزی نیست که می‌خواهی، یکی از این راه‌های فعال را انتخاب کن.
       </p>
       <ul className="space-y-3">
-        {intents.map((intent) => {
+        {paths.map((path) => {
+          const intent = path.intent as IntakeIntent;
           const dest = resolve(intent);
           const Icon = INTENT_ICON[intent];
           const summary = describeDestination(dest);
           return (
-            <li key={intent}>
+            <li key={path.intent}>
               <div className="flex flex-col gap-3 rounded-medium border border-divider p-4 mobile-l:flex-row mobile-l:items-center">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <span
@@ -745,7 +722,7 @@ function Alternatives({
                     <Icon size={20} />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="text-titleSmall font-semibold text-on-surface">{destTitle(dest)}</h3>
+                    <h3 className="text-titleSmall font-semibold text-on-surface">{path.titleFa}</h3>
                     <p className="mt-0.5 text-bodySmall text-muted">
                       {summary.detailFa} {neededFa(intent, hasDoc)}
                     </p>
@@ -753,7 +730,7 @@ function Alternatives({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onGo(dest)}
+                  onClick={() => onGo(intent, dest)}
                   className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary mobile-l:self-auto touch-target"
                 >
                   رفتن
@@ -768,8 +745,118 @@ function Alternatives({
 }
 
 // ============================================================
-// Section: empty / unavailable / loading states
+// Section: analysis provenance / refinement notes
 // ============================================================
+
+function AnalysisNotes({
+  isAnalyzing,
+  analysisError,
+  source,
+  onRetry,
+}: {
+  isAnalyzing: boolean;
+  analysisError: boolean;
+  source: "ai" | "rules";
+  onRetry: () => void;
+}) {
+  if (analysisError) {
+    return (
+      <Card>
+        <div role="alert" className="flex items-start gap-3">
+          <IconWarning size={20} className="mt-0.5 shrink-0 text-[var(--brand-gold)]" />
+          <div className="min-w-0">
+            <p className="text-labelLarge text-on-surface">تحلیل هوشمند در دسترس نبود</p>
+            <p className="mt-1 text-bodySmall text-muted">
+              مسیرهای بالا به‌صورت خودکار و بدون تحلیل هوش مصنوعی پیشنهاد شده‌اند تا درخواستت معطل
+              نماند. می‌توانی تحلیل را دوباره امتحان کنی.
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isAnalyzing}
+              className="mt-3 inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 disabled:opacity-50 touch-target"
+            >
+              <IconRefresh
+                size={16}
+                className={isAnalyzing ? "animate-spin motion-reduce:animate-none" : undefined}
+              />
+              تحلیل مجدد
+            </button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (isAnalyzing) {
+    return (
+      <p role="status" className="flex items-center gap-2 text-caption text-muted">
+        <IconRefresh size={14} className="animate-spin motion-reduce:animate-none" />
+        در حال تحلیل دقیق‌تر درخواست…
+      </p>
+    );
+  }
+
+  // The rules result stays visible after the model answered, but with an honest
+  // note that no AI refinement happened — the recommendation is never dressed up.
+  if (source === "rules") {
+    return (
+      <p className="text-caption text-muted">
+        این مسیرها با قواعد خودکار پیشنهاد شده‌اند و قابل اصلاح‌اند.
+      </p>
+    );
+  }
+
+  return null;
+}
+
+// ============================================================
+// Section: draft save status
+// ============================================================
+
+function SaveNote({ state, saved }: { state: DiscoverySaveState; saved: boolean }) {
+  if (state === "idle" && !saved) return null;
+
+  if (state === "error") {
+    return (
+      <p role="status" className="flex items-center gap-2 text-caption text-muted">
+        <IconWarning size={14} className="shrink-0 text-[var(--brand-gold)]" />
+        ذخیرهٔ خودکار درخواست ممکن نشد؛ اطلاعات روی همین دستگاه نگه داشته می‌شود.
+      </p>
+    );
+  }
+
+  if (state === "creating" || state === "saving") {
+    return (
+      <p role="status" className="flex items-center gap-2 text-caption text-muted">
+        <IconRefresh size={14} className="animate-spin motion-reduce:animate-none" />
+        {state === "creating" ? "در حال ثبت درخواست…" : "در حال ذخیرهٔ تغییرات…"}
+      </p>
+    );
+  }
+
+  return (
+    <p role="status" className="flex items-center gap-2 text-caption text-muted">
+      <IconCheck size={14} className="shrink-0 text-primary" />
+      درخواستت ذخیره شد و در تاریخچه قابل پیگیری است.
+    </p>
+  );
+}
+
+// ============================================================
+// Section: loading / empty / unavailable states
+// ============================================================
+
+function LoadingCard() {
+  return (
+    <Card>
+      <p role="status" className="flex items-center gap-2 text-bodySmall text-muted">
+        <IconRefresh size={16} className="animate-spin motion-reduce:animate-none" />
+        در حال بررسی درخواست و خدمات در دسترس…
+      </p>
+    </Card>
+  );
+}
 
 function NoRequestState({ onStart }: { onStart: () => void }) {
   return (
@@ -781,7 +868,7 @@ function NoRequestState({ onStart }: { onStart: () => void }) {
         >
           <IconInfo size={26} />
         </span>
-        <h2 className="text-titleLarge font-semibold text-on-surface">درخواستی برای ادامه پیدا نشد</h2>
+        <h2 className="text-h4 font-semibold text-on-surface">درخواستی برای ادامه پیدا نشد</h2>
         <p className="mx-auto mt-2 max-w-md text-bodySmall text-muted">
           این صفحه درخواستی که در «ساخت جدید» نوشته‌ای را ادامه می‌دهد. برای شروع، موضوعت را آنجا
           توضیح بده.
@@ -796,25 +883,48 @@ function NoRequestState({ onStart }: { onStart: () => void }) {
   );
 }
 
-function ServiceUnavailableState({ onGoNew }: { onGoNew: () => void }) {
+function ServiceUnavailableState({
+  capsError,
+  onRetry,
+  onGoNew,
+}: {
+  capsError: boolean;
+  onRetry: () => void;
+  onGoNew: () => void;
+}) {
   return (
     <Card>
       <div role="status" className="flex items-start gap-3">
         <IconWarning size={20} className="mt-0.5 shrink-0 text-[var(--brand-gold)]" />
         <div className="min-w-0">
-          <p className="text-labelLarge text-on-surface">در حال حاضر مسیر فعالی برای این درخواست نیست</p>
-          <p className="mt-1 text-bodySmall text-muted">
-            بر اساس تنظیمات فعلی سامانه، هیچ‌یک از خدمات مرتبط با این درخواست در دسترس نیست. برای
-            پیگیری می‌توانی با پشتیبانی تماس بگیری یا بعداً دوباره تلاش کنی.
+          <p className="text-labelLarge text-on-surface">
+            {capsError
+              ? "دریافت وضعیت خدمات ممکن نشد"
+              : "در حال حاضر مسیر فعالی برای این درخواست نیست"}
           </p>
-          <button
-            type="button"
-            onClick={onGoNew}
-            className="mt-3 inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 touch-target"
-          >
-            <IconEdit size={16} />
-            ویرایش درخواست
-          </button>
+          <p className="mt-1 text-bodySmall text-muted">
+            {capsError
+              ? "نتوانستیم خدمات در دسترس را بررسی کنیم؛ بنابراین برای پرهیز از نمایش مسیر نادرست، پیشنهادی نشان نمی‌دهیم."
+              : "بر اساس تنظیمات فعلی سامانه، هیچ‌یک از خدمات مرتبط با این درخواست در دسترس نیست. می‌توانی دوباره تلاش کنی یا با پشتیبانی تماس بگیری."}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 touch-target"
+            >
+              <IconRefresh size={16} />
+              تلاش دوباره
+            </button>
+            <button
+              type="button"
+              onClick={onGoNew}
+              className="inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 touch-target"
+            >
+              <IconEdit size={16} />
+              ویرایش درخواست
+            </button>
+          </div>
         </div>
       </div>
     </Card>

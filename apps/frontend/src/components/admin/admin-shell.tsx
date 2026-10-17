@@ -143,7 +143,10 @@ function NavItemRow({
       aria-current={isActive ? "page" : undefined}
       title={collapsed ? item.titleFa : undefined}
       className={[
-        "group relative flex items-center rounded-medium transition-colors",
+        // One short colour transition, clamped when the user asks for less
+        // motion; the icon tile answers the pointer with a fraction of scale so
+        // the row itself never shifts.
+        "group relative flex items-center rounded-medium transition-colors duration-short3 ease-standard motion-reduce:transition-none",
         collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2",
         isActive
           ? "bg-primary-soft text-primary"
@@ -159,7 +162,7 @@ function NavItemRow({
       )}
       <span
         aria-hidden="true"
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-medium transition-colors ${
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-medium transition-[background-color,color,transform] duration-short3 ease-standard can-hover:group-hover:scale-[1.04] motion-reduce:transition-none ${
           isActive
             ? "bg-primary text-on-primary"
             : "bg-surface-container text-on-surface-variant group-hover:text-primary"

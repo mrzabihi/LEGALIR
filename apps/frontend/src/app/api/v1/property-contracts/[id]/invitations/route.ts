@@ -31,6 +31,8 @@ import {
   updateInvitation,
 } from "@/lib/contracts/signature/db";
 import { clientFingerprintFrom } from "@/lib/contracts/signature/fingerprint";
+import { getSmsGateway } from "@/lib/sms/gateway";
+import { absoluteUrl } from "@/lib/site";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -73,12 +75,30 @@ export async function POST(request: Request, { params }: Params) {
   const expiresAt = new Date(Date.now() + expiresInHours * 3600_000).toISOString();
   const verifyBeforeView = body.verifyBeforeView ?? true;
 
-  const issued: { participantId: string; token: string; expiresAt: string }[] = [];
+  // The raw token is returned once so the drafter can hand the link over
+  // manually if SMS failed. `delivered` is the real transport outcome —
+  // never assumed from the fact that a row was written.
+  const issued: {
+    participantId: string;
+    token: string;
+    expiresAt: string;
+    delivered: boolean;
+    channel: "sms" | "dev-console" | null;
+    failureReasonFa: string | null;
+  }[] = [];
   for (const participant of participants) {
     // The raw token is generated here and returned once; only the hash
     // is ever written to disk.
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    // Deliver the dedicated link through the ONE SMS adapter. The
+    // outcome is recorded per recipient — never assumed.
+    const delivery = await getSmsGateway().send({
+      to: participant.mobile,
+      body: `لیگالیر — پیش‌نویس قرارداد ${contract.referenceCode} برای امضای شما آماده است: ${absoluteUrl(`/contracts/sign/${rawToken}`)}`,
+      tag: "draft-invitation",
+    });
 
     insertInvitation({
       id: `sinv-${crypto.randomUUID()}`,
@@ -93,9 +113,19 @@ export async function POST(request: Request, { params }: Params) {
       usedAt: null,
       revokedAt: null,
       createdAt: new Date().toISOString(),
+      deliveryChannel: delivery.ok ? delivery.channel : "none",
+      deliveryStatus: delivery.ok ? "SENT" : "FAILED",
+      lastSentAt: new Date().toISOString(),
     });
 
-    issued.push({ participantId: participant.id, token: rawToken, expiresAt });
+    issued.push({
+      participantId: participant.id,
+      token: rawToken,
+      expiresAt,
+      delivered: delivery.ok,
+      channel: delivery.ok ? delivery.channel : null,
+      failureReasonFa: delivery.ok ? null : delivery.detailFa,
+    });
 
     // One event per recipient, so the trail records WHO was invited and
     // never only an aggregate count (§9).
@@ -103,12 +133,19 @@ export async function POST(request: Request, { params }: Params) {
       signatureRequestId: activeRequest.id,
       contractId: contract.id,
       participantId: participant.id,
-      type: "INVITATION_SENT",
-      descriptionFa: `دعوت‌نامه امضا برای ${participant.roleFa} صادر شد.`,
+      type: delivery.ok ? "INVITATION_SENT" : "INVITATION_FAILED",
+      descriptionFa: delivery.ok
+        ? `دعوت‌نامه امضا برای ${participant.roleFa} ارسال شد.`
+        : `ارسال دعوت‌نامه امضا برای ${participant.roleFa} ناموفق بود.`,
       contractVersionId: activeRequest.contractVersionId,
       documentHash: activeRequest.documentHash,
       clientFingerprint: fingerprint,
-      metadata: { recipientMasked: participant.mobileMasked, expiresAt, verifyBeforeView },
+      metadata: {
+        recipientMasked: participant.mobileMasked,
+        expiresAt,
+        verifyBeforeView,
+        channel: delivery.ok ? delivery.channel : "none",
+      },
     });
   }
 

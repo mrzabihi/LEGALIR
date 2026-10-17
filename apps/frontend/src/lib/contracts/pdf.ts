@@ -8,13 +8,19 @@
 // public verification page, so a printed copy can always be traced
 // back to the exact content it was generated from.
 //
+// The sheet mirrors the A4 preview: a letterhead with the LEGALIR mark
+// and the identifying group at the physical top-left, the contract
+// title centred beneath it, a slim identity head on pages 2+ and
+// «صفحه N از M» on every page. Screen preview and print are the same
+// document, so neither can drift from the other.
+//
 // Persian text is shaped with the Vazirmatn font (embedded via
 // fontkit) and laid out right-to-left.
 // ============================================================
 
 import fs from "node:fs";
 import path from "node:path";
-import { PDFDocument, rgb, degrees, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, degrees, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { PropertyContractVersion, PropertyContract } from "@legalir/types";
 import {
   CONTRACT_DRAFT_WATERMARK_FA,
@@ -23,10 +29,11 @@ import {
   CONTRACT_REVIEW_STAMP_TEXT,
 } from "@legalir/types";
 import { drawRtl, measureRtl, orientedFontkit } from "@/lib/pdf/rtl";
-import { renderContract } from "./template";
+import { renderContract, type RenderedBlock, type RenderedTable } from "./template";
 import { buildLegalBasisReport, legalBasisReportLines } from "./legal-basis";
 import { formatIsoJalali } from "./dates";
 import { qrMatrix } from "./qr";
+import { HOLOGRAM_PRINT_INK, loadDocumentLogo, loadHologram, loadReviewStamp } from "./stamp-asset";
 
 /**
  * The review mark to draw on the document. When `applied` is true the
@@ -42,6 +49,24 @@ export interface ReviewStampInfo {
   reviewedAt?: string;
   reviewingOfficeFa?: string;
   reviewerInitials?: string | null;
+  /**
+   * The OFFICIAL LEGALIR stamp, present only when a Super Admin has
+   * authorised the exact version hash AND the stamp master is byte-identical
+   * to what was approved. When present the real PNG is drawn, at a slight
+   * angle, on EVERY page inside a reserved footer band so it never overlaps
+   * text, signatures or page numbers. When absent, the legacy text mark is
+   * used instead.
+   */
+  officialStamp?: {
+    /** SHA-256 of the stamp master this approval was bound to. */
+    sha256: string;
+    /** Version label of the stamp master. */
+    version: string;
+    /** ISO timestamp the stamp was applied. */
+    approvedAt?: string | null;
+    /** Public-safe initials of the authorising Super Admin, e.g. «م.م». */
+    approvedByInitials?: string | null;
+  } | null;
 }
 
 const PAGE_WIDTH = 595.28; // A4 portrait, points
@@ -49,6 +74,18 @@ const PAGE_HEIGHT = 841.89;
 const MARGIN = 48;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const RIGHT = PAGE_WIDTH - MARGIN;
+
+/**
+ * The footer band reserved at the bottom of EVERY page when the official
+ * stamp is applied. Contract text never flows into it (the cursor bottoms
+ * out above it), so the stamp and its mandatory disclaimer can never
+ * overlap body text, signatures or page numbers.
+ */
+const FOOTER_BAND = 72;
+/** Height of the drawn stamp image, in points. */
+const STAMP_DRAW_HEIGHT = 46;
+/** The slight angle of the stamp — a hand-applied look, never a straight box. */
+const STAMP_ANGLE = -8;
 
 /** Locate the Vazirmatn TTF, searching up from the app directory. */
 function findFontPath(fileName: string): string | null {
@@ -66,6 +103,11 @@ function findFontPath(fileName: string): string | null {
 interface Fonts {
   regular: PDFFont;
   bold: PDFFont;
+}
+
+/** Render an integer with Persian digits for page numbering. */
+function toPersianDigits(n: number): string {
+  return String(n).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]!);
 }
 
 /** Wrap `text` to `maxWidth`, returning the lines. */
@@ -90,17 +132,21 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 class Layout {
   page: PDFPage;
   y: number;
+  /** Lowest Y the cursor may reach — raised when a footer band is reserved. */
+  private readonly bottom: number;
 
   constructor(
     private readonly doc: PDFDocument,
-    private readonly fonts: Fonts
+    private readonly fonts: Fonts,
+    reserveFooter = false
   ) {
+    this.bottom = MARGIN + (reserveFooter ? FOOTER_BAND : 0);
     this.page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     this.y = PAGE_HEIGHT - MARGIN;
   }
 
   private ensure(space: number): void {
-    if (this.y - space < MARGIN) {
+    if (this.y - space < this.bottom) {
       this.page = this.doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       this.y = PAGE_HEIGHT - MARGIN;
     }
@@ -134,6 +180,88 @@ class Layout {
 
   spacer(height = 10): void {
     this.y -= height;
+  }
+
+  /**
+   * Draw a RTL table. The heading row is repeated whenever the table
+   * continues on a new page, and a row is never split across pages — the
+   * same rules the screen sheet applies.
+   */
+  table(t: RenderedTable, size = 8.5): void {
+    const padX = 5;
+    const padY = 3.5;
+    const lineHeight = size + 3.2;
+    const colCount = t.columnsFa.length;
+    if (colCount === 0 || t.rowsFa.length === 0) return;
+    const colWidth = CONTENT_WIDTH / colCount;
+
+    if (t.captionFa) {
+      this.ensure(size + 10);
+      drawRtl(this.page, this.fonts.bold, t.captionFa, {
+        y: this.y - size,
+        size: size + 0.5,
+        color: rgb(0.11, 0.29, 0.24),
+        right: RIGHT,
+      });
+      this.y -= size + 6;
+    }
+
+    const wrapCell = (text: string, bold: boolean) =>
+      wrapText(text, bold ? this.fonts.bold : this.fonts.regular, size, colWidth - padX * 2);
+
+    const rowHeight = (cells: string[], bold: boolean) => {
+      const lines = Math.max(1, ...cells.map((c) => wrapCell(c, bold).length));
+      return lines * lineHeight + padY * 2;
+    };
+
+    const drawRow = (cells: string[], bold: boolean, header: boolean) => {
+      const h = rowHeight(cells, bold);
+      const top = this.y;
+      // RTL: the first column sits at the right edge.
+      for (let c = 0; c < colCount; c++) {
+        const xRight = RIGHT - c * colWidth;
+        const xLeft = xRight - colWidth;
+        this.page.drawRectangle({
+          x: xLeft,
+          y: top - h,
+          width: colWidth,
+          height: h,
+          ...(header ? { color: rgb(0.945, 0.965, 0.953) } : {}),
+          borderColor: rgb(0.8, 0.84, 0.82),
+          borderWidth: 0.5,
+        });
+        const lines = wrapCell(cells[c] ?? "", bold);
+        let ly = top - padY - size;
+        for (const line of lines) {
+          drawRtl(this.page, bold ? this.fonts.bold : this.fonts.regular, line, {
+            y: ly,
+            size,
+            color: header ? rgb(0.11, 0.29, 0.24) : rgb(0.15, 0.17, 0.18),
+            right: xRight - padX,
+          });
+          ly -= lineHeight;
+        }
+      }
+      this.y = top - h;
+    };
+
+    const allRows: { cells: string[]; bold: boolean; header: boolean }[] = [
+      { cells: t.columnsFa, bold: true, header: true },
+      ...t.rowsFa.map((cells) => ({ cells, bold: false, header: false })),
+    ];
+
+    for (let i = 0; i < allRows.length; i++) {
+      const row = allRows[i]!;
+      const h = rowHeight(row.cells, row.bold);
+      if (this.y - h < this.bottom) {
+        // New page, and the heading row comes with it.
+        this.page = this.doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        this.y = PAGE_HEIGHT - MARGIN;
+        if (i > 0) drawRow(t.columnsFa, true, true);
+      }
+      drawRow(row.cells, row.bold, row.header);
+    }
+    this.y -= 6;
   }
 
   /** Draw the QR code and the verification caption at the bottom. */
@@ -176,37 +304,42 @@ class Layout {
   /**
    * The blue ink-like review stamp, plus its mandatory disclaimer and the
    * public-safe review metadata. Drawn ONLY when a bound admin approval
-   * exists — the caller decides that, not this method.
+   * exists — the caller decides that, not this method. When the OFFICIAL
+   * PNG stamp is drawn instead (`drawBox: false`), only the metadata lines
+   * are emitted here so the two marks never duplicate.
    */
-  stampBlock(info: ReviewStampInfo): void {
+  stampBlock(info: ReviewStampInfo, drawBox = true): void {
     const [r, g, b] = CONTRACT_REVIEW_STAMP_RGB;
     const blue = rgb(r / 255, g / 255, b / 255);
-    const boxW = 250;
-    const boxH = 46;
-    this.ensure(boxH + 60);
 
-    const boxX = RIGHT - boxW;
-    const boxY = this.y - boxH;
-    this.page.drawRectangle({
-      x: boxX,
-      y: boxY,
-      width: boxW,
-      height: boxH,
-      borderColor: blue,
-      borderWidth: 1.5,
-      borderDashArray: [4, 3],
-      color: undefined,
-    });
+    if (drawBox) {
+      const boxW = 250;
+      const boxH = 46;
+      this.ensure(boxH + 60);
 
-    const size = 15;
-    const textWidth = measureRtl(this.fonts.bold, CONTRACT_REVIEW_STAMP_TEXT, size);
-    drawRtl(this.page, this.fonts.bold, CONTRACT_REVIEW_STAMP_TEXT, {
-      y: boxY + boxH / 2 - size / 2,
-      size,
-      color: blue,
-      right: boxX + (boxW + textWidth) / 2,
-    });
-    this.y = boxY - 8;
+      const boxX = RIGHT - boxW;
+      const boxY = this.y - boxH;
+      this.page.drawRectangle({
+        x: boxX,
+        y: boxY,
+        width: boxW,
+        height: boxH,
+        borderColor: blue,
+        borderWidth: 1.5,
+        borderDashArray: [4, 3],
+        color: undefined,
+      });
+
+      const size = 15;
+      const textWidth = measureRtl(this.fonts.bold, CONTRACT_REVIEW_STAMP_TEXT, size);
+      drawRtl(this.page, this.fonts.bold, CONTRACT_REVIEW_STAMP_TEXT, {
+        y: boxY + boxH / 2 - size / 2,
+        size,
+        color: blue,
+        right: boxX + (boxW + textWidth) / 2,
+      });
+      this.y = boxY - 8;
+    }
 
     const meta: string[] = [];
     if (info.reviewedAt) meta.push(`تاریخ بررسی: ${formatIsoJalali(info.reviewedAt.slice(0, 10))}`);
@@ -215,6 +348,140 @@ class Layout {
     if (info.reviewerInitials) meta.push(`بررسی‌کننده: ${info.reviewerInitials}`);
     if (meta.length > 0) this.paragraph(meta.join(" — "), 9);
     this.paragraph(CONTRACT_REVIEW_STAMP_DISCLAIMER_FA, 8.5);
+  }
+
+  /**
+   * Draw the OFFICIAL LEGALIR seal and the print-only hologram inside the
+   * reserved footer band on EVERY page. A PDF IS the print output, so the
+   * hologram's security ink is drawn here — that is the whole point of
+   * `PrintOnly`: the wordmark and serial exist only on the printed/PDF
+   * copy, never on the screen preview.
+   *
+   * Only ever called when a valid, bound Super-Admin stamp approval
+   * exists — the caller decides that.
+   */
+  officialMarkPages(seal: PDFImage, hologram: PDFImage | null, disclaimerFa: string): void {
+    const sealHeight = STAMP_DRAW_HEIGHT;
+    const sealWidth = (seal.width / seal.height) * sealHeight;
+    const gap = 18;
+    const holoHeight = STAMP_DRAW_HEIGHT;
+    const holoWidth = hologram ? (hologram.width / hologram.height) * holoHeight : 0;
+    const totalWidth = sealWidth + (hologram ? gap + holoWidth : 0);
+
+    // Vertical centre of the band, nudged up so the disclaimer fits below.
+    const cy = MARGIN + FOOTER_BAND / 2 + 4;
+    const left = PAGE_WIDTH / 2 - totalWidth / 2;
+    const theta = (STAMP_ANGLE * Math.PI) / 180;
+
+    for (const page of this.doc.getPages()) {
+      // Seal, tilted like a hand-applied mark.
+      const sx = left + (sealWidth / 2) * Math.cos(theta) + (sealHeight / 2) * Math.sin(theta);
+      const sy = cy - (sealWidth / 2) * Math.sin(theta) - (sealHeight / 2) * Math.cos(theta);
+      page.drawImage(seal, {
+        x: sx,
+        y: sy,
+        width: sealWidth,
+        height: sealHeight,
+        rotate: degrees(STAMP_ANGLE),
+        opacity: 0.9,
+      });
+
+      if (hologram) {
+        const hx = left + sealWidth + gap;
+        page.drawImage(hologram, { x: hx, y: cy - holoHeight / 2, width: holoWidth, height: holoHeight });
+
+        // The security ink INSIDE the hologram — print/PDF only. Its
+        // position mirrors the source asset (49.3% / 57% of the label,
+        // centred) so the printed text lands where the artwork expects it.
+        const inkSize = 4.2;
+        const brandW = measureRtl(this.fonts.bold, HOLOGRAM_PRINT_INK.brand, inkSize);
+        drawRtl(page, this.fonts.bold, HOLOGRAM_PRINT_INK.brand, {
+          y: cy + holoHeight / 2 - holoHeight * 0.493 - inkSize,
+          size: inkSize,
+          color: rgb(0, 0, 0),
+          x: hx + holoWidth / 2 - brandW / 2,
+        });
+        const serialW = measureRtl(this.fonts.bold, HOLOGRAM_PRINT_INK.serial, inkSize);
+        drawRtl(page, this.fonts.bold, HOLOGRAM_PRINT_INK.serial, {
+          y: cy + holoHeight / 2 - holoHeight * 0.57 - inkSize,
+          size: inkSize,
+          color: rgb(0, 0, 0),
+          x: hx + holoWidth / 2 - serialW / 2,
+        });
+      }
+
+      // The mandatory disclaimer, centred at the very bottom of the band.
+      const size = 7;
+      const textW = measureRtl(this.fonts.regular, disclaimerFa, size);
+      drawRtl(page, this.fonts.regular, disclaimerFa, {
+        y: MARGIN + 3,
+        size,
+        color: rgb(0.35, 0.35, 0.4),
+        x: PAGE_WIDTH / 2 - textW / 2,
+      });
+    }
+  }
+
+  /**
+   * @deprecated kept for callers that predate the hologram; use
+   * `officialMarkPages`. The image is placed in a fixed relative position
+   * so every page carries the same mark, and it never reaches the text
+   * area above the band.
+   */
+  officialStampPages(image: PDFImage, disclaimerFa: string): void {
+    const height = STAMP_DRAW_HEIGHT;
+    const width = (image.width / image.height) * height;
+    const cx = PAGE_WIDTH / 2;
+    // Vertical centre of the band, nudged up so the disclaimer fits below.
+    const cy = MARGIN + FOOTER_BAND / 2 + 4;
+
+    const theta = (STAMP_ANGLE * Math.PI) / 180;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    const x = cx - (width / 2) * cos + (height / 2) * sin;
+    const y = cy - (width / 2) * sin - (height / 2) * cos;
+
+    for (const page of this.doc.getPages()) {
+      page.drawImage(image, {
+        x,
+        y,
+        width,
+        height,
+        rotate: degrees(STAMP_ANGLE),
+        opacity: 0.9,
+      });
+
+      // The mandatory disclaimer, centred at the very bottom of the band.
+      const size = 7;
+      const textW = measureRtl(this.fonts.regular, disclaimerFa, size);
+      drawRtl(page, this.fonts.regular, disclaimerFa, {
+        y: MARGIN + 3,
+        size,
+        color: rgb(0.35, 0.35, 0.4),
+        x: cx - textW / 2,
+      });
+    }
+  }
+
+  /**
+   * «صفحه N از M» at the bottom of every page. Drawn below the content
+   * margin (and below any reserved footer band), so a page number can
+   * never be covered by the stamp.
+   */
+  pageNumbers(): void {
+    const pages = this.doc.getPages();
+    const total = pages.length;
+    const size = 8;
+    pages.forEach((page, i) => {
+      const label = `صفحه ${toPersianDigits(i + 1)} از ${toPersianDigits(total)}`;
+      const w = measureRtl(this.fonts.regular, label, size);
+      drawRtl(page, this.fonts.regular, label, {
+        y: 22,
+        size,
+        color: rgb(0.4, 0.4, 0.45),
+        x: PAGE_WIDTH / 2 - w / 2,
+      });
+    });
   }
 
   /**
@@ -281,7 +548,34 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     bold: await doc.embedFont(fs.readFileSync(boldPath), { subset: true }),
   };
 
-  const layout = new Layout(doc, fonts);
+  // The OFFICIAL stamp is drawn only when the caller supplied a bound stamp
+  // approval AND the stamp master is byte-identical to the approved hash.
+  // Any mismatch silently degrades to the legacy text mark — never a wrong
+  // or stale image.
+  let officialImage: PDFImage | null = null;
+  let hologramImage: PDFImage | null = null;
+  if (stamp?.applied && stamp.officialStamp) {
+    const asset = loadReviewStamp();
+    if (asset && asset.sha256 === stamp.officialStamp.sha256) {
+      try {
+        officialImage = await doc.embedPng(asset.bytes);
+      } catch {
+        officialImage = null;
+      }
+      // The hologram is the print-only companion. It is optional: a
+      // missing hologram never blocks the seal, and it is never faked.
+      const hologram = loadHologram();
+      if (hologram) {
+        try {
+          hologramImage = await doc.embedPng(hologram.bytes);
+        } catch {
+          hologramImage = null;
+        }
+      }
+    }
+  }
+
+  const layout = new Layout(doc, fonts, officialImage !== null);
 
   // --- Header: reference code + version + hash ---
   const snapshot = version.snapshot;
@@ -294,9 +588,10 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   layout.heading(rendered.titleFa, 16);
   // The approved-by-LEGALIR mark sits at the top, where a reader looks
   // first. An unapproved document gets NO stamp; its watermark is drawn
-  // across every page at the end.
+  // across every page at the end. When the official PNG is drawn, the blue
+  // box is suppressed and only the review metadata is printed here.
   if (stamp?.applied) {
-    layout.stampBlock(stamp);
+    layout.stampBlock(stamp, officialImage === null);
     layout.spacer(6);
   }
   layout.paragraph(`کد قرارداد: ${contract.referenceCode}`);
@@ -312,8 +607,11 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   // --- Clauses ---
   for (const clause of rendered.clauses) {
     layout.heading(clause.headingFa, 12);
-    for (const paragraph of clause.paragraphs) {
-      layout.paragraph(paragraph);
+    const blocks: RenderedBlock[] =
+      clause.blocks ?? clause.paragraphs.map((textFa) => ({ kind: "paragraph", textFa }));
+    for (const block of blocks) {
+      if (block.kind === "paragraph") layout.paragraph(block.textFa);
+      else layout.table(block.table);
     }
     layout.spacer(4);
   }
@@ -347,11 +645,18 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     `برای بررسی اصالت این سند، کد QR را اسکن کنید یا به نشانی زیر مراجعه کنید:\n${verifyUrl}`
   );
 
-  // An unapproved contract is watermarked on every page so a printed
-  // copy can never pass for an approved one.
-  if (!stamp?.applied) {
+  // The official stamp, once authorised, is drawn on EVERY page inside the
+  // reserved footer band. An unapproved contract gets the diagonal draft
+  // watermark on every page instead, so a printed copy can never pass for
+  // an approved one. The two are mutually exclusive.
+  if (officialImage) {
+    layout.officialMarkPages(officialImage, hologramImage, CONTRACT_REVIEW_STAMP_DISCLAIMER_FA);
+  } else if (!stamp?.applied) {
     layout.draftWatermark();
   }
+
+  // Page numbers on every page, below the content margin.
+  layout.pageNumbers();
 
   return doc.save();
 }

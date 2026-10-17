@@ -166,6 +166,12 @@ export type Permission =
   // queue is gated by its own permission pair (read vs decide).
   | "admin:contracts:read"
   | "admin:contracts:review"
+  // The OFFICIAL LEGALIR stamp is a stronger act than the internal review: it
+  // binds the exact version hash AND the byte-identical stamp master, and is
+  // reserved to the Super Admin. A platform manager may review a contract but
+  // must NOT be able to authorise the official stamp.
+  | "admin:contracts:stamp:read"
+  | "admin:contracts:stamp:manage"
   | "admin:lawyer:read"
   // Granular lawyer-management capabilities (Super Admin / ADMIN_LAWYERS).
   // `admin:lawyer:verify` above covers the review decision; these cover the
@@ -486,6 +492,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:requests:manage",
     "admin:contracts:read",
     "admin:contracts:review",
+    // The official stamp is Super-Admin-only; no other role lists these.
+    "admin:contracts:stamp:read",
+    "admin:contracts:stamp:manage",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -1901,6 +1910,74 @@ export const ACTIVE_LEGAL_REQUEST_STATES: LegalRequestState[] = [
   "WAITING_FOR_LAWYER",
 ];
 
+// ---------------------------------------------------------------------------
+// Legal path discovery (the «از کجا شروع کنم؟» intake)
+// ---------------------------------------------------------------------------
+// When a user describes a problem and LEGALIR recommends a path, the record
+// of that recommendation is kept on the LegalRequest it becomes. It is purely
+// additive: a request without a `discovery` field behaves exactly as before.
+//
+// The record deliberately separates what the USER stated from what the SYSTEM
+// inferred, so a client, a lawyer or an operator can always tell the two apart
+// — the platform never presents a guess as a fact.
+
+/** The routed intents the discovery engine can recommend. */
+export type DiscoveryIntent =
+  | "legal_question"
+  | "document_review"
+  | "draft_document"
+  | "calculation"
+  | "next_step"
+  | "lawyer";
+
+/** One ranked path, with the reason it fits the request. */
+export interface LegalRequestDiscoveryPath {
+  intent: DiscoveryIntent;
+  /** The destination's human name (e.g. «گفت‌وگوی حقوقی»). */
+  titleFa: string;
+  /** Why this path fits — always derived from the user's own words. */
+  rationaleFa: string;
+  /** True for the engine's recommended first path. */
+  primary?: boolean;
+  /** True for the path the user actually chose. */
+  selected: boolean;
+}
+
+/**
+ * The structured result of analysing a discovery request. Field names mirror
+ * the intake task §6 contract. `source` records whether the structured
+ * analysis came from the language model or the deterministic rules fallback,
+ * so the provenance of a recommendation is never overstated.
+ */
+export interface LegalRequestDiscovery {
+  /** The user's own description, verbatim. */
+  description: string;
+  /** The help-type the user explicitly picked, or null when they let us infer. */
+  explicitIntent: DiscoveryIntent | null;
+  /** The legal area the user explicitly picked, or null. */
+  explicitCategory: string | null;
+  /** The legal area the engine inferred (may differ from the explicit pick). */
+  inferredCategory: string | null;
+  /** A one-line restatement of the problem (never a legal conclusion). */
+  summaryFa: string;
+  /** What the engine believes the user is trying to achieve. */
+  goalFa: string;
+  /** Remaining ambiguities / the clarifying questions worth asking. */
+  ambiguitiesFa: string[];
+  /** Confidence 0–100 in the top path, or null when not estimated. */
+  confidence: number | null;
+  /** True when a human lawyer is likely needed — never a substitute for advice. */
+  needsLawyer: boolean;
+  /** True when the request carried an attached document. */
+  hasDocument: boolean;
+  /** Ranked paths, most relevant first. At least one when any is offered. */
+  paths: LegalRequestDiscoveryPath[];
+  /** Whether the structured analysis came from the model or the rules fallback. */
+  source: "ai" | "rules";
+  /** Analysis schema version, so an old record stays interpretable. */
+  version: number;
+}
+
 export interface LegalRequest {
   id: string;
   userId: string;
@@ -1922,6 +1999,12 @@ export interface LegalRequest {
    * the assigned lawyer may read them (enforced per-request, not per-document).
    */
   attachmentDocumentIds?: string[];
+  /**
+   * The path-discovery record: the stated request, the inferred analysis and
+   * the ranked paths, stored on the draft so the flow is resumable and
+   * auditable. Absent on requests that did not go through the discovery flow.
+   */
+  discovery?: LegalRequestDiscovery;
   /** The organization this request belongs to, when org-scoped. */
   orgId: string | null;
   createdAt: string;

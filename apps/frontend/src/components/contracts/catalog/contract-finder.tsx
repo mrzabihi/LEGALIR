@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { findContractServices, type ContractService } from "@/lib/contract-services";
+import { Button } from "@legalir/ui";
 import { IconSearch, IconSparkle, IconClose } from "@/lib/icons";
 import { ContractServiceCard } from "./contract-service-card";
 
@@ -89,14 +90,15 @@ export function ContractFinder() {
             </button>
           )}
         </div>
-        <button
+        <Button
           type="button"
           onClick={run}
-          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-medium bg-primary px-5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
+          size="large"
+          startIcon={<IconSearch size={18} aria-hidden="true" />}
+          className="shrink-0"
         >
-          <IconSearch size={18} aria-hidden="true" />
           پیدا کردن قرارداد مناسب
-        </button>
+        </Button>
       </div>
 
       {submitted && (

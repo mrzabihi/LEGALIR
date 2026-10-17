@@ -20,9 +20,35 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface SourceCardProps {
   source: V1SourceDetail;
+  /**
+   * The exact cited quote for the answer that opened this source. When it is
+   * a real substring of the excerpt it is highlighted; otherwise no highlight
+   * is shown at all — the UI never colours a guess (§7).
+   */
+  highlightQuote?: string | null;
 }
 
-export function SourceCard({ source }: SourceCardProps) {
+/**
+ * Split the excerpt around the cited quote so the matched span can be marked.
+ * Returns null when the quote is absent (after trimming) — the caller then
+ * renders the excerpt plainly, with no highlight.
+ */
+function splitOnQuote(
+  excerpt: string,
+  quote: string
+): { before: string; match: string; after: string } | null {
+  const needle = quote.trim();
+  if (needle.length < 8) return null; // too short to be a meaningful match
+  const idx = excerpt.indexOf(needle);
+  if (idx === -1) return null;
+  return {
+    before: excerpt.slice(0, idx),
+    match: excerpt.slice(idx, idx + needle.length),
+    after: excerpt.slice(idx + needle.length),
+  };
+}
+
+export function SourceCard({ source, highlightQuote }: SourceCardProps) {
   const availability = AVAILABILITY_LABELS[source.availability] ?? {
     label: source.availability,
     className: "bg-surfaceVariant text-muted",
@@ -31,6 +57,12 @@ export function SourceCard({ source }: SourceCardProps) {
   const isUnavailable = source.availability === "unavailable";
   const isOutdated = source.availability === "outdated";
   const isUnverified = source.availability === "unverified";
+
+  // The cited span, only when it is a genuine substring of the real excerpt.
+  const highlight =
+    source.excerpt && highlightQuote
+      ? splitOnQuote(source.excerpt, highlightQuote)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -113,11 +145,22 @@ export function SourceCard({ source }: SourceCardProps) {
         )}
       </dl>
 
-      {/* Excerpt */}
+      {/* Excerpt — when the cited quote is a real span of the stored excerpt
+          it is marked; otherwise the excerpt renders untouched (§7). */}
       {source.excerpt && (
         <div className="rounded-medium bg-surface-container p-3">
           <p className="text-bodySmall text-onSurfaceVariant leading-loose whitespace-pre-wrap">
-            {source.excerpt}
+            {highlight ? (
+              <>
+                {highlight.before}
+                <mark className="rounded-sm bg-warning-container px-0.5 text-onSurface">
+                  {highlight.match}
+                </mark>
+                {highlight.after}
+              </>
+            ) : (
+              source.excerpt
+            )}
           </p>
           <CitationCopyButton text={source.excerpt} label="کپی متن" />
         </div>

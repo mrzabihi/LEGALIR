@@ -98,6 +98,7 @@ import type {
   IntakeDraft,
   LegalRequest,
   LegalRequestEvent,
+  LegalRequestDiscovery,
   LegalRequestState,
   LawyerWorkspace,
   ConsultationDetail,
@@ -1070,6 +1071,40 @@ export function fetchLegalRequest(id: string): Promise<LegalRequestDetail> {
   return apiClient.get<LegalRequestDetail>(
     `/api/v1/legal-requests/${encodeURIComponent(id)}`
   );
+}
+
+/**
+ * The owner's in-place edit of their own DRAFT request. The server restricts
+ * this to the owner and to the DRAFT state, and validates the discovery
+ * record, so a client can only ever tweak its own unfinished draft.
+ */
+export function patchLegalRequest(
+  id: string,
+  input: {
+    title?: string;
+    category?: string;
+    intakeAnswers?: Record<string, string>;
+    attachmentDocumentIds?: string[];
+    discovery?: LegalRequestDiscovery;
+  }
+): Promise<LegalRequest> {
+  return apiClient.patch<LegalRequest>(
+    `/api/v1/legal-requests/${encodeURIComponent(id)}`,
+    input
+  );
+}
+
+/**
+ * Ask the server to analyse a described problem and return the ranked path
+ * recommendation. Stateless; the caller persists the result via PATCH.
+ */
+export function requestDiscoveryAnalysis(input: {
+  text: string;
+  intent?: string | null;
+  category?: string | null;
+  hasDocument?: boolean;
+}): Promise<LegalRequestDiscovery> {
+  return apiClient.post<LegalRequestDiscovery>("/api/v1/intake/analyze", input);
 }
 
 // ============================================================

@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { TextField } from "@legalir/ui";
+import { TextField, Button } from "@legalir/ui";
 import { IconClose, IconSearch, IconServices, IconLawBook } from "@/lib/icons";
 import { PageIntroBanner, PromoPanel } from "@/components/shared";
 import {
@@ -49,6 +49,7 @@ import {
   CampaignBanner,
   CampaignPhotoBanner,
   CategoryShortcuts,
+  DiscoveryEntryCard,
   NewServices,
   ServiceBanner,
   ServiceCard,
@@ -215,13 +216,9 @@ export default function ServicesPage() {
               <p className="max-w-sm text-body-2 text-on-surface-variant">
                 عبارت دیگری را امتحان کنید یا از دسته‌بندی‌ها برای مرور کامل خدمات استفاده کنید.
               </p>
-              <button
-                type="button"
-                onClick={clearSearch}
-                className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 touch-target"
-              >
+              <Button type="button" onClick={clearSearch} className="mt-2">
                 نمایش همه خدمات
-              </button>
+              </Button>
             </div>
           )}
 
@@ -257,6 +254,14 @@ export default function ServicesPage() {
             </div>
             <CategoryShortcuts categories={shortcuts} counts={counts} />
           </section>
+
+          {/* ============================================================
+              2b. Smart path discovery — the entry for users who don't yet
+              know which service they need. Sits right after the quick
+              shortcuts so an undecided visitor is caught before the
+              service-specific sections below.
+              ============================================================ */}
+          <DiscoveryEntryCard className="mb-6" />
 
           {/* ============================================================
               3. Primary campaign — human lawyer consultation

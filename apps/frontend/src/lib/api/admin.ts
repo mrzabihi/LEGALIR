@@ -11,6 +11,7 @@
 // ============================================================
 
 import { apiClient } from "./client";
+import type { RenderedBlock } from "@/lib/contracts/template";
 import type {
   AdminOverview,
   AdminLiveReport,
@@ -85,8 +86,14 @@ import type {
   AdminContractReviewActionRequest,
   ContractAdminReviewDetail,
   ContractAdminReviewStatus,
+  ContractStampAction,
+  ContractStampActionRequest,
+  ContractStampContextResponse,
+  ContractStampDecisionResponse,
+  ContractStampRequestDetail,
   ContractCompleteness,
   ContractLegalBasisReport,
+  ContractReviewComment,
   ContractTypeId,
   PropertyContract,
   PropertyContractState,
@@ -691,7 +698,10 @@ export function fetchAdminContracts(
 export interface AdminContractClause {
   id: string;
   headingFa: string;
+  /** The plain-text projection, kept for search and compact rendering. */
   paragraphs: string[];
+  /** The block model (paragraphs + tables) exactly as the document prints. */
+  blocks?: RenderedBlock[];
   conditional: boolean;
 }
 
@@ -728,6 +738,13 @@ export interface AdminContractDetail {
   };
   /** §2 — the non-binding legal-basis annex for the clauses above. */
   legalBasis: ContractLegalBasisReport;
+  /**
+   * The review thread, including `internal` notes. An operator reviewing
+   * the contract must see everything the owner wrote about it; comments are
+   * bound to a version, so the reviewer can tell which remarks still apply
+   * to the content on screen.
+   */
+  comments: ContractReviewComment[];
   adminReview: ContractAdminReviewDetail | null;
   approved: boolean;
   stamp: { applied: boolean; text: string; disclaimerFa: string };
@@ -751,6 +768,32 @@ export function reviewAdminContract(
 ): Promise<AdminContractReviewResponse> {
   return apiClient.post<AdminContractReviewResponse>(
     `${A}/contracts/${encodeURIComponent(id)}`,
+    input
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Contract stamp — the official Super-Admin mark (§5)
+// ---------------------------------------------------------------------------
+
+/**
+ * The stamp context for one contract: whether the stamp master is
+ * available, whether the CURRENT version already carries a valid stamp,
+ * and the full request history. Permission-gated to Super Admin.
+ */
+export function fetchAdminContractStamp(id: string): Promise<ContractStampContextResponse> {
+  return apiClient.get<ContractStampContextResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/stamp`
+  );
+}
+
+/** Record a stamp decision (request / apply / reject / cancel). */
+export function decideAdminContractStamp(
+  id: string,
+  input: ContractStampActionRequest
+): Promise<ContractStampDecisionResponse> {
+  return apiClient.post<ContractStampDecisionResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/stamp`,
     input
   );
 }

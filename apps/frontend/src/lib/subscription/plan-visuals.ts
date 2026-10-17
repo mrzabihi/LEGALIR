@@ -12,22 +12,25 @@ import { computeDiscountPercent } from "@/lib/usage/plan-pricing";
 /** Lowest → highest tier. Used to label an upgrade vs. a plain selection. */
 export const PLAN_ORDER: PlanCode[] = ["silver", "gold", "diamond"];
 
-/** Accent gradient (top bar / sale price text) per tier. */
+/** Accent gradient (top bar / sale price text) per tier — brand family only:
+ *  a neutral gray for the entry tier, then the LEGALIR gold and green. */
 export const PLAN_GRADIENTS: Record<PlanCode, string> = {
-  silver: "from-slate-400 to-gray-500",
-  gold: "from-amber-400 to-yellow-500",
-  diamond: "from-blue-400 to-cyan-500",
+  silver: "from-neutral-400 to-neutral-500",
+  gold: "from-[var(--brand-gold)] to-[var(--brand-gold-deep)]",
+  diamond: "from-[var(--brand-green)] to-[#2E8B6F]",
 };
 
-/** Soft background gradient for the highlighted (current) card. */
+/** Soft background gradient for the highlighted (current) card. Built from
+ *  solid MD3 container roles so it stays legible in dark mode — a static light
+ *  palette (`from-blue-50`) would render the card near-white on a dark surface. */
 export const PLAN_BG_GRADIENTS: Record<PlanCode, string> = {
-  silver: "from-slate-50 to-gray-50",
-  gold: "from-amber-50 to-yellow-50",
-  diamond: "from-blue-50 to-cyan-50",
+  silver: "from-surface-container to-surface-container-low",
+  gold: "from-secondary-container to-surface",
+  diamond: "from-primary-container to-surface",
 };
 
-const FALLBACK_GRADIENT = "from-primary-500 to-primary-700";
-const FALLBACK_BG = "from-primary-50 to-blue-50";
+const FALLBACK_GRADIENT = "from-[var(--brand-green)] to-[var(--brand-teal)]";
+const FALLBACK_BG = "from-surface-container to-surface";
 
 export function planGradient(code: PlanCode): string {
   return PLAN_GRADIENTS[code] ?? FALLBACK_GRADIENT;

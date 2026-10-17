@@ -46,6 +46,16 @@ export function hashSnapshot(snapshot: ContractVersionSnapshot): string {
   return crypto.createHash("sha256").update(canonicalJson(snapshot)).digest("hex");
 }
 
+/**
+ * Strip bank details before a party is frozen into a version. Bank data
+ * is payment instruction, not contract content: it must never enter the
+ * signed document, its hash, or the counterparty's view. Stripping
+ * happens BEFORE hashing, so the hash is over exactly what is shown.
+ */
+function withoutBanking(party: ContractParty): ContractParty {
+  return { ...party, banking: null };
+}
+
 /** Build the snapshot payload from the current working state. */
 export function buildSnapshot(
   contract: PropertyContract,
@@ -55,7 +65,7 @@ export function buildSnapshot(
 ): ContractVersionSnapshot {
   return {
     data: contract.data,
-    parties,
+    parties: parties.map(withoutBanking),
     payments,
     documentsManifest: documents.map((d) => ({
       id: d.id,

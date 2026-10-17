@@ -19,6 +19,7 @@ import type {
   AdminEnergyActionInput,
   AdminLegalSource,
   UpsertLegalSourceInput,
+  ContractStampActionRequest,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -40,6 +41,8 @@ import {
   fetchAdminContracts,
   fetchAdminContract,
   reviewAdminContract,
+  fetchAdminContractStamp,
+  decideAdminContractStamp,
   type AdminContractsQuery,
   fetchAdminFlags,
   updateAdminFlag,
@@ -542,6 +545,40 @@ export function useAdminContractReview() {
       reviewAdminContract(id, input),
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
+/**
+ * The stamp context for one contract (Super Admin). Keyed separately from
+ * the review detail so the stamp panel refetches ONLY itself after a stamp
+ * decision — the stamp trail never depends on the review query.
+ */
+export function useAdminContractStamp(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "contracts", "stamp", id],
+    queryFn: () => fetchAdminContractStamp(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Record a stamp decision. An applied stamp changes the contract's state,
+ * its audit trail AND the PDF the owner downloads, so every slice that
+ * reads the contract is invalidated — and a `notify` failure appended by
+ * the server must show up in the stamp trail without a manual refresh.
+ */
+export function useAdminContractStampDecision() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ContractStampActionRequest }) =>
+      decideAdminContractStamp(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "stamp", id] });
       qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
     },
   });

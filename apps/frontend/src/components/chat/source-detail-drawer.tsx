@@ -7,10 +7,15 @@ import { Skeleton } from "@legalir/ui";
 
 interface SourceDetailDrawerProps {
   sourceId: string | null;
+  /**
+   * The exact quote from the citation that opened this source, so the real
+   * matched span inside the excerpt can be highlighted (§7).
+   */
+  highlightQuote?: string | null;
   onClose: () => void;
 }
 
-export function SourceDetailDrawer({ sourceId, onClose }: SourceDetailDrawerProps) {
+export function SourceDetailDrawer({ sourceId, highlightQuote, onClose }: SourceDetailDrawerProps) {
   const { data: source, isLoading, error } = useSource(sourceId ?? undefined);
   const { data: versions } = useSourceVersions(sourceId ?? undefined);
 
@@ -83,7 +88,7 @@ export function SourceDetailDrawer({ sourceId, onClose }: SourceDetailDrawerProp
           )}
 
           {source && !isLoading && !error && (
-            <SourceCard source={source} />
+            <SourceCard source={source} highlightQuote={highlightQuote} />
           )}
 
           {/* Versions */}

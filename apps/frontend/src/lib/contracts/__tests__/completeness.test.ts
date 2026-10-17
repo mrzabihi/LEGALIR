@@ -33,6 +33,7 @@ function rentContract(overrides: Partial<PropertyRentData> = {}): PropertyContra
     typeFa: def.typeFa,
     state: "DRAFT",
     initiatorRole: "landlord",
+    initiatorSide: "first",
     title: "test",
     currentStep: "parties",
     progress: 0,
@@ -74,7 +75,9 @@ function party(role: ContractParty["role"], complete = true): ContractParty {
       firstName: complete ? "نام" : "",
       lastName: complete ? "خانوادگی" : "",
       fatherName: "",
-      nationalId: complete ? "0079123456" : "",
+      // Checksum-valid Iranian national id: completeness runs the SAME
+      // branch-aware validator as the form and the server route.
+      nationalId: complete ? "0012345679" : "",
       birthCertificateNumber: "",
       birthCertificatePlace: "",
       birthDate: null,
@@ -82,8 +85,13 @@ function party(role: ContractParty["role"], complete = true): ContractParty {
       address: "",
       postalCode: "",
     },
+    personKind: "natural",
+    nationality: "iranian",
+    representativeOfPartyId: null,
+    representativePositionFa: "",
     ownershipShare: null,
     powerOfAttorney: null,
+    banking: null,
     isInitiator: role === "landlord" || role === "seller",
     createdAt: "2026-09-20T00:00:00.000Z",
   };

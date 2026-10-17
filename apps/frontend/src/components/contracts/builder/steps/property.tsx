@@ -70,8 +70,12 @@ const EMPTY_VILLA: VillaDetails = {
 };
 
 export function PropertyStep() {
-  const { data, patchData } = useWizard();
+  const { data, patchData, editable, advanceBlockedReason } = useWizard();
   const d = data as PropertyData;
+  // Show the inline error only after the user tried to leave the step
+  // incomplete; it clears as soon as the value is typed.
+  const showErrors = editable && advanceBlockedReason !== null;
+  const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
 
   const setAddress = (patch: Partial<typeof d.address>) =>
     patchData({ address: { ...d.address, ...patch } });
@@ -95,20 +99,40 @@ export function PropertyStep() {
           value={d.propertyKind}
           onChange={(v) => patchData({ propertyKind: v })}
           options={PROPERTY_KINDS}
+          required
+          errorText={showErrors && !d.propertyKind ? REQUIRED_ERROR : undefined}
         />
       </SectionCard>
 
       <SectionCard title="نشانی ملک" description="نشانی دقیق ملک موضوع قرارداد">
         <FieldGrid>
-          <Field label="استان" value={d.address.province} onChange={(v) => setAddress({ province: v })} />
-          <Field label="شهر" value={d.address.city} onChange={(v) => setAddress({ city: v })} />
+          <Field
+            label="استان"
+            value={d.address.province}
+            onChange={(v) => setAddress({ province: v })}
+            required
+            errorText={showErrors && !d.address.province.trim() ? REQUIRED_ERROR : undefined}
+          />
+          <Field
+            label="شهر"
+            value={d.address.city}
+            onChange={(v) => setAddress({ city: v })}
+            required
+            errorText={showErrors && !d.address.city.trim() ? REQUIRED_ERROR : undefined}
+          />
           <Field label="منطقه" value={d.address.district} onChange={(v) => setAddress({ district: v })} />
           <Field
             label="محله"
             value={d.address.neighborhood}
             onChange={(v) => setAddress({ neighborhood: v })}
           />
-          <Field label="خیابان" value={d.address.street} onChange={(v) => setAddress({ street: v })} />
+          <Field
+            label="خیابان"
+            value={d.address.street}
+            onChange={(v) => setAddress({ street: v })}
+            required
+            errorText={showErrors && !d.address.street.trim() ? REQUIRED_ERROR : undefined}
+          />
           <Field label="کوچه" value={d.address.alley} onChange={(v) => setAddress({ alley: v })} />
           <Field label="پلاک" value={d.address.plaque} onChange={(v) => setAddress({ plaque: v })} />
           <Field label="طبقه" value={d.address.floor} onChange={(v) => setAddress({ floor: v })} />
@@ -129,6 +153,8 @@ export function PropertyStep() {
             value={d.general.area}
             onChange={(v) => setGeneral({ area: v })}
             suffix="مترمربع"
+            required
+            errorText={showErrors && (d.general.area ?? 0) <= 0 ? REQUIRED_ERROR : undefined}
           />
           <NumberField
             label="سال ساخت"

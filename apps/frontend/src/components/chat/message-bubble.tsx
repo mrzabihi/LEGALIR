@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { Message, V1Reference, StructuredResponseSection } from "@legalir/types";
 import type { AiRunStatus } from "@legalir/types";
-import { IconRetry, IconWarning } from "@/lib/icons";
+import { IconRetry, IconWarning, IconCheck, IconClock } from "@/lib/icons";
 import { AiRunIndicator } from "./ai-run-indicator";
 import { StructuredResponse } from "./structured-response";
 import { DisclaimerBanner } from "./disclaimer-banner";
@@ -22,6 +23,9 @@ interface MessageBubbleProps {
   onAttachmentClick?: (documentId: string) => void;
   scrollToSectionId?: string | null;
   onScrollComplete?: () => void;
+  /** Rendered directly under the bubble, inside the message column — used
+   *  for the in-flight processing line beneath the user's message (§5). */
+  trailing?: ReactNode;
 }
 
 export function MessageBubble({
@@ -33,102 +37,105 @@ export function MessageBubble({
   onAttachmentClick,
   scrollToSectionId,
   onScrollComplete,
+  trailing,
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
   const isFailed = message.status === "failed";
   const isBlocked = message.status === "blocked";
+  const isSending = message.status === "sending";
   const hasSections = isAssistant && message.sections && message.sections.length > 0;
   const attachments = message.attachments ?? [];
+
+  // A streaming assistant reply shows a typing caret while it is being written.
+  const showCaret = isAssistant && isStreaming;
 
   return (
     <div
       className={[
-        "flex gap-3 animate-fade-in",
+        "flex gap-2.5 animate-fade-in motion-reduce:animate-none",
         isUser ? "justify-end" : "justify-start",
       ].join(" ")}
     >
       {/* Assistant avatar */}
       {isAssistant && (
-        <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
-          <span className="text-primary text-labelSmall font-bold" aria-hidden="true">ل</span>
+        <div
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container"
+          aria-hidden="true"
+        >
+          <span className="text-labelSmall font-bold text-primary">ل</span>
         </div>
       )}
 
-      <div
-        className={[
-          "max-w-[85%] tablet:max-w-[75%]",
-          isUser ? "order-first" : "",
-        ].join(" ")}
-      >
-        {/* Bubble */}
-        <div
-          className={[
-            "rounded-large px-4 py-3",
-            isUser
-              ? "bg-primary text-primary-on rounded-br-small"
-              : "bg-surface border border-divider rounded-bl-small",
-            isFailed || isBlocked
-              ? "bg-error-container border-error"
-              : "",
-          ].join(" ")}
-        >
-          {/* Failed state */}
-          {isFailed && (
-            <div className="flex items-center gap-2 mb-2 text-error">
-              <IconWarning size={16} />
-              <span className="text-bodySmall">خطا در پردازش پاسخ</span>
-            </div>
-          )}
-
-          {/* Blocked state */}
-          {isBlocked && (
-            <div className="flex items-center gap-2 mb-2 text-warning">
-              <IconWarning size={16} />
-              <span className="text-bodySmall">پاسخ به این درخواست امکان‌پذیر نیست</span>
-            </div>
-          )}
-
-          {/* Attached documents — persisted references, opened in the
-              existing viewer. Shown above the message text. */}
-          {attachments.length > 0 && (
-            <div className="mb-2 space-y-2">
-              {attachments.map((ref) => (
-                <ChatDocumentAttachment
-                  key={ref.attachmentId}
-                  variant="MESSAGE"
-                  document={refToAttachment(ref)}
-                  onPrimary={isUser}
-                  onOpen={onAttachmentClick}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Message content */}
+      <div className="flex max-w-[88%] flex-col tablet:max-w-[76%]">
+        {/* Bubble — flat, low-contrast surfaces; the conversation text leads. */}
+        {(attachments.length > 0 || message.content || isBlocked || isFailed) && (
           <div
             className={[
-              "text-bodyMedium whitespace-pre-wrap",
-              isUser ? "text-white" : "text-onSurface",
-              isAssistant && !hasSections ? "leading-loose legal-text" : "",
+              "px-3.5 py-2.5",
+              isUser
+                ? "rounded-large rounded-ee-medium bg-primary-container text-on-primary-container"
+                : "rounded-large rounded-es-medium bg-surface-container text-onSurface",
+              isFailed ? "bg-error-container text-on-error-container" : "",
             ].join(" ")}
           >
-            {message.content}
+            {/* Blocked state — a real backend signal, not a decoration */}
+            {isBlocked && (
+              <div className="mb-2 flex items-center gap-2 text-warning">
+                <IconWarning size={15} />
+                <span className="text-bodySmall">پاسخ به این درخواست امکان‌پذیر نیست</span>
+              </div>
+            )}
+
+            {/* Attached documents — persisted refs, opened in the existing
+                auth-gated viewer; shown above the message text. */}
+            {attachments.length > 0 && (
+              <div className={["space-y-2", message.content ? "mb-2" : ""].join(" ")}>
+                {attachments.map((ref) => (
+                  <ChatDocumentAttachment
+                    key={ref.attachmentId}
+                    variant="MESSAGE"
+                    document={refToAttachment(ref)}
+                    onPrimary={isUser}
+                    onOpen={onAttachmentClick}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Message content — plain text, no per-chunk decoration. */}
+            {(message.content || showCaret) && (
+              <div
+                className={[
+                  "whitespace-pre-wrap text-bodyMedium",
+                  isAssistant ? "leading-loose legal-text" : "leading-relaxed",
+                ].join(" ")}
+              >
+                {message.content}
+                {showCaret && (
+                  <span
+                    className="ms-0.5 inline-block h-4 w-[3px] animate-pulse rounded-full bg-primary align-middle motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Run indicator (legacy status line) — only for non-success. */}
+            {runStatus && runStatus !== "succeeded" && !showCaret && (
+              <AiRunIndicator status={runStatus} />
+            )}
           </div>
+        )}
 
-          {/* Run indicator */}
-          {runStatus && runStatus !== "succeeded" && (
-            <AiRunIndicator status={runStatus} />
-          )}
-        </div>
-
-        {/* Structured sections (below bubble) */}
-        {hasSections && !isFailed && !isBlocked && (
-          <div className="mt-1">
+        {/* Structured sections (below the bubble) — the real persisted
+            sections. Rendered as plain prose, not nested cards. */}
+        {hasSections && !isBlocked && (
+          <div className="mt-1.5">
             <StructuredResponse
               sections={message.sections!}
               references={message.references}
-              streaming={isStreaming || message.status === "streaming"}
+              streaming={false}
               onCitationClick={onCitationClick}
               scrollToSectionId={scrollToSectionId}
               onScrollComplete={onScrollComplete}
@@ -139,36 +146,62 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Retry button */}
-        {isFailed && onRetry && (
-          <button
-            onClick={onRetry}
-            className="mt-2 flex items-center gap-1.5 text-bodySmall text-primary hover:text-primary-variant transition-colors touch-target px-3 py-2 rounded-medium"
-            aria-label="تلاش مجدد"
-          >
-            <IconRetry size={14} />
-            تلاش مجدد
-          </button>
+        {/* Failed state + retry — the user's message is never lost (§3, §9). */}
+        {isFailed && (
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-bodySmall text-error">
+              <IconWarning size={14} />
+              ارسال نشد
+            </span>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-bodySmall text-primary transition-colors hover:bg-primary-container"
+                aria-label="تلاش مجدد برای ارسال"
+              >
+                <IconRetry size={14} />
+                تلاش مجدد
+              </button>
+            )}
+          </div>
         )}
 
-        {/* Timestamp */}
+        {/* Delivery status — sending / sent / timestamp. */}
         <p
           className={[
-            "text-bodySmall text-muted mt-1 px-1",
-            isUser ? "text-end" : "text-start",
+            "mt-1 flex items-center gap-1 px-1 text-caption text-muted",
+            isUser ? "justify-end" : "justify-start",
           ].join(" ")}
         >
-          {new Date(message.createdAt).toLocaleTimeString("fa-IR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+          {isUser && isSending && (
+            <>
+              <IconClock size={12} aria-hidden="true" />
+              <span>در حال ارسال…</span>
+            </>
+          )}
+          {isUser && !isSending && !isFailed && (
+            <IconCheck size={12} className="text-success" aria-hidden="true" />
+          )}
+          <time dateTime={message.createdAt}>
+            {new Date(message.createdAt).toLocaleTimeString("fa-IR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </time>
         </p>
+
+        {/* In-flight processing line — sits directly under the user's message,
+            as the last item in the message column (§5). */}
+        {trailing}
       </div>
 
       {/* User avatar */}
       {isUser && (
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-          <span className="text-white text-labelSmall font-bold" aria-hidden="true">ش</span>
+        <div
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary"
+          aria-hidden="true"
+        >
+          <span className="text-labelSmall font-bold text-white">ش</span>
         </div>
       )}
     </div>

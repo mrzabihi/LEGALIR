@@ -10,7 +10,7 @@
 // ============================================================
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import type {
   PropertyContractListItem,
   V1ContractListItem,
@@ -39,8 +39,12 @@ import { ContractTemplateGrid } from "../contract-template-grid";
 import { MyContractsSection } from "../my-contracts-section";
 import { UserContractCard } from "../user-contract-card";
 import { ContractTemplateCard } from "../contract-template-card";
+import { ContractTemplatePreview } from "../contract-template-preview";
+import { PaginationBar } from "../pagination-bar";
+import { CompactContractSections } from "../compact-contract-sections";
 import { ContractWorkspaceHeader } from "../builder/contract-workspace-header";
 import { getContractDefinition, implementedContractDefinitions } from "@/lib/contracts/registry";
+import { toPersianNumber } from "@/lib/persian-utils";
 import {
   CONTRACT_ARTWORK,
   contractArtwork,
@@ -260,9 +264,7 @@ describe("ContractTemplateGrid (SECTION 1)", () => {
   it("calls onStart with the chosen definition", () => {
     const onStart = vi.fn();
     render(<ContractTemplateGrid query="" category="all" onStart={onStart} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "تنظیم قرارداد اجاره — رهن و اجاره ملک مسکونی" })
-    );
+    fireEvent.click(screen.getByRole("button", { name: "تنظیم قرارداد اجاره" }));
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart.mock.calls[0]![0].id).toBe("property_rent");
   });
@@ -344,14 +346,28 @@ describe("MyContractsSection (SECTION 2)", () => {
     );
   }
 
-  it("shows the «ادامه دهید» block when drafts exist", () => {
-    renderSection([draft, finalized]);
-    expect(screen.getByText("ادامه دهید")).toBeInTheDocument();
+  it("renders BOTH workflow subsections even when one is empty", () => {
+    renderSection([finalized]);
+    // «نیازمند ادامه» has nothing to show, but it still appears — with
+    // guidance — so the user can tell "nothing to continue" apart from
+    // "the section is missing".
+    expect(screen.getByText("نیازمند ادامه")).toBeInTheDocument();
+    expect(screen.getByText("قراردادهای آماده")).toBeInTheDocument();
+    expect(
+      screen.getByText("قراردادی برای ادامه ندارید؛ همه قراردادهای شما تکمیل شده‌اند.")
+    ).toBeInTheDocument();
   });
 
-  it("hides the «ادامه دهید» block when there are no drafts", () => {
-    renderSection([finalized]);
-    expect(screen.queryByText("ادامه دهید")).not.toBeInTheDocument();
+  it("caps each subsection at three rows and reveals more on demand", () => {
+    const drafts = Array.from({ length: 10 }, (_, i) =>
+      toUnifiedPropertyContract(makeProperty({ id: `d${i}`, title: `قرارداد ${i}` }))
+    );
+    renderSection(drafts);
+    // The test environment reports a phone-width media query, so the cap
+    // is three rows of ONE column: the fourth card must be hidden.
+    expect(screen.queryByText("قرارداد 3")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /مشاهده بیشتر/ }));
+    expect(screen.getByText("قرارداد 3")).toBeInTheDocument();
   });
 
   it("shows the no-contracts empty state when the list is empty", () => {
@@ -499,6 +515,208 @@ describe("template card vs user card", () => {
     ).toBeInTheDocument();
     // A stale review makes the primary verb about re-reviewing.
     expect(screen.getByText("بررسی نسخه جدید")).toBeInTheDocument();
+  });
+
+  it("a compact user card keeps only name, state and last change", () => {
+    const contract = toUnifiedPropertyContract(makeProperty());
+    render(
+      <UserContractCard contract={contract} layout="compact" onCopyId={() => undefined} />
+    );
+    expect(screen.getByText("قرارداد اجاره آپارتمان")).toBeInTheDocument();
+    expect(screen.getByText("پیش‌نویس")).toBeInTheDocument();
+    expect(screen.getByText(/آخرین تغییر:/)).toBeInTheDocument();
+    expect(screen.getByText("ادامه تکمیل")).toBeInTheDocument();
+    // The heavy AI-review badge is not part of the compact card.
+    expect(
+      screen.queryByText("بررسی هوش مصنوعی: انجام‌نشده")
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ------------------------------------------------------------
+// Template card: preview vs start (two distinct actions)
+// ------------------------------------------------------------
+
+describe("template card actions", () => {
+  it("offers preview and start as separate controls", () => {
+    const onStart = vi.fn();
+    const onPreview = vi.fn();
+    render(
+      <ContractTemplateCard
+        definition={getContractDefinition("nda")}
+        onStart={onStart}
+        onPreview={onPreview}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "پیش‌نمایش توافقنامه محرمانگی (NDA)" }));
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    // Previewing must NEVER create a draft.
+    expect(onStart).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /تنظیم توافقنامه محرمانگی/ }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the real step and mandatory-document counts", () => {
+    const def = getContractDefinition("property_rent");
+    const expectedSteps = def.wizardSteps.filter((s) => s.id !== "review").length;
+    const expectedDocs = def.requiredDocuments.filter((d) => d.required).length;
+    render(<ContractTemplateCard definition={def} onStart={() => undefined} />);
+    expect(screen.getByText(`${toPersianNumber(expectedSteps)} مرحله`)).toBeInTheDocument();
+    expect(screen.getByText(`${toPersianNumber(expectedDocs)} مدرک الزامی`)).toBeInTheDocument();
+  });
+});
+
+// ------------------------------------------------------------
+// Preview dialog
+// ------------------------------------------------------------
+
+describe("ContractTemplatePreview", () => {
+  it("shows the contract structure from the registry definition", () => {
+    const def = getContractDefinition("property_rent");
+    render(
+      <ContractTemplatePreview definition={def} onClose={() => undefined} onStart={() => undefined} />
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // The step titles are asserted INSIDE the structure block: a step
+    // title may legitimately repeat elsewhere (e.g. «طرفین قرارداد» is
+    // also a summary label).
+    const structure = screen.getByText("ساختار قرارداد").closest("section");
+    expect(structure).not.toBeNull();
+    // Every non-review wizard step is listed with its real title.
+    for (const step of def.wizardSteps.filter((s) => s.id !== "review")) {
+      expect(within(structure as HTMLElement).getByText(step.titleFa)).toBeInTheDocument();
+    }
+    // The parties and the document list come from the definition.
+    expect(screen.getByText("موجر و مستأجر")).toBeInTheDocument();
+    expect(screen.getByText("مدارک موردنیاز")).toBeInTheDocument();
+  });
+
+  it("starts the contract from the dialog footer", () => {
+    const onStart = vi.fn();
+    const def = getContractDefinition("debt");
+    render(
+      <ContractTemplatePreview definition={def} onClose={() => undefined} onStart={onStart} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /تنظیم قرارداد قرض/ }));
+    expect(onStart).toHaveBeenCalledWith(def);
+  });
+
+  it("renders nothing when closed", () => {
+    const { container } = render(
+      <ContractTemplatePreview definition={null} onClose={() => undefined} onStart={() => undefined} />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+// ------------------------------------------------------------
+// Pagination bar (the 20-per-page rule, as the user sees it)
+// ------------------------------------------------------------
+
+describe("PaginationBar", () => {
+  it("states the visible range, the page and the total page count", () => {
+    render(
+      <PaginationBar
+        page={1}
+        totalPages={2}
+        total={25}
+        itemLabel="قالب قرارداد"
+        pageSize={20}
+        onPageChange={() => undefined}
+      />
+    );
+
+    // Both the range and the position are spelled out — no guessing.
+    expect(screen.getByText(/۱ تا ۲۰ از ۲۵ قالب قرارداد/)).toBeInTheDocument();
+    expect(screen.getByText(/صفحه ۱ از ۲/)).toBeInTheDocument();
+    // The compact mobile indicator mirrors the same facts.
+    expect(screen.getByText("۱ / ۲")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "صفحه ۱" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    // The previous arrow cannot leave the first page.
+    expect(screen.getByRole("button", { name: "صفحه قبل" })).toBeDisabled();
+  });
+
+  it("reports the remainder range on the last page", () => {
+    render(
+      <PaginationBar
+        page={2}
+        totalPages={2}
+        total={25}
+        itemLabel="قالب قرارداد"
+        pageSize={20}
+        onPageChange={() => undefined}
+      />
+    );
+    expect(screen.getByText(/۲۱ تا ۲۵ از ۲۵ قالب قرارداد/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "صفحه بعد" })).toBeDisabled();
+  });
+
+  it("collapses to a plain count when there is only one page", () => {
+    render(
+      <PaginationBar page={1} totalPages={1} total={14} itemLabel="قالب قرارداد" onPageChange={() => undefined} />
+    );
+    expect(screen.queryByRole("navigation", { name: "صفحه‌بندی" })).not.toBeInTheDocument();
+    expect(screen.getByText("۱۴ قالب قرارداد")).toBeInTheDocument();
+  });
+});
+
+// ------------------------------------------------------------
+// Compact own-contract sections (below the catalog)
+// ------------------------------------------------------------
+
+describe("CompactContractSections", () => {
+  const handlers = {
+    isLoading: false,
+    isError: false,
+    onRetry: () => undefined,
+    onDelete: () => undefined,
+    onCopyId: () => undefined,
+  };
+
+  it("renders the two sections with compact cards once data arrives", () => {
+    const contract = toUnifiedPropertyContract(makeProperty());
+    render(<CompactContractSections contracts={[contract]} {...handlers} />);
+
+    expect(screen.getByRole("heading", { name: "قراردادهای من" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "قراردادهای نیازمند ادامه" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "قراردادهای آماده" })).toBeInTheDocument();
+    // The compact card keeps name, state and last change only.
+    expect(screen.getByText("قرارداد اجاره آپارتمان")).toBeInTheDocument();
+    expect(screen.getByText(/آخرین تغییر:/)).toBeInTheDocument();
+  });
+
+  it("guides an empty account toward the catalog instead of a dead section", () => {
+    render(<CompactContractSections contracts={[]} {...handlers} />);
+    expect(
+      screen.getByText(/هنوز قراردادی نساخته‌اید\. یکی از قراردادهای بالا/)
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a real retry when the fetch fails", () => {
+    const onRetry = vi.fn();
+    render(
+      <CompactContractSections contracts={[]} {...handlers} isError onRetry={onRetry} />
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("بارگذاری قراردادهای شما ناموفق بود.");
+    fireEvent.click(screen.getByRole("button", { name: "تلاش مجدد" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows skeletons while loading, never an empty-state claim", () => {
+    render(<CompactContractSections contracts={[]} {...handlers} isLoading />);
+    expect(
+      screen.getByLabelText("در حال بارگذاری قراردادهای من")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/هنوز قراردادی نساخته‌اید/)).not.toBeInTheDocument();
   });
 });
 

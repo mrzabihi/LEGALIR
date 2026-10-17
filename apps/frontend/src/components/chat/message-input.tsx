@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { IconButton } from "@legalir/ui";
 import { IconSend, IconStop, IconAttach } from "@/lib/icons";
 import { AttachDocumentModal } from "./attach-document-modal";
 import { ChatDocumentAttachment } from "./chat-document-attachment";
@@ -120,7 +121,10 @@ export function MessageInput({
   );
 
   return (
-    <div className="border-t border-divider bg-surface">
+    // `safe-bottom` keeps the composer clear of the home indicator / gesture
+    // bar on mobile, and the composer is the last flex child so the message
+    // area scrolls independently under it (§2).
+    <div className="safe-bottom shrink-0 border-t border-divider bg-surface">
       {/* Attachment tray — the documents the next message will carry, each
           removable. Rendered only when there is at least one attachment. */}
       {attachedDocuments.length > 0 && (
@@ -183,27 +187,24 @@ export function MessageInput({
         />
 
         {isGenerating && onStop ? (
-          <button
+          <IconButton
+            variant="danger"
+            label="توقف تولید"
             onClick={onStop}
-            className="w-12 h-12 flex items-center justify-center rounded-full bg-error text-white hover:opacity-90 transition-colors touch-target shrink-0"
-            aria-label="توقف تولید"
+            className="rounded-full"
           >
             <IconStop size={20} />
-          </button>
+          </IconButton>
         ) : (
-          <button
+          <IconButton
+            variant="filled"
+            label="ارسال پیام"
             onClick={handleSubmit}
             disabled={disabled || !value.trim()}
-            className={[
-              "w-12 h-12 flex items-center justify-center rounded-full transition-colors touch-target shrink-0",
-              value.trim() && !disabled
-                ? "bg-primary text-primary-on hover:bg-primary-variant"
-                : "bg-surface-container text-muted cursor-not-allowed",
-            ].join(" ")}
-            aria-label="ارسال پیام"
+            className="rounded-full"
           >
             <IconSend size={20} />
-          </button>
+          </IconButton>
         )}
       </div>
 

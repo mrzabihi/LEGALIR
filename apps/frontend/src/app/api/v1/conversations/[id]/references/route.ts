@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
+import { readConversations } from "@/lib/db";
 import { getMessages } from "@/lib/ai/store";
 import type { V1Reference } from "@legalir/types";
 
@@ -23,6 +24,19 @@ export async function GET(
   }
 
   const { id } = await params;
+
+  // Ownership guard — a conversation's references are only returned to the
+  // user who owns it, mirroring GET /conversations/[id]. Without this, any
+  // signed-in user could read another user's cited sources by id (§7).
+  const owned = readConversations().some(
+    (c) => c.id === id && c.userId === userId
+  );
+  if (!owned) {
+    return NextResponse.json(
+      { code: "NOT_FOUND", message: "گفتگو یافت نشد" },
+      { status: 404 }
+    );
+  }
 
   const messages = getMessages(id);
   const references: V1Reference[] = messages.flatMap((m) =>

@@ -20,7 +20,13 @@ import type {
   PropertyRentData,
   PropertySaleData,
 } from "@legalir/types";
-import { getContractDefinition, type ContractSectionDefinition } from "./registry";
+import { validateBanking, validatePartyIdentity } from "@legalir/validation";
+import {
+  fieldConditionHolds,
+  getContractDefinition,
+  partyRoleLabelFa,
+  type ContractSectionDefinition,
+} from "./registry";
 
 /** Persian labels for the dotted paths used in section definitions. */
 const PATH_LABELS: Record<string, string> = {
@@ -47,6 +53,7 @@ const PATH_LABELS: Record<string, string> = {
   "data.handover.items": "وضعیت تحویل ملک",
   parties: "طرفین قرارداد",
   documents: "مدارک",
+  banking: "اطلاعات بانکی دریافت‌کننده",
 };
 
 /**
@@ -57,6 +64,10 @@ const PATH_LABELS: Record<string, string> = {
  */
 function pathLabelFa(contract: PropertyContract, path: string): string {
   if (PATH_LABELS[path]) return PATH_LABELS[path];
+  if (path.startsWith("banking.")) {
+    const role = path.slice("banking.".length);
+    return `${PATH_LABELS["banking"]} (${partyRoleLabelFa(role as ContractParty["role"])})`;
+  }
   if (path.startsWith("values.")) {
     const key = path.slice("values.".length);
     const field = getContractDefinition(contract.type).fields.find((f) => f.key === key);
@@ -65,13 +76,22 @@ function pathLabelFa(contract: PropertyContract, path: string): string {
   return path;
 }
 
-/** Required identity fields for a party to count as complete. */
-const REQUIRED_IDENTITY_FIELDS = [
-  "firstName",
-  "lastName",
-  "nationalId",
-  "mobile",
-] as const;
+/**
+ * The identity requirements for a party depend on the branch the user
+ * actually chose — an Iranian natural person needs a national id, a
+ * foreign natural person needs a passport, a legal entity needs its
+ * registration. The shared validator is the same one the form and the
+ * server route use, so "complete" means the same everywhere.
+ */
+function partyIdentityComplete(party: ContractParty): boolean {
+  return (
+    validatePartyIdentity({
+      personKind: party.personKind ?? "natural",
+      nationality: party.nationality ?? "iranian",
+      identity: party.identity,
+    }).length === 0
+  );
+}
 
 /** Resolve a dotted path against the contract aggregate. */
 function resolvePath(
@@ -82,6 +102,15 @@ function resolvePath(
 ): unknown {
   if (path === "parties") return parties;
   if (path === "documents") return documents;
+  // `banking.<role>` resolves against the party record. The value is a
+  // boolean "is valid" — the bank details themselves are never copied
+  // into domain data.
+  if (path.startsWith("banking.")) {
+    const role = path.slice("banking.".length);
+    const party = parties.find((p) => p.role === role);
+    if (!party?.banking) return false;
+    return validateBanking(party.banking).length === 0;
+  }
   // Schema-driven types store their values in a flat `values` map, so
   // `values.<key>` resolves one level into `contract.data`.
   if (path.startsWith("values.")) {
@@ -106,7 +135,11 @@ function isFilled(value: unknown): boolean {
   if (typeof value === "string") return value.trim().length > 0;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value === "boolean") return true;
-  if (Array.isArray(value)) return value.length > 0;
+  // A list is only an answer when at least one entry has content. A row
+  // the form added but the user has not typed into yet is a scaffold, not
+  // a completed schedule — the same rule the renderer applies when it
+  // drops blank rows from the printed table.
+  if (Array.isArray(value)) return value.some((entry) => isFilled(entry));
   if (typeof value === "object") {
     // A Money value is filled when its amount is non-zero.
     const maybeMoney = value as { amount?: unknown; currency?: unknown };
@@ -121,14 +154,23 @@ function isFilled(value: unknown): boolean {
 /** True when the parties section is satisfied for this contract type. */
 function partiesComplete(contract: PropertyContract, parties: ContractParty[]): boolean {
   const def = getContractDefinition(contract.type);
-  return def.roles.every((role) => {
+  const sides = def.roles.every((role) => {
     const party = parties.find((p) => p.role === role);
     if (!party) return false;
-    return REQUIRED_IDENTITY_FIELDS.every((field) => {
-      const v = party.identity[field];
-      return typeof v === "string" && v.trim().length > 0;
-    });
+    if (!partyIdentityComplete(party)) return false;
+    // A legal entity also needs its authorized representative recorded as
+    // a separate person, linked back to the entity.
+    if (party.personKind === "legal") {
+      const rep = parties.find(
+        (p) => p.role === "legal_representative" && p.representativeOfPartyId === party.id
+      );
+      if (!rep) return false;
+      if (!rep.representativePositionFa.trim()) return false;
+      return partyIdentityComplete(rep);
+    }
+    return true;
   });
+  return sides;
 }
 
 /** True when every required document category has at least one upload. */
@@ -143,22 +185,6 @@ function documentsComplete(contract: PropertyContract, documents: ContractDocume
 function genericValues(contract: PropertyContract): Record<string, unknown> {
   const values = (contract.data as { values?: Record<string, unknown> }).values;
   return values ?? {};
-}
-
-/**
- * True when a field's own `requiredWhen` gate is satisfied by the current
- * values. A gated field only blocks its section while its condition holds,
- * so the natural/legal-person and citizen/foreign-national branches stay
- * independent. A field with no gate is always applicable.
- */
-function conditionHolds(
-  values: Record<string, unknown>,
-  gate: { key: string; equals?: unknown; oneOf?: unknown[] }
-): boolean {
-  const current = values[gate.key];
-  if (gate.oneOf) return gate.oneOf.includes(current);
-  if (gate.equals !== undefined) return current === gate.equals;
-  return true;
 }
 
 /** Score a single section. */
@@ -180,7 +206,7 @@ function scoreSection(
     const key = path.slice("values.".length);
     const descriptor = fields.find((f) => f.key === key);
     if (!descriptor?.requiredWhen) return true;
-    return conditionHolds(values, descriptor.requiredWhen);
+    return fieldConditionHolds(values, descriptor.requiredWhen);
   });
 
   for (const path of applicablePaths) {
@@ -190,6 +216,16 @@ function scoreSection(
     }
     if (path === "documents") {
       if (!documentsComplete(contract, documents)) missing.push(PATH_LABELS["documents"] ?? "مدارک");
+      continue;
+    }
+    // `banking.<role>` resolves to a boolean ASSERTION (are these details
+    // valid?), not a value. `isFilled` deliberately treats every boolean
+    // as filled — that is right for toggles and wrong here, where `false`
+    // must count as missing.
+    if (path.startsWith("banking.")) {
+      if (resolvePath(contract, parties, documents, path) !== true) {
+        missing.push(pathLabelFa(contract, path));
+      }
       continue;
     }
     const value = resolvePath(contract, parties, documents, path);

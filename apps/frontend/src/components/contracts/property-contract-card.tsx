@@ -17,14 +17,16 @@
 
 import Link from "next/link";
 import type { PropertyContractListItem } from "@legalir/types";
-import { Button } from "@legalir/ui";
+import { Button, buttonClasses } from "@legalir/ui";
 import {
   IconArrowBack,
   IconBriefcase,
+  IconBusiness,
   IconCar,
   IconCloud,
   IconCoin,
   IconContract,
+  IconDatabase,
   IconDelete,
   IconEdit,
   IconHome,
@@ -35,12 +37,18 @@ import {
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   property_rent: <IconHome className="w-5 h-5" />,
   property_sale: <IconContract className="w-5 h-5" />,
+  commercial_rent: <IconBusiness className="w-5 h-5" />,
+  commercial_sale: <IconBusiness className="w-5 h-5" />,
   vehicle_sale: <IconCar className="w-5 h-5" />,
   debt: <IconCoin className="w-5 h-5" />,
   freelance: <IconBriefcase className="w-5 h-5" />,
   nda: <IconShield className="w-5 h-5" />,
   saas: <IconCloud className="w-5 h-5" />,
+  cloud_iaas: <IconDatabase className="w-5 h-5" />,
+  cloud_paas: <IconDatabase className="w-5 h-5" />,
+  cloud_baas: <IconDatabase className="w-5 h-5" />,
   startup: <IconUsers className="w-5 h-5" />,
+  employment: <IconBriefcase className="w-5 h-5" />,
 };
 
 /** A state chip colour, keyed by how far along the contract is. */
@@ -136,11 +144,15 @@ export function PropertyContractCard({ contract, onDelete }: PropertyContractCar
       {/* Actions — primary resume, plus a destructive delete for drafts.
           Stacked on mobile, inline from the `tablet` breakpoint up. */}
       <div className="mt-4 flex flex-col tablet:flex-row tablet:items-center gap-2">
+        {/* A navigation target borrows the button's class list — one focus
+            stop, one activation, identical states. */}
         <Link
           href={`/contracts/${contract.id}`}
-          className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-medium bg-primary text-primary-on text-labelLarge transition-all duration-short3 hover:state-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          className={buttonClasses({ className: "tablet:w-auto" })}
         >
-          <IconEdit size={18} aria-hidden="true" />
+          <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center">
+            <IconEdit size={18} />
+          </span>
           ادامه / ویرایش
         </Link>
 

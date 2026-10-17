@@ -66,6 +66,7 @@ import {
   Select,
   Field,
   InfoBanner,
+  InlineNotice,
   FilterPills,
   IdChip,
   Pagination,
@@ -194,8 +195,8 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
 
               {r.available ? (
                 <>
-                  <div className="flex items-start gap-2 rounded-large border border-emerald-200 bg-emerald-50 p-3 text-body-2 text-emerald-700 dark:border-emerald-700/30 dark:bg-emerald-900/20 dark:text-emerald-300">
-                    <IconCheckCircle size={16} className="mt-0.5 shrink-0" />
+                  <div className="flex items-start gap-2 rounded-large border border-success-200 bg-success-soft p-3 text-body-2 text-success-700">
+                    <IconCheckCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
                     <span>
                       رسید سامانه بر پایهٔ اطلاعات ثبت‌شدهٔ همین سفارش تولید می‌شود.
                       {r.gatewaySimulated
@@ -225,8 +226,8 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
                   </div>
                 </>
               ) : (
-                <div className="flex items-start gap-2 rounded-large border border-amber-200 bg-amber-50 p-3 text-body-2 text-amber-800 dark:border-amber-700/30 dark:bg-amber-900/20 dark:text-amber-200">
-                  <IconWarning size={16} className="mt-0.5 shrink-0" />
+                <div className="flex items-start gap-2 rounded-large border border-warning-200 bg-warning-soft p-3 text-body-2 text-warning-700">
+                  <IconWarning size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
                   <span>
                     {r.reason ? RECEIPT_REASON_FA[r.reason] : "رسیدی برای این تراکنش موجود نیست."}
                   </span>
@@ -262,7 +263,7 @@ function OrderDetail({ id }: { id: string }) {
   if (detail.isLoading)
     return <Card className="p-4 text-body-2 text-muted">در حال بارگذاری…</Card>;
   if (detail.isError || !detail.data)
-    return <Card className="p-4 text-body-2 text-red-600">خطا در دریافت سفارش</Card>;
+    return <Card className="p-4 text-body-2 text-error-600" role="alert">خطا در دریافت سفارش</Card>;
 
   const { order, refunds } = detail.data;
 
@@ -346,17 +347,7 @@ function OrderDetail({ id }: { id: string }) {
         {order.trackingId ? ` · کد پیگیری: ${order.trackingId}` : ""}
       </p>
 
-      {feedback && (
-        <div
-          className={`mb-4 rounded-large border p-3 text-body-2 ${
-            feedback.tone === "error"
-              ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-          }`}
-        >
-          {feedback.text}
-        </div>
-      )}
+      {feedback && <InlineNotice tone={feedback.tone}>{feedback.text}</InlineNotice>}
 
       {canRequest && (
         <div className="mb-5 rounded-medium border border-divider p-3">

@@ -107,11 +107,16 @@ export function categoryGradient(id: string): string {
 export const CONTRACT_ACCENT: Record<ContractTypeId | string, string> = {
   property_rent: "var(--cv-green)",
   property_sale: "var(--cv-teal)",
+  commercial_rent: "var(--cv-teal)",
+  commercial_sale: "var(--cv-gold)",
   vehicle_sale: "var(--cv-navy)",
   debt: "var(--cv-gold)",
   freelance: "var(--cv-green-soft)",
   nda: "var(--cv-navy-soft)",
   saas: "var(--cv-navy)",
+  cloud_iaas: "var(--cv-navy)",
+  cloud_paas: "var(--cv-teal)",
+  cloud_baas: "var(--cv-green-soft)",
   startup: "var(--cv-gold-bright)",
   employment: "var(--cv-green)",
 };

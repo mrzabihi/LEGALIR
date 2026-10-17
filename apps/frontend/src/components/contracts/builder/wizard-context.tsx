@@ -35,7 +35,9 @@ import type {
 } from "@legalir/types";
 import { savePayments, updatePropertyContract } from "@/lib/api/property-contracts";
 import { propertyContractKeys } from "@/hooks/usePropertyContracts";
+import { computeCompleteness } from "@/lib/contracts/completeness";
 import { getContractDefinition, nextWizardStepId, prevWizardStepId } from "@/lib/contracts/registry";
+import { isEditable as stateIsEditable } from "@/lib/contracts/state-machine";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -73,6 +75,15 @@ interface WizardContextValue {
   saveNow: () => Promise<void>;
   /** True when the contract is still editable. */
   editable: boolean;
+
+  /** The missing field labels of the CURRENT step, from real data. */
+  stepMissing: string[];
+  /**
+   * Set when the user tried to advance with an incomplete step. It names
+   * the first missing item so the UI can point at the exact field.
+   */
+  advanceBlockedReason: string | null;
+  clearAdvanceBlocked: () => void;
 }
 
 const WizardContext = createContext<WizardContextValue | null>(null);
@@ -129,6 +140,7 @@ export function WizardProvider({
   const [serverProgress, setServerProgress] = useState(contract.progress);
   const [serverState, setServerState] = useState(contract.state);
   const [serverCompleteness, setServerCompleteness] = useState(completeness);
+  const [advanceBlockedReason, setAdvanceBlockedReason] = useState<string | null>(null);
 
   // Revision counter — bumped on every local edit. A save response is
   // only allowed to touch server-derived state if the revision it was
@@ -157,13 +169,10 @@ export function WizardProvider({
     };
   }, []);
 
-  const editable = useMemo(
-    () =>
-      ["DRAFT", "PARTIES_PENDING", "PROPERTY_PENDING", "DOCUMENTS_PENDING", "TERMS_PENDING", "CHANGES_REQUESTED"].includes(
-        serverState
-      ),
-    [serverState]
-  );
+  // One source of truth: the same predicate the server route uses. A
+  // duplicated list here previously omitted REJECTED and could disagree
+  // with the API about whether a contract is editable.
+  const editable = useMemo(() => stateIsEditable(serverState), [serverState]);
 
   /** Push the current local state to the server. */
   const flush = useCallback(async (): Promise<void> => {
@@ -265,6 +274,7 @@ export function WizardProvider({
   const goToStep = useCallback(
     (next: string) => {
       if (!def.wizardSteps.some((s) => s.id === next)) return;
+      setAdvanceBlockedReason(null);
       setStepId(next);
       stepRef.current = next;
       scheduleSave();
@@ -277,15 +287,62 @@ export function WizardProvider({
     def.wizardSteps.findIndex((s) => s.id === stepId)
   );
 
+  // The CURRENT step's missing items. Computed from the LOCAL working
+  // data with the SAME pure scorer the server runs (`computeCompleteness`),
+  // so the gate never lags behind what the user just typed: the server
+  // value only refreshes after a full autosave round-trip, which made
+  // «مرحله بعد» reject a step the user had already completed a moment
+  // earlier. Identical inputs still produce identical output on both
+  // sides — this is the same function, not a second rule set.
+  const localCompleteness = useMemo(
+    () =>
+      computeCompleteness(
+        data === contract.data ? contract : { ...contract, data },
+        contract.parties ?? [],
+        contract.documents ?? []
+      ),
+    [contract, data]
+  );
+
+  const stepMissing = useMemo(() => {
+    const current = def.wizardSteps.find((s) => s.id === stepId);
+    if (!current || current.sections.length === 0) return [];
+    return localCompleteness.sections
+      .filter((s) => current.sections.includes(s.key) && s.percent < 100)
+      .flatMap((s) => s.missing);
+  }, [def.wizardSteps, stepId, localCompleteness]);
+
+  /**
+   * «مرحله بعد» acts on the REAL status: a step with missing required
+   * data does not advance, and the reason names the first missing item.
+   * Backward navigation is never blocked, so data can always be fixed.
+   */
   const goNext = useCallback(() => {
+    if (editable && stepMissing.length > 0) {
+      setAdvanceBlockedReason(
+        `برای رفتن به مرحله بعد این موارد را تکمیل کنید: ${stepMissing.join("، ")}`
+      );
+      return;
+    }
+    setAdvanceBlockedReason(null);
     const next = nextWizardStepId(contract.type, stepRef.current);
     if (next) goToStep(next);
-  }, [contract.type, goToStep]);
+  }, [contract.type, editable, goToStep, stepMissing]);
 
   const goPrev = useCallback(() => {
     const prev = prevWizardStepId(contract.type, stepRef.current);
     if (prev) goToStep(prev);
   }, [contract.type, goToStep]);
+
+  // The blocking banner names what is missing. The moment the last missing
+  // item of the step is filled it must clear itself — leaving a red alert
+  // over a now-complete step is exactly the "error that won't go away" the
+  // inline-validation contract forbids.
+  useEffect(() => {
+    if (advanceBlockedReason !== null && stepMissing.length === 0) {
+      setAdvanceBlockedReason(null);
+    }
+  }, [advanceBlockedReason, stepMissing.length]);
 
   // Flush pending edits when the tab is hidden or the page unloads.
   useEffect(() => {
@@ -323,6 +380,9 @@ export function WizardProvider({
     lastSavedAt,
     saveNow: flush,
     editable,
+    stepMissing,
+    advanceBlockedReason,
+    clearAdvanceBlocked: () => setAdvanceBlockedReason(null),
   };
 
   return <WizardContext.Provider value={value}>{children}</WizardContext.Provider>;

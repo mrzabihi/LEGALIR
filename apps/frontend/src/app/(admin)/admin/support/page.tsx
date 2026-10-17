@@ -36,11 +36,13 @@ import {
   Select,
   TextArea,
   InfoBanner,
+  InlineNotice,
   FilterPills,
   IdChip,
   ExportButton,
   Pagination,
 } from "@/components/admin/ui";
+import { Switch } from "@legalir/ui";
 import { useClientPagination } from "@/hooks/useClientPagination";
 
 const STATUS_TONES: Record<
@@ -164,15 +166,9 @@ function TicketPanel({ ticket, onClose }: { ticket: SupportTicket; onClose: () =
       </div>
 
       {feedback && (
-        <div
-          className={`mb-3 rounded-large border p-3 text-body-2 ${
-            feedback.tone === "error"
-              ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-          }`}
-        >
+        <InlineNotice tone={feedback.tone} className="mb-3">
           {feedback.text}
-        </div>
+        </InlineNotice>
       )}
 
       <div className="mb-4 space-y-2">
@@ -183,9 +179,7 @@ function TicketPanel({ ticket, onClose }: { ticket: SupportTicket; onClose: () =
             <div
               key={m.id}
               className={`rounded-medium border p-3 text-body-2 ${
-                m.isInternal
-                  ? "border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/30"
-                  : "border-divider"
+                m.isInternal ? "border-warning-200 bg-warning-soft" : "border-divider"
               }`}
             >
               <div className="mb-1 flex flex-wrap items-center gap-2 text-caption text-muted">
@@ -246,14 +240,15 @@ function TicketPanel({ ticket, onClose }: { ticket: SupportTicket; onClose: () =
             placeholder="متن پاسخ…"
           />
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <label className="flex items-center gap-2 text-caption text-on-surface-variant">
-              <input
-                type="checkbox"
+            <div className="rounded-medium border border-divider px-3 py-1.5">
+              <Switch
                 checked={internal}
                 onChange={(e) => setInternal(e.target.checked)}
+                label="یادداشت داخلی"
+                description="برای کاربر نمایش داده نمی‌شود."
+                tone="selection"
               />
-              یادداشت داخلی (برای کاربر نمایش داده نمی‌شود)
-            </label>
+            </div>
             <Button
               variant="primary"
               onClick={onReply}

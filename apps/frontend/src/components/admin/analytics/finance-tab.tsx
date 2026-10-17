@@ -139,6 +139,7 @@ function FinanceBody({ data, range }: { data: FinanceAnalytics; range: Analytics
             subtitle="پرداخت‌های مرتبط با خریدهای همین بازه؛ مبالغ شبیه‌سازی‌شده به‌صراحت جدا شمرده می‌شوند."
           >
             <DataTable
+              bare
               head={
                 <tr>
                   <Th>وضعیت</Th>

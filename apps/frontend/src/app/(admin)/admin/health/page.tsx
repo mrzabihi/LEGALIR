@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAdminSettings, useAdminOverview } from "@/hooks/useAdmin";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -30,6 +30,42 @@ const ENVIRONMENT_FA: Record<string, string> = {
   staging: "آزمایشی (staging)",
   production: "تولید",
 };
+
+/**
+ * The three status cards share one structure — label, status line, explanation —
+ * so the eye compares them row-by-row instead of re-parsing each card. Colour
+ * comes from the semantic ramps (never a raw emerald/red/amber), and the dot is
+ * decorative: the status word beside it carries the meaning for screen readers.
+ */
+const STATUS_TONE = {
+  ok: { dot: "bg-success-500", text: "text-on-surface" },
+  bad: { dot: "bg-error-500", text: "text-error-700" },
+  pending: { dot: "bg-warning-500", text: "text-on-surface" },
+} as const;
+
+function StatusCard({
+  label,
+  tone,
+  value,
+  hint,
+}: {
+  label: string;
+  tone: keyof typeof STATUS_TONE;
+  value: string;
+  hint?: ReactNode;
+}) {
+  const t = STATUS_TONE[tone];
+  return (
+    <Card className="p-4">
+      <p className="text-caption font-medium text-muted">{label}</p>
+      <p className="mt-1.5 flex items-center gap-2 text-h4 font-semibold text-onSurface">
+        <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${t.dot}`} />
+        <span className={t.text}>{value}</span>
+      </p>
+      {hint && <p className="mt-1.5 text-caption leading-relaxed text-muted">{hint}</p>}
+    </Card>
+  );
+}
 
 /** Measures how long the settings request took, from the browser side. */
 function useMeasuredLatency(ready: boolean): number | null {
@@ -57,55 +93,33 @@ export default function AdminHealthPage() {
       />
 
       <div className="mb-4 grid grid-cols-1 gap-3 tablet:grid-cols-3">
-        <Card className="p-4">
-          <p className="text-caption text-muted">سرور برنامه (Next.js)</p>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            <span className="text-body-2 font-medium text-on-surface">پاسخ‌گو</span>
-          </div>
-          <p className="mt-1 text-caption text-muted">
-            این صفحه از همین سرور بارگذاری شده است؛ بنابراین سرور فعال است.
-          </p>
-        </Card>
+        <StatusCard
+          label="سرور برنامه (Next.js)"
+          tone="ok"
+          value="پاسخ‌گو"
+          hint="این صفحه از همین سرور بارگذاری شده است؛ بنابراین سرور فعال است."
+        />
 
-        <Card className="p-4">
-          <p className="text-caption text-muted">لایهٔ داده (API مدیریت)</p>
-          <div className="mt-1 flex items-center gap-2">
-            {dataOk ? (
-              <>
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                <span className="text-body-2 font-medium text-on-surface">متصل</span>
-              </>
-            ) : dataFailed ? (
-              <>
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                <span className="text-body-2 font-medium text-red-600 dark:text-red-400">
-                  پاسخ نداد
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                <span className="text-body-2 font-medium text-on-surface">در حال بررسی…</span>
-              </>
-            )}
-          </div>
-          <p className="mt-1 text-caption text-muted">
-            {dataOk && latency !== null
+        <StatusCard
+          label="لایهٔ داده (API مدیریت)"
+          tone={dataOk ? "ok" : dataFailed ? "bad" : "pending"}
+          value={dataOk ? "متصل" : dataFailed ? "پاسخ نداد" : "در حال بررسی…"}
+          hint={
+            dataOk && latency !== null
               ? `زمان پاسخ اندازه‌گیری‌شده: ${toPersianNumber(latency)} میلی‌ثانیه`
-              : "بر پایه پاسخ واقعی دو فراخوانی داده (تنظیمات و نمای کلی)."}
-          </p>
-        </Card>
+              : "بر پایه پاسخ واقعی دو فراخوانی داده (تنظیمات و نمای کلی)."
+          }
+        />
 
         <Card className="p-4">
-          <p className="text-caption text-muted">محیط اجرا</p>
-          <p className="mt-1 text-body-2 font-medium text-on-surface">
+          <p className="text-caption font-medium text-muted">محیط اجرا</p>
+          <p className="mt-1.5 text-h4 font-semibold text-onSurface">
             {settings.data
               ? (ENVIRONMENT_FA[settings.data.environment] ?? settings.data.environment)
               : "—"}
           </p>
           {settings.data && (
-            <p className="mt-1 text-caption text-muted">
+            <p className="mt-1.5 text-caption leading-relaxed text-muted">
               منطقه زمانی: {settings.data.timezone} · واحد پول: {settings.data.currency}
             </p>
           )}
@@ -131,19 +145,19 @@ export default function AdminHealthPage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-3 tablet:grid-cols-4">
-              {ov.kpis.map((k) =>
-                k.unavailable ? (
-                  <Card key={k.key} className="p-4">
-                    <p className="text-caption text-muted">{k.labelFa}</p>
-                    <p className="mt-1 text-h3 font-bold text-amber-600 dark:text-amber-400">
-                      ناموجود
-                    </p>
-                    <p className="mt-1 text-caption text-muted">{k.unavailableReasonFa}</p>
-                  </Card>
-                ) : (
-                  <StatCard key={k.key} label={k.labelFa} value={k.value} hint={k.formulaFa} />
-                )
-              )}
+              {/* Unavailable metrics render through the same KPI shell so the
+                  row keeps one baseline; only the value is replaced by a muted
+                  label (never a fabricated zero) and the hint carries the reason. */}
+              {ov.kpis.map((k) => (
+                <StatCard
+                  key={k.key}
+                  label={k.labelFa}
+                  value={k.value}
+                  hint={k.unavailable ? k.unavailableReasonFa : k.formulaFa}
+                  unavailable={k.unavailable}
+                  unavailableLabel="ناموجود"
+                />
+              ))}
             </div>
           </>
         )}

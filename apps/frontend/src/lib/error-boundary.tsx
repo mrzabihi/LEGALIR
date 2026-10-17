@@ -1,6 +1,7 @@
 "use client";
 
 import { Component, type ReactNode } from "react";
+import { Button } from "@legalir/ui";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -45,12 +46,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <p className="text-body-2 text-muted mb-6">
               مشکلی در اجرای برنامه رخ داده است. لطفاً دوباره تلاش کنید.
             </p>
-            <button
-              onClick={this.handleRetry}
-              className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
-            >
-              تلاش مجدد
-            </button>
+            <Button onClick={this.handleRetry}>تلاش مجدد</Button>
             {process.env.NODE_ENV === "development" && this.state.error && (
               <details className="mt-4 text-left text-caption text-muted">
                 <summary className="cursor-pointer">جزئیات خطا</summary>

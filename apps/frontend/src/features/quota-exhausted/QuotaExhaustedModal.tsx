@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Dialog, Button } from "@legalir/ui";
+import { Dialog, Button, buttonClasses } from "@legalir/ui";
 import { toPersianNumber } from "@/lib/persian-utils";
 import type { SubscriptionUsageSummary, UsageErrorCode } from "@legalir/types";
 
@@ -105,10 +105,12 @@ export function QuotaExhaustedModal({ open, onClose, code, usage }: QuotaExhaust
           <Button variant="text" onClick={onClose}>
             بستن
           </Button>
-          <Link href="/subscription" onClick={onClose}>
-            <Button variant="filled">
-              {expired ? "تمدید اشتراک" : "خرید اشتراک"}
-            </Button>
+          {/* A link, styled with the button's own class list. Nesting a
+              <button> inside an <a> gives one control two tab stops and
+              two activations; the shared `buttonClasses` keeps the look
+              while leaving the semantics as a plain link. */}
+          <Link href="/subscription" onClick={onClose} className={buttonClasses()}>
+            {expired ? "تمدید اشتراک" : "خرید اشتراک"}
           </Link>
         </>
       }

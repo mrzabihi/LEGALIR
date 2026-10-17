@@ -41,6 +41,10 @@ const POST_COVERS: Record<string, string> = {
   "divorce-process-iran": "/assets/blog/mutual-divorce.jpg",
 };
 
+// Each cover ships a WebP sidecar (≈65% smaller). Modern browsers take the
+// WebP via <picture><source>; the JPG stays as the fallback for older ones.
+const webpSidecar = (jpg: string) => jpg.replace(/\.jpe?g$/i, ".webp");
+
 function formatDate(iso: string): string {
   try {
     return toPersianDate(iso, { dateStyle: "medium" });
@@ -64,18 +68,19 @@ function BlogCard({ post }: { post: V1BlogListItem }) {
           stays small on the listing page at every breakpoint. */}
       <Link href={`/blog/${post.slug}`} className="block">
         {cover ? (
-          <div className="relative h-48 max-h-[300px] w-full max-w-[748px] overflow-hidden">
+          <picture>
+            <source srcSet={webpSidecar(cover)} type="image/webp" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={cover}
               alt={post.titleFa}
-              width={2048}
-              height={1152}
+              width={1280}
+              height={720}
               loading="lazy"
               decoding="async"
-              className="absolute inset-0 h-full w-full object-cover"
+              className="block h-48 max-h-[300px] w-full max-w-[748px] object-cover"
             />
-          </div>
+          </picture>
         ) : (
           <div
             className={`h-48 bg-gradient-to-br ${imageColor} flex items-center justify-center relative overflow-hidden`}
@@ -315,16 +320,19 @@ export default function BlogPage() {
             <div className="rounded-medium overflow-hidden bg-surface border border-neutral-200 shadow-elevation-1 hover:shadow-elevation-4 transition-all duration-medium1">
               <div className="grid tablet:grid-cols-2">
                 <div className="relative min-h-[280px] overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/assets/blog/vajhe-eltezam.jpg"
-                    alt={featuredPost.titleFa}
-                    width={2048}
-                    height={1152}
-                    loading="lazy"
-                    decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
+                  <picture className="absolute inset-0">
+                    <source srcSet="/assets/blog/vajhe-eltezam.webp" type="image/webp" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/assets/blog/vajhe-eltezam.jpg"
+                      alt={featuredPost.titleFa}
+                      width={1280}
+                      height={720}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  </picture>
                 </div>
 
                 <div className="p-8 flex flex-col justify-center">

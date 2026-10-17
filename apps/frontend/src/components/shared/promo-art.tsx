@@ -15,12 +15,13 @@
 //     as a second identical heading; where it is not, the HTML copy
 //     still stands on its own.
 //
-// Three treatments, one visual language (same frame, radius, border,
-// spacing, and CTA styling):
+// Three treatments, one visual language (same radius, spacing and CTA
+// styling):
 //
 //   PromoArt    — the framed square image itself
 //   PromoPanel  — full-width editorial panel: image + copy + one CTA
-//   PromoModule — compact secondary module for the signed-in dashboard
+//   PromoModule — the signed-in dashboard banner: a full-bleed photograph
+//                 with the copy laid over its quiet side
 //
 // `PromoPanel` has a second skin: pass a `photo` and the image stops being
 // a framed square beside the copy and becomes the section *background*,
@@ -318,82 +319,177 @@ export function PromoPanel({
 }
 
 // ------------------------------------------------------------
-// PromoModule — compact secondary module (dashboard)
+// PromoModule — the dashboard photo banner
 // ------------------------------------------------------------
+// A full-bleed photographic banner: the poster *is* the surface and the copy
+// sits over its quiet side. The image is a plain `<img>` cropped with
+// `object-cover` (the picture equivalent of `background-size: cover`) and a
+// responsive `object-position` (of `background-position`), so the subject
+// stays framed at every breakpoint. A single dark scrim — a flat tint
+// beneath a directional wash, heaviest where the copy sits — keeps the
+// light, gold-tinted text legible while the artwork stays clearly visible.
+//
+// Every ink over the photograph is a FIXED brand colour, never a theme
+// token: the poster is a permanent dark-green surface, so `text-on-surface`
+// would flip light in the dark theme and vanish. Interaction is a whisper —
+// a hairline that warms, a faint lift, a ≤2% image drift — gated to fine
+// pointers so touch never inherits a stuck hover, and neutralised under
+// `prefers-reduced-motion`.
+
+/** A full-bleed photographic background for the dashboard banner. */
+export interface PromoModulePhoto {
+  /** Full-resolution webp (≈1600w), path under `/public`. */
+  src: string;
+  /** Half-resolution webp (≈800w) for narrow viewports. */
+  srcSm: string;
+  /** Native pixel size of `src` — the frame's aspect ratio. */
+  width: number;
+  height: number;
+  /**
+   * CSS `object-position` on phones, where the frame is portrait and crops
+   * hardest. From `tablet` up the wide frame matches the source aspect, so
+   * the whole photo shows and this is unused.
+   */
+  objectPositionMobile: string;
+  /**
+   * Flat darkening across the whole photo, 0–1. Higher where the source is
+   * brighter; it is the baseline that guarantees light text on any slice.
+   */
+  scrim: number;
+  /** Which edge the copy hugs from `tablet` up. The photo's subject should
+   *  sit on the *opposite* side. Defaults to `start` (the right in RTL). */
+  copySide?: "start" | "end";
+}
 
 interface PromoModuleProps {
-  art: PromoArtKey;
+  eyebrow: string;
   title: string;
   message: string;
   cta: string;
   href: string;
   icon: IconComponent;
+  photo: PromoModulePhoto;
   className?: string;
 }
 
 export function PromoModule({
-  art,
+  eyebrow,
   title,
   message,
   cta,
   href,
   icon: Icon,
+  photo,
   className = "",
 }: PromoModuleProps) {
+  const copyStart = (photo.copySide ?? "start") === "start";
+  const to = copyStart ? "left" : "right";
+  // The wash sinks in from the copy edge, so the artwork side stays crisp.
+  // Stronger on phones (copy spans the frame), lighter from `tablet` up.
+  const washSm = `linear-gradient(to ${to}, rgba(18,30,28,0.82) 0%, rgba(18,30,28,0.46) 44%, rgba(18,30,28,0.12) 74%)`;
+  const washLg = `linear-gradient(to ${to}, rgba(18,30,28,0.72) 0%, rgba(18,30,28,0.34) 42%, rgba(18,30,28,0.04) 70%)`;
+
   return (
     <section
       className={[
         "group relative isolate overflow-hidden rounded-large",
-        // Brand hairline + a brand wash behind the content. The wash and the
-        // glow are decorative layers (`-z-10`) so every foreground keeps its
-        // normal token colour and WCAG contrast in both themes.
-        "border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] bg-surface",
-        "p-4 tablet:p-5 shadow-elevation-1",
-        "transition-[transform,box-shadow,border-color] duration-medium1 ease-standard",
-        "hover:-translate-y-0.5 hover:shadow-elevation-4 hover:border-[color:color-mix(in_srgb,var(--brand-green)_45%,transparent)]",
+        "border border-[color:color-mix(in_srgb,var(--brand-gold)_22%,transparent)] bg-[#12211f]",
+        "shadow-elevation-1",
+        "transition-[transform,box-shadow,border-color] duration-short4 ease-standard motion-reduce:transition-none",
+        "can-hover:hover:-translate-y-0.5",
+        "can-hover:hover:border-[color:color-mix(in_srgb,var(--brand-gold)_48%,transparent)]",
+        "can-hover:hover:shadow-elevation-3",
         className,
       ].join(" ")}
     >
-      {/* Brand wash — a green→teal→ivory diagonal that reads as a tinted
-          surface, never a saturated block. */}
-      <span
+      {/* Photograph: one asset, cropped two ways. Pinned away from the subject
+          on phones, full frame from `tablet` up; the srcSet keeps it a single
+          download at every width. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={photo.src}
+        srcSet={`${photo.srcSm} ${Math.round(photo.width / 2)}w, ${photo.src} ${photo.width}w`}
+        sizes="(min-width: 1024px) 1104px, (min-width: 600px) 92vw, 100vw"
+        alt=""
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(120deg,color-mix(in_srgb,var(--brand-green)_12%,transparent)_0%,color-mix(in_srgb,var(--brand-teal)_6%,transparent)_45%,color-mix(in_srgb,var(--brand-ivory)_40%,transparent)_100%)]"
-      />
-      {/* Light effect — a soft gold bloom in the corner that warms on hover. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -end-10 -top-12 -z-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--brand-gold)_45%,transparent)_0%,transparent_70%)] opacity-50 blur-2xl transition-opacity duration-medium1 ease-standard group-hover:opacity-90"
-      />
-      {/* Secondary green bloom, bottom-start, so the light wraps the panel. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-12 -start-8 -z-10 h-36 w-36 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--brand-green)_40%,transparent)_0%,transparent_70%)] opacity-40 blur-2xl"
+        width={photo.width}
+        height={photo.height}
+        loading="lazy"
+        decoding="async"
+        style={{ objectPosition: photo.objectPositionMobile }}
+        className={[
+          "absolute inset-0 -z-20 h-full w-full object-cover tablet:object-center",
+          "transition-transform duration-long2 ease-standard motion-reduce:transition-none",
+          "can-hover:group-hover:scale-[1.02]",
+        ].join(" ")}
       />
 
-      <div className="flex items-center gap-4">
-        <div className="w-20 shrink-0 tablet:w-24">
-          <div className="overflow-hidden rounded-large transition-transform duration-medium1 ease-standard group-hover:scale-[1.04]">
-            <PromoArt art={art} alt="" sizes="96px" />
-          </div>
-        </div>
+      {/* Legibility scrim: a flat tint beneath a directional wash, both light
+          on the artwork and heaviest where the copy sits, so the text clears
+          WCAG AA over any slice of the photo. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 -z-10"
+        style={{ backgroundColor: `rgba(18,30,28,${photo.scrim})` }}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 tablet:hidden"
+        style={{ background: washSm }}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 hidden tablet:block"
+        style={{ background: washLg }}
+      />
+      {/* A hairline of light along the artwork edge so the panel reads as one
+          crafted surface, never a flat rectangle. */}
+      <span
+        aria-hidden="true"
+        className={[
+          "pointer-events-none absolute inset-y-0 -z-10 w-24 opacity-60",
+          copyStart
+            ? "end-0 bg-[linear-gradient(to_left,color-mix(in_srgb,var(--brand-gold)_12%,transparent),transparent)]"
+            : "start-0 bg-[linear-gradient(to_right,color-mix(in_srgb,var(--brand-gold)_12%,transparent),transparent)]",
+        ].join(" ")}
+      />
 
-        <div className="min-w-0 flex-1">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_8%,transparent)] px-2.5 py-0.5 text-caption font-medium text-[var(--brand-fg)]">
+      {/* Copy: a column pinned to the copy side, capped so it never walks over
+          the artwork on wide frames. */}
+      <div className="relative z-10 flex min-h-[192px] flex-col justify-center p-5 tablet:min-h-[210px] tablet:p-7 laptop:min-h-[224px] laptop:p-8">
+        <div
+          className={[
+            "w-full tablet:max-w-[560px]",
+            copyStart ? "self-start text-start" : "self-end text-end",
+          ].join(" ")}
+        >
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-gold)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-teal)_45%,transparent)] px-3 py-1 text-caption font-medium text-[var(--brand-ivory)] backdrop-blur-sm">
             <Icon size={14} />
-            {title}
+            {eyebrow}
           </span>
-          <p className="mt-1.5 text-caption leading-relaxed text-muted line-clamp-2">
+          <h2 className="mt-3 max-w-xl text-h3 font-bold leading-snug text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)] tablet:text-h2">
+            {title}
+          </h2>
+
+          <p className="mt-2 max-w-lg text-body-2 leading-relaxed text-[color-mix(in_srgb,var(--brand-ivory)_90%,transparent)] drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
             {message}
           </p>
+
           <Link
             href={href}
-            className="mt-2 inline-flex items-center gap-1 rounded-small text-caption font-semibold text-[var(--brand-fg)] transition-colors hover:text-[var(--brand-fg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-fg)] focus-visible:ring-offset-2"
+            className={[
+              "mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--brand-gold)] px-5 py-2.5 text-button font-semibold text-[var(--brand-teal)]",
+              "shadow-elevation-2 touch-target",
+              "transition-[background-color,transform] duration-short4 ease-standard",
+              "can-hover:hover:bg-[color-mix(in_srgb,var(--brand-gold)_88%,white)]",
+              "active:scale-[0.98] active:bg-[color-mix(in_srgb,var(--brand-gold)_82%,white)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12211f]",
+            ].join(" ")}
           >
             {cta}
             <IconChevronLeft
-              size={14}
-              className="transition-transform duration-short4 ease-standard group-hover:-translate-x-1"
+              size={16}
+              className="transition-transform duration-short4 ease-standard motion-reduce:transition-none can-hover:group-hover:-translate-x-0.5"
             />
           </Link>
         </div>

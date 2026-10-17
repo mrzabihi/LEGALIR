@@ -43,6 +43,40 @@ export interface ContractSectionDefinition {
   requiredPaths: string[];
 }
 
+/**
+ * One declarative table inside a schema-driven clause.
+ *
+ * A step's fields are NOT dumped into one anonymous grid. Each table names
+ * the fields it owns (in row order) and the exact headers it prints, so a
+ * contract shows «مشخصات خودرو / مشخصه / شرح» and «حقوق و مزایا / شرح /
+ * مبلغ» — not a generic two-column list of every answer in the step.
+ *
+ * The table is data, not template code: `template.ts` reads it, and the
+ * screen sheet, the print sheet and the server PDF all draw the same rows.
+ */
+export interface ContractFieldTableRow {
+  /**
+   * Optional row label, overriding the field's own label. It is used only
+   * where the document needs a different wording from the form («مبلغ
+   * قرض» rather than the form's «مبلغ»); when omitted, the descriptor's
+   * `labelFa` is printed, so the form and the sheet can never disagree.
+   */
+  labelFa?: string;
+  /** The field whose formatted value fills the value cell. */
+  key: string;
+}
+
+export interface ContractFieldTable {
+  /** The wizard step that owns these fields. */
+  stepId: string;
+  /** Caption printed above the table. */
+  captionFa: string;
+  /** Two headers: the label column and the value column. */
+  columnsFa: [string, string];
+  /** Rows in print order. */
+  rows: ContractFieldTableRow[];
+}
+
 /** A document the contract expects, with whether it blocks signing. */
 export interface RequiredDocumentDefinition {
   category: ContractDocumentCategory;
@@ -69,6 +103,37 @@ export interface RegistrationPolicy {
   /** The state the contract lands in after signing. */
   postSignState: "READY_FOR_OFFICIAL_REGISTRATION" | "FINALIZED";
 }
+
+/**
+ * The electronic-signature policy for a contract type. Data, not code:
+ * the sign route reads it to decide whether «تأیید و امضای الکترونیکی»
+ * may be offered online at all. A notary-restricted type (a sale whose
+ * ownership only moves at a notary office) may still be signed online,
+ * but the policy marks it as needing a legal review before that is
+ * enabled in a jurisdiction, and the UI surfaces the note.
+ */
+export interface SigningPolicy {
+  /** Whether a signature may be given online for this type. */
+  onlineSigningAllowed: boolean;
+  /** Whether the official LEGALIR stamp needs Super-Admin sign-off. */
+  officialStampRequired: boolean;
+  /**
+   * Whether this type's online signing is gated on a legal approval
+   * because a notary/registration step is mandatory (sale, vehicle…).
+   */
+  requiresLegalApprovalForOnlineSigning: boolean;
+  /** Persian note shown beside the signing options. */
+  noteFa: string;
+}
+
+/** The policy used when a type does not declare one. */
+export const DEFAULT_SIGNING_POLICY: SigningPolicy = {
+  onlineSigningAllowed: true,
+  officialStampRequired: false,
+  requiresLegalApprovalForOnlineSigning: false,
+  noteFa:
+    "این امضا «تأیید و امضای الکترونیکی» است و جایگزین امضای دستی نیست؛ برای برخی قراردادها ثبت رسمی در دفتر اسناد رسمی الزامی است.",
+};
 
 export interface ContractDefinition<TData = ContractDomainData> {
   id: ContractTypeId;
@@ -118,10 +183,23 @@ export interface ContractDefinition<TData = ContractDomainData> {
    * rendered entirely from this list by the generic `SchemaStep`.
    */
   fields: ContractFieldDescriptor[];
+  /**
+   * Optional semantic tables for the rendered document. When present, the
+   * listed fields print inside a named table (with its own headers) instead
+   * of the generic label/value list; fields not listed keep the default
+   * treatment. This is how a type gives its answers a document structure.
+   */
+  fieldTables?: ContractFieldTable[];
   /** Documents the contract expects. */
   requiredDocuments: RequiredDocumentDefinition[];
   /** Registration policy — never hard-coded in the UI. */
   registrationPolicy: RegistrationPolicy;
+  /**
+   * Electronic-signature policy. Optional — a type that omits it falls
+   * back to `DEFAULT_SIGNING_POLICY`, so the policy layer stays
+   * data-driven and a new type needs no imperative code.
+   */
+  signingPolicy?: SigningPolicy;
   /** Build a fresh, empty domain data object. */
   createDefaultData: (propertyKind: PropertyKind) => TData;
 }
@@ -256,6 +334,24 @@ function emptyHandover() {
   };
 }
 
+/**
+ * The step immediately before review, shared by EVERY contract type.
+ *
+ * It captures three different things and keeps them apart: a free-form
+ * note about the whole contract, the parties' extra agreed terms, and
+ * requested changes tied to a section. None of it ever overwrites an
+ * operative clause or an identity field — the template prints agreed
+ * terms as their own clause and requests in a clearly non-operative
+ * annex. The step is optional, so it contributes no completeness
+ * section and can never block the review.
+ */
+const SUPPLEMENTARY_STEP: WizardStepDescriptor = {
+  id: "supplementary",
+  titleFa: "اطلاعات تکمیلی و تغییرات",
+  descriptionFa: "یادداشت، توافقات خاص و درخواست تغییر — پیش از پیش‌نمایش",
+  sections: [],
+};
+
 // ------------------------------------------------------------
 // Property / Rent
 // ------------------------------------------------------------
@@ -303,6 +399,7 @@ const RENT_STEPS: WizardStepDescriptor[] = [
     descriptionFa: "بارگذاری مدارک لازم",
     sections: ["documents"],
   },
+  SUPPLEMENTARY_STEP,
   {
     id: "review",
     titleFa: "بازبینی و پیش‌نمایش",
@@ -497,6 +594,7 @@ const SALE_STEPS: WizardStepDescriptor[] = [
     descriptionFa: "بارگذاری مدارک لازم",
     sections: ["documents"],
   },
+  SUPPLEMENTARY_STEP,
   {
     id: "review",
     titleFa: "بازبینی و پیش‌نمایش",
@@ -652,14 +750,39 @@ function field(
   return { key, labelFa, kind, stepId, ...extra };
 }
 
+/**
+ * True when a field's `requiredWhen` gate is satisfied by the current
+ * values. A field with no gate always applies.
+ *
+ * This is the ONE definition of "this branch applies". The completeness
+ * scorer and the document renderer both call it, so a field can never
+ * block a section while still rendering an irrelevant blank line — or
+ * vice versa.
+ */
+export function fieldConditionHolds(
+  values: Record<string, unknown>,
+  gate: ContractFieldDescriptor["requiredWhen"]
+): boolean {
+  if (!gate) return true;
+  const current = values[gate.key];
+  // The stored value is untyped at this level; the gate itself carries the
+  // allowed literals from the field descriptor.
+  if (gate.oneOf) return (gate.oneOf as unknown[]).includes(current);
+  if (gate.equals !== undefined) return current === gate.equals;
+  return true;
+}
+
 /** A wizard step descriptor for a schema-driven type. */
 function step(
   id: string,
   titleFa: string,
   descriptionFa: string,
-  sections: string[]
+  sections: string[],
+  bankingFor?: PartyRole
 ): WizardStepDescriptor {
-  return { id, titleFa, descriptionFa, sections };
+  return bankingFor
+    ? { id, titleFa, descriptionFa, sections, bankingFor }
+    : { id, titleFa, descriptionFa, sections };
 }
 
 /**
@@ -683,6 +806,9 @@ function sectionsFromFields(
       // completeness scorer resolves against the aggregate.
       if (s.id === "parties") requiredPaths.unshift("parties");
       if (s.id === "documents") requiredPaths.unshift("documents");
+      // A payment step that declares its recipient also requires that
+      // party's bank details, stored on the party record.
+      if (s.bankingFor) requiredPaths.push(`banking.${s.bankingFor}`);
       return {
         key: s.id,
         labelFa: s.titleFa,
@@ -705,9 +831,10 @@ const REVIEW_STEP: WizardStepDescriptor = {
 const VEHICLE_STEPS: WizardStepDescriptor[] = [
   step("parties", "طرفین معامله", "مشخصات فروشنده و خریدار خودرو", ["parties"]),
   step("vehicle", "مشخصات خودرو", "نوع، مدل، رنگ و شماره‌های شناسایی خودرو", ["vehicle"]),
-  step("financial", "مبلغ و نحوه پرداخت", "قیمت، پیش‌پرداخت و مراحل پرداخت", ["financial"]),
+  step("financial", "مبلغ و نحوه پرداخت", "قیمت، پیش‌پرداخت، مراحل پرداخت و حساب فروشنده", ["financial"], "seller"),
   step("obligations", "تعهدات و شرایط", "تخلفات، خسارت و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
@@ -784,10 +911,11 @@ const VEHICLE_DOCUMENTS: RequiredDocumentDefinition[] = [
 
 const DEBT_STEPS: WizardStepDescriptor[] = [
   step("parties", "طرفین قرارداد", "مشخصات طلبکار و بدهکار", ["parties"]),
-  step("loan", "مبلغ و شرایط قرض", "مبلغ، تاریخ و شرایط بازپرداخت", ["loan"]),
+  step("loan", "مبلغ و شرایط قرض", "مبلغ، تاریخ، شرایط بازپرداخت و حساب طلبکار", ["loan"], "lender"),
   step("guarantee", "تضمین و ضامن", "ضمانت‌نامه و مشخصات ضامن", ["guarantee"]),
   step("obligations", "تعهدات و فسخ", "وجه التزام تأخیر و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
@@ -804,6 +932,16 @@ const DEBT_FIELDS: ContractFieldDescriptor[] = [
   }),
   field("loan", "instalmentCount", "تعداد اقساط", "number", {
     helperFa: "در صورت بازپرداخت اقساطی تکمیل کنید.",
+  }),
+  field("loan", "instalments", "برنامهٔ اقساط", "repeatable", {
+    requiredWhen: { key: "repaymentMethod", equals: "instalments" },
+    addLabelFa: "افزودن قسط",
+    helperFa: "سررسید و مبلغ هر قسط را جداگانه ثبت کنید؛ هر ردیف یک ردیف جدول چاپی است.",
+    columns: [
+      { key: "dueDate", labelFa: "سررسید", kind: "date" },
+      { key: "amount", labelFa: "مبلغ قسط", kind: "money" },
+      { key: "note", labelFa: "توضیح", kind: "text" },
+    ],
   }),
   field("loan", "purpose", "موضوع و علت قرض", "textarea"),
   field("guarantee", "hasGuarantor", "آیا ضامن دارد؟", "toggle"),
@@ -830,9 +968,10 @@ const DEBT_DOCUMENTS: RequiredDocumentDefinition[] = [
 const FREELANCE_STEPS: WizardStepDescriptor[] = [
   step("parties", "طرفین قرارداد", "مشخصات کارفرما و فریلنسر", ["parties"]),
   step("project", "موضوع پروژه", "شرح خدمات، خروجی و زمان‌بندی", ["project"]),
-  step("financial", "دستمزد و پرداخت", "مبلغ، بیعانه و مراحل پرداخت", ["financial"]),
+  step("financial", "دستمزد و پرداخت", "مبلغ، بیعانه، مراحل پرداخت و حساب فریلنسر", ["financial"], "freelancer"),
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
@@ -880,6 +1019,7 @@ const NDA_STEPS: WizardStepDescriptor[] = [
   step("terms", "مدت و استثناها", "مدت اعتبار و موارد مستثنی", ["terms"]),
   step("obligations", "تعهدات و ضمانت اجرا", "تعهدات طرفین و وجه التزام نقض", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
@@ -936,10 +1076,11 @@ const NDA_DOCUMENTS: RequiredDocumentDefinition[] = [
 const SAAS_STEPS: WizardStepDescriptor[] = [
   step("parties", "طرفین قرارداد", "مشخصات ارائه‌دهنده و مشتری", ["parties"]),
   step("service", "خدمت و سطح سرویس", "شرح سرویس، دسترس‌پذیری و پشتیبانی", ["service"]),
-  step("financial", "اشتراک و پرداخت", "مبلغ اشتراک، دوره و روش پرداخت", ["financial"]),
+  step("financial", "اشتراک و پرداخت", "مبلغ اشتراک، دوره، روش پرداخت و حساب ارائه‌دهنده", ["financial"], "provider"),
   step("data", "داده و محرمانگی", "مالکیت داده، بازگرداندن و محرمانگی", ["data"]),
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین، SLA و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
@@ -1009,6 +1150,7 @@ const STARTUP_STEPS: WizardStepDescriptor[] = [
   step("exit", "خروج و انحلال", "شرایط خروج شریک و انحلال شرکت", ["exit"]),
   step("obligations", "محرمانگی و حل اختلاف", "عدم رقابت، مالکیت معنوی و حل اختلاف", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
@@ -1086,81 +1228,36 @@ const STARTUP_DOCUMENTS: RequiredDocumentDefinition[] = [
 // Iranian/foreign-national employee split, so the completeness scorer asks
 // for the branch the user actually chose.
 
+// Identity (name, national id / passport, address, mobile, employer kind
+// and employee nationality) is recorded ONCE in the shared `parties`
+// step. These steps therefore start with the deal terms — never a
+// second copy of the same person's identity.
+
 const EMPLOYMENT_STEPS: WizardStepDescriptor[] = [
-  step("parties", "طرفین قرارداد", "مشخصات هویتی کارفرما و کارگر", ["parties"]),
-  step("employer", "مشخصات کارفرما", "کارفرمای حقیقی یا حقوقی و نمایندهٔ او", ["employer"]),
-  step("employee", "مشخصات کارگر", "کارگر/کارمند و وضعیت تابعیت", ["employee"]),
-  step("job", "شغل و وظایف", "عنوان شغل، شرح وظایف و محل انجام کار", ["job"]),
+  step(
+    "parties",
+    "طرفین قرارداد و نماینده",
+    "کارفرمای حقیقی یا حقوقی، نمایندهٔ قانونی او و کارگر با تعیین تابعیت",
+    ["parties"]
+  ),
+  step("job", "شغل و وظایف", "عنوان شغل، شرح وظایف، محل انجام کار و مدرک تحصیلی", ["job"]),
   step("term", "مدت و دورهٔ آزمایشی", "نوع قرارداد، تاریخ شروع و پایان و دورهٔ آزمایشی", ["term"]),
-  step("wages", "دستمزد و مزایا", "حقوق پایه، مزایا و نحوهٔ پرداخت", ["wages"]),
+  step(
+    "wages",
+    "دستمزد، مزایا و پرداخت",
+    "حقوق پایه، مزایا، نحوهٔ پرداخت و حساب بانکی دریافت‌کننده",
+    ["wages"],
+    "employee"
+  ),
   step("hours", "ساعات کار و مرخصی", "ساعات کار هفتگی، تعطیلات و مرخصی", ["hours"]),
   step("insurance", "بیمه و مالیات", "تعهدات کارفرما در قبال تأمین اجتماعی و مالیات", ["insurance"]),
   step("obligations", "تعهدات و شروط خاص", "تعهدات متقابل، محرمانگی و شروط توافق‌شده", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
   REVIEW_STEP,
 ];
 
 const EMPLOYMENT_FIELDS: ContractFieldDescriptor[] = [
-  // --- کارفرما ---
-  field("employer", "employerKind", "نوع کارفرما", "select", {
-    required: true,
-    options: [
-      { value: "natural", labelFa: "شخص حقیقی" },
-      { value: "legal", labelFa: "شخص حقوقی (شرکت/مؤسسه)" },
-    ],
-  }),
-  field("employer", "employerName", "نام و نام خانوادگی کارفرما", "text", {
-    requiredWhen: { key: "employerKind", equals: "natural" },
-  }),
-  field("employer", "employerNationalId", "کد ملی کارفرما", "text", {
-    requiredWhen: { key: "employerKind", equals: "natural" },
-  }),
-  field("employer", "employerCompanyName", "نام شرکت / مؤسسه", "text", {
-    requiredWhen: { key: "employerKind", equals: "legal" },
-  }),
-  field("employer", "employerCompanyId", "شناسهٔ ملی / شمارهٔ ثبت شرکت", "text", {
-    requiredWhen: { key: "employerKind", equals: "legal" },
-  }),
-  field("employer", "employerRepresentative", "نام نمایندهٔ کارفرما", "text", {
-    requiredWhen: { key: "employerKind", equals: "legal" },
-    helperFa: "نام مدیرعامل یا نمایندهٔ قانونی که قرارداد را امضا می‌کند.",
-  }),
-  field("employer", "employerRepresentativeNationalId", "کد ملی نمایندهٔ کارفرما", "text", {
-    requiredWhen: { key: "employerKind", equals: "legal" },
-  }),
-  field("employer", "employerAddress", "نشانی کارفرما", "textarea", { required: true }),
-  field("employer", "employerPhone", "تلفن کارفرما", "text", { required: true }),
-
-  // --- کارگر ---
-  field("employee", "employeeNationality", "تابعیت کارگر", "select", {
-    required: true,
-    options: [
-      { value: "iranian", labelFa: "ایرانی" },
-      { value: "foreign", labelFa: "اتباع خارجی" },
-    ],
-  }),
-  field("employee", "employeeName", "نام و نام خانوادگی کارگر", "text", { required: true }),
-  field("employee", "employeeNationalId", "کد ملی کارگر", "text", {
-    requiredWhen: { key: "employeeNationality", equals: "iranian" },
-  }),
-  field("employee", "employeePassportNumber", "شمارهٔ گذرنامه", "text", {
-    requiredWhen: { key: "employeeNationality", equals: "foreign" },
-  }),
-  field("employee", "employeePassportExpiry", "تاریخ اعتبار گذرنامه", "date", {
-    requiredWhen: { key: "employeeNationality", equals: "foreign" },
-  }),
-  field("employee", "employeeWorkPermitNumber", "شمارهٔ پروانهٔ کار", "text", {
-    requiredWhen: { key: "employeeNationality", equals: "foreign" },
-    helperFa: "به‌کارگیری اتباع خارجی بدون پروانهٔ کار معتبر مجاز نیست؛ شماره و اعتبار آن را دقیق وارد کنید.",
-  }),
-  field("employee", "employeeWorkPermitExpiry", "تاریخ اعتبار پروانهٔ کار", "date", {
-    requiredWhen: { key: "employeeNationality", equals: "foreign" },
-  }),
-  field("employee", "employeeBirthDate", "تاریخ تولد", "date"),
-  field("employee", "employeeEducation", "آخرین مدرک تحصیلی", "text"),
-  field("employee", "employeeAddress", "نشانی کارگر", "textarea"),
-  field("employee", "employeePhone", "تلفن کارگر", "text", { required: true }),
-
   // --- شغل و وظایف ---
   field("job", "jobTitle", "عنوان شغل", "text", { required: true, placeholderFa: "مثلاً کارشناس حسابداری" }),
   field("job", "jobDuties", "شرح وظایف", "textarea", {
@@ -1170,6 +1267,7 @@ const EMPLOYMENT_FIELDS: ContractFieldDescriptor[] = [
   field("job", "jobWorkplace", "محل انجام کار", "text", { required: true }),
   field("job", "jobDepartment", "واحد / دپارتمان", "text"),
   field("job", "jobSupervisor", "سرپرست مستقیم", "text"),
+  field("job", "employeeEducation", "آخرین مدرک تحصیلی کارگر", "text"),
 
   // --- مدت و دورهٔ آزمایشی ---
   field("term", "contractType", "نوع قرارداد", "select", {
@@ -1218,7 +1316,9 @@ const EMPLOYMENT_FIELDS: ContractFieldDescriptor[] = [
   field("wages", "otherBenefits", "سایر مزایا و پرداخت‌ها", "textarea", {
     helperFa: "مثلاً پاداش، اضافه‌کاری، ایاب‌وذهاب، بیمهٔ تکمیلی.",
   }),
-  field("wages", "accountNumber", "شماره حساب پرداخت دستمزد", "text"),
+  // Bank details live on the employee party record (`bankingFor` above),
+  // so they are never part of the public document or the employer's
+  // counterparty link.
 
   // --- ساعات کار و مرخصی ---
   field("hours", "weeklyHours", "ساعات کار هفتگی", "number", {
@@ -1295,11 +1395,985 @@ const EMPLOYMENT_DOCUMENTS: RequiredDocumentDefinition[] = [
   { category: "other", labelFa: "سایر پیوست‌ها", required: false, provider: "either" },
 ];
 
+// --- Commercial property -------------------------------------------
+// Commercial property is schema-driven: the legal plumbing (parties,
+// deed, mortgage/seizure, notary registration) mirrors the residential
+// journeys, but the *commercial* substance — permitted use, business
+// licence, fit-out obligations, VAT, opening/closure — is a field set
+// of its own. Asking a shop tenant residential questions would be the
+// exact "same text with a different title" failure the spec forbids.
+
+const COMMERCIAL_KINDS = [
+  { value: "office", labelFa: "دفتر کار / واحد اداری" },
+  { value: "shop", labelFa: "مغازه / واحد تجاری" },
+  { value: "warehouse", labelFa: "انبار" },
+  { value: "industrial", labelFa: "کارگاه / واحد صنعتی" },
+  { value: "other", labelFa: "سایر" },
+];
+
+const COMMERCIAL_RENT_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات موجر و مستأجر تجاری و نمایندگان قانونی", ["parties"]),
+  step("property", "مشخصات ملک تجاری", "نوع کاربری، متراژ و مشخصات مورد اجاره", ["property"]),
+  step("licence", "مجوز و کاربری", "پروانهٔ کسب، کاربری مجاز و شرایط بهره‌برداری", ["licence"]),
+  step("term", "مدت و تحویل", "تاریخ شروع و پایان، تحویل و تحویل‌دادن مجدد", ["term"]),
+  step("financial", "اجاره‌بها و پرداخت", "ودیعه، اجاره‌بها، مالیات و حساب موجر", ["financial"], "landlord"),
+  step("obligations", "تعهدات و فسخ", "تعهدات طرفین، تعمیرات، فسخ و تخلیه", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
+  REVIEW_STEP,
+];
+
+const COMMERCIAL_RENT_FIELDS: ContractFieldDescriptor[] = [
+  field("property", "commercialKind", "نوع ملک تجاری", "select", {
+    required: true,
+    options: COMMERCIAL_KINDS,
+  }),
+  field("property", "propertyAddress", "نشانی کامل ملک", "textarea", {
+    required: true,
+    placeholderFa: "استان، شهر، خیابان، پلاک و واحد",
+  }),
+  field("property", "usableArea", "متراژ قابل استفاده (مترمربع)", "number", { required: true }),
+  field("property", "floorDescription", "طبقه و موقعیت واحد", "text"),
+  field("property", "parkingSpaces", "تعداد پارکینگ اختصاصی", "number"),
+  field("property", "currentCondition", "وضعیت فعلی و تجهیزات موجود", "textarea", {
+    helperFa: "تجهیزات، ویترین، سیستم سرمایش و گرمایش و موارد تحویلی را بنویسید.",
+  }),
+  field("licence", "permittedUse", "کاربری مجاز مورد توافق", "textarea", {
+    required: true,
+    helperFa: "مثلاً فروش پوشاک، دفتر خدمات حسابداری؛ هر کاربری خارج از این محدوده نیازمند رضایت کتبی موجر است.",
+  }),
+  field("licence", "businessLicenceHolder", "مسئول اخذ پروانهٔ کسب", "select", {
+    required: true,
+    options: [
+      { value: "tenant", labelFa: "مستأجر" },
+      { value: "landlord", labelFa: "موجر" },
+      { value: "both", labelFa: "هر دو (با تقسیم وظایف)" },
+    ],
+  }),
+  field("licence", "licenceDeadlineDays", "مهلت اخذ پروانه از شروع قرارداد (روز)", "number"),
+  field("licence", "signageTerms", "شرایط نصب تابلو و نمای بیرونی", "textarea"),
+  field("licence", "fitOutTerms", "تعهدات آماده‌سازی و تغییرات داخلی", "textarea", {
+    required: true,
+    helperFa: "مجاز یا غیرمجاز بودن تغییرات، سازه، برق‌کشی و بازگرداندن وضعیت اولیه.",
+  }),
+  field("term", "startDate", "تاریخ شروع اجاره", "date", { required: true }),
+  field("term", "endDate", "تاریخ پایان اجاره", "date", { required: true }),
+  field("term", "renewalNoticeDays", "مهلت اعلام تمدید پیش از پایان (روز)", "number"),
+  field("term", "handoverDate", "تاریخ تحویل کلید", "date"),
+  field("financial", "depositAmount", "ودیعه / ضمانت", "money", { required: true }),
+  field("financial", "monthlyRent", "اجاره‌بهای ماهانه", "money", { required: true }),
+  field("financial", "rentDueDay", "روز سررسید اجاره در هر ماه", "number"),
+  field("financial", "paymentMethod", "روش پرداخت", "select", {
+    required: true,
+    options: [
+      { value: "bank_transfer", labelFa: "انتقال بانکی" },
+      { value: "cheque", labelFa: "چک" },
+      { value: "cash", labelFa: "نقدی" },
+    ],
+  }),
+  field("financial", "vatTerms", "مالیات بر ارزش افزوده", "select", {
+    required: true,
+    options: [
+      { value: "excluded", labelFa: "خارج از اجاره‌بها و بر عهدهٔ مستأجر" },
+      { value: "included", labelFa: "شامل اجاره‌بها" },
+      { value: "not_applicable", labelFa: "موضوعیت ندارد" },
+    ],
+  }),
+  field("financial", "latePenaltyTerms", "شرط جریمهٔ تأخیر در پرداخت", "textarea"),
+  field("obligations", "utilityBearer", "پرداخت آب، برق، گاز و شارژ", "select", {
+    required: true,
+    options: [
+      { value: "tenant", labelFa: "مستأجر" },
+      { value: "landlord", labelFa: "موجر" },
+      { value: "split", labelFa: "تقسیم بر اساس نوع هزینه" },
+    ],
+  }),
+  field("obligations", "repairBearer", "تعمیرات اساسی و سازه‌ای", "select", {
+    required: true,
+    options: [
+      { value: "landlord", labelFa: "موجر" },
+      { value: "tenant", labelFa: "مستأجر" },
+    ],
+  }),
+  field("obligations", "subleaseAllowed", "واگذاری به غیر (واگذاری یا شرکت)", "toggle"),
+  field("obligations", "earlyTerminationTerms", "شرایط فسخ پیش از موعد", "textarea"),
+  field("obligations", "evictionTerms", "شرایط تخلیه و وجه التزام", "textarea"),
+];
+
+const COMMERCIAL_RENT_SECTIONS = sectionsFromFields(
+  COMMERCIAL_RENT_STEPS,
+  COMMERCIAL_RENT_FIELDS
+);
+
+const COMMERCIAL_RENT_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "deed", labelFa: "سند مالکیت ملک تجاری", required: true, provider: "initiator" },
+  { category: "landlord_id", labelFa: "کارت ملی / شناسهٔ موجر", required: true, provider: "initiator" },
+  { category: "tenant_id", labelFa: "کارت ملی / شناسهٔ مستأجر", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "پروانهٔ کسب یا مجوز فعالیت", required: false, provider: "counterparty" },
+  { category: "handover_photo", labelFa: "تصاویر وضعیت ملک هنگام تحویل", required: false, provider: "either" },
+];
+
+const COMMERCIAL_SALE_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین معامله", "مشخصات فروشنده و خریدار و نمایندگان قانونی", ["parties"]),
+  step("property", "مشخصات ملک تجاری", "نوع کاربری، متراژ و مشخصات ملک", ["property"]),
+  step("legal", "وضعیت حقوقی و سند", "سند، رهن، بازداشت و محدودیت انتقال", ["legal"]),
+  step("financial", "ثمن و پرداخت", "قیمت، پیش‌پرداخت، اقساط و حساب فروشنده", ["financial"], "seller"),
+  step("registration", "ثبت رسمی", "دفترخانه، تاریخ حضور و مدارک انتقال", ["registration"]),
+  step("obligations", "تعهدات و تحویل", "تخلیه، بدهی‌های قبلی و تجهیزات", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
+  REVIEW_STEP,
+];
+
+const COMMERCIAL_SALE_FIELDS: ContractFieldDescriptor[] = [
+  field("property", "commercialKind", "نوع ملک تجاری", "select", {
+    required: true,
+    options: COMMERCIAL_KINDS,
+  }),
+  field("property", "propertyAddress", "نشانی کامل ملک", "textarea", {
+    required: true,
+    placeholderFa: "استان، شهر، خیابان، پلاک و واحد",
+  }),
+  field("property", "usableArea", "متراژ قابل استفاده (مترمربع)", "number", { required: true }),
+  field("property", "floorDescription", "طبقه و موقعیت واحد", "text"),
+  field("property", "parkingSpaces", "تعداد پارکینگ اختصاصی", "number"),
+  field("property", "includedEquipment", "تجهیزات و تأسیسات منتقل‌شده", "textarea"),
+  field("legal", "deedNumber", "شمارهٔ سند مالکیت", "text", { required: true }),
+  field("legal", "deedType", "نوع سند", "select", {
+    required: true,
+    options: [
+      { value: "single_page", labelFa: "تک‌برگ" },
+      { value: "booklet", labelFa: "دفترچه‌ای" },
+      { value: "other", labelFa: "سایر" },
+    ],
+  }),
+  field("legal", "inMortgage", "آیا ملک در رهن است؟", "toggle"),
+  field("legal", "mortgageReleaseTerms", "شرایط فک رهن", "textarea", {
+    requiredWhen: { key: "inMortgage", equals: true },
+  }),
+  field("legal", "seized", "آیا بازداشت یا محدودیت انتقال دارد؟", "toggle"),
+  field("legal", "restrictionDetails", "شرح محدودیت", "textarea", {
+    requiredWhen: { key: "seized", equals: true },
+  }),
+  field("legal", "occupiedByTenant", "آیا ملک در تصرف مستأجر است؟", "toggle"),
+  field("legal", "tenantVacateDate", "تاریخ تخلیهٔ مستأجر", "date", {
+    requiredWhen: { key: "occupiedByTenant", equals: true },
+  }),
+  field("financial", "totalPrice", "ثمن معامله", "money", { required: true }),
+  field("financial", "downPayment", "پیش‌پرداخت", "money", { required: true }),
+  field("financial", "hasInstalments", "پرداخت باقی ثمن به‌صورت اقساط است", "toggle"),
+  field("financial", "instalmentTerms", "برنامهٔ اقساط", "repeatable", {
+    requiredWhen: { key: "hasInstalments", equals: true },
+    addLabelFa: "افزودن قسط",
+    helperFa: "تعداد، مبلغ و سررسید هر قسط را جداگانه ثبت کنید.",
+    columns: [
+      { key: "dueDate", labelFa: "سررسید", kind: "date" },
+      { key: "amount", labelFa: "مبلغ قسط", kind: "money" },
+      { key: "note", labelFa: "توضیح", kind: "text" },
+    ],
+  }),
+  field("financial", "paymentMethod", "روش پرداخت", "select", {
+    required: true,
+    options: [
+      { value: "bank_transfer", labelFa: "انتقال بانکی" },
+      { value: "cheque", labelFa: "چک" },
+      { value: "cash", labelFa: "نقدی" },
+    ],
+  }),
+  field("registration", "notaryOffice", "دفترخانهٔ اسناد رسمی", "text", { required: true }),
+  field("registration", "registrationDate", "تاریخ توافقی تنظیم سند", "date", { required: true }),
+  field("registration", "amountAtRegistration", "مبلغ قابل پرداخت هنگام تنظیم سند", "money"),
+  field("registration", "documentsResponsible", "مسئول تهیهٔ مدارک", "select", {
+    required: true,
+    options: [
+      { value: "seller", labelFa: "فروشنده" },
+      { value: "buyer", labelFa: "خریدار" },
+      { value: "both", labelFa: "هر دو" },
+    ],
+  }),
+  field("obligations", "priorDebtsBearer", "تسویهٔ بدهی‌های قبلی", "select", {
+    required: true,
+    options: [
+      { value: "seller", labelFa: "فروشنده" },
+      { value: "buyer", labelFa: "خریدار" },
+    ],
+  }),
+  field("obligations", "sellerNoShowPenalty", "وجه التزام عدم حضور فروشنده", "money"),
+  field("obligations", "handoverDelayPenalty", "وجه التزام تأخیر در تخلیه و تحویل", "money"),
+  field("obligations", "otherTerms", "سایر توافقات", "textarea"),
+];
+
+const COMMERCIAL_SALE_SECTIONS = sectionsFromFields(
+  COMMERCIAL_SALE_STEPS,
+  COMMERCIAL_SALE_FIELDS
+);
+
+const COMMERCIAL_SALE_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "deed", labelFa: "سند مالکیت ملک تجاری", required: true, provider: "initiator" },
+  { category: "seller_id", labelFa: "کارت ملی / شناسهٔ فروشنده", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "کارت ملی / شناسهٔ خریدار", required: true, provider: "counterparty" },
+  { category: "mortgage_release", labelFa: "مدارک فک رهن", required: false, provider: "initiator" },
+  { category: "check_image", labelFa: "تصویر چک‌ها یا ضمانت‌نامه‌ها", required: false, provider: "either" },
+  { category: "other", labelFa: "مجوز کاربری / پایان‌کار", required: false, provider: "initiator" },
+];
+
+// --- Cloud services (IaaS / PaaS / BaaS) ---------------------------
+// One family, three registered types. The service model is decided
+// BEFORE the form and is encoded in the type id, so the title, the
+// field set, the tables and the clauses can never disagree about what
+// was purchased.
+
+const CLOUD_SHARED_STEPS: WizardStepDescriptor[] = [
+  step("parties", "طرفین قرارداد", "مشخصات ارائه‌دهنده و مشتری", ["parties"]),
+  step("service", "مشخصات خدمت", "منابع، محیط و محدودهٔ خدمت", ["service"]),
+  step("sla", "سطح سرویس و پشتیبانی", "دسترس‌پذیری، پشتیبانی و امنیت", ["sla"]),
+  step("financial", "هزینه و پرداخت", "مبلغ، دورهٔ صورت‌حساب و حساب ارائه‌دهنده", ["financial"], "provider"),
+  step("data", "داده و محرمانگی", "مالکیت داده، نگهداری، بازگرداندن و حذف", ["data"]),
+  step("obligations", "تعهدات و فسخ", "مسئولیت‌ها، جریمه و شرایط فسخ", ["obligations"]),
+  step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
+  SUPPLEMENTARY_STEP,
+  REVIEW_STEP,
+];
+
+function cloudServiceFields(model: "iaas" | "paas" | "baas"): ContractFieldDescriptor[] {
+  const shared: ContractFieldDescriptor[] = [
+    field("service", "serviceName", "نام خدمت", "text", { required: true }),
+    field("service", "serviceDescription", "شرح خدمت ارائه‌شده", "textarea", { required: true }),
+    field("service", "hostingRegion", "محل استقرار / منطقهٔ خدمت", "text", { required: true }),
+    field("service", "contractStartDate", "تاریخ شروع خدمت", "date", { required: true }),
+    field("service", "contractTermMonths", "مدت قرارداد (ماه)", "number", { required: true }),
+  ];
+
+  const modelSpecific: ContractFieldDescriptor[] =
+    model === "iaas"
+      ? [
+          field("service", "computeSpec", "مشخصات منابع محاسباتی (CPU / RAM)", "textarea", {
+            required: true,
+            helperFa: "تعداد و نوع ماشین‌های مجازی، پردازنده و حافظهٔ اختصاص‌یافته.",
+          }),
+          field("service", "storageSpec", "ذخیره‌سازی (نوع و حجم)", "textarea", { required: true }),
+          field("service", "networkSpec", "شبکه، پهنای باند و آدرس‌های اختصاصی", "textarea"),
+          field("service", "osResponsibility", "مسئول مدیریت سیستم‌عامل و نرم‌افزار", "select", {
+            required: true,
+            options: [
+              { value: "customer", labelFa: "مشتری" },
+              { value: "provider", labelFa: "ارائه‌دهنده" },
+            ],
+          }),
+          field("service", "backupPolicy", "سیاست پشتیبان‌گیری و بازیابی", "textarea"),
+        ]
+      : model === "paas"
+        ? [
+            field("service", "runtimeStack", "محیط اجرا / پلتفرم", "textarea", {
+              required: true,
+              helperFa: "زبان، نسخهٔ محیط اجرا و سرویس‌های مدیریت‌شدهٔ همراه.",
+            }),
+            field("service", "scalingPolicy", "سیاست مقیاس‌پذیری", "textarea", { required: true }),
+            field("service", "deploymentMethod", "روش استقرار و انتشار نسخه", "text", { required: true }),
+            field("service", "managedComponents", "اجزای مدیریت‌شده توسط ارائه‌دهنده", "textarea"),
+            field("service", "customerWorkload", "محدودهٔ مسئولیت مشتری (برنامه و داده)", "textarea"),
+          ]
+        : [
+            field("service", "backendServices", "سرویس‌های بک‌اند ارائه‌شده", "textarea", {
+              required: true,
+              helperFa: "پایگاه داده، احراز هویت، ذخیرهٔ فایل، صف پیام، API و مانند آن.",
+            }),
+            field("service", "databaseSpec", "مشخصات پایگاه داده", "textarea", { required: true }),
+            field("service", "apiQuota", "سهمیهٔ فراخوانی API", "text", { required: true }),
+            field("service", "storageQuota", "سهمیهٔ ذخیره‌سازی", "text"),
+            field("service", "authServiceTerms", "شرایط سرویس احراز هویت و دسترسی", "textarea"),
+          ];
+
+  const sla: ContractFieldDescriptor[] = [
+    field("sla", "availabilitySla", "تضمین دسترس‌پذیری (٪)", "number", {
+      required: true,
+      helperFa: "مثلاً ۹۹٫۵ درصد در هر ماه.",
+    }),
+    field("sla", "supportHours", "ساعات و کانال پشتیبانی", "text", { required: true }),
+    field("sla", "responseTime", "زمان پاسخ اولیهٔ پشتیبانی", "text", { required: true }),
+    field("sla", "maintenanceWindow", "بازهٔ نگهداری برنامه‌ریزی‌شده", "text"),
+    field("sla", "securityMeasures", "اقدامات امنیتی و رمزنگاری", "textarea", { required: true }),
+    field("sla", "uptimePenalty", "جریمهٔ عدم تحقق سطح سرویس", "money"),
+  ];
+
+  const financial: ContractFieldDescriptor[] = [
+    field("financial", "subscriptionFee", "مبلغ خدمت", "money", { required: true }),
+    field("financial", "billingPeriod", "دورهٔ صورت‌حساب", "select", {
+      required: true,
+      options: [
+        { value: "monthly", labelFa: "ماهانه" },
+        { value: "quarterly", labelFa: "سه‌ماهه" },
+        { value: "yearly", labelFa: "سالانه" },
+      ],
+    }),
+    field("financial", "usageBilling", "هزینهٔ مصرف مازاد", "textarea", {
+      helperFa: "نحوهٔ محاسبهٔ مصرف بیش از سهمیهٔ قراردادی.",
+    }),
+    field("financial", "paymentMethod", "روش پرداخت", "select", {
+      required: true,
+      options: [
+        { value: "bank_transfer", labelFa: "انتقال بانکی" },
+        { value: "card", labelFa: "کارت بانکی" },
+      ],
+    }),
+  ];
+
+  const data: ContractFieldDescriptor[] = [
+    field("data", "dataOwnership", "مالکیت داده‌های مشتری", "select", {
+      required: true,
+      options: [
+        { value: "customer", labelFa: "مشتری" },
+        { value: "provider", labelFa: "ارائه‌دهنده" },
+      ],
+    }),
+    field("data", "dataLocation", "محل نگهداری داده", "text", { required: true }),
+    field("data", "retentionPeriod", "مدت نگهداری داده پس از خاتمه", "text", { required: true }),
+    field("data", "dataReturnMethod", "روش بازگرداندن داده", "textarea", { required: true }),
+    field("data", "deletionPolicy", "سیاست حذف قطعی داده", "textarea", { required: true }),
+    field("data", "confidentiality", "تعهد محرمانگی اطلاعات", "toggle"),
+  ];
+
+  const obligations: ContractFieldDescriptor[] = [
+    field("obligations", "ipOwnership", "مالکیت فکری", "select", {
+      required: true,
+      options: [
+        { value: "provider", labelFa: "ارائه‌دهنده" },
+        { value: "customer", labelFa: "مشتری" },
+      ],
+    }),
+    field("obligations", "customerObligations", "تعهدات مشتری", "textarea", {
+      required: true,
+      helperFa: "استفادهٔ مجاز، ممنوعیت‌ها و همکاری لازم.",
+    }),
+    field("obligations", "providerObligations", "تعهدات ارائه‌دهنده", "textarea", {
+      required: true,
+    }),
+    field("obligations", "liabilityCap", "سقف مسئولیت", "money"),
+    field("obligations", "terminationNoticeDays", "مدت اطلاع پیش از فسخ (روز)", "number"),
+    field("obligations", "terminationTerms", "شرایط فسخ و تعلیق", "textarea"),
+    field("obligations", "governingLaw", "قانون حاکم", "select", {
+      required: true,
+      options: [
+        { value: "iran", labelFa: "قوانین جمهوری اسلامی ایران" },
+        { value: "other", labelFa: "سایر (در توضیحات ذکر شود)" },
+      ],
+    }),
+  ];
+
+  return [...shared, ...modelSpecific, ...sla, ...financial, ...data, ...obligations];
+}
+
+const CLOUD_DOCUMENTS: RequiredDocumentDefinition[] = [
+  { category: "seller_id", labelFa: "شناسه / کارت ملی ارائه‌دهنده", required: true, provider: "initiator" },
+  { category: "buyer_id", labelFa: "شناسه / کارت ملی مشتری", required: true, provider: "counterparty" },
+  { category: "other", labelFa: "سند سطح سرویس (SLA) و سیاست حریم خصوصی", required: false, provider: "initiator" },
+];
+
+// ------------------------------------------------------------
+// Semantic document tables
+// ------------------------------------------------------------
+// Every schema-driven type groups its short answers into named tables with
+// the headers that fit the document — never one generic «موضوع / شرح» grid
+// for every contract. A table only prints the rows that are present (or
+// required), so an empty table never reaches the sheet. Long free-text
+// answers stay OUT of these tables and print as paragraphs beneath, because
+// a multi-line clause is the wrong content for a table cell.
+
+const VEHICLE_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "vehicle",
+    captionFa: "مشخصات فنی و شناسایی خودرو",
+    columnsFa: ["مشخصه", "شرح"],
+    rows: [
+      { labelFa: "نوع خودرو", key: "vehicleType" },
+      { labelFa: "برند / سازنده", key: "brand" },
+      { labelFa: "مدل (سال ساخت)", key: "model" },
+      { labelFa: "رنگ", key: "color" },
+      { labelFa: "شماره پلاک", key: "plateNumber" },
+      { labelFa: "شماره شاسی (VIN)", key: "vin" },
+      { labelFa: "شماره موتور", key: "engineNumber" },
+      { labelFa: "شماره بدنه", key: "bodyNumber" },
+      { labelFa: "کارکرد (کیلومتر)", key: "mileage" },
+      { labelFa: "وضعیت سلامت خودرو", key: "condition" },
+    ],
+  },
+  {
+    stepId: "financial",
+    captionFa: "مبلغ معامله و ترتیب پرداخت",
+    columnsFa: ["شرح", "مبلغ / ترتیب"],
+    rows: [
+      { labelFa: "قیمت کل خودرو", key: "totalPrice" },
+      { labelFa: "مبلغ پیش‌پرداخت", key: "downPayment" },
+      { labelFa: "پرداخت پیش از ثبت سند", key: "beforeTransferAmount" },
+      { labelFa: "پرداخت پس از تعویض پلاک", key: "afterPlateAmount" },
+      { labelFa: "روش پرداخت", key: "paymentMethod" },
+      { labelFa: "تعداد اقساط", key: "instalmentCount" },
+      { labelFa: "شماره حساب فروشنده", key: "accountNumber" },
+    ],
+  },
+];
+
+const DEBT_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "loan",
+    captionFa: "مبلغ و شرایط بازپرداخت قرض",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "مبلغ قرض", key: "amount" },
+      { labelFa: "تاریخ انعقاد", key: "loanDate" },
+      { labelFa: "سررسید بازپرداخت", key: "dueDate" },
+      { labelFa: "روش بازپرداخت", key: "repaymentMethod" },
+      { labelFa: "تعداد اقساط", key: "instalmentCount" },
+    ],
+  },
+  {
+    stepId: "guarantee",
+    captionFa: "تضامین و ضمانت",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "وجود ضامن", key: "hasGuarantor" },
+      { labelFa: "نام ضامن", key: "guarantorName" },
+      { labelFa: "کد ملی ضامن", key: "guarantorNationalId" },
+    ],
+  },
+  {
+    stepId: "obligations",
+    captionFa: "وجه التزام و شرایط فسخ",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [{ labelFa: "وجه التزام تأخیر در بازپرداخت", key: "latePenalty" }],
+  },
+];
+
+const FREELANCE_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "project",
+    captionFa: "زمان‌بندی و دامنهٔ پروژه",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "عنوان پروژه", key: "projectTitle" },
+      { labelFa: "تاریخ شروع", key: "startDate" },
+      { labelFa: "تاریخ تحویل", key: "deliveryDate" },
+      { labelFa: "تعداد بازبینی مجاز", key: "revisionCount" },
+    ],
+  },
+  {
+    stepId: "financial",
+    captionFa: "دستمزد و نحوهٔ پرداخت",
+    columnsFa: ["شرح", "مبلغ / ترتیب"],
+    rows: [
+      { labelFa: "دستمزد کل", key: "fee" },
+      { labelFa: "بیعانه", key: "advancePayment" },
+      { labelFa: "روش پرداخت", key: "paymentMethod" },
+      { labelFa: "شماره حساب فریلنسر", key: "accountNumber" },
+    ],
+  },
+  {
+    stepId: "obligations",
+    captionFa: "تعهدات و وجه التزام",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "تعهد محرمانگی", key: "confidentiality" },
+      { labelFa: "مالکیت معنوی خروجی", key: "ipOwnership" },
+      { labelFa: "وجه التزام تأخیر در تحویل", key: "latePenalty" },
+    ],
+  },
+];
+
+const NDA_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "terms",
+    captionFa: "مدت اعتبار و بقای تعهد",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "تاریخ شروع اعتبار", key: "startDate" },
+      { labelFa: "مدت اعتبار قرارداد (ماه)", key: "durationMonths" },
+      { labelFa: "مدت بقای تعهد پس از خاتمه (ماه)", key: "survivalMonths" },
+    ],
+  },
+  {
+    stepId: "obligations",
+    captionFa: "ضمانت اجرا و حل اختلاف",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "روش بازگرداندن یا امحای اطلاعات", key: "returnOrDestroy" },
+      { labelFa: "وجه التزام نقض تعهد", key: "penaltyAmount" },
+      { labelFa: "قانون حاکم", key: "governingLaw" },
+    ],
+  },
+];
+
+const SAAS_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "service",
+    captionFa: "مشخصات سرویس و سطح خدمات",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "نام سرویس / نرم‌افزار", key: "serviceName" },
+      { labelFa: "تضمین دسترس‌پذیری (٪)", key: "availabilitySla" },
+      { labelFa: "ساعات پشتیبانی", key: "supportHours" },
+      { labelFa: "محل مرکز داده", key: "dataCenterLocation" },
+    ],
+  },
+  {
+    stepId: "financial",
+    captionFa: "هزینهٔ اشتراک و صورت‌حساب",
+    columnsFa: ["شرح", "مبلغ / ترتیب"],
+    rows: [
+      { labelFa: "مبلغ اشتراک", key: "subscriptionFee" },
+      { labelFa: "دوره صورت‌حساب", key: "billingPeriod" },
+      { labelFa: "تعداد کاربران", key: "userCount" },
+      { labelFa: "روش پرداخت", key: "paymentMethod" },
+    ],
+  },
+  {
+    stepId: "data",
+    captionFa: "داده‌ها و محرمانگی",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "مالکیت داده‌ها", key: "dataOwnership" },
+      { labelFa: "روش بازگرداندن داده‌ها", key: "dataReturnMethod" },
+      { labelFa: "محرمانگی", key: "confidentiality" },
+    ],
+  },
+];
+
+const EMPLOYMENT_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "job",
+    captionFa: "مشخصات شغل و محل کار",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "عنوان شغل", key: "jobTitle" },
+      { labelFa: "محل کار", key: "jobWorkplace" },
+      { labelFa: "واحد سازمانی", key: "jobDepartment" },
+      { labelFa: "سرپرست مستقیم", key: "jobSupervisor" },
+      { labelFa: "تحصیلات کارگر", key: "employeeEducation" },
+    ],
+  },
+  {
+    stepId: "term",
+    captionFa: "نوع و مدت قرارداد کار",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { key: "contractType" },
+      { key: "startDate" },
+      { key: "endDate" },
+      { key: "probationMonths" },
+    ],
+  },
+  {
+    stepId: "wages",
+    captionFa: "حقوق، مزایا و نحوهٔ پرداخت",
+    columnsFa: ["شرح", "مبلغ / ترتیب"],
+    rows: [
+      { labelFa: "حقوق پایه", key: "baseSalary" },
+      { labelFa: "دورهٔ پرداخت", key: "wagePeriod" },
+      { labelFa: "روز پرداخت", key: "paymentDay" },
+      { labelFa: "حق مسکن", key: "housingAllowance" },
+      { labelFa: "کمک‌هزینهٔ غذا", key: "foodAllowance" },
+      { labelFa: "حق اولاد", key: "childAllowance" },
+      { labelFa: "پایهٔ سنوات", key: "seniorityAllowance" },
+    ],
+  },
+  {
+    stepId: "hours",
+    captionFa: "ساعات کار و مرخصی",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "ساعات کار هفتگی", key: "weeklyHours" },
+      { labelFa: "ساعات کار روزانه", key: "dailyHours" },
+      { labelFa: "برنامهٔ کاری", key: "workSchedule" },
+      { labelFa: "روز تعطیل", key: "restDay" },
+      { labelFa: "مرخصی سالانه (روز)", key: "annualLeaveDays" },
+      { labelFa: "کار از راه دور", key: "remoteWork" },
+    ],
+  },
+  {
+    stepId: "insurance",
+    captionFa: "بیمه و امور مالیاتی",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "بیمهٔ اجتماعی", key: "socialInsurance" },
+      { labelFa: "شمارهٔ بیمه", key: "insuranceNumber" },
+      { labelFa: "کسر مالیات", key: "taxWithholding" },
+    ],
+  },
+];
+
+const COMMERCIAL_RENT_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "property",
+    captionFa: "مشخصات ملک تجاری",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "نوع ملک تجاری", key: "commercialKind" },
+      { labelFa: "نشانی ملک", key: "propertyAddress" },
+      { labelFa: "مساحت قابل استفاده (مترمربع)", key: "usableArea" },
+      { labelFa: "طبقه / موقعیت", key: "floorDescription" },
+      { labelFa: "تعداد پارکینگ", key: "parkingSpaces" },
+      { labelFa: "وضعیت فعلی ملک", key: "currentCondition" },
+    ],
+  },
+  {
+    stepId: "licence",
+    captionFa: "کاربری مجاز و پروانهٔ کسب",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "کاربری مجاز", key: "permittedUse" },
+      { labelFa: "مسئول اخذ پروانهٔ کسب", key: "businessLicenceHolder" },
+      { labelFa: "مهلت اخذ پروانه (روز)", key: "licenceDeadlineDays" },
+      { labelFa: "شرایط نصب تابلو", key: "signageTerms" },
+    ],
+  },
+  {
+    stepId: "term",
+    captionFa: "مدت اجاره و تحویل",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "تاریخ شروع", key: "startDate" },
+      { labelFa: "تاریخ پایان", key: "endDate" },
+      { labelFa: "مهلت اعلام تمدید (روز)", key: "renewalNoticeDays" },
+      { labelFa: "تاریخ تحویل ملک", key: "handoverDate" },
+    ],
+  },
+  {
+    stepId: "financial",
+    captionFa: "ودیعه، اجاره‌بها و نحوهٔ پرداخت",
+    columnsFa: ["شرح", "مبلغ / ترتیب"],
+    rows: [
+      { labelFa: "مبلغ ودیعه (رهن)", key: "depositAmount" },
+      { labelFa: "اجاره‌بهای ماهانه", key: "monthlyRent" },
+      { labelFa: "مهلت پرداخت اجاره در هر ماه", key: "rentDueDay" },
+      { labelFa: "روش پرداخت", key: "paymentMethod" },
+      { labelFa: "شرایط مالیات بر ارزش افزوده", key: "vatTerms" },
+    ],
+  },
+  {
+    stepId: "obligations",
+    captionFa: "تعهدات بهره‌برداری و فسخ",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "مسئول پرداخت قبوض", key: "utilityBearer" },
+      { labelFa: "مسئول تعمیرات", key: "repairBearer" },
+      { labelFa: "واگذاری به غیر", key: "subleaseAllowed" },
+    ],
+  },
+];
+
+const COMMERCIAL_SALE_TABLES: ContractFieldTable[] = [
+  {
+    stepId: "property",
+    captionFa: "مشخصات ملک تجاری",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "نوع ملک تجاری", key: "commercialKind" },
+      { labelFa: "نشانی ملک", key: "propertyAddress" },
+      { labelFa: "مساحت قابل استفاده (مترمربع)", key: "usableArea" },
+      { labelFa: "طبقه / موقعیت", key: "floorDescription" },
+      { labelFa: "تعداد پارکینگ", key: "parkingSpaces" },
+    ],
+  },
+  {
+    stepId: "legal",
+    captionFa: "وضعیت حقوقی و ثبتی",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "شمارهٔ سند", key: "deedNumber" },
+      { labelFa: "نوع سند", key: "deedType" },
+      { labelFa: "وضعیت رهن", key: "inMortgage" },
+      { labelFa: "شرایط فک رهن", key: "mortgageReleaseTerms" },
+      { labelFa: "وضعیت بازداشت", key: "seized" },
+      { labelFa: "وجود مستأجر", key: "occupiedByTenant" },
+      { labelFa: "تاریخ تخلیه مستأجر", key: "tenantVacateDate" },
+    ],
+  },
+  {
+    stepId: "financial",
+    captionFa: "ثمن معامله و برنامهٔ پرداخت",
+    columnsFa: ["شرح", "مبلغ / ترتیب"],
+    rows: [
+      { labelFa: "ثمن معامله", key: "totalPrice" },
+      { labelFa: "پیش‌پرداخت", key: "downPayment" },
+      { labelFa: "پرداخت اقساطی", key: "hasInstalments" },
+      { labelFa: "شرایط اقساط", key: "instalmentTerms" },
+      { labelFa: "روش پرداخت", key: "paymentMethod" },
+    ],
+  },
+  {
+    stepId: "registration",
+    captionFa: "دفترخانه و ثبت رسمی",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "دفتر اسناد رسمی", key: "notaryOffice" },
+      { labelFa: "تاریخ ثبت", key: "registrationDate" },
+      { labelFa: "مبلغ قابل پرداخت هنگام ثبت", key: "amountAtRegistration" },
+      { labelFa: "مسئول تهیهٔ مدارک", key: "documentsResponsible" },
+    ],
+  },
+  {
+    stepId: "obligations",
+    captionFa: "تعهدات و وجوه التزام",
+    columnsFa: ["شرح", "مقدار"],
+    rows: [
+      { labelFa: "مسئول تسویهٔ بدهی‌های قبلی", key: "priorDebtsBearer" },
+      { labelFa: "وجه التزام عدم حضور فروشنده", key: "sellerNoShowPenalty" },
+      { labelFa: "وجه التزام تأخیر در تحویل", key: "handoverDelayPenalty" },
+    ],
+  },
+];
+
+/** One table set per cloud model, sharing the common sections. */
+function cloudTables(model: "iaas" | "paas" | "baas"): ContractFieldTable[] {
+  const modelRows: ContractFieldTableRow[] =
+    model === "iaas"
+      ? [
+          { labelFa: "مشخصات منابع محاسباتی", key: "computeSpec" },
+          { labelFa: "مشخصات ذخیره‌سازی", key: "storageSpec" },
+          { labelFa: "مشخصات شبکه", key: "networkSpec" },
+          { labelFa: "مسئولیت سیستم‌عامل", key: "osResponsibility" },
+          { labelFa: "سیاست پشتیبان‌گیری", key: "backupPolicy" },
+        ]
+      : model === "paas"
+        ? [
+            { labelFa: "محیط اجرا (Runtime)", key: "runtimeStack" },
+            { labelFa: "سیاست مقیاس‌پذیری", key: "scalingPolicy" },
+            { labelFa: "روش استقرار", key: "deploymentMethod" },
+            { labelFa: "اجزای مدیریت‌شده", key: "managedComponents" },
+            { labelFa: "بار کاری مشتری", key: "customerWorkload" },
+          ]
+        : [
+            { labelFa: "سرویس‌های بک‌اند", key: "backendServices" },
+            { labelFa: "مشخصات پایگاه داده", key: "databaseSpec" },
+            { labelFa: "سهمیهٔ API", key: "apiQuota" },
+            { labelFa: "سهمیهٔ ذخیره‌سازی", key: "storageQuota" },
+            { labelFa: "شرایط سرویس احراز هویت", key: "authServiceTerms" },
+          ];
+
+  return [
+    {
+      stepId: "service",
+      captionFa: "مشخصات سرویس ابری و دامنهٔ خدمت",
+      columnsFa: ["شرح", "مقدار"],
+      rows: [
+        { labelFa: "نام سرویس", key: "serviceName" },
+        { labelFa: "منطقهٔ میزبانی", key: "hostingRegion" },
+        { labelFa: "تاریخ شروع قرارداد", key: "contractStartDate" },
+        { labelFa: "مدت قرارداد (ماه)", key: "contractTermMonths" },
+        ...modelRows,
+      ],
+    },
+    {
+      stepId: "sla",
+      captionFa: "سطح خدمات، پشتیبانی و امنیت",
+      columnsFa: ["شرح", "مقدار"],
+      rows: [
+        { labelFa: "تضمین دسترس‌پذیری", key: "availabilitySla" },
+        { labelFa: "ساعات پشتیبانی", key: "supportHours" },
+        { labelFa: "زمان پاسخ‌دهی", key: "responseTime" },
+        { labelFa: "پنجرهٔ نگهداری", key: "maintenanceWindow" },
+        { labelFa: "اقدامات امنیتی", key: "securityMeasures" },
+        { labelFa: "جریمهٔ کاهش دسترس‌پذیری", key: "uptimePenalty" },
+      ],
+    },
+    {
+      stepId: "financial",
+      captionFa: "هزینهٔ سرویس و صورت‌حساب",
+      columnsFa: ["شرح", "مبلغ / ترتیب"],
+      rows: [
+        { labelFa: "مبلغ اشتراک", key: "subscriptionFee" },
+        { labelFa: "دورهٔ صورت‌حساب", key: "billingPeriod" },
+        { labelFa: "صورت‌حساب مصرفی", key: "usageBilling" },
+        { labelFa: "روش پرداخت", key: "paymentMethod" },
+      ],
+    },
+    {
+      stepId: "data",
+      captionFa: "داده‌ها، محل نگهداری و محرمانگی",
+      columnsFa: ["شرح", "مقدار"],
+      rows: [
+        { labelFa: "مالکیت داده‌ها", key: "dataOwnership" },
+        { labelFa: "محل نگهداری داده", key: "dataLocation" },
+        { labelFa: "مدت نگهداری", key: "retentionPeriod" },
+        { labelFa: "روش بازگرداندن داده", key: "dataReturnMethod" },
+        { labelFa: "سیاست حذف داده", key: "deletionPolicy" },
+      ],
+    },
+    {
+      stepId: "obligations",
+      captionFa: "تعهدات، مسئولیت و خاتمه",
+      columnsFa: ["شرح", "مقدار"],
+      rows: [
+        { labelFa: "مالکیت معنوی", key: "ipOwnership" },
+        { labelFa: "سقف مسئولیت", key: "liabilityCap" },
+        { labelFa: "مهلت اعلام خاتمه (روز)", key: "terminationNoticeDays" },
+        { labelFa: "قانون حاکم", key: "governingLaw" },
+      ],
+    },
+  ];
+}
+
 // ------------------------------------------------------------
 // Registry
 // ------------------------------------------------------------
 
 const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
+  commercial_rent: {
+    id: "commercial_rent",
+    domain: "property",
+    implemented: true,
+    typeFa: "رهن و اجاره ملک تجاری",
+    categoryFa: "املاک",
+    descriptionFa:
+      "تنظیم قرارداد اجارهٔ واحد تجاری با تعیین کاربری مجاز، ودیعه، اجاره‌بها و تعهدات بهره‌برداری.",
+    ctaFa: "تنظیم اجاره‌نامهٔ ملک تجاری",
+    keywords: ["اجاره", "تجاری", "مغازه", "دفتر", "انبار", "کارگاه", "واگذاری", "پروانه کسب", "رهن"],
+    icon: "store",
+    gradient: "from-primary to-primary-container",
+    schemaVersion: 1,
+    templateVersion: "commercial-rent-v1.0.0",
+    roles: ["landlord", "tenant"],
+    defaultInitiatorRole: "landlord",
+    wizardSteps: COMMERCIAL_RENT_STEPS,
+    sections: COMMERCIAL_RENT_SECTIONS,
+    fields: COMMERCIAL_RENT_FIELDS,
+    fieldTables: COMMERCIAL_RENT_TABLES,
+    requiredDocuments: COMMERCIAL_RENT_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "اجارهٔ ملک تجاری با امضای طرفین معتبر است؛ ثبت رسمی در دفتر اسناد رسمی الزامی نیست ولی برای ضمانت اجرای بیشتر توصیه می‌شود. اخذ پروانهٔ کسب و رعایت کاربری مجاز مستقل از این قرارداد و بر عهدهٔ طرف مسئول در متن است.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  commercial_sale: {
+    id: "commercial_sale",
+    domain: "property",
+    implemented: true,
+    typeFa: "خرید و فروش ملک تجاری",
+    categoryFa: "املاک",
+    descriptionFa:
+      "تنظیم مبایعه‌نامهٔ ملک تجاری با تعیین ثمن، برنامهٔ پرداخت، وضعیت حقوقی و شرایط ثبت رسمی.",
+    ctaFa: "تنظیم مبایعه‌نامهٔ تجاری",
+    keywords: ["خرید", "فروش", "تجاری", "مغازه", "دفتر", "مبایعه", "سند", "ثمن", "دفترخانه"],
+    icon: "store",
+    gradient: "from-secondary to-secondary-container",
+    schemaVersion: 1,
+    templateVersion: "commercial-sale-v1.0.0",
+    roles: ["seller", "buyer"],
+    defaultInitiatorRole: "seller",
+    wizardSteps: COMMERCIAL_SALE_STEPS,
+    sections: COMMERCIAL_SALE_SECTIONS,
+    fields: COMMERCIAL_SALE_FIELDS,
+    fieldTables: COMMERCIAL_SALE_TABLES,
+    requiredDocuments: COMMERCIAL_SALE_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: true,
+      officialRegistrationOptional: false,
+      explanationFa:
+        "انتقال مالکیت ملک تجاری تنها با تنظیم سند رسمی در دفتر اسناد رسمی انجام می‌شود. نهایی‌شدن این مبایعه‌نامه در لِگال‌آی‌آر به‌معنای انتقال رسمی مالکیت نیست؛ پس از امضا، قرارداد در وضعیت «نیازمند ثبت رسمی» قرار می‌گیرد.",
+      postSignState: "READY_FOR_OFFICIAL_REGISTRATION",
+    },
+    signingPolicy: {
+      onlineSigningAllowed: false,
+      officialStampRequired: true,
+      requiresLegalApprovalForOnlineSigning: true,
+      noteFa:
+        "انتقال مالکیت ملک تجاری تنها با سند رسمی در دفتر اسناد رسمی معتبر است؛ بنابراین امضای آنلاین این قرارداد تا دریافت تأیید حقوقی فعلاً غیرفعال است. می‌توانید نسخهٔ چاپی را با امضای دستی تکمیل کنید.",
+    },
+    createDefaultData: createGenericData,
+  },
+  cloud_iaas: {
+    id: "cloud_iaas",
+    domain: "business",
+    implemented: true,
+    typeFa: "قرارداد خدمات ابری — زیرساخت به‌عنوان سرویس (IaaS)",
+    categoryFa: "کسب‌وکار",
+    descriptionFa:
+      "تنظیم قرارداد اجارهٔ زیرساخت ابری: منابع محاسباتی، شبکه و ذخیره‌سازی، با تعیین سطح سرویس و مسئولیت‌ها.",
+    ctaFa: "تنظیم قرارداد IaaS",
+    keywords: ["ابری", "کلاد", "IaaS", "زیرساخت", "سرور", "ماشین مجازی", "ذخیره‌سازی", "SLA"],
+    icon: "server",
+    gradient: "from-tertiary to-tertiary-container",
+    schemaVersion: 1,
+    templateVersion: "cloud-iaas-v1.0.0",
+    roles: ["provider", "customer"],
+    defaultInitiatorRole: "provider",
+    wizardSteps: CLOUD_SHARED_STEPS,
+    sections: sectionsFromFields(CLOUD_SHARED_STEPS, cloudServiceFields("iaas")),
+    fields: cloudServiceFields("iaas"),
+    fieldTables: cloudTables("iaas"),
+    requiredDocuments: CLOUD_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد خدمات ابری با امضای طرفین معتبر است و ثبت رسمی الزامی ندارد. سطح سرویس، حفاظت از داده و شرایط فسخ باید در متن همین سند صریح باشد.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  cloud_paas: {
+    id: "cloud_paas",
+    domain: "business",
+    implemented: true,
+    typeFa: "قرارداد خدمات ابری — بستر به‌عنوان سرویس (PaaS)",
+    categoryFa: "کسب‌وکار",
+    descriptionFa:
+      "تنظیم قرارداد بستر توسعه و اجرای برنامه با تعیین محیط اجرا، مقیاس‌پذیری، سطح سرویس و مسئولیت‌ها.",
+    ctaFa: "تنظیم قرارداد PaaS",
+    keywords: ["ابری", "کلاد", "PaaS", "پلتفرم", "زمان اجرا", "استقرار", "مقیاس‌پذیری", "SLA"],
+    icon: "server",
+    gradient: "from-tertiary to-tertiary-container",
+    schemaVersion: 1,
+    templateVersion: "cloud-paas-v1.0.0",
+    roles: ["provider", "customer"],
+    defaultInitiatorRole: "provider",
+    wizardSteps: CLOUD_SHARED_STEPS,
+    sections: sectionsFromFields(CLOUD_SHARED_STEPS, cloudServiceFields("paas")),
+    fields: cloudServiceFields("paas"),
+    fieldTables: cloudTables("paas"),
+    requiredDocuments: CLOUD_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد خدمات ابری با امضای طرفین معتبر است و ثبت رسمی الزامی ندارد. سطح سرویس، حفاظت از داده و شرایط فسخ باید در متن همین سند صریح باشد.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
+  cloud_baas: {
+    id: "cloud_baas",
+    domain: "business",
+    implemented: true,
+    typeFa: "قرارداد خدمات ابری — بک‌اند به‌عنوان سرویس (BaaS)",
+    categoryFa: "کسب‌وکار",
+    descriptionFa:
+      "تنظیم قرارداد سرویس‌های آمادهٔ بک‌اند (پایگاه داده، احراز هویت، فایل و API) با تعیین سهمیه و سطح سرویس.",
+    ctaFa: "تنظیم قرارداد BaaS",
+    keywords: ["ابری", "کلاد", "BaaS", "بک‌اند", "پایگاه داده", "API", "احراز هویت", "ذخیره‌سازی", "SLA"],
+    icon: "server",
+    gradient: "from-tertiary to-tertiary-container",
+    schemaVersion: 1,
+    templateVersion: "cloud-baas-v1.0.0",
+    roles: ["provider", "customer"],
+    defaultInitiatorRole: "provider",
+    wizardSteps: CLOUD_SHARED_STEPS,
+    sections: sectionsFromFields(CLOUD_SHARED_STEPS, cloudServiceFields("baas")),
+    fields: cloudServiceFields("baas"),
+    fieldTables: cloudTables("baas"),
+    requiredDocuments: CLOUD_DOCUMENTS,
+    registrationPolicy: {
+      officialRegistrationRequired: false,
+      officialRegistrationOptional: true,
+      explanationFa:
+        "قرارداد خدمات ابری با امضای طرفین معتبر است و ثبت رسمی الزامی ندارد. سطح سرویس، حفاظت از داده و شرایط فسخ باید در متن همین سند صریح باشد.",
+      postSignState: "FINALIZED",
+    },
+    createDefaultData: createGenericData,
+  },
   property_rent: {
     id: "property_rent",
     domain: "property",
@@ -1354,6 +2428,17 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
         "انتقال مالکیت ملک تنها با تنظیم سند رسمی در دفتر اسناد رسمی انجام می‌شود. نهایی‌شدن این مبایعه‌نامه در لِگال‌آی‌آر به‌معنای انتقال رسمی مالکیت نیست؛ پس از امضا، قرارداد در وضعیت «نیازمند ثبت رسمی» قرار می‌گیرد.",
       postSignState: "READY_FOR_OFFICIAL_REGISTRATION",
     },
+    // A property sale transfers ownership ONLY at a notary office, so online
+    // signature stays DISABLED here until a legal approval explicitly enables
+    // it for the operating jurisdiction. This is data, not code — flipping it
+    // on is a one-line change once legal signs off.
+    signingPolicy: {
+      onlineSigningAllowed: false,
+      officialStampRequired: true,
+      requiresLegalApprovalForOnlineSigning: true,
+      noteFa:
+        "انتقال مالکیت ملک تنها با سند رسمی در دفتر اسناد رسمی معتبر است؛ بنابراین امضای آنلاین این قرارداد تا دریافت تأیید حقوقی فعلاً غیرفعال است. می‌توانید نسخهٔ چاپی را با امضای دستی تکمیل کنید.",
+    },
     createDefaultData: createSaleData,
   },
   vehicle_sale: {
@@ -1374,6 +2459,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     wizardSteps: VEHICLE_STEPS,
     sections: sectionsFromFields(VEHICLE_STEPS, VEHICLE_FIELDS),
     fields: VEHICLE_FIELDS,
+    fieldTables: VEHICLE_TABLES,
     requiredDocuments: VEHICLE_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: true,
@@ -1381,6 +2467,15 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
       explanationFa:
         "انتقال مالکیت خودرو تنها با تنظیم سند رسمی در دفتر اسناد رسمی و تعویض پلاک انجام می‌شود. نهایی‌شدن این قولنامه در لِگال‌آی‌آر به‌معنای انتقال رسمی مالکیت نیست؛ پس از امضا، قرارداد در وضعیت «نیازمند ثبت رسمی» قرار می‌گیرد.",
       postSignState: "READY_FOR_OFFICIAL_REGISTRATION",
+    },
+    // A vehicle sale transfers ownership only at a notary office, so online
+    // signature stays DISABLED until a legal approval enables it.
+    signingPolicy: {
+      onlineSigningAllowed: false,
+      officialStampRequired: true,
+      requiresLegalApprovalForOnlineSigning: true,
+      noteFa:
+        "انتقال مالکیت خودرو تنها با سند رسمی در دفتر اسناد رسمی و تعویض پلاک معتبر است؛ بنابراین امضای آنلاین این قولنامه تا دریافت تأیید حقوقی فعلاً غیرفعال است. می‌توانید نسخهٔ چاپی را با امضای دستی تکمیل کنید.",
     },
     createDefaultData: createGenericData,
   },
@@ -1402,6 +2497,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     wizardSteps: DEBT_STEPS,
     sections: sectionsFromFields(DEBT_STEPS, DEBT_FIELDS),
     fields: DEBT_FIELDS,
+    fieldTables: DEBT_TABLES,
     requiredDocuments: DEBT_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: false,
@@ -1430,6 +2526,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     wizardSteps: FREELANCE_STEPS,
     sections: sectionsFromFields(FREELANCE_STEPS, FREELANCE_FIELDS),
     fields: FREELANCE_FIELDS,
+    fieldTables: FREELANCE_TABLES,
     requiredDocuments: FREELANCE_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: false,
@@ -1459,6 +2556,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     wizardSteps: NDA_STEPS,
     sections: sectionsFromFields(NDA_STEPS, NDA_FIELDS),
     fields: NDA_FIELDS,
+    fieldTables: NDA_TABLES,
     requiredDocuments: NDA_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: false,
@@ -1488,6 +2586,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     wizardSteps: SAAS_STEPS,
     sections: sectionsFromFields(SAAS_STEPS, SAAS_FIELDS),
     fields: SAAS_FIELDS,
+    fieldTables: SAAS_TABLES,
     requiredDocuments: SAAS_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: false,
@@ -1550,6 +2649,7 @@ const DEFINITIONS: Record<ContractTypeId, ContractDefinition> = {
     wizardSteps: EMPLOYMENT_STEPS,
     sections: sectionsFromFields(EMPLOYMENT_STEPS, EMPLOYMENT_FIELDS),
     fields: EMPLOYMENT_FIELDS,
+    fieldTables: EMPLOYMENT_TABLES,
     requiredDocuments: EMPLOYMENT_DOCUMENTS,
     registrationPolicy: {
       officialRegistrationRequired: false,
@@ -1582,6 +2682,14 @@ export function getContractDefinition(typeId: ContractTypeId): ContractDefinitio
 /** Look up a definition, or null when unknown. */
 export function findContractDefinition(typeId: string): ContractDefinition | null {
   return DEFINITIONS[typeId as ContractTypeId] ?? null;
+}
+
+/**
+ * The electronic-signature policy for a type. Falls back to the shared
+ * default so every type has a policy without having to declare one.
+ */
+export function signingPolicyFor(typeId: ContractTypeId): SigningPolicy {
+  return DEFINITIONS[typeId]?.signingPolicy ?? DEFAULT_SIGNING_POLICY;
 }
 
 /** True when the id is a registered, implemented contract type. */
@@ -1672,6 +2780,8 @@ export function partyRoleLabelFa(role: PartyRole): string {
       return "کارفرما";
     case "employee":
       return "کارگر / کارمند";
+    case "legal_representative":
+      return "نمایندهٔ قانونی";
   }
 }
 

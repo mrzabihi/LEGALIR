@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 /**
  * Build a full 50–900 shade map that points at a semantic ramp's CSS vars.
@@ -196,6 +197,12 @@ const config: Config = {
           "selected-foreground": "var(--control-selected-foreground)",
           "selected-surface": "var(--control-selected-surface)",
           "selected-border": "var(--control-selected-border)",
+          // Explicit OFF state for boolean switches (green = on, red = off).
+          off: "var(--control-off)",
+          "off-border": "var(--control-off-border)",
+          "off-surface": "var(--control-off-surface)",
+          "off-text": "var(--control-off-text)",
+          "selected-text": "var(--control-selected-text)",
           "unselected-bg": "var(--control-unselected-bg)",
           "unselected-border": "var(--control-unselected-border)",
           hover: "var(--control-hover)",
@@ -466,7 +473,16 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // `can-hover:` gates a utility behind a real hover-capable, fine pointer,
+    // so decorative hover motion (the dashboard photo banner) never sticks on
+    // a touch device. Unlike the deprecated `hoverOnlyWhenSupported` flag this
+    // is opt-in per element, so the rest of the app keeps its current hover
+    // behaviour.
+    plugin(({ addVariant }) => {
+      addVariant("can-hover", "@media (hover: hover) and (pointer: fine)");
+    }),
+  ],
 };
 
 export default config;

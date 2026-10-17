@@ -22,6 +22,7 @@ import {
   CONTRACT_REVIEW_STAMP_TEXT,
 } from "@legalir/types";
 import { renderContract } from "./template";
+import { toPersianDigits } from "@/lib/persian-utils";
 import { buildLegalBasisReport, legalBasisReportLines } from "./legal-basis";
 import { formatIsoJalali } from "./dates";
 
@@ -192,15 +193,109 @@ function coloredParagraph(
   );
 }
 
+/**
+ * A real Word table with a repeating heading row (`tblHeader`), so the
+ * column headings survive a page break exactly as they do on screen and
+ * in the PDF. Cells are RTL and wrap Persian text.
+ */
+function tableXml(
+  captionFa: string | undefined,
+  columnsFa: string[],
+  rowsFa: string[][]
+): string {
+  const colCount = columnsFa.length;
+  if (colCount === 0 || rowsFa.length === 0) return "";
+  const cellWidth = Math.floor(9638 / colCount); // A4 width minus margins, twips
+
+  const cell = (text: string, bold: boolean) => {
+    const rPr =
+      `<w:rFonts w:ascii="Vazirmatn" w:hAnsi="Vazirmatn" w:cs="Vazirmatn"/>` +
+      (bold ? "<w:b/><w:bCs/>" : "") +
+      `<w:sz w:val="18"/><w:szCs w:val="18"/><w:rtl/>`;
+    return (
+      `<w:tc><w:tcPr><w:tcW w:w="${cellWidth}" w:type="dxa"/>` +
+      (bold ? `<w:shd w:val="clear" w:fill="F1F6F3"/>` : "") +
+      `</w:tcPr>` +
+      `<w:p><w:pPr><w:bidi/><w:jc w:val="right"/><w:rPr>${rPr}</w:rPr></w:pPr>` +
+      `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>` +
+      `</w:tc>`
+    );
+  };
+
+  const row = (cells: string[], header: boolean) =>
+    `<w:tr>${header ? "<w:trPr><w:tblHeader/></w:trPr>" : ""}${cells
+      .map((c) => cell(c, header))
+      .join("")}</w:tr>`;
+
+  const borders =
+    `<w:tblBorders>` +
+    ["top", "left", "bottom", "right", "insideH", "insideV"]
+      .map((side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="CDD7D2"/>`)
+      .join("") +
+    `</w:tblBorders>`;
+
+  return (
+    (captionFa ? paragraph(captionFa, { bold: true, size: 20 }) : "") +
+    `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:bidiVisual/>${borders}</w:tblPr>` +
+    row(columnsFa, true) +
+    rowsFa.map((r) => row(r, false)).join("") +
+    `</w:tbl>` +
+    paragraph("", { size: 12 })
+  );
+}
+
 function documentXml(body: string): string {
   return (
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
     `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
     `<w:body>${body}` +
-    `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>` +
+    `<w:sectPr>` +
+    `<w:headerReference w:type="default" r:id="rId2" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>` +
+    `<w:footerReference w:type="default" r:id="rId3" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>` +
+    `<w:pgSz w:w="11906" w:h="16838"/>` +
     `<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>` +
     `<w:bidi/></w:sectPr>` +
     `</w:body></w:document>`
+  );
+}
+
+/** Running header: document type + reference code + version, on every page. */
+function headerXml(typeFa: string, referenceCode: string, versionLabel: string): string {
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+    paragraph(`${typeFa} — ${referenceCode} — ${versionLabel}`, {
+      size: 16,
+      align: "right",
+    }) +
+    `</w:hdr>`
+  );
+}
+
+/** Running footer: the template line on the right, «صفحه X از Y» on the left. */
+function footerXml(footerFa: string): string {
+  const rPr =
+    `<w:rFonts w:ascii="Vazirmatn" w:hAnsi="Vazirmatn" w:cs="Vazirmatn"/>` +
+    `<w:sz w:val="16"/><w:szCs w:val="16"/><w:rtl/>`;
+  // Word exposes the page count and current page as field codes, so the
+  // number stays correct after editing — never a hardcoded total.
+  const pageNumber =
+    `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">صفحه </w:t></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:fldChar w:fldCharType="begin"/></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:fldChar w:fldCharType="end"/></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> از </w:t></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:fldChar w:fldCharType="begin"/></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:fldChar w:fldCharType="end"/></w:r>`;
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+    `<w:p><w:pPr><w:bidi/><w:jc w:val="right"/><w:rPr>${rPr}</w:rPr></w:pPr>` +
+    `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escapeXml(footerFa)}</w:t></w:r>` +
+    `</w:p>` +
+    `<w:p><w:pPr><w:bidi/><w:jc w:val="left"/><w:rPr>${rPr}</w:rPr></w:pPr>${pageNumber}</w:p>` +
+    `</w:ftr>`
   );
 }
 
@@ -211,6 +306,8 @@ const CONTENT_TYPES =
   `<Default Extension="xml" ContentType="application/xml"/>` +
   `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
   `<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>` +
+  `<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>` +
+  `<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>` +
   `</Types>`;
 
 const ROOT_RELS =
@@ -223,6 +320,8 @@ const DOC_RELS =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
   `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+  `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>` +
+  `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>` +
   `</Relationships>`;
 
 const STYLES =
@@ -295,7 +394,11 @@ export function renderContractDocx(params: RenderDocxParams): Uint8Array {
 
   for (const clause of rendered.clauses) {
     parts.push(paragraph(clause.headingFa, { bold: true, size: 26 }));
-    for (const p of clause.paragraphs) parts.push(paragraph(p));
+    const blocks = clause.blocks ?? clause.paragraphs.map((textFa) => ({ kind: "paragraph" as const, textFa }));
+    for (const block of blocks) {
+      if (block.kind === "paragraph") parts.push(paragraph(block.textFa));
+      else parts.push(tableXml(block.table.captionFa, block.table.columnsFa, block.table.rowsFa));
+    }
     parts.push(paragraph("", { size: 20 }));
   }
 
@@ -315,12 +418,18 @@ export function renderContractDocx(params: RenderDocxParams): Uint8Array {
     for (const line of legalBasisLines) parts.push(paragraph(line, { size: 18 }));
   }
 
+  const versionLabel = `نسخه ${toPersianDigits(version.versionNumber)}`;
   const entries: ZipEntry[] = [
     { name: "[Content_Types].xml", data: utf8(CONTENT_TYPES) },
     { name: "_rels/.rels", data: utf8(ROOT_RELS) },
     { name: "word/document.xml", data: utf8(documentXml(parts.join(""))) },
     { name: "word/_rels/document.xml.rels", data: utf8(DOC_RELS) },
     { name: "word/styles.xml", data: utf8(STYLES) },
+    {
+      name: "word/header1.xml",
+      data: utf8(headerXml(contract.typeFa, contract.referenceCode, versionLabel)),
+    },
+    { name: "word/footer1.xml", data: utf8(footerXml(rendered.footerFa)) },
   ];
 
   return buildZip(entries);

@@ -6,14 +6,19 @@
 // in this fixed order:
 //
 //   SECTION 1 — «چه قراردادی می‌توانم بسازم؟»
-//     the template library, filtered by the shared search query and
-//     the category chips.
+//     the configurable-contract rail, filtered by the shared search
+//     query and the category chips, with a prominent link to the full
+//     paginated listing.
 //
 //   SECTION 2 — «قراردادهایی که قبلاً ساخته یا شروع کرده‌ام کجا هستند؟»
-//     the user's own contracts, drafts first, grouped by work remaining.
+//     the user's own contracts, split into «نیازمند ادامه» and
+//     «قراردادهای آماده» (plus «بایگانی»), three rows at a time.
+//
+//   SECTION 3 — two promotions for OTHER real services.
 //
 // The order is a product requirement, not a layout accident: the page
-// must always offer "start something new" before "resume something old".
+// must always offer "start something new" before "resume something old",
+// and the promotions must never sit above either.
 //
 // The search query, the template category AND the whole contract filter
 // state live in the URL, so a filtered view survives refresh,
@@ -29,13 +34,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ConfirmDialog, snackbar } from "@legalir/ui";
 import { useContracts } from "@/hooks/useContracts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import {
-  useCreatePropertyContract,
-  useDeletePropertyContract,
-  usePropertyContracts,
-} from "@/hooks/usePropertyContracts";
-import { DEFAULT_PROPERTY_KIND } from "@/lib/api/property-contracts";
-import type { ContractDefinition } from "@/lib/contracts/registry";
+import { useDeletePropertyContract, usePropertyContracts } from "@/hooks/usePropertyContracts";
+import { useStartContract } from "@/hooks/useStartContract";
 import {
   toUnifiedPropertyContract,
   toUnifiedV1Contract,
@@ -48,10 +48,13 @@ import {
   type ContractFilterState,
 } from "@/lib/contracts/filters";
 import { trackContractEvent } from "@/lib/contracts/analytics";
+import type { ContractDefinition } from "@/lib/contracts/registry";
 import { ContractSearch } from "./contract-search";
 import { ContractCategoryChips } from "./contract-category-chips";
 import { ContractTemplateGrid } from "./contract-template-grid";
+import { ContractTemplatePreview } from "./contract-template-preview";
 import { MyContractsSection } from "./my-contracts-section";
+import { ContractsPromos } from "./contracts-promos";
 
 // How long typing must pause before the buffered query is applied to the
 // grid and the URL. Long enough to finish a word, short enough to feel
@@ -84,9 +87,15 @@ export function ContractList({ headerSlot }: ContractListProps) {
     [searchParams]
   );
 
+  // The writer always starts from the URL as it is RIGHT NOW rather than
+  // from a captured `searchParams` snapshot: the debounced query, a
+  // category chip and a filter change can land in the same tick, and the
+  // later write must not rebuild the URL from an older snapshot.
   const writeParams = React.useCallback(
     (mutate: (next: URLSearchParams) => void) => {
-      const next = new URLSearchParams(searchParams.toString());
+      const base =
+        typeof window === "undefined" ? searchParams.toString() : window.location.search;
+      const next = new URLSearchParams(base);
       mutate(next);
       const qs = next.toString();
       router.replace(qs ? `/contracts?${qs}` : "/contracts", { scroll: false });
@@ -116,10 +125,22 @@ export function ContractList({ headerSlot }: ContractListProps) {
   // re-filtering on every character.
   const [searchInput, setSearchInput] = React.useState(filters.query);
   const debouncedQuery = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+  // The value THIS component last committed to `?q=`. The sync effect
+  // below must ignore it: adopting it would delete anything typed after
+  // the pause, because the URL always trails the field by one debounce.
+  const selfWrittenQuery = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (debouncedQuery === filters.query) return;
+    selfWrittenQuery.current = debouncedQuery;
     setFilters({ ...filters, query: debouncedQuery });
   }, [debouncedQuery, filters, setFilters]);
+
+  // Keep the field in sync when Back/Forward changes `?q=` — but never
+  // overwrite the field with a value this component just committed.
+  React.useEffect(() => {
+    if (selfWrittenQuery.current === filters.query) return;
+    setSearchInput((current) => (current === filters.query ? current : filters.query));
+  }, [filters.query]);
 
   const submitQuery = () => {
     trackContractEvent("contract_search_performed", { query: searchInput });
@@ -165,30 +186,12 @@ export function ContractList({ headerSlot }: ContractListProps) {
   }, [refetchProperty, refetchV1]);
 
   // --- Start a new contract -----------------------------------------
-  const create = useCreatePropertyContract();
-  const [startingTypeId, setStartingTypeId] = React.useState<string | null>(null);
+  // The shared hook owns the create → wizard flow, so the rail and the
+  // full /contracts/templates listing behave identically.
+  const { start: handleStart, startingTypeId } = useStartContract();
 
-  const handleStart = React.useCallback(
-    async (definition: ContractDefinition) => {
-      setStartingTypeId(definition.id);
-      trackContractEvent("contract_template_started", { type: definition.id });
-      try {
-        const created = await create.mutateAsync({
-          type: definition.id,
-          propertyKind: DEFAULT_PROPERTY_KIND,
-          initiatorRole: definition.defaultInitiatorRole,
-        });
-        router.push(`/contracts/${created.id}`);
-      } catch (e) {
-        snackbar.show({
-          message: e instanceof Error ? e.message : "ایجاد قرارداد ناموفق بود.",
-          variant: "error",
-        });
-        setStartingTypeId(null);
-      }
-    },
-    [create, router]
-  );
+  // The structure preview is read-only; starting remains the card's CTA.
+  const [previewed, setPreviewed] = React.useState<ContractDefinition | null>(null);
 
   // --- Delete a draft ------------------------------------------------
   const [pendingDelete, setPendingDelete] = React.useState<UnifiedContract | null>(null);
@@ -248,11 +251,13 @@ export function ContractList({ headerSlot }: ContractListProps) {
         {headerSlot}
       </div>
 
-      {/* SECTION 1 — what can I build? */}
+      {/* SECTION 1 — what can I build?  The most important section: it sits
+          first, immediately under the search, and never below anything
+          else. */}
       <section className="space-y-3.5" aria-labelledby="templates-heading">
         <div className="space-y-1">
           <h2 id="templates-heading" className="text-h4 text-on-surface">
-            قالب‌های قرارداد
+            قراردادهای قابل تنظیم
           </h2>
           <p className="text-body-2 text-on-surface-variant">
             قرارداد موردنظرت را انتخاب و تدوین را شروع کن.
@@ -269,12 +274,14 @@ export function ContractList({ headerSlot }: ContractListProps) {
           query={filters.query}
           category={category}
           onStart={handleStart}
+          onPreview={setPreviewed}
           startingTypeId={startingTypeId}
-          onViewAll={() => trackContractEvent("contract_view_all_clicked")}
         />
       </section>
 
-      {/* SECTION 2 — where is my existing work? */}
+      {/* SECTION 2 — where is my existing work? A search that is actively
+          filtering is about ONE list, so the section says so explicitly
+          rather than letting a shrunk list look like missing data. */}
       <MyContractsSection
         contracts={contracts}
         isLoading={isLoading}
@@ -287,6 +294,19 @@ export function ContractList({ headerSlot }: ContractListProps) {
         onStart={scrollToTemplates}
         drawerOpen={drawerOpen}
         onDrawerOpenChange={setDrawerOpen}
+      />
+
+      {/* SECTION 3 — other LEGALIR services. Deliberately last: it can
+          never push the primary action down or compete with it. */}
+      <ContractsPromos />
+
+      {/* Read-only structure preview. Its footer carries the single
+          committing action, so "look inside" and "start" stay distinct. */}
+      <ContractTemplatePreview
+        definition={previewed}
+        onClose={() => setPreviewed(null)}
+        onStart={handleStart}
+        starting={previewed !== null && startingTypeId === previewed.id}
       />
 
       {/* Delete-draft confirmation. Nothing is deleted until the user

@@ -19,6 +19,12 @@ export interface ContractFeatureFlags {
   AI_CONTRACT_REVIEW_ENABLED: boolean;
   /** Certificate-backed signatures. Off until a provider is wired. */
   CERTIFIED_SIGNATURE_ENABLED: boolean;
+  /**
+   * The official LEGALIR stamp (Super-Admin approval + PNG stamping).
+   * Off disables the stamp surface entirely; the internal review text
+   * mark is unaffected.
+   */
+  CONTRACT_STAMP_ENABLED: boolean;
 }
 
 /** Read a boolean env var, defaulting when unset. */
@@ -38,6 +44,7 @@ export function contractFeatureFlags(): ContractFeatureFlags {
     LAWYER_REVIEW_ENABLED: envFlag("LAWYER_REVIEW_ENABLED", true),
     AI_CONTRACT_REVIEW_ENABLED: envFlag("AI_CONTRACT_REVIEW_ENABLED", true),
     CERTIFIED_SIGNATURE_ENABLED: envFlag("CERTIFIED_SIGNATURE_ENABLED", false),
+    CONTRACT_STAMP_ENABLED: envFlag("CONTRACT_STAMP_ENABLED", true),
   };
 }
 

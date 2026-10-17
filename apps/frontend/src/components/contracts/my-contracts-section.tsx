@@ -1,33 +1,36 @@
 // ============================================================
 // LEGALIR — My contracts (SECTION 2)
 // ============================================================
-// The second thing the page answers: "قراردادهایی که قبلاً ساخته یا
-// شروع کرده‌ام کجا هستند؟"
+// The second thing the page answers: «قراردادهایی که قبلاً ساخته یا
+// شروع کرده‌ام کجا هستند؟»
 //
 // The rules this section owns:
-//   • draft priority — resumable contracts surface first;
-//   • a dedicated «ادامه دهید» block for drafts, hidden when there
-//     are none;
-//   • smart grouping on "همه" (نیازمند ادامه / آماده / بایگانی) — but
-//     ONLY when no finer filter is active, so a filtered view is a
-//     plain, predictable list;
-//   • at most eight cards per group, with «مشاهده بیشتر» that expands
-//     in place;
+//   • TWO independent subsections on the unfiltered «همه» view —
+//       «نیازمند ادامه»  — every contract the user must still finish,
+//       «قراردادهای آماده» — every finished/ready contract.
+//     Each has its own title, its own count, its own colour cue
+//     (primary vs. success) and its own empty guidance when the whole
+//     list is empty.
+//   • at most THREE ROWS of cards per subsection before «مشاهده
+//     بیشتر»: 3 on a phone (1 column), 6 on a tablet (2 columns), 9
+//     from `laptop` up (3 columns). The column count drops with the
+//     viewport, and the page itself never scrolls sideways.
+//   • «بایگانی» keeps its own subsection, using the same treatment.
+//   • a filtered view is shown flat — filters are the user's chosen
+//     narrowing, so mixing in subsection headers would only add noise.
 //   • the coarse lifecycle tabs inline on desktop, the finer axes
-//     (draft / analysis / type / recency) behind «فیلترهای بیشتر»;
-//   • the SAME finer axes in a mobile drawer.
+//     (draft / analysis / type / recency) behind «فیلترهای بیشتر»,
+//     and the SAME finer axes in a mobile drawer.
 //
 // The filter state itself is NOT owned here — it lives in the URL and
-// is passed in as `filters` / `onFiltersChange`, so browser Back works
-// and a filtered view survives a refresh. This component only reads it
-// and asks the page to change it.
+// is passed in as `filters` / `onFiltersChange`.
 // ============================================================
 
 "use client";
 
 import React from "react";
 import type { UnifiedContract } from "@/lib/contracts/unified";
-import { groupUnifiedContracts, resumableContracts } from "@/lib/contracts/unified";
+import { groupUnifiedContracts } from "@/lib/contracts/unified";
 import { CONTRACT_TABS, type ContractTab } from "@/lib/contracts/status";
 import {
   activeFilterChips,
@@ -42,15 +45,22 @@ import {
   type ContractSortKey,
 } from "@/lib/contracts/filters";
 import { trackContractEvent } from "@/lib/contracts/analytics";
-import { Dialog, Drawer, Select } from "@legalir/ui";
-import { IconFilter, IconHistory, IconRefresh } from "@/lib/icons";
+import { toPersianNumber } from "@/lib/persian-utils";
+import { Dialog, Drawer, Select, Button } from "@legalir/ui";
+import {
+  IconCheck,
+  IconContract,
+  IconFilter,
+  IconHistory,
+  IconRefresh,
+} from "@/lib/icons";
 import { ResultsBar, type ActiveFilter } from "@/components/shared";
 import { UserContractCard } from "./user-contract-card";
 import { ContractsEmptyState } from "./contracts-empty-state";
 import { ContractFilterPanel } from "./contract-filter-panel";
 
-/** How many cards a group shows before «مشاهده بیشتر». */
-const GROUP_LIMIT = 8;
+/** Rows shown per subsection before «مشاهده بیشتر». */
+const MAX_ROWS = 3;
 
 interface MyContractsSectionProps {
   contracts: UnifiedContract[];
@@ -71,9 +81,8 @@ interface MyContractsSectionProps {
   onStart?: () => void;
   /**
    * The mobile filter drawer is CONTROLLED by the page, because the trigger
-   * that opens it now lives in the search card (up in the toolbar), while the
-   * drawer itself lives here where the filter model already is. Optional so
-   * the component still renders standalone (unit tests) with it closed.
+   * that opens it lives in the search card. Optional so the component
+   * still renders standalone (unit tests) with it closed.
    */
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
@@ -89,6 +98,77 @@ function hasFinerFilters(filters: ContractFilterState): boolean {
   );
 }
 
+/**
+ * How many cards a subsection shows initially: exactly MAX_ROWS rows at
+ * the CURRENT grid width (3 / 2 / 1 columns), so the grid is always a
+ * complete rectangle and the cap is expressed in rows, not in cards.
+ *
+ * Starts at the desktop value so the first client render matches the
+ * widest layout; the effect then narrows it on smaller viewports.
+ */
+function useInitialPerSubsection(): number {
+  const [perSubsection, setPerSubsection] = React.useState(MAX_ROWS * 3);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const laptop = window.matchMedia("(min-width: 900px)");
+    const tablet = window.matchMedia("(min-width: 600px)");
+    const sync = () => {
+      const columns = laptop.matches ? 3 : tablet.matches ? 2 : 1;
+      setPerSubsection(MAX_ROWS * columns);
+    };
+    sync();
+    laptop.addEventListener("change", sync);
+    tablet.addEventListener("change", sync);
+    return () => {
+      laptop.removeEventListener("change", sync);
+      tablet.removeEventListener("change", sync);
+    };
+  }, []);
+
+  return perSubsection;
+}
+
+interface SubsectionTone {
+  icon: React.ReactNode;
+  /** The wrapper's tone — a tinted surface, never colour alone. */
+  wrapper: string;
+  /** The small label / icon colour for the subsection. */
+  cue: string;
+}
+
+const SUBSECTION_TONES: Record<string, SubsectionTone> = {
+  "needs-work": {
+    icon: <IconHistory size={16} aria-hidden="true" />,
+    wrapper:
+      "border-[color:color-mix(in_srgb,var(--color-primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--color-primary-container)_46%,transparent)]",
+    cue: "text-primary",
+  },
+  ready: {
+    icon: <IconCheck size={16} aria-hidden="true" />,
+    wrapper: "border-[color:var(--color-outline-variant)] bg-surface-container-low",
+    cue: "text-success-700",
+  },
+  archived: {
+    icon: <IconContract size={16} aria-hidden="true" />,
+    wrapper: "border-divider bg-surface-container-low/60",
+    cue: "text-muted",
+  },
+};
+
+/** The two primary subsections, always rendered — an empty one still
+ *  tells the user what belongs there. «بایگانی» appears only when it has
+ *  contracts, because it is not a step in the workflow. */
+const PRIMARY_SUBSECTIONS = [
+  { key: "needs-work", titleFa: "نیازمند ادامه" },
+  { key: "ready", titleFa: "قراردادهای آماده" },
+] as const;
+
+const SUBSECTION_EMPTY_HINT: Record<string, string> = {
+  "needs-work": "قراردادی برای ادامه ندارید؛ همه قراردادهای شما تکمیل شده‌اند.",
+  ready: "قراردادهای تکمیل‌شده پس از آماده شدن متن، در این بخش قرار می‌گیرند.",
+};
+
 export function MyContractsSection({
   contracts,
   isLoading,
@@ -103,8 +183,10 @@ export function MyContractsSection({
   onDrawerOpenChange,
 }: MyContractsSectionProps) {
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
+  // How many extra row-pages the user asked for, per subsection.
+  const [extraPages, setExtraPages] = React.useState<Record<string, number>>({});
   const setDrawerOpen = (open: boolean) => onDrawerOpenChange?.(open);
+  const initialPerSubsection = useInitialPerSubsection();
 
   const typeOptions = React.useMemo(() => contractTypeOptions(contracts), [contracts]);
 
@@ -121,22 +203,29 @@ export function MyContractsSection({
   // The shared results bar takes the same active filters, each individually
   // removable, so this list reads with one results/clear vocabulary.
   const activeFilterList: ActiveFilter[] = React.useMemo(
-    () => chips.map((chip) => ({ key: `${chip.group}:${chip.value}`, label: chip.labelFa, onRemove: () => removeChip(chip) })),
+    () =>
+      chips.map((chip) => ({
+        key: `${chip.group}:${chip.value}`,
+        label: chip.labelFa,
+        onRemove: () => removeChip(chip),
+      })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [chips, filters]
   );
 
-  // The «ادامه دهید» block and the grouped view are only meaningful on
-  // the unfiltered «همه» view — a filtered list is shown flat.
+  // The subsectioned view is only meaningful on the unfiltered «همه»
+  // view — a filtered list is shown flat.
   const showGrouped = filters.tab === "all" && !finerActive;
-  const drafts = React.useMemo(
-    () => (showGrouped ? resumableContracts(visible) : []),
-    [visible, showGrouped]
-  );
   const groups = React.useMemo(
     () => (showGrouped ? groupUnifiedContracts(visible) : []),
     [visible, showGrouped]
   );
+
+  // A narrowing filter can shrink a list; the extra-page counters must
+  // not carry over and open a subsection on page 3 of nothing.
+  React.useEffect(() => {
+    setExtraPages({});
+  }, [filters]);
 
   const setTab = (tab: ContractTab) => {
     onFiltersChange({ ...filters, tab });
@@ -162,19 +251,19 @@ export function MyContractsSection({
 
   return (
     <section className="space-y-4" aria-labelledby="my-contracts-heading">
-      {/* The mobile filter trigger now lives in the search card above, so
-          this heading is a clean full-width line. */}
+      {/* The mobile filter trigger lives in the search card above, so this
+          heading is a clean full-width line. */}
       <h2 id="my-contracts-heading" className="text-h4 text-on-surface">
         قراردادهای من
       </h2>
 
       {/* Desktop filter bar — the coarse tabs on one row, the finer axes
           behind «فیلترهای بیشتر», and the sort control. */}
-      <div className="hidden tablet:flex items-center gap-3">
+      <div className="hidden items-center gap-3 tablet:flex">
         <div
           role="tablist"
           aria-label="فیلتر وضعیت"
-          className="flex flex-1 gap-2 overflow-x-auto pb-1 -mb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mb-1 flex flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {CONTRACT_TABS.map((tab) => (
             <TabChip
@@ -190,7 +279,7 @@ export function MyContractsSection({
           type="button"
           onClick={() => setMoreOpen(true)}
           className={[
-            "shrink-0 inline-flex h-10 items-center gap-1.5 rounded-medium border px-3 text-labelLarge transition-colors",
+            "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-medium border px-3 text-labelLarge transition-colors",
             finerActive
               ? "border-primary text-primary"
               : "border-divider text-on-surface hover:border-control-selected",
@@ -227,7 +316,7 @@ export function MyContractsSection({
       {/* Result count + the removable active-filter chips. */}
       {!isLoading && !isError && contracts.length > 0 && (
         <ResultsBar
-          countLabel={`${visible.length} قرارداد`}
+          countLabel={`${toPersianNumber(visible.length)} قرارداد`}
           filters={activeFilterList}
           onClearAll={clearFilters}
         />
@@ -248,98 +337,116 @@ export function MyContractsSection({
             ارتباط با سرور برقرار نشد. دوباره تلاش کنید.
           </p>
           {onRetry && (
-            <button
+            <Button
               type="button"
               onClick={onRetry}
-              className="mt-6 inline-flex h-10 items-center gap-1.5 rounded-medium bg-primary px-4 text-labelLarge text-primary-on transition-colors hover:state-hover"
+              startIcon={<IconRefresh size={18} />}
+              className="mt-6"
             >
-              <IconRefresh size={18} />
               تلاش مجدد
-            </button>
+            </Button>
           )}
         </div>
       ) : contracts.length === 0 ? (
         <ContractsEmptyState variant="no-contracts" onStart={onStart} />
       ) : visible.length === 0 ? (
         <ContractsEmptyState variant="no-results" onClearFilters={clearFilters} />
-      ) : (
-        <div className="space-y-6">
-          {/* «ادامه دهید» — the drafts the user can pick up right now.
-              Hidden entirely when there are none. */}
-          {drafts.length > 0 && (
-            <div className="rounded-large border border-primary bg-primary-container p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <IconHistory size={18} className="text-primary" />
-                <h3 className="text-titleSmall text-on-surface">ادامه دهید</h3>
-                <span className="text-caption text-muted">
-                  {drafts.length} قرارداد نیمه‌تمام
-                </span>
-              </div>
-              <div className="grid grid-cols-1 gap-2.5">
-                {drafts.slice(0, 4).map((contract) => (
-                  <UserContractCard
-                    key={contract.id}
-                    contract={contract}
-                    onDelete={onDelete}
-                    onCopyId={onCopyId}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+      ) : showGrouped ? (
+        <div className="space-y-5">
+          {/* The two workflow subsections always render; «بایگانی» only
+              when it holds something. A group is looked up by key, so an
+              empty one keeps its heading, its tone and its guidance. */}
+          {[
+            ...PRIMARY_SUBSECTIONS.map((s) => ({ key: s.key, titleFa: s.titleFa })),
+            ...groups.filter((g) => g.key === "archived").map((g) => ({
+              key: g.key,
+              titleFa: g.titleFa,
+            })),
+          ].map(({ key, titleFa }) => {
+            const group = groups.find((g) => g.key === key);
+            const groupContracts = group?.contracts ?? [];
+            const tone = SUBSECTION_TONES[key] ?? SUBSECTION_TONES["ready"]!;
+            const limit = initialPerSubsection * (1 + (extraPages[key] ?? 0));
+            const shown = groupContracts.slice(0, limit);
+            const remaining = groupContracts.length - shown.length;
+            return (
+              <section
+                key={key}
+                aria-labelledby={`contracts-group-${key}`}
+                className={`rounded-large border p-3 tablet:p-4 ${tone.wrapper}`}
+              >
+                <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span
+                    className={`flex h-7 w-7 items-center justify-center rounded-full bg-surface ${tone.cue}`}
+                  >
+                    {tone.icon}
+                  </span>
+                  <h3
+                    id={`contracts-group-${key}`}
+                    className="text-titleSmall text-on-surface"
+                  >
+                    {titleFa}
+                  </h3>
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-caption text-on-surface-variant">
+                    {toPersianNumber(groupContracts.length)} قرارداد
+                  </span>
+                </div>
 
-          {/* Grouped view on the unfiltered «همه» tab, flat list otherwise. */}
-          {showGrouped
-            ? groups.map((group) => {
-                const expanded = expandedGroups[group.key] ?? false;
-                const shown = expanded
-                  ? group.contracts
-                  : group.contracts.slice(0, GROUP_LIMIT);
-                return (
-                  <div key={group.key} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-titleSmall text-on-surface">{group.titleFa}</h3>
-                      <span className="text-caption text-muted">
-                        {group.contracts.length}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2.5">
-                      {shown.map((contract) => (
+                {groupContracts.length === 0 ? (
+                  <p className="rounded-medium bg-surface px-3 py-4 text-center text-body-2 text-muted">
+                    {SUBSECTION_EMPTY_HINT[key]}
+                  </p>
+                ) : (
+                  <ul className="grid auto-rows-fr grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
+                    {shown.map((contract) => (
+                      <li key={contract.id} className="h-full">
                         <UserContractCard
-                          key={contract.id}
                           contract={contract}
+                          layout="card"
                           onDelete={onDelete}
                           onCopyId={onCopyId}
                         />
-                      ))}
-                    </div>
-                    {group.contracts.length > GROUP_LIMIT && !expanded && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedGroups((prev) => ({ ...prev, [group.key]: true }))
-                        }
-                        className="text-labelLarge text-primary hover:underline"
-                      >
-                        مشاهده بیشتر ({group.contracts.length - GROUP_LIMIT} مورد دیگر)
-                      </button>
-                    )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {remaining > 0 && (
+                  <div className="mt-3 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      onClick={() =>
+                        setExtraPages((prev) => ({
+                          ...prev,
+                          [key]: (prev[key] ?? 0) + 1,
+                        }))
+                      }
+                    >
+                      مشاهده بیشتر
+                      <span className="text-caption text-muted">
+                        ({toPersianNumber(remaining)} مورد دیگر)
+                      </span>
+                    </Button>
                   </div>
-                );
-              })
-            : (
-              <div className="grid grid-cols-1 gap-2.5">
-                {visible.map((contract) => (
-                  <UserContractCard
-                    key={contract.id}
-                    contract={contract}
-                    onDelete={onDelete}
-                    onCopyId={onCopyId}
-                  />
-                ))}
-              </div>
-            )}
+                )}
+              </section>
+            );
+          })}
         </div>
+      ) : (
+        <ul className="grid auto-rows-fr grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
+          {visible.map((contract) => (
+            <li key={contract.id} className="h-full">
+              <UserContractCard
+                contract={contract}
+                layout="card"
+                onDelete={onDelete}
+                onCopyId={onCopyId}
+              />
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* Desktop «فیلترهای بیشتر» — the finer axes in a dialog. */}
@@ -351,20 +458,14 @@ export function MyContractsSection({
         maxWidth="md"
         actions={
           <>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="h-10 rounded-medium px-4 text-labelLarge text-primary transition-colors hover:state-hover"
-            >
+            {/* Clearing is not the dialog's purpose — it stays a quiet
+                text action; applying is the one primary commit. */}
+            <Button type="button" variant="text" onClick={clearFilters}>
               پاک کردن
-            </button>
-            <button
-              type="button"
-              onClick={() => setMoreOpen(false)}
-              className="h-10 rounded-medium bg-primary px-4 text-labelLarge text-primary-on transition-colors hover:state-hover"
-            >
+            </Button>
+            <Button type="button" onClick={() => setMoreOpen(false)}>
               اعمال
-            </button>
+            </Button>
           </>
         }
       >
@@ -418,20 +519,12 @@ export function MyContractsSection({
           />
 
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="h-11 flex-1 rounded-medium border border-outline text-labelLarge text-primary transition-colors hover:state-hover"
-            >
+            <Button type="button" variant="outlined" onClick={clearFilters} fullWidth className="flex-1">
               پاک کردن
-            </button>
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(false)}
-              className="h-11 flex-1 rounded-medium bg-primary text-labelLarge text-primary-on transition-colors hover:state-hover"
-            >
+            </Button>
+            <Button type="button" onClick={() => setDrawerOpen(false)} fullWidth className="flex-1">
               اعمال
-            </button>
+            </Button>
           </div>
         </div>
       </Drawer>
@@ -454,12 +547,13 @@ function TabChip({
       role="tab"
       aria-selected={selected}
       onClick={onClick}
-      className={`shrink-0 h-9 rounded-full border px-3.5 text-labelMedium transition-colors ${
+      className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-labelMedium transition-colors ${
         selected
           ? "border-control-selected-border bg-control-selected-surface text-control-selected"
           : "border-control-unselected-border bg-control-unselected-bg text-onSurface hover:border-control-selected"
       }`}
     >
+      {selected && <IconCheck size={14} aria-hidden="true" />}
       {label}
     </button>
   );
@@ -467,14 +561,17 @@ function TabChip({
 
 function ContractListSkeleton() {
   return (
-    <div className="grid grid-cols-1 laptop:grid-cols-2 gap-3" aria-label="در حال بارگذاری">
-      {Array.from({ length: 4 }).map((_, i) => (
+    <div
+      className="grid auto-rows-fr grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3"
+      aria-label="در حال بارگذاری"
+    >
+      {Array.from({ length: 3 }).map((_, i) => (
         <div
           key={i}
           className="rounded-large border border-divider bg-surface p-4 shadow-elevation-1"
         >
           <div className="flex items-start gap-3">
-            <div className="hidden mobile-l:block h-14 w-20 rounded-medium skeleton-shimmer" />
+            <div className="h-11 w-11 rounded-medium skeleton-shimmer" />
             <div className="flex-1 space-y-2">
               <div className="h-5 w-40 rounded-small skeleton-shimmer" />
               <div className="h-4 w-28 rounded-small skeleton-shimmer" />

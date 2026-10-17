@@ -44,10 +44,64 @@ export type SchemaContractType =
   | "nda"
   | "saas"
   | "startup"
-  | "employment";
+  | "employment"
+  // Commercial property is schema-driven rather than a bespoke property
+  // journey: the deed/legal-status questions overlap heavily with the
+  // residential flows, but the commercial specifics (permitted use,
+  // business licence, VAT, fit-out) are their own field set.
+  | "commercial_rent"
+  | "commercial_sale"
+  // Cloud services are ONE family split by service model. Each model is a
+  // separate registered type so the service model is recorded in the
+  // document title/specs and can never drift from the collected fields.
+  | "cloud_iaas"
+  | "cloud_paas"
+  | "cloud_baas";
 
 /** Every contract type the engine knows about (extend as domains land). */
 export type ContractTypeId = PropertyContractType | SchemaContractType;
+
+/**
+ * The cloud service model a cloud contract covers. Each model is also a
+ * registered contract type (`cloud_iaas` | `cloud_paas` | `cloud_baas`)
+ * so the choice is a first-class fact recorded in the document title and
+ * specs — never a free-text note that could drift from the fields shown.
+ */
+export type CloudServiceModel = "iaas" | "paas" | "baas";
+
+export const CLOUD_SERVICE_MODEL_LABELS_FA: Record<CloudServiceModel, string> = {
+  iaas: "زیرساخت به‌عنوان سرویس (IaaS)",
+  paas: "بستر به‌عنوان سرویس (PaaS)",
+  baas: "بک‌اند به‌عنوان سرویس (BaaS)",
+};
+
+/** A one-line plain-Persian description of what each model delivers. */
+export const CLOUD_SERVICE_MODEL_DESCRIPTIONS_FA: Record<CloudServiceModel, string> = {
+  iaas: "اجارهٔ منابع محاسباتی، شبکه و ذخیره‌سازی؛ مدیریت سیستم‌عامل و نرم‌افزار بر عهدهٔ مشتری است.",
+  paas: "بستر توسعه و اجرای برنامه؛ ارائه‌دهنده زیرساخت و میان‌افزار را مدیریت می‌کند و مشتری برنامهٔ خود را مستقر می‌کند.",
+  baas: "سرویس‌های آمادهٔ بک‌اند (پایگاه داده، احراز هویت، فایل، API) که مشتری در برنامهٔ خود مصرف می‌کند.",
+};
+
+/** The registered contract type for a cloud service model. */
+export function cloudContractTypeFor(model: CloudServiceModel): ContractTypeId {
+  return `cloud_${model}` as ContractTypeId;
+}
+
+/** The service model behind a cloud contract type, or null for other types. */
+export function cloudServiceModelFor(typeId: string): CloudServiceModel | null {
+  if (typeId === "cloud_iaas") return "iaas";
+  if (typeId === "cloud_paas") return "paas";
+  if (typeId === "cloud_baas") return "baas";
+  return null;
+}
+
+/** Which side of the DOCUMENT the initiating user drafts from. */
+export type ContractInitiatorSide = "first" | "second";
+
+export const CONTRACT_INITIATOR_SIDE_LABELS_FA: Record<ContractInitiatorSide, string> = {
+  first: "طرف اول",
+  second: "طرف دوم",
+};
 
 /** Which side of the deal the initiating user is on. */
 export type PartyRole =
@@ -66,7 +120,16 @@ export type PartyRole =
   | "founder" // بنیان‌گذار
   | "investor" // سرمایه‌گذار
   | "employer" // کارفرما
-  | "employee"; // کارگر / کارمند (نیروی کار)
+  | "employee" // کارگر / کارمند (نیروی کار)
+  /**
+   * The natural person who signs on behalf of a legal-entity party. It is
+   * NOT part of a contract type's `roles` list — it is created only when a
+   * party is a legal entity, and `representativeOfPartyId` points back at
+   * that entity. Keeping it a distinct role lets the entity and the person
+   * coexist as two rows while every existing role-driven consumer is
+   * unaffected.
+   */
+  | "legal_representative";
 
 /** The legal capacity a party acts in. */
 export type PartyCapacity =
@@ -103,6 +166,7 @@ export type PropertyContractState =
   | "READY_TO_SIGN"
   | "PARTIALLY_SIGNED"
   | "SIGNED"
+  | "AMENDMENT_IN_PROGRESS"
   | "READY_FOR_OFFICIAL_REGISTRATION"
   | "FINALIZED"
   | "CANCELLED"
@@ -123,6 +187,7 @@ export const PROPERTY_CONTRACT_STATE_LABELS: Record<PropertyContractState, strin
   READY_TO_SIGN: "آماده امضا",
   PARTIALLY_SIGNED: "امضای ناقص",
   SIGNED: "امضا شده",
+  AMENDMENT_IN_PROGRESS: "اصلاحیه در حال تنظیم / امضای مجدد",
   READY_FOR_OFFICIAL_REGISTRATION: "نیازمند ثبت رسمی",
   FINALIZED: "نهایی‌شده",
   CANCELLED: "لغو‌شده",
@@ -151,8 +216,12 @@ export const CONTRACT_STATE_TRANSITIONS: Record<PropertyContractState, PropertyC
   ADMIN_APPROVED: ["READY_TO_SIGN", "PENDING_ADMIN_REVIEW", "CHANGES_REQUESTED", "CANCELLED"],
   REJECTED: ["DRAFT", "CANCELLED", "ARCHIVED"],
   READY_TO_SIGN: ["PARTIALLY_SIGNED", "SIGNED", "CHANGES_REQUESTED", "PENDING_ADMIN_REVIEW", "CANCELLED"],
-  PARTIALLY_SIGNED: ["SIGNED", "CHANGES_REQUESTED", "CANCELLED"],
-  SIGNED: ["READY_FOR_OFFICIAL_REGISTRATION", "FINALIZED", "CANCELLED"],
+  PARTIALLY_SIGNED: ["SIGNED", "CHANGES_REQUESTED", "AMENDMENT_IN_PROGRESS", "CANCELLED"],
+  SIGNED: ["AMENDMENT_IN_PROGRESS", "READY_FOR_OFFICIAL_REGISTRATION", "FINALIZED", "CANCELLED"],
+  // A signed contract is never edited in place. A Super-Admin amendment
+  // moves it here; the new text then walks the normal review/sign path
+  // again while the previously signed version stays immutable.
+  AMENDMENT_IN_PROGRESS: ["DRAFT", "READY_FOR_REVIEW", "READY_TO_SIGN", "CANCELLED"],
   READY_FOR_OFFICIAL_REGISTRATION: ["FINALIZED", "CANCELLED"],
   FINALIZED: ["ARCHIVED"],
   CANCELLED: ["ARCHIVED"],
@@ -179,11 +248,54 @@ export interface Money {
 // Parties
 // ------------------------------------------------------------
 
+/**
+ * The legal form of a party. A `natural` person is identified by name and
+ * national id (or passport); a `legal` person is a company/institution
+ * identified by its registered name and registration/national id and is
+ * represented by a separate natural-person party.
+ */
+export type PartyPersonKind = "natural" | "legal";
+
+/**
+ * A natural person's nationality branch. It decides which identity fields
+ * are required: an Iranian needs a national id, a foreign national needs a
+ * passport and must NOT be forced to provide an Iranian national id.
+ */
+export type PartyNationality = "iranian" | "foreign";
+
+export const PARTY_PERSON_KIND_LABELS_FA: Record<PartyPersonKind, string> = {
+  natural: "شخص حقیقی",
+  legal: "شخص حقوقی (شرکت / مؤسسه)",
+};
+
+export const PARTY_NATIONALITY_LABELS_FA: Record<PartyNationality, string> = {
+  iranian: "ایرانی",
+  foreign: "اتباع خارجی",
+};
+
+/**
+ * Bank details used to pay this party. Stored on the party, but NEVER
+ * copied into a version snapshot, the immutable PDF or any public route —
+ * only the owner and the back office may read it.
+ */
+export interface PartyBankingInfo {
+  bankName: string;
+  /** حساب number, digits only. */
+  accountNumber: string;
+  /** شبا — `IR` followed by 24 digits. */
+  iban: string;
+  /** 16-digit card number. */
+  cardNumber: string;
+}
+
 export interface PartyIdentity {
   firstName: string;
   lastName: string;
   fatherName: string;
-  /** 10-digit Iranian national id. */
+  /**
+   * 10-digit Iranian national id. Required for an Iranian natural person;
+   * optional (and never mandatory) for a foreign national.
+   */
   nationalId: string;
   /** شناسنامه number. */
   birthCertificateNumber: string;
@@ -193,6 +305,31 @@ export interface PartyIdentity {
   mobile: string;
   address: string;
   postalCode: string;
+
+  // --- Legal entity (personKind = "legal") ---
+  /** Registered name of the company/institution. */
+  companyName?: string;
+  /** شمارهٔ ثبت company registration number. */
+  companyRegistrationNumber?: string;
+  /** شناسهٔ ملی company national id (11 digits). */
+  companyNationalId?: string;
+  /** کد اقتصادی. */
+  economicCode?: string;
+
+  // --- Foreign natural person (nationality = "foreign") ---
+  /** Country of nationality, free text (e.g. «افغانستان»). */
+  nationalityCountryFa?: string;
+  passportNumber?: string;
+  /** ISO date (Gregorian) the passport expires. */
+  passportExpiry?: string | null;
+  /** Place of birth (برای اتباع خارجی). */
+  birthPlace?: string;
+  /** Gregorian birth date for a foreign national, ISO `YYYY-MM-DD`. */
+  birthDateGregorian?: string | null;
+  /** پروانهٔ کار number, where a work permit is legally required. */
+  workPermitNumber?: string;
+  /** ISO date the work permit expires. */
+  workPermitExpiry?: string | null;
 }
 
 /** A party's ownership share, expressed in sixths (دانگ) of the property. */
@@ -209,10 +346,34 @@ export interface ContractParty {
   role: PartyRole;
   capacity: PartyCapacity;
   identity: PartyIdentity;
+  /**
+   * Whether this party is a natural person or a legal entity. Defaults to
+   * `natural` for parties created before this field existed.
+   */
+  personKind: PartyPersonKind;
+  /**
+   * Nationality branch of a natural person. Ignored for a legal entity
+   * (the entity has an Iranian registration by definition in this release).
+   */
+  nationality: PartyNationality;
+  /**
+   * For a party acting as the authorised representative of a legal entity,
+   * the id of that entity's party row. Null for every other party. This is
+   * the link that lets the document say «شرکت … به نمایندگی آقای …» without
+   * duplicating the representative's identity anywhere else.
+   */
+  representativeOfPartyId: string | null;
+  /** The representative's position, e.g. «مدیرعامل». */
+  representativePositionFa: string;
   /** Present for owner/attorney parties. */
   ownershipShare: OwnershipShare | null;
   /** When capacity is `attorney`, the power-of-attorney details. */
   powerOfAttorney: PowerOfAttorney | null;
+  /**
+   * Payment details. Private: never written into a version snapshot, the
+   * immutable PDF or any public/token route.
+   */
+  banking: PartyBankingInfo | null;
   /** True for the party who created the contract. */
   isInitiator: boolean;
   createdAt: string;
@@ -401,6 +562,8 @@ export type ContractDocumentCategory =
   | "employment_education" // مدارک تحصیلی
   | "employment_order" // ابلاغ/حکم کار یا پیش‌نویس توافق
   | "employment_medical" // گواهی سلامت / طب کار
+  | "final_pdf" // نسخهٔ نهایی قرارداد (PDF مهرشدهٔ سرور)
+  | "wet_ink_evidence" // مستند امضای دستی خارج از سامانه (شاهد برون‌سازمانی)
   | "other";
 
 export interface ContractDocument {
@@ -560,6 +723,12 @@ export interface PropertyRentData {
   handover: HandoverRecord;
   /** Free-form custom clauses added by the user. */
   customClauses: CustomClause[];
+  /**
+   * Notes and requested changes, kept apart from the contract text.
+   * Optional: contracts drafted before this field existed stay valid and
+   * hash identically until the user actually enters something here.
+   */
+  supplementary?: ContractSupplementary;
 }
 
 // ------------------------------------------------------------
@@ -652,6 +821,8 @@ export interface PropertySaleData {
   obligations: SaleObligations;
   handover: HandoverRecord;
   customClauses: CustomClause[];
+  /** Notes and requested changes, kept apart from the contract text. */
+  supplementary?: ContractSupplementary;
 }
 
 // ------------------------------------------------------------
@@ -664,8 +835,14 @@ export interface PropertySaleData {
 // wizard, the completeness scorer and the template engine generic —
 // adding a type means adding a definition, never a new data type.
 
+/**
+ * One row of a repeating field (an instalment, an item, a per-party
+ * obligation). Keys are the column keys declared on the descriptor.
+ */
+export type GenericRepeatRow = Record<string, string | number | Money | null>;
+
 /** A single value captured by a schema-driven field. */
-export type GenericFieldValue = string | number | boolean | null;
+export type GenericFieldValue = string | number | boolean | GenericRepeatRow[] | null;
 
 export interface GenericContractData {
   schemaVersion: 1;
@@ -673,6 +850,8 @@ export interface GenericContractData {
   values: Record<string, GenericFieldValue>;
   /** Free-form custom clauses added by the user. */
   customClauses: CustomClause[];
+  /** Notes and requested changes, kept apart from the contract text. */
+  supplementary?: ContractSupplementary;
 }
 
 /** The input control a schema-driven field renders. */
@@ -683,7 +862,22 @@ export type ContractFieldKind =
   | "money"
   | "date"
   | "select"
-  | "toggle";
+  | "toggle"
+  /** A user-managed list of rows, edited with add/edit/delete controls. */
+  | "repeatable";
+
+/**
+ * One column of a `repeatable` field. The same declaration drives the
+ * form controls AND the printed table, so a column can never be asked
+ * for and then silently dropped from the document.
+ */
+export interface ContractRepeatColumn {
+  key: string;
+  labelFa: string;
+  /** Input control for the cell. Defaults to `text`. */
+  kind?: "text" | "number" | "money" | "date";
+  placeholderFa?: string;
+}
 
 /** One field in a schema-driven contract type. */
 export interface ContractFieldDescriptor {
@@ -706,17 +900,57 @@ export interface ContractFieldDescriptor {
    * exactly the branch the user chose.
    */
   requiredWhen?: { key: string; equals?: GenericFieldValue; oneOf?: GenericFieldValue[] };
+  /** Required for `repeatable`: the columns of the row, in print order. */
+  columns?: ContractRepeatColumn[];
+  /** Label of the "add another row" button for `repeatable`. */
+  addLabelFa?: string;
 }
 
 // ------------------------------------------------------------
 // Custom clauses
 // ------------------------------------------------------------
 
+/**
+ * What the entry IS. An `agreement` is a real extra term the parties add
+ * to their contract and prints as an operative clause. A `change_request`
+ * is a proposal/note about the draft: it never rewrites an operative
+ * clause or identity data, and the document prints it only in a clearly
+ * labelled, non-operative annex.
+ */
+export type CustomClauseKind = "agreement" | "change_request";
+
 export interface CustomClause {
   id: string;
+  /** Defaults to `agreement` when absent (older stored drafts). */
+  kind?: CustomClauseKind;
   title: string;
   body: string;
+  /**
+   * The wizard step the entry relates to (e.g. `financial`), so a change
+   * request can point at the exact section it asks to amend. Resolved back
+   * to the section title at render time.
+   */
+  sectionRef?: string;
   createdAt: string;
+}
+
+// ------------------------------------------------------------
+// Supplementary information and requested changes
+// ------------------------------------------------------------
+// What the user wants to add or change is captured SEPARATELY from the
+// contract text. It is never merged into a clause, never overwrites an
+// identity field, and always prints in its own clearly-labelled annex —
+// so a reader (and the reviewer) can tell authored contract terms from a
+// request that has not yet been accepted.
+
+/**
+ * Free-form notes that belong to no single clause. Requested changes are
+ * NOT duplicated here — they live in `customClauses` with
+ * `kind: "change_request"` and a `sectionRef`, so there is exactly one
+ * list of entries and one place they persist.
+ */
+export interface ContractSupplementary {
+  notes: string;
 }
 
 // ------------------------------------------------------------
@@ -795,6 +1029,13 @@ export interface PropertyContract {
   state: PropertyContractState;
   /** The user's role in this contract. */
   initiatorRole: PartyRole;
+  /**
+   * Which side of the document the drafting user is on, expressed in the
+   * document's own «طرف اول / طرف دوم» ordering. This is NOT derivable
+   * from `initiatorRole` (a drafter can be either side), so it is stored
+   * explicitly and reused by the preview, the invites and party status.
+   */
+  initiatorSide: ContractInitiatorSide;
   title: string;
   /** Current wizard step id. */
   currentStep: string;
@@ -842,6 +1083,13 @@ export interface WizardStepDescriptor {
   sections: string[];
   /** Steps that must be complete before this one is reachable. */
   requires?: string[];
+  /**
+   * When set, this step also collects the bank details of the named
+   * party (the payment recipient). The data is stored on the party
+   * record — not in the contract values — so it can be withheld from
+   * the public preview and the counterparty's signing link.
+   */
+  bankingFor?: PartyRole;
 }
 
 // ------------------------------------------------------------
@@ -853,6 +1101,8 @@ export interface PropertyContractCreateRequest {
   /** Only meaningful for property types; ignored otherwise. */
   propertyKind?: PropertyKind;
   initiatorRole: PartyRole;
+  /** Which party the drafter is; defaults to the first declared role. */
+  initiatorSide?: ContractInitiatorSide;
   title?: string;
   /** Link the new contract to a case the user owns. */
   caseId?: string;
@@ -870,6 +1120,7 @@ export interface PropertyContractCreateResponse {
 export interface PropertyContractUpdateRequest {
   title?: string;
   currentStep?: string;
+  initiatorSide?: ContractInitiatorSide;
   state?: PropertyContractState;
   data?: Partial<PropertyRentData> | Partial<PropertySaleData> | Partial<GenericContractData>;
 }
@@ -1193,6 +1444,15 @@ export interface SignatureParticipant {
   partyId: string | null;
   /** The role label shown to the user, resolved from the registry. */
   roleFa: string;
+  /**
+   * The signer's name, resolved from their party record when they are a
+   * registered party (company name for a legal entity, first + last name
+   * for a natural person; the representative's own name for a
+   * representative row). Empty for a guest signer, whose only identity is
+   * their mobile. The drafter sees this next to the destination number
+   * before an invitation is sent.
+   */
+  nameFa: string;
   /** Masked mobile for display, e.g. 0912***0003. */
   mobileMasked: string;
   /**
@@ -1221,6 +1481,8 @@ export type SignatureEventType =
   | "REQUEST_CREATED"
   | "REQUEST_SENT"
   | "INVITATION_SENT"
+  /** Delivery to this recipient failed; the invitation exists but the link never arrived. */
+  | "INVITATION_FAILED"
   | "INVITATION_REVOKED"
   | "DOCUMENT_VIEWED"
   | "OTP_REQUESTED"
@@ -1306,6 +1568,16 @@ export interface SignatureInvitation {
   usedAt: string | null;
   revokedAt: string | null;
   createdAt: string;
+  /**
+   * The transport that actually carried the invitation. `dev-console`
+   * means the message reached the server log, NOT a phone; `none` means
+   * delivery failed and the invitation must be resent.
+   */
+  deliveryChannel?: "sms" | "dev-console" | "none";
+  /** The recorded delivery outcome for this recipient. */
+  deliveryStatus?: "SENT" | "FAILED";
+  /** When the latest delivery attempt was made. */
+  lastSentAt?: string | null;
 }
 
 // ------------------------------------------------------------
@@ -1313,6 +1585,14 @@ export interface SignatureInvitation {
 // ------------------------------------------------------------
 
 export type ReviewCommentKind = "comment" | "change_request" | "approval_note";
+
+/**
+ * Where a note may be seen. `internal` notes belong to the drafter's own
+ * workspace and never travel to a counterparty, the public signer page or
+ * the PDF; `parties` notes are shared feedback. Neither ever becomes a
+ * clause or an approval.
+ */
+export type ReviewCommentVisibility = "internal" | "parties";
 
 export interface ContractReviewComment {
   id: string;
@@ -1322,12 +1602,20 @@ export interface ContractReviewComment {
   partyId: string | null;
   /** Display label, e.g. «موجر» or «وکیل». */
   authorLabelFa: string;
-  /** Who authored it — a party, a lawyer, or the AI. */
-  authorKind: "party" | "lawyer" | "ai" | "system";
+  /** Who authored it — the drafter, a party, a lawyer, or the AI. */
+  authorKind: "drafter" | "party" | "lawyer" | "ai" | "system";
+  /** Defaults to `internal` for notes created before this field existed. */
+  visibility?: ReviewCommentVisibility;
   kind: ReviewCommentKind;
   body: string;
   /** Optional clause reference the comment is anchored to. */
   clauseRef: string | null;
+  /**
+   * The comment this one replies to. `null`/absent means a top-level
+   * comment. A reply always belongs to the same contract AND the same
+   * version as its parent, so a thread can never span two revisions.
+   */
+  parentId?: string | null;
   createdAt: string;
 }
 
@@ -1563,6 +1851,233 @@ export const CONTRACT_REVIEW_STAMP_DISCLAIMER_FA =
   "این مهر نشان‌دهندهٔ بررسی داخلی لیگالیر است و به‌معنای مهر دادگاه، دفترخانه، سازمان ثبت یا تأیید قطعی حقوقی نیست.";
 
 // ------------------------------------------------------------
+// The official LEGALIR stamp approval (§7 — Super Admin only)
+// ------------------------------------------------------------
+// The internal review approval (`ContractAdminReview`) authorises that a
+// version MAY be issued. The official STAMP is a SEPARATE, stronger act:
+// only a Super Admin may authorise it, it MUST carry a reason, and it is
+// bound to BOTH the exact version hash AND the exact bytes of the stamp
+// master. If either the contract content or the stamp master changes, the
+// approval no longer holds and the stamp must be re-authorised. The
+// original stamp file is never modified — a change is a new version.
+
+/** The lifecycle of a stamp approval for one contract version. */
+// ------------------------------------------------------------
+// Amendments (§10)
+// ------------------------------------------------------------
+// After any party signs, the signed text is immutable. A Super Admin —
+// and only a Super Admin — may open an amendment: it preserves the prior
+// version, records why the text changed, shows a diff, notifies the
+// parties and, when the change is substantive, sends the new version for
+// re-approval and re-signature. The old document is NEVER rewritten.
+
+export type ContractAmendmentStatus =
+  | "DRAFT"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "APPLIED"
+  | "REJECTED"
+  | "CANCELLED";
+
+export const CONTRACT_AMENDMENT_STATUS_FA: Record<ContractAmendmentStatus, string> = {
+  DRAFT: "در حال تنظیم",
+  PENDING_APPROVAL: "در انتظار تأیید",
+  APPROVED: "تأییدشده",
+  APPLIED: "اعمال‌شده",
+  REJECTED: "ردشده",
+  CANCELLED: "لغو‌شده",
+};
+
+export interface ContractAmendmentEvent {
+  id: string;
+  amendmentId: string;
+  action: "created" | "updated" | "approved" | "rejected" | "applied" | "cancelled" | "notified";
+  actorId: string;
+  actorLabelFa: string;
+  descriptionFa: string;
+  createdAt: string;
+}
+
+export interface ContractAmendment {
+  id: string;
+  contractId: string;
+  /** Monotonic per contract: amendment 1, 2, … */
+  sequence: number;
+  status: ContractAmendmentStatus;
+  /**
+   * The signed version the amendment departs from. It is preserved
+   * forever and remains downloadable/verifiable.
+   */
+  baseVersionId: string | null;
+  baseDocumentHash: string | null;
+  /** The new version produced by the amendment, once applied. */
+  newVersionId: string | null;
+  /** Why the text is changing — mandatory. */
+  reasonFa: string;
+  /** Human-readable summary of the change. */
+  changeSummaryFa: string;
+  /** Per-clause differences, stored so the UI can show them. */
+  diff: { clauseRef: string; beforeFa: string; afterFa: string }[];
+  /**
+   * True when the change is substantive: the parties must re-approve and
+   * re-sign. False for a clerical note that alters no effective term.
+   */
+  substantive: boolean;
+  /** Whether parties were notified by SMS. */
+  notifiedAt: string | null;
+  createdById: string;
+  createdByLabelFa: string;
+  approvedById: string | null;
+  approvedByLabelFa: string | null;
+  approvedAt: string | null;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  events: ContractAmendmentEvent[];
+}
+
+export type ContractStampStatus =
+  | "PENDING" // درخواست مهر ثبت شده، در انتظار تأیید مدیر ارشد
+  | "APPLIED" // مهر تأیید و اعمال شد
+  | "REJECTED" // درخواست مهر رد شد
+  | "CANCELLED"; // درخواست مهر لغو شد
+
+export const CONTRACT_STAMP_STATUS_FA: Record<ContractStampStatus, string> = {
+  PENDING: "در انتظار تأیید مدیر ارشد",
+  APPLIED: "مهر لیگالیر اعمال شد",
+  REJECTED: "درخواست مهر رد شد",
+  CANCELLED: "درخواست مهر لغو شد",
+};
+
+/** The action recorded in a stamp request's history. */
+export type ContractStampAction =
+  | "request"
+  | "apply"
+  | "reject"
+  | "cancel"
+  /**
+   * The signer-notification attempt that follows an applied stamp. It is
+   * recorded separately so a failed SMS is visible in the trail even
+   * though the stamp itself was validly applied.
+   */
+  | "notify";
+
+/**
+ * One immutable entry in a stamp request's history. Every action is
+ * appended, never overwritten, so the trail of who authorised exactly
+ * which stamp for exactly which version survives.
+ */
+export interface ContractStampEvent {
+  id: string;
+  stampRequestId: string;
+  action: ContractStampAction;
+  actorId: string;
+  actorLabel: string;
+  reasonFa: string;
+  /** The version hash the action was recorded against. */
+  documentHash: string | null;
+  /** The stamp-master hash in force when the action was taken. */
+  stampAssetSha256: string | null;
+  createdAt: string;
+}
+
+/**
+ * A stamp approval bound to a contract version AND the stamp master.
+ * `documentHash` is the version hash; `stampAssetSha256` is the hash of
+ * the exact stamp image. Both must still match for the stamp to be drawn.
+ */
+export interface ContractStampRequest {
+  id: string;
+  contractId: string;
+  contractVersionId: string | null;
+  documentHash: string | null;
+  /** Version label of the stamp master, e.g. "legalir-review-stamp-1". */
+  stampAssetVersion: string;
+  /** SHA-256 of the stamp master at approval time. */
+  stampAssetSha256: string | null;
+  status: ContractStampStatus;
+  /** Who requested the stamp, when requested by a non-Super-Admin. */
+  requestedById: string | null;
+  requestedByLabelFa: string | null;
+  /** The Super Admin who applied the stamp. */
+  approvedById: string | null;
+  approvedByLabelFa: string | null;
+  /** The mandatory reason recorded with the decision. */
+  reasonFa: string;
+  requestedAt: string;
+  decidedAt: string | null;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractStampRequestDetail extends ContractStampRequest {
+  events: ContractStampEvent[];
+}
+
+/** The stamp master's public-safe integrity metadata (never a path/bytes). */
+export interface ContractStampAssetInfo {
+  available: boolean;
+  version: string;
+  sha256: string | null;
+  sizeBytes: number | null;
+}
+
+/**
+ * The POST body for a stamp decision. `notify` is deliberately excluded:
+ * it is a RECORDED outcome appended by the apply path after the SMS
+ * adapter reports back, never an action a caller may invoke.
+ */
+export interface ContractStampActionRequest {
+  action: Exclude<ContractStampAction, "notify">;
+  /** MANDATORY — the stamp is an official act, so the record says why. */
+  reason: string;
+  /** Defaults to the single PENDING request when omitted. */
+  stampRequestId?: string;
+}
+
+/** The `GET /api/v1/admin/contracts/[id]/stamp` payload. */
+export interface ContractStampContextResponse {
+  contract: {
+    id: string;
+    referenceCode: string;
+    typeFa: string;
+    state: PropertyContractState;
+  };
+  currentVersion: {
+    id: string;
+    versionNumber: number;
+    documentHash: string;
+  } | null;
+  stampAsset: ContractStampAssetInfo;
+  /** TRUE when the current version carries a valid internal review. */
+  reviewed: boolean;
+  /** The `CONTRACT_STAMP_ENABLED` capability, read from the server. */
+  featureEnabled: boolean;
+  /** TRUE when a valid stamp is already applied to the current version. */
+  applied: boolean;
+  appliedRequest: ContractStampRequestDetail | null;
+  requests: ContractStampRequestDetail[];
+}
+
+/** The REAL per-party delivery outcome after an applied stamp. */
+export interface ContractStampNotification {
+  participantId: string;
+  roleFa: string;
+  delivered: boolean;
+  /** The transport that actually carried the message, when delivered. */
+  channel: "sms" | "dev-console" | null;
+  failureReasonFa: string | null;
+}
+
+/** The `POST /api/v1/admin/contracts/[id]/stamp` payload. */
+export interface ContractStampDecisionResponse {
+  stampRequest: ContractStampRequestDetail;
+  applied: boolean;
+  notifications: ContractStampNotification[];
+}
+
+// ------------------------------------------------------------
 // The legal-basis report (§2)
 // ------------------------------------------------------------
 // A NON-BINDING annex that lists, per clause, the real provisions the
@@ -1623,6 +2138,13 @@ export interface ContractLifecycleView {
   registrationStatusFa: string;
   /** The active signature request, when one exists. */
   signatureRequest: SignatureRequestDetail | null;
+  /**
+   * The invitations issued for that request. Each row carries the REAL
+   * delivery outcome (`deliveryStatus` / `deliveryChannel`), so the
+   * drafter can see per recipient whether the link reached a phone, only
+   * the dev console, or failed and needs resending.
+   */
+  invitations: SignatureInvitation[];
   /** The active lawyer review, when one exists. */
   lawyerReview: LawyerReviewRequestDetail | null;
   /** The most recent AI review, when one exists. */
@@ -1636,6 +2158,27 @@ export interface ContractLifecycleView {
    * to show the review stamp or the unapproved-draft watermark.
    */
   adminApproved: boolean;
+  /**
+   * True when the CURRENT version carries a valid, bound OFFICIAL stamp
+   * (Super Admin, applied AFTER every required signature). This is the
+   * second, stronger gate than `adminApproved`: the seal/hologram may
+   * only be drawn when this is true, and it becomes false automatically
+   * if the version hash or the stamp master changes.
+   */
+  stamped: boolean;
+  /**
+   * The Super-Admin decision behind the current stamp, shown beside the
+   * seal as a SEPARATE axis from the party signatures. Null when the
+   * current version carries no valid stamp.
+   */
+  officialStamp: {
+    approvedByLabelFa: string | null;
+    approvedAt: string | null;
+    /** The opinion recorded with the approval (mandatory, audited). */
+    reasonFa: string;
+    /** The version hash the stamp is bound to. */
+    documentHash: string | null;
+  } | null;
   /** Review comments on the current version. */
   comments: ContractReviewComment[];
   /** True when the contract may be prepared for signature right now. */

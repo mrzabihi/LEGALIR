@@ -15,7 +15,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { snackbar } from "@legalir/ui";
+import { snackbar, Button } from "@legalir/ui";
 import { useConsultations, useCreateConsultation } from "@/hooks/useConsultations";
 import { IconBell, IconCheckCircle, IconArrowBack } from "@/lib/icons";
 
@@ -88,18 +88,17 @@ export function ActivateServiceCta({ serviceTitle }: ActivateServiceCtaProps) {
   }
 
   return (
-    <button
+    <Button
       type="button"
       onClick={submit}
-      disabled={create.isPending}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-medium bg-primary px-6 py-3 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60 touch-target tablet:w-auto"
+      loading={create.isPending}
+      startIcon={<IconBell size={18} aria-hidden="true" />}
+      fullWidth
+      className="tablet:w-auto"
     >
-      <IconBell size={18} aria-hidden="true" />
-      {create.isPending
-        ? "در حال ثبت درخواست…"
-        : serviceTitle
-          ? "وقتی این خدمت فعال شد به من اطلاع بده"
-          : "درخواست قرارداد جدید"}
-    </button>
+      {serviceTitle
+        ? "وقتی این خدمت فعال شد به من اطلاع بده"
+        : "درخواست قرارداد جدید"}
+    </Button>
   );
 }

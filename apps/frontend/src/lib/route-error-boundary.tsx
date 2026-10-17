@@ -5,6 +5,7 @@
 "use client";
 
 import { Component, type ReactNode } from "react";
+import { Button } from "@legalir/ui";
 
 interface RouteErrorBoundaryProps {
   children: ReactNode;
@@ -79,18 +80,12 @@ export class RouteErrorBoundary extends Component<
               خطا ثبت شد و تیم فنی مطلع خواهد شد.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                onClick={this.handleRetry}
-                className="rounded-medium bg-primary text-primary-on px-6 py-3 font-button hover:opacity-90 transition-opacity touch-target"
-              >
-                تلاش مجدد
-              </button>
-              <button
-                onClick={this.handleGoHome}
-                className="rounded-medium border border-border text-on-surface px-6 py-3 font-button hover:bg-surface transition-colors touch-target"
-              >
+              <Button onClick={this.handleRetry}>تلاش مجدد</Button>
+              {/* Leaving the failed route is the calmer, secondary path —
+                  outlined, not a second brand-fill competing with retry. */}
+              <Button variant="outlined" onClick={this.handleGoHome}>
                 بازگشت به صفحه اصلی
-              </button>
+              </Button>
             </div>
             {process.env.NODE_ENV === "development" && this.state.error && (
               <details className="mt-4 text-left text-caption text-muted">

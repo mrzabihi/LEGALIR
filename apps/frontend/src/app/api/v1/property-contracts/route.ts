@@ -10,6 +10,7 @@
 
 import { NextResponse } from "next/server";
 import type {
+  ContractInitiatorSide,
   ContractParty,
   PropertyContract,
   PropertyContractCreateRequest,
@@ -103,6 +104,13 @@ export async function POST(request: Request) {
       ? body.initiatorRole
       : def.defaultInitiatorRole;
 
+  // The drafter's side of the DOCUMENT is a separate fact from their
+  // role: a landlord can be «طرف دوم» in a document the tenant drafted.
+  // It is stored once here and reused by the preview, the invitations
+  // and the per-party status view.
+  const initiatorSide: ContractInitiatorSide =
+    body.initiatorSide === "second" ? "second" : "first";
+
   // Optional case linkage. A case id belonging to another user is
   // rejected outright rather than silently dropped.
   let caseId: string | null = null;
@@ -128,6 +136,7 @@ export async function POST(request: Request) {
     typeFa: def.typeFa,
     state: "DRAFT",
     initiatorRole,
+    initiatorSide,
     title: body.title?.trim() || def.typeFa,
     currentStep: firstStep,
     progress: 0,
@@ -165,8 +174,16 @@ export async function POST(request: Request) {
       address: "",
       postalCode: "",
     },
+    // Identity is captured ONCE, on the party row: the kind/nationality
+    // the wizard asks at the start, and the entity/representative link.
+    // Later steps edit this same row instead of re-asking.
+    personKind: "natural",
+    nationality: "iranian",
+    representativeOfPartyId: null,
+    representativePositionFa: "",
     ownershipShare: null,
     powerOfAttorney: null,
+    banking: null,
     isInitiator: true,
     createdAt: now,
   };
