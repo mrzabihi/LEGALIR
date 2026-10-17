@@ -275,27 +275,23 @@ export function MyContractsSection({
           ))}
         </div>
 
-        <button
+        <Button
           type="button"
+          variant={finerActive ? "outlined" : "secondary"}
           onClick={() => setMoreOpen(true)}
-          className={[
-            "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-medium border px-3 text-labelLarge transition-colors",
-            finerActive
-              ? "border-primary text-primary"
-              : "border-divider text-on-surface hover:border-control-selected",
-          ].join(" ")}
+          startIcon={<IconFilter size={18} />}
+          className="shrink-0"
         >
-          <IconFilter size={18} />
           فیلترهای بیشتر
           {finerActive && (
-            <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
               {filters.draft.length +
                 filters.analysis.length +
                 filters.types.length +
                 (filters.dateRange !== "any" ? 1 : 0)}
             </span>
           )}
-        </button>
+        </Button>
 
         <Select
           label="مرتب‌سازی"

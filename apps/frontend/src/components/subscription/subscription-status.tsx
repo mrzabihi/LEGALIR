@@ -15,6 +15,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@legalir/ui";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { useIsHydrated } from "@/hooks/useIsHydrated";
 import type { SubscriptionState, SubscriptionStatusView } from "@/lib/subscription";
@@ -254,12 +255,9 @@ export function SubscriptionStatusDetails({ className = "" }: { className?: stri
     return (
       <div className={`flex flex-col items-start gap-2 ${className}`} role="alert">
         <p className="text-body-2 text-error">خطا در دریافت وضعیت اشتراک</p>
-        <button
-          onClick={refetch}
-          className="rounded-full px-3 py-1.5 text-body-2 text-primary hover:bg-surface-hover transition-colors touch-target"
-        >
+        <Button type="button" variant="text" size="small" onClick={refetch}>
           تلاش مجدد
-        </button>
+        </Button>
       </div>
     );
   }

@@ -463,14 +463,9 @@ export function ConsultationWizard({ initialLawyerId }: { initialLawyerId: strin
           {/* Payment is not integrated — show the real price, disable checkout. */}
           <div className="flex items-center justify-between gap-3 rounded-medium bg-surface-container px-4 py-3">
             <span className="text-body-2 text-muted">پرداخت آنلاین</span>
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              className="cursor-not-allowed rounded-medium bg-surface px-4 py-2 text-button text-muted"
-            >
+            <Button type="button" variant="outlined" disabled>
               پرداخت آنلاین — به‌زودی
-            </button>
+            </Button>
           </div>
 
           <InfoSharingNotice />

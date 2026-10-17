@@ -18,6 +18,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@legalir/ui";
 import { useSubscriptionUsage } from "@/hooks/useSubscription";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -117,13 +118,14 @@ export function SubscriptionUsageCard() {
       ) : isError || !data ? (
         <div className="rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-6 text-center">
           <p className="text-body-2 text-muted mb-3">خطا در دریافت اطلاعات مصرف</p>
-          <button
+          <Button
             type="button"
+            variant="outlined"
+            size="small"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-medium border border-[color:var(--color-outline-variant)] px-4 py-2 text-body-2 text-on-surface-variant font-medium hover:bg-surface-container-high transition-colors touch-target"
           >
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">

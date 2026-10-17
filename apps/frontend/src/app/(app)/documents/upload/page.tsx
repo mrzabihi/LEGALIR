@@ -301,14 +301,15 @@ function LibraryStep({
 }) {
   return (
     <div className="space-y-3">
-      <button
+      <Button
         type="button"
+        variant="text"
+        size="small"
         onClick={onBack}
-        className="inline-flex items-center gap-1 rounded-medium px-2 py-1 text-caption text-primary hover:bg-surface-hover transition-colors touch-target"
+        startIcon={<IconArrowBack size={16} />}
       >
-        <IconArrowBack size={16} />
         بازگشت
-      </button>
+      </Button>
 
       {items.length === 0 ? (
         <EmptyState
@@ -354,14 +355,15 @@ function UploadStep({
 }) {
   return (
     <div className="space-y-3">
-      <button
+      <Button
         type="button"
+        variant="text"
+        size="small"
         onClick={onBack}
-        className="inline-flex items-center gap-1 rounded-medium px-2 py-1 text-caption text-primary hover:bg-surface-hover transition-colors touch-target"
+        startIcon={<IconArrowBack size={16} />}
       >
-        <IconArrowBack size={16} />
         بازگشت
-      </button>
+      </Button>
       <UploadZone onFile={onFile} />
     </div>
   );

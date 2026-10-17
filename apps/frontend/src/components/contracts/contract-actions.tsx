@@ -79,10 +79,18 @@ export function ContractActions({
               آیا از بایگانی این قرارداد اطمینان دارید؟ این عمل قابل بازگشت نیست.
             </p>
             <div className="flex gap-3 justify-end">
-              <Button variant="ghost" onClick={() => setConfirmingArchive(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => setConfirmingArchive(false)}
+                disabled={archiveContract.isPending}
+              >
                 انصراف
               </Button>
-              <Button variant="danger" onClick={handleArchive}>
+              <Button
+                variant="danger"
+                onClick={handleArchive}
+                loading={archiveContract.isPending}
+              >
                 بایگانی
               </Button>
             </div>
@@ -93,71 +101,61 @@ export function ContractActions({
       <div className="flex flex-wrap gap-2">
         {/* State Transitions */}
         {transitions.includes("under_review") && (
-          <button
+          <Button
             onClick={() => handleStateChange("under_review")}
-            disabled={updateContract.isPending}
-            className="rounded-medium bg-purple-600 text-white px-4 py-2 text-button touch-target disabled:opacity-50"
+            loading={updateContract.isPending}
           >
             ارسال برای بررسی
-          </button>
+          </Button>
         )}
 
         {transitions.includes("approved") && (
-          <button
+          <Button
             onClick={() => handleStateChange("approved")}
-            disabled={updateContract.isPending}
-            className="rounded-medium bg-green-600 text-white px-4 py-2 text-button touch-target disabled:opacity-50"
+            loading={updateContract.isPending}
           >
             تأیید نهایی
-          </button>
+          </Button>
         )}
 
         {transitions.includes("exported") && (
-          <button
+          <Button
             onClick={() => handleStateChange("exported")}
-            disabled={updateContract.isPending}
-            className="rounded-medium bg-teal-600 text-white px-4 py-2 text-button touch-target disabled:opacity-50"
+            loading={updateContract.isPending}
           >
             خروجی Word/PDF
-          </button>
+          </Button>
         )}
 
         {transitions.includes("generated") && (
-          <button
+          <Button
             onClick={handleRegenerate}
-            disabled={generateContract.isPending}
-            className="rounded-medium bg-blue-600 text-white px-4 py-2 text-button touch-target disabled:opacity-50"
+            loading={generateContract.isPending}
           >
             بازتولید پیش‌نویس
-          </button>
+          </Button>
         )}
 
         {transitions.includes("collecting") && (
-          <button
-            onClick={() => onGenerateNewVersion?.()}
-            className="rounded-medium bg-amber-600 text-white px-4 py-2 text-button touch-target"
-          >
+          <Button onClick={() => onGenerateNewVersion?.()}>
             ویرایش و نسخه جدید
-          </button>
+          </Button>
         )}
 
         {transitions.includes("draft") && (
-          <button
-            onClick={() => onGenerateNewVersion?.()}
-            className="rounded-medium bg-surface-container text-on-surface px-4 py-2 text-button touch-target border border-divider"
-          >
+          <Button variant="outlined" onClick={() => onGenerateNewVersion?.()}>
             ویرایش پیش‌نویس
-          </button>
+          </Button>
         )}
 
         {transitions.includes("archived") && (
-          <button
+          <Button
+            variant="danger-outlined"
             onClick={() => setConfirmingArchive(true)}
             disabled={archiveContract.isPending}
-            className="rounded-medium bg-surface-container text-muted px-4 py-2 text-button touch-target border border-divider disabled:opacity-50"
           >
             بایگانی
-          </button>
+          </Button>
         )}
       </div>
     </div>

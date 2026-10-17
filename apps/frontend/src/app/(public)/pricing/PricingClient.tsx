@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePlansV1 } from "@/hooks/useSubscription";
-import { SkeletonCard, ErrorState, EmptyState } from "@legalir/ui";
+import { Button, buttonClasses, SkeletonCard, ErrorState, EmptyState } from "@legalir/ui";
 import { toPersianNumber, toPersianCurrency } from "@/lib/persian-utils";
 import type { Plan } from "@legalir/types";
 import { useState } from "react";
@@ -218,16 +218,12 @@ function PlanCard({
 
         {/* CTA */}
         <Link
-          href={meta.popular
-            ? `/auth/mobile?intent=subscribe&plan=${plan.code}`
-            : `/auth/mobile?intent=subscribe&plan=${plan.code}`}
-          className={[
-            "block rounded-medium px-6 py-3.5 text-button text-center font-bold transition-all duration-short3",
-            "touch-target-min w-full",
-            meta.popular
-              ? "bg-secondary-600 text-white hover:bg-secondary-700 shadow-elevation-3 hover:shadow-elevation-8 animate-glow"
-              : "bg-primary-700 text-white hover:bg-primary-800 shadow-elevation-2 hover:shadow-elevation-4",
-          ].join(" ")}
+          href={`/auth/mobile?intent=subscribe&plan=${plan.code}`}
+          className={buttonClasses({
+            size: "large",
+            fullWidth: true,
+            className: meta.popular ? "animate-glow" : undefined,
+          })}
         >
           شروع با {plan.nameFa}
         </Link>
@@ -409,12 +405,9 @@ function FeatureComparisonTable({ plans }: { plans: Plan[] }) {
       {/* Show more / less toggle */}
       {COMPARISON_FEATURES.length > 5 && (
         <div className="text-center mt-8">
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-neutral-300 text-button text-primary-700 hover:bg-primary-50 hover:border-primary-300 transition-all"
-          >
+          <Button type="button" variant="outlined" onClick={() => setShowAll(!showAll)}>
             {showAll ? "نمایش کمتر" : "نمایش همه ویژگی‌ها"}
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -252,13 +252,15 @@ export default function LawyerWorkspacePage() {
       <div className="mx-auto max-w-5xl p-4 tablet:p-6" dir="rtl">
         <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-8 text-center">
           <p className="text-body-1 text-error">خطا در بارگذاری میزکار</p>
-          <button
+          <Button
+            type="button"
+            variant="text"
+            size="small"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary-container"
+            startIcon={<IconRefresh size={16} />}
           >
-            <IconRefresh size={16} />
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       </div>
     );

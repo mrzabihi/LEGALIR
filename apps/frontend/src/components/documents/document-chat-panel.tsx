@@ -451,14 +451,16 @@ export function DocumentChatPanel({
           </p>
         </div>
         {isTrial && (
-          <button
+          <Button
             type="button"
+            variant="text"
+            size="small"
             onClick={handleClearTrial}
             disabled={messages.length === 0}
-            className="shrink-0 rounded-medium px-2 py-1 text-caption text-primary hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:pointer-events-none touch-target"
+            className="shrink-0"
           >
             پاک‌کردن گفتگو
-          </button>
+          </Button>
         )}
       </div>
 

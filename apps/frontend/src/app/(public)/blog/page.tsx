@@ -14,7 +14,7 @@ import { PromoPanel } from "@/components/shared";
 import { useBlogPosts } from "@/hooks/useDashboard";
 import { toPersianDate } from "@/lib/persian-utils";
 import type { V1BlogListItem } from "@legalir/types";
-import { TextField } from "@legalir/ui";
+import { Button, TextField } from "@legalir/ui";
 
 // ============================================================
 // Deterministic cover gradients (coverImage is null in fixtures)
@@ -195,12 +195,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
       <p className="text-body-2 text-neutral-500 max-w-md leading-relaxed mb-6">
         در دریافت مقالات وبلاگ مشکلی پیش آمد. لطفاً دوباره تلاش کنید.
       </p>
-      <button
-        onClick={onRetry}
-        className="rounded-medium bg-primary-700 text-white px-6 py-3 text-button hover:bg-primary-800 transition-colors touch-target"
-      >
+      <Button type="button" onClick={onRetry}>
         تلاش مجدد
-      </button>
+      </Button>
     </div>
   );
 }
@@ -513,9 +510,13 @@ export default function BlogPage() {
                 fullWidth
               />
             </div>
-            <button className="w-full tablet:w-auto h-14 rounded-medium bg-primary-700 text-white px-6 text-button hover:bg-primary-800 transition-colors touch-target shadow-elevation-1 hover:shadow-elevation-3 whitespace-nowrap">
+            <Button
+              type="button"
+              size="large"
+              className="w-full whitespace-nowrap tablet:w-auto"
+            >
               عضویت در خبرنامه
-            </button>
+            </Button>
           </div>
         </div>
       </section>

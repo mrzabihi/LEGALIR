@@ -78,14 +78,14 @@ export default function MemorySettingsPage() {
         title="حافظه و دانش"
         icon={<IconMemory size={22} />}
         action={
-          <button
+          <Button
             type="button"
+            size="small"
             onClick={() => setShowForm((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-body-2 text-on-primary font-medium transition hover:bg-primary-variant touch-target"
+            startIcon={showForm ? <IconClose size={16} /> : <IconAdd size={16} />}
           >
-            {showForm ? <IconClose size={16} /> : <IconAdd size={16} />}
             {showForm ? "بستن" : "افزودن دانش"}
-          </button>
+          </Button>
         }
       >
         <p className="text-body-2 text-muted mb-5">

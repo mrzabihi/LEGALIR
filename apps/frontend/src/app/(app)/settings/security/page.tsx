@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useAccount";
 import { toPersianDate } from "@/lib/persian-utils";
 import { IconShield, IconPerson, IconLogout, IconDelete } from "@/lib/icons";
+import { Button } from "@legalir/ui";
 import type { SessionInfo } from "@legalir/types";
 
 function SessionRow({
@@ -55,15 +56,17 @@ function SessionRow({
         </p>
       </div>
       {!session.current && (
-        <button
+        <Button
           type="button"
+          size="small"
+          variant="danger-outlined"
           onClick={() => onRevoke(session.id)}
           disabled={revoking}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-error px-3 py-1.5 text-caption text-error transition hover:bg-error-container disabled:opacity-50"
+          startIcon={<IconDelete size={14} />}
+          className="shrink-0"
         >
-          <IconDelete size={14} />
           خروج
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -113,36 +116,38 @@ export default function SecuritySettingsPage() {
                 <p className="text-body-2 text-error flex-1">
                   از {otherCount.toLocaleString("fa-IR")} نشست دیگر خارج می‌شوید. ادامه؟
                 </p>
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="small"
                   onClick={() => {
                     revokeOthers.mutate(undefined, {
                       onSettled: () => setConfirmOthers(false),
                     });
                   }}
-                  disabled={revokeOthers.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-error px-4 py-2 text-body-2 text-on-error font-medium transition hover:opacity-90 disabled:opacity-50"
+                  loading={revokeOthers.isPending}
                 >
-                  {revokeOthers.isPending ? "در حال خروج..." : "تأیید"}
-                </button>
-                <button
+                  تأیید
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="small"
                   onClick={() => setConfirmOthers(false)}
                   disabled={revokeOthers.isPending}
-                  className="rounded-full border border-divider px-4 py-2 text-body-2 text-on-surface transition hover:bg-surface-hover"
                 >
                   انصراف
-                </button>
+                </Button>
               </div>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="outlined"
                 onClick={() => setConfirmOthers(true)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-divider px-4 py-2 text-body-2 text-on-surface transition hover:bg-surface-hover"
+                startIcon={<IconLogout size={16} />}
               >
-                <IconLogout size={16} />
                 خروج از تمام نشست‌های دیگر
-              </button>
+              </Button>
             )}
           </div>
         )}

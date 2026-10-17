@@ -22,7 +22,7 @@
 
 import React, { useMemo, useState, useCallback } from "react";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { Select } from "@legalir/ui";
+import { Button, Select } from "@legalir/ui";
 
 // ---------------------------------------------------------------------------
 // Jalali <-> Gregorian conversion (jalaali-js algorithm)
@@ -223,14 +223,16 @@ export function JalaliDatePicker({
           />
         </div>
 
-        <button
+        <Button
           type="button"
+          variant="outlined"
+          size="small"
           onClick={apply}
           disabled={disabled}
-          className="mt-1 w-full shrink-0 rounded-medium border border-primary px-3 py-2 text-caption text-primary transition-colors hover:bg-primary-50 touch-target disabled:opacity-50 tablet:w-auto"
+          className="mt-1 w-full shrink-0 tablet:w-auto"
         >
           اعمال
-        </button>
+        </Button>
       </div>
 
       {errorMessage && (

@@ -11,11 +11,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { TextField } from "@legalir/ui";
+import { Button, TextField } from "@legalir/ui";
 import type { LegalContentType, V1LegalLibraryListItem } from "@legalir/types";
 import { useLegalLibraryItems, useLegalLibraryTopics } from "@/hooks/useDashboard";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { IconClose } from "@/lib/icons";
+import { IconClose, IconRefresh } from "@/lib/icons";
 
 // ============================================================
 // Inline SVG helpers
@@ -376,13 +376,14 @@ export default function LegalLibraryPage() {
           <p className="max-w-md text-body-2 text-muted">
             ارتباط با سرور برقرار نشد. لطفاً دوباره تلاش کنید.
           </p>
-          <button
+          <Button
             type="button"
             onClick={() => itemsQuery.refetch()}
-            className="mt-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
+            startIcon={<IconRefresh size={18} />}
+            className="mt-2"
           >
             تلاش دوباره
-          </button>
+          </Button>
         </div>
       ) : showEmpty ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
@@ -398,13 +399,9 @@ export default function LegalLibraryPage() {
               : "به‌زودی منابع حقوقی در این بخش منتشر می‌شود."}
           </p>
           {hasFilters && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="mt-2 rounded-full border border-divider bg-surface px-5 py-2.5 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover touch-target"
-            >
+            <Button type="button" variant="outlined" onClick={resetFilters} className="mt-2">
               نمایش همه منابع
-            </button>
+            </Button>
           )}
         </div>
       ) : (

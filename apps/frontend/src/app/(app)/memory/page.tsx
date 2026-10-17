@@ -484,14 +484,15 @@ export default function MemoryPage() {
                       {/* Consent Request Button for pending items */}
                       {!item.consentGiven && (
                         <div className="mt-3 pt-3 border-t border-divider">
-                          <button
+                          <Button
                             type="button"
+                            variant="tonal"
+                            size="small"
                             onClick={() => handleRequestConsent(item)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-4 py-1.5 text-caption font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors touch-target"
+                            startIcon={<IconWarning size={14} />}
                           >
-                            <IconWarning size={14} />
                             درخواست تأیید
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>

@@ -85,14 +85,14 @@ export default function AccountClosurePage() {
           />
 
           {step === "idle" && (
-            <button
+            <Button
               type="button"
+              variant="danger-outlined"
               onClick={() => setStep("confirm")}
-              className="inline-flex items-center gap-1.5 rounded-full border-2 border-error bg-error-container px-5 py-2.5 text-body-2 text-error font-medium transition hover:opacity-90"
+              startIcon={<IconDelete size={16} />}
             >
-              <IconDelete size={16} />
               درخواست حذف حساب
-            </button>
+            </Button>
           )}
 
           {step === "confirm" && (
@@ -127,14 +127,14 @@ export default function AccountClosurePage() {
                 >
                   تأیید نهایی حذف حساب
                 </Button>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={handleCancel}
                   disabled={deleteAccount.isPending}
-                  className="rounded-full border border-divider px-4 py-2.5 text-body-2 text-on-surface transition hover:bg-surface-hover disabled:opacity-50"
                 >
                   انصراف
-                </button>
+                </Button>
               </div>
             </div>
           )}

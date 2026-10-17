@@ -16,6 +16,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { Button } from "@legalir/ui";
 import { useLawyers } from "@/hooks/useLawyers";
 import { featuredLawyers } from "@/lib/lawyers/grouping";
 import type { LawyerSpecialtyCode } from "@/lib/contract-services";
@@ -98,14 +99,15 @@ export function ContractLawyerSuggestion({
       {isError && !loading && (
         <div className="flex flex-col items-center gap-2 rounded-large bg-error-container p-5 text-center">
           <p className="text-body-2 text-error">دریافت فهرست وکلا با مشکل مواجه شد.</p>
-          <button
+          <Button
             type="button"
+            variant="text"
+            size="small"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-caption text-primary transition hover:bg-primary-container"
+            startIcon={<IconRefresh size={16} />}
           >
-            <IconRefresh size={16} />
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       )}
 

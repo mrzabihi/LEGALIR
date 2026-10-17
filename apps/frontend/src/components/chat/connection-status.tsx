@@ -22,6 +22,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@legalir/ui";
 import { env } from "@legalir/config";
 import { IconRefresh } from "@/lib/icons";
 
@@ -199,14 +200,16 @@ export function ConnectionStatus() {
       {/* On narrow viewports only the dot shows; screen readers still get it. */}
       <span className="sr-only tablet:hidden">{LABELS[state]}</span>
       {canRetry && (
-        <button
+        <Button
           type="button"
+          variant="text"
+          size="small"
           onClick={recheck}
-          className="ms-0.5 flex shrink-0 items-center gap-0.5 rounded-full px-1 text-caption text-primary transition-colors hover:underline"
+          startIcon={<IconRefresh size={14} />}
+          className="ms-0.5 h-7 shrink-0 !px-1 text-caption"
         >
-          <IconRefresh size={12} />
           تلاش دوباره
-        </button>
+        </Button>
       )}
     </div>
   );

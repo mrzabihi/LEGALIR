@@ -22,6 +22,7 @@
 // ============================================================
 
 import { useState } from "react";
+import { Button } from "@legalir/ui";
 import type {
   ProcessingRunView,
   ProcessingStageView,
@@ -208,25 +209,29 @@ export function LegalRequestProgress({
         )}
 
         {isStreaming && onCancel && (
-          <button
+          <Button
             type="button"
+            variant="danger-outlined"
+            size="small"
             onClick={onCancel}
-            className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-caption text-muted transition-colors hover:bg-error-container hover:text-error"
+            startIcon={<IconStop size={13} />}
+            className="h-7 shrink-0 !px-2 text-caption"
           >
-            <IconStop size={13} />
             توقف
-          </button>
+          </Button>
         )}
 
         {isFailed && run.retryable && onRetry && (
-          <button
+          <Button
             type="button"
+            variant="text"
+            size="small"
             onClick={onRetry}
-            className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium text-primary transition-colors hover:bg-primary-container"
+            startIcon={<IconRefresh size={13} />}
+            className="h-7 shrink-0 !px-2 text-caption"
           >
-            <IconRefresh size={13} />
             تلاش مجدد
-          </button>
+          </Button>
         )}
       </div>
 

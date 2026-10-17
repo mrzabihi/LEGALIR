@@ -14,6 +14,7 @@ import { useCallback, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { V1LegalSourceDetail } from "@legalir/types";
+import { Button } from "@legalir/ui";
 import { useLegalLibrarySource, useSetLegalBookmark, useMe } from "@/hooks/useDashboard";
 import { toPersianDate } from "@/lib/persian-utils";
 import { ApiClientError } from "@/lib/api/errors";
@@ -24,6 +25,7 @@ import {
   IconChat,
   IconDocument,
   IconContract,
+  IconRefresh,
 } from "@/lib/icons";
 
 // ============================================================
@@ -332,13 +334,14 @@ export default function LegalSourceDetailPage() {
             </SvgIcon>
           </div>
           <p className="text-body-1 font-medium text-on-surface">بارگذاری منبع ناموفق بود</p>
-          <button
+          <Button
             type="button"
             onClick={() => query.refetch()}
-            className="mt-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
+            startIcon={<IconRefresh size={18} />}
+            className="mt-2"
           >
             تلاش دوباره
-          </button>
+          </Button>
         </div>
       </div>
     );

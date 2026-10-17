@@ -9,6 +9,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button } from "@legalir/ui";
 import { Breadcrumb } from "@/components/shared/Breadcrumb";
 import { NotificationItem } from "@/components/notifications/notification-item";
 import {
@@ -86,19 +87,15 @@ export default function NotificationsPage() {
         </div>
 
         {unreadCount > 0 && (
-          <button
+          <Button
             type="button"
+            variant="text"
             onClick={() => markAllRead.mutate()}
-            className={[
-              "inline-flex items-center justify-center gap-1.5 rounded-large px-4 text-labelLarge font-medium text-primary transition-colors duration-short3",
-              // Phones: a full-width, 44px-tall button (comfortable touch target).
-              "min-h-11 w-full border border-divider bg-surface hover:bg-surface-hover",
-              // Tablet+: back to the compact inline link.
-              "tablet:min-h-0 tablet:w-auto tablet:border-0 tablet:bg-transparent tablet:px-0 tablet:text-caption tablet:hover:underline",
-            ].join(" ")}
+            loading={markAllRead.isPending}
+            className="w-full tablet:w-auto"
           >
             علامت‌گذاری همه به‌عنوان خوانده‌شده
-          </button>
+          </Button>
         )}
       </div>
 
@@ -148,13 +145,15 @@ export default function NotificationsPage() {
         ) : error ? (
           <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
             <p className="text-body-1 text-error">خطا در دریافت اعلان‌ها</p>
-            <button
+            <Button
+              type="button"
+              variant="text"
+              size="small"
               onClick={() => refetch()}
-              className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
+              startIcon={<IconRefresh size={16} />}
             >
-              <IconRefresh size={16} />
               تلاش مجدد
-            </button>
+            </Button>
           </div>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-large bg-surface border border-divider py-14 text-center">

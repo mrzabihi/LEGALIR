@@ -33,6 +33,7 @@ import {
 } from "@/lib/contract-services";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { IconContract, IconSparkle } from "@/lib/icons";
+import { Button } from "@legalir/ui";
 import { CategoryFilter, type CategoryFilterValue } from "./category-filter";
 import { ContractServiceCard } from "./contract-service-card";
 import { ContractFinder } from "./contract-finder";
@@ -181,13 +182,14 @@ export function ContractCatalog({
             <p className="text-body-2 text-on-surface-variant">
               {toPersianNumber(results.length)} خدمت یافت شد
             </p>
-            <button
+            <Button
               type="button"
+              variant="text"
+              size="small"
               onClick={clearFilters}
-              className="rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-primary-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               پاک کردن فیلترها
-            </button>
+            </Button>
           </div>
 
           {results.length > 0 ? (

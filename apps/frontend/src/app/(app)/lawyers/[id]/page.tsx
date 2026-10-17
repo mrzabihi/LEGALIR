@@ -15,6 +15,7 @@
 
 import { use } from "react";
 import Link from "next/link";
+import { Button } from "@legalir/ui";
 import { useLawyer } from "@/hooks/useLawyers";
 import { LawyerAvatar, LawyerReviewForm, ReviewReportControl } from "@/components/lawyers";
 import {
@@ -85,13 +86,15 @@ export default function LawyerProfilePage({ params }: { params: Promise<{ id: st
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
         <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-8 text-center">
           <p className="text-body-1 text-error">وکیل یافت نشد یا در دسترس نیست</p>
-          <button
+          <Button
+            type="button"
+            variant="text"
+            size="small"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
+            startIcon={<IconRefresh size={16} />}
           >
-            <IconRefresh size={16} />
             تلاش مجدد
-          </button>
+          </Button>
           <Link href="/lawyers" className="text-body-2 text-primary hover:underline">
             بازگشت به فهرست وکلا
           </Link>

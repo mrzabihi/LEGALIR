@@ -25,6 +25,7 @@
 // ============================================================
 
 import Link from "next/link";
+import { Button, buttonClasses } from "@legalir/ui";
 import type { LawyerListItem } from "@legalir/types";
 import { LAWYER_PROFESSIONAL_RANK_SHORT_FA } from "@legalir/types";
 import {
@@ -199,26 +200,21 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
           <div className="flex flex-col gap-2 mobile-l:flex-row">
             <Link
               href={`/lawyers/${lawyer.id}`}
-              className="flex-1 rounded-medium border border-divider bg-surface px-4 py-2.5 text-center text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className={buttonClasses({ variant: "outlined", className: "flex-1" })}
             >
               مشاهده پروفایل
             </Link>
             {view.canRequest ? (
               <Link
                 href={`/consultations/new?lawyerId=${lawyer.id}`}
-                className="flex-1 rounded-medium bg-primary px-4 py-2.5 text-center text-button font-medium text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
+                className={buttonClasses({ className: "flex-1" })}
               >
                 {view.ctaLabel}
               </Link>
             ) : (
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                className="flex-1 cursor-not-allowed rounded-medium bg-surface-container px-4 py-2.5 text-center text-button font-medium text-muted"
-              >
+              <Button disabled className="flex-1">
                 {view.ctaLabel}
-              </button>
+              </Button>
             )}
           </div>
         )}

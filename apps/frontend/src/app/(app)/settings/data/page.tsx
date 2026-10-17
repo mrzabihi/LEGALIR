@@ -50,14 +50,14 @@ export default function DataSettingsPage() {
             با حذف تاریخچه خروجی‌ها، تمام فایل‌های خروجی قبلی از سرور حذف شده و
             لینک‌های دانلود آن‌ها از کار خواهد افتاد. این عمل قابل بازگشت نیست.
           </p>
-          <button
+          <Button
             type="button"
+            variant="danger-outlined"
             disabled
-            className="inline-flex items-center gap-1.5 rounded-full border border-error px-4 py-2 text-body-2 text-error opacity-50 cursor-not-allowed transition"
+            startIcon={<IconDelete size={16} />}
           >
-            <IconDelete size={16} />
             حذف تاریخچه خروجی‌ها
-          </button>
+          </Button>
           <p className="mt-2 text-caption text-muted">
             این قابلیت به‌زودی فعال می‌شود.
           </p>

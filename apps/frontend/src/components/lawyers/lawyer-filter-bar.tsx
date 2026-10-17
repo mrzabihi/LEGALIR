@@ -29,7 +29,7 @@ import {
   taxonomyLabel,
   taxonomyNode,
 } from "@legalir/types";
-import { Chip, SegmentedControl, Select, TextField, Tooltip } from "@legalir/ui";
+import { Button, Chip, SegmentedControl, Select, TextField, Tooltip } from "@legalir/ui";
 import { IconChevronLeft, IconChevronRightSmall, IconFilter, IconSearch } from "@/lib/icons";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { type LawyerFilterValues } from "./lawyer-filters-sheet";
@@ -459,13 +459,15 @@ export function LawyerFilterBar({
                   onRemove={chip.onRemove}
                 />
               ))}
-              <button
+              <Button
                 type="button"
+                variant="text"
+                size="small"
                 onClick={onClearAll}
-                className="ms-1 rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="ms-1 h-7 !px-2 text-caption"
               >
                 پاک کردن همه
-              </button>
+              </Button>
             </>
           )}
           {showResultCount && resultCount > 0 && (

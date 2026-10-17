@@ -6,7 +6,7 @@
 "use client";
 
 import type { V1DocumentListItem } from "@legalir/types";
-import { IconButton, ProgressLinear, Tooltip } from "@legalir/ui";
+import { Button, IconButton, ProgressLinear, Tooltip } from "@legalir/ui";
 import { IconDocument, IconFile, IconDelete, IconOpenInNew } from "@/lib/icons";
 import { StatusBadge } from "./status-badge";
 
@@ -156,14 +156,15 @@ export function DocumentCard({ document, onClick, onDelete }: DocumentCardProps)
           with «حذف» as the destructive action beside it — the same edge the
           history cards use for their primary action. */}
       <div className="mt-auto flex items-center justify-start gap-1.5 border-t border-divider px-3 py-2">
-        <button
+        <Button
           type="button"
+          variant="text"
+          size="small"
           onClick={onClick}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-labelSmall font-medium text-primary transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          startIcon={<IconOpenInNew size={16} />}
         >
-          <IconOpenInNew size={16} />
           مشاهده
-        </button>
+        </Button>
 
         {onDelete && (
           <Tooltip content={`حذف سند ${name}`}>

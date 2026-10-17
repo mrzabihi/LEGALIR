@@ -15,6 +15,7 @@
 // ============================================================
 
 import type { LawyerListItem } from "@legalir/types";
+import { Button } from "@legalir/ui";
 import { IconChevronLeft } from "@/lib/icons";
 import { LawyerCarousel } from "./lawyer-carousel";
 
@@ -56,14 +57,16 @@ export function LawyerCategorySection({
           )}
         </div>
         {onViewAll && (
-          <button
+          <Button
             type="button"
+            variant="text"
+            size="small"
             onClick={onViewAll}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-1 text-caption font-medium text-primary transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            endIcon={<IconChevronLeft size={16} />}
+            className="shrink-0"
           >
             مشاهده همه
-            <IconChevronLeft size={16} />
-          </button>
+          </Button>
         )}
       </div>
 

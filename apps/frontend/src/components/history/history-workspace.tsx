@@ -233,13 +233,14 @@ function EmptyState({
             : "با شروع استفاده از LEGALIR، تاریخچه فعالیت‌های شما در اینجا نمایش داده می‌شود"}
       </p>
       {hasFilters ? (
-        <button
+        <Button
+          type="button"
+          variant="outlined"
           onClick={onClearFilters}
-          className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
+          startIcon={<IconClose size={18} />}
         >
-          <IconClose size={18} />
           پاک کردن فیلترها
-        </button>
+        </Button>
       ) : (
         !archivedView && (
           <Link href="/chat" className={buttonClasses()}>
@@ -706,18 +707,22 @@ export function HistoryWorkspace() {
             {archivedView ? (
               <Link
                 href="/history"
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-4 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                className={buttonClasses({ variant: "outlined" })}
               >
-                <IconArrowForward size={18} className="rotate-180" />
+                <span aria-hidden="true" className="btn-icon-start inline-flex shrink-0">
+                  <IconArrowForward size={18} className="rotate-180" />
+                </span>
                 بازگشت به تاریخچه
               </Link>
             ) : (
               <Link
                 href="/history?archived=true"
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-4 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                className={buttonClasses({ variant: "outlined" })}
                 aria-label={`بایگانی (${archivedCount} مورد)`}
               >
-                <IconArchive size={18} />
+                <span aria-hidden="true" className="btn-icon-start inline-flex shrink-0">
+                  <IconArchive size={18} />
+                </span>
                 بایگانی
                 {archivedCount > 0 && (
                   <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-caption text-primary-on">
@@ -728,23 +733,19 @@ export function HistoryWorkspace() {
             )}
 
             {isAdmin && !adminReviewActive && (
-              <button
-                onClick={handleOpenAdminModal}
-                className="inline-flex h-9 items-center gap-2 rounded-full bg-warning-700 px-4 text-body-2 font-medium text-white transition-colors duration-short3 hover:opacity-90"
-              >
-                <IconShield size={18} />
+              <Button onClick={handleOpenAdminModal} startIcon={<IconShield size={18} />}>
                 بازبینی مدیر ارشد
-              </button>
+              </Button>
             )}
 
             {adminReviewActive && (
-              <button
+              <Button
+                variant="danger-outlined"
                 onClick={handleExitAdminReview}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-error px-4 text-body-2 font-medium text-error transition-colors duration-short3 hover:bg-error-container"
+                startIcon={<IconClose size={18} />}
               >
-                <IconClose size={18} />
                 خروج از حالت بازبینی
-              </button>
+              </Button>
             )}
           </>
         }

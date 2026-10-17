@@ -413,21 +413,22 @@ export default function CasesPage() {
               : "اولین پرونده حقوقی خود را ثبت کنید تا LEGALIR در مدیریت آن به شما کمک کند"}
           </p>
           {hasFilters ? (
-            <button
+            <Button
+              variant="outlined"
               onClick={clearAllFilters}
-              className="mt-2 inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
+              startIcon={<IconClose size={18} />}
+              className="mt-2"
             >
-              <IconClose size={18} />
               پاک کردن فیلترها
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               onClick={() => setShowCreate(true)}
-              className="mt-2 inline-flex h-10 items-center gap-2 rounded-full bg-primary px-6 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
+              startIcon={<IconAdd size={18} />}
+              className="mt-2"
             >
-              <IconAdd size={18} />
               ثبت اولین پرونده
-            </button>
+            </Button>
           )}
         </div>
       )}

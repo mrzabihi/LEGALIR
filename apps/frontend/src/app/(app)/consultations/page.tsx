@@ -10,6 +10,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@legalir/ui";
 import { useConsultations } from "@/hooks/useConsultations";
 import { IconAdd, IconArrowBack, IconHeadset, IconInfo, IconRefresh } from "@/lib/icons";
 import { PageIntroBanner } from "@/components/shared";
@@ -48,14 +49,15 @@ export default function ConsultationsPage() {
       {isError && (
         <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
           <p className="text-body-1 text-error">خطا در بارگذاری مشاوره‌ها</p>
-          <button
+          <Button
             type="button"
+            variant="text"
+            size="small"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-primary-container"
+            startIcon={<IconRefresh size={16} />}
           >
-            <IconRefresh size={16} />
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       )}
 

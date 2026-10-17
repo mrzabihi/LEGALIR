@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Button } from "@legalir/ui";
 import type { Message, V1Reference, StructuredResponseSection } from "@legalir/types";
 import type { AiRunStatus } from "@legalir/types";
 import { IconRetry, IconWarning, IconCheck, IconClock } from "@/lib/icons";
@@ -154,14 +155,17 @@ export function MessageBubble({
               ارسال نشد
             </span>
             {onRetry && (
-              <button
+              <Button
+                type="button"
+                variant="text"
+                size="small"
                 onClick={onRetry}
-                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-bodySmall text-primary transition-colors hover:bg-primary-container"
+                startIcon={<IconRetry size={14} />}
                 aria-label="تلاش مجدد برای ارسال"
+                className="h-7 !px-2.5 text-caption"
               >
-                <IconRetry size={14} />
                 تلاش مجدد
-              </button>
+              </Button>
             )}
           </div>
         )}

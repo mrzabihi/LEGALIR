@@ -19,6 +19,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@legalir/ui";
 import type { UnifiedContract } from "@/lib/contracts/unified";
 import { groupUnifiedContracts } from "@/lib/contracts/unified";
 import { toPersianNumber } from "@/lib/persian-utils";
@@ -112,14 +113,15 @@ export function CompactContractSections({
           <p className="text-body-2 text-on-surface-variant">
             بارگذاری قراردادهای شما ناموفق بود.
           </p>
-          <button
+          <Button
             type="button"
+            variant="outlined"
+            size="small"
             onClick={onRetry}
-            className="inline-flex items-center gap-1.5 rounded-medium border border-divider px-3 py-1.5 text-labelLarge font-medium text-on-surface transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            startIcon={<IconRefresh size={16} />}
           >
-            <IconRefresh size={16} aria-hidden="true" />
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       ) : !hasAny ? (
         <p className="rounded-medium border border-divider bg-surface px-4 py-3 text-body-2 text-muted">

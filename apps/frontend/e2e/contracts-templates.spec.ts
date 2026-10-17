@@ -63,6 +63,30 @@ async function waitForHydration(locator: Locator) {
     .toBe(true);
 }
 
+/**
+ * Type a query and wait for it to reach `?q=`.
+ *
+ * The commit is a settled-debounce effect (350ms after the last
+ * keystroke). When a dev-server Fast Refresh lands inside that window the
+ * component remounts, the field resets to the empty URL value, and the
+ * pending write never happens — an artifact of editing source while the
+ * suite runs, not user-visible behaviour. Re-typing once makes the test
+ * assert the real contract (type → URL) without masking a genuine
+ * failure: a broken writer still never updates the URL.
+ */
+async function typeAndCommit(page: Page, box: Locator, query: string) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (attempt > 1) await waitForHydration(box);
+    await box.fill(query);
+    try {
+      await expect(page).toHaveURL(/q=/, { timeout: 8_000 });
+      return;
+    } catch (err) {
+      if (attempt === 2) throw err;
+    }
+  }
+}
+
 let cachedSessionId: string | null = null;
 
 async function getOrCreateSession(request: APIRequestContext): Promise<string> {
@@ -150,10 +174,7 @@ test.describe("Configurable-contract listing", () => {
 
     const box = page.getByRole("searchbox", { name: "جستجوی قرارداد" });
     await waitForHydration(box);
-    await box.fill("ملک");
-    // The write is a settled-debounce effect, so it lands ~350ms after the
-    // last keystroke; the budget only has to absorb a dev-server compile.
-    await expect(page).toHaveURL(/q=/, { timeout: APP_READY_TIMEOUT });
+    await typeAndCommit(page, box, "ملک");
 
     const url = new URL(page.url());
     expect(url.searchParams.get("q")).toBe("ملک");
@@ -179,8 +200,7 @@ test.describe("Configurable-contract listing", () => {
 
     const box = page.getByRole("searchbox", { name: "جستجوی قرارداد" });
     await waitForHydration(box);
-    await box.fill("محرمانگی");
-    await expect(page).toHaveURL(/q=/, { timeout: APP_READY_TIMEOUT });
+    await typeAndCommit(page, box, "محرمانگی");
     // The search must NARROW the real catalogue, not merely decorate it.
     await expect.poll(async () => catalogCards(page).count()).toBeLessThan(all);
 

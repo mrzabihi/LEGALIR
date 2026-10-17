@@ -7,7 +7,7 @@
 // former monolithic settings page so each sub-route stays focused.
 // ============================================================
 
-import { SwitchRow } from "@legalir/ui";
+import { Button, SwitchRow } from "@legalir/ui";
 import { IconInfo, IconRefresh, IconWarning } from "@/lib/icons";
 
 /** Card wrapper used by every settings section. */
@@ -140,13 +140,15 @@ export function ErrorBanner({
       <IconWarning className="text-error" size={28} />
       <p className="text-body-1 text-error">{message}</p>
       {onRetry && (
-        <button
+        <Button
+          type="button"
+          variant="text"
+          size="small"
           onClick={onRetry}
-          className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
+          startIcon={<IconRefresh size={16} />}
         >
-          <IconRefresh size={16} />
           تلاش مجدد
-        </button>
+        </Button>
       )}
     </div>
   );

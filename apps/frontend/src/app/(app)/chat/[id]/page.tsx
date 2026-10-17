@@ -19,7 +19,7 @@ import { SourceDetailDrawer } from "@/components/chat/source-detail-drawer";
 import { signalApiReachable } from "@/components/chat/connection-status";
 import { ReferencesTab } from "@/components/chat/references-tab";
 import { SourcesTab } from "@/components/chat/sources-tab";
-import { Tabs } from "@legalir/ui";
+import { Button, Tabs } from "@legalir/ui";
 import { IconClose } from "@/lib/icons";
 import { streamChat } from "@/lib/ai/stream-client";
 import type { PipelineProgress } from "@/lib/ai/stream-client";
@@ -454,12 +454,9 @@ export default function ConversationPage() {
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                       <p className="text-bodyMedium text-muted mb-4">گفتگو جمع شده است</p>
-                      <button
-                        onClick={() => setIsMinimized(false)}
-                        className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-on px-6 py-3 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98] shadow-md"
-                      >
+                      <Button size="large" onClick={() => setIsMinimized(false)}>
                         بازکردن گفتگو
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (

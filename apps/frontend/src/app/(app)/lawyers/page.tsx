@@ -21,8 +21,9 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { Button } from "@legalir/ui";
 import { useLawyers } from "@/hooks/useLawyers";
-import { IconInfo, IconRefresh, IconHandshake, IconSparkle, IconUsers } from "@/lib/icons";
+import { IconInfo, IconRefresh, IconHandshake, IconSparkle, IconUsers, IconClose } from "@/lib/icons";
 import {
   LawyerCard,
   LawyerCarousel,
@@ -183,13 +184,15 @@ export default function LawyersPage() {
       {isError && (
         <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-6 text-center">
           <p className="text-body-1 text-error">دریافت فهرست وکلا با مشکل مواجه شد.</p>
-          <button
+          <Button
+            type="button"
+            variant="text"
+            size="small"
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
+            startIcon={<IconRefresh size={16} />}
           >
-            <IconRefresh size={16} />
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       )}
 
@@ -204,13 +207,15 @@ export default function LawyersPage() {
             {isFiltering ? "فیلترها را تغییر دهید یا جستجو را پاک کنید" : "لطفاً بعداً دوباره سر بزنید"}
           </p>
           {isFiltering && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={clearFilters}
-              className="mt-2 rounded-full border border-divider bg-surface px-4 py-2 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover"
+              startIcon={<IconClose size={16} />}
+              className="mt-2"
             >
               پاک کردن فیلترها
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -219,13 +224,15 @@ export default function LawyersPage() {
       {!isLoading && !isError && items.length > 0 && isFiltering && (
         <div>
           <div className="mb-3 flex items-center justify-end gap-3">
-            <button
+            <Button
               type="button"
+              variant="text"
+              size="small"
               onClick={clearFilters}
-              className="rounded-full px-3 py-1 text-caption font-medium text-primary transition-colors hover:bg-surface-hover"
+              startIcon={<IconClose size={16} />}
             >
               پاک کردن فیلترها
-            </button>
+            </Button>
           </div>
           <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 desktop:grid-cols-3">
             {items.map((lawyer) => (

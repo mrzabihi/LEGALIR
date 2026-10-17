@@ -216,14 +216,16 @@ export default function SuggestLawPage() {
     <div className="mx-auto max-w-3xl p-4 tablet:p-6" dir="rtl">
       {/* Header — a back affordance, the page title and the standing caution. */}
       <div className="mb-5">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="small"
           onClick={goBack}
-          className="mb-3 inline-flex items-center gap-1.5 rounded-medium px-2 py-1 text-labelMedium text-muted transition hover:bg-surface-hover hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary touch-target"
+          startIcon={<IconArrowBack size={16} />}
+          className="mb-3"
         >
-          <IconArrowBack size={16} />
           بازگشت
-        </button>
+        </Button>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-h2 text-on-surface">پیشنهاد مسیر حقوقی</h1>
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 text-caption font-medium text-muted">
@@ -388,15 +390,17 @@ function SummaryCard({
             بخش «شما گفتید» را خودت گفته‌ای؛ بخش «حدس ما» را سیستم استنباط کرده و قابل اصلاح است.
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="small"
           onClick={onToggleEdit}
           aria-expanded={editing}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-medium border border-divider px-3 py-1.5 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary touch-target"
+          startIcon={<IconEdit size={16} />}
+          className="shrink-0"
         >
-          <IconEdit size={16} />
           {editing ? "بستن اصلاح" : "اصلاح"}
-        </button>
+        </Button>
       </div>
 
       {editing && <div className="mb-4">{onEditFields}</div>}
@@ -728,13 +732,14 @@ function Alternatives({
                     </p>
                   </div>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => onGo(intent, dest)}
-                  className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary mobile-l:self-auto touch-target"
+                  className="shrink-0 self-start mobile-l:self-auto"
                 >
                   رفتن
-                </button>
+                </Button>
               </div>
             </li>
           );
@@ -770,18 +775,16 @@ function AnalysisNotes({
               مسیرهای بالا به‌صورت خودکار و بدون تحلیل هوش مصنوعی پیشنهاد شده‌اند تا درخواستت معطل
               نماند. می‌توانی تحلیل را دوباره امتحان کنی.
             </p>
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={onRetry}
-              disabled={isAnalyzing}
-              className="mt-3 inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 disabled:opacity-50 touch-target"
+              loading={isAnalyzing}
+              startIcon={<IconRefresh size={16} />}
+              className="mt-3"
             >
-              <IconRefresh
-                size={16}
-                className={isAnalyzing ? "animate-spin motion-reduce:animate-none" : undefined}
-              />
               تحلیل مجدد
-            </button>
+            </Button>
           </div>
         </div>
       </Card>
@@ -908,22 +911,22 @@ function ServiceUnavailableState({
               : "بر اساس تنظیمات فعلی سامانه، هیچ‌یک از خدمات مرتبط با این درخواست در دسترس نیست. می‌توانی دوباره تلاش کنی یا با پشتیبانی تماس بگیری."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={onRetry}
-              className="inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 touch-target"
+              startIcon={<IconRefresh size={16} />}
             >
-              <IconRefresh size={16} />
               تلاش دوباره
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secondary"
               onClick={onGoNew}
-              className="inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition hover:border-primary hover:bg-primary-container/40 touch-target"
+              startIcon={<IconEdit size={16} />}
             >
-              <IconEdit size={16} />
               ویرایش درخواست
-            </button>
+            </Button>
           </div>
         </div>
       </div>
