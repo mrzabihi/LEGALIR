@@ -99,6 +99,25 @@ test("admin audit screenshots", async ({ page, request }) => {
       fullPage: true,
     });
 
+    // Tablet — the breakpoint where the admin shell switches to a persistent
+    // rail on some pages, so it needs its own capture.
+    await page.setViewportSize({ width: 834, height: 1112 });
+    await page.goto(route, { waitUntil: "networkidle", timeout: 60_000 });
+    await page.waitForTimeout(500);
+    const tabletScroll = await page.evaluate(() => ({
+      sw: document.documentElement.scrollWidth,
+      cw: document.documentElement.clientWidth,
+    }));
+    if (tabletScroll.sw > tabletScroll.cw + 1) {
+      overflows.push(
+        `tablet ${name}: scrollWidth ${tabletScroll.sw} > clientWidth ${tabletScroll.cw}`
+      );
+    }
+    await page.screenshot({
+      path: path.join("e2e", "__shots__", "ui-audit-admin", LABEL, `tablet-${name}.png`),
+      fullPage: true,
+    });
+
     // Mobile — also assert the page never scrolls sideways.
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(route, { waitUntil: "networkidle", timeout: 60_000 });
@@ -119,10 +138,11 @@ test("admin audit screenshots", async ({ page, request }) => {
           (el) =>
             el.scrollWidth > el.clientWidth + 1 &&
             el.clientWidth > 0 &&
-            // Intentional scroll containers and visually-hidden mirrors are not
-            // layout defects.
-            !el.classList.contains("sr-only") &&
-            !el.className.includes("overflow-x-auto")
+            // Intentional scroll containers, visually-hidden mirrors and
+            // deliberately truncated cells are not layout defects.
+            !el.closest(".sr-only") &&
+            !el.className.includes("overflow-x-auto") &&
+            !el.className.includes("truncate")
         )
         .slice(0, 8)
         .map(

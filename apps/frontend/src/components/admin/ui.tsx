@@ -409,12 +409,19 @@ export function StatCard({
             {icon}
           </span>
         )}
-        <p className="min-w-0 flex-1 text-caption font-medium text-muted">{label}</p>
+        {/* `break-words` is the safety net for a long single token (a ZWNJ word
+            like «درخواست‌های» cannot wrap at the joiner); normally the label
+            wraps at its spaces and never needs it. */}
+        <p className="min-w-0 flex-1 break-words text-caption font-medium text-muted">{label}</p>
+        {/* At a 2-up phone width the card interior is ~123px and this glyph
+            alone costs the label ~19px — enough to clip its first word. The
+            card itself is the link and carries a visible «مشاهدهٔ جزئیات» line,
+            so the corner hint is decorative there and is dropped below tablet. */}
         {href && (
           <IconOpenInNew
             size={14}
             aria-hidden="true"
-            className="shrink-0 text-outline-variant transition-colors group-hover:text-primary"
+            className="hidden shrink-0 text-outline-variant transition-colors group-hover:text-primary tablet:block"
           />
         )}
       </div>

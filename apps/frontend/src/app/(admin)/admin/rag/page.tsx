@@ -190,10 +190,17 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
                       {data.status.unindexedFiles.slice(0, 8).map((f) => (
                         <li
                           key={f}
-                          className="flex items-center gap-1.5 text-caption text-on-surface"
+                          className="flex min-w-0 items-center gap-1.5 text-caption text-on-surface"
                           dir="ltr"
                         >
-                          <IconFileText size={14} /> {f}
+                          <IconFileText size={14} className="shrink-0" />
+                          {/* A long underscore-joined filename has no break
+                              opportunity, so it would spill out of the card on a
+                              phone. Truncate the row and keep the full name in
+                              the tooltip. */}
+                          <span className="min-w-0 truncate" title={f}>
+                            {f}
+                          </span>
                         </li>
                       ))}
                       {data.status.unindexedFiles.length > 8 && (

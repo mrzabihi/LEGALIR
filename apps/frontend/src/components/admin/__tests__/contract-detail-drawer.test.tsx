@@ -34,6 +34,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/hooks/useAdmin", () => ({
+  // The drawer reads the stamp permissions from `useAdminMe`. The review
+  // decision itself is gated on the `canReview` prop, so denying every
+  // permission here keeps these tests focused on the decision surface.
+  useAdminMe: () => ({ can: () => false, role: null, isStaff: false }),
   useAdminContract: (id: string | null) => ({
     data: id ? state.detail : undefined,
     isLoading: false,

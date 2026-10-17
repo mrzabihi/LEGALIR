@@ -45,6 +45,9 @@ vi.mock("@/hooks/useAdmin", () => ({
     isPending: false,
   }),
   useSetAdminPlanStatus: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  // The page's «گزارش زنده» block reads the admin reports query; it is not
+  // under test here, so it answers with an empty window.
+  useAdminReports: () => ({ data: undefined, isLoading: false, isError: false, isFetching: false }),
 }));
 
 // The live card preview pulls its own deps; not under test here.

@@ -110,6 +110,7 @@ class OtpSignatureProvider implements SignatureProvider {
         destinationMasked: maskMobile(mobile),
         expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
         remainingAttempts: 0,
+        failureReason: "RATE_LIMITED",
       };
     }
 
@@ -131,6 +132,7 @@ class OtpSignatureProvider implements SignatureProvider {
         destinationMasked: maskMobile(mobile),
         expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
         remainingAttempts: 0,
+        failureReason: "DELIVERY_FAILED",
       };
     }
 

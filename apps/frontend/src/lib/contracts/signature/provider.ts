@@ -33,6 +33,12 @@ export interface ChallengeIssued {
   expiresAt: string;
   /** Attempts remaining before the challenge is destroyed. */
   remainingAttempts: number;
+  /**
+   * Why a challenge was not sent. Without it a caller can only guess, and
+   * a rate-limited send gets reported as "SMS not configured" — a
+   * misleading error state the brief explicitly forbids.
+   */
+  failureReason?: "RATE_LIMITED" | "DELIVERY_FAILED";
 }
 
 /** The outcome of verifying a challenge. */

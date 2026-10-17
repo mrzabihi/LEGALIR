@@ -270,8 +270,8 @@ test("employment print output — schema-driven tables, A4, page numbers", async
     pages.push(
       tc.items.map((i) => ("str" in i && typeof i.str === "string" ? i.str : "")).join(" ")
     );
-    const [, , w, h] = pg.view;
-    sizes.push({ w, h });
+    const view = pg.view;
+    sizes.push({ w: view[2] ?? 0, h: view[3] ?? 0 });
   }
 
   const A4_PT = { w: 595.28, h: 841.89 };

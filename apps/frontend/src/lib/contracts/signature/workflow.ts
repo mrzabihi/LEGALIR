@@ -367,25 +367,46 @@ export async function requestOtpForParticipant(
   // route never claims a code was sent when it was not (§8).
   if (!issued.sent) {
     const sms = { configured: smsConfigured() };
+    // A rate-limited send is a DIFFERENT failure from an unconfigured
+    // gateway: the code was never attempted because the signer already
+    // requested too many. Reporting it as «پیکربندی نشده» would send the
+    // admin hunting a configuration problem that does not exist.
+    const rateLimited = issued.failureReason === "RATE_LIMITED";
+    const code = rateLimited
+      ? "OTP_RATE_LIMITED"
+      : sms.configured
+        ? "OTP_SEND_FAILED"
+        : "SMS_NOT_CONFIGURED";
     appendSignatureEvent({
       signatureRequestId: request.id,
       contractId: contract.id,
       participantId: participant.id,
       type: "OTP_FAILED",
-      descriptionFa: "ارسال کد تأیید ناموفق بود.",
+      descriptionFa: rateLimited
+        ? "تعداد درخواست کد تأیید بیش از حد مجاز است."
+        : "ارسال کد تأیید ناموفق بود.",
       contractVersionId: request.contractVersionId,
       documentHash: request.documentHash,
       authMethod: "OTP_SMS",
       clientFingerprint: fingerprint,
-      metadata: { stage: "request", reason: sms.configured ? "PROVIDER_ERROR" : "NOT_CONFIGURED" },
+      metadata: {
+        stage: "request",
+        reason: rateLimited
+          ? "RATE_LIMITED"
+          : sms.configured
+            ? "PROVIDER_ERROR"
+            : "NOT_CONFIGURED",
+      },
     });
     return NextResponse.json(
       {
-        code: sms.configured ? "OTP_SEND_FAILED" : "SMS_NOT_CONFIGURED",
-        message: sms.configured
-          ? "ارسال کد تأیید ناموفق بود؛ شماره دیگری امتحان کنید یا کمی بعد تلاش کنید."
-          : "سامانهٔ پیامک پیکربندی نشده است؛ ارسال کد تأیید ممکن نیست.",
-        retryable: sms.configured,
+        code,
+        message: rateLimited
+          ? "تعداد درخواست کد تأیید بیش از حد مجاز است؛ چند دقیقهٔ دیگر دوباره تلاش کنید."
+          : sms.configured
+            ? "ارسال کد تأیید ناموفق بود؛ شماره دیگری امتحان کنید یا کمی بعد تلاش کنید."
+            : "سامانهٔ پیامک پیکربندی نشده است؛ ارسال کد تأیید ممکن نیست.",
+        retryable: rateLimited || sms.configured,
         sms,
       },
       { status: 409 }

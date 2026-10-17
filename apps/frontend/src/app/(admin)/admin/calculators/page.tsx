@@ -186,7 +186,9 @@ export default function AdminCalculatorsPage() {
               <IconShieldCheck size={20} />
             </span>
             <div className="min-w-0">
-              <p className="flex items-center gap-2 font-medium text-on-surface">
+              {/* The badge is `whitespace-nowrap`; without wrap on the row it
+                  was squeezed into the title and overlapped it at 390px. */}
+              <p className="flex flex-wrap items-center gap-2 font-medium text-on-surface">
                 مدیریت فرمول‌ها
                 <Badge tone="info">ویژهٔ Super Admin</Badge>
               </p>

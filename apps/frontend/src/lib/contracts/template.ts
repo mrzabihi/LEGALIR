@@ -957,14 +957,27 @@ function genericClauses(
     // A declared table OWNS its fields: they print only there, with the
     // headers the definition chose, so an answer can never appear twice.
     const blocks: (RenderedBlock | null)[] = [];
+    const descriptorByKey = new Map(def.fields.map((f) => [f.key, f]));
     const declaredTables = (def.fieldTables ?? []).filter((t) => t.stepId === step.id);
-    const groupedKeys = new Set(declaredTables.flatMap((t) => t.rows.map((r) => r.key)));
+    // A repeatable field is its OWN table. A definition may still name its
+    // key as a row in a two-column spec table (commercial_sale does), but a
+    // spec cell can only hold one value — it would flatten an entire
+    // schedule into a single " | "-joined string. Such rows are therefore
+    // skipped here and the key is left un-owned, so the repeatable path
+    // below always draws the real table.
+    const isRepeatableKey = (key: string): boolean =>
+      descriptorByKey.get(key)?.kind === "repeatable";
+    const groupedKeys = new Set(
+      declaredTables
+        .flatMap((t) => t.rows.map((r) => r.key))
+        .filter((key) => !isRepeatableKey(key))
+    );
 
     for (const t of declaredTables) {
       const rowsFa: string[][] = [];
       for (const row of t.rows) {
-        const descriptor = def.fields.find((f) => f.key === row.key);
-        if (!descriptor) continue;
+        const descriptor = descriptorByKey.get(row.key);
+        if (!descriptor || descriptor.kind === "repeatable") continue;
         const value = values[row.key];
         const filled = value !== null && value !== undefined && value !== "";
         // A required row stays visible (with the placeholder) so a draft

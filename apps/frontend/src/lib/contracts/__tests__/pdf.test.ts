@@ -65,8 +65,8 @@ function version(): PropertyContractVersion {
   } as PropertyContractVersion;
 }
 
-/** Extract the PDF text layer (logical order, as pdfjs reads it). */
-async function extractText(bytes: Uint8Array): Promise<string> {
+/** The PDF text layer, one entry per page (logical order, as pdfjs reads it). */
+async function extractPageTexts(bytes: Uint8Array): Promise<string[]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({
     data: bytes,
@@ -74,13 +74,20 @@ async function extractText(bytes: Uint8Array): Promise<string> {
     isEvalSupported: false,
     useSystemFonts: false,
   }).promise;
-  let out = "";
+  const pages: string[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const tc = await page.getTextContent();
-    out += tc.items.map((i) => ("str" in i && typeof i.str === "string" ? i.str : "")).join(" ") + "\n";
+    pages.push(
+      tc.items.map((i) => ("str" in i && typeof i.str === "string" ? i.str : "")).join(" ")
+    );
   }
-  return out;
+  return pages;
+}
+
+/** Extract the PDF text layer (logical order, as pdfjs reads it). */
+async function extractText(bytes: Uint8Array): Promise<string> {
+  return (await extractPageTexts(bytes)).join("\n");
 }
 
 describe("renderContractPdf — Persian shaping", () => {
@@ -102,6 +109,185 @@ describe("renderContractPdf — Persian shaping", () => {
     expect(text).toContain("RENT-1405-0001");
     // A real clause heading is present, proving body text rendered.
     expect(text).toContain("طرفین قرارداد");
+  });
+});
+
+// ============================================================
+// The letterhead and the printed identity — §6 of the brief
+// ============================================================
+// The printed PDF is the print output; a browser screenshot is not. So the
+// letterhead, the running head and the page numbering are asserted against
+// the PDF's own text layer, per page.
+
+describe("renderContractPdf — letterhead, running head and page numbers", () => {
+  it("prints the identifying block on page 1 and repeats it on pages 2+", async () => {
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+    });
+    const pages = await extractPageTexts(bytes);
+    const norm = (s: string) => s.replace(/\u200c/g, " ").replace(/\s+/g, " ");
+
+    // Page 1: type, reference code, issue date and version label — the
+    // identification group the brief requires at the top-left.
+    expect(norm(pages[0]!)).toContain(norm("اجاره‌نامه"));
+    expect(pages[0]).toContain("RENT-1405-0001");
+    expect(norm(pages[0]!)).toContain(norm("تاریخ صدور"));
+    // The version line reads across a bidi boundary (Persian label, Latin
+    // template version, Persian digits), so assert its parts, not a phrase.
+    expect(norm(pages[0]!)).toContain(norm("نسخه قالب"));
+    expect(pages[0]).toContain("1.0.0");
+    // The title is on the sheet, and a real clause reached the body.
+    expect(norm(pages[0]!)).toContain(norm("اجاره‌نامه آپارتمان"));
+    expect(norm(pages[0]!)).toContain(norm("طرفین قرارداد"));
+
+    // Every page carries «صفحه N از M» with the true total. A mixed Persian +
+    // Persian-digit line may be reported by pdfjs in either logical or visual
+    // order, so both readings are accepted — the point is that the true page
+    // count is printed on every page, never a stale "1 of 1".
+    const total = pages.length;
+    const faDigits = (n: number) => String(n).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]!);
+    pages.forEach((text, index) => {
+      const logical = norm(`صفحه ${faDigits(index + 1)} از ${faDigits(total)}`);
+      const visual = norm(`${faDigits(total)} از ${faDigits(index + 1)} صفحه`);
+      expect(
+        norm(text).includes(logical) || norm(text).includes(visual),
+        `page ${index + 1} page number`
+      ).toBe(true);
+    });
+
+    // Pages 2+ repeat the identity in the running head, so a loose sheet is
+    // always traceable to its contract and revision.
+    for (const [index, text] of pages.slice(1).entries()) {
+      expect(text, `running head on page ${index + 2}`).toContain("RENT-1405-0001");
+      expect(norm(text), `running head on page ${index + 2}`).toContain(norm("نسخه قالب"));
+    }
+
+    // No page is blank — a print defect the brief calls out explicitly.
+    for (const [index, text] of pages.entries()) {
+      expect(text.trim().length, `page ${index + 1} is blank`).toBeGreaterThan(40);
+    }
+  });
+});
+
+// ============================================================
+// The schema-driven path — a non-property type reaches the same PDF
+// ============================================================
+// `property_rent` is rendered by the bespoke builder; employment is
+// rendered by `genericClauses` from the registry field descriptors and
+// declares five semantic tables. Both must produce the same printable
+// contract, so this asserts the server PDF, not a browser screenshot.
+
+describe("renderContractPdf — a schema-driven contract (employment)", () => {
+  function employmentContract(): PropertyContract {
+    const def = getContractDefinition("employment");
+    return {
+      id: "ct-emp",
+      userId: "user-A",
+      domain: "employment",
+      type: "employment",
+      typeFa: def.typeFa,
+      title: "قرارداد کار کارشناس حسابداری",
+      state: "finalized",
+      currentStep: "review",
+      progress: 100,
+      referenceCode: "EMPLOY-1405-0007",
+      publicVerificationId: "pub-emp",
+      templateVersion: def.templateVersion,
+      schemaVersion: 1,
+      finalVersionId: "ver-emp",
+      finalizedAt: "2026-08-10T10:00:00Z",
+      data: {
+        schemaVersion: 1,
+        values: {
+          jobTitle: "کارشناس حسابداری",
+          jobDuties: "ثبت اسناد مالی و تهیهٔ گزارش‌های دوره‌ای.",
+          jobWorkplace: "تهران",
+          contractType: "definite",
+          startDate: "2026-10-01",
+          endDate: "2027-09-30",
+          baseSalary: { amount: 250_000_000, currency: "IRR" },
+          wagePeriod: "monthly",
+          weeklyHours: 44,
+          workSchedule: "شنبه تا چهارشنبه ۸ تا ۱۷",
+          socialInsurance: "yes",
+          mutualObligations: "رعایت مقررات کارگاه و حفظ اسرار تجاری.",
+          governingLaw: "iran",
+        },
+        customClauses: [
+          {
+            id: "cc-emp",
+            kind: "change_request",
+            title: "افزایش مرخصی",
+            body: "پیشنهاد افزایش مرخصی به ۳۰ روز.",
+            sectionRef: "hours",
+            createdAt: "2026-08-01T00:00:00Z",
+          },
+        ],
+        supplementary: { notes: "تغییر شرح وظایف با الحاقیهٔ کتبی." },
+      },
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-10T10:00:00Z",
+    } as unknown as PropertyContract;
+  }
+
+  function employmentVersion(): PropertyContractVersion {
+    const c = employmentContract();
+    const snapshot: ContractVersionSnapshot = {
+      data: c.data,
+      parties: [
+        { id: "pty-e1", role: "employer", identity: { firstName: "مریم", lastName: "محمدی", nationalId: "0012345678" } },
+        { id: "pty-e2", role: "employee", identity: { firstName: "رضا", lastName: "کریمی", nationalId: "0087654321" } },
+      ] as unknown as ContractParty[],
+      payments: [],
+      documentsManifest: [],
+    };
+    return {
+      id: "ver-emp",
+      contractId: "ct-emp",
+      versionNumber: 1,
+      templateVersion: "employment-v1.0.0",
+      documentHash: "b".repeat(64),
+      snapshot,
+      createdBy: "user-A",
+      createdAt: "2026-08-10T10:00:00Z",
+    } as PropertyContractVersion;
+  }
+
+  it("prints the generic clauses, the table headers and the non-operative annex", async () => {
+    const bytes = await renderContractPdf({
+      contract: employmentContract(),
+      version: employmentVersion(),
+      baseUrl: "https://legalir.example",
+    });
+    expect(String.fromCharCode(...bytes.slice(0, 5))).toBe("%PDF-");
+
+    const pages = await extractPageTexts(bytes);
+    const text = pages.join("\n");
+    const norm = (s: string) => s.replace(/\u200c/g, " ").replace(/\s+/g, " ");
+
+    // The identifying group and the clause body both reached the sheet.
+    expect(pages[0]).toContain("EMPLOY-1405-0007");
+    expect(norm(text)).toContain(norm("طرفین قرارداد"));
+    expect(norm(text)).toContain(norm("کارشناس حسابداری"));
+
+    // A declared table's headers are printed — the answer is not a
+    // free-text paragraph. Both header cells of the wages table must exist.
+    // (pdfjs splits the «هٔ» of «نحوهٔ» across two runs, so the caption is
+    // matched on the stable part; the second header is a single run.)
+    expect(norm(text)).toContain(norm("حقوق، مزایا و نحو"));
+    expect(norm(text)).toContain(norm("مبلغ / ترتیب"));
+
+    // A requested change never prints as an operative term; it lands in
+    // the labelled non-operative annex. («لا» is extracted as «ال» by the
+    // shaper, so match the unambiguous tail of the heading.)
+    expect(norm(text)).toContain(norm("تغییرات درخواستی"));
+
+    // No blank page.
+    for (const [index, page] of pages.entries()) {
+      expect(page.trim().length, `page ${index + 1} is blank`).toBeGreaterThan(40);
+    }
   });
 });
 

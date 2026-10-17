@@ -11,7 +11,8 @@
 //     another user's contract (404, never 403)
 //   • a non-admin cannot decide an admin review (403)
 //   • the OTP provider's REAL send result is surfaced: a rate-limited
-//     send is reported as OTP_SEND_FAILED, never a fake success
+//     send is reported as OTP_RATE_LIMITED (never as «پیکربندی نشده»,
+//     which would misdirect the operator), never as a fake success
 //   • an overdue in-flight request reads as REQUEST_EXPIRED
 //   • a wet-ink signature requires a valid uploaded scan and records
 //     PHYSICAL_WET_INK + a signed_scan document bound to the version
@@ -348,7 +349,7 @@ describe("signature request — real send results, wet-ink, and OTP", () => {
     expect(types).toContain("REQUEST_SENT");
   });
 
-  it("reports a REAL failed send as OTP_SEND_FAILED rather than a fake success", async () => {
+  it("reports a REAL rate-limited send as OTP_RATE_LIMITED rather than a fake success", async () => {
     // The provider rate-limits to 3 per subject; the 4th attempt is refused.
     for (let i = 0; i < 3; i += 1) {
       const ok = await signPost(
@@ -370,7 +371,14 @@ describe("signature request — real send results, wet-ink, and OTP", () => {
       params(ID)
     );
     expect(blocked.status).toBe(409);
-    expect((await json<{ code: string }>(blocked)).code).toBe("OTP_SEND_FAILED");
+    // The real cause is a quota exhaustion, NOT a missing SMS gateway —
+    // reporting it as SMS_NOT_CONFIGURED would send an operator chasing a
+    // configuration problem that does not exist.
+    const blockedBody = await json<{ code: string; retryable: boolean; sms: { configured: boolean } }>(
+      blocked
+    );
+    expect(blockedBody.code).toBe("OTP_RATE_LIMITED");
+    expect(blockedBody.retryable).toBe(true);
 
     // The failure is recorded on the tamper-evident trail.
     const failed = signatureDb
@@ -625,7 +633,7 @@ describe("public signature invitation — single-use link", () => {
     expect(types).toContain("INVITATION_SENT");
   });
 
-  it("marks the participant VIEWED on first open and refuses a second use", async () => {
+  it("marks the participant VIEWED on first open and keeps the link usable", async () => {
     const issued = await invitationsRoute.POST(
       req(`${BASE}/${ID}/invitations`, ownerSession, { participantIds: [landlordId] }),
       params(ID)
@@ -641,7 +649,11 @@ describe("public signature invitation — single-use link", () => {
     expect(view.roleFa).toBe("موجر");
     expect(view.referenceCode).toContain("LGL-RENT");
 
-    // POST — consume the token: participant → VIEWED, DOCUMENT_VIEWED appended.
+    // POST — `open` records the read: participant → VIEWED, DOCUMENT_VIEWED
+    // appended. It is idempotent and deliberately does NOT consume the
+    // token: the signer still needs the same link to request a review and
+    // to complete the OTP steps. Only a TERMINAL act (signature recorded
+    // or refusal declared) burns the link — covered by the two specs below.
     const opened = await invitationTokenRoute.POST(
       getReq(`${INVITATIONS_BASE}/${token}`, null),
       tokenParams(token)
@@ -652,10 +664,9 @@ describe("public signature invitation — single-use link", () => {
       signatureDb.listSignatureEvents(requestId).some((e) => e.type === "DOCUMENT_VIEWED")
     ).toBe(true);
 
-    // Single-use: a second GET is refused.
     const again = await invitationTokenRoute.GET(getReq(`${INVITATIONS_BASE}/${token}`, null), tokenParams(token));
-    expect(again.status).toBe(410);
-    expect((await json<{ code: string }>(again)).code).toBe("USED");
+    expect(again.status).toBe(200);
+    expect((await json<{ data: { status: string } }>(again)).data.status).toBe("ACTIVE");
   });
 
   it("refuses a revoked invitation", async () => {

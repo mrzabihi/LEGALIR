@@ -242,6 +242,275 @@ async function seed(request: APIRequestContext, sessionId: string): Promise<stri
   return id;
 }
 
+/**
+ * Seed a schema-driven type (cloud IaaS). This exercises the OTHER render
+ * path: `genericClauses` + `fieldTables`, whose tables are built from the
+ * registry rather than hand-written.
+ */
+async function seedCloud(request: APIRequestContext, sessionId: string): Promise<string> {
+  const cookie = `${SESSION_COOKIE}=${sessionId}`;
+  const created = await request.post("/api/v1/property-contracts", {
+    headers: { cookie },
+    data: { type: "cloud_iaas", title: "قرارداد خدمات ابری — IaaS" },
+  });
+  const id = ((await created.json()) as { data?: { id?: string } }).data?.id;
+  if (!id) throw new Error("create failed");
+
+  const money = (toman: number) => ({ amount: toman * 10, currency: "IRR" });
+  const values: Record<string, unknown> = {
+    serviceName: "زیرساخت ابری سازمانی",
+    serviceDescription: "ارائهٔ ماشین مجازی، شبکه و ذخیره‌سازی اختصاصی",
+    hostingRegion: "تهران — دیتاسنتر داخلی",
+    contractStartDate: "2026-10-01",
+    contractTermMonths: 12,
+    computeSpecs: "۸ هسته، ۳۲ گیگابایت حافظه",
+    storageSpecs: "۵۰۰ گیگابایت SSD",
+    networkSpecs: "۱ گیگابیت بر ثانیه",
+    backupPolicy: "پشتیبان‌گیری روزانه با نگهداری ۳۰ روزه",
+    availabilitySla: 99.9,
+    supportHours: "۲۴×۷",
+    responseTime: "حداکثر ۳۰ دقیقه",
+    maintenanceWindow: "سه‌شنبه ۰۲:۰۰ تا ۰۴:۰۰",
+    securityMeasures: "رمزنگاری داده در حالت سکون و انتقال، احراز هویت دومرحله‌ای",
+    uptimePenalty: money(20_000_000),
+    subscriptionFee: money(120_000_000),
+    billingPeriod: "monthly",
+    paymentMethod: "bank_transfer",
+    usageBilling: "مصرف مازاد بر سهمیه، ماهانه صورت‌حساب می‌شود.",
+    customerObligations: "مشتری مسئول مدیریت دسترسی کاربران خود است.",
+    providerObligations: "ارائه‌دهنده متعهد به حفظ دسترس‌پذیری مطابق SLA است.",
+    terminationNoticeDays: 30,
+    terminationTerms: "هر طرف می‌تواند با ۳۰ روز اطلاع کتبی قرارداد را فسخ کند.",
+    dataOwnership: "customer",
+    dataRetentionDays: 90,
+    dataReturnMethod: "خروجی کامل به‌صورت آرشیو رمزنگاری‌شده",
+  };
+
+  const patched = await request.patch(`/api/v1/property-contracts/${id}`, {
+    headers: { cookie },
+    data: { data: { schemaVersion: 1, values, customClauses: [] }, currentStep: "review" },
+  });
+  if (!patched.ok()) throw new Error(`patch failed: ${await patched.text()}`);
+
+  const parties: Array<Record<string, unknown>> = [
+    {
+      role: "provider",
+      personKind: "legal",
+      nationality: "iranian",
+      identity: {
+        firstName: "شرکت ابر آریا",
+        lastName: "",
+        companyRegistrationNumber: "123456",
+        address: "تهران، خیابان ولیعصر، پلاک ۱۰",
+        mobile: "09120000003",
+      },
+    },
+    {
+      role: "customer",
+      personKind: "natural",
+      nationality: "iranian",
+      identity: {
+        firstName: "رضا",
+        lastName: "کریمی",
+        nationalId: "0087654321",
+        mobile: "09120000004",
+        address: "کرج، خیابان شهید بهشتی، پلاک ۴",
+      },
+    },
+  ];
+  let providerId = "";
+  for (const party of parties) {
+    const res = await request.put(`/api/v1/property-contracts/${id}/parties`, {
+      headers: { cookie },
+      data: party,
+    });
+    if (!res.ok()) throw new Error(`party failed: ${await res.text()}`);
+    if (party["role"] === "provider") {
+      providerId = ((await res.json()) as { data?: { id?: string } }).data?.id ?? "";
+    }
+  }
+  if (!providerId) throw new Error("provider party id missing");
+  // A legal entity needs its representative recorded separately, linked by id.
+  const rep = await request.put(`/api/v1/property-contracts/${id}/parties`, {
+    headers: { cookie },
+    data: {
+      role: "legal_representative",
+      representativeOfPartyId: providerId,
+      personKind: "natural",
+      nationality: "iranian",
+      representativePositionFa: "مدیرعامل",
+      identity: {
+        firstName: "علی",
+        lastName: "رضایی",
+        nationalId: "0011223344",
+        mobile: "09120000005",
+      },
+    },
+  });
+  if (!rep.ok()) throw new Error(`representative failed: ${await rep.text()}`);
+  return id;
+}
+
+test("cloud IaaS print output — service model, tables, A4, page numbers", async ({
+  page,
+  request,
+}) => {
+  const sessionId = await getSession(request);
+  const id = await seedCloud(request, sessionId);
+
+  await mockAuth(page, sessionId);
+  await suppressProfilePrompt(page);
+  await page.addInitScript(() => {
+    window.print = () => {};
+  });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/contracts/${id}`);
+  await expect(page.getByText("پیش‌نمایش قرارداد").first()).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("button", { name: "چاپ سند" }).click();
+  const printRoot = page.locator(".a4-print-root");
+  await expect(printRoot).toBeAttached({ timeout: 15_000 });
+  await expect(printRoot.locator(".a4-page").first()).toBeVisible();
+
+  const domPages = await printRoot.locator(".a4-page").count();
+  const clipped = await printRoot.locator(".a4-page").evaluateAll((els) =>
+    els.map((el) => ({
+      overflow: Math.max(0, (el as HTMLElement).scrollHeight - (el as HTMLElement).clientHeight),
+      widthOverflow: Math.max(
+        0,
+        (el as HTMLElement).scrollWidth - (el as HTMLElement).clientWidth
+      ),
+    }))
+  );
+
+  // The chosen service model must be readable in the document identity.
+  const letterheadText = await printRoot.locator(".a4-letterhead").first().innerText();
+  const titleText = await printRoot.locator(".a4-doc-title").first().innerText();
+
+  const tables = await printRoot.evaluate((root) =>
+    Array.from(root.querySelectorAll(".a4-table")).map((t) => ({
+      hasThead: !!t.querySelector("thead"),
+      theadRepeats: t.querySelector("thead")
+        ? getComputedStyle(t.querySelector("thead")!).display === "table-header-group"
+        : false,
+      columns: t.querySelectorAll("thead th").length,
+      rows: t.querySelectorAll("tbody tr").length,
+    }))
+  );
+  const emptyTables = tables.filter((t) => t.rows === 0 || t.columns === 0);
+
+  const pdfPath = path.join(SHOT_DIR, "contract-print-cloud.pdf");
+  fs.mkdirSync(SHOT_DIR, { recursive: true });
+  await page.pdf({ path: pdfPath, printBackground: true, preferCSSPageSize: true });
+
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const bytes = new Uint8Array(fs.readFileSync(pdfPath));
+  const doc = await pdfjs.getDocument({
+    data: bytes,
+    disableFontFace: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  }).promise;
+
+  const pages: string[] = [];
+  const sizes: { w: number; h: number }[] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const pg = await doc.getPage(p);
+    const tc = await pg.getTextContent();
+    pages.push(
+      tc.items.map((i) => ("str" in i && typeof i.str === "string" ? i.str : "")).join(" ")
+    );
+    const view = pg.view;
+    sizes.push({ w: view[2] ?? 0, h: view[3] ?? 0 });
+  }
+  const A4_PT = { w: 595.28, h: 841.89 };
+  const isA4 = (s: { w: number; h: number }) =>
+    Math.abs(s.w - A4_PT.w) < 2 && Math.abs(s.h - A4_PT.h) < 2;
+
+  const report = {
+    pages: doc.numPages,
+    domPages,
+    perPageChars: pages.map((t) => t.trim().length),
+    allPagesA4: sizes.every(isA4),
+    clipped,
+    letterheadMentionsIaaS: /IaaS/.test(letterheadText),
+    titleMentionsIaaS: /IaaS/.test(titleText),
+    tableCount: tables.length,
+    emptyTables: emptyTables.length,
+  };
+  fs.writeFileSync(
+    path.join(SHOT_DIR, "contract-print-cloud-report.json"),
+    JSON.stringify(report, null, 2)
+  );
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(report, null, 2));
+
+  expect(report.perPageChars.every((n) => n > 40), "a printed page is blank").toBe(true);
+  expect(report.pages).toBe(domPages);
+  expect(report.allPagesA4, "a printed page is not A4").toBe(true);
+  expect(clipped.every((c) => c.overflow === 0 && c.widthOverflow === 0), "content is clipped").toBe(
+    true
+  );
+  // Block B cloud rule: the service model is recorded in the title and the
+  // letterhead identity, not only in the form.
+  expect(report.titleMentionsIaaS || report.letterheadMentionsIaaS).toBe(true);
+  // Block B tables: real tables with headings, and no empty table printed.
+  expect(report.tableCount).toBeGreaterThan(0);
+  expect(report.emptyTables, "an empty table reached the sheet").toBe(0);
+  expect(tables.every((t) => t.hasThead && t.theadRepeats)).toBe(true);
+});
+
+test("cloud IaaS preview at mobile width — no horizontal overflow, tables intact", async ({
+  page,
+  request,
+}) => {
+  const sessionId = await getSession(request);
+  const id = await seedCloud(request, sessionId);
+
+  await mockAuth(page, sessionId);
+  await suppressProfilePrompt(page);
+  await page.addInitScript(() => {
+    window.print = () => {};
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/contracts/${id}`);
+  await expect(page.getByText("پیش‌نمایش قرارداد").first()).toBeVisible({ timeout: 20_000 });
+
+  const layout = await page.evaluate(() => {
+    const doc = document.documentElement;
+    // Scope to the VISIBLE stack — the off-screen measurer also has
+    // `.a4-page` boxes and would report its own (unzoomed, -10000px) rect.
+    const pages = document.querySelector(".a4-pages") as HTMLElement | null;
+    const sheet = pages?.querySelector(".a4-page") as HTMLElement | null;
+    const table = pages?.querySelector(".a4-table") as HTMLElement | null;
+    const rect = sheet?.getBoundingClientRect();
+    return {
+      // The page itself must never scroll sideways.
+      docOverflow: Math.max(0, doc.scrollWidth - doc.clientWidth),
+      sheetRect: rect
+        ? { left: rect.left, right: rect.right, width: rect.width }
+        : null,
+      viewport: window.innerWidth,
+      pagesZoom: pages ? getComputedStyle(pages).zoom : null,
+      pagesRect: pages
+        ? { left: pages.getBoundingClientRect().left, right: pages.getBoundingClientRect().right }
+        : null,
+      tableVisible: table ? table.getBoundingClientRect().width > 0 : false,
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(layout, null, 2));
+
+  expect(layout.docOverflow, "the page scrolls horizontally at 390px").toBeLessThanOrEqual(1);
+  expect(
+    (layout.sheetRect?.right ?? 0) <= layout.viewport + 1,
+    `the A4 sheet is cropped on mobile: ${JSON.stringify(layout.sheetRect)}`
+  ).toBe(true);
+  expect(layout.tableVisible, "the printed table collapsed on mobile").toBe(true);
+});
+
 test("contract print output — real PDF, A4, page numbers", async ({ page, request }) => {
   const sessionId = await getSession(request);
   const id = await seed(request, sessionId);
@@ -276,6 +545,54 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
       ),
     }))
   );
+
+  // Letterhead geometry: the logo, the identification block and the
+  // centred title must not overlap one another on page 1.
+  const letterhead = await printRoot.locator(".a4-letterhead").first().evaluate((el) => {
+    const rect = (sel: string) => {
+      const n = el.querySelector(sel);
+      if (!n) return null;
+      const r = n.getBoundingClientRect();
+      return { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+    };
+    const overlaps = (
+      a: { top: number; left: number; bottom: number; right: number } | null,
+      b: { top: number; left: number; bottom: number; right: number } | null
+    ) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const logo = rect(".a4-letterhead-logo");
+    const meta = rect(".a4-letterhead-meta");
+    const title = rect(".a4-doc-title");
+    const box = el.getBoundingClientRect();
+    return {
+      logo,
+      meta,
+      title,
+      container: { left: box.left, right: box.right, width: box.width },
+      logoOverlapsMeta: overlaps(logo, meta),
+      logoOverlapsTitle: overlaps(logo, title),
+      metaOverlapsTitle: overlaps(meta, title),
+      titleCentred: title
+        ? Math.abs((title.left + title.right) / 2 - (el.getBoundingClientRect().left + el.getBoundingClientRect().right) / 2) < 8
+        : false,
+    };
+  });
+
+  // Tables: a real <table>, a repeating heading group, and an unsplittable
+  // row — the three properties that make a multi-page table readable.
+  const tables = await printRoot.evaluate((root) => {
+    const els = Array.from(root.querySelectorAll(".a4-table"));
+    return els.map((t) => {
+      const thead = t.querySelector("thead");
+      const tr = t.querySelector("tbody tr");
+      return {
+        hasThead: !!thead,
+        theadRepeats: thead ? getComputedStyle(thead).display === "table-header-group" : false,
+        rowUnsplittable: tr ? getComputedStyle(tr).breakInside === "avoid" : false,
+        columns: t.querySelectorAll("thead th").length,
+        rows: t.querySelectorAll("tbody tr").length,
+      };
+    });
+  });
 
   const pdfPath = path.join(SHOT_DIR, "contract-print.pdf");
   fs.mkdirSync(SHOT_DIR, { recursive: true });
@@ -320,6 +637,8 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
     // The running head on pages 2+ carries the reference code verbatim.
     refCodeOnPage2: pages[1]?.includes("LGL-RENT-1405-") ?? false,
     clipped,
+    letterhead,
+    tables,
   };
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   fs.writeFileSync(
@@ -338,6 +657,32 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
   expect(report.pages).toBeGreaterThanOrEqual(2);
   expect(report.allPagesA4, "a printed page is not A4").toBe(true);
   expect(report.refCodeOnPage2, "the running head is missing on page 2").toBe(true);
+
+  // Block B — letterhead: logo and identification sit top-left, the title
+  // is centred on its own line, and nothing overlaps anything.
+  expect(report.letterhead.logo, "the letterhead logo is missing").toBeTruthy();
+  expect(report.letterhead.meta, "the identification block is missing").toBeTruthy();
+  expect(report.letterhead.title, "the document title is missing").toBeTruthy();
+  expect(report.letterhead.logoOverlapsMeta, "logo overlaps the identification block").toBe(false);
+  expect(report.letterhead.logoOverlapsTitle, "logo overlaps the title").toBe(false);
+  expect(report.letterhead.metaOverlapsTitle, "identification block overlaps the title").toBe(false);
+  expect(report.letterhead.titleCentred, "the document title is not centred").toBe(true);
+  // The identification block sits in the LEFT HALF of the sheet (the title
+  // spans the full width, so its own box cannot be the reference point).
+  const { container } = report.letterhead;
+  const midpoint = container.left + container.width / 2;
+  expect(report.letterhead.meta!.left).toBeLessThan(midpoint);
+  expect(report.letterhead.logo!.left).toBeLessThan(midpoint);
+
+  // Block B — tables: real tables with repeating headings and whole rows.
+  expect(report.tables.length, "the document has no tables").toBeGreaterThan(0);
+  for (const t of report.tables) {
+    expect(t.hasThead, "a table has no heading row").toBe(true);
+    expect(t.theadRepeats, "table headings do not repeat across pages").toBe(true);
+    expect(t.rowUnsplittable, "a table row may be split across pages").toBe(true);
+    expect(t.columns).toBeGreaterThan(1);
+    expect(t.rows).toBeGreaterThan(0);
+  }
   // `overflow: hidden` would clip silently, so assert the DOM pages hold
   // exactly what they measured.
   expect(report.clipped.every((c) => c.overflow <= 1 && c.widthOverflow <= 1)).toBe(true);

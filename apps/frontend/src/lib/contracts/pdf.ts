@@ -75,6 +75,15 @@ const MARGIN = 48;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const RIGHT = PAGE_WIDTH - MARGIN;
 
+/** LEGALIR brand colours for the printed sheet (#222E2D / #1D624E). */
+const BRAND_INK = rgb(0.1333, 0.1804, 0.1765);
+const BRAND_ACCENT = rgb(0.1137, 0.3843, 0.3059);
+const MUTED_INK = rgb(0.35, 0.35, 0.4);
+const HAIRLINE = rgb(0.85, 0.87, 0.86);
+
+/** Letterhead logo height, matching the A4 sheet's 42px mark (~32pt). */
+const LETTERHEAD_LOGO_HEIGHT = 32;
+
 /**
  * The footer band reserved at the bottom of EVERY page when the official
  * stamp is applied. Contract text never flows into it (the cursor bottoms
@@ -157,10 +166,133 @@ class Layout {
     drawRtl(this.page, this.fonts.bold, text, {
       y: this.y - size,
       size,
-      color: rgb(0.1, 0.1, 0.15),
+      color: BRAND_INK,
       right: RIGHT,
     });
     this.y -= size + 10;
+  }
+
+  /**
+   * The cover letterhead. The LEGALIR mark and the identifying group sit
+   * at the physical TOP-LEFT (logo first, identity to its right); the
+   * contract title is a separate, centred line BELOW them, so the mark,
+   * the metadata and the title can never overlap. Mirrors the A4 sheet's
+   * `.a4-letterhead` rules so the PDF and the preview are one document.
+   */
+  letterhead(args: {
+    logo: PDFImage | null;
+    titleFa: string;
+    typeFa: string;
+    referenceCode: string;
+    issuedOnFa: string;
+    versionLabelFa: string;
+    documentHash: string;
+  }): void {
+    const top = this.y;
+    const gap = 12;
+    let identLeft = MARGIN;
+
+    if (args.logo) {
+      const logoWidth = (args.logo.width / args.logo.height) * LETTERHEAD_LOGO_HEIGHT;
+      this.page.drawImage(args.logo, {
+        x: MARGIN,
+        y: top - LETTERHEAD_LOGO_HEIGHT,
+        width: logoWidth,
+        height: LETTERHEAD_LOGO_HEIGHT,
+      });
+      identLeft = MARGIN + logoWidth + gap;
+    }
+
+    // Identity lines, in the same order and hierarchy as the sheet: type
+    // first and in the brand accent, then reference, issue date, version
+    // and the integrity hash. A missing logo never shifts them off the
+    // left margin.
+    const meta = [
+      { text: args.typeFa, size: 11, bold: true, accent: true },
+      { text: `شناسه قرارداد: ${args.referenceCode}`, size: 9, bold: false, accent: false },
+      { text: `تاریخ صدور: ${args.issuedOnFa}`, size: 9, bold: false, accent: false },
+      { text: args.versionLabelFa, size: 9, bold: false, accent: false },
+      { text: `SHA-256: ${args.documentHash}`, size: 7, bold: false, accent: false },
+    ];
+    // Lines are right-aligned to the widest line's right edge, exactly as
+    // a shrink-to-fit RTL block behaves in the sheet.
+    const metaRight =
+      identLeft +
+      Math.max(
+        ...meta.map((line) =>
+          measureRtl(line.bold ? this.fonts.bold : this.fonts.regular, line.text, line.size)
+        )
+      );
+
+    let metaY = top;
+    for (const line of meta) {
+      drawRtl(this.page, line.bold ? this.fonts.bold : this.fonts.regular, line.text, {
+        y: metaY - line.size,
+        size: line.size,
+        color: line.accent ? BRAND_ACCENT : MUTED_INK,
+        right: metaRight,
+      });
+      metaY -= line.size + 3.5;
+    }
+
+    // Close the letterhead with the brand rule, then centre the title.
+    const headBottom = Math.min(top - (args.logo ? LETTERHEAD_LOGO_HEIGHT : 0), metaY);
+    this.page.drawLine({
+      start: { x: MARGIN, y: headBottom - 7 },
+      end: { x: RIGHT, y: headBottom - 7 },
+      thickness: 1,
+      color: BRAND_ACCENT,
+    });
+
+    const titleSize = 15;
+    const titleW = measureRtl(this.fonts.bold, args.titleFa, titleSize);
+    const titleY = headBottom - 7 - 10 - titleSize;
+    drawRtl(this.page, this.fonts.bold, args.titleFa, {
+      y: titleY,
+      size: titleSize,
+      color: BRAND_INK,
+      x: PAGE_WIDTH / 2 - titleW / 2,
+    });
+    this.y = titleY - 14;
+  }
+
+  /**
+   * A slim identity head on every page AFTER the first — type, reference
+   * and version, drawn in the top margin so it repeats the identification
+   * without taking any space from the body. A loose printed sheet still
+   * says which contract and which revision it belongs to.
+   */
+  runningHeads(typeFa: string, referenceCode: string, versionLabelFa: string): void {
+    const pages = this.doc.getPages();
+    const size = 8;
+    const ruleY = PAGE_HEIGHT - MARGIN + 12;
+    for (let i = 1; i < pages.length; i++) {
+      const page = pages[i]!;
+      page.drawLine({
+        start: { x: MARGIN, y: ruleY },
+        end: { x: RIGHT, y: ruleY },
+        thickness: 0.5,
+        color: HAIRLINE,
+      });
+      drawRtl(page, this.fonts.bold, typeFa, {
+        y: ruleY + 5,
+        size,
+        color: BRAND_ACCENT,
+        right: RIGHT,
+      });
+      drawRtl(page, this.fonts.regular, referenceCode, {
+        y: ruleY + 5,
+        size,
+        color: MUTED_INK,
+        x: MARGIN,
+      });
+      drawRtl(page, this.fonts.regular, versionLabelFa, {
+        y: ruleY + 5,
+        size,
+        color: MUTED_INK,
+        right: RIGHT - measureRtl(this.fonts.bold, typeFa, size) - 14,
+      });
+    }
   }
 
   paragraph(text: string, size = 10.5): void {
@@ -575,9 +707,22 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     }
   }
 
+  // The public LEGALIR mark is the letterhead of every printed contract.
+  // A missing file degrades to a mark-less letterhead — never a broken
+  // embed and never a substitute image.
+  let logoImage: PDFImage | null = null;
+  const logoBytes = loadDocumentLogo();
+  if (logoBytes) {
+    try {
+      logoImage = await doc.embedPng(logoBytes);
+    } catch {
+      logoImage = null;
+    }
+  }
+
   const layout = new Layout(doc, fonts, officialImage !== null);
 
-  // --- Header: reference code + version + hash ---
+  // --- Letterhead: mark + identity group top-left, title centred below ---
   const snapshot = version.snapshot;
   const rendered = renderContract(
     { ...contract, data: snapshot.data },
@@ -585,7 +730,19 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     snapshot.payments
   );
 
-  layout.heading(rendered.titleFa, 16);
+  const referenceCode = contract.referenceCode;
+  const versionLabelFa = `نسخه ${toPersianDigits(version.versionNumber)} — نسخه قالب: ${version.templateVersion}`;
+
+  layout.letterhead({
+    logo: logoImage,
+    titleFa: rendered.titleFa,
+    typeFa: contract.typeFa,
+    referenceCode,
+    issuedOnFa: formatIsoJalali(version.createdAt.slice(0, 10)),
+    versionLabelFa,
+    documentHash: version.documentHash,
+  });
+
   // The approved-by-LEGALIR mark sits at the top, where a reader looks
   // first. An unapproved document gets NO stamp; its watermark is drawn
   // across every page at the end. When the official PNG is drawn, the blue
@@ -594,11 +751,6 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     layout.stampBlock(stamp, officialImage === null);
     layout.spacer(6);
   }
-  layout.paragraph(`کد قرارداد: ${contract.referenceCode}`);
-  layout.paragraph(`نسخه: ${version.versionNumber} — نسخه قالب: ${version.templateVersion}`);
-  layout.paragraph(`تاریخ صدور: ${formatIsoJalali(version.createdAt.slice(0, 10))}`);
-  layout.paragraph(`اثر انگشت سند (SHA-256): ${version.documentHash}`);
-  layout.spacer(6);
 
   // --- Preamble ---
   layout.paragraph(rendered.preambleFa);
@@ -654,6 +806,10 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   } else if (!stamp?.applied) {
     layout.draftWatermark();
   }
+
+  // Pages 2+ repeat the identification in a slim running head, drawn in
+  // the top margin so it never takes space from the body.
+  layout.runningHeads(contract.typeFa, referenceCode, versionLabelFa);
 
   // Page numbers on every page, below the content margin.
   layout.pageNumbers();

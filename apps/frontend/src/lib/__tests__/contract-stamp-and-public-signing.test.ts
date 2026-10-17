@@ -218,6 +218,58 @@ async function seedApprovedContract(id: string): Promise<void> {
   expect(approved.status).toBe(200);
 }
 
+/**
+ * Drive BOTH parties through the real OTP signature flow, so a later stamp
+ * `apply` is judged against genuine completed signatures.
+ *
+ * The route's rule is that the admin seal comes AFTER the parties sign; a
+ * fixture that skipped this step would only prove the route's refusal, not
+ * the happy path. `create_request` freezes a NEW version, so this must run
+ * BEFORE the stamp request is opened — otherwise the request binds to a
+ * hash that the signature step then replaces.
+ */
+async function completeSignatures(id: string): Promise<void> {
+  const created = await signPost(
+    req(`${BASE}/${id}/sign`, ownerSession, { action: "create_request" }),
+    params(id)
+  );
+  if (created.status !== 200) {
+    throw new Error(`create_request failed: ${created.status} ${await created.text()}`);
+  }
+  const { data } = await json<{
+    data: { request: { participants: { id: string; roleFa: string }[] } };
+  }>(created);
+
+  for (const participant of data.request.participants) {
+    const sent = await signPost(
+      req(`${BASE}/${id}/sign`, ownerSession, {
+        action: "request_otp",
+        participantId: participant.id,
+      }),
+      params(id)
+    );
+    if (sent.status !== 200) {
+      throw new Error(
+        `request_otp failed for ${participant.roleFa}: ${sent.status} ${await sent.text()}`
+      );
+    }
+    const signed = await signPost(
+      req(`${BASE}/${id}/sign`, ownerSession, {
+        action: "verify_otp",
+        participantId: participant.id,
+        code: "405405",
+        consentGiven: true,
+      }),
+      params(id)
+    );
+    if (signed.status !== 200) {
+      throw new Error(
+        `verify_otp failed for ${participant.roleFa}: ${signed.status} ${await signed.text()}`
+      );
+    }
+  }
+}
+
 /** The current version hash of a seeded contract. */
 function currentHash(id: string): string {
   const contract = contractDb.getContractById(id)!;
@@ -383,6 +435,10 @@ describe("official stamp — request → apply binds hash + asset bytes", () => 
 
   beforeAll(async () => {
     await seedApprovedContract(ID);
+    // The seal comes after the parties sign: complete both signatures
+    // FIRST, because `create_request` freezes the version the stamp
+    // request must then bind to.
+    await completeSignatures(ID);
   });
 
   it("binds a PENDING request to the current version hash and asset bytes", async () => {
@@ -479,6 +535,10 @@ describe("official stamp — stale guards", () => {
   it("refuses to apply when the stamp master bytes changed since the request", async () => {
     const ID = "ctr-stamp-asset-changed";
     await seedApprovedContract(ID);
+    // The asset guard is checked AFTER the signature gate, so the fixture
+    // must supply completed signatures or it would only prove the earlier
+    // refusal.
+    await completeSignatures(ID);
 
     const created = await stampPost(
       req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست مهر" }),

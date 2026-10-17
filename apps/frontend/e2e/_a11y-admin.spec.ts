@@ -117,3 +117,62 @@ test("admin keyboard + focus contracts", async ({ page, request }) => {
   );
   expect(small).toEqual([]);
 });
+
+/** WCAG relative luminance for an `rgb()` string. */
+function luminance(rgb: string): number | null {
+  const m = rgb.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  if (!m) return null;
+  const [r, g, b] = [m[1], m[2], m[3]].map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+test("semantic text meets 4.5:1 on its tint, in both themes", async ({ page, request }) => {
+  test.setTimeout(180_000);
+  const sid = await ensureSession(request);
+  await seed(page, sid);
+
+  for (const theme of ["light", "dark"] as const) {
+    await page.addInitScript((t) => localStorage.setItem("legalir-theme", t), theme);
+    await page.goto("/admin/settings", { waitUntil: "networkidle" });
+    // Prove the theme actually applied — otherwise the assertion below would
+    // silently re-test the light palette twice.
+    expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(
+      theme
+    );
+
+    const samples = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".bg-warning-soft, .bg-success-soft, .bg-error-soft, .bg-info-soft, .bg-primary-soft"
+        )
+      )
+        .filter((el) => el.textContent && el.textContent.trim().length > 0)
+        .slice(0, 12)
+        .map((el) => {
+          // The painted foreground may be on the tinted node or a child.
+          const inner = el.querySelector<HTMLElement>("span, p, strong, a") ?? el;
+          return {
+            text: (el.textContent ?? "").trim().slice(0, 16),
+            fg: getComputedStyle(inner).color,
+            bg: getComputedStyle(el).backgroundColor,
+          };
+        })
+    );
+
+    for (const s of samples) {
+      const fl = luminance(s.fg);
+      const bl = luminance(s.bg);
+      // Transparent tints (`rgba(…, 0)`) inherit the card surface; skip them
+      // rather than inventing a background.
+      if (fl == null || bl == null) continue;
+      const ratio = (Math.max(fl, bl) + 0.05) / (Math.min(fl, bl) + 0.05);
+      expect(
+        ratio,
+        `${theme} «${s.text}» ${s.fg} on ${s.bg} = ${ratio.toFixed(2)}:1`
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+});

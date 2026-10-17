@@ -146,7 +146,13 @@ function isFilled(value: unknown): boolean {
     if (typeof maybeMoney.amount === "number" && maybeMoney.currency === "IRR") {
       return maybeMoney.amount > 0;
     }
-    return Object.keys(value as Record<string, unknown>).length > 0;
+    // A plain object (one repeatable row, one group of answers) is filled
+    // only when at least one of its own values is. `Object.keys().length`
+    // counted an untouched scaffold — `{ dueDate: null, amount: null }` —
+    // as a completed instalment, so a required schedule looked done the
+    // moment the form added its first blank row.
+    const entries = Object.values(value as Record<string, unknown>);
+    return entries.length > 0 && entries.some((entry) => isFilled(entry));
   }
   return false;
 }
