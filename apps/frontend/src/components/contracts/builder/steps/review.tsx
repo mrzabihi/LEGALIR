@@ -36,7 +36,7 @@ import {
   IconWarning,
 } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice, ChoiceField } from "../primitives";
+import { SectionCard, Notice } from "../primitives";
 import { LivePreview } from "../live-preview";
 import { ContractCommentComposer } from "../contract-comments";
 import type { A4SignatureMark } from "../../document/a4-document";

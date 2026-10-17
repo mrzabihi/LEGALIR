@@ -29,9 +29,14 @@ const CONDITION_OPTIONS: { value: ConditionState; label: string }[] = [
   { value: "unrecorded", label: "ثبت‌نشده" },
 ];
 
+const REQUIRED_ERROR = "تکمیل این فیلد الزامی است.";
+
 export function HandoverStep() {
-  const { data, patchData } = useWizard();
+  const { data, patchData, editable, advanceBlockedReason } = useWizard();
   const handover = (data as PropertyData).handover;
+  // Same contract as every other step: validation appears only after the
+  // user actually tried to advance, and only on the fields that block it.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const setHandover = (patch: Partial<HandoverRecord>) =>
     patchData({ handover: { ...handover, ...patch } });
@@ -52,6 +57,10 @@ export function HandoverStep() {
     });
 
   const recorded = handover.items.filter((i) => i.state !== "unrecorded").length;
+  // ONE recorded condition satisfies the section, so the inline error is
+  // attached to the still-unrecorded rows only while NONE is recorded —
+  // a row that is allowed to stay «ثبت‌نشده» must not be painted red.
+  const itemsBlocked = showErrors && recorded === 0;
 
   return (
     <div className="space-y-4">
@@ -82,6 +91,7 @@ export function HandoverStep() {
                   value={item.state}
                   onChange={(v) => setItem(item.key, { state: v })}
                   options={CONDITION_OPTIONS}
+                  errorText={itemsBlocked && item.state === "unrecorded" ? REQUIRED_ERROR : undefined}
                 />
                 <Field
                   label="توضیح"

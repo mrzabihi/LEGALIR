@@ -194,6 +194,31 @@ describe("completeness — conditional parking field", () => {
   });
 });
 
+describe("completeness — handover scaffold", () => {
+  it("does not count the untouched handover scaffold as recorded", () => {
+    // `emptyHandover()` seeds every component with «ثبت‌نشده». That is a
+    // scaffold, not an answer: reaching the preview with zero conditions
+    // recorded would hand the reader a sheet that claims nothing.
+    const result = computeCompleteness(rentContract(), [], []);
+    const section = result.sections.find((s) => s.key === "handover")!;
+    expect(section.percent).toBe(0);
+    expect(section.missing).toContain("وضعیت تحویل ملک");
+  });
+
+  it("passes once a single condition is recorded", () => {
+    const base = getContractDefinition("property_rent").createDefaultData("apartment") as PropertyRentData;
+    const items = base.handover.items.map((i, index) =>
+      index === 0 ? { ...i, state: "intact" as const } : i
+    );
+    const result = computeCompleteness(
+      rentContract({ handover: { ...base.handover, items } }),
+      [],
+      []
+    );
+    expect(result.sections.find((s) => s.key === "handover")!.percent).toBe(100);
+  });
+});
+
 describe("completeness — overall and blockers", () => {
   it("never reads 100% while a section is empty", () => {
     const result = computeCompleteness(rentContract(), [], []);

@@ -187,6 +187,21 @@ function documentsComplete(contract: PropertyContract, documents: ContractDocume
     .every((d) => documents.some((doc) => doc.category === d.category));
 }
 
+/**
+ * True when the handover step has a real answer. `emptyHandover()` seeds
+ * every component with `state: "unrecorded"`, which is a scaffold, not a
+ * recorded condition — the generic `isFilled` list rule would see a
+ * non-empty array and let the user reach the preview without ever
+ * recording a single item. One recorded condition is enough to keep the
+ * step honest; the remaining items may legitimately stay «ثبت‌نشده».
+ */
+function handoverRecorded(contract: PropertyContract): boolean {
+  const handover = (contract.data as { handover?: { items?: { state?: string }[] } }).handover;
+  return (handover?.items ?? []).some(
+    (item) => Boolean(item.state) && item.state !== "unrecorded"
+  );
+}
+
 /** The flat value map of a schema-driven contract. */
 function genericValues(contract: PropertyContract): Record<string, unknown> {
   const values = (contract.data as { values?: Record<string, unknown> }).values;
@@ -222,6 +237,13 @@ function scoreSection(
     }
     if (path === "documents") {
       if (!documentsComplete(contract, documents)) missing.push(PATH_LABELS["documents"] ?? "مدارک");
+      continue;
+    }
+    // The handover scaffold is an array of `unrecorded` rows, so the
+    // generic list rule would call it filled before a single condition
+    // was recorded. It is scored by its own predicate instead.
+    if (path === "data.handover.items") {
+      if (!handoverRecorded(contract)) missing.push(pathLabelFa(contract, path));
       continue;
     }
     // `banking.<role>` resolves to a boolean ASSERTION (are these details

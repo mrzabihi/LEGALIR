@@ -171,7 +171,12 @@ export function toUnifiedV1Contract(item: V1ContractListItem): UnifiedContract {
   };
 }
 
-/** The detail route for a unified contract. */
+/**
+ * The detail route for a unified contract. BOTH sources share it on
+ * purpose: `/contracts/[id]` loads the Contract-OS record first and falls
+ * back to the V1 detail view when the OS endpoint answers 404, so a link
+ * never depends on the caller knowing which lifecycle produced the row.
+ */
 export function contractHref(contract: UnifiedContract): string {
   return `/contracts/${contract.id}`;
 }

@@ -69,6 +69,7 @@ function DocumentSlot({
   providerFa,
   documents,
   editable,
+  showRequiredError,
 }: {
   contractId: string;
   category: ContractDocumentCategory;
@@ -77,6 +78,8 @@ function DocumentSlot({
   providerFa: string;
   documents: ContractDocument[];
   editable: boolean;
+  /** True after an advance attempt that this empty REQUIRED slot blocks. */
+  showRequiredError: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadContractDocument();
@@ -141,7 +144,9 @@ function DocumentSlot({
       {error && <p className="text-caption text-error">{error}</p>}
 
       {existing.length === 0 ? (
-        <p className="text-caption text-muted">فایلی بارگذاری نشده است.</p>
+        <p className={`text-caption ${showRequiredError ? "text-error" : "text-muted"}`}>
+          {showRequiredError ? "بارگذاری این مدرک الزامی است." : "فایلی بارگذاری نشده است."}
+        </p>
       ) : (
         <ul className="space-y-1.5">
           {existing.map((doc) => (
@@ -204,9 +209,12 @@ const PROVIDER_FA: Record<string, string> = {
 };
 
 export function DocumentsStep() {
-  const { contract, editable } = useWizard();
+  const { contract, editable, advanceBlockedReason } = useWizard();
   const def = getContractDefinition(contract.type);
   const documents = contract.documents;
+  // Inline errors appear only after an advance attempt, matching every
+  // other step — and only on required slots that are actually empty.
+  const showErrors = editable && advanceBlockedReason !== null;
 
   const requiredMissing = def.requiredDocuments.filter(
     (d) => d.required && !documents.some((doc) => doc.category === d.category)
@@ -234,6 +242,7 @@ export function DocumentsStep() {
               providerFa={PROVIDER_FA[d.provider] ?? d.provider}
               documents={documents}
               editable={editable}
+              showRequiredError={showErrors && d.required && !documents.some((doc) => doc.category === d.category)}
             />
           ))}
         </div>
