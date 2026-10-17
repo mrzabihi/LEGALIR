@@ -16,7 +16,7 @@ import {
   LAWYER_ACTIVITY_TYPE_FA,
   type LawyerActivityType,
 } from "@legalir/types";
-import { Select, Textarea, TextField, SelectableOption } from "@legalir/ui";
+import { Select, Textarea, TextField, SelectableOption, Button } from "@legalir/ui";
 
 const ACTIVITY_TYPES = Object.keys(LAWYER_ACTIVITY_TYPE_FA) as LawyerActivityType[];
 
@@ -98,13 +98,9 @@ export default function LawyerOnboardingPage() {
         <div className="rounded-medium bg-amber-50 border border-amber-200 px-4 py-3 text-body-2 text-amber-800 mb-6">
           بخش وکلا به‌زودی فعال می‌شود.
         </div>
-        <button
-          type="button"
-          onClick={() => router.replace("/dashboard")}
-          className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 transition-all duration-200 touch-target shadow-elevation-3"
-        >
+        <Button type="button" size="large" fullWidth onClick={() => router.replace("/dashboard")}>
           ورود به داشبورد
-        </button>
+        </Button>
       </div>
     );
   }
@@ -254,13 +250,15 @@ export default function LawyerOnboardingPage() {
           </div>
         )}
 
-        <button
+        <Button
           type="submit"
+          size="large"
+          fullWidth
+          loading={submit.isPending}
           disabled={submit.isPending}
-          className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed shadow-elevation-3"
         >
-          {submit.isPending ? "در حال ارسال..." : "ارسال برای بررسی"}
-        </button>
+          ارسال برای بررسی
+        </Button>
       </form>
     </div>
   );

@@ -10,7 +10,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { TextField, Textarea, Select } from "@legalir/ui";
+import { Button, TextField, Textarea, Select } from "@legalir/ui";
 import {
   useIntakeSchema,
   useIntakeDrafts,
@@ -244,17 +244,17 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
       {error && <p className="mt-4 text-body-2 text-error">{error}</p>}
 
       <div className="mt-6 flex items-center justify-between">
-        <button
+        <Button
           type="button"
+          variant="outlined"
           onClick={stepIndex === 0 ? onExit : handleBack}
-          className="inline-flex items-center gap-1.5 rounded-medium border border-divider px-4 py-2.5 text-body-2 text-on-surface transition hover:bg-surface-hover"
+          startIcon={<IconArrowBack size={18} />}
         >
-          <IconArrowBack size={18} />
           {stepIndex === 0 ? "تغییر دسته" : "مرحله قبل"}
-        </button>
+        </Button>
 
         {isLast ? (
-          <button
+          <Button
             type="button"
             onClick={async () => {
               const id = await ensureDraft();
@@ -263,20 +263,14 @@ function Wizard({ category, onExit }: { category: string; onExit: () => void }) 
               }
               onExit();
             }}
-            className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98]"
+            startIcon={<IconCheck size={18} />}
           >
-            <IconCheck size={18} />
             ثبت و دریافت تحلیل
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={handleNext}
-            className="inline-flex items-center gap-1.5 rounded-medium bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition hover:bg-primary-700 hover:text-white active:scale-[0.98]"
-          >
+          <Button type="button" onClick={handleNext} endIcon={<IconArrowForward size={18} />}>
             مرحله بعد
-            <IconArrowForward size={18} />
-          </button>
+          </Button>
         )}
       </div>
     </div>

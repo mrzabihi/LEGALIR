@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import {
   SettingsCard,
@@ -21,6 +21,12 @@ import {
 import { usePrivacySettings, useUpdatePrivacySettings } from "@/hooks/useAccount";
 import { IconShield } from "@/lib/icons";
 import type { PrivacySettings } from "@legalir/types";
+
+function errText(err: unknown): string {
+  return err instanceof Error && err.message
+    ? err.message
+    : "ذخیره نشد؛ وضعیت قبلی بازگردانده شد.";
+}
 
 const ITEMS: ToggleItem[] = [
   { key: "shareUsageData", label: "اشتراک‌گذاری داده‌های مصرف", description: "داده‌های ناشناس مصرف برای بهبود سرویس." },
@@ -37,9 +43,28 @@ export default function PrivacySettingsPage() {
   // flips instantly and `query.data` is already the new value.
   const values = query.data;
 
+  // Which row is in flight / failed — so only that row shows it.
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  // Double-tap guard: rejects a second write before `isPending` re-renders.
+  const inFlight = useRef(false);
+
   const handleChange = useCallback(
     (key: string, value: boolean) => {
-      update.mutate({ [key]: value } as Partial<PrivacySettings>);
+      if (inFlight.current) return;
+      inFlight.current = true;
+      setSavingKey(key);
+      setFailedKey(null);
+      update.mutate(
+        { [key]: value } as Partial<PrivacySettings>,
+        {
+          onError: () => setFailedKey(key),
+          onSettled: () => {
+            inFlight.current = false;
+            setSavingKey(null);
+          },
+        }
+      );
     },
     [update]
   );
@@ -69,7 +94,10 @@ export default function PrivacySettingsPage() {
             values={values as unknown as Record<string, boolean>}
             onChange={handleChange}
             disabled={false}
-            saving={false}
+            saving={update.isPending}
+            savingKey={savingKey}
+            failedKey={failedKey}
+            errorMessage={update.error ? errText(update.error) : null}
           />
         )}
       </SettingsCard>

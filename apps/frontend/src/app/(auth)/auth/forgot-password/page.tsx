@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { TextField, PasswordField, OTPInput } from "@legalir/ui";
+import { TextField, PasswordField, OTPInput, Button, buttonClasses } from "@legalir/ui";
 import { useForgotPasswordRequest, useForgotPasswordVerify, useResetPassword, getPasswordStrength } from "@/lib/auth/use-auth";
 import { normalizeMobile } from "@/lib/auth/api";
 
@@ -244,23 +244,15 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
+            size="large"
+            fullWidth
+            loading={isRequesting}
             disabled={!normalizeMobile(mobile) || isRequesting}
-            className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-700 shadow-elevation-3 hover:shadow-elevation-4"
           >
-            {isRequesting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                در حال ارسال...
-              </span>
-            ) : (
-              "ارسال کد تأیید"
-            )}
-          </button>
+            ارسال کد تأیید
+          </Button>
 
           <div className="text-center">
             <Link
@@ -394,31 +386,29 @@ export default function ForgotPasswordPage() {
           )}
 
           <div className="flex items-center gap-3">
-            <button
+            {/* Back is the calmer exit; changing the password is the step's
+                one primary commit. */}
+            <Button
               type="button"
+              variant="outlined"
+              size="large"
               onClick={handleBack}
               disabled={isResetting}
-              className="flex-1 rounded-medium border-2 border-neutral-200 text-neutral-600 py-3.5 text-button font-medium hover:bg-neutral-50 hover:border-neutral-300 active:bg-neutral-100 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed"
+              fullWidth
+              className="flex-1"
             >
               بازگشت
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
+              size="large"
+              loading={isResetting}
               disabled={!password || !confirmPassword || isResetting}
-              className="flex-1 rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-700 shadow-elevation-3 hover:shadow-elevation-4"
+              fullWidth
+              className="flex-1"
             >
-              {isResetting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  در حال تغییر...
-                </span>
-              ) : (
-                "تغییر رمز عبور"
-              )}
-            </button>
+              تغییر رمز عبور
+            </Button>
           </div>
         </form>
       )}
@@ -439,9 +429,11 @@ export default function ForgotPasswordPage() {
             </p>
           </div>
 
+          {/* A navigation target borrows the button's class list — never a
+              <button> nested inside an <a>. */}
           <Link
             href="/auth/mobile"
-            className="inline-block w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target shadow-elevation-3 hover:shadow-elevation-4 text-center"
+            className={buttonClasses({ size: "large", fullWidth: true })}
           >
             رفتن به صفحه ورود
           </Link>

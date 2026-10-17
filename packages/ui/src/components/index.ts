@@ -2,7 +2,8 @@
 // LEGALIR — UI Components Barrel Export
 // ============================================================
 
-export { Button } from "./Button";
+export { Button, buttonClasses } from "./Button";
+export type { ButtonProps, ButtonVariant, ButtonSize } from "./Button";
 export { IconButton } from "./IconButton";
 export { TextField } from "./TextField";
 export type { TextFieldProps } from "./TextField";
@@ -29,7 +30,7 @@ export type { SelectProps } from "./Select";
 export { Checkbox } from "./Checkbox";
 export type { CheckboxProps } from "./Checkbox";
 export { RadioGroup } from "./Radio";
-export { Switch } from "./Switch";
+export { Switch, SwitchRow } from "./Switch";
 export type { SwitchProps } from "./Switch";
 export { SelectableOption, SelectableCard } from "./Selectable";
 export type { SelectableOptionProps, SelectableCardProps } from "./Selectable";

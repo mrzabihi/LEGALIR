@@ -9,7 +9,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { TextField, Textarea, Select } from "@legalir/ui";
+import { TextField, Textarea, Select, Button } from "@legalir/ui";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import {
   SettingsCard,
@@ -128,13 +128,13 @@ export default function MemorySettingsPage() {
                 { value: "preference", label: "تنظیمات برگزیده" },
               ]}
             />
-            <button
+            <Button
               type="submit"
-              disabled={createMemory.isPending || !key.trim() || !value.trim()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-body-2 text-on-primary font-medium transition hover:bg-primary-variant disabled:opacity-50 disabled:cursor-not-allowed touch-target"
+              loading={createMemory.isPending}
+              disabled={!key.trim() || !value.trim()}
             >
-              {createMemory.isPending ? "در حال ذخیره..." : "ذخیره دانش"}
-            </button>
+              ذخیره دانش
+            </Button>
           </form>
         )}
 
@@ -193,22 +193,23 @@ export default function MemorySettingsPage() {
               اطمینان دارید؟
             </p>
             <div className="flex items-center justify-end gap-3">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleteMemory.isPending}
-                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
               >
                 انصراف
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="danger"
                 onClick={handleConfirmDelete}
-                disabled={deleteMemory.isPending}
-                className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2 text-white text-body-2 font-medium hover:opacity-90 disabled:opacity-50 transition-colors touch-target"
+                loading={deleteMemory.isPending}
+                startIcon={<IconDelete size={16} />}
               >
-                {deleteMemory.isPending ? "در حال حذف..." : "حذف"}
-              </button>
+                حذف
+              </Button>
             </div>
           </div>
         </div>

@@ -28,6 +28,7 @@ import { DisclaimerBanner } from "@/components/chat/disclaimer-banner";
 import { RiskSummary } from "./risk-summary";
 import { FindingCard } from "./finding-card";
 import { TrialBadge } from "./trial-badge";
+import { Button } from "@legalir/ui";
 import { IconChat, IconSparkle, IconWarning } from "@/lib/icons";
 import {
   TRIAL_DISCLAIMER_FA,
@@ -546,12 +547,7 @@ export function DocumentChatPanel({
             ) : initError ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <p className="text-bodySmall text-error mb-3">{initError}</p>
-                <button
-                  onClick={ensureConversation}
-                  className="rounded-medium bg-primary text-primary-on px-4 py-2 text-button font-medium hover:bg-primary-variant transition-colors touch-target"
-                >
-                  تلاش مجدد
-                </button>
+                <Button onClick={ensureConversation}>تلاش مجدد</Button>
               </div>
             ) : !selectedIntent ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">

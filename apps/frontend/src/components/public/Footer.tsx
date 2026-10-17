@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TextField } from "@legalir/ui";
+import { TextField, Button } from "@legalir/ui";
 
 const footerLinks = {
   services: {
@@ -107,12 +107,9 @@ export function Footer() {
                       fullWidth
                     />
                   </div>
-                  <button
-                    type="button"
-                    className="h-12 px-5 rounded-medium bg-primary text-primary-on text-button font-medium hover:opacity-90 active:opacity-80 transition-colors duration-200 whitespace-nowrap"
-                  >
+                  <Button type="button" size="large" className="whitespace-nowrap">
                     ثبت
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

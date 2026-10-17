@@ -39,13 +39,22 @@ describe("Button", () => {
     expect(screen.getByRole("button")).toBeDisabled();
   });
 
-  it("renders loading state", () => {
+  it("renders loading state as busy and non-actionable", () => {
+    const handleClick = vi.fn();
     render(
       <TestWrapper>
-        <Button loading>در حال ارسال</Button>
+        <Button loading onClick={handleClick}>
+          در حال ارسال
+        </Button>
       </TestWrapper>
     );
-    expect(screen.getByRole("button")).toBeDisabled();
+    const btn = screen.getByRole("button");
+    // Announced as busy + disabled to assistive tech, but not natively
+    // `disabled`: a native disable would eject keyboard focus mid-action.
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(btn);
+    expect(handleClick).not.toHaveBeenCalled();
   });
 
   it("calls onClick", () => {

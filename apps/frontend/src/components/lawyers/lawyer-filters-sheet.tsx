@@ -33,7 +33,7 @@ import {
   type LawyerOrganizationType,
 } from "@legalir/types";
 import { IconClose, IconFilter } from "@/lib/icons";
-import { Select, Checkbox } from "@legalir/ui";
+import { Select, Checkbox, Button } from "@legalir/ui";
 
 export type LawyerSort = NonNullable<LawyerListFilters["sort"]>;
 
@@ -368,23 +368,26 @@ export function LawyerFiltersSheet({
           className="flex gap-3 border-t border-divider px-5 pt-4"
           style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
         >
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={() => setDraft(EMPTY_LAWYER_FILTERS)}
-            className="flex-1 rounded-medium border border-divider bg-surface px-4 py-3 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            fullWidth
+            className="flex-1"
           >
             پاک کردن
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => {
               onApply(draft);
               onClose();
             }}
-            className="flex-1 rounded-medium bg-primary px-4 py-3 text-button font-medium text-primary-on shadow-elevation-1 transition-colors hover:bg-primary-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
+            fullWidth
+            className="flex-1"
           >
             اعمال فیلترها
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

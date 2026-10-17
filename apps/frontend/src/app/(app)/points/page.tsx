@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { Button } from "@legalir/ui";
 import { useMe } from "@/hooks/useDashboard";
 import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { useRewardsSummary, useClaimDailyVisit } from "@/hooks/useRewards";
@@ -210,13 +211,11 @@ export default function MyPointsPage() {
               امروز دریافت شده
             </span>
           ) : (
-            <button
-              onClick={handleClaimDaily}
-              disabled={claim.isPending}
-              className="inline-flex items-center gap-1.5 rounded-medium bg-primary text-primary-on px-5 py-2.5 text-button font-medium hover:bg-primary-600 hover:text-white transition-colors disabled:opacity-50 touch-target"
-            >
-              {claim.isPending ? "در حال دریافت..." : "دریافت امتیاز"}
-            </button>
+            // The spinner carries progress; the label stays the action's
+            // name so it never reads as a different, half-finished verb.
+            <Button onClick={handleClaimDaily} loading={claim.isPending}>
+              دریافت امتیاز
+            </Button>
           )}
         </div>
       </section>

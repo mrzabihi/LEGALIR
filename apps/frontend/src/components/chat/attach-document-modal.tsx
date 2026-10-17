@@ -27,7 +27,7 @@ import {
 import { formatFileSize } from "@/lib/persian-utils";
 import { previewTypeLabel } from "@/lib/document-preview";
 import { MAX_CHAT_ATTACHMENTS, type V1DocumentListItem } from "@legalir/types";
-import { TextField } from "@legalir/ui";
+import { TextField, Button } from "@legalir/ui";
 
 interface AttachDocumentModalProps {
   open: boolean;
@@ -273,20 +273,19 @@ export function AttachDocumentModal({
           </button>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-medium border border-divider px-4 py-2.5 text-bodySmall text-onSurface transition-colors hover:bg-surface-hover"
-            >
+            <Button type="button" variant="outlined" onClick={onClose} fullWidth className="flex-1">
               انصراف
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => onConfirm(picked)}
-              className="flex-1 rounded-medium bg-primary px-4 py-2.5 text-bodySmall font-medium text-primary-on transition-colors hover:bg-primary-variant"
+              fullWidth
+              className="flex-1"
             >
+              {/* The count is part of the label, not a different state — the
+                  handler receives exactly the same `picked` either way. */}
               افزودن {picked.length > 0 ? `(${picked.length})` : ""}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

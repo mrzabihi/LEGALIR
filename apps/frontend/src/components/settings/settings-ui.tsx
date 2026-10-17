@@ -7,6 +7,7 @@
 // former monolithic settings page so each sub-route stays focused.
 // ============================================================
 
+import { SwitchRow } from "@legalir/ui";
 import { IconInfo, IconRefresh, IconWarning } from "@/lib/icons";
 
 /** Card wrapper used by every settings section. */
@@ -45,83 +46,57 @@ export function SettingsCard({
   );
 }
 
-/** Accessible toggle switch. */
-export function Toggle({
-  checked,
-  onChange,
-  label,
-  description,
-  disabled = false,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  description?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="group -mx-3 flex items-center justify-between gap-4 rounded-medium px-3 py-3.5 transition-colors hover:bg-surface-container">
-      <div className="flex flex-col gap-0.5">
-        <span className={`text-body-1 ${disabled ? "text-muted" : "text-on-surface"}`}>
-          {label}
-        </span>
-        {description && <span className="text-body-2 text-muted">{description}</span>}
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full border-2 p-[2px] transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-          disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
-        } ${
-          checked
-            ? "bg-control-selected border-control-selected focus-visible:ring-control-focus"
-            : "bg-control-unselected-bg border-control-unselected-border focus-visible:ring-control-focus"
-        }`}
-      >
-        <span
-          className={`inline-block h-[23px] w-[23px] rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.16)] transition-transform duration-200 ease-out group-active:scale-95 ${
-            checked ? "translate-x-[20px]" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
-
 export interface ToggleItem {
   key: string;
   label: string;
   description?: string;
 }
 
-/** A vertical group of toggles backed by a flat boolean map. */
+/**
+ * A vertical group of boolean preferences backed by a flat map.
+ *
+ * Every row renders the ONE shared `SwitchRow` from `@legalir/ui` — no local
+ * look-alike. `savingKey` and `failedKey` let a single row show its own
+ * in-flight / failed state, so the rest of the list stays usable while one
+ * preference is being written.
+ */
 export function PreferenceToggleGroup({
   items,
   values,
   onChange,
   disabled,
   saving,
+  savingKey,
+  failedKey,
+  errorMessage,
+  disabledReason,
 }: {
   items: ToggleItem[];
   values: Record<string, boolean>;
   onChange: (key: string, value: boolean) => void;
   disabled: boolean;
   saving: boolean;
+  /** The key currently being written. */
+  savingKey?: string | null;
+  /** The key whose last write failed — its error is shown under that row. */
+  failedKey?: string | null;
+  errorMessage?: string | null;
+  disabledReason?: string;
 }) {
   return (
     <div className="divide-y divide-divider">
       {items.map((item) => (
-        <Toggle
+        <SwitchRow
           key={item.key}
           label={item.label}
           description={item.description}
           checked={!!values[item.key]}
-          disabled={disabled || saving}
-          onChange={(v) => onChange(item.key, v)}
+          disabled={disabled}
+          disabledReason={disabled ? disabledReason : undefined}
+          saving={saving && savingKey === item.key}
+          error={failedKey === item.key ? errorMessage ?? undefined : undefined}
+          onChange={(e) => onChange(item.key, e.target.checked)}
+          className="py-1.5"
         />
       ))}
     </div>

@@ -35,7 +35,7 @@ import {
   IconLibrary,
 } from "@/lib/icons";
 import { PointsSummaryCard } from "./points-summary-card";
-import { TextField } from "@legalir/ui";
+import { TextField, Button } from "@legalir/ui";
 
 // ============================================================
 // WidgetShell — common wrapper with loading/error/empty handling
@@ -266,12 +266,9 @@ function WidgetError({ message, onRetry }: { message: string; onRetry?: () => vo
       </svg>
       <p className="text-body-2 text-on-surface-variant">{message}</p>
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="mt-1 rounded-full bg-primary px-4 py-1.5 text-primary-on text-caption hover:state-hover transition-colors duration-short3 ease-standard touch-target"
-        >
+        <Button onClick={onRetry} size="small" className="mt-1">
           تلاش مجدد
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -10,7 +10,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { TextField, Select } from "@legalir/ui";
+import { TextField, Select, Button } from "@legalir/ui";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { SettingsCard } from "@/components/settings/settings-ui";
 import { useDeleteAccount } from "@/hooks/useAccount";
@@ -117,19 +117,16 @@ export default function AccountClosurePage() {
                 </p>
               )}
               <div className="flex items-center gap-3">
-                <button
+                <Button
                   type="button"
+                  variant="danger"
                   onClick={handleDelete}
-                  disabled={!canDelete || deleteAccount.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-error px-5 py-2.5 text-body-2 text-on-error font-medium transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!canDelete}
+                  loading={deleteAccount.isPending}
+                  startIcon={<IconDelete size={16} />}
                 >
-                  {deleteAccount.isPending ? (
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-on-error border-t-transparent" />
-                  ) : (
-                    <IconDelete size={16} />
-                  )}
-                  {deleteAccount.isPending ? "در حال حذف..." : "تأیید نهایی حذف حساب"}
-                </button>
+                  تأیید نهایی حذف حساب
+                </Button>
                 <button
                   type="button"
                   onClick={handleCancel}

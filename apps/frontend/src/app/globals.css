@@ -200,6 +200,18 @@
   /* Tonal surface behind a selected card — a whisper of the green. */
   --control-selected-surface: #E9F7F1;
   --control-selected-border: #32B183;
+  /* Explicit "off" state for boolean switches. A muted brick red — not the
+     alarm red used by error states — so OFF reads as a state, never as a
+     failure. The label text always names the state, so colour is never the
+     only signal. Contrast: white thumb on the track 5.4:1. */
+  --control-off: #C0392B;
+  --control-off-border: #C0392B;
+  --control-off-surface: #FDECEA;
+  --control-off-text: #B42318;
+  /* Text tone for the "on" label. The track green (#32B183) is a graphic
+     colour (3:1); small text needs 4.5:1, so the label uses a deeper green
+     (7.1:1 on white). Never set text in `--control-selected`. */
+  --control-selected-text: #16623F;
   --control-unselected-bg: #FFFFFF;
   --control-unselected-border: #C4CBD4;
   --control-hover: #F3F4F6;
@@ -536,6 +548,13 @@
   --control-selected-foreground: #FFFFFF;
   --control-selected-surface: #12332A;
   --control-selected-border: #32B183;
+  /* OFF stays a muted brick red in dark; lifted so the track still clears
+     the dark surface. Text uses the dark error-700 tone. */
+  --control-off: #D9695F;
+  --control-off-border: #D9695F;
+  --control-off-surface: #2A1210;
+  --control-off-text: #FCA5A5;
+  --control-selected-text: #6EE7B7;
   --control-unselected-bg: #1E2A38;
   --control-unselected-border: #4B5563;
   --control-hover: #26344C;
@@ -792,6 +811,38 @@ html:not([data-theme]) {
 /* ============================================================
    UTILITY CLASSES
    ============================================================ */
+
+/* Direction-aware button icons.
+   The hover nudge on a button's leading/trailing icon must follow the
+   reading direction: the trailing icon leans toward the end edge, the
+   leading icon toward the start edge. Encoding the distance in a custom
+   property (rather than swapping `translate-x` utilities per direction)
+   means there is exactly one transform utility on the element, so no
+   variant-ordering accident can leave it pointing the wrong way. */
+.btn-icon-start {
+  --btn-icon-shift: -0.125rem;
+}
+.btn-icon-end {
+  --btn-icon-shift: 0.125rem;
+}
+[dir="rtl"] .btn-icon-start {
+  --btn-icon-shift: 0.125rem;
+}
+[dir="rtl"] .btn-icon-end {
+  --btn-icon-shift: -0.125rem;
+}
+
+/* Direction-aware icons.
+   `createIcon(..., shouldRtlFlip)` in lib/icons.tsx adds this class to every
+   arrow/chevron whose meaning depends on writing direction. The rule composes
+   with Tailwind's transform variables instead of replacing `transform`, so an
+   icon that also carries `rotate-180` or `translate-*` keeps that motion and
+   still mirrors horizontally under RTL. */
+[dir="rtl"] .rtl-flip {
+  transform: translate(var(--tw-translate-x, 0), var(--tw-translate-y, 0))
+    rotate(var(--tw-rotate, 0)) skewX(var(--tw-skew-x, 0))
+    skewY(var(--tw-skew-y, 0)) scaleX(-1) scaleY(var(--tw-scale-y, 1));
+}
 
 /* Touch target minimum */
 .touch-target {

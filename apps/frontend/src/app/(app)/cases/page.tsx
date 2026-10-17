@@ -21,7 +21,15 @@ import { TextField, Textarea, Select, Dialog, Button, snackbar } from "@legalir/
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
 import { toPersianDate } from "@/lib/persian-utils";
-import { IconAdd, IconBalance, IconArchive, IconCopy, IconWarning, IconClose } from "@/lib/icons";
+import {
+  IconAdd,
+  IconBalance,
+  IconArchive,
+  IconCopy,
+  IconWarning,
+  IconClose,
+  IconRefresh,
+} from "@/lib/icons";
 import {
   CompactPageHeader,
   SearchField,
@@ -148,20 +156,20 @@ function CreateCaseModal({
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-11 flex-1 rounded-medium border border-[color:var(--color-outline-variant)] text-body-2 font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover"
-            >
+            {/* Cancel is quieter than the committing action, and the commit
+                keeps one truthful label while the spinner carries progress. */}
+            <Button type="button" variant="outlined" onClick={onClose} fullWidth className="flex-1">
               انصراف
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={creating || !form.title.trim()}
-              className="h-11 flex-1 rounded-medium bg-primary text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              loading={creating}
+              fullWidth
+              className="flex-1"
             >
-              {creating ? "در حال ثبت..." : "ثبت پرونده"}
-            </button>
+              ثبت پرونده
+            </Button>
           </div>
         </form>
       </div>
@@ -328,13 +336,16 @@ export default function CasesPage() {
         title="پرونده‌های من"
         description="مدیریت و پیگیری پرونده‌های حقوقی"
         actions={
-          <button
+          // The page's one primary action renders through the shared
+          // primitive, so its hover/focus/press/touch states match every
+          // other primary CTA instead of a hand-rolled copy.
+          <Button
             onClick={() => setShowCreate(true)}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:w-auto"
+            startIcon={<IconAdd size={20} />}
+            className="w-full tablet:w-auto"
           >
-            <IconAdd size={20} />
             پرونده جدید
-          </button>
+          </Button>
         }
       />
 
@@ -381,12 +392,9 @@ export default function CasesPage() {
           </div>
           <h3 className="mb-2 text-titleMedium text-on-surface">خطا در دریافت پرونده‌ها</h3>
           <p className="mb-6 text-body-2 text-on-surface-variant">اتصال برقرار نشد؛ دوباره تلاش کنید.</p>
-          <button
-            onClick={fetchCases}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
-          >
+          <Button onClick={fetchCases} startIcon={<IconRefresh size={16} />}>
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       )}
 

@@ -214,14 +214,14 @@ export function StartRequestPanel() {
             </button>
           </div>
         ) : !uploadOpen ? (
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-2 rounded-medium border border-divider px-4 py-2 text-labelMedium text-on-surface transition-colors hover:border-primary hover:bg-primary-container/40 touch-target"
+            startIcon={<IconUpload size={18} />}
           >
-            <IconUpload size={18} />
             افزودن سند (اختیاری)
-          </button>
+          </Button>
         ) : (
           <div className="space-y-3 rounded-medium border border-divider p-3">
             <div className="flex items-center justify-between">

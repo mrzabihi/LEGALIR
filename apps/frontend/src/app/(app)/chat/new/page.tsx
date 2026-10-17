@@ -6,7 +6,7 @@ import { CategorySelector } from "@/components/chat/category-selector";
 import { ServiceContextCard } from "@/components/chat/service-context-card";
 import { useCreateConversation } from "@/hooks/useConversations";
 import { serviceTypeFromQuery, type ServiceType } from "@/lib/ai/service-context";
-import { TextField } from "@legalir/ui";
+import { TextField, Button } from "@legalir/ui";
 
 export default function NewConversationPage() {
   const router = useRouter();
@@ -113,17 +113,9 @@ export default function NewConversationPage() {
       </div>
 
       {/* Create Button */}
-      <button
-        onClick={handleSubmit}
-        disabled={createMutation.isPending}
-        className={[
-          "w-full rounded-medium px-6 py-3 text-button transition-colors touch-target",
-          "bg-primary text-primary-on hover:bg-primary-variant",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
-        ].join(" ")}
-      >
-        {createMutation.isPending ? "در حال ایجاد..." : "شروع گفتگو"}
-      </button>
+      <Button onClick={handleSubmit} loading={createMutation.isPending} fullWidth size="large">
+        شروع گفتگو
+      </Button>
     </div>
   );
 }

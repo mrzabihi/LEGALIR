@@ -8,6 +8,7 @@
 
 "use client";
 
+import { Button } from "@legalir/ui";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { SettingsCard, EmptyState } from "@/components/settings/settings-ui";
 import { IconFile, IconDownload, IconDelete } from "@/lib/icons";
@@ -25,14 +26,9 @@ export default function DataSettingsPage() {
             تاریخچه گفتگوها، قراردادهای تولیدشده و تنظیمات حساب را به صورت یک
             فایل ZIP دریافت کنید. آماده‌سازی فایل ممکن است تا چند ساعت طول بکشد.
           </p>
-          <button
-            type="button"
-            disabled
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-body-2 text-on-primary font-medium opacity-50 cursor-not-allowed transition"
-          >
-            <IconDownload size={16} />
+          <Button type="button" disabled startIcon={<IconDownload size={16} />}>
             دریافت خروجی از تمام داده‌های من
-          </button>
+          </Button>
           <p className="mt-2 text-caption text-muted">
             این قابلیت به‌زودی فعال می‌شود.
           </p>

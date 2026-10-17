@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { TextField } from "@legalir/ui";
+import { TextField, Button } from "@legalir/ui";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUpdateProfile } from "@/hooks/useDashboard";
 
@@ -240,48 +240,28 @@ export default function ProfileCompletionPage() {
 
         {/* Actions */}
         <div className="flex flex-col gap-3 pt-3">
-          <button
+          <Button
             type="submit"
+            size="large"
+            fullWidth
+            loading={updateProfile.isPending}
             disabled={updateProfile.isPending}
-            className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-700 shadow-elevation-3 hover:shadow-elevation-4"
           >
-            {updateProfile.isPending ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                در حال ذخیره...
-              </span>
-            ) : (
-              "ذخیره اطلاعات"
-            )}
-          </button>
+            ذخیره اطلاعات
+          </Button>
 
-          <button
+          {/* Skipping is the calmer alternative to saving — a bordered
+              action, not a second brand fill. */}
+          <Button
             type="button"
+            variant="outlined"
+            size="large"
+            fullWidth
             onClick={handleSkip}
             disabled={updateProfile.isPending}
-            className="w-full rounded-medium border-2 border-neutral-200 text-neutral-600 py-3.5 text-button font-medium hover:bg-neutral-50 hover:border-neutral-300 active:bg-neutral-100 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed"
           >
             بعداً تکمیل می‌کنم
-          </button>
+          </Button>
         </div>
       </form>
     </div>

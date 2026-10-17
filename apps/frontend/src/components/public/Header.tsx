@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { IconMenu, IconClose, IconDashboard } from "@/lib/icons";
+import { IconMenu, IconClose, IconDashboard, IconChevronDown } from "@/lib/icons";
 import { useSessionStatus } from "@/lib/auth/use-auth";
+import { Button } from "@legalir/ui";
 
 interface NavItem {
   href: string;
@@ -200,17 +201,14 @@ export function Header() {
             ))}
 
           <div className="relative" ref={ctaRef}>
-            <button
+            <Button
               onClick={() => setCtaOpen((prev) => !prev)}
-              className="rounded-medium bg-primary-700 text-white px-5 py-2.5 text-button hover:bg-primary-800 transition-all duration-200 shadow-sm hover:shadow-md"
               aria-expanded={ctaOpen}
               aria-haspopup="true"
+              endIcon={<IconChevronDown size={16} />}
             >
               شروع کنید
-              <svg className="inline-block mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+            </Button>
             <div
               className={`absolute end-0 top-full mt-2 w-52 rounded-medium bg-white shadow-xl border border-neutral-200 py-1 transition-all duration-200 origin-top-right z-30 ${
                 ctaOpen

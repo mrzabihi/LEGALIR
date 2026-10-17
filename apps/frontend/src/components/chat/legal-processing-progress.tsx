@@ -16,6 +16,7 @@ import { PROCESSING_STAGES, type ProcessingStage, type StageStatus } from "@lega
 import { STAGE_CONFIG, STAGE_ORDER, TOTAL_STAGES } from "@/lib/ai/pipeline/stages";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { IconCheck, IconRefresh, IconStop, IconWarning, IconChevronDown } from "@/lib/icons";
+import { Button } from "@legalir/ui";
 
 export interface LegalProcessingProgressProps {
   /** Status of every stage in the current run. */
@@ -174,24 +175,21 @@ export function LegalProcessingProgress({
         {/* Actions */}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {isFailed && onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-caption font-medium text-primary-on transition hover:bg-primary-700 hover:text-white"
-            >
-              <IconRefresh size={14} />
+            <Button size="small" onClick={onRetry} startIcon={<IconRefresh size={14} />}>
               تلاش مجدد
-            </button>
+            </Button>
           )}
           {!isFailed && onCancel && (
-            <button
-              type="button"
+            // Stopping an in-flight run reads as the sensitive action in
+            // the card; a bare link-coloured label would undersell it.
+            <Button
+              size="small"
+              variant="danger-outlined"
               onClick={onCancel}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption text-muted transition hover:bg-error-container hover:text-error"
+              startIcon={<IconStop size={14} />}
             >
-              <IconStop size={14} />
               توقف
-            </button>
+            </Button>
           )}
           <button
             type="button"

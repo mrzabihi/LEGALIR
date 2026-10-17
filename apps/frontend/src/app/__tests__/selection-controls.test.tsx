@@ -103,6 +103,71 @@ describe("Switch", () => {
     fireEvent.click(screen.getByRole("switch", { name: "اعلان‌ها" }));
     expect((onChange.mock.calls[0]![0].target as HTMLInputElement).checked).toBe(true);
   });
+
+  it("states the state in Persian text, never colour alone", () => {
+    const { rerender } = render(<Switch label="اعلان‌ها" checked={false} onChange={vi.fn()} />);
+    // OFF: the visible state word plus the red track.
+    expect(screen.getByText("غیرفعال")).toBeInTheDocument();
+    expect(document.querySelector(".bg-control-off")).not.toBeNull();
+
+    rerender(<Switch label="اعلان‌ها" checked onChange={vi.fn()} />);
+    expect(screen.getByText("فعال")).toBeInTheDocument();
+    expect(document.querySelector(".bg-control-selected")).not.toBeNull();
+    // Exactly one of the two track colours is present at any time.
+    expect(document.querySelector(".bg-control-off")).toBeNull();
+  });
+
+  it("uses a neutral OFF track for selection flags, not the red state track", () => {
+    render(<Switch label="مقالهٔ شاخص" tone="selection" />);
+    expect(document.querySelector(".bg-control-unselected-bg")).not.toBeNull();
+    expect(document.querySelector(".bg-control-off")).toBeNull();
+  });
+
+  it("can hide the state text without losing aria-checked", () => {
+    render(<Switch label="اعلان‌ها" showState={false} />);
+    expect(screen.queryByText("غیرفعال")).toBeNull();
+    expect(screen.getByRole("switch", { name: "اعلان‌ها" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+  });
+
+  it("locks the input and announces progress while saving", () => {
+    render(<Switch label="اعلان‌ها" saving onChange={vi.fn()} />);
+    const sw = screen.getByRole("switch", { name: "اعلان‌ها" });
+    // `disabled` is what stops a real user from firing a second request.
+    expect(sw).toBeDisabled();
+    expect(sw).toHaveAttribute("aria-busy", "true");
+    // Visible in place of the state word, and announced once via role=status.
+    expect(screen.getAllByText("در حال ذخیره…").length).toBeGreaterThan(0);
+    expect(screen.getByRole("status")).toHaveTextContent("در حال ذخیره…");
+    // The state word is replaced by the progress text, so it can't claim a
+    // value that hasn't been persisted yet.
+    expect(screen.queryByText("غیرفعال")).toBeNull();
+  });
+
+  it("shows an error under the row and points aria-describedby at it", () => {
+    render(<Switch label="اعلان‌ها" error="ذخیره نشد؛ وضعیت قبلی بازگردانده شد." />);
+    const sw = screen.getByRole("switch", { name: "اعلان‌ها" });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("ذخیره نشد؛ وضعیت قبلی بازگردانده شد.");
+    expect(sw.getAttribute("aria-describedby")).toBe(alert.id);
+  });
+
+  it("explains a disabled control as visible text", () => {
+    render(
+      <Switch label="حافظه" disabled disabledReason="در حال بارگذاری وضعیت حافظه…" />
+    );
+    expect(screen.getByRole("switch", { name: "حافظه" })).toBeDisabled();
+    expect(screen.getByText("در حال بارگذاری وضعیت حافظه…")).toBeInTheDocument();
+  });
+
+  it("fires exactly once per click", () => {
+    const onChange = vi.fn();
+    render(<Switch label="اعلان‌ها" onChange={onChange} />);
+    fireEvent.click(screen.getByText("اعلان‌ها"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ------------------------------------------------------------

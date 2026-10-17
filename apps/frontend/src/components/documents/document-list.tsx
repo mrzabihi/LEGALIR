@@ -16,7 +16,7 @@
 
 import Link from "next/link";
 import type { V1DocumentListItem, V1DocumentFilter } from "@legalir/types";
-import { Select, snackbar } from "@legalir/ui";
+import { Select, snackbar, Button, buttonClasses } from "@legalir/ui";
 import {
   SearchField,
   FilterChips,
@@ -209,21 +209,25 @@ function DocumentRow({
 
       <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
         {failed ? (
-          <button
+          <Button
             type="button"
             onClick={handleRetry}
-            disabled={retry.isPending}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-50 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+            loading={retry.isPending}
+            startIcon={<IconRetry size={16} />}
+            className="flex-1 tablet:flex-none"
           >
-            <IconRetry size={16} />
             تلاش مجدد
-          </button>
+          </Button>
         ) : (
+          // A navigation target keeps its link semantics and borrows the
+          // button's class list — never a <button> inside an <a>.
           <Link
             href={`/documents/${id}`}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+            className={buttonClasses({ className: "flex-1 tablet:flex-none" })}
           >
-            {processing ? <IconOpenInNew size={16} /> : <IconDocument size={16} />}
+            <span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center">
+              {processing ? <IconOpenInNew size={16} /> : <IconDocument size={16} />}
+            </span>
             {processing ? "مشاهده بررسی" : "مشاهده سند"}
           </Link>
         )}
@@ -347,12 +351,9 @@ export function DocumentList({
           <p className="mb-6 text-body-2 text-on-surface-variant">
             دریافت لیست اسناد با خطا مواجه شد. لطفاً دوباره تلاش کنید.
           </p>
-          <button
-            onClick={onRetry}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-body-2 font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white"
-          >
+          <Button onClick={onRetry} startIcon={<IconRetry size={16} />}>
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       ) : documents.length === 0 ? (
         <div className="mt-1 flex flex-col items-center gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface py-14 text-center">

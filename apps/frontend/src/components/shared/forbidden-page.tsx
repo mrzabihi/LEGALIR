@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClasses } from "@legalir/ui";
 import { IconShield } from "@/lib/icons";
 
 export function ForbiddenPage({
@@ -18,17 +19,13 @@ export function ForbiddenPage({
       <h1 className="text-h2 text-on-surface">{title}</h1>
       <p className="text-body-2 text-muted max-w-sm">{message}</p>
       <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
-        <Link
-          href="/dashboard"
-          className="rounded-medium border border-divider px-6 py-3 text-body-2 text-on-surface hover:bg-surfaceVariant transition-colors touch-target"
-        >
+        {/* Navigation targets styled as buttons, not <button>s nested in
+            <a>s — one focus stop, one activation, identical look. */}
+        <Link href="/dashboard" className={buttonClasses({ variant: "outlined" })}>
           بازگشت به خانه
         </Link>
         {showUpgrade && (
-          <Link
-            href="/subscription"
-            className="rounded-medium bg-primary px-6 py-3 text-primary-on font-button hover:opacity-90 transition-opacity touch-target"
-          >
+          <Link href="/subscription" className={buttonClasses()}>
             ارتقای اشتراک
           </Link>
         )}

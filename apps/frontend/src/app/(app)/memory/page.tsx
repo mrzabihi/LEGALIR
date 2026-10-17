@@ -2,7 +2,12 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useMemories, useUpdateMemory, useDeleteMemory, useUpdatePreferences } from "@/hooks/usePhase11";
+import {
+  useMemories,
+  useUpdateMemory,
+  useDeleteMemory,
+  useUpdateMemoryEnabled,
+} from "@/hooks/usePhase11";
 import {
   IconMemory,
   IconPerson,
@@ -17,7 +22,7 @@ import {
   IconChat,
 } from "@/lib/icons";
 import type { V1MemoryItem } from "@legalir/types";
-import { TextField } from "@legalir/ui";
+import { Button, IconButton, Switch, TextField } from "@legalir/ui";
 
 // ============================================================
 // Constants
@@ -74,36 +79,46 @@ export default function MemoryPage() {
   const { data, isLoading, isError, error, refetch } = useMemories();
   const updateMemory = useUpdateMemory();
   const deleteMemory = useDeleteMemory();
-  const updatePrefs = useUpdatePreferences();
+  const updateMemoryEnabled = useUpdateMemoryEnabled();
 
   // --- Local State ---
-  const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editKey, setEditKey] = useState("");
   const [editValue, setEditValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<V1MemoryItem | null>(null);
   const [consentTarget, setConsentTarget] = useState<V1MemoryItem | null>(null);
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // Sync local memoryEnabled with API data when it loads
-  const effectiveMemoryEnabled =
-    data !== undefined ? data.memoryEnabled : memoryEnabled;
+  // The server-derived flag is the only source of truth; the optimistic
+  // cache write makes it flip in the same frame as the tap.
+  const effectiveMemoryEnabled = data?.memoryEnabled ?? false;
   const items: V1MemoryItem[] = data?.items ?? [];
+
+  /** The item whose PATCH is currently in flight (one at a time). */
+  const itemInFlight = updateMemory.isPending
+    ? (updateMemory.variables?.id ?? null)
+    : null;
 
   // Filter out deleted items from display
   const visibleItems = items.filter((item) => item.status !== "deleted");
 
   // --- Handlers ---
 
-  function handleToggleMemory() {
-    const next = !effectiveMemoryEnabled;
-    setMemoryEnabled(next);
-    // Persist the global memory toggle so it survives reloads. Memory is
-    // gated by the same privacy preference that controls conversation
-    // history storage (see GET /api/v1/memories → memoryEnabled).
-    updatePrefs.mutate(
-      { privacy: { storeConversationHistory: next } } as Record<string, unknown>,
-      { onError: () => setMemoryEnabled(!next) }
-    );
+  function handleToggleMemory(next: boolean) {
+    // Ignore re-entrant taps while the previous write is in flight.
+    if (updateMemoryEnabled.isPending) return;
+    setGlobalError(null);
+    // Persisted through the privacy preference that GET /api/v1/memories
+    // derives `memoryEnabled` from — one source of truth, no local flag.
+    // The hook restores every affected cache if the write fails.
+    updateMemoryEnabled.mutate(next, {
+      onError: (err) =>
+        setGlobalError(
+          err instanceof Error && err.message
+            ? err.message
+            : "تغییر وضعیت حافظه ذخیره نشد؛ وضعیت قبلی بازگردانده شد."
+        ),
+    });
   }
 
   function handleStartEdit(item: V1MemoryItem) {
@@ -135,6 +150,7 @@ export default function MemoryPage() {
   }
 
   function handleToggleItemStatus(item: V1MemoryItem) {
+    if (updateMemory.isPending) return;
     const newStatus = item.status === "active" ? "disabled" : "active";
     updateMemory.mutate({ id: item.id, status: newStatus });
   }
@@ -210,29 +226,16 @@ export default function MemoryPage() {
             اطلاعات ذخیره‌شده برای بهبود پاسخ‌های AI
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-body-2 text-muted">
-            {effectiveMemoryEnabled ? "فعال" : "غیرفعال"}
-          </span>
-          <button
-            type="button"
-            onClick={handleToggleMemory}
-            role="switch"
-            aria-checked={effectiveMemoryEnabled}
-            aria-label={
-              effectiveMemoryEnabled ? "غیرفعال کردن حافظه" : "فعال کردن حافظه"
-            }
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              effectiveMemoryEnabled ? "bg-primary" : "bg-border"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                effectiveMemoryEnabled ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
+        <Switch
+          checked={effectiveMemoryEnabled}
+          onChange={(e) => handleToggleMemory(e.target.checked)}
+          aria-label="حافظه"
+          error={globalError}
+          saving={updateMemoryEnabled.isPending}
+          disabled={isLoading}
+          disabledReason={isLoading ? "در حال بارگذاری وضعیت حافظه…" : undefined}
+          className="shrink-0"
+        />
       </div>
 
       {/* ====================================================== */}
@@ -287,13 +290,9 @@ export default function MemoryPage() {
               ? error.message
               : "متأسفانه در دریافت اطلاعات ذخیره‌شده مشکلی پیش آمده است."}
           </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-primary-on text-body-2 font-medium hover:opacity-90 transition-colors touch-target"
-          >
+          <Button type="button" onClick={() => refetch()}>
             تلاش مجدد
-          </button>
+          </Button>
         </div>
       )}
 
@@ -338,8 +337,13 @@ export default function MemoryPage() {
             return (
               <div
                 key={item.id}
-                className={`rounded-large bg-surface shadow-elevation-1 border border-divider transition-all hover:shadow-elevation-2 ${
-                  isDisabled ? "opacity-50" : ""
+                className={`rounded-large border border-divider transition-all hover:shadow-elevation-2 ${
+                  isDisabled
+                    ? // A disabled item is muted with a tint, not with whole-card
+                      // opacity — dimming the card would also dim the switch that
+                      // turns it back on, making the off state hard to read.
+                      "bg-surface-container shadow-none"
+                    : "bg-surface shadow-elevation-1"
                 }`}
               >
                 {/* Card Header: Category + Badges */}
@@ -369,53 +373,46 @@ export default function MemoryPage() {
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-1">
-                    {/* Enable/Disable Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggleItemStatus(item)}
-                      disabled={updateMemory.isPending}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors touch-target ${
-                        item.status === "active" ? "bg-primary" : "bg-border"
-                      }`}
-                      aria-label={
-                        item.status === "active"
-                          ? "غیرفعال کردن"
-                          : "فعال کردن"
+                    {/* Enable/Disable — one shared switch, own row state */}
+                    <Switch
+                      checked={item.status === "active"}
+                      onChange={() => handleToggleItemStatus(item)}
+                      aria-label={`وضعیت «${item.key}»`}
+                      saving={itemInFlight === item.id}
+                      disabled={updateMemory.isPending && itemInFlight !== item.id}
+                      disabledReason={
+                        updateMemory.isPending && itemInFlight !== item.id
+                          ? "در انتظار پایان تغییر دیگر…"
+                          : undefined
                       }
-                    >
-                      <span
-                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                          item.status === "active"
-                            ? "translate-x-[18px]"
-                            : "translate-x-[2px]"
-                        }`}
-                      />
-                    </button>
+                      className="me-1"
+                    />
 
-                    {/* Edit Button */}
+                    {/* Edit Button — icon-only but labelled; disabled while
+                        this item is already in edit mode. */}
                     {item.consentGiven && (
-                      <button
-                        type="button"
+                      <IconButton
+                        size="small"
                         onClick={() => handleStartEdit(item)}
                         disabled={isEditing}
-                        className="rounded-full p-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
-                        aria-label="ویرایش"
+                        label="ویرایش"
                       >
                         <IconEdit size={16} />
-                      </button>
+                      </IconButton>
                     )}
 
-                    {/* Delete Button */}
+                    {/* Delete Button — distinct destructive treatment; the
+                        confirmation dialog still owns the real decision. */}
                     {item.consentGiven && (
-                      <button
-                        type="button"
+                      <IconButton
+                        size="small"
+                        variant="danger"
                         onClick={() => handleRequestDelete(item)}
                         disabled={deleteMemory.isPending}
-                        className="rounded-full p-2 text-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-target"
-                        aria-label="حذف"
+                        label="حذف"
                       >
                         <IconDelete size={16} />
-                      </button>
+                      </IconButton>
                     )}
                   </div>
                 </div>
@@ -445,32 +442,25 @@ export default function MemoryPage() {
                         fullWidth
                       />
                       <div className="flex items-center gap-2">
-                        <button
+                        <Button
                           type="submit"
-                          disabled={
-                            updateMemory.isPending ||
-                            !editKey.trim() ||
-                            !editValue.trim()
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-primary-on text-caption font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
+                          size="small"
+                          loading={updateMemory.isPending}
+                          disabled={!editKey.trim() || !editValue.trim()}
+                          startIcon={<IconSave size={14} />}
                         >
-                          <IconSave size={14} />
                           ذخیره
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          size="small"
+                          variant="ghost"
                           onClick={handleCancelEdit}
                           disabled={updateMemory.isPending}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-divider px-4 py-1.5 text-caption text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
+                          startIcon={<IconClose size={14} />}
                         >
-                          <IconClose size={14} />
                           انصراف
-                        </button>
-                        {updateMemory.isPending && (
-                          <span className="text-caption text-muted">
-                            در حال ذخیره...
-                          </span>
-                        )}
+                        </Button>
                       </div>
                     </form>
                   ) : (
@@ -546,32 +536,25 @@ export default function MemoryPage() {
               اطمینان دارید؟ این عملیات قابل بازگشت نیست.
             </p>
             <div className="flex items-center justify-end gap-3">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handleCancelDelete}
                 disabled={deleteMemory.isPending}
-                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
               >
                 انصراف
-              </button>
-              <button
+              </Button>
+              {/* The destructive action stays red, keeps its own label, and
+                  shows progress in place so the dialog never looks stuck. */}
+              <Button
                 type="button"
+                variant="danger"
                 onClick={handleConfirmDelete}
-                disabled={deleteMemory.isPending}
-                className="rounded-full bg-red-600 px-5 py-2 text-white text-body-2 font-medium hover:bg-red-700 disabled:opacity-50 transition-colors touch-target inline-flex items-center gap-1.5"
+                loading={deleteMemory.isPending}
+                startIcon={<IconDelete size={14} />}
               >
-                {deleteMemory.isPending ? (
-                  <>
-                    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    در حال حذف...
-                  </>
-                ) : (
-                  <>
-                    <IconDelete size={14} />
-                    حذف
-                  </>
-                )}
-              </button>
+                حذف
+              </Button>
             </div>
           </div>
         </div>
@@ -643,42 +626,32 @@ export default function MemoryPage() {
             </p>
 
             {/* Consent Actions */}
-            <div className="flex items-center justify-end gap-3">
-              <button
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handleCancelConsent}
                 disabled={updateMemory.isPending}
-                className="rounded-full border border-divider px-5 py-2 text-body-2 text-muted hover:text-on-surface hover:bg-surface-hover transition-colors touch-target"
+                startIcon={<IconClose size={14} />}
               >
-                <IconClose size={14} className="inline-block ml-1" />
                 انصراف
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outlined"
                 onClick={handleRejectConsent}
                 disabled={updateMemory.isPending}
-                className="rounded-full border border-red-200 dark:border-red-800 px-5 py-2 text-body-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-target"
               >
                 رد کردن
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={handleApproveConsent}
-                disabled={updateMemory.isPending}
-                className="rounded-full bg-primary px-5 py-2 text-primary-on text-body-2 font-medium hover:opacity-90 disabled:opacity-50 transition-colors touch-target inline-flex items-center gap-1.5"
+                loading={updateMemory.isPending}
+                startIcon={<IconCheck size={14} />}
               >
-                {updateMemory.isPending ? (
-                  <>
-                    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    در حال ذخیره...
-                  </>
-                ) : (
-                  <>
-                    <IconCheck size={14} />
-                    تأیید می‌کنم
-                  </>
-                )}
-              </button>
+                تأیید می‌کنم
+              </Button>
             </div>
           </div>
         </div>
@@ -706,17 +679,18 @@ export default function MemoryPage() {
                     : "لطفاً دوباره تلاش کنید."}
               </p>
             </div>
-            <button
-              type="button"
+            <IconButton
+              size="small"
+              variant="danger"
               onClick={() => {
                 updateMemory.reset();
                 deleteMemory.reset();
               }}
-              className="mr-auto text-red-500 hover:text-red-700 dark:hover:text-red-300 p-1 touch-target shrink-0"
-              aria-label="بستن"
+              label="بستن"
+              className="ms-auto shrink-0"
             >
               <IconClose size={16} />
-            </button>
+            </IconButton>
           </div>
         </div>
       )}

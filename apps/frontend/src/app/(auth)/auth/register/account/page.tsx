@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { TextField, PasswordField, Checkbox } from "@legalir/ui";
+import { TextField, PasswordField, Checkbox, Button } from "@legalir/ui";
 import { useRegister, getPasswordStrength } from "@/lib/auth/use-auth";
 import { normalizeMobile, MOBILE_ERROR_MESSAGE } from "@/lib/auth/api";
 import {
@@ -384,40 +384,17 @@ export default function RegisterAccountPage() {
           </div>
         )}
 
-        {/* Submit Button */}
-        <button
+        {/* Submit Button — the spinner carries progress, the label stays
+            the action's name so it never reads as a different verb. */}
+        <Button
           type="submit"
+          size="large"
+          fullWidth
+          loading={isPending}
           disabled={!isFormValid || isPending}
-          className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-700 shadow-elevation-3 hover:shadow-elevation-4"
         >
-          {isPending ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg
-                className="animate-spin h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              در حال ثبت‌نام...
-            </span>
-          ) : (
-            "ثبت‌نام"
-          )}
-        </button>
+          ثبت‌نام
+        </Button>
 
         {/* Link to Login */}
         <p className="text-center text-body-2 text-neutral-500 pt-2">

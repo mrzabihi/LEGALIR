@@ -106,8 +106,10 @@ describe("MemoryPage", () => {
     render(<MemoryPage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      const toggle = screen.getByRole("switch", { name: /فعال کردن حافظه|غیرفعال کردن حافظه/ });
-      expect(toggle).toBeTruthy();
+      // The accessible name is the noun label; the state is carried by
+      // aria-checked, never by an action phrase that would go stale.
+      const toggle = screen.getByRole("switch", { name: "حافظه" });
+      expect(toggle).toHaveAttribute("aria-checked", "true");
     });
   });
 

@@ -21,7 +21,7 @@ import {
   ORGANIZATION_LEGAL_TYPE_FA,
   type OrganizationLegalType,
 } from "@legalir/types";
-import { Select, TextField } from "@legalir/ui";
+import { Select, TextField, Button } from "@legalir/ui";
 
 const LEGAL_TYPES = Object.keys(ORGANIZATION_LEGAL_TYPE_FA) as OrganizationLegalType[];
 
@@ -264,13 +264,15 @@ export default function OrganizationOnboardingPage() {
           </div>
         )}
 
-        <button
+        <Button
           type="submit"
+          size="large"
+          fullWidth
+          loading={createOrg.isPending}
           disabled={createOrg.isPending}
-          className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed shadow-elevation-3"
         >
-          {createOrg.isPending ? "در حال ثبت..." : "ثبت سازمان"}
-        </button>
+          ثبت سازمان
+        </Button>
       </form>
     </div>
   );
@@ -408,22 +410,22 @@ function SignatoriesStep({ orgId, onDone }: { orgId: string; onDone: () => void 
           </div>
         )}
 
-        <button
+        <Button
           type="submit"
+          variant="outlined"
+          size="large"
+          fullWidth
+          loading={addSignatory.isPending}
           disabled={addSignatory.isPending}
-          className="w-full rounded-medium border-2 border-primary-700 text-primary-700 py-3 text-button font-medium hover:bg-primary-50 transition-all duration-200 touch-target disabled:opacity-50"
         >
-          {addSignatory.isPending ? "در حال افزودن..." : "افزودن صاحب امضا"}
-        </button>
+          افزودن صاحب امضا
+        </Button>
       </form>
 
-      <button
-        type="button"
-        onClick={onDone}
-        className="w-full mt-3 rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 transition-all duration-200 touch-target shadow-elevation-3"
-      >
+      {/* Leaving onboarding is the step's primary commit. */}
+      <Button type="button" size="large" fullWidth onClick={onDone} className="mt-3">
         ورود به داشبورد
-      </button>
+      </Button>
     </div>
   );
 }

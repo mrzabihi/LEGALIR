@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { IconButton, Button } from "@legalir/ui";
 import { useAssistantStore } from "@/stores/assistant-store";
 import {
   IconClose,
@@ -300,13 +301,13 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
         {/* Go to Full Chat CTA */}
         {hasSentMessage && (
           <div className="text-center pt-2 animate-slide-up-fade">
-            <button
+            <Button
               onClick={handleGoToChat}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-secondary text-neutral-0 text-button hover:bg-secondary-700 transition-colors touch-target-min"
+              endIcon={<IconArrowForward size={16} />}
+              className="rounded-full"
             >
               رفتن به گفت‌وگوی کامل
-              <IconArrowForward size={16} />
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -349,19 +350,16 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
           aria-label="متن پیام"
           style={{ minHeight: "44px", maxHeight: "100px" }}
         />
-        <button
+        <IconButton
+          variant="filled"
+          size="small"
+          label="ارسال پیام"
           onClick={handleSend}
           disabled={!inputValue.trim()}
-          className={[
-            "w-11 h-11 flex items-center justify-center rounded-full transition-colors touch-target shrink-0",
-            inputValue.trim()
-              ? "bg-primary text-primary-on hover:bg-primary-variant"
-              : "bg-surface-container text-muted cursor-not-allowed",
-          ].join(" ")}
-          aria-label="ارسال پیام"
+          className="h-11 w-11 rounded-full"
         >
           <IconSend size={20} />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

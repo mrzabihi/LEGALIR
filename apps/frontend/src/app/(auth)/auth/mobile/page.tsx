@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { TextField, PasswordField } from "@legalir/ui";
+import { TextField, PasswordField, Button } from "@legalir/ui";
 import { useRequestOtp, usePasswordLogin } from "@/lib/auth/use-auth";
 import { normalizeMobile, MOBILE_ERROR_MESSAGE } from "@/lib/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
@@ -253,40 +253,17 @@ export default function MobileLoginPage() {
             </div>
           )}
 
-          {/* Submit Button */}
-          <button
+          {/* Submit Button — the spinner carries progress, the label stays
+              the action's name so it never reads as a different verb. */}
+          <Button
             type="submit"
+            size="large"
+            fullWidth
+            loading={isPasswordPending}
             disabled={!isPasswordFormValid || isPasswordPending}
-            className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-700 shadow-elevation-3 hover:shadow-elevation-4"
           >
-            {isPasswordPending ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                در حال ورود...
-              </span>
-            ) : (
-              "ورود"
-            )}
-          </button>
+            ورود
+          </Button>
         </form>
       )}
 
@@ -352,40 +329,16 @@ export default function MobileLoginPage() {
             </div>
           )}
 
-          {/* Submit Button */}
-          <button
+          {/* Submit Button — same spinner-carries-progress rule as above. */}
+          <Button
             type="submit"
+            size="large"
+            fullWidth
+            loading={isOtpPending}
             disabled={!isValidOtpMobile || isOtpPending}
-            className="w-full rounded-medium bg-primary-700 text-white py-3.5 text-button font-semibold hover:bg-primary-800 active:bg-primary-900 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-700 shadow-elevation-3 hover:shadow-elevation-4"
           >
-            {isOtpPending ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                در حال ارسال...
-              </span>
-            ) : (
-              "ارسال کد تأیید"
-            )}
-          </button>
+            ارسال کد تأیید
+          </Button>
         </form>
       )}
 

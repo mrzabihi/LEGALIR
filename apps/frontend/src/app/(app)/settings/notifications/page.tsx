@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import {
@@ -28,6 +28,12 @@ import {
 } from "@/hooks/useAccount";
 import { IconBell, IconChevronRight, IconInfo } from "@/lib/icons";
 import type { NotificationSettings } from "@legalir/types";
+
+function errText(err: unknown): string {
+  return err instanceof Error && err.message
+    ? err.message
+    : "ذخیره نشد؛ وضعیت قبلی بازگردانده شد.";
+}
 
 /** Grouped so the list reads as two clear families, not six loose switches. */
 const GROUPS: { title: string; items: ToggleItem[] }[] = [
@@ -57,9 +63,32 @@ export default function NotificationSettingsPage() {
   // flips instantly and `query.data` is already the new value.
   const values = query.data;
 
+  // Which row is being written / which row's last write failed. Tracked here
+  // (not in the group) so only that row shows a spinner or an error.
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  // Ref guard: a double tap can fire two onChange calls in one frame, before
+  // `isPending` re-renders. The ref rejects the second without a round-trip.
+  const inFlight = useRef(false);
+
   const handleChange = useCallback(
     (key: string, value: boolean) => {
-      update.mutate({ [key]: value } as Partial<NotificationSettings>);
+      if (inFlight.current) return;
+      inFlight.current = true;
+      setSavingKey(key);
+      setFailedKey(null);
+      update.mutate(
+        { [key]: value } as Partial<NotificationSettings>,
+        {
+          // The hook restores the previous cache value on error, so the row
+          // snaps back to the server truth; this just points at that row.
+          onError: () => setFailedKey(key),
+          onSettled: () => {
+            inFlight.current = false;
+            setSavingKey(null);
+          },
+        }
+      );
     },
     [update]
   );
@@ -116,7 +145,10 @@ export default function NotificationSettingsPage() {
               values={values as unknown as Record<string, boolean>}
               onChange={handleChange}
               disabled={false}
-              saving={false}
+              saving={update.isPending}
+              savingKey={savingKey}
+              failedKey={failedKey}
+              errorMessage={update.error ? errText(update.error) : null}
             />
           </SettingsCard>
         ))

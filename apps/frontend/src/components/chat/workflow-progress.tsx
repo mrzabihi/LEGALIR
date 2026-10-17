@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Button } from "@legalir/ui";
 
 // ============================================================
 // WorkflowProgress — visual phase indicator for the AI workflow
@@ -125,12 +126,9 @@ export function WorkflowProgress({
 
       {/* Create case CTA in ACTION phase */}
       {suggestCaseCreation && onCreateCase && (
-        <button
-          onClick={onCreateCase}
-          className="w-full mt-2 rounded-medium bg-primary text-primary-on px-4 py-2 text-button font-medium hover:bg-primary-700 hover:text-white transition-colors active:scale-[0.98]"
-        >
+        <Button onClick={onCreateCase} fullWidth className="mt-2">
           ایجاد پرونده حقوقی
-        </button>
+        </Button>
       )}
     </div>
   );
