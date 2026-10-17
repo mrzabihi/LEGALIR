@@ -5,44 +5,27 @@
  */
 import { test, type Page, type APIRequestContext } from "@playwright/test";
 import path from "node:path";
+import {
+  ensureAdminSession,
+  SESSION_COOKIE,
+  type AdminSession,
+} from "./support/admin-session";
 
-const OTP_CODE = "405405";
-const SESSION_COOKIE = "legalir-session";
-const ADMIN_MOBILE = "09120000000";
-const ADMIN_MOBILE_E164 = "+989120000000";
 const LABEL = process.env["AUDIT_LABEL"] ?? "before";
 
-let sessionId: string | null = null;
-
-async function ensureSession(request: APIRequestContext): Promise<string> {
-  if (sessionId) return sessionId;
-  const reqRes = await request.post("/api/auth/otp/request", { data: { mobile: ADMIN_MOBILE } });
-  const reqBody = (await reqRes.json()) as { data?: { challengeId?: string } };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) throw new Error(`otp request failed: ${JSON.stringify(reqBody)}`);
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const verifyBody = (await verifyRes.json()) as { data?: { sessionId?: string } };
-  const sid = verifyBody.data?.sessionId;
-  if (!sid) throw new Error(`otp verify failed: ${JSON.stringify(verifyBody)}`);
-  sessionId = sid;
-  return sid;
-}
-
-async function seedAdmin(page: Page, sid: string) {
+async function seedAdmin(page: Page, session: AdminSession) {
   await page.context().addCookies([
-    { name: SESSION_COOKIE, value: sid, url: "http://localhost:3000" },
+    { name: SESSION_COOKIE, value: session.sessionId, url: "http://localhost:3000" },
   ]);
   await page.addInitScript(
     (data) => localStorage.setItem("legalir-auth", JSON.stringify(data)),
     {
       state: {
         session: {
-          sessionId: sid,
+          sessionId: session.sessionId,
           userId: "admin-user-id",
-          mobileE164: ADMIN_MOBILE_E164,
-          mobileDisplay: ADMIN_MOBILE,
+          mobileE164: `+98${session.mobile.replace(/^0/, "")}`,
+          mobileDisplay: session.mobile,
           isNewUser: false,
           createdAt: Date.now(),
         },
@@ -81,15 +64,22 @@ const PAGES = [
 
 test("admin audit screenshots", async ({ page, request }) => {
   test.setTimeout(600_000);
-  const sid = await ensureSession(request);
-  await seedAdmin(page, sid);
+  await seedAdmin(page, await ensureAdminSession(request));
   const consoleErrors: string[] = [];
   const overflows: string[] = [];
+  let currentRoute = "";
   page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(m.text());
+    if (m.type() === "error") consoleErrors.push(`[${currentRoute}] ${m.text()}`);
+  });
+  page.on("response", (r) => {
+    if (r.status() >= 500) consoleErrors.push(`[${currentRoute}] HTTP ${r.status()} ${r.url()}`);
   });
 
-  for (const [name, route] of PAGES) {
+  const only = process.env["AUDIT_ONLY"];
+  const pages = only ? PAGES.filter(([n]) => only.split(",").includes(n)) : PAGES;
+
+  for (const [name, route] of pages) {
+    currentRoute = name;
     // Desktop
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(route, { waitUntil: "networkidle", timeout: 60_000 });
@@ -175,7 +165,7 @@ test("admin audit screenshots", async ({ page, request }) => {
     if (kpi.length) console.log(`KPI OVERFLOW ${name}:\n` + kpi.join("\n"));
     await page.screenshot({
       path: path.join("e2e", "__shots__", "ui-audit-admin", LABEL, `mobile-${name}.png`),
-      fullPage: false,
+      fullPage: true,
     });
   }
 

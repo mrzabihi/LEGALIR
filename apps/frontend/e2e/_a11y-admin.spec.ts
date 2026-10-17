@@ -3,43 +3,27 @@
  * Not committed. Run with playwright.live.config.ts against the dev server.
  */
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import {
+  ensureAdminSession,
+  SESSION_COOKIE,
+  type AdminSession,
+} from "./support/admin-session";
 
-const OTP_CODE = "405405";
-const SESSION_COOKIE = "legalir-session";
-const ADMIN_MOBILE = "09120000000";
-const ADMIN_MOBILE_E164 = "+989120000000";
-
-let sessionId: string | null = null;
-
-async function ensureSession(request: APIRequestContext): Promise<string> {
-  if (sessionId) return sessionId;
-  const reqRes = await request.post("/api/auth/otp/request", { data: { mobile: ADMIN_MOBILE } });
-  const reqBody = (await reqRes.json()) as { data?: { challengeId?: string } };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) throw new Error(`otp request failed: ${JSON.stringify(reqBody)}`);
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const verifyBody = (await verifyRes.json()) as { data?: { sessionId?: string } };
-  const sid = verifyBody.data?.sessionId;
-  if (!sid) throw new Error(`otp verify failed: ${JSON.stringify(verifyBody)}`);
-  sessionId = sid;
-  return sid;
-}
-
-async function seed(page: Page, sid: string) {
+/** Mirror the staff session into localStorage so the shell hydrates as a
+ *  signed-in operator without a client round-trip. */
+async function seed(page: Page, session: AdminSession) {
   await page.context().addCookies([
-    { name: SESSION_COOKIE, value: sid, url: "http://localhost:3000" },
+    { name: SESSION_COOKIE, value: session.sessionId, url: "http://localhost:3000" },
   ]);
   await page.addInitScript(
     (data) => localStorage.setItem("legalir-auth", JSON.stringify(data)),
     {
       state: {
         session: {
-          sessionId: sid,
+          sessionId: session.sessionId,
           userId: "admin-user-id",
-          mobileE164: ADMIN_MOBILE_E164,
-          mobileDisplay: ADMIN_MOBILE,
+          mobileE164: `+98${session.mobile.replace(/^0/, "")}`,
+          mobileDisplay: session.mobile,
           isNewUser: false,
           createdAt: Date.now(),
         },
@@ -51,8 +35,7 @@ async function seed(page: Page, sid: string) {
 
 test("admin keyboard + focus contracts", async ({ page, request }) => {
   test.setTimeout(180_000);
-  const sid = await ensureSession(request);
-  await seed(page, sid);
+  await seed(page, await ensureAdminSession(request));
 
   // 1. Every data table is a focusable scroll region with an accessible name.
   await page.goto("/admin/users", { waitUntil: "networkidle" });
@@ -93,7 +76,10 @@ test("admin keyboard + focus contracts", async ({ page, request }) => {
 
   // 5. Reduced motion: transitions collapse and nothing animates forever.
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/admin", { waitUntil: "networkidle" });
+  // `networkidle` never settles on /admin: the live «گزارش زنده» block
+  // polls by design. Wait for the shell to paint instead.
+  await page.goto("/admin", { waitUntil: "domcontentloaded" });
+  await page.locator("main").first().waitFor({ timeout: 30_000 });
   const motion = await page.evaluate(() => {
     const el = document.querySelector<HTMLElement>("a.group") ?? document.body;
     const s = getComputedStyle(el);
@@ -131,8 +117,7 @@ function luminance(rgb: string): number | null {
 
 test("semantic text meets 4.5:1 on its tint, in both themes", async ({ page, request }) => {
   test.setTimeout(180_000);
-  const sid = await ensureSession(request);
-  await seed(page, sid);
+  await seed(page, await ensureAdminSession(request));
 
   for (const theme of ["light", "dark"] as const) {
     await page.addInitScript((t) => localStorage.setItem("legalir-theme", t), theme);

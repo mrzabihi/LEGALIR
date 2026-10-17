@@ -84,7 +84,14 @@ test.describe("Contract types", () => {
     await mockAuth(page, sessionId);
     await page.goto("/contracts");
 
-    await page.getByText("خرید و فروش خودرو", { exact: false }).first().click();
+    // The card deliberately splits PREVIEW from START: the artwork band opens
+    // the structure dialog, and only the CTA creates a draft. Clicking the
+    // title therefore does nothing, so start through the named action.
+    const vehicleCard = page
+      .locator("article")
+      .filter({ hasText: "خرید و فروش خودرو" })
+      .first();
+    await vehicleCard.getByRole("button", { name: "تنظیم قولنامه خودرو" }).click();
     await page.waitForURL(/\/contracts\/cnt-/, { timeout: APP_READY_TIMEOUT });
 
     // The wizard shell renders the registry's first step.
@@ -94,9 +101,12 @@ test.describe("Contract types", () => {
     // The reference code carries the type-specific segment.
     await expect(page.getByText(/LGL-VEHICLE-/, { exact: false }).first()).toBeVisible();
 
-    // Advancing to the vehicle step renders the schema-driven fields.
-    await page.getByRole("button", { name: "مرحله بعد" }).click();
-    await expect(page.getByText("مشخصات خودرو", { exact: false }).first()).toBeVisible({
+    // «مرحله بعد» is gated on the current step's required data (parties),
+    // which this test does not fill. A section button jumps directly, so
+    // the schema-driven vehicle fields can still be proven to render.
+    const sections = page.getByRole("region", { name: "وضعیت بخش‌های قرارداد" });
+    await sections.getByRole("button", { name: /^مشخصات خودرو/ }).click();
+    await expect(page.getByRole("heading", { name: "مشخصات خودرو", level: 2 })).toBeVisible({
       timeout: APP_READY_TIMEOUT,
     });
     await expect(page.getByText("شماره شاسی", { exact: false }).first()).toBeVisible();
