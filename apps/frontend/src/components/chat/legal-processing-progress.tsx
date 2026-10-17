@@ -191,18 +191,22 @@ export function LegalProcessingProgress({
               توقف
             </Button>
           )}
-          <button
+          <Button
             type="button"
+            variant="text"
+            size="small"
             onClick={() => setExpanded((e) => !e)}
             aria-expanded={expanded}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-caption text-muted transition hover:bg-surface-hover"
+            className="h-7 !px-2 text-caption"
+            endIcon={
+              <IconChevronDown
+                size={14}
+                className={expanded ? "rotate-180 transition-transform" : "transition-transform"}
+              />
+            }
           >
             مشاهده مراحل
-            <IconChevronDown
-              size={14}
-              className={expanded ? "rotate-180 transition-transform" : "transition-transform"}
-            />
-          </button>
+          </Button>
         </div>
       </div>
 

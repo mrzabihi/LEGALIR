@@ -25,7 +25,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { SegmentedControl } from "@legalir/ui";
+import { Button, SegmentedControl } from "@legalir/ui";
 import {
   useAdminOverview,
   useAdminReports,
@@ -652,25 +652,27 @@ function LiveReportSection({
           <span className="hidden text-caption text-muted tablet:inline">
             آخرین به‌روزرسانی: {lastAt ? toRelativeTime(lastAt) : "—"}
           </span>
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="small"
             onClick={() => setPaused((p) => !p)}
-            className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 py-2 text-caption font-medium text-on-surface-variant transition-colors hover:bg-surface-hover"
             aria-pressed={paused}
+            startIcon={paused ? <IconRefresh size={14} /> : <IconStop size={14} />}
           >
-            {paused ? <IconRefresh size={14} /> : <IconStop size={14} />}
             {paused ? "ادامه" : "توقف"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="small"
+            loading={live.isFetching}
             onClick={() => void live.refetch()}
-            disabled={live.isFetching}
-            className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 py-2 text-caption font-medium text-on-surface-variant transition-colors hover:bg-surface-hover disabled:opacity-50"
             aria-label="به‌روزرسانی گزارش زنده"
+            startIcon={<IconRefresh size={14} />}
           >
-            <IconRefresh size={14} className={live.isFetching ? "animate-spin" : ""} />
             به‌روزرسانی
-          </button>
+          </Button>
         </div>
       }
     >
@@ -883,16 +885,17 @@ export default function AdminOverviewPage() {
             <div className="flex flex-wrap items-center justify-end gap-2">
               <span className="hidden text-caption text-muted tablet:inline">بازه زمانی</span>
               <FilterPills options={PRESETS as unknown as { value: Preset; label: string }[]} value={preset} onChange={setPreset} />
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="small"
                 onClick={refetchAll}
-                disabled={refetching}
-                className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 py-2 text-caption font-medium text-on-surface-variant transition-colors hover:bg-surface-hover disabled:opacity-50"
+                loading={refetching}
                 aria-label="به‌روزرسانی گزارش"
+                startIcon={<IconRefresh size={15} />}
               >
-                <IconRefresh size={15} className={refetching ? "animate-spin" : ""} />
                 <span className="hidden tablet:inline">به‌روزرسانی</span>
-              </button>
+              </Button>
               {canReadReports && (
                 <Link
                   href="/admin/reports"

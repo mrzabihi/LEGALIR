@@ -18,6 +18,7 @@
 
 "use client";
 
+import { Button } from "@legalir/ui";
 import { IconFilter } from "@/lib/icons";
 import { SearchField } from "@/components/shared";
 
@@ -69,19 +70,20 @@ export function ContractSearch({
       </div>
 
       {onOpenFilters && (
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={onOpenFilters}
-          className="tablet:hidden relative inline-flex h-11 shrink-0 items-center gap-1.5 rounded-medium border border-[color:var(--color-outline-variant)] px-3.5 text-labelLarge text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          startIcon={<IconFilter size={18} />}
+          className="tablet:hidden relative shrink-0"
         >
-          <IconFilter size={18} aria-hidden="true" />
           فیلترها
           {filterCount > 0 && (
             <span className="ms-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-caption text-primary-on">
               {filterCount}
             </span>
           )}
-        </button>
+        </Button>
       )}
     </div>
   );

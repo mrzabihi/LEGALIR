@@ -171,14 +171,15 @@ export function AttachDocumentModal({
               <p className="text-bodySmall text-muted">
                 بارگذاری فهرست اسناد ناموفق بود.
               </p>
-              <button
+              <Button
                 type="button"
+                variant="text"
+                size="small"
                 onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 rounded-medium px-3 py-2 text-bodySmall text-primary transition-colors hover:bg-surface-hover"
+                startIcon={<IconRefresh size={16} />}
               >
-                <IconRefresh size={16} />
                 تلاش مجدد
-              </button>
+              </Button>
             </div>
           )}
 

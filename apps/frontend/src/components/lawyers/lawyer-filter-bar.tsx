@@ -332,20 +332,26 @@ export function LawyerFilterBar({
           />
         </div>
         <Tooltip content="فیلترهای بیشتر">
-          <button
+          {/* The count badge flows inline rather than overhanging the
+              button: Button clips its own box for the state layer, so an
+              absolutely-positioned badge outside it would be cut off. */}
+          <Button
             type="button"
+            variant="secondary"
             onClick={onOpenAdvanced}
             aria-label="فیلترهای بیشتر"
-            className="relative flex h-12 shrink-0 items-center gap-1.5 rounded-medium border border-divider bg-surface px-3 text-body-2 font-medium text-on-surface transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            startIcon={<IconFilter size={18} />}
+            // Match the search field's 56px height so the pair reads as one
+            // row rather than a tall field beside a short button.
+            className="!h-14 shrink-0"
           >
-            <IconFilter size={18} />
             <span className="hidden mobile-l:inline">فیلترها</span>
             {quickFilterCount > 0 && (
-              <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-on">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-on">
                 {toPersianNumber(quickFilterCount)}
               </span>
             )}
-          </button>
+          </Button>
         </Tooltip>
       </div>
 

@@ -165,21 +165,19 @@ function ActionButton({
   loading?: boolean;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant={active ? "filled" : "secondary"}
       onClick={onClick}
-      disabled={loading}
-      className={[
-        "inline-flex items-center gap-2 rounded-full border border-divider px-4 py-2.5 text-button font-medium transition-colors touch-target",
-        active
-          ? "border-primary bg-primary text-primary-on"
-          : "bg-surface text-on-surface hover:bg-surface-hover active:scale-[0.97]",
-        loading ? "opacity-60" : "",
-      ].join(" ")}
+      loading={loading}
+      startIcon={icon}
+      // Below tablet the visible label is hidden, so the button is
+      // icon-only and needs an explicit accessible name.
+      aria-label={label}
+      aria-pressed={active}
     >
-      {icon}
       <span className="hidden tablet:inline">{label}</span>
-    </button>
+    </Button>
   );
 }
 

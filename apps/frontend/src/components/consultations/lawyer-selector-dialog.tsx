@@ -374,14 +374,15 @@ export function LawyerSelectorDialog({
 
       {/* Cancel is always reachable, and never changes the draft. */}
       <div className="mt-4 flex justify-start border-t border-divider pt-3">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="small"
           onClick={onClose}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-caption text-muted transition hover:bg-surface-container hover:text-on-surface"
+          startIcon={<IconClose size={16} />}
         >
-          <IconClose size={16} />
           انصراف
-        </button>
+        </Button>
       </div>
     </Dialog>
   );

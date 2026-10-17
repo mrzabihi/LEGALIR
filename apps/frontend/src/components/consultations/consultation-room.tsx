@@ -69,17 +69,23 @@ export function ConsultationRoom({ id }: { id: string }) {
       <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
         <div className="flex flex-col items-center gap-3 rounded-large bg-error-container p-8 text-center">
           <p className="text-body-1 text-error">این مشاوره یافت نشد یا به آن دسترسی ندارید</p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body-2 text-primary transition hover:bg-surface-hover"
-          >
-            <IconRefresh size={16} />
-            تلاش مجدد
-          </button>
-          <Link href="/consultations" className="text-body-2 text-primary hover:underline">
-            بازگشت به مشاوره‌های من
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="text"
+              size="small"
+              onClick={() => refetch()}
+              startIcon={<IconRefresh size={16} />}
+            >
+              تلاش مجدد
+            </Button>
+            <Link
+              href="/consultations"
+              className="text-body-2 text-primary hover:underline"
+            >
+              بازگشت به مشاوره‌های من
+            </Link>
+          </div>
         </div>
       </div>
     );

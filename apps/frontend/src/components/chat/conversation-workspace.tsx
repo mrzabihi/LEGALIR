@@ -18,7 +18,7 @@ import { EscalationCta } from "./escalation-cta";
 import { LegalRequestProgress } from "./legal-request-progress";
 import { ConnectionStatus } from "./connection-status";
 import { useRouter } from "next/navigation";
-import { TextField } from "@legalir/ui";
+import { Button, TextField } from "@legalir/ui";
 
 interface ExtendedMessage extends Message {
   sections?: StructuredResponseSection[];
@@ -337,14 +337,16 @@ export function ConversationWorkspace({
           response is streaming, so they are never force-scrolled (§23). */}
       {!atBottom && isStreaming && (
         <div className="relative">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="small"
             onClick={scrollToBottom}
-            className="absolute -top-12 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border border-divider bg-surface px-3 py-1.5 text-caption text-onSurface shadow-elevation-2 transition hover:bg-surface-hover"
+            startIcon={<IconChevronDown size={14} />}
+            className="absolute -top-12 start-1/2 -translate-x-1/2 rounded-full shadow-elevation-2 text-caption rtl:translate-x-1/2"
           >
-            <IconChevronDown size={14} />
             رفتن به پاسخ جدید
-          </button>
+          </Button>
         </div>
       )}
 

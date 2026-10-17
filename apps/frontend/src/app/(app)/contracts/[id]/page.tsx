@@ -19,6 +19,7 @@
 
 import React, { use } from "react";
 import Link from "next/link";
+import { Button, buttonClasses } from "@legalir/ui";
 import { usePropertyContract } from "@/hooks/usePropertyContracts";
 import { useContractDetail } from "@/hooks/useContracts";
 import { ContractBuilder } from "@/components/contracts/builder/wizard-shell";
@@ -88,18 +89,11 @@ function BuilderContent({ id }: { id: string }) {
           </p>
           <div className="flex gap-3 justify-center">
             {!notFound && (
-              <button
-                type="button"
-                onClick={() => void refetch()}
-                className="rounded-medium bg-primary text-primary-on px-5 h-10 text-labelLarge"
-              >
+              <Button type="button" onClick={() => void refetch()}>
                 تلاش مجدد
-              </button>
+              </Button>
             )}
-            <Link
-              href="/contracts"
-              className="rounded-medium border border-outline text-primary px-5 h-10 text-labelLarge inline-flex items-center"
-            >
+            <Link href="/contracts" className={buttonClasses({ variant: "outlined" })}>
               بازگشت به فهرست
             </Link>
           </div>

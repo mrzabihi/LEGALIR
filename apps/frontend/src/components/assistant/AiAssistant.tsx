@@ -314,22 +314,26 @@ export function AiAssistantPanel({ pageContext, mode = "panel" }: AiAssistantPan
 
       {/* Quick Actions */}
       <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-t border-divider bg-surfaceVariant">
-        <button
+        <Button
+          type="button"
+          variant="secondary"
+          size="small"
           onClick={() => handleQuickAction("help")}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-medium border border-outline-variant text-bodySmall text-onSurfaceVariant hover:bg-surface hover:text-onSurface transition-colors touch-target-min"
+          startIcon={<IconInfo size={16} />}
           aria-label="کمک"
         >
-          <IconInfo size={16} />
           <span className="hidden tablet:inline">کمک</span>
-        </button>
-        <button
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="small"
           onClick={() => handleQuickAction("report")}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-medium border border-outline-variant text-bodySmall text-onSurfaceVariant hover:bg-surface hover:text-onSurface transition-colors touch-target-min"
+          startIcon={<IconWarning size={16} />}
           aria-label="گزارش مشکل"
         >
-          <IconWarning size={16} />
           <span className="hidden tablet:inline">گزارش مشکل</span>
-        </button>
+        </Button>
       </div>
 
       {/* Message Input */}

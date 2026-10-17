@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Button } from "@legalir/ui";
 import { IconCopy, IconCheck } from "@/lib/icons";
 
 interface CitationCopyButtonProps {
@@ -30,23 +31,17 @@ export function CitationCopyButton({ text, label = "کپی" }: CitationCopyButto
   }, [text]);
 
   return (
-    <button
-      onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-medium text-labelSmall text-onSurfaceVariant hover:bg-surfaceVariant transition-colors touch-target"
-      aria-label={`${label}: ${text}`}
+    <Button
       type="button"
+      variant="text"
+      size="small"
+      onClick={handleCopy}
+      aria-label={`${label}: ${text}`}
+      startIcon={copied ? <IconCheck size={14} className="text-success" /> : <IconCopy size={14} />}
     >
-      {copied ? (
-        <>
-          <IconCheck size={14} className="text-success" />
-          <span className="text-success">کپی شد</span>
-        </>
-      ) : (
-        <>
-          <IconCopy size={14} />
-          {label}
-        </>
-      )}
-    </button>
+      <span className={copied ? "text-success" : undefined}>
+        {copied ? "کپی شد" : label}
+      </span>
+    </Button>
   );
 }
