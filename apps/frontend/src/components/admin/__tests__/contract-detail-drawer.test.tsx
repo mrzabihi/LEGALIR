@@ -114,7 +114,9 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
 }
 
 function renderDrawer(canReview: boolean) {
-  return render(<ContractDetailDrawer contractId="ctr-1" canReview={canReview} onClose={() => {}} />);
+  return render(
+    <ContractDetailDrawer contractId="ctr-1" canReview={canReview} onClose={vi.fn()} />
+  );
 }
 
 beforeEach(() => {
