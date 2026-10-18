@@ -54,6 +54,9 @@ import {
   ServiceBanner,
   ServiceCard,
 } from "@/components/services";
+import { JudicialServiceZone } from "@/components/judicial/judicial-service-zone";
+import { useJudicialServices } from "@/hooks/useJudicial";
+import { judicialSearchHaystack } from "@/lib/judicial/entry";
 
 // ============================================================
 // Search — matches the catalog and the service banners
@@ -93,6 +96,19 @@ export default function ServicesPage() {
     [isSearching, trimmed]
   );
 
+  // The judicial family is not in the static catalog: its visibility and
+  // status are admin-managed rows, so the count comes from the same query the
+  // zone renders. `surfaces.services` is honoured here too, so a service the
+  // admin hid on this page cannot reappear through search.
+  const judicial = useJudicialServices();
+  const judicialMatchCount = useMemo(() => {
+    if (!isSearching || !judicial.data) return 0;
+    const needle = trimmed.toLowerCase();
+    return judicial.data.items.filter(
+      (s) => s.surfaces.services && judicialSearchHaystack(s).includes(needle)
+    ).length;
+  }, [isSearching, trimmed, judicial.data]);
+
   // All seven shortcuts are shown (the six product areas plus the
   // personal «مشاوره‌های من» entry point); only the six that group
   // catalog items own a section further down the page.
@@ -126,7 +142,8 @@ export default function ServicesPage() {
     return () => window.clearTimeout(timer);
   }, [isSearching, trimmed]);
 
-  const hasResults = results.length > 0 || bannerResults.length > 0;
+  const hasResults =
+    results.length > 0 || bannerResults.length > 0 || judicialMatchCount > 0;
 
   return (
     <div className="mx-auto max-w-6xl p-4 tablet:p-6" dir="rtl">
@@ -190,7 +207,7 @@ export default function ServicesPage() {
           <div className="mb-4 flex items-baseline justify-between gap-3">
             <h2 className="text-h4 font-bold text-on-surface">
               {hasResults
-                ? `${(results.length + bannerResults.length).toLocaleString("fa-IR")} نتیجه برای «${trimmed}»`
+                ? `${(results.length + bannerResults.length + judicialMatchCount).toLocaleString("fa-IR")} نتیجه برای «${trimmed}»`
                 : `نتیجه‌ای برای «${trimmed}» یافت نشد`}
             </h2>
             <button
@@ -239,6 +256,14 @@ export default function ServicesPage() {
               ))}
             </ul>
           )}
+
+          {/* Judicial results join the same flat list, in the same grid —
+              a matched service must look like every other result. */}
+          <JudicialServiceZone
+            surface="services"
+            query={trimmed}
+            className={results.length > 0 || bannerResults.length > 0 ? "mt-6" : undefined}
+          />
         </section>
       ) : (
         <>
@@ -288,6 +313,19 @@ export default function ServicesPage() {
               ))}
             </div>
           </section>
+
+          {/* ============================================================
+              4a. Judicial documents — the admin-managed family
+              ============================================================
+              These services are rows in `judicial_service_config`, not in
+              the static catalog, so they render here from their own endpoint.
+              The zone returns null when the admin switched this surface off,
+              which leaves the sections above and below untouched. */}
+          <JudicialServiceZone
+            surface="services"
+            className="mb-8"
+            description="شرح موضوع، پرسش‌نامهٔ مرحله‌به‌مرحله و پیش‌نویس ساختارمند — با امکان ذخیره و ادامه در هر مرحله."
+          />
 
           {/* ============================================================
               4b. Coverage panel — the breadth of the legal system

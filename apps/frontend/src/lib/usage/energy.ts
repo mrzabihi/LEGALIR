@@ -58,6 +58,7 @@ const SEED_SERVICE: Record<ActivityType, { serviceKey: string; nameFa: string }>
   CASE_ANALYSIS: { serviceKey: "case-analysis", nameFa: "تحلیل پرونده" },
   LAWYER_AI_PREPARATION: { serviceKey: "lawyer-ai-prep", nameFa: "آماده‌سازی هوشمند وکیل" },
   REGENERATE_AI_RESPONSE: { serviceKey: "regenerate-response", nameFa: "تولید مجدد پاسخ" },
+  JUDICIAL_DRAFT: { serviceKey: "judicial-draft", nameFa: "تنظیم دادخواست و شکواییه" },
 };
 
 function seedProfiles(): ServiceCostProfile[] {

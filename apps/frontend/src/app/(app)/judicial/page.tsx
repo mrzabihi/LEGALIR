@@ -1,0 +1,365 @@
+// ============================================================
+// LEGALIR — Judicial drafting launcher (/judicial)
+// ============================================================
+// The route the /cases card's CTA points at. It is a launcher, not a wizard:
+//
+//   1. the caller's unfinished requests, resumable where they stopped;
+//   2. a short start form — what kind of document, a plain-language
+//      description, and the start path;
+//   3. the honest note that nothing here files or sends anything.
+//
+// Nothing is created until the user presses the start button, so browsing this
+// page leaves no empty rows behind. Availability is re-read from the server on
+// every load — the UI never asserts a status on its own.
+// ============================================================
+
+"use client";
+
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button, Textarea, Select, snackbar } from "@legalir/ui";
+import {
+  JUDICIAL_DOCUMENT_TYPE_FA,
+  JUDICIAL_REQUEST_STATUS_FA,
+} from "@legalir/types";
+import type { JudicialDocumentType, JudicialRequestSummary } from "@legalir/types";
+import {
+  IconArrowBack,
+  IconFilePen,
+  IconInfo,
+  IconRefresh,
+  IconWarning,
+} from "@/lib/icons";
+import {
+  CompactPageHeader,
+  PageContainer,
+  StatusBadge,
+} from "@/components/shared";
+import {
+  useCreateJudicialRequest,
+  useJudicialCard,
+  useJudicialRequests,
+} from "@/hooks/useJudicial";
+import { isJudicialEntryQuery } from "@/lib/judicial/entry";
+import { toPersianDate } from "@/lib/persian-utils";
+
+/** Every drafting family this surface can start, plus "help me decide". */
+const START_TYPES: { value: JudicialDocumentType | "unknown"; labelFa: string; hintFa: string }[] = [
+  {
+    value: "statement",
+    labelFa: JUDICIAL_DOCUMENT_TYPE_FA.statement,
+    hintFa: "برای اخطار رسمی و مطالبه از طرف مقابل، پیش از طرح دعوا",
+  },
+  {
+    value: "brief",
+    labelFa: JUDICIAL_DOCUMENT_TYPE_FA.brief,
+    hintFa: "برای ارائهٔ دفاع، توضیح یا اعتراض در یک پروندهٔ باز",
+  },
+  {
+    value: "petition",
+    labelFa: JUDICIAL_DOCUMENT_TYPE_FA.petition,
+    hintFa: "برای مطالبهٔ حق، الزام به انجام تعهد یا خسارت در مراجع حقوقی",
+  },
+  {
+    value: "complaint",
+    labelFa: JUDICIAL_DOCUMENT_TYPE_FA.complaint,
+    hintFa: "برای طرح شکایت از یک رفتار مجرمانه در مراجع کیفری",
+  },
+  {
+    value: "unknown",
+    labelFa: "نمی‌دانم کدام درست است",
+    hintFa: "شرح موضوع را می‌نویسید و مسیر احتمالی پیشنهاد می‌شود",
+  },
+];
+
+const SERVICE_FOR_TYPE: Record<JudicialDocumentType | "unknown", string> = {
+  petition: "judicial_petition",
+  complaint: "judicial_complaint",
+  statement: "judicial_statement",
+  brief: "judicial_brief",
+  unknown: "judicial_petition",
+};
+
+function ResumeRow({ request }: { request: JudicialRequestSummary }) {
+  return (
+    <article className="flex flex-col gap-2 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 tablet:flex-row tablet:items-center tablet:justify-between tablet:p-4">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 truncate text-labelLarge text-on-surface">
+            {request.titleFa}
+          </span>
+          <StatusBadge
+            label={JUDICIAL_REQUEST_STATUS_FA[request.status]}
+            tone={request.hasApprovedDraft ? "success" : "info"}
+            dot={false}
+          />
+        </div>
+        <p className="mt-1 text-caption text-on-surface-variant">
+          آخرین به‌روزرسانی: {toPersianDate(request.updatedAt)}
+          {request.draftCount > 0
+            ? ` · ${request.draftCount.toLocaleString("fa-IR")} پیش‌نویس`
+            : ""}
+          {request.documentCount > 0
+            ? ` · ${request.documentCount.toLocaleString("fa-IR")} مدرک پیوست`
+            : ""}
+        </p>
+      </div>
+      <Link
+        href={`/judicial/${request.id}`}
+        className="inline-flex shrink-0 items-center gap-1 text-labelLarge text-primary hover:underline"
+      >
+        ادامه
+        <IconArrowBack size={16} />
+      </Link>
+    </article>
+  );
+}
+
+function JudicialLauncher() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const card = useJudicialCard();
+  const requests = useJudicialRequests();
+  const create = useCreateJudicialRequest();
+
+  // Entry links from the discovery surfaces carry the family in the query
+  // (`/judicial?type=complaint`). Only the two real families are accepted —
+  // the value is untrusted URL state, so anything else falls back to the
+  // default rather than pre-selecting a service that cannot start.
+  const requestedType = searchParams.get("type");
+  const initialKind: JudicialDocumentType | "unknown" = isJudicialEntryQuery(requestedType)
+    ? requestedType
+    : "petition";
+
+  const [kind, setKind] = useState<JudicialDocumentType | "unknown">(initialKind);
+  const [narrative, setNarrative] = useState("");
+  const [startMode, setStartMode] = useState<"ai_draft" | "ready_document">("ai_draft");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const enabled = card.data?.summary.availability.enabled ?? false;
+  const settings = card.data?.summary.settings;
+  const capabilities = card.data?.capabilities;
+
+  const openRequests = (requests.data?.items ?? []).filter(
+    (r) => r.status !== "archived" && r.status !== "cancelled"
+  );
+
+  async function start() {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { request } = await create.mutateAsync({
+        serviceId: SERVICE_FOR_TYPE[kind],
+        startMode,
+        documentType: kind === "unknown" ? null : kind,
+        narrative: narrative.trim(),
+        // One key per logical attempt; a retry of THIS click returns the same
+        // request instead of creating a second one.
+        idempotencyKey: crypto.randomUUID(),
+      });
+      router.push(`/judicial/${request.id}`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "شروع درخواست ناموفق بود";
+      setError(message);
+      snackbar.show({ message, variant: "error" });
+      setBusy(false);
+    }
+  }
+
+  return (
+    <PageContainer dir="rtl">
+      <CompactPageHeader
+        title="تنظیم دادخواست و شکواییه تخصصی"
+        description="موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."
+        breadcrumb={[{ label: "پرونده‌ها", href: "/cases" }, { label: "تنظیم دادخواست و شکواییه" }]}
+        actions={
+          <Link
+            href="/cases"
+            className="inline-flex items-center gap-1 text-labelLarge text-primary hover:underline"
+          >
+            بازگشت به پرونده‌ها
+            <IconArrowBack size={16} />
+          </Link>
+        }
+      />
+
+      {/* Availability — read from the server; never asserted here. */}
+      {card.isError && (
+        <div className="mt-4 flex flex-col gap-2 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-4">
+          <p className="flex items-center gap-2 text-body-2 text-on-surface">
+            <IconWarning size={18} className="text-warning" />
+            وضعیت این خدمت خوانده نشد.
+          </p>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => void card.refetch()}
+            startIcon={<IconRefresh size={16} />}
+            className="self-start"
+          >
+            تلاش مجدد
+          </Button>
+        </div>
+      )}
+
+      {card.isLoading && (
+        <div className="mt-4 animate-pulse space-y-3">
+          <div className="h-24 rounded-large bg-surface-container" />
+          <div className="h-64 rounded-large bg-surface-container" />
+        </div>
+      )}
+
+      {capabilities && (
+        <p className="mt-4 flex items-start gap-2 rounded-medium bg-surface-container-low px-3 py-2 text-caption leading-6 text-on-surface-variant">
+          <IconInfo size={15} className="mt-0.5 shrink-0" />
+          {capabilities.filingNoteFa}
+        </p>
+      )}
+
+      {/* Resume list — the caller's own unfinished work. */}
+      {openRequests.length > 0 && (
+        <section aria-labelledby="judicial-resume-title" className="mt-6">
+          <h2 id="judicial-resume-title" className="mb-2 text-titleSmall text-on-surface">
+            درخواست‌های در جریان
+          </h2>
+          <div className="space-y-2.5">
+            {openRequests.map((r) => (
+              <ResumeRow key={r.id} request={r} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Start form */}
+      <section
+        aria-labelledby="judicial-start-title"
+        className="mt-6 rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4 tablet:p-5"
+      >
+        <h2 id="judicial-start-title" className="text-titleMedium text-on-surface">
+          درخواست جدید
+        </h2>
+        <p className="mt-1 text-body-2 text-on-surface-variant">
+          {settings?.descriptionFa ??
+            "موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."}
+        </p>
+
+        {!enabled && !card.isLoading && (
+          <p className="mt-3 rounded-medium bg-surface-container px-3 py-2 text-caption leading-6 text-on-surface-variant">
+            {card.data?.summary.availability.noteFa ??
+              "این خدمت در حال حاضر برای حساب شما فعال نیست. پس از فعال شدن، از همین صفحه می‌توانید شروع کنید."}
+          </p>
+        )}
+
+        <fieldset className="mt-4" disabled={!enabled || busy}>
+          <legend className="mb-2 text-labelLarge text-on-surface">
+            این درخواست برای چه چیزی است؟
+          </legend>
+          <div className="grid grid-cols-1 gap-2 tablet:grid-cols-3">
+            {START_TYPES.map((t) => {
+              const selected = kind === t.value;
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setKind(t.value)}
+                  aria-pressed={selected}
+                  className={[
+                    "rounded-medium border p-3 text-start transition-colors",
+                    selected
+                      ? "border-primary bg-primary-container"
+                      : "border-[color:var(--color-outline-variant)] bg-surface hover:border-primary",
+                  ].join(" ")}
+                >
+                  <span className="block text-labelLarge text-on-surface">{t.labelFa}</span>
+                  <span className="mt-0.5 block text-caption leading-6 text-on-surface-variant">
+                    {t.hintFa}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4">
+            <Textarea
+              label="موضوع را به زبان خودتان توضیح دهید"
+              value={narrative}
+              onChange={(e) => setNarrative(e.target.value)}
+              rows={5}
+              fullWidth
+              maxLength={20_000}
+              supportingText="هرچه دقیق‌تر بنویسید، پرسش‌های بعدی کمتر و پیش‌نویس نزدیک‌تر به واقعیت خواهد بود. این متن بدون اجازهٔ شما تغییر نمی‌کند."
+              placeholder="مثلاً: یک قرارداد اجاره دارم که مستأجر دو ماه است اجاره را پرداخت نکرده…"
+            />
+          </div>
+
+          <div className="mt-4 max-w-sm">
+            <Select
+              label="روش شروع"
+              value={startMode}
+              onChange={(e) =>
+                setStartMode(e.target.value as "ai_draft" | "ready_document")
+              }
+              fullWidth
+              options={[
+                { value: "ai_draft", label: "پیش‌نویس از پاسخ‌های من ساخته شود" },
+                { value: "ready_document", label: "سند آماده‌ام را ثبت و بازبینی می‌کنم" },
+              ]}
+              supportingText={
+                startMode === "ready_document"
+                  ? "در این مسیر هیچ متنی توسط لیگالیر تولید نمی‌شود؛ سند خودتان را ثبت و در برابر پاسخ‌ها بازبینی می‌کنید."
+                  : "پیش‌نویس پس از تکمیل اطلاعات لازم ساخته می‌شود و تا بازبینی شما فقط پیش‌نویس است."
+              }
+            />
+          </div>
+        </fieldset>
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-3 rounded-medium bg-error-container px-3 py-2 text-body-2 text-on-surface"
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button
+            onClick={() => void start()}
+            disabled={!enabled}
+            loading={busy}
+            startIcon={<IconFilePen size={18} />}
+          >
+            شروع تنظیم
+          </Button>
+          {!enabled && (
+            <span className="text-caption text-on-surface-variant">
+              تا فعال شدن خدمت، دکمهٔ شروع غیرفعال است.
+            </span>
+          )}
+        </div>
+      </section>
+    </PageContainer>
+  );
+}
+
+/** `useSearchParams` needs a Suspense boundary in the App Router. */
+export default function JudicialLauncherPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageContainer dir="rtl" aria-label="در حال بارگذاری">
+          <div className="animate-pulse space-y-3">
+            <div className="h-8 w-64 rounded bg-surface-container" />
+            <div className="h-24 rounded-large bg-surface-container" />
+            <div className="h-64 rounded-large bg-surface-container" />
+          </div>
+        </PageContainer>
+      }
+    >
+      <JudicialLauncher />
+    </Suspense>
+  );
+}

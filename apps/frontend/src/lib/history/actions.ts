@@ -100,6 +100,8 @@ export function historyItemHref(item: Pick<V1HistoryItem, "id" | "type">): strin
       return `/contracts/${item.id}`;
     case "case":
       return `/cases/${item.id}`;
+    case "judicial":
+      return `/judicial/${item.id}`;
     case "subscription":
       return "/subscription";
     default:

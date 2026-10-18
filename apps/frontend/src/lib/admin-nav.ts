@@ -104,6 +104,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
     permission: "admin:services:read",
   },
   {
+    key: "judicial",
+    path: "/admin/judicial",
+    titleFa: "اوراق قضایی",
+    hintFa: "انتشار خدمات، متن‌ها و پرسش‌نامه‌ها",
+    icon: "Balance",
+    permission: "admin:services:read",
+  },
+  {
     key: "energy",
     path: "/admin/energy",
     titleFa: "انرژی و هزینهٔ خدمات",

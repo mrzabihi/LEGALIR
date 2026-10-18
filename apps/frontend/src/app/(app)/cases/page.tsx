@@ -50,6 +50,7 @@ import {
   type ActiveFilter,
 } from "@/components/shared";
 import type { StatusTone } from "@/components/shared";
+import { JudicialCasesCard } from "@/components/judicial/judicial-cases-card";
 
 // ============================================================
 // Status → shared tone + priority → shared tone
@@ -363,10 +364,13 @@ export default function CasesPage() {
         title="پرونده‌های من"
         description="مدیریت و پیگیری پرونده‌های حقوقی"
         actions={
-          // The page's one primary action renders through the shared
-          // primitive, so its hover/focus/press/touch states match every
-          // other primary CTA instead of a hand-rolled copy.
+          // Internal case creation is kept exactly as it was — same modal,
+          // same endpoint, same idempotency key — but demoted to the page's
+          // secondary action: the drafting service card below carries the
+          // primary CTA, and a hidden/unavailable card leaves this one fully
+          // working rather than removing the capability.
           <Button
+            variant="outlined"
             onClick={() => setShowCreate(true)}
             startIcon={<IconAdd size={20} />}
             className="w-full tablet:w-auto"
@@ -375,6 +379,10 @@ export default function CasesPage() {
           </Button>
         }
       />
+
+      {/* The judicial drafting entry point — inside the existing flow, above
+          the list, never replacing or hiding it. */}
+      <JudicialCasesCard />
 
       {/* Toolbar — search owns the space; status chips scroll in their own row. */}
       <div className="mt-4 flex flex-col gap-3">

@@ -46,6 +46,7 @@ import {
 } from "@/lib/icons";
 import { CampaignBanner } from "@/components/services/campaign-banner";
 import { StartRequestPanel } from "@/components/services/start-request-panel";
+import { JudicialServiceZone } from "@/components/judicial/judicial-service-zone";
 import { SECONDARY_CAMPAIGN, type IconComponent } from "@/lib/services/catalog";
 
 // ============================================================
@@ -350,6 +351,17 @@ export default function NewServicePage() {
 
           {category === "قراردادها" && (
             <CampaignBanner banner={SECONDARY_CAMPAIGN} size="panel" className="mb-6" />
+          )}
+
+          {/* The judicial drafting family follows the «پرونده‌ها» zone: it is
+              the start-a-case path. Rendered from the admin-managed service
+              rows, so the toggle in the panel decides whether it appears. */}
+          {category === "پرونده‌ها" && (
+            <JudicialServiceZone
+              surface="new"
+              className="mb-6 rounded-xlarge border border-[color:var(--color-outline-variant)] bg-surface-container-low p-5"
+              description="شرح موضوع، پرسش‌نامهٔ مرحله‌به‌مرحله و پیش‌نویس ساختارمند — با امکان ذخیره و ادامه در هر مرحله."
+            />
           )}
         </div>
       ))}

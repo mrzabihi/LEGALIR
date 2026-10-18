@@ -132,6 +132,12 @@ import type {
   LawyerAvatarType,
   Coupon,
   CouponStatus,
+  JudicialServiceView,
+  JudicialServiceConfig,
+  JudicialQuestionnaire,
+  JudicialDocumentType,
+  JudicialServiceStatus,
+  JudicialServiceSurfaces,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -1134,6 +1140,71 @@ export interface UpdateFlagInput {
 
 export function updateAdminFlag(key: string, input: UpdateFlagInput): Promise<FeatureFlag> {
   return apiClient.patch<FeatureFlag>(`${A}/flags/${encodeURIComponent(key)}`, input);
+}
+
+// ---------------------------------------------------------------------------
+// Judicial services
+// ---------------------------------------------------------------------------
+
+export interface AdminJudicialCatalog {
+  /** Effective availability (config AND flag AND provider requirement). */
+  services: JudicialServiceView[];
+  configs: JudicialServiceConfig[];
+  questionnaires: JudicialQuestionnaire[];
+}
+
+export function fetchAdminJudicial(): Promise<AdminJudicialCatalog> {
+  return apiClient.get<AdminJudicialCatalog>(`${A}/judicial`);
+}
+
+export function fetchAdminJudicialQuestionnaires(
+  documentType: JudicialDocumentType
+): Promise<{ items: JudicialQuestionnaire[] }> {
+  return apiClient.get<{ items: JudicialQuestionnaire[] }>(
+    `${A}/judicial/questionnaires/${encodeURIComponent(documentType)}`
+  );
+}
+
+export interface JudicialServiceUpdateInput {
+  titleFa?: string;
+  shortTitleFa?: string;
+  descriptionFa?: string;
+  ctaFa?: string;
+  status?: JudicialServiceStatus;
+  statusNoteFa?: string | null;
+  order?: number;
+  surfaces?: Partial<JudicialServiceSurfaces>;
+  requiresAuth?: boolean;
+  access?: { mode?: "free" | "subscription" | "energy"; activity?: ActivityType | null };
+  requirement?: { configured?: boolean; noteFa?: string | null };
+}
+
+export function updateAdminJudicialService(
+  id: string,
+  input: JudicialServiceUpdateInput
+): Promise<JudicialServiceConfig> {
+  return apiClient.patch<JudicialServiceConfig>(
+    `${A}/judicial/services/${encodeURIComponent(id)}`,
+    input
+  );
+}
+
+export function createAdminJudicialQuestionnaireVersion(input: {
+  documentType: JudicialDocumentType;
+  titleFa?: string;
+  descriptionFa?: string;
+  disclaimerFa?: string;
+}): Promise<JudicialQuestionnaire> {
+  return apiClient.post<JudicialQuestionnaire>(`${A}/judicial/questionnaires`, input);
+}
+
+export function publishAdminJudicialQuestionnaire(
+  id: string
+): Promise<JudicialQuestionnaire> {
+  return apiClient.post<JudicialQuestionnaire>(
+    `${A}/judicial/questionnaires/${encodeURIComponent(id)}/publish`,
+    {}
+  );
 }
 
 /** An admin catalog row: the plan plus its effective status + derived discount. */

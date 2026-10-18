@@ -70,6 +70,7 @@ import {
   IconOpenInNew,
   IconClock,
   IconInfo,
+  IconGavel,
 } from "@/lib/icons";
 import type { V1HistoryItem } from "@legalir/types";
 
@@ -94,6 +95,7 @@ const TYPE_OPTIONS: { key: string; label: string }[] = [
   { key: "contract", label: "قرارداد" },
   { key: "subscription", label: "اشتراک" },
   { key: "case", label: "پرونده" },
+  { key: "judicial", label: "اوراق قضایی" },
 ];
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
@@ -129,6 +131,7 @@ const TYPE_VISUAL: Record<
   contract: { icon: <IconContract size={20} />, bg: "bg-warning-50", fg: "text-warning-700", labelFa: "قرارداد" },
   case: { icon: <IconShield size={20} />, bg: "bg-info-50", fg: "text-info-700", labelFa: "پرونده" },
   subscription: { icon: <IconSubscription size={20} />, bg: "bg-secondary-container", fg: "text-secondary-on-container", labelFa: "اشتراک" },
+  judicial: { icon: <IconGavel size={20} />, bg: "bg-warning-50", fg: "text-warning-700", labelFa: "اوراق قضایی" },
 };
 
 function actionIcon(key: HistoryActionKey, size = 16): ReactNode {

@@ -1060,7 +1060,14 @@ export interface V1HistoryListParams {
   category?: HistoryCategory | "all";
   search?: string;
   sort?: "newest" | "oldest" | "title";
-  type?: "all" | "conversation" | "document" | "contract" | "subscription" | "case";
+  type?:
+    | "all"
+    | "conversation"
+    | "document"
+    | "contract"
+    | "subscription"
+    | "case"
+    | "judicial";
   /** When true, return the archive view instead of the active history. */
   archived?: boolean;
 }
@@ -1068,7 +1075,13 @@ export interface V1HistoryListParams {
 export interface V1HistoryItem {
   id: string;
   userId: string;
-  type: "conversation" | "document" | "contract" | "subscription" | "case";
+  type:
+    | "conversation"
+    | "document"
+    | "contract"
+    | "subscription"
+    | "case"
+    | "judicial";
   title: string;
   category: HistoryCategory | null;
   categoryFa: string | null;
@@ -1780,7 +1793,7 @@ export type UserRole = "user" | "admin";
 export interface ActiveRequestItem {
   id: string;
   title: string;
-  type: "conversation" | "document" | "contract";
+  type: "conversation" | "document" | "contract" | "judicial";
   typeFa: string;
   date: string;
   progress: number;
@@ -2550,7 +2563,8 @@ export type ActivityType =
   | "LEGAL_CALCULATION"
   | "CASE_ANALYSIS"
   | "LAWYER_AI_PREPARATION"
-  | "REGENERATE_AI_RESPONSE";
+  | "REGENERATE_AI_RESPONSE"
+  | "JUDICIAL_DRAFT";
 
 /** Period-scoped service quotas (do NOT reset daily). */
 export type ServiceQuotaType =
@@ -2982,3 +2996,8 @@ export * from "./lawyer-taxonomy";
 // Checkout, pricing & coupons (quote → validate → order purchase flow)
 // ---------------------------------------------------------------------------
 export * from "./checkout";
+
+// ---------------------------------------------------------------------------
+// Judicial documents family (statement, brief, criminal record, credit check)
+// ---------------------------------------------------------------------------
+export * from "./judicial";

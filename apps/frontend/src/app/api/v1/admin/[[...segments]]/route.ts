@@ -30,6 +30,7 @@ import {
   type LegalRequestState,
   type LegalRequestDiscovery,
   type AnnouncementAudience,
+  type JudicialDocumentType,
 } from "@legalir/types";
 
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
@@ -101,6 +102,18 @@ import {
   setLegalSourceStatus,
   deleteLegalSource,
 } from "@/lib/admin/legal-library";
+import {
+  listJudicialServices,
+  listJudicialServiceViews,
+  updateJudicialService,
+  type JudicialServiceUpdate,
+} from "@/lib/judicial/service-config";
+import {
+  createQuestionnaireVersion,
+  listQuestionnaireVersions,
+  listQuestionnaires,
+  publishQuestionnaire,
+} from "@/lib/judicial/questionnaires";
 import { buildCalculatorsInventory } from "@/lib/admin/calculators";
 import {
   listCalculatorSettings,
@@ -467,6 +480,19 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
   // /admin/calculators page edits (enabled / accessTier / energyCost).
   calculators: () => ok({ ...buildCalculatorsInventory(), settings: listCalculatorSettings() }),
 
+  // Judicial services. `views` carries the EFFECTIVE availability (config AND
+  // flag AND provider requirement) beside the raw config, so the operator sees
+  // when their own flag toggle — not their label — is what keeps a service off.
+  judicial: () =>
+    ok({
+      services: listJudicialServiceViews(),
+      configs: listJudicialServices(),
+      questionnaires: listQuestionnaires().sort(
+        (a, b) =>
+          a.documentType.localeCompare(b.documentType) || b.version - a.version
+      ),
+    }),
+
   support: ({ url }) =>
     ok({
       items: listTickets({
@@ -819,6 +845,15 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
         },
       });
     }
+    case "judicial": {
+      // `judicial/questionnaires/:documentType` — every version of one family,
+      // newest first. The list is what the publish dropdown reads; nothing is
+      // editable here, editing is a new DRAFT version, never an in-place patch.
+      if (b === "questionnaires" && d) {
+        return ok({ items: listQuestionnaireVersions(d as JudicialDocumentType) });
+      }
+      return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
+    }
     default:
       return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
   }
@@ -891,6 +926,97 @@ function parseSaveRuleDraft(body: Body): SaveRuleDraftInput {
   return out;
 }
 
+const JUDICIAL_STATUSES = new Set(["available", "soon", "unavailable"]);
+const JUDICIAL_SURFACE_KEYS = ["home", "services", "new", "cases"] as const;
+
+/**
+ * §6 — narrow an admin body to the judicial service fields that are actually
+ * honoured. Identity (`id` / `family` / `documentType`) is never mutable, and
+ * `requirement` stays server-owned: an operator's label change must never make
+ * an unconnected external provider look live, so `configured` flips only when
+ * the integration itself ships — never through this endpoint.
+ *
+ * Returns `null` when the body carries nothing to apply and `"invalid"` when a
+ * present field is malformed, so the caller can answer with a precise error.
+ */
+function parseJudicialServiceUpdate(
+  body: Body
+): JudicialServiceUpdate | null | "invalid" {
+  const updates: JudicialServiceUpdate = {};
+  const texts = ["titleFa", "shortTitleFa", "descriptionFa", "ctaFa"] as const;
+  const maxLen: Record<(typeof texts)[number], number> = {
+    titleFa: 200,
+    shortTitleFa: 80,
+    descriptionFa: 800,
+    ctaFa: 80,
+  };
+  for (const key of texts) {
+    const value = body[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string") return "invalid";
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > maxLen[key]) return "invalid";
+    updates[key] = trimmed;
+  }
+
+  if (body["status"] !== undefined) {
+    if (
+      typeof body["status"] !== "string" ||
+      !JUDICIAL_STATUSES.has(body["status"])
+    ) {
+      return "invalid";
+    }
+    updates.status = body["status"] as JudicialServiceUpdate["status"];
+  }
+
+  if (body["statusNoteFa"] !== undefined) {
+    const note = body["statusNoteFa"];
+    if (note === null) updates.statusNoteFa = null;
+    else if (typeof note !== "string" || note.length > 800) return "invalid";
+    else updates.statusNoteFa = note.trim() || null;
+  }
+
+  if (body["order"] !== undefined) {
+    const value = num(body["order"], Number.NaN);
+    if (!Number.isFinite(value) || value < 0 || value > 999) return "invalid";
+    updates.order = Math.round(value);
+  }
+
+  if (body["requiresAuth"] !== undefined) {
+    if (typeof body["requiresAuth"] !== "boolean") return "invalid";
+    updates.requiresAuth = body["requiresAuth"];
+  }
+
+  if (body["surfaces"] !== undefined) {
+    const raw = body["surfaces"];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "invalid";
+    const surfaces: Partial<Record<(typeof JUDICIAL_SURFACE_KEYS)[number], boolean>> = {};
+    for (const key of JUDICIAL_SURFACE_KEYS) {
+      const value = (raw as Record<string, unknown>)[key];
+      if (value === undefined) continue;
+      if (typeof value !== "boolean") return "invalid";
+      surfaces[key] = value;
+    }
+    updates.surfaces = surfaces;
+  }
+
+  // Only modes the engine actually enforces are accepted: `free` skips the
+  // charge, `energy` charges through the shared usage engine. A mode with no
+  // enforcement path is refused rather than shown as a working toggle.
+  if (body["access"] !== undefined) {
+    const raw = body["access"];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "invalid";
+    const mode = (raw as Record<string, unknown>)["mode"];
+    if (mode !== "free" && mode !== "energy") return "invalid";
+    updates.access = {
+      mode,
+      activity: mode === "energy" ? "JUDICIAL_DRAFT" : null,
+    };
+  }
+
+  return Object.keys(updates).length > 0 ? updates : null;
+}
+
 /** Narrow a raw create body to the typed plan fields (numbers stay raw for
  *  `createPlan` to validate, so a bad value yields a precise Persian error). */
 function parseCreatePlan(body: Body): CreatePlanInput {
@@ -941,6 +1067,65 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
 
   if (a === "plans" && b) {
     return adminError(405, "METHOD_NOT_ALLOWED", "برای ویرایش پلن از PATCH استفاده کنید");
+  }
+
+  // Judicial — a new questionnaire DRAFT version cloned from the newest one.
+  // Editing/publishing are separate steps so a live questionnaire is never
+  // mutated underneath requests that already answered it.
+  if (a === "judicial" && b === "questionnaires" && c && d === "publish") {
+    const before = listQuestionnaires().find((q) => q.id === c);
+    const res = publishQuestionnaire(c, actor.userId);
+    if (!res) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "judicial.questionnaire.publish", resourceType: "judicial_questionnaire", resourceId: c, result: "denied", reason: "NOT_FOUND_OR_RETIRED", ...meta });
+      return adminError(404, "NOT_FOUND", "نسخهٔ پرسش‌نامه یافت نشد یا بازنشسته شده است");
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.questionnaire.publish",
+      resourceType: "judicial_questionnaire",
+      resourceId: c,
+      before: before ? { status: before.status } : null,
+      after: { documentType: res.documentType, version: res.version, status: res.status },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  if (a === "judicial" && b === "questionnaires" && !c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const documentType = body["documentType"];
+    if (
+      documentType !== "statement" &&
+      documentType !== "brief" &&
+      documentType !== "petition" &&
+      documentType !== "complaint"
+    ) {
+      return adminError(400, "INVALID_DOCUMENT_TYPE", "نوع سند پرسش‌نامه نامعتبر است");
+    }
+    const created = createQuestionnaireVersion({
+      documentType,
+      createdBy: actor.userId,
+      titleFa: typeof body["titleFa"] === "string" ? body["titleFa"] : undefined,
+      descriptionFa:
+        typeof body["descriptionFa"] === "string" ? body["descriptionFa"] : undefined,
+      disclaimerFa:
+        typeof body["disclaimerFa"] === "string" ? body["disclaimerFa"] : undefined,
+    });
+    if (!created) return adminError(404, "NOT_FOUND", "پرسش‌نامهٔ پایه یافت نشد");
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.questionnaire.create_version",
+      resourceType: "judicial_questionnaire",
+      resourceId: created.id,
+      after: { documentType: created.documentType, version: created.version, status: created.status },
+      ...meta,
+    });
+    return NextResponse.json({ data: created }, { status: 201 });
   }
 
   // Coupons — CREATE (POST /admin/coupons). Edits + status changes go through
@@ -1558,6 +1743,68 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
     return ok(res);
   }
 
+  if (a === "judicial" && b === "services" && c) {
+    // §6 — one service's release control. The module refuses to mark a
+    // provider-dependent service available while its provider is unconfigured,
+    // and every refusal is recorded as a denied audit entry.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const before = listJudicialServices().find((s) => s.id === c);
+    if (!before) return adminError(404, "SERVICE_NOT_FOUND", "خدمت یافت نشد");
+
+    const updates = parseJudicialServiceUpdate(body);
+    if (updates === "invalid") {
+      return adminError(400, "INVALID_BODY", "مقدار یکی از فیلدها نامعتبر است");
+    }
+    if (updates === null) {
+      return adminError(400, "INVALID_BODY", "تغییری برای اعمال ارسال نشده است");
+    }
+
+    const res = updateJudicialService(c, updates, actor.userId);
+    if (!res) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "judicial.service.update",
+        resourceType: "judicial_service",
+        resourceId: c,
+        result: "denied",
+        reason: "UNCONFIGURED_PROVIDER",
+        ...meta,
+      });
+      return adminError(
+        409,
+        "PROVIDER_NOT_CONFIGURED",
+        "این خدمت به یک ارائه‌دهندهٔ بیرونی وابسته است و تا زمان اتصال واقعی نمی‌تواند «در دسترس» شود."
+      );
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.service.update",
+      resourceType: "judicial_service",
+      resourceId: c,
+      before: {
+        status: before.status,
+        order: before.order,
+        surfaces: before.surfaces,
+        configured: before.requirement.configured,
+        version: before.version,
+      },
+      after: {
+        status: res.status,
+        order: res.order,
+        surfaces: res.surfaces,
+        configured: res.requirement.configured,
+        version: res.version,
+      },
+      ...meta,
+    });
+    return ok(res);
+  }
+
   if (a === "support" && b) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
@@ -1925,6 +2172,10 @@ function permissionFor(method: string, segments: string[]): Permission {
     case "announcements":
       return method === "GET" ? "admin:content:read" : "admin:content:manage";
     case "staff": return method === "GET" ? "admin:staff:read" : "admin:staff:manage";
+    // Judicial services are a service-catalog surface: reading the catalog and
+    // its questionnaire versions is a services-read capability; editing the
+    // config or publishing a questionnaire version is a services-manage change.
+    case "judicial": return method === "GET" ? "admin:services:read" : "admin:services:manage";
     case "roles": return "admin:staff:read";
     case "audit": return "admin:audit:read";
     case "settings": return method === "GET" ? "admin:settings:read" : "admin:settings:manage";

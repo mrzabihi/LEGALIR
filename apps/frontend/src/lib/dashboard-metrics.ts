@@ -22,14 +22,17 @@ import {
 } from "@/lib/db";
 import { tehranDateString } from "@/lib/rewards";
 import { LAW_SOURCES, type LawSourceDef } from "@/lib/law-catalog";
+import { listRequestsForUser } from "@/lib/judicial/db";
 import type {
   ActiveRequestItem,
   DashboardRecommendation,
+  JudicialRequestStatus,
   RecommendationSource,
   RecentDocumentItem,
   V1ContractDetail,
   V1DocumentDetail,
 } from "@legalir/types";
+import { JUDICIAL_REQUEST_STATUS_FA } from "@legalir/types";
 
 const DATA_DIR = path.resolve(process.cwd(), ".data");
 const TEHRAN_UTC_OFFSET_MS = 210 * 60 * 1000; // +03:30
@@ -120,6 +123,55 @@ function isActiveContract(c: V1ContractDetail): boolean {
   return c.state === "collecting" || c.state === "under_review" || c.state === "draft";
 }
 
+/**
+ * The drafting wizard's statuses that still need the user. `approved`,
+ * `cancelled` and `archived` are deliberately absent: an approved draft is
+ * finished on our side, and none of these states ever means "filed".
+ */
+const OPEN_JUDICIAL_STATUSES = new Set<JudicialRequestStatus>([
+  "draft",
+  "collecting",
+  "needs_answers",
+  "ready_to_generate",
+  "generating",
+  "draft_ready",
+  "ready_to_review",
+  "needs_correction",
+]);
+
+/** Where each open status sits on the six-step wizard — shown as progress. */
+const JUDICIAL_STATUS_PROGRESS: Record<string, number> = {
+  draft: 10,
+  collecting: 20,
+  needs_answers: 30,
+  ready_to_generate: 55,
+  generating: 65,
+  draft_ready: 75,
+  ready_to_review: 85,
+  needs_correction: 85,
+};
+
+function buildJudicialRequests(userId: string): ActiveRequestItem[] {
+  return listRequestsForUser(userId)
+    .filter((r) => OPEN_JUDICIAL_STATUSES.has(r.status))
+    .map((r) => ({
+      id: r.id,
+      title: r.titleFa,
+      type: "judicial" as const,
+      typeFa: "اوراق قضایی",
+      date: r.updatedAt,
+      progress: JUDICIAL_STATUS_PROGRESS[r.status] ?? 30,
+      status:
+        r.status === "needs_answers" || r.status === "needs_correction"
+          ? ("needs_info" as const)
+          : r.status === "generating"
+            ? ("processing" as const)
+            : ("draft" as const),
+      statusFa: JUDICIAL_REQUEST_STATUS_FA[r.status],
+      link: `/judicial/${r.id}`,
+    }));
+}
+
 function buildActiveRequests(
   userId: string,
   documents: V1DocumentDetail[],
@@ -171,6 +223,10 @@ function buildActiveRequests(
       link: `/chat/${conv.id}`,
     });
   }
+
+  // Judicial drafts are resumable work like any other. The link opens the
+  // wizard at the step the server stored, not a fresh start.
+  requests.push(...buildJudicialRequests(userId));
 
   // Most recent first.
   return requests

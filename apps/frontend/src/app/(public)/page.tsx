@@ -7,6 +7,7 @@ import { HeroTitle } from "@/components/public/HeroTitle";
 import { LandingReveal } from "@/components/public/LandingReveal";
 import { LegalTopicsSection, type LegalTopic } from "@/components/public/LegalTopicsSection";
 import { PromoPanel } from "@/components/shared";
+import { JudicialServiceZone } from "@/components/judicial/judicial-service-zone";
 import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
 import { SITE_URL, absoluteUrl } from "@/lib/site";
 import { toPersianDate, toPersianDigits } from "@/lib/persian-utils";
@@ -509,6 +510,26 @@ export default function LandingPage() {
           ))}
         </div>
       </section>
+
+      {/* ============================================================
+          JUDICIAL DOCUMENTS — «تنظیم دادخواست و شکواییه تخصصی»
+          ============================================================
+          The drafting family is not a marketing block: each card links into
+          the real, resumable wizard. Visibility, status and copy come from
+          the admin-managed service rows (surfaces.home), and anonymous
+          visitors are routed through login back to the same wizard URL. */}
+      <JudicialServiceZone
+        surface="home"
+        mode="public"
+        className="mx-auto max-w-6xl px-4 pb-20 tablet:pb-24"
+        description="موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."
+        footer={
+          <p className="mt-4 text-caption leading-6 text-neutral-500">
+            پیش‌نویس‌ها برای بازبینی خودتان و وکیل است؛ لیگالیر هیچ سندی را در مرجع قضایی ثبت،
+            ارسال یا ابلاغ نمی‌کند.
+          </p>
+        }
+      />
 
       {/* ============================================================
           SAMPLE Q&A — "لیگالیر چه سوالاتی را پاسخ می‌دهد؟"

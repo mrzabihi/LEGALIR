@@ -56,6 +56,16 @@ function seedRows(): Omit<FeatureFlag, "createdAt" | "updatedAt">[] {
     { key: "notifications_inapp", nameFa: "اعلان درون‌برنامه‌ای", descriptionFa: "مرکز اعلان‌ها", ...on },
     { key: "export_data", nameFa: "خروجی گرفتن از داده", descriptionFa: "دریافت بسته ZIP از داده‌های کاربر", ...off },
     { key: "voice_video_consult", nameFa: "مشاوره صوتی/تصویری", descriptionFa: "نیازمند اتصال ارائه‌دهنده ویدیو", ...off },
+    // --- Judicial documents family -------------------------------------
+    // The four drafting services ship on. The two provider-dependent ones ship
+    // OFF: their service config status is `soon` and their requirement is
+    // unconfigured, so flipping the flag alone can never make them look live.
+    { key: "judicial_statement", nameFa: "اظهارنامه قضایی", descriptionFa: "تنظیم پیش‌نویس اظهارنامه با هوش مصنوعی", ...on },
+    { key: "judicial_brief", nameFa: "لایحه", descriptionFa: "تنظیم پیش‌نویس لایحه با هوش مصنوعی", ...on },
+    { key: "judicial_petition", nameFa: "دادخواست حقوقی", descriptionFa: "تنظیم پیش‌نویس دادخواست با هوش مصنوعی", ...on },
+    { key: "judicial_complaint", nameFa: "شکواییه کیفری", descriptionFa: "تنظیم پیش‌نویس شکواییه با هوش مصنوعی", ...on },
+    { key: "judicial_criminal_record", nameFa: "گواهی عدم سوءپیشینه", descriptionFa: "نیازمند اتصال رسمی به سامانهٔ صدور گواهی", ...off },
+    { key: "judicial_credit_check", nameFa: "استعلام اعتبار معاملاتی", descriptionFa: "نیازمند رضایت صاحب داده و ارائه‌دهندهٔ استعلام", ...off },
   ];
 }
 
@@ -66,11 +76,26 @@ function seed(): FeatureFlag[] {
   return rows;
 }
 
-/** All flags, seeding the defaults on first access. */
+/**
+ * All flags, seeding the defaults on first access.
+ *
+ * ADDITIVE for an existing database: when the product ships a NEW capability
+ * flag, a database that was seeded earlier must still gain it. Existing rows
+ * are never rewritten or dropped — only seed keys that are missing are
+ * appended — so an operator's edits to an existing flag always survive.
+ */
 export function listFlags(): FeatureFlag[] {
   const rows = readTable<FeatureFlag>(TABLE);
-  if (rows.length > 0) return rows;
-  return seed();
+  if (rows.length === 0) return seed();
+
+  const present = new Set(rows.map((r) => r.key));
+  const now = new Date().toISOString();
+  const missing = seedRows().filter((f) => !present.has(f.key));
+  if (missing.length === 0) return rows;
+
+  const next = [...rows, ...missing.map((f) => ({ ...f, createdAt: now, updatedAt: now }))];
+  writeTable(TABLE, next);
+  return next;
 }
 
 export function getFlag(key: string): FeatureFlag | undefined {
@@ -90,14 +115,19 @@ export function updateFlag(
   return rows[idx];
 }
 
+/** The caller facts a flag is evaluated against. */
+export interface FlagContext {
+  env: string;
+  planCode?: string | null;
+  orgId?: string | null;
+  bucket?: number;
+}
+
 /**
  * The single source of truth for flag evaluation, used by both the admin
  * panel and any in-app gate. `env` must match the flag's environment.
  */
-export function isFlagEnabled(
-  key: string,
-  ctx: { env: string; planCode?: string | null; orgId?: string | null; bucket?: number }
-): boolean {
+export function isFlagEnabled(key: string, ctx: FlagContext): boolean {
   const flag = getFlag(key);
   if (!flag) return false;
   if (flag.environment !== ctx.env) return false;

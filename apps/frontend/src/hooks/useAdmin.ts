@@ -20,6 +20,7 @@ import type {
   AdminLegalSource,
   UpsertLegalSourceInput,
   ContractStampActionRequest,
+  JudicialDocumentType,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -57,6 +58,11 @@ import {
   fetchAdminFlags,
   updateAdminFlag,
   type UpdateFlagInput,
+  fetchAdminJudicial,
+  updateAdminJudicialService,
+  createAdminJudicialQuestionnaireVersion,
+  publishAdminJudicialQuestionnaire,
+  type JudicialServiceUpdateInput,
   fetchAdminOrders,
   fetchAdminOrder,
   fetchAdminOrderReceipt,
@@ -714,6 +720,55 @@ export function useUpdateAdminFlag() {
       qc.setQueryData<{ items: FeatureFlag[] }>(["admin", "flags"], (old) =>
         old ? { items: old.items.map((f) => (f.key === updated.key ? updated : f)) } : old
       );
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Judicial services
+// ---------------------------------------------------------------------------
+
+export function useAdminJudicial() {
+  return useQuery({
+    queryKey: ["admin", "judicial"],
+    queryFn: fetchAdminJudicial,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateAdminJudicialService() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: JudicialServiceUpdateInput }) =>
+      updateAdminJudicialService(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial"] });
+    },
+  });
+}
+
+export function useCreateJudicialQuestionnaireVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      documentType: JudicialDocumentType;
+      titleFa?: string;
+      descriptionFa?: string;
+      disclaimerFa?: string;
+    }) => createAdminJudicialQuestionnaireVersion(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial"] });
+    },
+  });
+}
+
+export function usePublishJudicialQuestionnaire() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => publishAdminJudicialQuestionnaire(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial"] });
     },
   });
 }

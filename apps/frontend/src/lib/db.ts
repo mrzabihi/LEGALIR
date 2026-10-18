@@ -154,7 +154,13 @@ export interface DbSession {
 export interface ActivityRow {
   id: string;
   user_id: string;
-  type: "conversation" | "document" | "contract" | "subscription" | "case";
+  type:
+    | "conversation"
+    | "document"
+    | "contract"
+    | "subscription"
+    | "case"
+    | "judicial";
   title: string;
   status: string;
   status_fa: string;
@@ -1645,6 +1651,7 @@ const ACTIVITY_HREF: Record<ActivityRow["type"], string> = {
   contract: "/contracts",
   subscription: "/subscription",
   case: "/cases",
+  judicial: "/judicial",
 };
 
 function readNotificationReads(userId: string): NotificationReadRow[] {
