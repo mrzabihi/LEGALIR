@@ -41,8 +41,18 @@ import {
   fetchAdminContracts,
   fetchAdminContract,
   reviewAdminContract,
+  fetchAdminLegalReview,
+  saveAdminLegalClause,
+  saveAdminPreSignTip,
+  deleteAdminLegalReviewItem,
+  type SaveAdminLegalClauseInput,
+  type SaveAdminPreSignTipInput,
   fetchAdminContractStamp,
   decideAdminContractStamp,
+  recordAdminAttestation,
+  type RecordAttestationInput,
+  resendAdminInvitations,
+  type ResendInvitationsInput,
   type AdminContractsQuery,
   fetchAdminFlags,
   updateAdminFlag,
@@ -550,6 +560,71 @@ export function useAdminContractReview() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Legal review (§7) — per-type clause sources and pre-sign tips
+// ---------------------------------------------------------------------------
+
+/**
+ * The legal-review report for every contract type. One query, because the
+ * page compares types side by side and a save must move the counts AND the
+ * rows together.
+ */
+export function useAdminLegalReview() {
+  return useQuery({
+    queryKey: ["admin", "legal-review"],
+    queryFn: () => fetchAdminLegalReview(),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Saving legal content changes what the printed annex says on every
+ * contract of that type, so invalidate the legal-review slice AND the
+ * contract slices (both admin and owner-facing) — a reviewer's correction
+ * must never be visible only after a manual refresh.
+ */
+function useInvalidateLegalReview() {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: ["admin", "legal-review"] });
+    qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+    qc.invalidateQueries({ queryKey: ["contracts"] });
+  };
+}
+
+export function useSaveAdminLegalClause() {
+  const invalidate = useInvalidateLegalReview();
+  return useMutation({
+    mutationFn: (input: SaveAdminLegalClauseInput) => saveAdminLegalClause(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSaveAdminPreSignTip() {
+  const invalidate = useInvalidateLegalReview();
+  return useMutation({
+    mutationFn: (input: SaveAdminPreSignTipInput) => saveAdminPreSignTip(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteAdminLegalReviewItem() {
+  const invalidate = useInvalidateLegalReview();
+  return useMutation({
+    mutationFn: ({
+      kind,
+      id,
+      reason,
+    }: {
+      kind: "clause" | "tip";
+      id: string;
+      reason?: string;
+    }) => deleteAdminLegalReviewItem(kind, id, reason),
+    onSuccess: invalidate,
+  });
+}
+
 /**
  * The stamp context for one contract (Super Admin). Keyed separately from
  * the review detail so the stamp panel refetches ONLY itself after a stamp
@@ -579,6 +654,39 @@ export function useAdminContractStampDecision() {
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
       qc.invalidateQueries({ queryKey: ["admin", "contracts", "stamp", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
+/**
+ * Record an admin verification of a party's signature. Neither the party's
+ * status nor the contract state changes, so the queue slice is left alone;
+ * the detail is refreshed because the attestation list and the signature
+ * trail both gain a row.
+ */
+export function useAdminContractAttestation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RecordAttestationInput }) =>
+      recordAdminAttestation(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
+/**
+ * Send or resend signature links from the admin panel. The invitation and
+ * its per-recipient event trail both change, so the detail is refreshed; the
+ * queue slice is untouched because no contract state moves.
+ */
+export function useAdminResendInvitations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ResendInvitationsInput }) =>
+      resendAdminInvitations(id, input),
+    onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
     },
   });

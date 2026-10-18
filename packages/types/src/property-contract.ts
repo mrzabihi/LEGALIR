@@ -564,6 +564,7 @@ export type ContractDocumentCategory =
   | "employment_medical" // گواهی سلامت / طب کار
   | "final_pdf" // نسخهٔ نهایی قرارداد (PDF مهرشدهٔ سرور)
   | "wet_ink_evidence" // مستند امضای دستی خارج از سامانه (شاهد برون‌سازمانی)
+  | "contract_annex" // پیوست قرارداد — فایلی که کاربر خودش به‌عنوان بخشی از قرارداد ضمیمه می‌کند
   | "other";
 
 export interface ContractDocument {
@@ -944,6 +945,28 @@ export interface CustomClause {
 // request that has not yet been accepted.
 
 /**
+ * One file the user attaches to the contract as «پیوست قرارداد».
+ *
+ * An annex is part of the agreement, not a note about it: the bytes are
+ * stored as a private `contract_annex` document (so the version snapshot's
+ * documents manifest carries its hash), and this entry is the printable
+ * description of that same file. The two are kept in step by the documents
+ * API — deleting the document removes the entry.
+ */
+export interface ContractSupplementaryAttachment {
+  /** The stored `contract_annex` document this annex describes. */
+  documentId: string;
+  /** عنوان پیوست — the label printed in the annex table. */
+  titleFa: string;
+  fileName: string;
+  mime: string;
+  sizeBytes: number;
+  /** SHA-256 of the bytes, so the printed annex is traceable to the file. */
+  hash: string;
+  addedAt: string;
+}
+
+/**
  * Free-form notes that belong to no single clause. Requested changes are
  * NOT duplicated here — they live in `customClauses` with
  * `kind: "change_request"` and a `sectionRef`, so there is exactly one
@@ -957,6 +980,17 @@ export interface ContractSupplementary {
    * additive, so drafts written before it existed stay readable.
    */
   noteConfirmedAt?: string | null;
+  /**
+   * Files the user registered as contract annexes (`category:
+   * contract_annex`). Additive and optional, so older drafts stay valid
+   * and hash identically until an annex is actually added.
+   */
+  attachments?: ContractSupplementaryAttachment[];
+  /**
+   * ISO timestamp of «تأیید پیوست‌ها». Any change to the annex list clears
+   * it, so a confirmation always refers to the annexes now on screen.
+   */
+  attachmentsConfirmedAt?: string | null;
   /**
    * ISO timestamp of «تأیید و ادامه به امضا» on the supplementary step.
    * The signature step reads it to know the material was acknowledged.
@@ -1524,7 +1558,53 @@ export type SignatureEventType =
   | "REQUEST_COMPLETED"
   | "REQUEST_EXPIRED"
   | "REQUEST_CANCELLED"
-  | "INTEGRITY_FAILED";
+  | "INTEGRITY_FAILED"
+  /** An admin recorded HOW they verified a signature the party gave. */
+  | "ADMIN_ATTESTATION";
+
+// ------------------------------------------------------------
+// Admin attestations (§ signature stage)
+// ------------------------------------------------------------
+// An admin may VERIFY a signature the party themselves gave — an OTP
+// they watched arrive, a wet-ink scan they checked, a call they made.
+// An attestation is evidence about a signature; it can never create
+// one, change a participant's status, or advance the contract state.
+// The origin is always explicit: `party_link` means the party confirmed
+// through their own dedicated link; every other value means an admin
+// verified it out-of-band.
+
+export type SignatureAttestationChannel =
+  /** The party confirmed through their own dedicated LEGALIR link. */
+  | "party_link"
+  /** The admin watched the OTP arrive / the party typed it on a call. */
+  | "sms_otp_observed"
+  /** A printed copy was signed by hand and the scan checked. */
+  | "wet_ink_verified"
+  /** Oral confirmation on a recorded/verified call. */
+  | "phone_call";
+
+export interface SignatureAttestation {
+  id: string;
+  contractId: string;
+  signatureRequestId: string;
+  participantId: string;
+  /** The frozen version the attested signature is bound to. */
+  contractVersionId: string;
+  documentHash: string | null;
+  channel: SignatureAttestationChannel;
+  /** Mandatory: what the admin actually saw or checked. */
+  noteFa: string;
+  adminUserId: string;
+  adminLabelFa: string;
+  createdAt: string;
+}
+
+export const SIGNATURE_ATTESTATION_CHANNEL_FA: Record<SignatureAttestationChannel, string> = {
+  party_link: "تأیید مستقیم طرف از طریق لینک اختصاصی",
+  sms_otp_observed: "بررسی ادمین — کد پیامکی مشاهده شد",
+  wet_ink_verified: "بررسی ادمین — امضای دستی روی نسخهٔ چاپی",
+  phone_call: "بررسی ادمین — تأیید تلفنی",
+};
 
 export interface SignatureEvent {
   id: string;
@@ -2083,6 +2163,16 @@ export interface ContractStampContextResponse {
   stampAsset: ContractStampAssetInfo;
   /** TRUE when the current version carries a valid internal review. */
   reviewed: boolean;
+  /**
+   * §4 — the signature state of the CURRENT version, read from the real
+   * request bound to its hash. The final-approval button is only offered
+   * when this is `ready`, so an unsigned contract can never be stamped.
+   */
+  signatures: {
+    ready: boolean;
+    /** Why approval is blocked, in the operator's words. Null when ready. */
+    reasonFa: string | null;
+  };
   /** The `CONTRACT_STAMP_ENABLED` capability, read from the server. */
   featureEnabled: boolean;
   /** TRUE when a valid stamp is already applied to the current version. */
@@ -2101,11 +2191,34 @@ export interface ContractStampNotification {
   failureReasonFa: string | null;
 }
 
+/**
+ * §4 — the outcome of freezing the signed content when the official seal
+ * is applied. The final version IS the version the parties signed, so
+ * `finalVersionId` names the same frozen snapshot the signatures bind to.
+ */
+export type ContractStampFinalization =
+  | {
+      ok: true;
+      finalVersionId: string;
+      documentHash: string;
+      state: PropertyContractState;
+      /** ISO-8601 UTC. */
+      finalizedAt: string;
+      /** TRUE when the sealed A4 artifact was rendered and stored. */
+      artifactStored: boolean;
+    }
+  | { ok: false; code: string; messageFa: string };
+
 /** The `POST /api/v1/admin/contracts/[id]/stamp` payload. */
 export interface ContractStampDecisionResponse {
   stampRequest: ContractStampRequestDetail;
   applied: boolean;
   notifications: ContractStampNotification[];
+  /**
+   * Present only on `apply`: the contract is finalized in the SAME act,
+   * because a contract is not final until LEGALIR approves it.
+   */
+  finalization: ContractStampFinalization | null;
 }
 
 // ------------------------------------------------------------
@@ -2122,8 +2235,15 @@ export interface ContractStampDecisionResponse {
 export const CONTRACT_LEGAL_BASIS_DISCLAIMER_FA =
   "این پیوست صرفاً «مبنای حقوقی و گزارش بررسی» است، بخشی از متن تعهدآور قرارداد نیست و جایگزین نظر وکیل یا مشاورهٔ حقوقی نیست.";
 
-/** Whether a clause↔provision citation has passed legal review. */
-export type ContractLegalCitationStatus = "reviewed" | "pending";
+/**
+ * Whether a clause↔provision citation has passed legal review.
+ *
+ *   reviewed       — a human legal reviewer confirmed the mapping;
+ *   pending        — catalogued but not yet reviewed; never presented as final;
+ *   needs_revision — a reviewer flagged the mapping as unsound and it must be
+ *                    corrected before it can be printed as reviewed.
+ */
+export type ContractLegalCitationStatus = "reviewed" | "pending" | "needs_revision";
 
 /** One reviewed provision a clause rests on. */
 export interface ContractLegalCitation {
@@ -2137,6 +2257,73 @@ export interface ContractLegalCitation {
   status: ContractLegalCitationStatus;
   /** Link into the official law catalog (`LAW_SOURCES[].id`), when one exists. */
   lawSourceId: string | null;
+  /**
+   * §7 — the exact name of the reviewed source this mapping was taken from
+   * (e.g. «قانون مدنی — مصوب ۱۳۰۷ با اصلاحات»). Populated from the stored
+   * `ContractLegalClauseRecord`; absent on a seed-only citation.
+   */
+  sourceNameFa?: string;
+  /** §7 — the stored record's content version this citation was read from. */
+  contentVersion?: number;
+  /** §7 — when a human legal reviewer confirmed the mapping (ISO-8601 UTC). */
+  reviewedAt?: string | null;
+}
+
+/**
+ * §7 — one stored, versioned legal-review record for a clause of a contract
+ * type. This is the ADMIN-EDITABLE source of the annex: the in-code catalog
+ * is only the seed; the moment a reviewer saves a record, this row becomes
+ * authoritative for that (type, clause) pair.
+ */
+export interface ContractLegalClauseRecord {
+  id: string;
+  contractType: ContractTypeId;
+  clauseId: string;
+  /** The name of the reviewed legal source. */
+  sourceNameFa: string;
+  /** Link into the official law catalog, when one exists. */
+  lawSourceId: string | null;
+  /** The exact article locator — only ever a provision the reviewer confirmed. */
+  articleFa: string;
+  /** Why the clause rests on this provision. */
+  noteFa: string;
+  /** Monotonic content version; every save increments it. */
+  contentVersion: number;
+  status: ContractLegalCitationStatus;
+  /** ISO-8601 UTC, set when the reviewer saved the record. */
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewedByLabelFa: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The framing line for the pre-sign tips annex (non-binding, no acknowledgement). */
+export const CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA =
+  "این نکات جنبهٔ اطلاع‌رسانی دارند، بخشی از متن تعهدآور قرارداد نیستند، تأیید جداگانه‌ای لازم ندارند و جایگزین مشاورهٔ حقوقی نیستند.";
+
+/**
+ * §7 — a «before you sign, know this» tip for a contract type. It is shown
+ * OUTSIDE the contract text, is never acknowledged, and is printed as its own
+ * non-binding annex in the draft and the final document.
+ */
+export interface ContractPreSignTip {
+  id: string;
+  contractType: ContractTypeId;
+  /** Display order inside the type's tips list. */
+  order: number;
+  titleFa: string;
+  bodyFa: string;
+  /** The reviewed source the tip rests on. */
+  sourceNameFa: string;
+  contentVersion: number;
+  status: ContractLegalCitationStatus;
+  /** ISO-8601 UTC. */
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewedByLabelFa: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** The citations attached to a single rendered clause. */
@@ -2156,6 +2343,11 @@ export interface ContractLegalBasisReport {
   sections: ContractLegalBasisSection[];
   /** True when at least one citation is still awaiting legal review. */
   hasPendingCitations: boolean;
+  /**
+   * §7 — operative clauses with NO reviewed citation. They are NOT published
+   * as definitively grounded: the annex flags them for legal review instead.
+   */
+  flaggedClauses: { clauseId: string; clauseHeadingFa: string }[];
 }
 
 // ------------------------------------------------------------
@@ -2212,6 +2404,13 @@ export interface ContractLifecycleView {
   } | null;
   /** Review comments on the current version. */
   comments: ContractReviewComment[];
+  /**
+   * §7 — the type's «before you sign, know this» tips. They belong to the
+   * contract TYPE, not to the text, and are never acknowledged: the drafter
+   * reads them beside the preview and they print as a separate non-binding
+   * annex in both the draft and the final version.
+   */
+  preSignTips: ContractPreSignTip[];
   /** True when the contract may be prepared for signature right now. */
   canPrepareForSignature: boolean;
   /** True when a signature may be given right now. */

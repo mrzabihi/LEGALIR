@@ -91,10 +91,15 @@ import type {
   ContractStampDecisionResponse,
   ContractCompleteness,
   ContractLegalBasisReport,
+  ContractLegalCitationStatus,
+  ContractLegalClauseRecord,
+  ContractPreSignTip,
   ContractReviewComment,
   ContractTypeId,
   PropertyContract,
   PropertyContractState,
+  SignatureAttestation,
+  SignatureAttestationChannel,
   SignatureParticipant,
   SignatureRequestDetail,
   AdminAnnouncement,
@@ -705,6 +710,37 @@ export interface AdminContractClause {
   conditional: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Legal review (§7) — per-type clause sources, content versions, pre-sign tips
+// ---------------------------------------------------------------------------
+
+/** One catalogued clause: stored records win over the seeded fallback. */
+export interface AdminLegalReviewClauseRow {
+  clauseId: string;
+  /** The printed heading, e.g. «ماده ۵ — ثمن معامله». */
+  clauseHeadingFa: string;
+  records: ContractLegalClauseRecord[];
+  seeded: {
+    articleFa: string;
+    sourceNameFa: string;
+    status: ContractLegalCitationStatus;
+  }[];
+  overridden: boolean;
+}
+
+/** The legal-review picture for one contract TYPE. */
+export interface AdminLegalReviewReport {
+  typeId: ContractTypeId;
+  clauses: AdminLegalReviewClauseRow[];
+  /** Every clause the type emits, including ones with no source at all. */
+  knownClauses: { clauseId: string; clauseHeadingFa: string }[];
+  tips: ContractPreSignTip[];
+  reviewedClauseCount: number;
+  pendingClauseCount: number;
+  needsRevisionCount: number;
+  unflaggedCount: number;
+}
+
 /** The full review context for one contract — the SAME render the preview/PDF use. */
 export interface AdminContractDetail {
   contract: {
@@ -750,6 +786,12 @@ export interface AdminContractDetail {
   /** §2 — the non-binding legal-basis annex for the clauses above. */
   legalBasis: ContractLegalBasisReport;
   /**
+   * §7 — the retained legal-review report for this contract TYPE: each
+   * clause with its stored source, content version and review state. It is
+   * what tells the operator which clauses still need a legal revision.
+   */
+  legalReview: AdminLegalReviewReport;
+  /**
    * The review thread, including `internal` notes. An operator reviewing
    * the contract must see everything the owner wrote about it; comments are
    * bound to a version, so the reviewer can tell which remarks still apply
@@ -763,6 +805,17 @@ export interface AdminContractDetail {
   supplementary: {
     notes: string;
     noteConfirmedAt: string | null;
+    /** §2.5 — files the owner registered as part of the agreement. */
+    attachments: {
+      documentId: string;
+      titleFa: string;
+      fileName: string;
+      mime: string;
+      sizeBytes: number;
+      hash: string;
+      addedAt: string;
+    }[];
+    attachmentsConfirmedAt: string | null;
     confirmedAt: string | null;
   };
   /** §2.1 — clauses the owner added and the changes they requested. */
@@ -819,6 +872,13 @@ export interface AdminContractDetail {
     createdAt: string;
     completedAt: string | null;
   }[];
+  /**
+   * Admin verifications recorded ABOUT a party's signature — evidence,
+   * never a signature. Kept distinct from `signatureRequest` so the ORIGIN
+   * of each confirmation (the party's own link vs. an admin's check) is
+   * never blurred.
+   */
+  attestations: SignatureAttestation[];
 }
 
 export function fetchAdminContract(id: string): Promise<AdminContractDetail> {
@@ -844,6 +904,106 @@ export function reviewAdminContract(
 }
 
 // ---------------------------------------------------------------------------
+// Legal review (§7) — the authorised revision path
+// ---------------------------------------------------------------------------
+// The per-type legal content lives in the DB, versioned: each save bumps
+// `contentVersion` and stamps `reviewedAt`. The seed is only the fallback,
+// so a reviewer's correction reaches every contract of that type at once.
+
+export interface AdminLegalReviewTypeRow {
+  typeId: ContractTypeId;
+  typeFa: string;
+  implemented: boolean;
+  report: AdminLegalReviewReport;
+}
+
+/** Every type's legal-review report, or one type's (`?type=`). */
+export function fetchAdminLegalReview(
+  type?: ContractTypeId
+): Promise<{ types: AdminLegalReviewTypeRow[] }> {
+  return apiClient.get<{ types: AdminLegalReviewTypeRow[] }>(
+    `${A}/legal-review${type ? `?type=${encodeURIComponent(type)}` : ""}`
+  );
+}
+
+export interface SaveAdminLegalClauseInput {
+  contractType: ContractTypeId;
+  clauseId: string;
+  sourceNameFa: string;
+  lawSourceId?: string | null;
+  articleFa: string;
+  noteFa: string;
+  status: ContractLegalCitationStatus;
+  /** Optional operator note recorded in the audit trail, not the record. */
+  reason?: string;
+}
+
+export interface AdminLegalClauseSaveResponse {
+  kind: "clause";
+  record: ContractLegalClauseRecord;
+  previous: ContractLegalClauseRecord | null;
+  report: AdminLegalReviewReport;
+}
+
+/** Save (create or revise) one clause citation record. */
+export function saveAdminLegalClause(
+  input: SaveAdminLegalClauseInput
+): Promise<AdminLegalClauseSaveResponse> {
+  return apiClient.post<AdminLegalClauseSaveResponse>(`${A}/legal-review`, {
+    kind: "clause",
+    ...input,
+    lawSourceId: input.lawSourceId ?? null,
+  });
+}
+
+export interface SaveAdminPreSignTipInput {
+  /** When set, revise this stored tip; otherwise create a new one. */
+  id?: string | null;
+  contractType: ContractTypeId;
+  titleFa: string;
+  bodyFa: string;
+  sourceNameFa: string;
+  order: number;
+  status: ContractLegalCitationStatus;
+  reason?: string;
+}
+
+export interface AdminPreSignTipSaveResponse {
+  kind: "tip";
+  tip: ContractPreSignTip;
+  previous: ContractPreSignTip | null;
+  report: AdminLegalReviewReport;
+}
+
+/** Save (create or revise) one «قبل از امضا» tip. */
+export function saveAdminPreSignTip(
+  input: SaveAdminPreSignTipInput
+): Promise<AdminPreSignTipSaveResponse> {
+  return apiClient.post<AdminPreSignTipSaveResponse>(`${A}/legal-review`, {
+    kind: "tip",
+    ...input,
+    id: input.id ?? null,
+  });
+}
+
+export interface AdminLegalReviewDeleteResponse {
+  kind: "clause" | "tip";
+  removed: ContractLegalClauseRecord | ContractPreSignTip;
+  report: AdminLegalReviewReport;
+}
+
+/** Remove a stored clause record or tip; the seed then applies again. */
+export function deleteAdminLegalReviewItem(
+  kind: "clause" | "tip",
+  id: string,
+  reason?: string
+): Promise<AdminLegalReviewDeleteResponse> {
+  return apiClient.delete<AdminLegalReviewDeleteResponse>(
+    `${A}/legal-review?${qs({ kind, id, reason })}`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Contract stamp — the official Super-Admin mark (§5)
 // ---------------------------------------------------------------------------
 
@@ -865,6 +1025,94 @@ export function decideAdminContractStamp(
 ): Promise<ContractStampDecisionResponse> {
   return apiClient.post<ContractStampDecisionResponse>(
     `${A}/contracts/${encodeURIComponent(id)}/stamp`,
+    input
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Signature attestations — admin VERIFICATION of a party's signature (§3/§5)
+// ---------------------------------------------------------------------------
+// An attestation records HOW an admin checked a signature a party already
+// gave (watched OTP, wet-ink scan, call). It is evidence ABOUT a signature:
+// the server never changes the party's status or the contract state, and
+// refuses to record one for a party who has not signed.
+
+/** The origin of an admin confirmation — always stated, never implied. */
+export type AttestationChannel = SignatureAttestationChannel;
+
+export interface RecordAttestationInput {
+  participantId: string;
+  channel: AttestationChannel;
+  /** Mandatory: what the admin actually checked. */
+  noteFa: string;
+}
+
+export interface RecordAttestationResponse {
+  attestation: SignatureAttestation & {
+    channelFa: string;
+    participantRoleFa: string;
+  };
+  /** The server always returns false — asserted here so the UI cannot assume otherwise. */
+  stateChanged: false;
+  participantStatusChanged: false;
+}
+
+/** Record that an admin verified a signature a party already gave (POST). */
+export function recordAdminAttestation(
+  id: string,
+  input: RecordAttestationInput
+): Promise<RecordAttestationResponse> {
+  return apiClient.post<RecordAttestationResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/attestations`,
+    input
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Signature invitations — the admin's independent per-party resend (§5)
+// ---------------------------------------------------------------------------
+// One party at a time. The server reuses the SAME issuing implementation as
+// the owner workspace (token rules, expiry, per-recipient events) and reports
+// the REAL delivery outcome; the raw token is returned exactly once so the
+// operator can hand the link over when SMS did not go out.
+
+export interface ResendInvitationsInput {
+  /** Omit to invite every participant; pass one id to resend to that party. */
+  participantIds?: string[];
+  expiresInHours?: number;
+  verifyBeforeView?: boolean;
+}
+
+export interface ResentInvitation {
+  participantId: string;
+  /** The raw link token — returned ONCE and never persisted. */
+  token: string;
+  expiresAt: string;
+  delivered: boolean;
+  channel: "sms" | "dev-console" | null;
+  failureReasonFa: string | null;
+}
+
+export interface ResendInvitationsResponse {
+  requestId: string;
+  contractVersionId: string;
+  documentHash: string | null;
+  invitations: ResentInvitation[];
+  expiresAt: string;
+  /** Participants whose previous ACTIVE link was revoked by this call. */
+  revokedInvitationIds: string[];
+  actorLabelFa: string;
+  /** Parties whose delivery did NOT succeed — hand the link over to these. */
+  failedParticipantIds: string[];
+}
+
+/** Send (or resend) signature links from the admin panel (POST). */
+export function resendAdminInvitations(
+  id: string,
+  input: ResendInvitationsInput
+): Promise<ResendInvitationsResponse> {
+  return apiClient.post<ResendInvitationsResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/invitations`,
     input
   );
 }

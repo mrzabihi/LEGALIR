@@ -1,7 +1,7 @@
 // ============================================================
 // LEGALIR — Admin panel navigation registry
 // ============================================================
-// The nineteen sections of the platform admin panel, in display order.
+// The sections of the platform admin panel, in display order.
 // This is the SINGLE source of truth for the admin menu: the shell renders
 // from it and each entry names the `Permission` that gates it. The
 // permission is a UX affordance only — every admin API re-checks the same
@@ -26,7 +26,7 @@ export interface AdminNavItem {
   permission: Permission;
 }
 
-/** The nineteen admin sections, in product order. */
+/** The admin sections, in product order. */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     key: "overview",
@@ -82,6 +82,17 @@ export const ADMIN_NAV: AdminNavItem[] = [
     // The review drawer POSTs a decision, which the server gates on
     // `admin:contracts:review`; the link is gated by the same permission so a
     // `read`-only role never opens a section it cannot act in.
+    permission: "admin:contracts:review",
+  },
+  {
+    key: "legal-review",
+    path: "/admin/legal-review",
+    titleFa: "بازبینی حقوقی قالب‌ها",
+    hintFa: "مبنای حقوقی هر نوع قرارداد و نکات پیش از امضا",
+    icon: "LawBook",
+    // §7 — the revision path edits the versioned legal content the review
+    // queue judges against, so it is gated by the same permission as the
+    // queue itself (and audited on every write).
     permission: "admin:contracts:review",
   },
   {
