@@ -21,7 +21,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PDFDocument, rgb, degrees, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
-import type { PropertyContractVersion, PropertyContract } from "@legalir/types";
+import type {
+  ContractPreSignTip,
+  PropertyContractVersion,
+  PropertyContract,
+} from "@legalir/types";
 import {
   CONTRACT_DRAFT_WATERMARK_FA,
   CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
@@ -30,7 +34,14 @@ import {
 } from "@legalir/types";
 import { drawRtl, measureRtl, orientedFontkit } from "@/lib/pdf/rtl";
 import { renderContract, type RenderedBlock, type RenderedTable } from "./template";
-import { buildLegalBasisReport, legalBasisReportLines } from "./legal-basis";
+import {
+  LEGAL_BASIS_SEED,
+  buildLegalBasisReport,
+  legalBasisReportLines,
+  preSignTipsAnnexLines,
+  seedPreSignTips,
+  type LegalBasisCatalog,
+} from "./legal-basis";
 import { formatIsoJalali } from "./dates";
 import { qrMatrix } from "./qr";
 import { HOLOGRAM_PRINT_INK, loadDocumentLogo, loadHologram, loadReviewStamp } from "./stamp-asset";
@@ -861,6 +872,17 @@ export interface RenderPdfParams {
    * accidentally produce an unmarked document.
    */
   stamp?: ReviewStampInfo;
+  /**
+   * §7 — the merged legal catalog (seed + stored reviewer records). Omit to
+   * render from the reviewed seed, which keeps every existing caller
+   * byte-identical.
+   */
+  legalBasisCatalog?: LegalBasisCatalog;
+  /**
+   * §7 — the type's non-compulsory «before you sign» tips, printed as their
+   * own annex. Omit to fall back to the reviewed seed.
+   */
+  preSignTips?: ContractPreSignTip[];
 }
 
 /**
@@ -869,7 +891,14 @@ export interface RenderPdfParams {
  * the hash recorded on the version.
  */
 export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8Array> {
-  const { contract, version, baseUrl, stamp } = params;
+  const {
+    contract,
+    version,
+    baseUrl,
+    stamp,
+    legalBasisCatalog = LEGAL_BASIS_SEED,
+    preSignTips = seedPreSignTips(contract.type),
+  } = params;
 
   const regularPath = findFontPath("Vazirmatn-Regular.ttf");
   const boldPath = findFontPath("Vazirmatn-Bold.ttf");
@@ -983,11 +1012,26 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
 
   // --- Legal-basis annex (§2) ---
   // A non-binding appendix; the same reviewed citations the preview shows.
-  const legalBasisLines = legalBasisReportLines(buildLegalBasisReport(contract, rendered));
+  const legalBasisLines = legalBasisReportLines(
+    buildLegalBasisReport(contract, rendered, legalBasisCatalog)
+  );
   if (legalBasisLines.length > 0) {
     layout.spacer(8);
     layout.heading("پیوست — مبنای حقوقی و گزارش بررسی", 12);
     for (const line of legalBasisLines) {
+      layout.paragraph(line, 9);
+    }
+  }
+
+  // --- Pre-sign tips annex (§7) — a SEPARATE, non-compulsory block ---
+  // Belongs to the contract TYPE, never to the text. It prints in both the
+  // draft and the final version, always after the legal-basis annex and with
+  // its own «informational only» framing line.
+  const tipsLines = preSignTipsAnnexLines(preSignTips);
+  if (tipsLines.length > 0) {
+    layout.spacer(8);
+    layout.heading("پیوست — نکات پیش از امضا (غیرالزام‌آور)", 12);
+    for (const line of tipsLines) {
       layout.paragraph(line, 9);
     }
   }

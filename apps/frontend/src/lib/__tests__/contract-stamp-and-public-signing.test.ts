@@ -975,3 +975,133 @@ describe("admin wet-ink evidence — proof only, never a signature", () => {
     expect(list.evidence.some((e) => e.id === data.evidence.id)).toBe(true);
   });
 });
+
+// ============================================================
+// §4 — the final LEGALIR approval freezes the final version
+// ============================================================
+// Applying the official seal IS the final approval, so the same act must
+// freeze the signed snapshot as the FINAL version: the final document is
+// the exact version the parties signed, the earlier reviewed version is
+// retained, and the freeze is recorded in the contract's own audit trail.
+
+describe("official stamp apply — final approval freezes the final version", () => {
+  const ID = "ctr-final-approval";
+
+  beforeAll(async () => {
+    await seedApprovedContract(ID);
+    await completeSignatures(ID);
+  });
+
+  it("reports signature readiness from the real request bound to the version", async () => {
+    const res = await stampGet(getReq(`${ADMIN_BASE}/${ID}/stamp`, adminSession), params(ID));
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: { signatures: { ready: boolean; reasonFa: string | null } };
+    }>(res);
+    expect(data.signatures.ready).toBe(true);
+    expect(data.signatures.reasonFa).toBeNull();
+  });
+
+  it("locks the signed version as the final one and keeps the reviewed version", async () => {
+    const before = contractDb.getContractById(ID)!;
+    const reviewedVersionId = before.currentVersionId!;
+    const reviewedHash = currentHash(ID);
+    const versionsBefore = contractDb.listVersions(ID).length;
+
+    expect(
+      (
+        await stampPost(
+          req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, {
+            action: "request",
+            reason: "همهٔ طرفین امضا کرده‌اند",
+          }),
+          params(ID)
+        )
+      ).status
+    ).toBe(200);
+
+    const applied = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, {
+        action: "apply",
+        reason: "تأیید نهایی لیگالیر",
+      }),
+      params(ID)
+    );
+    expect(applied.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        applied: boolean;
+        finalization: {
+          ok: true;
+          finalVersionId: string;
+          documentHash: string;
+          state: string;
+          finalizedAt: string;
+          artifactStored: boolean;
+        } | null;
+      };
+    }>(applied);
+
+    expect(data.applied).toBe(true);
+    expect(data.finalization).not.toBeNull();
+    const finalization = data.finalization!;
+    // The final version IS the version the parties signed — same row, same
+    // hash — so the signatures the parties gave stay bound to the final doc.
+    expect(finalization.finalVersionId).toBe(reviewedVersionId);
+    expect(finalization.documentHash).toBe(reviewedHash);
+    expect(finalization.state).toBe("FINALIZED");
+    expect(new Date(finalization.finalizedAt).toISOString()).toBe(finalization.finalizedAt);
+
+    // The stored contract agrees, and no version was lost: the freeze
+    // reused the signed snapshot rather than minting a parallel copy.
+    const after = contractDb.getContractById(ID)!;
+    expect(after.state).toBe("FINALIZED");
+    expect(after.finalVersionId).toBe(reviewedVersionId);
+    expect(after.finalizedAt).toBe(finalization.finalizedAt);
+    expect(contractDb.listVersions(ID)).toHaveLength(versionsBefore);
+    expect(contractDb.listVersions(ID).some((v) => v.id === reviewedVersionId)).toBe(true);
+
+    // The approval records the official seal, bound to the same hash.
+    const audit = contractDb.listAudit(ID).find((a) => a.action === "contract.finalized");
+    expect(audit).toBeDefined();
+    expect(audit!.metadata["finalVersionId"]).toBe(reviewedVersionId);
+    expect(audit!.metadata["documentHash"]).toBe(reviewedHash);
+    const stampMeta = audit!.metadata["stamp"] as { officialStamp: { sha256: string } | null };
+    expect(stampMeta.officialStamp?.sha256).toBe(REAL_STAMP_SHA256);
+  });
+
+  it("refuses the final approval while a party has not signed", async () => {
+    const unsignedId = "ctr-final-approval-unsigned";
+    await seedApprovedContract(unsignedId);
+
+    const ctx = await stampGet(
+      getReq(`${ADMIN_BASE}/${unsignedId}/stamp`, adminSession),
+      params(unsignedId)
+    );
+    const { data } = await json<{
+      data: { signatures: { ready: boolean; reasonFa: string | null } };
+    }>(ctx);
+    expect(data.signatures.ready).toBe(false);
+    expect(data.signatures.reasonFa).toBeTruthy();
+
+    await stampPost(
+      req(`${ADMIN_BASE}/${unsignedId}/stamp`, adminSession, {
+        action: "request",
+        reason: "درخواست مهر پیش از امضای طرفین",
+      }),
+      params(unsignedId)
+    );
+
+    const res = await stampPost(
+      req(`${ADMIN_BASE}/${unsignedId}/stamp`, adminSession, {
+        action: "apply",
+        reason: "تلاش تأیید نهایی",
+      }),
+      params(unsignedId)
+    );
+    expect(res.status).toBe(409);
+    expect((await json<{ code: string }>(res)).code).toBe("SIGNATURES_REQUIRED");
+    // Nothing was frozen.
+    expect(contractDb.getContractById(unsignedId)!.finalVersionId).toBeNull();
+  });
+});

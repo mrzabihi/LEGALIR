@@ -26,6 +26,7 @@ import { getContractById, getVersion } from "@/lib/contracts/db";
 import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { renderContractPdf } from "@/lib/contracts/pdf";
+import { mergedLegalBasisCatalog, preSignTipsForType } from "@/lib/contracts/legal-review-db";
 
 interface Params {
   params: Promise<{ token: string }>;
@@ -90,6 +91,8 @@ export async function GET(request: Request, { params }: Params) {
       contract,
       version,
       baseUrl: new URL(request.url).origin,
+      legalBasisCatalog: mergedLegalBasisCatalog(),
+      preSignTips: preSignTipsForType(contract.type),
       stamp: approval
         ? {
             applied: true,

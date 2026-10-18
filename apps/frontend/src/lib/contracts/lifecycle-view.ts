@@ -20,6 +20,7 @@ import { latestSignatureRequest, latestSignatureRequestDetail, listInvitations }
 import { activeLawyerReviewDetail, latestAiReview, listReviewComments } from "./review-db";
 import { currentVersionApproval, latestAdminReview } from "./admin-review";
 import { currentVersionStamp } from "./stamp-review";
+import { preSignTipsForType } from "./legal-review-db";
 import { getVersion } from "./db";
 import {
   buildLifecycleSteps,
@@ -131,6 +132,10 @@ export function buildLifecycleView(
         }
       : null,
     comments,
+    // §7 — the type-level «before you sign» tips. Stored reviewer rows win
+    // over the seed; they live OUTSIDE the contract text and are never a
+    // condition for proceeding.
+    preSignTips: preSignTipsForType(contract.type),
     canPrepareForSignature,
     canSign,
     canFinalize,

@@ -24,6 +24,7 @@
 
 import crypto from "node:crypto";
 import type {
+  ContractDocument,
   ContractParty,
   PropertyContract,
   PropertyRentData,
@@ -38,6 +39,7 @@ import {
   listContractDocuments,
   listContractsForUser,
   listParties,
+  mergeContractData,
   updateContractForUser,
   upsertParty,
 } from "./db";
@@ -205,34 +207,105 @@ function seedSampleDocuments(contractId: string, userId: string): void {
   const existing = new Set(listContractDocuments(contractId).map((d) => d.category));
   for (const required of def.requiredDocuments.filter((d) => d.required)) {
     if (existing.has(required.category)) continue;
-    const documentId = `doc-${crypto.randomUUID()}`;
-    const fileName = `${required.category}-sample.png`;
-    let stored;
-    try {
-      stored = writeContractFile({
-        contractId,
-        documentId,
-        fileName,
-        bytes: SAMPLE_DOCUMENT_BYTES,
-      });
-    } catch {
-      continue;
-    }
-    insertContractDocument({
-      id: documentId,
-      contractId,
+    insertSampleDocument(contractId, userId, {
       category: required.category,
-      fileName,
-      mime: "image/png",
-      sizeBytes: stored.sizeBytes,
-      storageKey: stored.storageKey,
-      hash: stored.hash,
+      fileName: `${required.category}-sample.png`,
       description: "نمونهٔ ساختگی برای نمایش چک‌لیست مدارک (محیط توسعه).",
-      photoCategory: null,
-      uploadedBy: userId,
-      uploadedAt: new Date().toISOString(),
     });
   }
+  seedSampleAnnex(contractId, userId);
+}
+
+/** Write one sample file row; returns the stored row or null on failure. */
+function insertSampleDocument(
+  contractId: string,
+  userId: string,
+  params: {
+    category: ContractDocument["category"];
+    fileName: string;
+    description: string;
+  }
+): ContractDocument | null {
+  const documentId = `doc-${crypto.randomUUID()}`;
+  let stored;
+  try {
+    stored = writeContractFile({
+      contractId,
+      documentId,
+      fileName: params.fileName,
+      bytes: SAMPLE_DOCUMENT_BYTES,
+    });
+  } catch {
+    return null;
+  }
+  const doc: ContractDocument = {
+    id: documentId,
+    contractId,
+    category: params.category,
+    fileName: params.fileName,
+    mime: "image/png",
+    sizeBytes: stored.sizeBytes,
+    storageKey: stored.storageKey,
+    hash: stored.hash,
+    description: params.description,
+    photoCategory: null,
+    uploadedBy: userId,
+    uploadedAt: new Date().toISOString(),
+  };
+  insertContractDocument(doc);
+  return doc;
+}
+
+/**
+ * A real «پیوست قرارداد» for the sample: the file row AND the printable
+ * annex entry, so the dev sample demonstrates both halves of the feature.
+ * Idempotent — a sample that already has an annex is left alone.
+ */
+function seedSampleAnnex(contractId: string, userId: string): void {
+  const contract = getContractById(contractId);
+  if (!contract) return;
+  const existing = contract.data.supplementary?.attachments ?? [];
+  if (existing.length > 0) {
+    // A previous build may have stored the file without the entry (or the
+    // reverse); repair only when the document row is genuinely missing.
+    const present = new Set(listContractDocuments(contractId).map((d) => d.id));
+    const stillValid = existing.filter((a) => present.has(a.documentId));
+    if (stillValid.length === existing.length) return;
+    mergeContractData(userId, contractId, {
+      supplementary: {
+        ...(contract.data.supplementary ?? { notes: "" }),
+        attachments: stillValid,
+        attachmentsConfirmedAt: null,
+      },
+    } as never);
+    return;
+  }
+
+  const doc = insertSampleDocument(contractId, userId, {
+    category: "contract_annex",
+    fileName: "annex-equipment-sample.png",
+    description: "پیوست نمونهٔ ساختگی (محیط توسعه).",
+  });
+  if (!doc) return;
+  const supplementary = contract.data.supplementary ?? { notes: "" };
+  mergeContractData(userId, contractId, {
+    supplementary: {
+      ...supplementary,
+      attachments: [
+        ...(supplementary.attachments ?? []),
+        {
+          documentId: doc.id,
+          titleFa: "فهرست تجهیزات تحویلی (نمونه)",
+          fileName: doc.fileName,
+          mime: doc.mime,
+          sizeBytes: doc.sizeBytes,
+          hash: doc.hash,
+          addedAt: doc.uploadedAt,
+        },
+      ],
+      attachmentsConfirmedAt: new Date().toISOString(),
+    },
+  } as never);
 }
 
 function sampleParty(params: {
@@ -565,7 +638,15 @@ function driveSampleFlow(contract: PropertyContract, userId: string): void {
   // v1 — the draft that goes to review. Its hash is what the approval
   // binds to, and re-freezing the same content in `createSignatureRequest`
   // reproduces that exact hash.
-  const { version: draft } = createVersion(contract, userId);
+  //
+  // Re-read AFTER the documents are seeded: the annex entry and the
+  // document manifest were written to the store, and `createVersion`
+  // snapshots the object it is HANDED. Passing the pre-seed object would
+  // freeze a contract that never included those annexes, and the version
+  // frozen at signature time (which re-reads the store) would then hash
+  // differently — exactly the drift the sample test guards against.
+  const seededContract = getContractById(contract.id) ?? contract;
+  const { version: draft } = createVersion(seededContract, userId);
 
   const reasonFa = "تأیید خودکار نمونهٔ آزمایشی برای اجرای کامل جریان.";
   const review = createPendingReview({

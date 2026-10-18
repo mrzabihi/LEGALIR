@@ -17,6 +17,7 @@
 
 import crypto from "node:crypto";
 import type {
+  SignatureAttestation,
   SignatureEvent,
   SignatureInvitation,
   SignatureParticipant,
@@ -29,6 +30,7 @@ const T_REQUESTS = "contract-signature-requests";
 const T_PARTICIPANTS = "contract-signature-participants";
 const T_EVENTS = "contract-signature-events";
 const T_INVITATIONS = "contract-signature-invitations";
+const T_ATTESTATIONS = "contract-signature-attestations";
 
 // ------------------------------------------------------------
 // Requests
@@ -219,6 +221,26 @@ export function appendSignatureEvent(
   rows.push(row);
   writeTable(T_EVENTS, rows);
   return row;
+}
+
+// ------------------------------------------------------------
+// Admin attestations
+// ------------------------------------------------------------
+// Evidence ABOUT a signature the party gave — never a signature. Read
+// by the admin drawer and the final-approval gate; never written by
+// the signing route.
+
+export function listAttestations(contractId: string): SignatureAttestation[] {
+  return readTable<SignatureAttestation>(T_ATTESTATIONS)
+    .filter((a) => a.contractId === contractId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function insertAttestation(attestation: SignatureAttestation): SignatureAttestation {
+  const rows = readTable<SignatureAttestation>(T_ATTESTATIONS);
+  rows.push(attestation);
+  writeTable(T_ATTESTATIONS, rows);
+  return attestation;
 }
 
 // ------------------------------------------------------------

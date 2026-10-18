@@ -143,6 +143,8 @@ export async function uploadContractDocument(
     category: ContractDocumentCategory;
     description?: string;
     photoCategory?: string;
+    /** «عنوان پیوست» — the label printed for a `contract_annex` upload. */
+    titleFa?: string;
   }
 ): Promise<ContractDocument> {
   const form = new FormData();
@@ -150,6 +152,7 @@ export async function uploadContractDocument(
   form.append("category", params.category);
   if (params.description) form.append("description", params.description);
   if (params.photoCategory) form.append("photoCategory", params.photoCategory);
+  if (params.titleFa) form.append("titleFa", params.titleFa);
 
   const response = await fetch(`/api/v1/property-contracts/${id}/documents`, {
     method: "POST",
@@ -215,6 +218,22 @@ export function submitForReview(id: string): Promise<{
   invalidatedApprovals: number;
 }> {
   return apiClient.post(`/api/v1/property-contracts/${id}/review`, { action: "submit" });
+}
+
+/**
+ * §4 — enter the compulsory LEGALIR admin review queue.
+ *
+ * Distinct from `submitForReview`: that one moves the contract to
+ * READY_FOR_REVIEW for the parties, while this one freezes a fresh
+ * version and opens a PENDING admin review bound to its exact hash. A
+ * contract cannot be signed until that review is approved.
+ */
+export function submitForAdminReview(id: string): Promise<{
+  contract: PropertyContract;
+  review: { id: string; contractVersionId: string | null; documentHash: string | null };
+  version: PropertyContractVersion;
+}> {
+  return apiClient.post(`/api/v1/property-contracts/${id}/review`, { action: "submit_admin" });
 }
 
 export function approveContract(

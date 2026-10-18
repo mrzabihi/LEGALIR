@@ -15,7 +15,11 @@
 // on a machine that has the font installed.
 // ============================================================
 
-import type { PropertyContract, PropertyContractVersion } from "@legalir/types";
+import type {
+  ContractPreSignTip,
+  PropertyContract,
+  PropertyContractVersion,
+} from "@legalir/types";
 import {
   CONTRACT_DRAFT_WATERMARK_FA,
   CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
@@ -23,7 +27,14 @@ import {
 } from "@legalir/types";
 import { renderContract } from "./template";
 import { toPersianDigits } from "@/lib/persian-utils";
-import { buildLegalBasisReport, legalBasisReportLines } from "./legal-basis";
+import {
+  LEGAL_BASIS_SEED,
+  buildLegalBasisReport,
+  legalBasisReportLines,
+  preSignTipsAnnexLines,
+  seedPreSignTips,
+  type LegalBasisCatalog,
+} from "./legal-basis";
 import { formatIsoJalali } from "./dates";
 
 /** The review mark to draw — the same rule as the PDF renderer. */
@@ -345,6 +356,10 @@ export interface RenderDocxParams {
    * unapproved draft, which carries the watermark instead.
    */
   stamp?: DocxReviewStamp;
+  /** §7 — the merged legal catalog; omit to use the reviewed seed. */
+  legalBasisCatalog?: LegalBasisCatalog;
+  /** §7 — the type's non-compulsory pre-sign tips; omit to use the seed. */
+  preSignTips?: ContractPreSignTip[];
 }
 
 /**
@@ -352,7 +367,13 @@ export interface RenderDocxParams {
  * `version.snapshot`, so the file always matches the recorded hash.
  */
 export function renderContractDocx(params: RenderDocxParams): Uint8Array {
-  const { contract, version, stamp } = params;
+  const {
+    contract,
+    version,
+    stamp,
+    legalBasisCatalog = LEGAL_BASIS_SEED,
+    preSignTips = seedPreSignTips(contract.type),
+  } = params;
   const snapshot = version.snapshot;
   const rendered = renderContract(
     { ...contract, data: snapshot.data },
@@ -411,11 +432,21 @@ export function renderContractDocx(params: RenderDocxParams): Uint8Array {
   parts.push(paragraph(rendered.footerFa, { size: 18 }));
 
   // --- Legal-basis annex (§2) — the same reviewed citations as the PDF ---
-  const legalBasisLines = legalBasisReportLines(buildLegalBasisReport(contract, rendered));
+  const legalBasisLines = legalBasisReportLines(
+    buildLegalBasisReport(contract, rendered, legalBasisCatalog)
+  );
   if (legalBasisLines.length > 0) {
     parts.push(paragraph("", { size: 20 }));
     parts.push(paragraph("پیوست — مبنای حقوقی و گزارش بررسی", { bold: true, size: 26 }));
     for (const line of legalBasisLines) parts.push(paragraph(line, { size: 18 }));
+  }
+
+  // --- Pre-sign tips annex (§7) — separate, non-compulsory, type-level ---
+  const tipsLines = preSignTipsAnnexLines(preSignTips);
+  if (tipsLines.length > 0) {
+    parts.push(paragraph("", { size: 20 }));
+    parts.push(paragraph("پیوست — نکات پیش از امضا (غیرالزام‌آور)", { bold: true, size: 26 }));
+    for (const line of tipsLines) parts.push(paragraph(line, { size: 18 }));
   }
 
   const versionLabel = `نسخه ${toPersianDigits(version.versionNumber)}`;
