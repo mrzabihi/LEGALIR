@@ -16,6 +16,7 @@ import { test, expect, type Page, type APIRequestContext } from "@playwright/tes
 const OTP_CODE = "405405";
 const SESSION_COOKIE = "legalir-session";
 const DEMO_MOBILE = "09120000003";
+const DEMO_PASSWORD = "123456";
 const APP_READY_TIMEOUT = 15_000;
 
 // Fresh mobiles for tests that create their own draft, so the OTP
@@ -105,8 +106,11 @@ test.describe("Draft contract delete", () => {
       timeout: APP_READY_TIMEOUT,
     });
 
-    // Delete lives in the card's overflow menu, not as a raw button.
-    await page.getByRole("button", { name: "گزینه‌های بیشتر" }).first().click();
+    // Delete lives in the card's overflow menu, not as a raw button. The
+    // trigger names its OWNED thing («گزینه‌های این قرارداد») rather than
+    // saying «گزینه‌های بیشتر» on every card — a repeated generic label tells
+    // a screen-reader user nothing about which contract it opens.
+    await page.getByRole("button", { name: "گزینه‌های این قرارداد" }).first().click();
     await expect(page.getByRole("menuitem", { name: "حذف پیش‌نویس" }).first()).toBeVisible();
   });
 
@@ -116,7 +120,7 @@ test.describe("Draft contract delete", () => {
     await mockAuth(page, session);
     await page.goto("/contracts");
 
-    const menuTriggers = page.getByRole("button", { name: "گزینه‌های بیشتر" });
+    const menuTriggers = page.getByRole("button", { name: "گزینه‌های این قرارداد" });
     await expect(menuTriggers.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
     const before = await menuTriggers.count();
 
@@ -142,7 +146,7 @@ test.describe("Draft contract delete", () => {
     await mockAuth(page, session);
     await page.goto("/contracts");
 
-    const menuTriggers = page.getByRole("button", { name: "گزینه‌های بیشتر" });
+    const menuTriggers = page.getByRole("button", { name: "گزینه‌های این قرارداد" });
     await expect(menuTriggers.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     await menuTriggers.first().click();
@@ -164,6 +168,32 @@ test.describe("Draft contract delete", () => {
   });
 });
 
+/**
+ * Sign in as the seeded demo user over the password endpoint.
+ *
+ * The document tests cannot use the OTP-created user above: a brand-new
+ * account lands on a plan whose `DOCUMENT_ANALYSIS` quota is 0, so the
+ * upload API answers `429 DOCUMENT_ANALYSIS_LIMIT_EXCEEDED` before any
+ * document exists. The demo user has an active plan with quota. It also
+ * avoids the per-mobile OTP rate limit, which is shared with every other
+ * process driving this dev server.
+ */
+async function createDemoSession(request: APIRequestContext): Promise<SessionInfo> {
+  const res = await request.post("/api/auth/login", {
+    data: { mobile: DEMO_MOBILE, password: DEMO_PASSWORD },
+  });
+  const body = (await res.json()) as {
+    data?: { sessionId?: string; user?: { id?: string; mobileDisplay?: string } };
+  };
+  const sessionId = body.data?.sessionId;
+  if (!sessionId) throw new Error("Failed to create a demo session");
+  return {
+    sessionId,
+    userId: body.data?.user?.id ?? "demo-user-id",
+    mobileDisplay: body.data?.user?.mobileDisplay ?? DEMO_MOBILE,
+  };
+}
+
 /** Create a document row for the session user via the upload API. */
 async function createDocument(
   request: APIRequestContext,
@@ -179,32 +209,44 @@ async function createDocument(
   return id;
 }
 
+/**
+ * Open a document card's overflow menu and choose «حذف».
+ *
+ * The trigger label names the owned document («گزینه‌های این سند»), so a
+ * screen-reader user can tell one card's menu from another's.
+ */
+async function openDeleteMenuItem(page: Page) {
+  const trigger = page.getByRole("button", { name: "گزینه‌های این سند" }).first();
+  await expect(trigger).toBeVisible({ timeout: APP_READY_TIMEOUT });
+  await trigger.click();
+  const item = page.getByRole("menuitem", { name: "حذف" }).first();
+  await expect(item).toBeVisible();
+  await item.click();
+}
+
 test.describe("Document delete", () => {
   test("document card exposes Delete with a confirmation", async ({ page, request }) => {
-    const session = await createSessionFor(request, freshMobile());
+    const session = await createDemoSession(request);
     await createDocument(request, session);
     await mockAuth(page, session);
     await page.goto("/documents");
 
-    const deleteButtons = page.getByRole("button", { name: /حذف سند/ });
-    await expect(deleteButtons.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
-
-    await deleteButtons.first().click();
+    // Delete is a menu item, reached through the card's own trigger. The
+    // list never renders a bare «حذف سند» button — a destructive action
+    // sits behind the menu, not next to the primary «مشاهده سند».
+    await openDeleteMenuItem(page);
     await expect(page.getByText("حذف سند؟")).toBeVisible();
     await page.getByRole("button", { name: "انصراف" }).click();
     await expect(page.getByText("حذف سند؟")).toBeHidden();
   });
 
   test("confirm deletes the document without a manual refresh", async ({ page, request }) => {
-    const session = await createSessionFor(request, freshMobile());
+    const session = await createDemoSession(request);
     const docId = await createDocument(request, session);
     await mockAuth(page, session);
     await page.goto("/documents");
 
-    const deleteButtons = page.getByRole("button", { name: /حذف سند/ });
-    await expect(deleteButtons.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
-
-    await deleteButtons.first().click();
+    await openDeleteMenuItem(page);
     await page.getByRole("button", { name: "حذف سند" }).last().click();
 
     await expect(page.getByText("سند با موفقیت حذف شد.")).toBeVisible({
