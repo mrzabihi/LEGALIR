@@ -16,6 +16,7 @@ import { buildSectionSummary } from "../sections-summary";
 const STEPS: WizardStepDescriptor[] = [
   { id: "parties", titleFa: "طرفین قرارداد", descriptionFa: "", sections: ["parties"] },
   { id: "financial", titleFa: "شرایط مالی", descriptionFa: "", sections: ["financial"] },
+  { id: "signature", titleFa: "امضا", descriptionFa: "", sections: [] },
   { id: "review", titleFa: "بازبینی و پیش‌نمایش", descriptionFa: "", sections: [] },
 ];
 
@@ -61,13 +62,24 @@ describe("buildSectionSummary", () => {
       section("parties", 100),
       section("financial", 40, ["ودیعه"]),
     ]);
-    expect(blocked[2]).toMatchObject({ state: "review", percent: null });
-    expect(blocked[2]!.reasonFa).toBe("۱ بخش هنوز تکمیل نشده است");
+    expect(blocked[3]).toMatchObject({ state: "review", percent: null });
+    expect(blocked[3]!.reasonFa).toBe("۱ بخش هنوز تکمیل نشده است");
 
     const ready = buildSectionSummary(STEPS, [
       section("parties", 100),
       section("financial", 100),
     ]);
-    expect(ready[2]!.reasonFa).toBeNull();
+    expect(ready[3]!.reasonFa).toBeNull();
+  });
+
+  it("marks the signature stage as its own stage, not as a data step", () => {
+    const items = buildSectionSummary(STEPS, [
+      section("parties", 100),
+      section("financial", 100),
+    ]);
+    // It owns no fields, so it can never be reported as a missing-data
+    // step — but it is told apart from the final review step.
+    expect(items[2]).toMatchObject({ stepId: "signature", state: "stage", percent: null });
+    expect(items[3]).toMatchObject({ stepId: "review", state: "review" });
   });
 });

@@ -249,16 +249,18 @@ describe("ReviewStep — lifecycle workspace (§127/§128)", () => {
     expect(labels).toEqual(["اطلاعات", "پیش‌نمایش", "بررسی", "امضا", "تکمیل"]);
   });
 
-  it("offers exactly the three primary choices under Preview", async () => {
+  it("offers the three primary choices plus the signature action under Preview", async () => {
     renderStep(contract(), lifecycleView());
 
     const section = await primaryChoicesSection();
     const buttons = within(section).getAllByRole("button");
-    expect(buttons).toHaveLength(3);
+    // The three analysis paths keep their order; the signature action is
+    // the one committing button reachable from the preview itself.
     expect(buttons.map((b) => b.textContent)).toEqual([
       expect.stringContaining("پرسش از دستیار هوشمند"),
       expect.stringContaining("بررسی توسط وکیل"),
       expect.stringContaining("آماده‌سازی برای امضا"),
+      expect.stringContaining("ارسال برای طرفین جهت امضا"),
     ]);
   });
 

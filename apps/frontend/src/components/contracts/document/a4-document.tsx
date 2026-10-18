@@ -446,10 +446,18 @@ export function A4Document({
       estimate: estimate(rendered.preambleFa),
     });
 
-    rendered.clauses.forEach((clause, index) => {
-      const headingId = `clause-${index}-heading`;
+    // The closing note (§2.2) is pulled OUT of the clause flow: it prints
+    // after every article and after the non-binding annex, so it genuinely
+    // sits at the end of the material and can never be read as one more
+    // contract article.
+    const closingNote = rendered.clauses.find((c) => c.id === "common.supplementary_note");
+    const materialClauses = rendered.clauses.filter(
+      (c) => c.id !== "common.supplementary_note"
+    );
+
+    const pushClauseBlocks = (clause: RenderedContract["clauses"][number], key: string) => {
       list.push({
-        id: headingId,
+        id: `${key}-heading`,
         node: clauseHeading(clause.headingFa),
         keepWithNext: true,
         estimate: 34,
@@ -457,7 +465,7 @@ export function A4Document({
       blocksOf(clause).forEach((block, pIndex) => {
         // Long tables become independent chunks so no single block can ever
         // exceed a page (clipping) and every chunk repeats its headings.
-        for (const chunk of chunkBlock(block, `clause-${index}-b-${pIndex}`)) {
+        for (const chunk of chunkBlock(block, `${key}-b-${pIndex}`)) {
           list.push({
             id: chunk.id,
             node: renderBlock(chunk.block),
@@ -470,39 +478,10 @@ export function A4Document({
           });
         }
       });
-    });
+    };
 
-    // Signature block — never split.
-    list.push({
-      id: "signatures",
-      node: (
-        <div className="a4-signatures">
-          <h3 className="a4-clause-heading">امضای طرفین</h3>
-          <div className="a4-signature-grid">
-            {rendered.signatureLines.map((line) => {
-              const mark = signatureMarks?.[line.roleFa];
-              return (
-                <div key={line.roleFa} className="a4-signature-box">
-                  <p className="a4-signature-role">{line.roleFa}</p>
-                  <p className="a4-signature-name">{line.nameFa}</p>
-                  {line.nationalId !== "……………" && (
-                    <p className="a4-signature-id">کد ملی / شناسه: {line.nationalId}</p>
-                  )}
-                  <p className="a4-signature-date">
-                    تاریخ امضا:{" "}
-                    {mark?.signedAt
-                      ? formatIsoJalali(mark.signedAt.slice(0, 10))
-                      : "……………………"}
-                  </p>
-                  {mark?.statusFa && <p className="a4-signature-state">{mark.statusFa}</p>}
-                </div>
-              );
-            })}
-          </div>
-          <p className="a4-footer-note">{rendered.footerFa}</p>
-        </div>
-      ),
-      estimate: 190 + rendered.signatureLines.length * 12,
+    materialClauses.forEach((clause, index) => {
+      pushClauseBlocks(clause, `clause-${index}`);
     });
 
     if (legalBasis && legalBasis.sections.length > 0) {
@@ -545,6 +524,51 @@ export function A4Document({
         });
       }
     }
+
+    // §2.2 — the closing note, immediately before the signatures: it is the
+    // last thing a reader sees before signing, exactly as the wizard promised.
+    if (closingNote) {
+      pushClauseBlocks(closingNote, "closing-note");
+    }
+
+    // §2.6 — the FULL signature block is the document's last block. It is a
+    // single, unbreakable unit: the paginator moves it whole to a fresh page
+    // when it does not fit, so no page can ever carry half a signature block.
+    list.push({
+      id: "signatures",
+      node: (
+        <div className="a4-signatures">
+          <h3 className="a4-clause-heading">امضای طرفین</h3>
+          <div className="a4-signature-grid">
+            {rendered.signatureLines.map((line) => {
+              const mark = signatureMarks?.[line.roleFa];
+              return (
+                <div key={line.roleFa} className="a4-signature-box">
+                  <p className="a4-signature-role">{line.roleFa}</p>
+                  <p className="a4-signature-name">{line.nameFa}</p>
+                  {line.nationalId !== "……………" && (
+                    <p className="a4-signature-id">کد ملی / شناسه: {line.nationalId}</p>
+                  )}
+                  {/* A ruled signing area — the physical space a wet
+                      signature/paraphe goes in, separate from the typed
+                      name so the two can never be confused. */}
+                  <div className="a4-signature-rule" aria-hidden="true" />
+                  <p className="a4-signature-date">
+                    تاریخ امضا:{" "}
+                    {mark?.signedAt
+                      ? formatIsoJalali(mark.signedAt.slice(0, 10))
+                      : "……………………"}
+                  </p>
+                  {mark?.statusFa && <p className="a4-signature-state">{mark.statusFa}</p>}
+                </div>
+              );
+            })}
+          </div>
+          <p className="a4-footer-note">{rendered.footerFa}</p>
+        </div>
+      ),
+      estimate: 210 + rendered.signatureLines.length * 12,
+    });
 
     return list;
   }, [
@@ -697,6 +721,35 @@ export function A4Document({
 
   if (!rendered) return null;
 
+  /**
+   * §2.6 — the page footer. It carries THREE things, always in the same
+   * reserved band: a legible paraphe strip (one initialled box per signing
+   * role, so every page can be initialled), the document footer note and
+   * the page number. Because the strip lives INSIDE the measured footer,
+   * its height is part of the page budget — body text can never flow into
+   * it, and it can never collide with a table, a clause or the page number.
+   *
+   * `pageNumber` differs only between the measurer (a dummy "۱ از ۱") and
+   * the real sheet, so both boxes measure identically.
+   */
+  const footerNode = (pageNumber: string, withProbe = false) => (
+    <footer className="a4-page-footer" ref={withProbe ? footerProbeRef : undefined}>
+      <div className="a4-paraphe" aria-hidden="true">
+        <span className="a4-paraphe-caption">پاراف صفحه</span>
+        {rendered.signatureLines.map((line) => (
+          <span key={line.roleFa} className="a4-paraphe-item">
+            <span className="a4-paraphe-role">{line.roleFa}</span>
+            <span className="a4-paraphe-box" />
+          </span>
+        ))}
+      </div>
+      <div className="a4-page-footer-line">
+        <span>{rendered?.footerFa ?? ""}</span>
+        <span className="a4-page-number">{pageNumber}</span>
+      </div>
+    </footer>
+  );
+
   const renderPages = (rootClass: string) => (
     <div className={rootClass} dir="rtl">
       {pages.map((pageBlocks, pageIndex) => (
@@ -735,12 +788,7 @@ export function A4Document({
             </div>
           </div>
 
-          <footer className="a4-page-footer">
-            <span>{rendered?.footerFa ?? ""}</span>
-            <span>
-              صفحه {faNum(pageIndex + 1)} از {faNum(pageCount)}
-            </span>
-          </footer>
+          {footerNode(`صفحه ${faNum(pageIndex + 1)} از ${faNum(pageCount)}`)}
         </section>
       ))}
     </div>
@@ -781,12 +829,10 @@ export function A4Document({
               </div>
             ))}
           </div>
-          {/* A real footer inside the measurer, so its height is part of the
-              page budget rather than guessed. */}
-          <footer className="a4-page-footer" ref={footerProbeRef}>
-            <span>{rendered?.footerFa ?? ""}</span>
-            <span>صفحه ۱ از ۱</span>
-          </footer>
+          {/* The SAME footer (paraphe strip + note + page number) inside the
+              measurer, so its real height is part of the page budget rather
+              than guessed. */}
+          {footerNode("صفحه ۱ از ۱", true)}
         </div>
       </div>
 

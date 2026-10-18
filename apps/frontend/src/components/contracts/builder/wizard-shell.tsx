@@ -57,8 +57,12 @@ function WizardBody() {
     () => buildSectionSummary(def.wizardSteps, completeness.sections),
     [def.wizardSteps, completeness.sections]
   );
+  // Only data steps can be "the thing still missing". The review and
+  // signature stages own no fields, so they are never offered as a
+  // completion target.
   const firstOpenStep = summaryItems.find(
-    (item) => item.state !== "complete" && item.state !== "review"
+    (item) =>
+      item.state !== "complete" && item.state !== "review" && item.state !== "stage"
   );
 
   const handleCopyId = () => {

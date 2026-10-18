@@ -25,7 +25,11 @@ import type {
   AdminContractReviewActionRequest,
   ContractAdminReviewAction,
 } from "@legalir/types";
-import { CONTRACT_ADMIN_REVIEW_STATUS_FA } from "@legalir/types";
+import {
+  CONTRACT_ADMIN_REVIEW_STATUS_FA,
+  SIGNATURE_ASSURANCE_LABELS_FA,
+  SIGNATURE_SIGN_METHOD_FA,
+} from "@legalir/types";
 import { useAdminContract, useAdminContractReview, useAdminMe } from "@/hooks/useAdmin";
 import { ContractStampPanel } from "./contract-stamp-panel";
 import {
@@ -57,6 +61,36 @@ const STATUS_TONES: Record<
   REJECTED: "danger",
   CHANGES_REQUESTED: "warning",
   CANCELLED: "neutral",
+};
+
+/** The tone each signature-request status deserves in the record. */
+const SIGNATURE_REQUEST_TONES: Record<
+  string,
+  "neutral" | "success" | "warning" | "danger" | "info" | "brand"
+> = {
+  DRAFT: "neutral",
+  SENT: "info",
+  PARTIALLY_SIGNED: "warning",
+  COMPLETED: "success",
+  DECLINED: "danger",
+  EXPIRED: "warning",
+  CANCELLED: "neutral",
+};
+
+/** The Persian label for each party-approval state. */
+const APPROVAL_STATUS_FA: Record<string, string> = {
+  pending: "در انتظار تأیید",
+  approved: "تأیید شد",
+  changes_requested: "اصلاح خواسته شد",
+  rejected: "رد شد",
+};
+
+/** The Persian label for each invitation's lifecycle state. */
+const INVITATION_STATUS_FA: Record<string, string> = {
+  ACTIVE: "لینک فعال",
+  USED: "استفاده‌شده",
+  REVOKED: "باطل‌شده",
+  EXPIRED: "منقضی‌شده",
 };
 
 /** Actions that require a written reason before they may be submitted. */
@@ -170,6 +204,11 @@ export function ContractDetailDrawer({
                     : "بدون بررسی ثبت‌شده"}
                 </Badge>
                 <Badge tone="brand">{data.contract.stateFa}</Badge>
+                {data.contract.isSample && (
+                  <Badge tone="warning" title="این قرارداد فقط برای آزمایش ساخته شده و داده‌های آن ساختگی است">
+                    نمونه آزمایشی
+                  </Badge>
+                )}
                 {data.approved && (
                   <Badge tone="success">
                     <IconCheckCircle size={13} /> نسخهٔ فعلی تأییدشده است
@@ -213,6 +252,40 @@ export function ContractDetailDrawer({
                 <p className="text-caption text-muted">
                   نسخه‌ای تثبیت نشده است؛ قرارداد هنوز برای بررسی آماده نیست.
                 </p>
+              )}
+
+              {/* §2.4 — every frozen version, newest first. Nothing is
+                  collapsed: a superseded draft stays visible, so the record
+                  can never lose a version. */}
+              {data.versions.length > 0 && (
+                <div className="mt-3 border-t border-divider pt-2.5">
+                  <p className="mb-1.5 text-labelSmall text-muted">
+                    تاریخچهٔ نسخه‌ها ({toPersianNumber(data.versions.length)} نسخه)
+                  </p>
+                  <ul className="space-y-1.5 text-caption">
+                    {data.versions.map((v) => (
+                      <li
+                        key={v.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-medium border border-divider px-2 py-1.5"
+                      >
+                        <span className="flex flex-wrap items-center gap-1.5 text-on-surface">
+                          {`نسخه ${toPersianNumber(v.versionNumber)}`}
+                          {v.isCurrent && <Badge tone="brand">جاری</Badge>}
+                          {v.isFinal && <Badge tone="success">نهایی</Badge>}
+                        </span>
+                        <span
+                          className="text-labelSmall text-muted"
+                          title={v.documentHash}
+                        >
+                          {toPersianDate(v.createdAt)} ·{" "}
+                          <span className="font-mono" dir="ltr">
+                            {v.documentHash.slice(0, 10)}…
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </Section>
 
@@ -350,7 +423,9 @@ export function ContractDetailDrawer({
                 <ul className="space-y-1.5 text-caption">
                   {data.parties.map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-2">
-                      <span className="text-on-surface-variant">{p.role}</span>
+                      {/* The role is a Persian label from the registry — the
+                          raw `landlord`/`tenant` token is never shown. */}
+                      <span className="text-on-surface-variant">{p.roleFa}</span>
                       <span className="text-on-surface">
                         {p.nameFa}
                         {p.isInitiator && <span className="ms-2 text-muted">(آغازگر)</span>}
@@ -360,6 +435,208 @@ export function ContractDetailDrawer({
                 </ul>
               </Section>
             )}
+
+            {/* --- §2.2 the supplementary note, exactly as it will print --- */}
+            <Section title="یادداشت تکمیلی">
+              {data.supplementary?.notes?.trim() ? (
+                <div className="space-y-2">
+                  <p className="whitespace-pre-line rounded-medium border border-divider bg-surface-container p-2.5 text-caption leading-6 text-on-surface-variant">
+                    {data.supplementary.notes}
+                  </p>
+                  <p className="text-labelSmall text-muted">
+                    {data.supplementary.noteConfirmedAt
+                      ? `تأیید یادداشت: ${toPersianDate(data.supplementary.noteConfirmedAt)}`
+                      : "این یادداشت هنوز توسط مالک تأیید نشده است."}
+                    {" · در پایان سند و جدا از مواد قرارداد چاپ می‌شود."}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-caption text-muted">
+                  یادداشت تکمیلی ثبت نشده است؛ در این حالت هیچ بخشی در پایان سند چاپ نمی‌شود.
+                </p>
+              )}
+            </Section>
+
+            {/* --- §2.1 the owner's own clauses and requested changes --- */}
+            <Section title="تغییرات و بندهای افزوده">
+              {data.customClauses.length === 0 ? (
+                <p className="text-caption text-muted">بند افزوده یا درخواست تغییری ثبت نشده است.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {data.customClauses.map((c) => (
+                    <li key={c.id} className="rounded-medium border border-divider p-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-labelMedium text-on-surface">{c.title}</span>
+                        <Badge tone={c.kind === "change_request" ? "warning" : "info"}>
+                          {c.kind === "change_request" ? "درخواست تغییر" : "بند توافقی"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 whitespace-pre-line text-caption leading-6 text-on-surface-variant">
+                        {c.body}
+                      </p>
+                      <p className="mt-1 text-labelSmall text-muted">
+                        {c.sectionTitleFa ? `بخش مرتبط: ${c.sectionTitleFa} · ` : ""}
+                        {toPersianDate(c.createdAt)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+
+            {/* --- §2.4 party approvals, with their exact times --- */}
+            <Section title="تأییدهای طرفین">
+              {data.approvals.length === 0 ? (
+                <p className="text-caption text-muted">هنوز تأییدی از سوی طرفین ثبت نشده است.</p>
+              ) : (
+                <ul className="space-y-1.5 text-caption">
+                  {data.approvals.map((a) => {
+                    const version = data.versions.find((v) => v.id === a.contractVersionId);
+                    return (
+                      <li
+                        key={a.id}
+                        className="flex flex-wrap items-center justify-between gap-2 border-b border-divider pb-1.5 last:border-0"
+                      >
+                        <span className="text-on-surface">
+                          {a.partyRoleFa || "طرف"}
+                          {a.partyNameFa && (
+                            <span className="ms-1 text-muted">— {a.partyNameFa}</span>
+                          )}
+                        </span>
+                        <span className="text-labelSmall text-muted">
+                          {APPROVAL_STATUS_FA[a.status]}
+                          {version ? ` · نسخه ${toPersianNumber(version.versionNumber)}` : ""}
+                          {" · "}
+                          {a.approvedAt ? toPersianDate(a.approvedAt) : toPersianDate(a.createdAt)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Section>
+
+            {/* --- §2.3/§2.4 the signature request and each party's own status --- */}
+            <Section title="درخواست امضا و وضعیت هر طرف">
+              {!data.signatureRequest ? (
+                <p className="text-caption text-muted">
+                  {data.signatureRequests.length > 0
+                    ? "درخواست امضای فعلی‌ای وجود ندارد؛ درخواست‌های پیشین در پایان همین بخش آمده‌اند."
+                    : "برای این قرارداد هنوز درخواست امضایی صادر نشده است."}
+                </p>
+              ) : (
+                <div className="space-y-2.5 text-caption">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge tone={SIGNATURE_REQUEST_TONES[data.signatureRequest.status] ?? "neutral"} dot>
+                      {data.signatureRequest.statusFa}
+                    </Badge>
+                    {(() => {
+                      const v = data.versions.find(
+                        (x) => x.id === data.signatureRequest!.contractVersionId
+                      );
+                      return v ? (
+                        <Badge tone="brand">نسخه {toPersianNumber(v.versionNumber)}</Badge>
+                      ) : null;
+                    })()}
+                    <span className="text-labelSmall text-muted">
+                      {SIGNATURE_ASSURANCE_LABELS_FA[data.signatureRequest.assuranceLevel]}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <Info label="ایجاد درخواست" value={toPersianDate(data.signatureRequest.createdAt)} />
+                    <Info
+                      label="تکمیل"
+                      value={
+                        data.signatureRequest.completedAt
+                          ? toPersianDate(data.signatureRequest.completedAt)
+                          : "تکمیل نشده"
+                      }
+                    />
+                  </dl>
+                  <ul className="space-y-1.5">
+                    {data.signatureRequest.participants.map((p) => {
+                      const inv = data.signatureRequest!.invitations.find(
+                        (i) => i.participantId === p.id
+                      );
+                      return (
+                        <li
+                          key={p.id}
+                          className="rounded-medium border border-divider p-2.5"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-on-surface">
+                              {p.roleFa}
+                              {p.nameFa && <span className="ms-1 text-muted">— {p.nameFa}</span>}
+                            </span>
+                            <Badge
+                              tone={
+                                p.status === "SIGNED"
+                                  ? "success"
+                                  : p.status === "DECLINED"
+                                    ? "danger"
+                                    : p.status === "VIEWED"
+                                      ? "info"
+                                      : "neutral"
+                              }
+                            >
+                              {p.statusFa}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-labelSmall text-muted" dir="ltr">
+                            {p.mobileMasked}
+                          </p>
+                          <p className="mt-0.5 text-labelSmall text-muted">
+                            {p.viewedAt ? `مشاهده: ${toPersianDate(p.viewedAt)}` : "مشاهده نشده"}
+                            {p.signedAt && ` · امضا: ${toPersianDate(p.signedAt)}`}
+                            {p.signedMethod && ` · ${SIGNATURE_SIGN_METHOD_FA[p.signedMethod]}`}
+                            {p.declinedAt && ` · رد: ${toPersianDate(p.declinedAt)}`}
+                          </p>
+                          {p.declineReason && (
+                            <p className="mt-0.5 text-labelSmall text-danger">{p.declineReason}</p>
+                          )}
+                          {inv && (
+                            <p className="mt-0.5 text-labelSmall text-muted">
+                              {inv.deliveryStatus === "FAILED"
+                                ? "ارسال دعوت ناموفق بود — نیازمند ارسال مجدد"
+                                : inv.deliveryStatus === "SENT"
+                                  ? `دعوت ارسال شد (${
+                                      inv.deliveryChannel === "sms" ? "پیامک" : "خروجی توسعه"
+                                    })`
+                                  : "دعوت صادر شده اما ارسالی ثبت نشده است"}
+                              {inv.lastSentAt ? ` — ${toPersianDate(inv.lastSentAt)}` : ""}
+                              {" · "}
+                              {INVITATION_STATUS_FA[inv.status]}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {data.signatureRequests.length > 1 && (
+                <div className="mt-3 border-t border-divider pt-2">
+                  <p className="mb-1.5 text-labelSmall text-muted">
+                    همهٔ درخواست‌های امضای این قرارداد:
+                  </p>
+                  <ul className="space-y-1 text-labelSmall text-muted">
+                    {data.signatureRequests.map((r) => {
+                      const v = data.versions.find((x) => x.id === r.contractVersionId);
+                      return (
+                        <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
+                          <span>
+                            {v ? `نسخه ${toPersianNumber(v.versionNumber)}` : "نسخهٔ نامشخص"}
+                            {" — "}
+                            {r.statusFa}
+                          </span>
+                          <span>{toPersianDate(r.createdAt)}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </Section>
 
             {/* --- The owner's review thread, including internal notes --- */}
             {data.comments.length > 0 && (

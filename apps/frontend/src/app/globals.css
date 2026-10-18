@@ -2873,15 +2873,82 @@ html {
 
 /* --- Footer / page number --- */
 
+/* The footer is a reserved band with THREE rows of information that can
+   never overlap the body: the per-page paraphe strip, the document note
+   and the page number. Its full height is measured, so body content stops
+   above it (§2.6). */
 .a4-page-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2.5mm var(--a4-pad-x) 5mm;
+  border-top: 1px solid var(--a4-line);
+  font-size: 8.5px;
+  color: var(--a4-muted);
+}
+
+.a4-page-footer-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 3mm var(--a4-pad-x) 6mm;
-  border-top: 1px solid var(--a4-line);
-  font-size: 8.5px;
+}
+
+.a4-page-number {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Per-page paraphe strip (§2.6) ---
+   One initialled box per signing role on EVERY page, so every sheet can be
+   paraphed. It sits inside the reserved footer band: body text, tables and
+   the page number can never reach it. */
+
+.a4-paraphe {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 3px;
+  border-bottom: 1px dashed #c9d3ce;
+}
+
+.a4-paraphe-caption {
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--a4-accent);
+}
+
+.a4-paraphe-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.a4-paraphe-role {
+  font-size: 7.5px;
   color: var(--a4-muted);
+}
+
+.a4-paraphe-box {
+  display: inline-block;
+  width: 13mm;
+  height: 5.5mm;
+  border: 1px solid #cdd7d2;
+  border-radius: 1px;
+  background: #ffffff;
+}
+
+/* --- Signature block (§2.6) --- */
+
+/* A ruled signing area inside each party's box: the physical space for a
+   wet signature or paraphe, distant from the typed name above it. */
+.a4-signature-rule {
+  height: 16mm;
+  border-bottom: 1px solid #9fb0a9;
+  margin: 5px 0 3px;
 }
 
 /* --- Hidden measurer --- */

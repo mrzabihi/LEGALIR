@@ -951,6 +951,17 @@ export interface CustomClause {
  */
 export interface ContractSupplementary {
   notes: string;
+  /**
+   * ISO timestamp of the user's explicit «تأیید یادداشت و ادامه».
+   * Only a confirmed note is treated as final by the wizard; the field is
+   * additive, so drafts written before it existed stay readable.
+   */
+  noteConfirmedAt?: string | null;
+  /**
+   * ISO timestamp of «تأیید و ادامه به امضا» on the supplementary step.
+   * The signature step reads it to know the material was acknowledged.
+   */
+  confirmedAt?: string | null;
 }
 
 // ------------------------------------------------------------
@@ -1057,6 +1068,14 @@ export interface PropertyContract {
    * existed simply have no case.
    */
   caseId?: string | null;
+  /**
+   * §2.7 — a dev-only end-to-end sample contract. It runs the REAL
+   * lifecycle (draft version → admin approval → signature request) with
+   * fake parties and a non-delivering transport, and is labelled
+   * «نمونه آزمایشی» everywhere it appears. Optional and additive, so
+   * contracts stored before this flag existed stay valid.
+   */
+  isSample?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1255,6 +1274,18 @@ export interface AdminContractListItem {
   adminApproved: boolean;
   currentVersionNumber: number;
   finalizedAt: string | null;
+  /**
+   * §2.4 — the newest signature request's status, so the queue shows
+   * signing progress without opening each contract. `null` until the
+   * owner sends the first request.
+   */
+  signatureStatus: SignatureRequestStatus | null;
+  signatureStatusFa: string | null;
+  /** How many of the request's participants have signed. */
+  signedCount: number;
+  participantCount: number;
+  /** §2.7 — true for the dev-only sample contract («نمونه آزمایشی»). */
+  isSample: boolean;
   updatedAt: string;
   createdAt: string;
 }

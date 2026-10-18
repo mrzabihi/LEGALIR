@@ -352,6 +352,22 @@ const SUPPLEMENTARY_STEP: WizardStepDescriptor = {
   sections: [],
 };
 
+/**
+ * The signature stage, shared by EVERY contract type.
+ *
+ * It sits immediately after the supplementary confirmation and before the
+ * final review: the parties' material is confirmed, the final version and
+ * note are shown once more, and the invitation is sent to each party's
+ * registered mobile. It owns no data sections — it reads and drives the
+ * lifecycle engine, so it can never block the wizard on missing fields.
+ */
+const SIGNATURE_STEP: WizardStepDescriptor = {
+  id: "signature",
+  titleFa: "امضا",
+  descriptionFa: "مرور نسخهٔ نهایی و ارسال برای طرفین جهت امضا",
+  sections: [],
+};
+
 // ------------------------------------------------------------
 // Property / Rent
 // ------------------------------------------------------------
@@ -400,6 +416,7 @@ const RENT_STEPS: WizardStepDescriptor[] = [
     sections: ["documents"],
   },
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   {
     id: "review",
     titleFa: "بازبینی و پیش‌نمایش",
@@ -595,6 +612,7 @@ const SALE_STEPS: WizardStepDescriptor[] = [
     sections: ["documents"],
   },
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   {
     id: "review",
     titleFa: "بازبینی و پیش‌نمایش",
@@ -835,6 +853,7 @@ const VEHICLE_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و شرایط", "تخلفات، خسارت و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -916,6 +935,7 @@ const DEBT_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "وجه التزام تأخیر و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -972,6 +992,7 @@ const FREELANCE_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1020,6 +1041,7 @@ const NDA_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و ضمانت اجرا", "تعهدات طرفین و وجه التزام نقض", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1081,6 +1103,7 @@ const SAAS_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین، SLA و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1151,6 +1174,7 @@ const STARTUP_STEPS: WizardStepDescriptor[] = [
   step("obligations", "محرمانگی و حل اختلاف", "عدم رقابت، مالکیت معنوی و حل اختلاف", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1254,6 +1278,7 @@ const EMPLOYMENT_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و شروط خاص", "تعهدات متقابل، محرمانگی و شروط توافق‌شده", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1420,6 +1445,7 @@ const COMMERCIAL_RENT_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین، تعمیرات، فسخ و تخلیه", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1522,6 +1548,7 @@ const COMMERCIAL_SALE_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و تحویل", "تخلیه، بدهی‌های قبلی و تجهیزات", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 
@@ -1632,6 +1659,7 @@ const CLOUD_SHARED_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "مسئولیت‌ها، جریمه و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
+  SIGNATURE_STEP,
   REVIEW_STEP,
 ];
 

@@ -43,7 +43,7 @@ import {
   CalculatorControls,
   CalculatorRow,
 } from "@/components/calculators";
-import { PageIntroBanner } from "@/components/shared";
+import { PageContainer, PageIntroBanner, SectionHeader } from "@/components/shared";
 
 export default function CalculatorsPage() {
   const [query, setQuery] = useState("");
@@ -72,7 +72,7 @@ export default function CalculatorsPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-6xl overflow-x-clip p-4 tablet:p-6" dir="rtl">
+    <PageContainer className="overflow-x-clip" dir="rtl">
       {/* ============================================================
           1. Intro + search
           ============================================================ */}
@@ -159,23 +159,20 @@ export default function CalculatorsPage() {
               2. Quick access — six real calculators, one per category
               ============================================================ */}
           <section aria-labelledby="quick-access-title" className="mb-10">
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <div>
-                <h2 id="quick-access-title" className="text-h4 font-bold text-on-surface">
-                  دسترسی سریع
-                </h2>
-                <p className="mt-1 text-caption text-on-surface-variant">
-                  پرکاربردترین محاسبه‌گرها برای شروع سریع
-                </p>
-              </div>
-              <Link
-                href="/calculators/all"
-                className="hidden shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-labelLarge font-medium text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:inline-flex"
-              >
-                مشاهدهٔ همه
-                <IconChevronLeft size={16} />
-              </Link>
-            </div>
+            <SectionHeader
+              id="quick-access-title"
+              title="دسترسی سریع"
+              description="پرکاربردترین محاسبه‌گرها برای شروع سریع"
+              action={
+                <Link
+                  href="/calculators/all"
+                  className="hidden shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-labelLarge font-medium text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:inline-flex"
+                >
+                  مشاهدهٔ همه
+                  <IconChevronLeft size={16} />
+                </Link>
+              }
+            />
 
             <ul className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-6">
               {quickAccess.map((card) => (
@@ -199,14 +196,11 @@ export default function CalculatorsPage() {
               ============================================================ */}
           {suggested.length > 0 && (
             <section aria-labelledby="suggested-title" className="mb-10">
-              <div className="mb-3">
-                <h2 id="suggested-title" className="text-h4 font-bold text-on-surface">
-                  محاسبه‌گرهای پیشنهادی
-                </h2>
-                <p className="mt-1 text-caption text-on-surface-variant">
-                  انتخاب‌شده‌ای از محاسبه‌گرهای پراستفاده
-                </p>
-              </div>
+              <SectionHeader
+                id="suggested-title"
+                title="محاسبه‌گرهای پیشنهادی"
+                description="انتخاب‌شده‌ای از محاسبه‌گرهای پراستفاده"
+              />
               <CalculatorRow items={suggested} ariaLabel="محاسبه‌گرهای پیشنهادی" />
             </section>
           )}
@@ -230,6 +224,6 @@ export default function CalculatorsPage() {
       <p className="mt-8 text-center text-caption text-on-surface-variant">
         نتایج این محاسبه‌گرها جنبه اطلاع‌رسانی دارد و جایگزین نظر کارشناس حقوقی نیست.
       </p>
-    </div>
+    </PageContainer>
   );
 }

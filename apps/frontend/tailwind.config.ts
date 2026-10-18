@@ -349,6 +349,12 @@ const config: Config = {
         // shadow-colour, and silently emits the colour form (no shadow).
         "contract-sticky": "var(--contract-sticky-shadow)",
         "elevation-1": "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
+        // `shadow-elevation-2` is used across cards, carousels and sheets
+        // (30 call sites) but the key was missing from this scale, so those
+        // classes resolved to NO shadow at all. It reads the theme token
+        // (globals.css is the source of truth) so it also gets the stronger
+        // dark-theme value.
+        "elevation-2": "var(--elevation-2)",
         "elevation-3": "0 1px 3px rgba(0,0,0,0.18), 0 4px 8px rgba(0,0,0,0.10)",
         "elevation-4": "0 4px 6px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.08)",
         "elevation-8": "0 8px 16px rgba(0,0,0,0.14), 0 4px 8px rgba(0,0,0,0.08)",

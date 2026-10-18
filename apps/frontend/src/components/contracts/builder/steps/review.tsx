@@ -132,7 +132,7 @@ function requestAcceptsInvitations(status: string): boolean {
 
 export function ReviewStep() {
   const router = useRouter();
-  const { contract, data, parties, payments, completeness } = useWizard();
+  const { contract, data, parties, payments, completeness, goToStep } = useWizard();
   const def = getContractDefinition(contract.type);
 
   const lifecycle = useContractLifecycle(contract.id);
@@ -575,6 +575,20 @@ export function ReviewStep() {
               تثبیت نسخه و ارسال برای تأیید و امضای الکترونیکی.
             </span>
           </button>
+        </div>
+
+        {/* The one committing signature action, reachable from the preview
+            itself — without leaving the page the parties are reviewed on. */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-divider pt-3">
+          <p className="text-caption text-muted">
+            ارسال لینک امضا به هر طرف، از شمارهٔ ثبت‌شدهٔ همان طرف — پس از تأیید اطلاعات تکمیلی.
+          </p>
+          <Button
+            startIcon={<IconSend className="w-4 h-4" />}
+            onClick={() => goToStep("signature")}
+          >
+            ارسال برای طرفین جهت امضا
+          </Button>
         </div>
       </SectionCard>
 

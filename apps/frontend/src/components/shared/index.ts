@@ -32,3 +32,9 @@ export {
 } from "./status-badge";
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from "./filter-chips";
 export { ResultsBar, type ResultsBarProps, type ActiveFilter } from "./results-bar";
+
+// --- Shared page column ---
+// One width and one gutter for every in-app surface, so navigating
+// between sections never re-flows the content column.
+export { PageContainer } from "./page-container";
+export { SectionHeader, type SectionHeaderProps } from "./section-header";

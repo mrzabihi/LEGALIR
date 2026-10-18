@@ -95,6 +95,8 @@ import type {
   ContractTypeId,
   PropertyContract,
   PropertyContractState,
+  SignatureParticipant,
+  SignatureRequestDetail,
   AdminAnnouncement,
   AnnouncementStatus,
   CreateAnnouncementInput,
@@ -718,16 +720,27 @@ export interface AdminContractDetail {
     partySummaryFa: string;
     createdAt: string;
     updatedAt: string;
+    /** §2.7 — true for the dev-only sample contract. */
+    isSample: boolean;
   };
   completeness: ContractCompleteness;
-  parties: { id: string; role: string; nameFa: string; isInitiator: boolean }[];
+  parties: { id: string; role: string; roleFa: string; nameFa: string; isInitiator: boolean }[];
   currentVersion: {
     id: string;
     versionNumber: number;
     documentHash: string;
     createdAt: string;
   } | null;
-  versions: { id: string; versionNumber: number; documentHash: string; createdAt: string }[];
+  /** Every version ever frozen, newest first — never collapsed. */
+  versions: {
+    id: string;
+    versionNumber: number;
+    documentHash: string;
+    templateVersion: string;
+    createdAt: string;
+    isCurrent: boolean;
+    isFinal: boolean;
+  }[];
   rendered: {
     titleFa: string;
     preambleFa: string;
@@ -746,6 +759,66 @@ export interface AdminContractDetail {
   adminReview: ContractAdminReviewDetail | null;
   approved: boolean;
   stamp: { applied: boolean; text: string; disclaimerFa: string };
+  /** §2.2 — the note that prints at the document's end, and its confirmation time. */
+  supplementary: {
+    notes: string;
+    noteConfirmedAt: string | null;
+    confirmedAt: string | null;
+  };
+  /** §2.1 — clauses the owner added and the changes they requested. */
+  customClauses: {
+    id: string;
+    kind: "agreement" | "change_request";
+    title: string;
+    body: string;
+    sectionRef: string | null;
+    sectionTitleFa: string | null;
+    createdAt: string;
+  }[];
+  /** Party approvals of a version, with their exact times. */
+  approvals: {
+    id: string;
+    contractVersionId: string;
+    partyId: string;
+    partyRoleFa: string;
+    partyNameFa: string;
+    status: "pending" | "approved" | "changes_requested" | "rejected";
+    comment: string;
+    method: "otp" | "explicit_consent" | "physical";
+    approvedAt: string | null;
+    createdAt: string;
+  }[];
+  /**
+   * The newest signature request — kept even when COMPLETED, because the
+   * participant rows ARE the record of who signed and when.
+   */
+  signatureRequest:
+    | (Omit<SignatureRequestDetail, "participants"> & {
+        statusFa: string;
+        participants: (SignatureParticipant & { statusFa: string })[];
+        invitations: {
+          id: string;
+          participantId: string;
+          recipientMasked: string;
+          status: "ACTIVE" | "USED" | "REVOKED" | "EXPIRED";
+          deliveryChannel: "sms" | "dev-console" | "none" | null;
+          deliveryStatus: "SENT" | "FAILED" | null;
+          lastSentAt: string | null;
+          expiresAt: string;
+          usedAt: string | null;
+          revokedAt: string | null;
+        }[];
+      })
+    | null;
+  /** Every request ever issued, so a superseded one stays on record. */
+  signatureRequests: {
+    id: string;
+    contractVersionId: string;
+    status: string;
+    statusFa: string;
+    createdAt: string;
+    completedAt: string | null;
+  }[];
 }
 
 export function fetchAdminContract(id: string): Promise<AdminContractDetail> {

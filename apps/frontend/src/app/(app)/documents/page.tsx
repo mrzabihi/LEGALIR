@@ -18,7 +18,7 @@ import { resolveService } from "@/lib/services";
 // wrappers, chat panel, …), so a barrel import dragged ~550 KB of unrelated
 // modules — including pdfjs-dist — into this list route's client bundle.
 import { DocumentList } from "@/components/documents/document-list";
-import { CompactPageHeader } from "@/components/shared";
+import { CompactPageHeader, PageContainer } from "@/components/shared";
 import { Button, ConfirmDialog, snackbar } from "@legalir/ui";
 import { IconAdd } from "@/lib/icons";
 import type {
@@ -71,7 +71,7 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6">
+    <PageContainer>
       <Header onUploadClick={handleUploadClick} />
 
       <div className="mt-4">
@@ -105,7 +105,7 @@ export default function DocumentsPage() {
         destructive
         loading={deleteDocument.isPending}
       />
-    </div>
+    </PageContainer>
   );
 }
 

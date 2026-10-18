@@ -27,7 +27,7 @@ import {
 } from "@/features/profile-completion-prompt";
 import Link from "next/link";
 import { getServiceById } from "@/lib/services";
-import { PromoModule } from "@/components/shared";
+import { PageContainer, PromoModule, SectionHeader } from "@/components/shared";
 import { DiscoveryEntryCard } from "@/components/services";
 import { IconServices } from "@/lib/icons";
 
@@ -69,7 +69,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-4 tablet:p-6 max-w-6xl mx-auto">
+    <PageContainer>
       {/* Profile Completion Incentive — non-blocking modal when eligible */}
       <ProfileCompletionPromptModal controller={promptController} />
 
@@ -172,18 +172,20 @@ export default function DashboardPage() {
 
       {/* Blog / Legal Education */}
       <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-titleMedium text-on-surface font-semibold">مطالب پیشنهادی</h2>
-          <Link
-            href="/blog"
-            className="inline-flex items-center gap-1 text-caption text-primary-700 font-medium hover:text-primary-600 transition-colors"
-          >
-            مشاهده وبلاگ
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
+        <SectionHeader
+          title="مطالب پیشنهادی"
+          action={
+            <Link
+              href="/blog"
+              className="inline-flex items-center gap-1 text-caption text-primary font-medium transition-colors hover:text-primary-600"
+            >
+              مشاهده وبلاگ
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </Link>
+          }
+        />
 
         {blogLoading ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
@@ -270,7 +272,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
-    </div>
+    </PageContainer>
   );
 }

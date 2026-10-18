@@ -65,6 +65,43 @@ function version(): PropertyContractVersion {
   } as PropertyContractVersion;
 }
 
+interface PlacedRun {
+  str: string;
+  /** x of the run's start, in PDF user space (page is 595.28pt wide). */
+  x: number;
+  /** y of the run's baseline. */
+  y: number;
+}
+
+/**
+ * The PDF text layer with positions, one entry per page. Needed where the
+ * brief is about GEOMETRY, not wording — e.g. «طرف ۱ در ستون چپ و طرف ۲ در
+ * ستون راست» can only be proven by comparing x coordinates on the sheet.
+ */
+async function extractPageRuns(bytes: Uint8Array): Promise<PlacedRun[][]> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({
+    data: bytes,
+    disableFontFace: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  }).promise;
+  const pages: PlacedRun[][] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    pages.push(
+      tc.items
+        .filter(
+          (i): i is typeof i & { str: string; transform: number[] } =>
+            "str" in i && typeof (i as { str?: unknown }).str === "string"
+        )
+        .map((i) => ({ str: i.str, x: i.transform[4]!, y: i.transform[5]! }))
+    );
+  }
+  return pages;
+}
+
 /** The PDF text layer, one entry per page (logical order, as pdfjs reads it). */
 async function extractPageTexts(bytes: Uint8Array): Promise<string[]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -335,5 +372,99 @@ describe("renderContractPdf — the official PNG stamp", () => {
     });
     expect(String.fromCharCode(...fallback.slice(0, 5))).toBe("%PDF-");
     expect(withOfficial.length).not.toBe(fallback.length);
+  });
+});
+
+// ============================================================
+// §2.5 / §2.6 — two-column parties, paraphe on every page, one signature block
+// ============================================================
+// These are GEOMETRY assertions, so they read the positioned text layer.
+// The printed PDF is the signing/printing artefact (§2.8): a browser
+// screenshot cannot prove that the left column really is on the left, or
+// that the signature block was never split across a page break.
+
+describe("renderContractPdf — party columns and signature geometry", () => {
+  const PAGE_HEIGHT = 841.89;
+  /** The reserved footer band: content must stop above MARGIN + FOOTER_BAND. */
+  const CONTENT_BOTTOM = 48 + 104;
+
+  async function rendered() {
+    return renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+    });
+  }
+
+  it("prints party 1 in the LEFT column and party 2 in the RIGHT column", async () => {
+    const pages = await extractPageRuns(await rendered());
+    const first = pages[0]!;
+
+    // The two party names in the parties table on page 1. The sheet is RTL,
+    // so the RIGHT-hand column starts at a larger x than the left-hand one.
+    const landlord = first.find((r) => r.str.includes("مریم"));
+    const tenant = first.find((r) => r.str.includes("رضا"));
+    expect(landlord, "landlord name on page 1").toBeDefined();
+    expect(tenant, "tenant name on page 1").toBeDefined();
+    // def.roles = [landlord, tenant] — party 1 (landlord) is column LEFT.
+    expect(landlord!.x).toBeLessThan(tenant!.x);
+  });
+
+  it("carries a legible paraphe strip on EVERY page, clear of body text", async () => {
+    const pages = await extractPageRuns(await rendered());
+    expect(pages.length).toBeGreaterThan(1);
+
+    for (const [index, page] of pages.entries()) {
+      const caption = page.find((r) => r.str.includes("پاراف صفحه"));
+      expect(caption, `paraphe caption on page ${index + 1}`).toBeDefined();
+
+      // No body text may enter the footer band: every text baseline is
+      // either above the band, or belongs to a footer row (paraphe caption
+      // at ~136, page number at 22). That gap is what guarantees text,
+      // tables and the paraphe strip never collide.
+      for (const run of page) {
+        const inFooter = run.y <= CONTENT_BOTTOM - 6;
+        const inBodyOrHead = run.y >= CONTENT_BOTTOM;
+        expect(
+          inFooter || inBodyOrHead,
+          `run "${run.str}" at y=${run.y} straddles the footer band on page ${index + 1}`
+        ).toBe(true);
+      }
+    }
+
+    // Every page also carries its page number, below the paraphe strip.
+    for (const [index, page] of pages.entries()) {
+      expect(
+        page.some((r) => r.str.includes("صفحه") && r.y < 40),
+        `page number on page ${index + 1}`
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the whole signature block on the final page, never split", async () => {
+    const pages = await extractPageRuns(await rendered());
+    const final = pages[pages.length - 1]!;
+
+    // The heading appears exactly once in the whole document…
+    const headingCount = pages
+      .flat()
+      .filter((r) => r.str.includes("امضای طرفین")).length;
+    expect(headingCount).toBe(1);
+
+    // …on the last page, together with every signer and the QR caption, so
+    // a page break can never separate the signatures from the verification.
+    expect(final.some((r) => r.str.includes("امضای طرفین"))).toBe(true);
+    expect(final.some((r) => r.str.includes("مریم"))).toBe(true);
+    expect(final.some((r) => r.str.includes("رضا"))).toBe(true);
+    expect(final.some((r) => r.str.includes("contracts/verify/pub-abc"))).toBe(true);
+
+    // And the block itself sits above the reserved footer band.
+    const blockRuns = final.filter(
+      (r) => r.str.includes("امضای طرفین") || r.str.includes("contracts/verify/pub-abc")
+    );
+    for (const run of blockRuns) {
+      expect(run.y).toBeGreaterThan(CONTENT_BOTTOM);
+      expect(run.y).toBeLessThan(PAGE_HEIGHT);
+    }
   });
 });

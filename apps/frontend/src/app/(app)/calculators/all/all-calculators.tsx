@@ -23,6 +23,7 @@ import {
   statusOptions,
 } from "@/lib/calculators/catalog";
 import { CalculatorCard, CalculatorControls } from "@/components/calculators";
+import { PageContainer } from "@/components/shared/page-container";
 
 export function AllCalculators() {
   const searchParams = useSearchParams();
@@ -58,7 +59,7 @@ export function AllCalculators() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-6xl overflow-x-clip p-4 tablet:p-6" dir="rtl">
+    <PageContainer className="overflow-x-clip" dir="rtl">
       <header className="mb-5">
         <Link
           href="/calculators"
@@ -133,6 +134,6 @@ export function AllCalculators() {
           ))}
         </ul>
       )}
-    </div>
+    </PageContainer>
   );
 }

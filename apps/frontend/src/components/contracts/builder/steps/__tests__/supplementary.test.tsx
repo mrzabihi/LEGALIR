@@ -36,12 +36,15 @@ import { implementedContractDefinitions, getContractDefinition } from "@/lib/con
 // --- Registry invariants ----------------------------------------------------
 
 describe("supplementary step — registry", () => {
-  it("sits immediately before review for every implemented type", () => {
+  it("leads straight to signature, with review right after it", () => {
     for (const def of implementedContractDefinitions()) {
       const ids = def.wizardSteps.map((s) => s.id);
       const i = ids.indexOf("supplementary");
       expect(i, `${def.id} has no supplementary step`).toBeGreaterThanOrEqual(0);
-      expect(ids[i + 1], `${def.id} puts review right after supplementary`).toBe("review");
+      // «تأیید و ادامه به امضا» — the signature stage follows the
+      // confirmed supplementary material directly.
+      expect(ids[i + 1], `${def.id} puts signature right after supplementary`).toBe("signature");
+      expect(ids[i + 2], `${def.id} puts review right after signature`).toBe("review");
     }
   });
 
@@ -209,6 +212,88 @@ describe("supplementary step — UI", () => {
     const supplementaryTitle = def.wizardSteps.find((s) => s.id === "supplementary")!.titleFa;
     expect(labels).not.toContain(reviewTitle);
     expect(labels).not.toContain(supplementaryTitle);
+  });
+
+  // --- Task 2: review article, explicit confirmations ----------------------
+
+  it("shows «مادهٔ بازبینی» and the exact note guidance copy", () => {
+    renderStep();
+
+    expect(screen.getByRole("heading", { name: "مادهٔ بازبینی" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "توضیح یا نکته‌ای دربارهٔ کل قرارداد — این یادداشت در پایان سند و جدا از مواد قرارداد چاپ می‌شود."
+      )
+    ).toBeInTheDocument();
+    // Before anything is written, the review article says so honestly.
+    expect(screen.getByText("توافق خاصی برای چاپ وجود ندارد.")).toBeInTheDocument();
+  });
+
+  it("confirms the note explicitly and shows its confirmation time", () => {
+    renderStep();
+    const note = screen.getByLabelText("یادداشت") as HTMLTextAreaElement;
+    fireEvent.change(note, { target: { value: "تمدید تلفنی معتبر نیست." } });
+
+    // The confirm button only makes sense once there is a note.
+    fireEvent.click(screen.getByRole("button", { name: "تأیید یادداشت و ادامه" }));
+
+    expect(screen.getByText("یادداشت تأیید و ذخیره شد.")).toBeInTheDocument();
+    // Confirming locks the text; editing it again is an explicit action.
+    expect(screen.queryByLabelText("یادداشت")).toBeNull();
+    expect(screen.getByRole("button", { name: "ویرایش یادداشت" })).toBeInTheDocument();
+  });
+
+  it("blocks confirming the step while a row has a title but no text", () => {
+    renderStep();
+    fireEvent.click(screen.getByRole("button", { name: "افزودن توافق" }));
+    fireEvent.change(screen.getByLabelText("عنوان"), { target: { value: "شرط نیمه‌کاره" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+
+    expect(
+      screen.getByText("پیش از ادامه، متن ۱ مورد نیمه‌کاره را کامل کنید.")
+    ).toBeInTheDocument();
+  });
+
+  it("blocks confirming the step while a written note is still unconfirmed", () => {
+    renderStep();
+    fireEvent.change(screen.getByLabelText("یادداشت"), {
+      target: { value: "یادداشت تأییدنشده" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+
+    expect(
+      screen.getByText(
+        "یادداشت تکمیلی نوشته شده اما هنوز تأیید نشده است. ابتدا دکمهٔ «تأیید یادداشت و ادامه» را بزنید."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("records the step confirmation when the user advances to signature", async () => {
+    updatePropertyContract.mockResolvedValue({
+      ...makeContract(),
+      progress: 60,
+      completeness: COMPLETENESS,
+    });
+    renderStep();
+
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+
+    // The advance schedules the normal autosave with the new step id.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(900);
+    });
+
+    expect(updatePropertyContract).toHaveBeenCalled();
+    const last = updatePropertyContract.mock.calls.at(-1)![1] as {
+      currentStep?: string;
+      data?: { supplementary?: { confirmedAt?: string | null } };
+    };
+    expect(last.currentStep).toBe("signature");
+    // The approved state is persisted with the navigation — a confirmed
+    // step is never "navigated to" without a matching saved timestamp.
+    expect(last.data?.supplementary?.confirmedAt).toBeTruthy();
   });
 
   it("writes only `customClauses` and `supplementary` — never another step's data", async () => {

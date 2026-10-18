@@ -39,6 +39,7 @@ import type {
   CaseInfoSource,
 } from "@legalir/types";
 import { IconChevronRight, IconAdd, IconBalance, IconRefresh, IconArchive, IconUsers, IconGavel } from "@/lib/icons";
+import { PageContainer } from "@/components/shared/page-container";
 
 // ============================================================
 // Badges
@@ -433,19 +434,19 @@ export default function CaseDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-4 tablet:p-6 max-w-6xl mx-auto" dir="rtl">
+      <PageContainer dir="rtl">
         <div className="animate-pulse space-y-4">
           <div className="h-8 w-48 bg-surface-container rounded-medium" />
           <div className="h-4 w-32 bg-surface-container rounded-medium" />
           <div className="h-40 bg-surface-container rounded-large" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4 tablet:p-6 max-w-6xl mx-auto" dir="rtl">
+      <PageContainer dir="rtl">
         <div className="flex flex-col items-center gap-4 py-20 text-center">
           <div className="h-20 w-20 rounded-large bg-surface-container border border-divider flex items-center justify-center">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor" className="text-error">
@@ -457,7 +458,7 @@ export default function CaseDetailPage() {
             تلاش مجدد
           </Button>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -468,7 +469,7 @@ export default function CaseDetailPage() {
     caseData.viewerRole === "owner" || caseData.viewerRole === "lawyer" || caseData.viewerRole === "limited";
 
   return (
-    <div className="p-4 tablet:p-6 max-w-6xl mx-auto" dir="rtl">
+    <PageContainer dir="rtl">
       <Link href="/cases" className="inline-flex items-center gap-1 text-body-2 text-muted hover:text-primary transition-colors mb-4">
         <IconChevronRight size={16} className="text-muted" />
         بازگشت به پرونده‌ها
@@ -1234,6 +1235,6 @@ export default function CaseDetailPage() {
           </svg>
         </Link>
       </div>
-    </div>
+    </PageContainer>
   );
 }

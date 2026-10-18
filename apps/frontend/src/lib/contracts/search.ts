@@ -46,12 +46,21 @@ export function normalizeFa(input: string): string {
     .toLowerCase();
 }
 
-/** A searchable contract template record. */
+/**
+ * A searchable contract template record.
+ *
+ * `titleFa` + `keywords` are the contract's searchable identity: the brief
+ * asks for a simple name-and-keyword search. `descriptionFa` and
+ * `categoryFa` are OPTIONAL fallbacks — a caller that omits them gets
+ * exactly that narrower search, which is what the contract catalog does.
+ * (Description text is prose: «اجارهٔ زیرساخت ابری» in the cloud-IaaS
+ * description would otherwise make it a result for «اجاره».)
+ */
 export interface SearchableTemplate {
   id: string;
   titleFa: string;
-  descriptionFa: string;
-  categoryFa: string;
+  descriptionFa?: string;
+  categoryFa?: string;
   /** Extra terms that should match this template (synonyms, aliases). */
   keywords?: string[];
 }
@@ -74,8 +83,8 @@ export function scoreTemplate(template: SearchableTemplate, query: string): numb
     if (normalizeFa(kw).includes(q)) return 2;
   }
 
-  if (normalizeFa(template.descriptionFa).includes(q)) return 1;
-  if (normalizeFa(template.categoryFa).includes(q)) return 1;
+  if (template.descriptionFa && normalizeFa(template.descriptionFa).includes(q)) return 1;
+  if (template.categoryFa && normalizeFa(template.categoryFa).includes(q)) return 1;
 
   return 0;
 }

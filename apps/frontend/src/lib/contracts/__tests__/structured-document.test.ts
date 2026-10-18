@@ -13,7 +13,8 @@
 //         • a custom AGREEMENT prints as an operative term;
 //         • a CHANGE REQUEST prints ONLY in the labelled non-operative
 //           annex, never as an operative term;
-//         • supplementary notes likewise live only in the annex;
+//         • the supplementary note prints only in its own final
+//           «یادداشت تکمیلی» section, after every article;
 //         • every declarative clause the drafter authored is untouched.
 //
 // The cloud family is covered separately: IaaS/PaaS/BaaS share the SLA
@@ -23,7 +24,11 @@
 
 import { describe, it, expect } from "vitest";
 import type { ContractParty, GenericContractData, PropertyContract } from "@legalir/types";
-import { getContractDefinition, implementedContractDefinitions } from "../registry";
+import {
+  getContractDefinition,
+  implementedContractDefinitions,
+  partyRoleLabelFa,
+} from "../registry";
 import { clauseParagraphs, renderContract } from "../template";
 
 const NOTE_TEXT = "یادداشت تکمیلی کاملاً یکتا — تمدید تلفنی معتبر نیست.";
@@ -230,14 +235,42 @@ describe("§4 — free text never replaces an authored clause or identity", () =
   it("keeps supplementary notes out of every operative clause", () => {
     const rendered = renderContract(genericContract("saas", {}, extras), [], []);
     const offenders = rendered.clauses.filter(
-      (c) => c.id !== "common.supplementary" && c.paragraphs.join(" ").includes(NOTE_TEXT)
+      (c) =>
+        c.id !== "common.supplementary_note" &&
+        c.paragraphs.join(" ").includes(NOTE_TEXT)
     );
     expect(offenders.map((c) => c.id)).toEqual([]);
+  });
+
+  it("prints the note last, under its own «یادداشت تکمیلی» heading", () => {
+    const rendered = renderContract(
+      genericContract("saas", {}, extras),
+      [party("provider"), party("customer")],
+      []
+    );
+    const last = rendered.clauses[rendered.clauses.length - 1]!;
+
+    expect(last.id).toBe("common.supplementary_note");
+    expect(last.headingFa).toBe("یادداشت تکمیلی");
+    // The note itself is the section's content — not a numbered article.
+    expect(last.paragraphs.join(" ")).toContain(NOTE_TEXT);
+    expect(last.headingFa).not.toContain("ماده");
+
+    // The request annex must come before it, never after.
+    const annexIndex = rendered.clauses.findIndex(
+      (c) => c.id === "common.supplementary"
+    );
+    expect(annexIndex).toBeGreaterThanOrEqual(0);
+    expect(annexIndex).toBeLessThan(rendered.clauses.length - 1);
   });
 
   it("emits no annex clause when there is neither a note nor a request", () => {
     const rendered = renderContract(genericContract("saas", {}, {}), [], []);
     expect(rendered.clauses.find((c) => c.id === "common.supplementary")).toBeUndefined();
+    // An empty note leaves no trace at all — not even an empty heading.
+    expect(
+      rendered.clauses.find((c) => c.id === "common.supplementary_note")
+    ).toBeUndefined();
   });
 
   it("never prints a blank change-request row", () => {
@@ -257,6 +290,81 @@ describe("§4 — free text never replaces an authored clause or identity", () =
       []
     );
     expect(rendered.clauses.find((c) => c.id === "common.supplementary")).toBeUndefined();
+  });
+});
+
+describe("§5 — the parties print in two columns, role-labelled", () => {
+  /** A party with an explicit, recognisable name. */
+  function namedParty(role: string, first: string, last: string): ContractParty {
+    return {
+      ...party(role),
+      identity: { ...party(role).identity, firstName: first, lastName: last },
+    } as unknown as ContractParty;
+  }
+
+  it("puts party 1 in the LEFT column and party 2 in the RIGHT column", () => {
+    const def = getContractDefinition("saas");
+    const rendered = renderContract(
+      genericContract("saas", {}),
+      [namedParty("provider", "سارا", "ارائه‌دهنده"), namedParty("customer", "کامران", "مشتری")],
+      []
+    );
+
+    const partiesClause = rendered.clauses[0]!;
+    expect(partiesClause.id).toBe("common.parties");
+    const table = partiesClause.blocks![0]!;
+    expect(table.kind).toBe("table");
+    if (table.kind !== "table") throw new Error("expected a table block");
+
+    // Exactly two columns — the two contract roles, nothing else.
+    expect(table.table.columnsFa).toHaveLength(2);
+    // The sheet is RTL: the first column is the right-hand one. Party 2
+    // therefore leads, and party 1 sits in the left column.
+    expect(table.table.columnsFa[0]).toContain(partyRoleLabelFa(def.roles[1]!));
+    expect(table.table.columnsFa[1]).toContain(partyRoleLabelFa(def.roles[0]!));
+
+    // Every row follows the same order: party 2 left of the array is the
+    // RIGHT cell, party 1 is the LEFT cell.
+    const nameRow = table.table.rowsFa[0]!;
+    expect(nameRow[0]).toContain("کامران");
+    expect(nameRow[1]).toContain("سارا");
+  });
+
+  it("keeps a legal entity and its representative in the same party cell", () => {
+    const entity = {
+      ...namedParty("provider", "", ""),
+      personKind: "legal",
+      identity: {
+        ...party("provider").identity,
+        companyName: "شرکت نمونهٔ فناوری",
+        companyRegistrationNumber: "14001234567",
+        firstName: "",
+        lastName: "",
+      },
+    } as unknown as ContractParty;
+    const rep = {
+      ...namedParty("legal_representative", "رضا", "کریمی"),
+      representativeOfPartyId: entity.id,
+      representativePositionFa: "مدیرعامل",
+    } as unknown as ContractParty;
+
+    const rendered = renderContract(
+      genericContract("saas", {}),
+      [entity, namedParty("customer", "کامران", "مشتری"), rep],
+      []
+    );
+
+    const table = rendered.clauses[0]!.blocks![0]!;
+    if (table.kind !== "table") throw new Error("expected a table block");
+    expect(table.table.columnsFa).toHaveLength(2);
+    const representativeRow = table.table.rowsFa.find((row) =>
+      row.some((cell) => cell.includes("نمایندهٔ قانونی"))
+    );
+    expect(representativeRow).toBeDefined();
+    // The representative is named inside the entity's own cell, with the
+    // other column left untouched — never promoted to a third column.
+    expect(representativeRow![1]).toContain("رضا کریمی");
+    expect(representativeRow![0]).not.toContain("نمایندهٔ قانونی");
   });
 });
 

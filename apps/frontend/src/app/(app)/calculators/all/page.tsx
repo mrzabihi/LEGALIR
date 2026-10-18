@@ -13,6 +13,7 @@
 
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { PageContainer } from "@/components/shared/page-container";
 import { AllCalculators } from "./all-calculators";
 
 export const metadata: Metadata = {
@@ -41,7 +42,7 @@ export default function AllCalculatorsPage() {
 /** Lightweight placeholder shown while the client grid hydrates. */
 function CatalogSkeleton() {
   return (
-    <div className="mx-auto max-w-6xl p-4 tablet:p-6" dir="rtl" aria-hidden="true">
+    <PageContainer dir="rtl" aria-hidden="true">
       <div className="mb-5 h-8 w-56 rounded-medium bg-surface-container" />
       <div className="mb-6 h-14 w-full rounded-medium bg-surface-container" />
       <div className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4">
@@ -49,6 +50,6 @@ function CatalogSkeleton() {
           <div key={i} className="h-44 rounded-large bg-surface-container" />
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -24,6 +24,7 @@ import type {
   GenericContractData,
   GenericFieldValue,
   GenericRepeatRow,
+  PartyRole,
   PropertyContract,
   PropertyRentData,
   PropertySaleData,
@@ -289,14 +290,86 @@ function partyExtraDetails(party: ContractParty, roleFa: string): string | null 
   return parts.length > 0 ? `${roleFa}: ${parts.join("، ")}.` : null;
 }
 
+/**
+ * The party's identity lines, in the order the sheet prints them.
+ * A legal entity carries its authorised representative in the SAME cell —
+ * the entity and the natural person stay one party, never two columns.
+ */
+function partyLines(party: ContractParty | undefined, parties: ContractParty[]): string[] {
+  const lines = [
+    `نام / عنوان: ${fullName(party)}`,
+    `${party?.personKind === "legal" ? "شمارهٔ ثبت" : "کد ملی"}: ${partyLegalId(party)}`,
+    `نشانی: ${or(party?.identity.address)}`,
+    `تلفن: ${or(party?.identity.mobile)}`,
+  ];
+
+  if (party?.personKind === "legal") {
+    const rep = parties.find(
+      (p) => p.role === "legal_representative" && p.representativeOfPartyId === party.id
+    );
+    if (rep) {
+      lines.push(
+        `نمایندهٔ قانونی: ${fullName(rep)}${
+          rep.representativePositionFa ? ` (${rep.representativePositionFa})` : ""
+        } — کد ملی: ${or(rep.identity.nationalId)}`
+      );
+    }
+  }
+
+  return lines;
+}
+
 function partiesClause(
   contract: PropertyContract,
   parties: ContractParty[]
 ): RenderedClause {
   const def = getContractDefinition(contract.type);
-  const rows: string[][] = [];
   const extras: RenderedBlock[] = [];
 
+  // Two-column party layout (§5): the first contract role prints in the
+  // LEFT column and the second in the RIGHT column. The sheet is RTL, so
+  // the FIRST table column is the right-hand one — hence role 2 leads.
+  if (def.roles.length === 2) {
+    const [role1, role2] = def.roles as [PartyRole, PartyRole];
+    const party1 = parties.find((p) => p.role === role1);
+    const party2 = parties.find((p) => p.role === role2);
+    const role1Fa = partyRoleLabelFa(role1);
+    const role2Fa = partyRoleLabelFa(role2);
+
+    if (party1) {
+      const detail = partyExtraDetails(party1, role1Fa);
+      if (detail) extras.push(para(detail));
+    }
+    if (party2) {
+      const detail = partyExtraDetails(party2, role2Fa);
+      if (detail) extras.push(para(detail));
+    }
+
+    const lines1 = partyLines(party1, parties);
+    const lines2 = partyLines(party2, parties);
+    const rowCount = Math.max(lines1.length, lines2.length);
+    const rows = Array.from({ length: rowCount }, (_, i) => [
+      lines2[i] ?? "",
+      lines1[i] ?? "",
+    ]);
+
+    return clauseFrom(
+      "common.parties",
+      "ماده ۱ — طرفین قرارداد",
+      [
+        tableBlock(
+          "مشخصات طرفین و نمایندگان (طرف اول در ستون چپ، طرف دوم در ستون راست)",
+          [`${role2Fa} (طرف دوم)`, `${role1Fa} (طرف اول)`],
+          rows
+        ),
+        ...extras,
+      ],
+      false
+    );
+  }
+
+  // Fallback for a hypothetical non-pair contract: the original role table.
+  const rows: string[][] = [];
   for (const role of def.roles) {
     const party = parties.find((p) => p.role === role);
     const roleFa = partyRoleLabelFa(role);
@@ -494,34 +567,31 @@ function customClausesClause(
 }
 
 /**
- * Supplementary notes and REQUESTED changes.
+ * REQUESTED changes — a non-operative annex.
  *
  * Deliberately its own clause with its own heading: a request is not a
  * contract term. Printing it here keeps every identity field and authored
  * clause untouched, while still making the request visible and reviewable
  * to both parties.
+ *
+ * The supplementary NOTE is not part of this clause: the product prints it
+ * as its own final section (see `supplementaryNoteClause`) so it can never
+ * be read as one more contract article.
  */
 function supplementaryClause(
   data: PropertyRentData | PropertySaleData | GenericContractData,
   sectionTitleFa: (key: string) => string
 ): RenderedClause | null {
-  const notes = (data.supplementary?.notes ?? "").trim();
   const requests = data.customClauses
     .filter((c) => c.kind === "change_request")
     .filter((c) => c.body.trim().length > 0 || c.title.trim().length > 0);
-  if (notes.length === 0 && requests.length === 0) return null;
+  if (requests.length === 0) return null;
 
   const blocks: (RenderedBlock | null)[] = [];
-  if (notes) {
-    blocks.push(
-      para("یادداشت‌های تکمیلی طرفین (بخشی از متن تعهدآور قرارداد نیست):"),
-      para(notes)
-    );
-  }
   if (requests.length > 0) {
     blocks.push(
       para(
-        "موارد زیر تغییرات یا شروط درخواستی طرفین است و تنها پس از اعمال در بند مربوط و امضای مجدد، تعهدآور می‌شود:"
+        "موارد زیر فقط درخواست تغییر است و بخشی از متن تعهدآور قرارداد نیست؛ تنها پس از اعمال در بند مربوط و امضای مجدد، تعهدآور می‌شود:"
       )
     );
     blocks.push(
@@ -538,6 +608,27 @@ function supplementaryClause(
     );
   }
   return clauseFrom("common.supplementary", "ماده — اطلاعات تکمیلی و تغییرات درخواستی", blocks, true);
+}
+
+/**
+ * «یادداشت تکمیلی» — the user's note about the whole contract.
+ *
+ * Printed as the LAST section of the document, after every article and
+ * annex, under its own heading. Kept out of the numbered material on
+ * purpose: it explains the contract, it does not amend it. Returns null
+ * when the note is empty, so an absent note leaves no trace at all.
+ */
+function supplementaryNoteClause(
+  data: PropertyRentData | PropertySaleData | GenericContractData
+): RenderedClause | null {
+  const notes = (data.supplementary?.notes ?? "").trim();
+  if (notes.length === 0) return null;
+  return clauseFrom(
+    "common.supplementary_note",
+    "یادداشت تکمیلی",
+    [para("این یادداشت دربارهٔ کل قرارداد است و جدا از مواد قرارداد درج می‌شود:"), para(notes)],
+    true
+  );
 }
 
 // ------------------------------------------------------------
@@ -1119,6 +1210,14 @@ export function renderContract(
       key
   );
   if (supplementary) clauses.push(supplementary);
+
+  // The user's own note is the document's LAST section — it explains the
+  // contract and prints under its own «یادداشت تکمیلی» heading, after all
+  // articles and annexes, exactly as the wizard promised.
+  const note = supplementaryNoteClause(
+    contract.data as PropertyRentData | PropertySaleData | GenericContractData
+  );
+  if (note) clauses.push(note);
 
   const signatureLines = def.roles.flatMap((role) => {
     const party = parties.find((p) => p.role === role);

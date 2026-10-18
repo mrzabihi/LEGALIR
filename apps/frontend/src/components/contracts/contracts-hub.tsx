@@ -34,6 +34,7 @@ import { toPersianNumber } from "@/lib/persian-utils";
 import { ContractList } from "./contract-list";
 import { ContractCatalog } from "./catalog";
 import { ContractsPageHeader } from "./contracts-page-header";
+import { PageContainer } from "@/components/shared/page-container";
 
 const ID_BASE = "contracts-view";
 type ContractView = "active" | "coming-soon";
@@ -83,7 +84,7 @@ export function ContractsHub() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl">
+    <PageContainer dir="rtl">
       {/* The header is shared by BOTH views, so it stays pixel-identical
           when the user switches — the brief's "header stays fixed". It is
           the same `ContractsPageHeader` the workspace has always used. */}
@@ -140,6 +141,6 @@ export function ContractsHub() {
           )}
         </section>
       )}
-    </div>
+    </PageContainer>
   );
 }

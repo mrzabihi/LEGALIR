@@ -211,6 +211,24 @@ describe("Persian-aware search", () => {
   it("faIncludes is true for an empty query", () => {
     expect(faIncludes("هرچیزی", "")).toBe(true);
   });
+
+  it("searches name + keywords only when description is not supplied", () => {
+    // The contract catalog passes name + keywords, per the brief's «جستجوی
+    // ساده». A descriptive phrase in another template's prose must not make
+    // it a hit — cloud IaaS says «اجارهٔ زیرساخت ابری» in its description.
+    const defs = [
+      getContractDefinition("property_rent"),
+      getContractDefinition("commercial_rent"),
+      getContractDefinition("cloud_iaas"),
+    ];
+    const asSearchable = (d: (typeof defs)[number]) => ({
+      id: d.id,
+      titleFa: d.typeFa,
+      keywords: d.keywords,
+    });
+    const results = searchTemplates(defs, "اجاره", asSearchable);
+    expect(results.map((d) => d.id).sort()).toEqual(["commercial_rent", "property_rent"]);
+  });
 });
 
 // ------------------------------------------------------------

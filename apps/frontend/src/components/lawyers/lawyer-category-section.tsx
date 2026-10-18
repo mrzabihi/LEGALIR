@@ -17,6 +17,7 @@
 import type { LawyerListItem } from "@legalir/types";
 import { Button } from "@legalir/ui";
 import { IconChevronLeft } from "@/lib/icons";
+import { SectionHeader } from "@/components/shared/section-header";
 import { LawyerCarousel } from "./lawyer-carousel";
 
 interface LawyerCategorySectionProps {
@@ -43,31 +44,35 @@ export function LawyerCategorySection({
         aria-hidden="true"
       />
 
-      <div className="relative mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="h-7 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-primary-400 to-primary-700"
-              aria-hidden="true"
-            />
-            <h2 className="text-h2 text-on-surface">{title}</h2>
-          </div>
-          {description && (
-            <p className="mt-1 ps-4 text-body-2 text-muted">{description}</p>
-          )}
-        </div>
-        {onViewAll && (
-          <Button
-            type="button"
-            variant="text"
-            size="small"
-            onClick={onViewAll}
-            endIcon={<IconChevronLeft size={16} />}
-            className="shrink-0"
-          >
-            مشاهده همه
-          </Button>
-        )}
+      <div className="relative mb-4 flex items-end gap-3">
+        {/* The category accent — a brand gradient rule that marks each
+            practice-area block as a distinct unit. */}
+        <span
+          className="mb-1 h-7 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-primary-400 to-primary-700"
+          aria-hidden="true"
+        />
+        {/* The section title, description and «مشاهده همه» through the
+            shared header, so a category heading and a page-level section
+            heading carry the same weight and spacing. */}
+        <SectionHeader
+          className="mb-0 flex-1"
+          title={title}
+          description={description}
+          action={
+            onViewAll ? (
+              <Button
+                type="button"
+                variant="text"
+                size="small"
+                onClick={onViewAll}
+                endIcon={<IconChevronLeft size={16} />}
+                className="shrink-0"
+              >
+                مشاهده همه
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
 
       <div className="relative">

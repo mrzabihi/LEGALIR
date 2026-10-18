@@ -24,6 +24,7 @@ import { usePropertyContract } from "@/hooks/usePropertyContracts";
 import { useContractDetail } from "@/hooks/useContracts";
 import { ContractBuilder } from "@/components/contracts/builder/wizard-shell";
 import { ContractDetailView } from "@/components/contracts/contract-detail";
+import { PageContainer } from "@/components/shared/page-container";
 
 function BuilderContent({ id }: { id: string }) {
   const { data, isLoading, isError, error, refetch } = usePropertyContract(id);
@@ -38,18 +39,14 @@ function BuilderContent({ id }: { id: string }) {
 
   if (isLoading) {
     return (
-      <div
-        className="min-h-screen bg-background p-4 tablet:p-6"
-        dir="rtl"
-        aria-label="در حال بارگذاری"
-      >
-        <div className="max-w-6xl mx-auto animate-pulse space-y-4">
+      <PageContainer dir="rtl" aria-label="در حال بارگذاری">
+        <div className="animate-pulse space-y-4">
           <div className="h-8 w-64 bg-surface-container rounded-small" />
           <div className="h-4 w-40 bg-surface-container rounded-small" />
           <div className="h-2 w-full bg-surface-container rounded-full" />
           <div className="h-64 bg-surface-container rounded-large" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -58,27 +55,27 @@ function BuilderContent({ id }: { id: string }) {
     // risk, versions, attachments) rather than the OS "not found" card.
     if (notFoundInOs && v1.data) {
       return (
-        <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6">
+        <PageContainer>
           <ContractDetailView contract={v1.data} />
-        </div>
+        </PageContainer>
       );
     }
     // Still resolving the V1 fallback — never flash "not found" first.
     if (notFoundInOs && v1.isLoading) {
       return (
-        <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl" aria-label="در حال بارگذاری">
+        <PageContainer dir="rtl" aria-label="در حال بارگذاری">
           <div className="animate-pulse space-y-4">
             <div className="h-8 w-64 bg-surface-container rounded-small" />
             <div className="h-4 w-40 bg-surface-container rounded-small" />
             <div className="h-64 bg-surface-container rounded-large" />
           </div>
-        </div>
+        </PageContainer>
       );
     }
     const notFound = error instanceof Error && /یافت نشد|404/.test(error.message);
     return (
-      <div className="min-h-screen bg-background p-4 tablet:p-6" dir="rtl">
-        <div className="max-w-lg mx-auto mt-16 rounded-large border border-divider bg-surface p-8 text-center shadow-elevation-1">
+      <PageContainer dir="rtl">
+        <div className="mx-auto mt-16 max-w-lg rounded-large border border-divider bg-surface p-8 text-center shadow-elevation-1">
           <h2 className="text-h3 text-on-surface mb-2">
             {notFound ? "قرارداد یافت نشد" : "خطا در دریافت قرارداد"}
           </h2>
@@ -98,7 +95,7 @@ function BuilderContent({ id }: { id: string }) {
             </Link>
           </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 

@@ -11,12 +11,13 @@
 
 import { Suspense } from "react";
 import { TemplatesBrowser } from "@/components/contracts/templates-browser";
+import { PageContainer } from "@/components/shared/page-container";
 
 export default function ContractTemplatesPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto w-full max-w-[1120px] space-y-5 p-4 tablet:p-6" dir="rtl">
+        <PageContainer className="space-y-5" dir="rtl">
           <div className="h-9 w-52 animate-pulse rounded-medium bg-surface-container" />
           <div className="h-12 w-full animate-pulse rounded-medium bg-surface-container" />
           <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
@@ -24,7 +25,7 @@ export default function ContractTemplatesPage() {
               <div key={i} className="h-[320px] animate-pulse rounded-large bg-surface-container" />
             ))}
           </div>
-        </div>
+        </PageContainer>
       }
     >
       <TemplatesBrowser />

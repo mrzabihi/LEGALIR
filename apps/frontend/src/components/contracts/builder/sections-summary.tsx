@@ -12,6 +12,7 @@
 //   in-progress  some data is entered, but required items remain
 //   incomplete   nothing is filled yet
 //   review       the final step — ready only when NO section blocks
+//   stage        the signature stage — follows the confirmed supplement
 //
 // Each card jumps to the step that owns the section, so the summary is
 // navigation as well as status (Spec A §6).
@@ -24,7 +25,12 @@ import type { ContractCompletenessSection, WizardStepDescriptor } from "@legalir
 import { IconCheckCircle, IconClock, IconWarning } from "@/lib/icons";
 import { toPersianDigits } from "@/lib/persian-utils";
 
-export type SectionSummaryState = "complete" | "in-progress" | "incomplete" | "review";
+export type SectionSummaryState =
+  | "complete"
+  | "in-progress"
+  | "incomplete"
+  | "review"
+  | "stage";
 
 export interface SectionSummaryItem {
   stepId: string;
@@ -56,13 +62,14 @@ export function buildSectionSummary(
   const blockingSections = sections.filter((s) => s.percent < 100);
 
   return steps.map((step) => {
-    // The review step owns no data sections: its status is derived from
-    // every other section.
+    // The review and signature steps own no data sections: their status
+    // is derived from every other section. The signature stage is told
+    // apart so its card can say what it is actually waiting for.
     if (step.sections.length === 0) {
       return {
         stepId: step.id,
         titleFa: step.titleFa,
-        state: "review",
+        state: step.id === "signature" ? "stage" : "review",
         percent: null,
         reasonFa:
           blockingSections.length > 0
@@ -101,6 +108,8 @@ function statusLabelFa(item: SectionSummaryItem): string {
       return "تکمیل نشده";
     case "review":
       return item.reasonFa ? "در انتظار تکمیل بخش‌ها" : "آمادهٔ بازبینی";
+    case "stage":
+      return item.reasonFa ? "در انتظار تکمیل بخش‌ها" : "پس از تأیید اطلاعات تکمیلی";
   }
 }
 
@@ -124,6 +133,11 @@ const STATE_STYLES: Record<
     card: "border-divider bg-surface",
   },
   review: {
+    icon: IconClock,
+    iconClass: "text-muted",
+    card: "border-divider bg-surface",
+  },
+  stage: {
     icon: IconClock,
     iconClass: "text-muted",
     card: "border-divider bg-surface",

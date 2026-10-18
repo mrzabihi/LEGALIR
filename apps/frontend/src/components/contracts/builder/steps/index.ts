@@ -22,6 +22,7 @@ import { ObligationsStep } from "./obligations";
 import { HandoverStep } from "./handover";
 import { DocumentsStep } from "./documents";
 import { SupplementaryStep } from "./supplementary";
+import { SignatureStep } from "./signature";
 import { ReviewStep } from "./review";
 import { SchemaStep } from "./schema-step";
 import { useWizard } from "../wizard-context";
@@ -45,6 +46,7 @@ export const STEP_COMPONENTS: Record<string, ComponentType> = {
   handover: HandoverStep,
   documents: DocumentsStep,
   supplementary: SupplementaryStep,
+  signature: SignatureStep,
   review: ReviewStep,
 };
 
@@ -58,6 +60,7 @@ const SHARED_STEPS: Record<string, ComponentType> = {
   parties: PartiesStep,
   documents: DocumentsStep,
   supplementary: SupplementaryStep,
+  signature: SignatureStep,
   review: ReviewStep,
 };
 

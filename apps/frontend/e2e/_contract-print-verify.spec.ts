@@ -449,9 +449,13 @@ test("cloud IaaS print output — service model, tables, A4, page numbers", asyn
   expect(report.perPageChars.every((n) => n > 40), "a printed page is blank").toBe(true);
   expect(report.pages).toBe(domPages);
   expect(report.allPagesA4, "a printed page is not A4").toBe(true);
-  expect(clipped.every((c) => c.overflow === 0 && c.widthOverflow === 0), "content is clipped").toBe(
-    true
-  );
+  // ≤1px is subpixel rounding of a fractional line box, not clipping: the
+  // print pages have a fixed A4 height, so a real overflow would be tens of
+  // pixels and would show as a blank or cut-off page below.
+  expect(
+    clipped.every((c) => c.overflow <= 1 && c.widthOverflow <= 1),
+    "content is clipped"
+  ).toBe(true);
   // Block B cloud rule: the service model is recorded in the title and the
   // letterhead identity, not only in the form.
   expect(report.titleMentionsIaaS || report.letterheadMentionsIaaS).toBe(true);
@@ -594,6 +598,148 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
     });
   });
 
+  // §2.5 / §2.6 — geometry that can only be checked on the real sheet:
+  // the party columns, the paraphe strip on every page, and the one-piece
+  // signature block on the last page. Print media is emulated FIRST, so the
+  // pages have their true fixed A4 height (297mm) — measuring the screen
+  // portal would measure a content-sized box and prove nothing about print.
+  await page.emulateMedia({ media: "print" });
+  const sheetGeometry = await printRoot.evaluate((root) => {
+    interface Box {
+      top: number;
+      bottom: number;
+      left: number;
+      right: number;
+      width: number;
+      height: number;
+    }
+    const box = (el: Element | null): Box | null => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height };
+    };
+    const intersects = (a: Box | null, b: Box | null) =>
+      !!a && !!b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+
+    const pages = Array.from(root.querySelectorAll(".a4-page")) as HTMLElement[];
+
+    // --- §2.6 paraphe strip: present, legible (non-zero), and clear of the
+    // body and the page-number row on EVERY page.
+    const perPage = pages.map((page, index) => {
+      const body = page.querySelector(".a4-page-blocks");
+      const paraphe = page.querySelector(".a4-paraphe");
+      const caption = page.querySelector(".a4-paraphe-caption");
+      const boxes = Array.from(page.querySelectorAll(".a4-paraphe-box"));
+      const number = page.querySelector(".a4-page-number");
+      const footerLine = page.querySelector(".a4-page-footer-line");
+      const bodyBox = box(body);
+      const parapheBox = box(paraphe);
+      // The LAST body block, which is what could collide with the strip.
+      const blocks = Array.from(page.querySelectorAll(".a4-page-blocks > .a4-block"));
+      const lastBlock = box(blocks[blocks.length - 1] ?? null);
+      return {
+        index: index + 1,
+        hasParaphe: !!paraphe,
+        captionText: caption?.textContent?.trim() ?? "",
+        boxCount: boxes.length,
+        // Every initial box must have real writing space, not a 0x0 sliver.
+        boxesLegible: boxes.every((b) => {
+          const r = b.getBoundingClientRect();
+          return r.width >= 30 && r.height >= 12;
+        }),
+        parapheOverlapsBody: intersects(parapheBox, bodyBox),
+        parapheOverlapsLastBlock: intersects(parapheBox, lastBlock),
+        parapheOverlapsPageNumber: intersects(parapheBox, box(number)),
+        parapheOverlapsFooterLine: intersects(parapheBox, box(footerLine)),
+        hasPageNumber: !!number,
+      };
+    });
+
+    // --- §2.6 signature block: exactly ONE, wholly on the LAST page.
+    const signatures = Array.from(root.querySelectorAll(".a4-signatures"));
+    const sigPageIndex = signatures[0]
+      ? pages.indexOf(signatures[0].closest(".a4-page") as HTMLElement)
+      : -1;
+    const sigBox = box(signatures[0] ?? null);
+    const lastPageBox = box(pages[pages.length - 1] ?? null);
+    const sigBoxes = Array.from(root.querySelectorAll(".a4-signature-box"));
+    const rules = Array.from(root.querySelectorAll(".a4-signature-rule"));
+
+    // --- §2.5 parties: two columns, party 1 (landlord) LEFT, party 2 RIGHT.
+    // Scoped by caption, so a different two-column table can never satisfy it.
+    const partiesWrap = Array.from(root.querySelectorAll(".a4-table-wrap")).find((w) =>
+      (w.querySelector(".a4-table-caption")?.textContent ?? "").includes("طرفین")
+    );
+    const partiesTable = partiesWrap?.querySelector(".a4-table") ?? null;
+    const headers = partiesTable
+      ? Array.from(partiesTable.querySelectorAll("thead th")).map((th) => th.textContent?.trim() ?? "")
+      : [];
+    const firstRowCells = partiesTable
+      ? Array.from(partiesTable.querySelectorAll("tbody tr:first-child td"))
+      : [];
+    const cellBoxes = firstRowCells.map((td) => box(td));
+
+    // Under print media every page is a FIXED A4 box; anything whose bottom
+    // passes the box's bottom is genuinely clipped by the printer.
+    const A4_H = 297 * (96 / 25.4);
+    return {
+      pages: pages.length,
+      pageHeights: pages.map((p) => p.getBoundingClientRect().height),
+      allPagesA4: pages.every((p) => Math.abs(p.getBoundingClientRect().height - A4_H) < 2),
+      perPage,
+      signatureCount: signatures.length,
+      signaturePage: sigPageIndex + 1,
+      signatureOnLastPage: sigPageIndex === pages.length - 1,
+      signatureInsideLastPage:
+        !!sigBox && !!lastPageBox && sigBox.top >= lastPageBox.top - 1 && sigBox.bottom <= lastPageBox.bottom + 1,
+      signatureBoxCount: sigBoxes.length,
+      // A ruled area inside each signer's box is the physical space a wet
+      // signature goes in; a zero-height rule means no real signing area.
+      signatureRulesLegible: rules.every((r) => r.getBoundingClientRect().height >= 6),
+      partyHeaderCount: headers.length,
+      headers,
+      partyCells: cellBoxes.length,
+      // RTL table ⇒ the first cell is the RIGHT column. Party 1 (landlord)
+      // therefore sits in the SECOND cell, and its left edge is smaller.
+      party1LeftOfParty2:
+        cellBoxes.length === 2 && !!cellBoxes[1] && !!cellBoxes[0]
+          ? cellBoxes[1].left < cellBoxes[0].left
+          : false,
+      rowTexts: firstRowCells.map((td) => td.textContent?.trim() ?? ""),
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify({ sheetGeometry }, null, 2));
+
+  // Every measured page really is a fixed A4 sheet in the print layout.
+  expect(sheetGeometry.allPagesA4, "a page is not A4 height in print media").toBe(true);
+  // §2.6 — every page carries a legible paraphe strip, never touching the
+  // body, the last block, the footer note or the page number.
+  for (const page of sheetGeometry.perPage) {
+    expect(page.hasParaphe, `page ${page.index} has no paraphe strip`).toBe(true);
+    expect(page.captionText, `page ${page.index} paraphe caption`).toContain("پاراف");
+    expect(page.boxCount, `page ${page.index} paraphe boxes`).toBeGreaterThanOrEqual(2);
+    expect(page.boxesLegible, `page ${page.index} paraphe boxes are too small to initial`).toBe(true);
+    expect(page.parapheOverlapsBody, `page ${page.index} paraphe overlaps the body`).toBe(false);
+    expect(page.parapheOverlapsLastBlock, `page ${page.index} paraphe overlaps the last block`).toBe(false);
+    expect(page.parapheOverlapsFooterLine, `page ${page.index} paraphe overlaps the footer note`).toBe(false);
+    expect(page.parapheOverlapsPageNumber, `page ${page.index} paraphe overlaps the page number`).toBe(false);
+    expect(page.hasPageNumber, `page ${page.index} has no page number`).toBe(true);
+  }
+  // §2.6 — one signature block, unbroken, on the final page.
+  expect(sheetGeometry.signatureCount, "the signature block is missing or duplicated").toBe(1);
+  expect(sheetGeometry.signatureOnLastPage, "the signature block is not on the last page").toBe(true);
+  expect(sheetGeometry.signatureInsideLastPage, "the signature block spills past its page").toBe(true);
+  expect(sheetGeometry.signatureBoxCount, "not every signer has a signature box").toBeGreaterThanOrEqual(2);
+  expect(sheetGeometry.signatureRulesLegible, "a signing rule has no writable height").toBe(true);
+  // §2.5 — two columns; party 1 left, party 2 right.
+  expect(sheetGeometry.partyHeaderCount, "the parties table is not two columns").toBe(2);
+  expect(sheetGeometry.headers[0], "the right column is not party 2").toContain("مستأجر");
+  expect(sheetGeometry.headers[1], "the left column is not party 1").toContain("موجر");
+  expect(sheetGeometry.party1LeftOfParty2, "party 1 is not to the left of party 2").toBe(true);
+  expect(sheetGeometry.rowTexts[1], "party 1's name is not in the left cell").toContain("مریم");
+  expect(sheetGeometry.rowTexts[0], "party 2's name is not in the right cell").toContain("رضا");
+
   const pdfPath = path.join(SHOT_DIR, "contract-print.pdf");
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   await page.pdf({ path: pdfPath, printBackground: true, preferCSSPageSize: true });
@@ -639,6 +785,7 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
     clipped,
     letterhead,
     tables,
+    sheetGeometry,
   };
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   fs.writeFileSync(

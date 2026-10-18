@@ -17,6 +17,7 @@ import {
 import { seedDemoContent, seedLawContent, seedDemoCases, DEMO_USER_MOBILE } from "./demo-seed";
 import { normalizeIranMobile } from "@legalir/validation";
 import { seedPropertyContracts } from "./contracts/seed";
+import { seedSampleContract } from "./contracts/sample";
 import { listRenewalReminders } from "./contracts/db";
 import { seedDemoLawyers } from "./lawyer-seed";
 import { getPlanByCode } from "./usage/plans";
@@ -1940,6 +1941,8 @@ if (process.env.NODE_ENV === "development") {
     seedLawContent(demoUser.id);
     seedDemoCases(demoUser.id);
     seedPropertyContracts(demoUser.id);
+    // §2.7 — a dev-only end-to-end sample contract (fake parties, no SMS).
+    seedSampleContract(demoUser.id);
     seedDemoLawyers();
   }
 }

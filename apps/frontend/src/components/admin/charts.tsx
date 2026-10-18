@@ -1021,10 +1021,13 @@ export function DonutChart({
       // itself to the legend's max-content width and overflows the card, so the
       // last percentages were clipped on a narrow column. Constraining the root
       // lets the legend's `flex-1 truncate` label absorb the difference.
-      className={`flex flex-col items-center ${
+      className={`flex w-full min-w-0 flex-col items-center ${
         layout === "stack"
-          ? "w-full min-w-0 gap-3"
-          : "gap-4 tablet:flex-row tablet:items-center tablet:justify-center"
+          ? "gap-3"
+          : // `flex-wrap` lets the legend drop below the ring when the card is
+            // too narrow to hold both side by side (a 1/3 grid column at
+            // desktop). Without it the pair painted past the card edge.
+            "gap-4 tablet:flex-row tablet:flex-wrap tablet:items-center tablet:justify-center"
       }`}
     >
       <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -1067,7 +1070,19 @@ export function DonutChart({
         </div>
       </div>
 
-      <ul className="w-full min-w-0 max-w-xs space-y-2">
+      {/* In the side-by-side layout the legend shares the row with a fixed
+          `size`px ring: `w-full` there resolves to 100% of the container and
+          spills past the ring by the ring's own width. `flex-1 basis-0` makes
+          it take only what is left; the stacked layout still needs full width. */}
+      <ul
+        className={`max-w-xs space-y-2 ${
+          layout === "stack"
+            ? "w-full min-w-0"
+            : // A readable minimum makes the wrap decision: beside the ring
+              // only when there is at least this much room left.
+              "w-full min-w-0 tablet:w-40 tablet:shrink-0"
+        }`}
+      >
         {arcs.map((a) => {
           const pct = Math.round((a.s.value / total) * 100);
           return (

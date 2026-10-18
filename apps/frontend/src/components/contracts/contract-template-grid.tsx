@@ -120,11 +120,11 @@ export function ContractTemplateGrid({
     );
     // `searchTemplates` returns the input unchanged for an empty query,
     // so the curated registry order is preserved when nothing is typed.
+    // Name + keywords only, matching the full listing's search: description
+    // prose («اجارهٔ زیرساخت ابری») must not widen «اجاره» to cloud services.
     return searchTemplates(inCategory, query, (def) => ({
       id: def.id,
       titleFa: def.typeFa,
-      descriptionFa: def.descriptionFa,
-      categoryFa: def.categoryFa,
       keywords: def.keywords,
     }));
   }, [query, category]);

@@ -66,6 +66,7 @@ import { ContractCategoryChips } from "./contract-category-chips";
 import { PaginationBar } from "./pagination-bar";
 import { CompactContractSections } from "./compact-contract-sections";
 import { ContractsPromos } from "./contracts-promos";
+import { PageContainer } from "@/components/shared/page-container";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -182,11 +183,12 @@ export function TemplatesBrowser() {
         matchesTemplateCategory(def.id, category)
       );
       return {
+        // Name + keywords ONLY (§1 "جستجوی ساده"). Description prose is not
+        // a search key: «اجارهٔ زیرساخت ابری» in the cloud-IaaS description
+        // must not make that template a hit for «اجاره».
         results: searchTemplates(inCategory, query, (def: ContractDefinition) => ({
           id: def.id,
           titleFa: def.typeFa,
-          descriptionFa: def.descriptionFa,
-          categoryFa: def.categoryFa,
           keywords: def.keywords,
         })),
         failed: false,
@@ -261,7 +263,7 @@ export function TemplatesBrowser() {
   const [previewed, setPreviewed] = React.useState<ContractDefinition | null>(null);
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl">
+    <PageContainer dir="rtl">
       <Link
         href="/contracts"
         className="mb-3 inline-flex items-center gap-1 rounded-small text-caption text-muted transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
@@ -446,6 +448,6 @@ export function TemplatesBrowser() {
         destructive
         loading={deleteContract.isPending}
       />
-    </div>
+    </PageContainer>
   );
 }

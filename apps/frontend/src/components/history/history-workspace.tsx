@@ -49,6 +49,7 @@ import {
   RawStatusBadge,
   FilterChips,
   ResultsBar,
+  PageContainer,
   type ActiveFilter,
 } from "@/components/shared";
 import {
@@ -697,7 +698,7 @@ export function HistoryWorkspace() {
     : `${items.length} نتیجه`;
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6">
+    <PageContainer>
       {/* Low, quiet page header — no decorative card. */}
       <CompactPageHeader
         title={archivedView ? "بایگانی" : "تاریخچه"}
@@ -856,6 +857,6 @@ export function HistoryWorkspace() {
         onCancel={handleCancelAdmin}
         onConfirm={handleConfirmAdmin}
       />
-    </div>
+    </PageContainer>
   );
 }

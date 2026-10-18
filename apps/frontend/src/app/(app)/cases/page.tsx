@@ -37,6 +37,7 @@ import {
   ResultsBar,
   OverflowMenu,
   StatusBadge,
+  PageContainer,
   PromoArt,
   type ActiveFilter,
 } from "@/components/shared";
@@ -331,7 +332,7 @@ export default function CasesPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] p-4 tablet:p-6" dir="rtl">
+    <PageContainer dir="rtl">
       <CompactPageHeader
         title="پرونده‌های من"
         description="مدیریت و پیگیری پرونده‌های حقوقی"
@@ -547,6 +548,6 @@ export default function CasesPage() {
         }}
         onConfirm={handleConfirmArchive}
       />
-    </div>
+    </PageContainer>
   );
 }

@@ -28,13 +28,17 @@ import type {
   ContractParty,
   PropertyContract,
 } from "@legalir/types";
-import { CONTRACT_ADMIN_REVIEW_STATUS_FA } from "@legalir/types";
+import {
+  CONTRACT_ADMIN_REVIEW_STATUS_FA,
+  SIGNATURE_REQUEST_STATUS_FA,
+} from "@legalir/types";
 import { requirePermission } from "@/lib/rbac";
 import { findUserById } from "@/lib/db";
 import { intParam } from "@/lib/admin/http";
 import { matchesRow } from "@/lib/search/normalize";
 import { latestAdminReview, currentVersionApproval } from "@/lib/contracts/admin-review";
 import { getVersion, listAllContracts, listParties } from "@/lib/contracts/db";
+import { latestSignatureRequestDetail } from "@/lib/contracts/signature/db";
 import { getContractDefinition } from "@/lib/contracts/registry";
 import { stateLabelFa } from "@/lib/contracts/state-machine";
 
@@ -75,6 +79,10 @@ function toAdminItem(contract: PropertyContract): AdminContractListItem {
     ? getVersion(contract.id, contract.currentVersionId)
     : null;
   const approved = currentVersionApproval(contract, currentVersion?.documentHash ?? null) !== null;
+  // §2.4 — the queue shows where signing stands, per contract. The
+  // newest request is used even when COMPLETED, as its participants ARE
+  // the record.
+  const signature = latestSignatureRequestDetail(contract.id);
 
   return {
     id: contract.id,
@@ -92,6 +100,13 @@ function toAdminItem(contract: PropertyContract): AdminContractListItem {
     adminApproved: approved,
     currentVersionNumber: contract.currentVersionNumber,
     finalizedAt: contract.finalizedAt,
+    signatureStatus: signature?.status ?? null,
+    signatureStatusFa: signature ? SIGNATURE_REQUEST_STATUS_FA[signature.status] : null,
+    signedCount: signature
+      ? signature.participants.filter((p) => p.status === "SIGNED").length
+      : 0,
+    participantCount: signature?.participants.length ?? 0,
+    isSample: contract.isSample === true,
     updatedAt: contract.updatedAt,
     createdAt: contract.createdAt,
   };

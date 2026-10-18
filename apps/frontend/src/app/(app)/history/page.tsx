@@ -9,12 +9,13 @@
 
 import { Suspense } from "react";
 import { HistoryWorkspace } from "@/components/history/history-workspace";
+import { PageContainer } from "@/components/shared/page-container";
 
 export default function HistoryPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 tablet:p-6 max-w-4xl mx-auto" aria-label="در حال بارگذاری">
+        <PageContainer aria-label="در حال بارگذاری">
           <div className="h-8 w-40 bg-surface-container-high rounded-small mb-6" />
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -32,7 +33,7 @@ export default function HistoryPage() {
               </div>
             ))}
           </div>
-        </div>
+        </PageContainer>
       }
     >
       <HistoryWorkspace />

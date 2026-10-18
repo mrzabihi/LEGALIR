@@ -15,16 +15,13 @@
 
 import { Suspense } from "react";
 import { ContractsHub } from "@/components/contracts/contracts-hub";
+import { PageContainer } from "@/components/shared/page-container";
 
 export default function ContractsPage() {
   return (
     <Suspense
       fallback={
-        <div
-          className="mx-auto max-w-[1400px] space-y-6 p-4 tablet:p-6"
-          dir="rtl"
-          aria-label="در حال بارگذاری"
-        >
+        <PageContainer className="space-y-6" dir="rtl" aria-label="در حال بارگذاری">
           <div className="h-24 animate-pulse rounded-xlarge bg-surface-container" />
           <div className="h-12 w-full max-w-md animate-pulse rounded-full bg-surface-container" />
           <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 laptop:grid-cols-3">
@@ -32,7 +29,7 @@ export default function ContractsPage() {
               <div key={i} className="h-44 animate-pulse rounded-large bg-surface-container" />
             ))}
           </div>
-        </div>
+        </PageContainer>
       }
     >
       <ContractsHub />

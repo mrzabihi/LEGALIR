@@ -55,6 +55,20 @@ const STATUS_TONES: Record<
   CANCELLED: "neutral",
 };
 
+/** §2.4 — the tone each signature-request status carries in the queue. */
+const SIGNATURE_TONES: Record<
+  string,
+  "neutral" | "success" | "warning" | "danger" | "info" | "brand"
+> = {
+  DRAFT: "neutral",
+  SENT: "info",
+  PARTIALLY_SIGNED: "warning",
+  COMPLETED: "success",
+  DECLINED: "danger",
+  EXPIRED: "warning",
+  CANCELLED: "neutral",
+};
+
 export default function AdminContractsPage() {
   const { can } = useAdminMe();
   const canReview = can("admin:contracts:review");
@@ -132,6 +146,7 @@ export default function AdminContractsPage() {
                   <Th>وضعیت قرارداد</Th>
                   <Th>مالک / طرفین</Th>
                   <Th>نسخه</Th>
+                  <Th>وضعیت امضا</Th>
                   <Th>آخرین تغییر</Th>
                   <Th>عملیات</Th>
                 </tr>
@@ -142,6 +157,7 @@ export default function AdminContractsPage() {
                   <Td>
                     <div className="flex flex-col">
                       <span className="font-medium text-on-surface">{c.referenceCode}</span>
+                      {c.isSample && <Badge tone="warning">نمونه آزمایشی</Badge>}
                       <IdChip id={c.id} />
                     </div>
                   </Td>
@@ -175,6 +191,23 @@ export default function AdminContractsPage() {
                     {c.currentVersionNumber > 0
                       ? `نسخه ${toPersianNumber(c.currentVersionNumber)}`
                       : "—"}
+                  </Td>
+                  <Td>
+                    {/* §2.4 — signing progress is visible from the queue, not
+                        only inside the drawer. */}
+                    {c.signatureStatus ? (
+                      <div className="flex flex-col gap-0.5">
+                        <Badge tone={SIGNATURE_TONES[c.signatureStatus] ?? "neutral"}>
+                          {c.signatureStatusFa ?? c.signatureStatus}
+                        </Badge>
+                        <span className="text-caption text-muted tabular-nums">
+                          {toPersianNumber(c.signedCount)} از{" "}
+                          {toPersianNumber(c.participantCount)} طرف
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap">{toPersianDate(c.updatedAt)}</Td>
                   <Td>

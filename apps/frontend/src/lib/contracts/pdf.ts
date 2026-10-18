@@ -85,12 +85,18 @@ const HAIRLINE = rgb(0.85, 0.87, 0.86);
 const LETTERHEAD_LOGO_HEIGHT = 32;
 
 /**
- * The footer band reserved at the bottom of EVERY page when the official
- * stamp is applied. Contract text never flows into it (the cursor bottoms
- * out above it), so the stamp and its mandatory disclaimer can never
- * overlap body text, signatures or page numbers.
+ * The footer band reserved at the bottom of EVERY page. Contract text never
+ * flows into it (the cursor bottoms out above it), so its occupants — the
+ * per-page paraphe strip, the official stamp/hologram and the mandatory
+ * disclaimer — can never overlap body text, signature boxes or page
+ * numbers. The band is reserved unconditionally, because EVERY page now
+ * carries a paraphe strip (§2.6), not only a stamped one.
+ *
+ * Layout inside the band (bottom → top): disclaimer at MARGIN+2, the
+ * seal/hologram centred at MARGIN+40, and the paraphe strip at
+ * MARGIN+76. The page number stays below MARGIN at y=22.
  */
-const FOOTER_BAND = 72;
+const FOOTER_BAND = 104;
 /** Height of the drawn stamp image, in points. */
 const STAMP_DRAW_HEIGHT = 46;
 /** The slight angle of the stamp — a hand-applied look, never a straight box. */
@@ -147,7 +153,14 @@ class Layout {
   constructor(
     private readonly doc: PDFDocument,
     private readonly fonts: Fonts,
-    reserveFooter = false
+    /**
+     * Every page carries a paraphe strip (§2.6), so the footer band is
+     * ALWAYS reserved. The parameter is kept so a future full-bleed layout
+     * can opt out explicitly; it defaults to true rather than false because
+     * silently letting body text run into the band is the defect the brief
+     * calls out.
+     */
+    reserveFooter = true
   ) {
     this.bottom = MARGIN + (reserveFooter ? FOOTER_BAND : 0);
     this.page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -396,43 +409,6 @@ class Layout {
     this.y -= 6;
   }
 
-  /** Draw the QR code and the verification caption at the bottom. */
-  qrBlock(payload: string, caption: string): void {
-    const matrix = qrMatrix(payload);
-    const modules = matrix.length;
-    const boxSize = 96;
-    const moduleSize = boxSize / modules;
-    this.ensure(boxSize + 40);
-
-    const originX = MARGIN;
-    const originY = this.y - boxSize;
-    for (let r = 0; r < modules; r++) {
-      for (let c = 0; c < modules; c++) {
-        if (!matrix[r]![c]) continue;
-        this.page.drawRectangle({
-          x: originX + c * moduleSize,
-          y: originY + (modules - 1 - r) * moduleSize,
-          width: moduleSize,
-          height: moduleSize,
-          color: rgb(0, 0, 0),
-        });
-      }
-    }
-
-    const lines = wrapText(caption, this.fonts.regular, 9, CONTENT_WIDTH - boxSize - 16);
-    let ty = this.y - 12;
-    for (const line of lines) {
-      drawRtl(this.page, this.fonts.regular, line, {
-        y: ty,
-        size: 9,
-        color: rgb(0.25, 0.25, 0.3),
-        right: RIGHT,
-      });
-      ty -= 12;
-    }
-    this.y = originY - 16;
-  }
-
   /**
    * The blue ink-like review stamp, plus its mandatory disclaimer and the
    * public-safe review metadata. Drawn ONLY when a bound admin approval
@@ -500,8 +476,10 @@ class Layout {
     const holoWidth = hologram ? (hologram.width / hologram.height) * holoHeight : 0;
     const totalWidth = sealWidth + (hologram ? gap + holoWidth : 0);
 
-    // Vertical centre of the band, nudged up so the disclaimer fits below.
-    const cy = MARGIN + FOOTER_BAND / 2 + 4;
+    // Vertical centre of the seal row inside the band: above the
+    // disclaimer (MARGIN+2, 7pt) and below the paraphe strip
+    // (MARGIN+78). The three rows never touch.
+    const cy = MARGIN + 34;
     const left = PAGE_WIDTH / 2 - totalWidth / 2;
     const theta = (STAMP_ANGLE * Math.PI) / 180;
 
@@ -593,6 +571,232 @@ class Layout {
         x: cx - textW / 2,
       });
     }
+  }
+
+  /**
+   * §2.6 — the FULL signature block, as one unbreakable unit.
+   *
+   * The whole block is measured first; if it does not fit in the space
+   * left on the current page, a fresh page is opened before anything is
+   * drawn. So a page can never carry half a signature block, and the
+   * final page always holds the complete block, directly above the QR.
+   * Each signer gets a ruled signing area, so a wet signature or paraphe
+   * has real space that is never confused with the typed name.
+   */
+  signatureBlock(
+    lines: readonly { roleFa: string; nameFa: string; nationalId: string }[],
+    footerFa: string,
+    /** The verification QR that closes the document, drawn INSIDE the same
+     *  unbreakable block so it too can never be separated from the
+     *  signatures or spill onto extra sheets. */
+    qr?: { payload: string; caption: string }
+  ): void {
+    const headingSize = 13;
+    const lineSize = 10.5;
+    const idSize = 9;
+    /** Height of the ruled area a wet signature is written in. */
+    const ruleH = 34;
+    /**
+     * One signer row = three label lines (role, name, national id) + the
+     * ruled signing area + the caption BELOW the rule + a gap to the next
+     * row. The signed box encloses the rule, so the ruling is never
+     * mistaken for the edge of the box.
+     */
+    const rowH = 38 + ruleH + 18;
+    const footerLines = wrapText(footerFa, this.fonts.regular, 9, CONTENT_WIDTH);
+    const qrLines = qr
+      ? wrapText(qr.caption, this.fonts.regular, 9, CONTENT_WIDTH - 96 - 16)
+      : [];
+    /** The QR code, its gap, and the closing space after it. */
+    const qrHeight = qr ? 96 + 24 : 0;
+    // Two signers per row, exactly like the sheet.
+    const rows = Math.max(1, Math.ceil(lines.length / 2));
+    // Everything this method actually consumes, measured from the top:
+    // top rule + gap, the heading line, the signer rows, the separator, the
+    // footer note lines, then the QR band. The fit test uses the SAME sum,
+    // so the block can never end below the reserved footer band.
+    const needed =
+      10 + (headingSize + 10) + rows * rowH + 6 + footerLines.length * 13 + qrHeight + 8;
+
+    // Unbreakable: move the whole block to a fresh page rather than split.
+    if (this.y - needed < this.bottom) {
+      this.page = this.doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      this.y = PAGE_HEIGHT - MARGIN;
+    }
+
+    // A top rule separates the block from the material above it.
+    this.page.drawLine({
+      start: { x: MARGIN, y: this.y - 2 },
+      end: { x: RIGHT, y: this.y - 2 },
+      thickness: 0.7,
+      color: HAIRLINE,
+    });
+    this.y -= 10;
+    this.heading("امضای طرفین", headingSize);
+
+    const colW = CONTENT_WIDTH / 2;
+    for (let i = 0; i < lines.length; i += 2) {
+      const rowTop = this.y;
+      for (let c = 0; c < 2; c++) {
+        const line = lines[i + c];
+        if (!line) continue;
+        // RTL: the FIRST signer sits in the RIGHT column.
+        const colRight = c === 0 ? RIGHT : RIGHT - colW;
+        const boxW = colW - 14;
+        const boxX = colRight - boxW;
+
+        // The signing box encloses the ruled area, so the ruling reads as a
+        // writing line rather than as the box's own border. It ends ABOVE
+        // the caption, so «امضا / پاراف» is never inside the signing space.
+        this.page.drawRectangle({
+          x: boxX,
+          y: rowTop - 74,
+          width: boxW,
+          height: 70,
+          borderColor: HAIRLINE,
+          borderWidth: 0.7,
+          borderDashArray: [3, 2],
+        });
+
+        drawRtl(this.page, this.fonts.bold, line.roleFa, {
+          y: rowTop - 12,
+          size: 9,
+          color: MUTED_INK,
+          right: colRight - 7,
+        });
+        drawRtl(this.page, this.fonts.bold, line.nameFa, {
+          y: rowTop - 26,
+          size: lineSize,
+          color: BRAND_INK,
+          right: colRight - 7,
+        });
+        drawRtl(this.page, this.fonts.regular, `کد ملی / شناسه: ${line.nationalId}`, {
+          y: rowTop - 38,
+          size: idSize,
+          color: MUTED_INK,
+          right: colRight - 7,
+        });
+
+        // The ruled area a signature/paraphe physically goes on.
+        this.page.drawLine({
+          start: { x: boxX + 7, y: rowTop - 38 - ruleH },
+          end: { x: colRight - 7, y: rowTop - 38 - ruleH },
+          thickness: 0.7,
+          color: rgb(0.62, 0.69, 0.66),
+        });
+        // The caption stays BELOW the rule, so it is never mistaken for
+        // handwriting space.
+        drawRtl(this.page, this.fonts.regular, "امضا / پاراف", {
+          y: rowTop - 38 - ruleH - 10,
+          size: 8,
+          color: MUTED_INK,
+          right: colRight - 7,
+        });
+      }
+      this.y = rowTop - rowH;
+    }
+
+    this.y -= 6;
+    for (const line of footerLines) {
+      drawRtl(this.page, this.fonts.regular, line, {
+        y: this.y - 9,
+        size: 9,
+        color: MUTED_INK,
+        right: RIGHT,
+      });
+      this.y -= 13;
+    }
+
+    if (!qr) return;
+
+    // §2.8 — the verification QR closes the SAME block, so the signatures
+    // and the way to verify them are always on one sheet.
+    const boxSize = 96;
+    const matrix = qrMatrix(qr.payload);
+    const modules = matrix.length;
+    const moduleSize = boxSize / modules;
+    const originX = MARGIN;
+    const originY = this.y - 8 - boxSize;
+    for (let r = 0; r < modules; r++) {
+      for (let c = 0; c < modules; c++) {
+        if (!matrix[r]![c]) continue;
+        this.page.drawRectangle({
+          x: originX + c * moduleSize,
+          y: originY + (modules - 1 - r) * moduleSize,
+          width: moduleSize,
+          height: moduleSize,
+          color: rgb(0, 0, 0),
+        });
+      }
+    }
+    let ty = this.y - 20;
+    for (const line of qrLines) {
+      drawRtl(this.page, this.fonts.regular, line, {
+        y: ty,
+        size: 9,
+        color: rgb(0.25, 0.25, 0.3),
+        right: RIGHT,
+      });
+      ty -= 12;
+    }
+    this.y = originY - 16;
+  }
+
+  /**
+   * §2.6 — the per-page paraphe strip inside the reserved footer band.
+   * One initialled box per signing role on EVERY page, so each sheet can
+   * be initialled. Drawn at a fixed height inside the band, so it can
+   * never touch body text, tables, the seal or the page number.
+   */
+  parapheStrip(roles: readonly string[]): void {
+    const bandTop = MARGIN + FOOTER_BAND;
+    const y = bandTop - 16;
+    const size = 7.5;
+
+    this.doc.getPages().forEach((page) => {
+      // The strip's own hairline, set apart from the body.
+      page.drawLine({
+        start: { x: MARGIN, y: y + 12 },
+        end: { x: RIGHT, y: y + 12 },
+        thickness: 0.4,
+        color: HAIRLINE,
+        dashArray: [2, 2],
+      });
+
+      const caption = "پاراف صفحه";
+      const captionW = measureRtl(this.fonts.bold, caption, size);
+      drawRtl(page, this.fonts.bold, caption, {
+        y,
+        size,
+        color: BRAND_ACCENT,
+        right: RIGHT,
+      });
+
+      // Each role gets a labelled box, laid out right → left (RTL).
+      let cursor = RIGHT - captionW - 10;
+      for (const role of roles) {
+        const boxW = 40;
+        const labelW = measureRtl(this.fonts.regular, role, size);
+        // The role label sits to the LEFT of its box, following reading order.
+        drawRtl(page, this.fonts.regular, role, {
+          y,
+          size,
+          color: MUTED_INK,
+          right: cursor,
+        });
+        const boxRight = cursor - labelW - 3;
+        page.drawRectangle({
+          x: boxRight - boxW,
+          y: y - 2,
+          width: boxW,
+          height: 11,
+          borderColor: HAIRLINE,
+          borderWidth: 0.5,
+        });
+        cursor = boxRight - boxW - 12;
+        if (cursor < MARGIN + 30) break;
+      }
+    });
   }
 
   /**
@@ -720,7 +924,9 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     }
   }
 
-  const layout = new Layout(doc, fonts, officialImage !== null);
+  // The footer band is ALWAYS reserved: every page carries a paraphe strip
+  // (§2.6), not only a stamped one.
+  const layout = new Layout(doc, fonts, true);
 
   // --- Letterhead: mark + identity group top-left, title centred below ---
   const snapshot = version.snapshot;
@@ -757,7 +963,14 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   layout.spacer(4);
 
   // --- Clauses ---
-  for (const clause of rendered.clauses) {
+  // The closing note (§2.2) is not a numbered article: it prints AFTER the
+  // annex, immediately before the signatures, so it never reads as a term.
+  const materialClauses = rendered.clauses.filter(
+    (c) => c.id !== "common.supplementary_note"
+  );
+  const closingNote = rendered.clauses.find((c) => c.id === "common.supplementary_note");
+
+  for (const clause of materialClauses) {
     layout.heading(clause.headingFa, 12);
     const blocks: RenderedBlock[] =
       clause.blocks ?? clause.paragraphs.map((textFa) => ({ kind: "paragraph", textFa }));
@@ -767,17 +980,6 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     }
     layout.spacer(4);
   }
-
-  // --- Signatures ---
-  layout.spacer(8);
-  layout.heading("امضای طرفین", 13);
-  for (const line of rendered.signatureLines) {
-    layout.paragraph(`${line.roleFa}: ${line.nameFa} — کد ملی: ${line.nationalId}`);
-  }
-
-  // --- Footer note ---
-  layout.spacer(6);
-  layout.paragraph(rendered.footerFa, 9);
 
   // --- Legal-basis annex (§2) ---
   // A non-binding appendix; the same reviewed citations the preview shows.
@@ -790,12 +992,27 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     }
   }
 
-  // --- QR + verification link ---
+  // --- Closing note (§2.2) — after every article and annex, separate ---
+  if (closingNote) {
+    layout.spacer(8);
+    layout.heading(closingNote.headingFa, 12);
+    const blocks: RenderedBlock[] =
+      closingNote.blocks ??
+      closingNote.paragraphs.map((textFa) => ({ kind: "paragraph", textFa }));
+    for (const block of blocks) {
+      if (block.kind === "paragraph") layout.paragraph(block.textFa);
+      else layout.table(block.table);
+    }
+  }
+
+  // --- Signatures + verification QR (§2.6 / §2.8) — ONE unbreakable block,
+  // so the final page always holds the complete signature block and the QR
+  // that verifies it; no page break can ever split them apart. ---
   const verifyUrl = `${baseUrl.replace(/\/$/, "")}/contracts/verify/${contract.publicVerificationId}`;
-  layout.qrBlock(
-    verifyUrl,
-    `برای بررسی اصالت این سند، کد QR را اسکن کنید یا به نشانی زیر مراجعه کنید:\n${verifyUrl}`
-  );
+  layout.signatureBlock(rendered.signatureLines, rendered.footerFa, {
+    payload: verifyUrl,
+    caption: `برای بررسی اصالت این سند، کد QR را اسکن کنید یا به نشانی زیر مراجعه کنید:\n${verifyUrl}`,
+  });
 
   // The official stamp, once authorised, is drawn on EVERY page inside the
   // reserved footer band. An unapproved contract gets the diagonal draft
@@ -810,6 +1027,10 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   // Pages 2+ repeat the identification in a slim running head, drawn in
   // the top margin so it never takes space from the body.
   layout.runningHeads(contract.typeFa, referenceCode, versionLabelFa);
+
+  // §2.6 — every page carries a legible paraphe strip, inside the reserved
+  // footer band so it can never collide with body text or the page number.
+  layout.parapheStrip(rendered.signatureLines.map((line) => line.roleFa));
 
   // Page numbers on every page, below the content margin.
   layout.pageNumbers();

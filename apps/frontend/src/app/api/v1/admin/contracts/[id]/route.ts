@@ -32,6 +32,8 @@ import {
   CONTRACT_ADMIN_REVIEW_STATUS_FA,
   CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
   CONTRACT_REVIEW_STAMP_TEXT,
+  SIGNATURE_PARTICIPANT_STATUS_FA,
+  SIGNATURE_REQUEST_STATUS_FA,
 } from "@legalir/types";
 import { requirePermission } from "@/lib/rbac";
 import { findUserById } from "@/lib/db";
@@ -48,6 +50,7 @@ import {
 import {
   getContractById,
   getVersion,
+  listApprovals,
   listContractDocuments,
   listParties,
   listPayments,
@@ -56,9 +59,14 @@ import {
 } from "@/lib/contracts/db";
 import { computeCompleteness } from "@/lib/contracts/completeness";
 import { listReviewComments } from "@/lib/contracts/review-db";
+import {
+  latestSignatureRequestDetail,
+  listInvitations,
+  listSignatureRequests,
+} from "@/lib/contracts/signature/db";
 import { renderContract } from "@/lib/contracts/template";
 import { buildLegalBasisReport } from "@/lib/contracts/legal-basis";
-import { getContractDefinition } from "@/lib/contracts/registry";
+import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import {
   assertTransition,
   IllegalTransitionError,
@@ -139,6 +147,20 @@ export async function GET(request: NextRequest, { params }: Params) {
   const rendered = renderContract(contract, parties, payments);
   const owner = findUserById(contract.userId);
 
+  // §2.4 — the reviewer records the whole lifecycle, not just the rendered
+  // text: what the owner asked to change, the note they confirmed, every
+  // version that ever existed, the party approvals and the signature
+  // request with each party's own status. All of it is read from the same
+  // tables the owner-facing routes use, so the two can never disagree.
+  const def = getContractDefinition(contract.type);
+  const sectionTitleFa = (ref: string | undefined): string | null => {
+    if (!ref) return null;
+    return def.wizardSteps.find((s) => s.id === ref)?.titleFa ?? ref;
+  };
+  const versions = listVersions(contract.id);
+  const approvals = listApprovals(contract.id);
+  const signatureRequest = latestSignatureRequestDetail(contract.id);
+
   return NextResponse.json({
     data: {
       contract: {
@@ -154,11 +176,14 @@ export async function GET(request: NextRequest, { params }: Params) {
         partySummaryFa: partySummaryFa(contract.type, parties),
         createdAt: contract.createdAt,
         updatedAt: contract.updatedAt,
+        // §2.7 — the dev sample must be recognisable inside the drawer too.
+        isSample: contract.isSample === true,
       },
       completeness,
       parties: parties.map((p) => ({
         id: p.id,
         role: p.role,
+        roleFa: partyRoleLabelFa(p.role),
         nameFa: `${p.identity.firstName} ${p.identity.lastName}`.trim(),
         isInitiator: p.isInitiator,
       })),
@@ -170,11 +195,90 @@ export async function GET(request: NextRequest, { params }: Params) {
             createdAt: currentVersion.createdAt,
           }
         : null,
-      versions: listVersions(contract.id).map((v) => ({
+      // Every version ever frozen, newest first, each marked as the current
+      // one and/or the FINAL one. Nothing is collapsed or overwritten: the
+      // list is the record that proves no version was lost.
+      versions: versions.map((v) => ({
         id: v.id,
         versionNumber: v.versionNumber,
         documentHash: v.documentHash,
+        templateVersion: v.templateVersion,
         createdAt: v.createdAt,
+        isCurrent: v.id === contract.currentVersionId,
+        isFinal: v.id === contract.finalVersionId,
+      })),
+      // §2.2 — the note that prints at the end of the document, with the
+      // exact moment the owner confirmed it. Kept out of the clauses, as
+      // it is not a term of the contract.
+      supplementary: {
+        notes: contract.data.supplementary?.notes ?? "",
+        noteConfirmedAt: contract.data.supplementary?.noteConfirmedAt ?? null,
+        confirmedAt: contract.data.supplementary?.confirmedAt ?? null,
+      },
+      // §2.1 — clauses the owner added, and the changes they asked for.
+      // Two distinct kinds; a change request is never mistaken for an
+      // agreed term.
+      customClauses: (contract.data.customClauses ?? []).map((c) => ({
+        id: c.id,
+        kind: c.kind ?? "agreement",
+        title: c.title,
+        body: c.body,
+        sectionRef: c.sectionRef ?? null,
+        sectionTitleFa: sectionTitleFa(c.sectionRef),
+        createdAt: c.createdAt,
+      })),
+      // Party approvals of the current version, with their exact times.
+      approvals: approvals.map((a) => {
+        const party = parties.find((p) => p.id === a.partyId);
+        return {
+          id: a.id,
+          contractVersionId: a.contractVersionId,
+          partyId: a.partyId,
+          partyRoleFa: party ? partyRoleLabelFa(party.role) : "",
+          partyNameFa: party
+            ? `${party.identity.firstName} ${party.identity.lastName}`.trim()
+            : "",
+          status: a.status,
+          comment: a.comment,
+          method: a.method,
+          approvedAt: a.approvedAt,
+          createdAt: a.createdAt,
+        };
+      }),
+      // The latest signature request (including a COMPLETED one — it is
+      // the audit record, not a transient state), each party's own status
+      // and the delivery outcome of every invitation.
+      signatureRequest: signatureRequest
+        ? {
+            ...signatureRequest,
+            statusFa: SIGNATURE_REQUEST_STATUS_FA[signatureRequest.status],
+            participants: signatureRequest.participants.map((p) => ({
+              ...p,
+              statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[p.status],
+            })),
+            invitations: listInvitations(signatureRequest.id).map((i) => ({
+              id: i.id,
+              participantId: i.participantId,
+              recipientMasked: i.recipientMasked,
+              status: i.status,
+              deliveryChannel: i.deliveryChannel ?? null,
+              deliveryStatus: i.deliveryStatus ?? null,
+              lastSentAt: i.lastSentAt ?? null,
+              expiresAt: i.expiresAt,
+              usedAt: i.usedAt,
+              revokedAt: i.revokedAt,
+            })),
+          }
+        : null,
+      // Every request ever issued for this contract, so a superseded one
+      // is still on record.
+      signatureRequests: listSignatureRequests(contract.id).map((r) => ({
+        id: r.id,
+        contractVersionId: r.contractVersionId,
+        status: r.status,
+        statusFa: SIGNATURE_REQUEST_STATUS_FA[r.status],
+        createdAt: r.createdAt,
+        completedAt: r.completedAt,
       })),
       rendered: {
         titleFa: rendered.titleFa,

@@ -71,10 +71,21 @@ const PAGES: { name: string; path: string; heading?: string }[] = [
   { name: "subscription", path: "/subscription" },
   { name: "support", path: "/support" },
   { name: "notifications", path: "/notifications" },
+  // Added for the UI-polish pass: the surfaces the redesign touched that were
+  // not yet in this sweep, plus the public pages that carry the brand chrome.
+  { name: "pricing", path: "/pricing" },
+  { name: "blog", path: "/blog" },
+  { name: "contracts-templates", path: "/contracts/templates" },
+  { name: "calculators-all", path: "/calculators/all" },
+  { name: "requests", path: "/requests" },
+  { name: "intake", path: "/intake" },
 ];
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
+  // Tablet sits between the two shells (the app nav collapses at 1024, the
+  // admin rail moves at 900), so it needs its own capture.
+  { name: "tablet", width: 834, height: 1112 },
   { name: "mobile", width: 390, height: 844 },
 ];
 

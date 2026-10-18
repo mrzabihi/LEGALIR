@@ -70,9 +70,12 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
       partySummaryFa: "مریم محمدی و رضا کریمی",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
+      isSample: false,
     },
     completeness: { overall: 100, sections: [], blockers: [] },
-    parties: [{ id: "pty-1", role: "موجر", nameFa: "مریم محمدی", isInitiator: true }],
+    parties: [
+      { id: "pty-1", role: "landlord", roleFa: "موجر", nameFa: "مریم محمدی", isInitiator: true },
+    ],
     currentVersion: {
       id: "ver-1",
       versionNumber: 1,
@@ -109,6 +112,11 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
     },
     approved: false,
     stamp: { applied: false, text: "لیـــــــگالیر - بررسی شد", disclaimerFa: "..." },
+    supplementary: { notes: "", noteConfirmedAt: null, confirmedAt: null },
+    customClauses: [],
+    approvals: [],
+    signatureRequest: null,
+    signatureRequests: [],
     ...overrides,
   };
 }
@@ -184,6 +192,239 @@ describe("ContractDetailDrawer — the admin decision surface (§6/§10)", () =>
     expect(screen.queryByRole("button", { name: "رد" })).toBeNull();
     expect(screen.queryByRole("button", { name: "درخواست اصلاح" })).toBeNull();
     expect(screen.queryByRole("button", { name: "لغو بررسی" })).toBeNull();
+  });
+
+  // ----------------------------------------------------------
+  // §2.4 — the record, not just the decision surface
+  // ----------------------------------------------------------
+
+  it("prints the supplementary note verbatim with the time it was confirmed", async () => {
+    const NOTE = "یادداشت تکمیلی یکتا — تمدید تلفنی معتبر نیست.";
+    state.detail = detail({
+      supplementary: {
+        notes: NOTE,
+        noteConfirmedAt: "2026-01-02T09:00:00.000Z",
+        confirmedAt: "2026-01-02T09:05:00.000Z",
+      },
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByText(NOTE)).toBeInTheDocument();
+    expect(screen.getByText(/تأیید یادداشت/)).toBeInTheDocument();
+    // It is labelled as printing at the end, separate from the clauses.
+    expect(screen.getByText(/در پایان سند و جدا از مواد قرارداد چاپ می‌شود/)).toBeInTheDocument();
+  });
+
+  it("says plainly when no note exists — nothing is printed in that case", async () => {
+    renderDrawer(true);
+
+    expect(
+      await screen.findByText(/یادداشت تکمیلی ثبت نشده است؛ در این حالت هیچ بخشی/)
+    ).toBeInTheDocument();
+  });
+
+  it("lists EVERY version, marking the current and the final one — never collapsing", async () => {
+    state.detail = detail({
+      currentVersion: {
+        id: "ver-2",
+        versionNumber: 2,
+        documentHash: "b".repeat(64),
+        createdAt: "2026-01-03T00:00:00.000Z",
+      },
+      versions: [
+        {
+          id: "ver-2",
+          versionNumber: 2,
+          documentHash: "b".repeat(64),
+          templateVersion: "1.0.0",
+          createdAt: "2026-01-03T00:00:00.000Z",
+          isCurrent: true,
+          isFinal: true,
+        },
+        {
+          id: "ver-1",
+          versionNumber: 1,
+          documentHash: "a".repeat(64),
+          templateVersion: "1.0.0",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          isCurrent: false,
+          isFinal: false,
+        },
+      ],
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByText(/تاریخچهٔ نسخه‌ها/)).toBeInTheDocument();
+    // Both versions survive — the superseded draft is still on record.
+    expect(screen.getByText("نسخه ۲")).toBeInTheDocument();
+    expect(screen.getByText("نسخه ۱")).toBeInTheDocument();
+    expect(screen.getByText("جاری")).toBeInTheDocument();
+    expect(screen.getByText("نهایی")).toBeInTheDocument();
+  });
+
+  it("distinguishes an agreed clause from a requested change", async () => {
+    state.detail = detail({
+      customClauses: [
+        {
+          id: "cc-1",
+          kind: "agreement",
+          title: "بند توافقی یکتا",
+          body: "متن بند توافقی.",
+          sectionRef: "financial",
+          sectionTitleFa: "شرایط مالی",
+          createdAt: "2026-01-02T00:00:00.000Z",
+        },
+        {
+          id: "cc-2",
+          kind: "change_request",
+          title: "درخواست تغییر یکتا",
+          body: "متن درخواست تغییر.",
+          sectionRef: null,
+          sectionTitleFa: null,
+          createdAt: "2026-01-02T00:00:00.000Z",
+        },
+      ],
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByText("بند توافقی یکتا")).toBeInTheDocument();
+    expect(screen.getByText("درخواست تغییر یکتا")).toBeInTheDocument();
+    expect(screen.getByText("بند توافقی")).toBeInTheDocument();
+    expect(screen.getByText("درخواست تغییر")).toBeInTheDocument();
+    expect(screen.getByText(/بخش مرتبط: شرایط مالی/)).toBeInTheDocument();
+  });
+
+  it("tracks each signing party separately and never reports a failed delivery as sent", async () => {
+    state.detail = detail({
+      versions: [
+        {
+          id: "ver-1",
+          versionNumber: 1,
+          documentHash: "a".repeat(64),
+          templateVersion: "1.0.0",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          isCurrent: true,
+          isFinal: false,
+        },
+      ],
+      signatureRequest: {
+        id: "sr-1",
+        contractId: "ctr-1",
+        contractVersionId: "ver-1",
+        documentHash: "a".repeat(64),
+        provider: "OTP_SIGNATURE",
+        assuranceLevel: "ELECTRONIC_CONFIRMATION",
+        status: "SENT",
+        expiresAt: null,
+        createdBy: "usr-1",
+        createdAt: "2026-01-02T08:00:00.000Z",
+        updatedAt: "2026-01-02T08:00:00.000Z",
+        completedAt: null,
+        statusFa: "ارسال‌شده",
+        events: [],
+        participants: [
+          {
+            id: "p-1",
+            signatureRequestId: "sr-1",
+            contractId: "ctr-1",
+            partyId: "pty-1",
+            roleFa: "موجر",
+            nameFa: "مریم محمدی",
+            mobileMasked: "0912***0001",
+            mobile: "09121110001",
+            status: "SIGNED",
+            viewedAt: "2026-01-02T09:00:00.000Z",
+            signedAt: "2026-01-03T09:00:00.000Z",
+            signedMethod: "OTP_ELECTRONIC",
+            proofDocumentId: null,
+            declinedAt: null,
+            declineReason: null,
+            createdAt: "2026-01-02T08:00:00.000Z",
+            statusFa: "امضا‌شده",
+          },
+          {
+            id: "p-2",
+            signatureRequestId: "sr-1",
+            contractId: "ctr-1",
+            partyId: null,
+            roleFa: "مستأجر",
+            nameFa: "رضا کریمی",
+            mobileMasked: "0912***0002",
+            mobile: "09121110002",
+            status: "PENDING",
+            viewedAt: null,
+            signedAt: null,
+            signedMethod: null,
+            proofDocumentId: null,
+            declinedAt: null,
+            declineReason: null,
+            createdAt: "2026-01-02T08:00:00.000Z",
+            statusFa: "در انتظار",
+          },
+        ],
+        invitations: [
+          {
+            id: "inv-1",
+            participantId: "p-1",
+            recipientMasked: "0912***0001",
+            status: "USED",
+            deliveryChannel: "sms",
+            deliveryStatus: "SENT",
+            lastSentAt: "2026-01-02T08:00:00.000Z",
+            expiresAt: "2026-01-09T08:00:00.000Z",
+            usedAt: "2026-01-03T09:00:00.000Z",
+            revokedAt: null,
+          },
+          {
+            id: "inv-2",
+            participantId: "p-2",
+            recipientMasked: "0912***0002",
+            status: "ACTIVE",
+            deliveryChannel: "none",
+            deliveryStatus: "FAILED",
+            lastSentAt: "2026-01-02T08:00:00.000Z",
+            expiresAt: "2026-01-09T08:00:00.000Z",
+            usedAt: null,
+            revokedAt: null,
+          },
+        ],
+      },
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByText(/درخواست امضا و وضعیت هر طرف/)).toBeInTheDocument();
+    // Each party keeps its own real status.
+    expect(screen.getByText("امضا‌شده")).toBeInTheDocument();
+    expect(screen.getByText("در انتظار")).toBeInTheDocument();
+    // The signed party's real time and method are shown.
+    expect(screen.getByText(/امضا:/)).toBeInTheDocument();
+    expect(screen.getByText(/امضای الکترونیکی \(کد یک‌بارمصرف پیامکی\)/)).toBeInTheDocument();
+    // The failed delivery is stated as a failure, never as sent.
+    expect(screen.getByText(/ارسال دعوت ناموفق بود/)).toBeInTheDocument();
+  });
+
+  it("shows party approvals with the version they approved and their time", async () => {
+    state.detail = detail({
+      approvals: [
+        {
+          id: "ap-1",
+          contractVersionId: "ver-1",
+          partyId: "pty-1",
+          partyRoleFa: "موجر",
+          partyNameFa: "مریم محمدی",
+          status: "approved",
+          comment: "",
+          method: "explicit_consent",
+          approvedAt: "2026-01-04T10:00:00.000Z",
+          createdAt: "2026-01-04T09:00:00.000Z",
+        },
+      ],
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByText(/تأییدهای طرفین/)).toBeInTheDocument();
+    expect(screen.getByText(/تأیید شد/)).toBeInTheDocument();
+    expect(screen.getByText(/نسخه ۱/)).toBeInTheDocument();
   });
 
   it("hides the decision panel once the review is no longer PENDING", async () => {

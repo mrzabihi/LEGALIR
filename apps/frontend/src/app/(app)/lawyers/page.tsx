@@ -33,7 +33,12 @@ import {
   EMPTY_LAWYER_FILTERS,
   type LawyerFilterValues,
 } from "@/components/lawyers";
-import { PageIntroBanner, PromoPanel } from "@/components/shared";
+import {
+  PageContainer,
+  PageIntroBanner,
+  PromoPanel,
+  SectionHeader,
+} from "@/components/shared";
 import { type LawyerSearchFilters } from "@legalir/types";
 import { groupByPrimaryDomain, featuredLawyers } from "@/lib/lawyers/grouping";
 
@@ -140,7 +145,7 @@ export default function LawyersPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl p-4 tablet:p-6" dir="rtl">
+    <PageContainer dir="rtl">
       {/* --- Header --- */}
       <PageIntroBanner
         className="mb-5"
@@ -248,15 +253,11 @@ export default function LawyersPage() {
           {/* Featured / recommended */}
           {featured.length > 0 && (
             <section className="mb-8">
-              <div className="mb-3 flex items-center gap-2">
-                <IconSparkle size={20} className="text-primary" />
-                <div>
-                  <h2 className="text-h3 text-on-surface">وکلای پیشنهادی</h2>
-                  <p className="mt-0.5 text-caption text-muted">
-                    بر اساس تخصص، تجربه و امتیاز کاربران
-                  </p>
-                </div>
-              </div>
+              <SectionHeader
+                icon={<IconSparkle size={20} />}
+                title="وکلای پیشنهادی"
+                description="بر اساس تخصص، تجربه و امتیاز کاربران"
+              />
               <LawyerCarousel lawyers={featured} ariaLabel="وکلای پیشنهادی" />
             </section>
           )}
@@ -264,7 +265,7 @@ export default function LawyersPage() {
           {/* سایر وکلا — everyone not already shown in «وکلای پیشنهادی» */}
           {rest.length > 0 && (
             <section className="mb-8">
-              <h2 className="mb-3 text-h3 text-on-surface">{restLabel}</h2>
+              <SectionHeader title={restLabel} />
               <LawyerCarousel lawyers={rest} ariaLabel={restLabel} />
             </section>
           )}
@@ -305,6 +306,6 @@ export default function LawyersPage() {
         value={filters}
         onApply={setFilters}
       />
-    </div>
+    </PageContainer>
   );
 }
