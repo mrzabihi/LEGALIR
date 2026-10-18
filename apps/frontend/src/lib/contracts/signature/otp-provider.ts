@@ -39,7 +39,13 @@ const RATE_MAX = 3;
 const CODE_LENGTH = 6;
 
 /** Development-only static code, matching the login OTP convention. */
-const DEV_OTP = "405405";
+/**
+ * The fixed development code. Exported so dev-only fixtures (the sample
+ * contract) can drive the REAL verify path instead of writing signature
+ * rows by hand — the seed must never bypass the workflow it is
+ * demonstrating.
+ */
+export const DEV_OTP = "405405";
 
 interface Challenge {
   /** SHA-256 hex of the code — the raw code is never kept. */
