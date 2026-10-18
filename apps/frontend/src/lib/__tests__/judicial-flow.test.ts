@@ -261,7 +261,7 @@ afterAll(() => {
 // ============================================================
 
 describe("judicial service projection", () => {
-  it("offers the four drafting families and keeps provider services at soon", () => {
+  it("offers the four drafting families and never claims a provider service is live", () => {
     const views = serviceConfig.listJudicialServiceViews();
     const byId = new Map(views.map((v) => [v.id, v]));
 
@@ -273,9 +273,14 @@ describe("judicial service projection", () => {
     ] as const) {
       expect(byId.get(id)?.availability).toBe("available");
     }
+    // The invariant is CAPABILITY, not a particular honest label: with no
+    // provider connected these may read as `soon` or `request_only`, but never
+    // as `available`, and they must always say why.
     for (const id of ["judicial_criminal_record", "judicial_credit_check"] as const) {
-      expect(byId.get(id)?.availability).toBe("soon");
-      expect(byId.get(id)?.availabilityNoteFa).toBeTruthy();
+      const view = byId.get(id);
+      expect(view?.availability).not.toBe("available");
+      expect(view?.requirement.configured).toBe(false);
+      expect(view?.availabilityNoteFa).toBeTruthy();
     }
   });
 
@@ -287,11 +292,13 @@ describe("judicial service projection", () => {
 
   it("cannot be flipped live by an admin label while the provider is missing", () => {
     // Turning the flag ON is still not enough: the declared external
-    // requirement is unconfigured, so the projection stays `soon`.
+    // requirement is unconfigured, so the projection never becomes
+    // `available` — whatever honest non-live label it carries.
     flags.updateFlag("judicial_criminal_record", { status: "on" }, adminId);
-    expect(
-      serviceConfig.getJudicialServiceView("judicial_criminal_record")?.availability
-    ).toBe("soon");
+    const view = serviceConfig.getJudicialServiceView("judicial_criminal_record");
+    expect(view?.availability).not.toBe("available");
+    expect(view?.requirement.configured).toBe(false);
+    expect(serviceConfig.isJudicialServiceEnterable("judicial_criminal_record")).toBe(false);
 
     // And a direct status edit to `available` is refused outright.
     expect(

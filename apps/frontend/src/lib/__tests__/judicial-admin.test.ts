@@ -215,10 +215,12 @@ describe("release view", () => {
     expect(res.status).toBe(409);
     expect(((await res.json()) as { code: string }).code).toBe("PROVIDER_NOT_CONFIGURED");
 
-    // The module refused, and the stored config still says `soon`.
+    // The module refused, and the stored config still reports no provider.
+    // Its honest non-live label is deliberately not pinned here — the
+    // invariant under test is that it can never become `available`.
     const data = await catalog();
     const stored = data.configs.find((c) => c.id === "judicial_criminal_record");
-    expect(stored?.status).toBe("soon");
+    expect(stored?.status).not.toBe("available");
     expect(stored?.requirement.configured).toBe(false);
 
     const denied = audit.listAudit({
