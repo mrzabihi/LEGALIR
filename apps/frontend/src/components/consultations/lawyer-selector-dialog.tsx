@@ -258,14 +258,16 @@ export function LawyerSelectorDialog({
       {level === "list" && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <button
+            <Button
               type="button"
+              variant="text"
+              size="small"
               onClick={() => setLevel("specialty")}
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-caption text-primary transition hover:bg-surface-hover"
+              startIcon={<IconArrowBack size={16} />}
+              className="!px-2 text-caption"
             >
-              <IconArrowBack size={16} />
               بازگشت به تخصص‌ها
-            </button>
+            </Button>
             <span className="text-caption text-muted">
               {toPersianNumber(inSpecialty.length)} وکیل
             </span>
