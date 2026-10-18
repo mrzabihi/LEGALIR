@@ -75,6 +75,8 @@ import {
   getAiUsageMetrics,
   isSecretStorageReady,
 } from "@/lib/admin/ai-providers";
+import { listToolsForAdmin, updateToolSetting } from "@/lib/ai/chat-tools";
+import { SERVICE_CONTEXTS } from "@/lib/ai/service-context";
 import {
   listRagSources,
   ragReviewCounts,
@@ -764,6 +766,11 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       if (b === "providers") return ok({ items: listAiProviders(), secretStorageConfigured: isSecretStorageReady() });
       if (b === "prompts") return ok({ items: listPromptVersions(c.url.searchParams.get("key") ?? undefined) });
       if (b === "metrics") return ok(getAiUsageMetrics(intParam(c.url, "rangeDays", 30)));
+      // §7/§12 — the contextual chat tools. `available` is the REAL capability
+      // verdict (does this server hold the source?), never the toggle alone.
+      if (b === "tools") {
+        return ok({ items: listToolsForAdmin(), serviceTypes: Object.keys(SERVICE_CONTEXTS) });
+      }
       return adminError(400, "BAD_PATH", "درخواست نامعتبر");
     }
     case "rag": {
@@ -1351,6 +1358,51 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     if ("error" in res) return mapDataError(res.error);
     recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "ai.prompt.activate", resourceType: "ai_prompt", resourceId: c, after: { key: res.key, version: res.version }, ...meta });
     return ok(res);
+  }
+
+  // §12 — edit one contextual tool. Every field is optional, so a body of
+  // `{ enabled }` is a pure capability toggle. The write is audited and the
+  // response carries the REAL verdict, so the panel can never imply that a
+  // toggle made an unavailable source exist.
+  if (a === "ai" && b === "tools" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    const allowed = body["allowedServiceTypes"];
+    const before = listToolsForAdmin().find((t) => t.toolId === c);
+    const after = updateToolSetting(
+      c,
+      {
+        enabled: typeof body["enabled"] === "boolean" ? (body["enabled"] as boolean) : undefined,
+        allowedServiceTypes: Array.isArray(allowed)
+          ? allowed.filter((s): s is string => typeof s === "string")
+          : undefined,
+        labelFa: typeof body["labelFa"] === "string" ? (body["labelFa"] as string) : undefined,
+        descriptionFa:
+          typeof body["descriptionFa"] === "string" ? (body["descriptionFa"] as string) : undefined,
+        effectNoteFa:
+          typeof body["effectNoteFa"] === "string" ? (body["effectNoteFa"] as string) : undefined,
+        order: typeof body["order"] === "number" ? (body["order"] as number) : undefined,
+      },
+      actor.userId
+    );
+    if (!after) {
+      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "ai.tool.update", resourceType: "chat_tool", resourceId: c, result: "denied", reason: "TOOL_NOT_FOUND", ...meta });
+      return adminError(404, "TOOL_NOT_FOUND", "ابزار یافت نشد");
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "ai.tool.update",
+      resourceType: "chat_tool",
+      resourceId: c,
+      before: before ? { enabled: before.enabled, allowedServiceTypes: before.allowedServiceTypes, labelFa: before.labelFa, order: before.order } : null,
+      after: { enabled: after.enabled, allowedServiceTypes: after.allowedServiceTypes, labelFa: after.labelFa, order: after.order },
+      ...meta,
+    });
+    const view = listToolsForAdmin().find((t) => t.toolId === c) ?? null;
+    return ok(view);
   }
 
   if (a === "support" && !b) {

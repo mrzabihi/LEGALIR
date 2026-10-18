@@ -16,6 +16,11 @@ import type {
 // capability interfaces that reference it.
 import type { FeatureFlagStatus } from "./admin";
 
+// Contextual chat tools' structured follow-up shape is re-exported below via
+// `export * from "./chat-tools"`; importing it here brings the name into
+// local scope for the pipeline-run interfaces that reference it.
+import type { ChatToolId, FollowUpQuestion, WorkflowView } from "./chat-tools";
+
 // --- API Envelope ---
 
 export interface ApiSuccess<T> {
@@ -395,6 +400,15 @@ export interface ChatProcessingRun {
    * a refresh can restore the "waiting for you" state.
    */
   pendingQuestions: string[];
+  /**
+   * The service context and tool selection this run was executed with. The
+   * gateway validates both server-side before execution, so these fields are
+   * the authoritative record of what really ran (§3, §7, §11).
+   */
+  serviceType?: string | null;
+  toolIds?: string[];
+  /** The structured follow-ups this run is waiting on, when it is waiting. */
+  pendingFollowUps?: FollowUpQuestion[];
   error: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -435,6 +449,15 @@ export interface ProcessingRunView {
   steps: ProcessingStageView[];
   /** Questions awaiting the user, when status is `waiting`. */
   pendingQuestions: string[];
+  /**
+   * The structured projection of `pendingQuestions` — stable ids, reasons and
+   * quick options — so the UI can render answerable follow-ups after a
+   * refresh instead of plain text.
+   */
+  pendingFollowUps?: FollowUpQuestion[];
+  /** The validated service context and tool selection this run executed. */
+  serviceType?: string | null;
+  toolIds?: string[];
   sourcesUsed: number;
   requiresLawyerReview: boolean;
   /** A user-safe error message (never a stack trace or internal code). */
@@ -2013,6 +2036,19 @@ export interface V1ConversationDetail extends Conversation {
    * (including a WAITING_FOR_USER state) instead of losing it (§37, §43).
    */
   processingRun?: ProcessingRunView | null;
+  /**
+   * The conversation's persisted service type and tool selection. Optional
+   * and additive: a legacy conversation resolves its service from the entry
+   * URL exactly as before, and has no tool selection.
+   */
+  serviceType?: string | null;
+  toolIds?: ChatToolId[];
+  /**
+   * The persisted workflow projection: phase, domain and the structured
+   * follow-ups still awaiting an answer. Lets a refresh restore the
+   * clarification panel instead of losing it.
+   */
+  workflow?: WorkflowView | null;
 }
 
 export interface StructuredResponseSection {
@@ -3001,3 +3037,8 @@ export * from "./checkout";
 // Judicial documents family (statement, brief, criminal record, credit check)
 // ---------------------------------------------------------------------------
 export * from "./judicial";
+
+// ---------------------------------------------------------------------------
+// Contextual chat tools, structured follow-ups, workflow projection
+// ---------------------------------------------------------------------------
+export * from "./chat-tools";

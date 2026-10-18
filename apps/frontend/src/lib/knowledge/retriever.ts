@@ -271,3 +271,87 @@ export function retrieveHybrid(query: string, maxSources = 3): HybridRetrievalRe
 
   return { hits: hits.slice(0, maxSources), tokens };
 }
+
+/**
+ * A precedent-scoped pass over the Legal Library only. Used by the
+ * «آراء قضایی» chat tool: the law catalog and the ingested corpus never carry
+ * judicial opinions, so only LIBRARY rows of a precedent content type may be
+ * cited as a رأی. Never invents a source — an empty list means the library
+ * genuinely holds no matching opinion.
+ */
+export function retrievePrecedentSources(query: string, maxSources = 3): HybridRetrievalResult {
+  const tokens = tokenizeQuery(query);
+  if (tokens.length === 0) return { hits: [], tokens: [] };
+
+  const PRECEDENT_TYPES = new Set<LegalContentType>(["UNIFICATION_RULING", "JUDICIAL_DECISION"]);
+  const library = readLegalLibrary();
+  const details = library.details ?? {};
+  const candidates: Candidate[] = [];
+
+  for (const item of library.items) {
+    if (!PRECEDENT_TYPES.has(item.sourceType)) continue;
+    const detail = details[item.id];
+    const haystack = [
+      item.title,
+      item.summary,
+      item.authority,
+      detail?.body ?? "",
+      detail?.simpleExplanation ?? "",
+      detail?.keyPoints?.join(" ") ?? "",
+      detail?.lawName ?? "",
+      detail?.judgmentNumber ?? "",
+    ].join(" ");
+    const lexical = lexicalScore(haystack, tokens);
+    if (lexical === 0) continue;
+    candidates.push({
+      id: item.id,
+      title: item.title,
+      sourceType: "precedent",
+      sourceTypeFa: item.sourceTypeFa,
+      summary: item.summary,
+      excerpt: detail?.body ?? detail?.simpleExplanation ?? item.summary,
+      authority: item.authority,
+      locator: detail?.articleNumber ?? detail?.judgmentNumber ?? "",
+      verificationStatus: item.verificationStatus,
+      status: (detail?.status as SourceStatus) ?? "valid",
+      textHash: null,
+      origin: "LIBRARY",
+      lexical,
+      popularity: item.popular ? 1 : 0,
+    });
+  }
+
+  const hits: RetrievalHit[] = candidates.map((c) => {
+    const tier = tierForSource({ sourceType: c.sourceType, title: c.title, authority: c.authority });
+    const authority = tierWeight(tier);
+    const verification = verificationWeight(c.verificationStatus);
+    const validity = statusWeight(c.status);
+    return {
+      id: c.id,
+      title: c.title,
+      sourceType: c.sourceType,
+      sourceTypeFa: c.sourceTypeFa,
+      summary: c.summary,
+      excerpt: c.excerpt,
+      score: c.lexical * 2 + authority + verification + validity + c.popularity,
+      signals: { lexical: c.lexical, authority, verification, popularity: c.popularity },
+      provenance: {
+        origin: c.origin,
+        tier,
+        tierFa: tierLabelFa(tier),
+        authority: c.authority,
+        locator: c.locator,
+        verificationStatus: c.verificationStatus,
+        textHash: c.textHash,
+        status: c.status,
+      },
+    };
+  });
+
+  hits.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.title.localeCompare(b.title, "fa");
+  });
+
+  return { hits: hits.slice(0, maxSources), tokens };
+}

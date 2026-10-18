@@ -108,6 +108,8 @@ import type {
   OrganizationAuthorizedSignatory,
   LawyerOnboardingState,
   LawyerOnboardingInput,
+  ChatToolsResponse,
+  ChatToolId,
 } from "@legalir/types";
 
 // ============================================================
@@ -281,9 +283,24 @@ export function fetchConversation(id: string): Promise<V1ConversationDetail> {
   return apiClient.get<V1ConversationDetail>(`/api/v1/conversations/${id}`);
 }
 
+/**
+ * The contextual tools the server projects for this service/conversation.
+ * Availability, the persisted selection and the rejection reasons all come
+ * from the backend — the client never decides whether a tool is usable.
+ */
+export function fetchChatTools(params: {
+  serviceType?: string | null;
+  conversationId?: string | null;
+}): Promise<ChatToolsResponse> {
+  const p = new URLSearchParams();
+  if (params.serviceType) p.set("service", params.serviceType);
+  if (params.conversationId) p.set("conversationId", params.conversationId);
+  return apiClient.get<ChatToolsResponse>(`/api/v1/chat/tools${qs(p)}`);
+}
+
 export function updateConversation(
   id: string,
-  data: { title?: string; status?: ConversationStatus }
+  data: { title?: string; status?: ConversationStatus; toolIds?: ChatToolId[] }
 ): Promise<Conversation> {
   return apiClient.patch<Conversation>(`/api/v1/conversations/${id}`, data);
 }

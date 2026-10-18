@@ -325,6 +325,18 @@ export const IconSend = createIcon(
   true
 );
 
+/**
+ * The chat composer's submit arrow. It points UP in every direction: sending
+ * is a neutral "put it in" action, so it is deliberately NOT RTL-mirrored
+ * (§4). Symmetric around the vertical axis, so it reads identically in LTR
+ * and RTL at 16–24px.
+ */
+export const IconArrowUp = createIcon(
+  "ArrowUp",
+  <path d="M12 3.2 5.2 10l1.6 1.6L11 8.4V20h2V8.4l4.2 3.2 1.6-1.6L12 3.2z" />,
+  false
+);
+
 export const IconCategory = createIcon("Category", (
   <path d="M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84zM17.5 13c-2.49 0-4.5 2.01-4.5 4.5s2.01 4.5 4.5 4.5 4.5-2.01 4.5-4.5-2.01-4.5-4.5-4.5zm0 7a2.5 2.5 0 010-5 2.5 2.5 0 010 5zM3 21.5h8v-8H3v8zm2-6h4v4H5v-4z" />
 ));

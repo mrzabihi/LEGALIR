@@ -50,6 +50,9 @@ export function createRun(params: {
   conversationId: string;
   userId: string;
   userMessageId: string;
+  /** The validated service context and tool selection this run executes. */
+  serviceType?: string | null;
+  toolIds?: string[];
 }): ChatProcessingRun {
   const now = new Date().toISOString();
   const stages = emptyStages();
@@ -68,6 +71,8 @@ export function createRun(params: {
     sourcesUsed: 0,
     requiresLawyerReview: false,
     pendingQuestions: [],
+    serviceType: params.serviceType ?? null,
+    toolIds: params.toolIds ?? [],
     error: null,
     createdAt: now,
     startedAt: now,
@@ -132,6 +137,9 @@ export function toRunView(run: ChatProcessingRun): ProcessingRunView {
     currentStage: run.currentStage,
     steps,
     pendingQuestions: run.pendingQuestions ?? [],
+    pendingFollowUps: run.pendingFollowUps ?? [],
+    serviceType: run.serviceType ?? null,
+    toolIds: run.toolIds ?? [],
     sourcesUsed: run.sourcesUsed,
     requiresLawyerReview: run.requiresLawyerReview,
     errorMessage: run.error ? userFacingError(run.error) : null,
@@ -252,6 +260,9 @@ export function waitStage(
   const questions = Array.isArray(metadata["pendingQuestions"])
     ? (metadata["pendingQuestions"] as string[])
     : run.pendingQuestions;
+  const followUps = Array.isArray(metadata["pendingFollowUps"])
+    ? (metadata["pendingFollowUps"] as ChatProcessingRun["pendingFollowUps"])
+    : run.pendingFollowUps;
   const stages = {
     ...run.stages,
     [stage]: {
@@ -265,6 +276,7 @@ export function waitStage(
     status: "waiting",
     currentStage: stage,
     pendingQuestions: questions,
+    pendingFollowUps: followUps ?? [],
   });
 }
 

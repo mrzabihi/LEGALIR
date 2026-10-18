@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { IconButton } from "@legalir/ui";
-import { IconSend, IconStop, IconAttach } from "@/lib/icons";
+import { IconArrowUp, IconStop, IconAttach } from "@/lib/icons";
 import { AttachDocumentModal } from "./attach-document-modal";
 import { ChatDocumentAttachment } from "./chat-document-attachment";
 import { MAX_CHAT_ATTACHMENTS, type V1DocumentListItem } from "@legalir/types";
@@ -203,7 +203,7 @@ export function MessageInput({
             disabled={disabled || !value.trim()}
             className="rounded-full"
           >
-            <IconSend size={20} />
+            <IconArrowUp size={20} />
           </IconButton>
         )}
       </div>

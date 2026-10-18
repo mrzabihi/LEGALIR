@@ -17,7 +17,9 @@
 //   { type: "workflow", phase, domain, intent, phaseChanged, pendingQuestions, suggestCaseCreation }
 // ============================================================
 
-import { findSessionById, touchConversation } from "@/lib/db";
+import { findSessionById, readConversations, touchConversation, writeConversations } from "@/lib/db";
+import { resolveServiceType, servicePromptOverlay, type ServiceType } from "@/lib/ai/service-context";
+import { toolRetrievalPlan, validateToolSelection } from "@/lib/ai/chat-tools";
 import {
   reserveUsage,
   completeUsage,
@@ -53,6 +55,9 @@ import {
 } from "@/lib/ai/attachments";
 import type {
   ChatAttachmentRef,
+  ChatToolId,
+  FollowUpAnswer,
+  FollowUpQuestion,
   ProcessingStage,
   StructuredResponseSection,
   V1Reference,
@@ -81,6 +86,37 @@ interface StreamRequestBody {
    * id the user does not own is dropped, never linked.
    */
   attachmentDocumentIds?: string[];
+  /**
+   * The contextual tools the user selected for this turn. Validated against
+   * the service allowlist AND the real capability check; an unavailable tool
+   * is reported back rather than silently honoured (§7, §12).
+   */
+  toolIds?: string[];
+  /**
+   * Structured answers to the follow-up questions the previous turn asked.
+   * Recorded as facts so the same question is never asked twice (§8).
+   */
+  followUpAnswers?: FollowUpAnswer[];
+}
+
+/** What the gateway resolved and validated before executing a turn. */
+interface TurnContext {
+  serviceType: ServiceType;
+  serviceRejected: boolean;
+  toolIds: ChatToolId[];
+  rejectedTools: { id: string; reasonFa: string }[];
+}
+
+function resolveTurnContext(body: StreamRequestBody): TurnContext {
+  const service = resolveServiceType(body.context?.serviceType);
+
+  const validation = validateToolSelection(service.serviceType, body.toolIds);
+  return {
+    serviceType: service.serviceType,
+    serviceRejected: service.wasRejected,
+    toolIds: validation.valid,
+    rejectedTools: validation.rejected,
+  };
 }
 
 type Emit = (data: unknown) => void;
@@ -168,7 +204,8 @@ async function streamAssistant(
   body: StreamRequestBody,
   requestId: string,
   userMessageId: string,
-  usageTransactionId: string
+  usageTransactionId: string,
+  turnContext: TurnContext
 ): Promise<void> {
   // Persist the user message first (§22 — no message loss).
   appendMessage(body.conversationId, {
@@ -196,13 +233,42 @@ async function streamAssistant(
   // Bump the conversation so it surfaces at the top of the history list.
   touchConversation(userId, body.conversationId);
 
-  // Open a processing run so every stage's latency is recorded.
+  // Open a processing run so every stage's latency is recorded. The validated
+  // service context and tool selection are part of the run record, so what
+  // actually executed is inspectable later (§11).
   createRun({
     id: requestId,
     conversationId: body.conversationId,
     userId,
     userMessageId,
+    serviceType: turnContext.serviceType,
+    toolIds: turnContext.toolIds,
   });
+
+  // Persist the conversation's service context + tool selection so a refresh
+  // (or another tab) restores exactly what the user had chosen (§2, §7).
+  const conversationRows = readConversations();
+  const conversationRow = conversationRows.find(
+    (c) => c.id === body.conversationId && c.userId === userId
+  );
+  if (conversationRow) {
+    conversationRow.serviceType = turnContext.serviceType;
+    conversationRow.toolIds = turnContext.toolIds;
+    writeConversations(conversationRows);
+  }
+
+  // Tell the client what the server actually accepted. A rejected service or
+  // unavailable tool is surfaced, never silently honoured.
+  if (turnContext.serviceRejected || turnContext.rejectedTools.length > 0) {
+    emit({
+      type: "context.validated",
+      requestId,
+      serviceType: turnContext.serviceType,
+      serviceRejected: turnContext.serviceRejected,
+      toolIds: turnContext.toolIds,
+      rejectedTools: turnContext.rejectedTools,
+    });
+  }
 
   const provider = createAiProvider();
 
@@ -229,10 +295,18 @@ async function streamAssistant(
 
   // The workflow engine extracts facts and decides whether more information
   // is needed. It runs here — before retrieval — because the questions it
-  // produces are what Stage 2 is actually doing.
-  const turn = processWorkflowTurn(workflowState, body.content, "");
+  // produces are what Stage 2 is actually doing. Structured answers carried
+  // with this message are recorded as facts first, so the same question is
+  // never asked again (§8).
+  const turn = processWorkflowTurn(
+    workflowState,
+    body.content,
+    "",
+    normalizeFollowUpAnswers(body.followUpAnswers)
+  );
   setWorkflowState(body.conversationId, turn.state);
 
+  const pendingFollowUps: FollowUpQuestion[] = turn.state.pendingFollowUps ?? [];
   const needsClarification =
     classification.requiresClarification && turn.state.pendingQuestions.length > 0;
 
@@ -241,10 +315,12 @@ async function streamAssistant(
     // It records the wait and surfaces the questions to the user.
     waitStage(requestId, "UNDERSTAND", {
       pendingQuestions: turn.state.pendingQuestions,
+      pendingFollowUps,
     });
     emitStage(emit, requestId, "stage.waiting", "UNDERSTAND", {
       status: "WAITING",
       pendingQuestions: turn.state.pendingQuestions,
+      pendingFollowUps,
     });
   } else {
     completeStage(requestId, "UNDERSTAND", {
@@ -263,6 +339,7 @@ async function streamAssistant(
     intent: turn.state.intent,
     phaseChanged: turn.phaseChanged,
     pendingQuestions: turn.state.pendingQuestions,
+    pendingFollowUps,
     suggestCaseCreation: turn.suggestCaseCreation,
   });
 
@@ -277,6 +354,10 @@ async function streamAssistant(
   };
   let retrievalFailed = false;
 
+  // The validated tool selection really changes retrieval: «تحلیل عمیق» and
+  // «پژوهش حقوقی» widen the search, «آراء قضایی» adds a precedent-scoped pass.
+  const toolPlan = toolRetrievalPlan(turnContext.toolIds);
+
   if (!classification.requiresSources) {
     // A purely informational question needs no source lookup — mark the
     // stage skipped rather than pretending a search happened.
@@ -288,7 +369,10 @@ async function streamAssistant(
     emitStage(emit, requestId, "stage.started", "RESEARCH");
     emit({ type: "retrieval.started", requestId, stage: "RESEARCH" });
     try {
-      grounding = retrieveGroundedSources(body.content, 3);
+      grounding = retrieveGroundedSources(body.content, toolPlan.maxSources, {
+        includePrecedentPass: toolPlan.includePrecedentPass,
+        maxPrecedentSources: 3,
+      });
       completeStage(requestId, "RESEARCH", { sourcesUsed: grounding.references.length });
       emit({
         type: "retrieval.completed",
@@ -348,6 +432,8 @@ async function streamAssistant(
   // when nothing was retrieved, so the model is never left to guess.
   const system = [
     turn.systemPrompt,
+    `\n\n${servicePromptOverlay(turnContext.serviceType)}`,
+    toolPlan.promptNotes.length > 0 ? `\n\n${toolPlan.promptNotes.join("\n")}` : "",
     grounding.contextBlock ? `\n\n${grounding.contextBlock}` : "",
     grounding.contract.instructionBlock
       ? `\n\n${grounding.contract.instructionBlock}`
@@ -463,7 +549,28 @@ async function streamAssistant(
     references,
     userMessageId,
     userAttachments,
+    serviceType: turnContext.serviceType,
+    toolIds: turnContext.toolIds,
+    pendingFollowUps,
   });
+}
+
+/**
+ * Keep only well-formed answers: a string id and a string value. Anything else
+ * is dropped rather than trusted — the client is not an authority on facts.
+ */
+function normalizeFollowUpAnswers(raw: unknown): FollowUpAnswer[] {
+  if (!Array.isArray(raw)) return [];
+  const answers: FollowUpAnswer[] = [];
+  for (const item of raw.slice(0, 8)) {
+    if (!item || typeof item !== "object") continue;
+    const id = (item as { id?: unknown }).id;
+    const value = (item as { value?: unknown }).value;
+    if (typeof id !== "string" || !id.trim()) continue;
+    if (typeof value !== "string") continue;
+    answers.push({ id: id.trim().slice(0, 64), value: value.trim().slice(0, 2000) });
+  }
+  return answers;
 }
 
 // ============================================================
@@ -495,6 +602,24 @@ export async function POST(request: Request) {
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
+
+  // Ownership is the backend's authority, never the client's claim. A foreign
+  // or unknown conversation is a 404 — the same response as a nonexistent one,
+  // so an id cannot be probed (§2, §10, §13).
+  const ownsConversation = readConversations().some(
+    (c) => c.id === body.conversationId && c.userId === userId
+  );
+  if (!ownsConversation) {
+    return new Response(
+      JSON.stringify({ code: "NOT_FOUND", message: "گفتگو یافت نشد" }),
+      { status: 404, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // Resolve + validate the service context and tool selection BEFORE charging
+  // the user or starting a run. An unknown service degrades to the default;
+  // an unavailable tool is excluded from execution and reported to the client.
+  const turnContext = resolveTurnContext(body);
 
   // Reserve the activity's cost atomically BEFORE doing any work. The
   // reservation is idempotent per user message, so a retried stream can
@@ -565,7 +690,8 @@ export async function POST(request: Request) {
           body,
           requestId,
           userMessageId,
-          usageTransactionId
+          usageTransactionId,
+          turnContext
         );
 
         emit({ type: "status", status: "validating" });
