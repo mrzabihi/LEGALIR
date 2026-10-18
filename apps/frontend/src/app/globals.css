@@ -2962,8 +2962,15 @@ html {
   pointer-events: none;
 }
 
+/* The measurer stacks EVERY block into one page, so without a fixed height
+   the page box grows to the whole document and `measure()` reads that as a
+   single sheet's capacity — every contract then overflows page 1 and gets
+   clipped by `overflow:hidden` in print. Pinning the box to one A4 sheet is
+   what makes the measured capacity the real per-page capacity. Block and
+   footer heights are unaffected by the clamp. */
 .a4-measurer .a4-page {
   box-shadow: none;
+  height: var(--a4-page-h);
 }
 
 /* The measurer's content box must match `.a4-page-inner` exactly, so a
