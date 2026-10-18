@@ -1,19 +1,21 @@
 // ============================================================
 // LEGALIR — Contract search card
 // ============================================================
-// The single search surface that sits directly under the page title and
-// ABOVE the view switcher. It is more than an input: it is a compact,
-// raised CARD that frames the query and, on phones, hosts the filter
-// trigger for the contracts list (filters live beside search, not in a
-// second toolbar row — so the whole top of the page stays short).
+// The search surface sits BELOW the two product-path cards and above the
+// template library. It is intentionally the quietest raised element on
+// the page: searching templates is a secondary act, so the card carries
+// no resting shadow and no permanent glow — only a thin outline that
+// takes the primary color on focus.
 //
-// The input itself is the shared `SearchField` primitive, so the field —
-// and its real label «جستجوی قرارداد» — can never drift from /cases and
-// the other list surfaces. The query stays fully controlled by the page.
+// The input itself is the shared `SearchField` primitive (a real MD3
+// outlined field with a real label, a leading glyph and a labelled clear
+// button), so it can never drift from /cases and the other list
+// surfaces. It renders at the compact 48px size: one short row, never a
+// second toolbar.
 //
-// The one decorative touch is the FOCUS glow on the card: a soft
-// primary-tinted halo that appears only while the field is focused, and
-// nowhere else on the page.
+// On phones the card also hosts the filter trigger for the contract
+// list, because filters belong beside search rather than in their own
+// row.
 // ============================================================
 
 "use client";
@@ -38,7 +40,7 @@ interface ContractSearchProps {
 export function ContractSearch({
   value,
   onChange,
-  placeholder = "جستجو در قراردادها...",
+  placeholder = "جست‌وجو در نام یا کلیدواژهٔ قرارداد؛ مثلاً اجاره، NDA",
   onSubmit,
   onOpenFilters,
   filterCount = 0,
@@ -47,10 +49,9 @@ export function ContractSearch({
   return (
     <div
       className={[
-        "flex items-center gap-2 rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-2 shadow-elevation-1",
-        "transition-[box-shadow,border-color] duration-short4 ease-standard",
-        "focus-within:border-[color:color-mix(in_srgb,var(--color-primary)_40%,transparent)]",
-        "focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-primary)_14%,transparent),0_6px_18px_-6px_color-mix(in_srgb,var(--color-primary)_30%,transparent)]",
+        "flex items-center gap-2 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface px-1 py-0.5",
+        "transition-[border-color,box-shadow] duration-short3 ease-standard",
+        "focus-within:border-primary focus-within:shadow-[0_0_0_1px_var(--color-primary)]",
         className,
       ]
         .filter(Boolean)
@@ -63,6 +64,7 @@ export function ContractSearch({
           value={value}
           onChange={onChange}
           onSubmit={onSubmit}
+          inputSize="small"
           // The card supplies its own chrome, so the field's reserved empty
           // helper row would only be dead height.
           reserveMessageSpace={false}
@@ -72,7 +74,8 @@ export function ContractSearch({
       {onOpenFilters && (
         <Button
           type="button"
-          variant="secondary"
+          variant="text"
+          size="small"
           onClick={onOpenFilters}
           startIcon={<IconFilter size={18} />}
           className="tablet:hidden relative shrink-0"

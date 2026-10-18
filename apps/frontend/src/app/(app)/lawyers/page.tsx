@@ -4,12 +4,16 @@
 // Browse verified lawyers. At the top a single filter bar gathers the search
 // box, the domain rail and the quick controls (specialty, province,
 // consultation type) plus the active-filter chips and the result count; the
-// remaining attributes live in the advanced bottom sheet. Below it the page
-// reads like a professional marketplace — a "recommended" carousel, then the
-// remaining lawyers («سایر وکلا», minus the recommended faces so nothing shows
-// twice), then one carousel per legal DOMAIN — so a ~250-lawyer roster never
-// becomes one exhausting vertical list. From `desktop` up the same sections
-// render as wider carousels and a full grid.
+// remaining attributes live in the advanced bottom sheet.
+//
+// Below it the page reads like a professional marketplace, in this order:
+//   1. «وکلای پیشنهادی» — a short curated rail (the page's only rail);
+//   2. «سایر وکلا» — the complete remaining roster as a FLAT GRID;
+//   3. one compact rail per legal DOMAIN — a topical shortcut whose
+//      «مشاهده همه» narrows the page to that domain's flat result grid.
+// The roster is therefore never reachable only through a horizontal
+// gesture: the full list is a grid, and every domain can be opened into
+// the same grid pre-filtered.
 //
 // Every filter maps 1:1 onto the /api/v1/lawyers query string (the same
 // `LawyerSearchFilters` the backend honours), and the categories are the
@@ -26,7 +30,9 @@ import { useLawyers } from "@/hooks/useLawyers";
 import { IconInfo, IconRefresh, IconHandshake, IconSparkle, IconUsers, IconClose } from "@/lib/icons";
 import {
   LawyerCard,
-  LawyerCarousel,
+  LawyerCardCompact,
+  LawyerCardCompactSkeleton,
+  LawyerCardSkeleton,
   LawyerCategorySection,
   LawyerFiltersSheet,
   LawyerFilterBar,
@@ -34,6 +40,7 @@ import {
   type LawyerFilterValues,
 } from "@/components/lawyers";
 import {
+  CardRail,
   PageContainer,
   PageIntroBanner,
   PromoPanel,
@@ -41,6 +48,21 @@ import {
 } from "@/components/shared";
 import { type LawyerSearchFilters } from "@legalir/types";
 import { groupByPrimaryDomain, featuredLawyers } from "@/lib/lawyers/grouping";
+
+/** Short, factual one-liners for the canonical practice domains. */
+/**
+ * The roster grid. One definition, used by the loading skeleton and the
+ * loaded list, so the reserved height and the final layout cannot drift.
+ */
+const ROSTER_GRID = "grid grid-cols-1 gap-4 tablet:grid-cols-2 desktop:grid-cols-3";
+
+/**
+ * Featured rail tile width. Container-relative, never viewport-relative:
+ * 2 tiles per view on phones, 3 from `tablet`, 4 from `desktop` — the
+ * hand-rolled carousel's sizing, now owned by the shared rail.
+ */
+const FEATURED_ITEM =
+  "w-[calc((100%-0.75rem)/2)] shrink-0 snap-start tablet:w-[calc((100%-1.5rem)/3)] desktop:w-[calc((100%-2.25rem)/4)]";
 
 /** Short, factual one-liners for the canonical practice domains. */
 const DOMAIN_DESCRIPTION_FA: Record<string, string> = {
@@ -172,15 +194,27 @@ export default function LawyersPage() {
       />
 
       {/* --- Loading --- */}
+      {/* The skeleton reserves the SAME shape as the loaded page: one short
+          rail, then the flat roster grid — so nothing jumps on arrival. */}
       {isLoading && (
         <div className="space-y-8">
           <section>
             <div className="mb-3 h-6 w-40 animate-pulse rounded bg-surface-container" />
-            <LawyerCarousel lawyers={[]} ariaLabel="وکلای پیشنهادی" loading skeletonCount={4} />
+            <CardRail ariaLabel="وکلای پیشنهادی" itemClassName={FEATURED_ITEM}>
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="h-full">
+                  <LawyerCardCompactSkeleton />
+                </div>
+              ))}
+            </CardRail>
           </section>
           <section>
             <div className="mb-3 h-6 w-48 animate-pulse rounded bg-surface-container" />
-            <LawyerCarousel lawyers={[]} ariaLabel="در حال بارگذاری" loading skeletonCount={4} />
+            <div className={ROSTER_GRID}>
+              {Array.from({ length: 6 }, (_, i) => (
+                <LawyerCardSkeleton key={i} />
+              ))}
+            </div>
           </section>
         </div>
       )}
@@ -239,7 +273,7 @@ export default function LawyersPage() {
               پاک کردن فیلترها
             </Button>
           </div>
-          <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 desktop:grid-cols-3">
+          <div className={ROSTER_GRID}>
             {items.map((lawyer) => (
               <LawyerCard key={lawyer.id} lawyer={lawyer} />
             ))}
@@ -250,7 +284,9 @@ export default function LawyersPage() {
       {/* --- Grouped marketplace (default view) --- */}
       {!isLoading && !isError && items.length > 0 && !isFiltering && (
         <div>
-          {/* Featured / recommended */}
+          {/* Featured / recommended — the ONE rail on this page. It is
+              short and curated, so a rail reads as a highlighted shelf
+              rather than as a container the roster is hidden inside. */}
           {featured.length > 0 && (
             <section className="mb-8">
               <SectionHeader
@@ -258,15 +294,30 @@ export default function LawyersPage() {
                 title="وکلای پیشنهادی"
                 description="بر اساس تخصص، تجربه و امتیاز کاربران"
               />
-              <LawyerCarousel lawyers={featured} ariaLabel="وکلای پیشنهادی" />
+              <CardRail ariaLabel="وکلای پیشنهادی" itemClassName={FEATURED_ITEM}>
+                {featured.map((lawyer) => (
+                  <div key={lawyer.id} className="h-full">
+                    <LawyerCardCompact lawyer={lawyer} />
+                  </div>
+                ))}
+              </CardRail>
             </section>
           )}
 
-          {/* سایر وکلا — everyone not already shown in «وکلای پیشنهادی» */}
+          {/* سایر وکلا — the complete remaining roster as a flat, scannable
+              GRID. This is the page's main list: everyone not already on
+              the featured shelf, reachable without a horizontal gesture. */}
           {rest.length > 0 && (
             <section className="mb-8">
-              <SectionHeader title={restLabel} />
-              <LawyerCarousel lawyers={rest} ariaLabel={restLabel} />
+              <SectionHeader
+                title={restLabel}
+                description="همهٔ وکلا به‌جز موارد نمایش‌داده‌شده در بالا؛ برای محدودکردن، جستجو یا فیلتر کنید."
+              />
+              <div className={ROSTER_GRID}>
+                {rest.map((lawyer) => (
+                  <LawyerCard key={lawyer.id} lawyer={lawyer} />
+                ))}
+              </div>
             </section>
           )}
 

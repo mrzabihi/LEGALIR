@@ -38,6 +38,12 @@ export interface SearchFieldProps {
    * row would add dead height.
    */
   reserveMessageSpace?: boolean;
+  /**
+   * Field height. `small` (48px) keeps a search card compact when it sits
+   * below the page's primary content; list pages keep the MD3 `medium`
+   * default (56px).
+   */
+  inputSize?: "small" | "medium";
 }
 
 export function SearchField({
@@ -49,6 +55,7 @@ export function SearchField({
   className = "",
   autoFocus = false,
   reserveMessageSpace = true,
+  inputSize = "medium",
 }: SearchFieldProps) {
   return (
     <div className={`w-full ${className}`}>
@@ -61,7 +68,8 @@ export function SearchField({
           if (e.key === "Enter") onSubmit?.();
         }}
         placeholder={placeholder}
-        leadingIcon={<IconSearch size={20} />}
+        inputSize={inputSize}
+        leadingIcon={<IconSearch size={inputSize === "small" ? 18 : 20} />}
         endAdornment={
           value ? (
             <button

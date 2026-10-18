@@ -40,6 +40,7 @@ playwright-report/
 # QA artifacts — screenshots and audit captures, never part of the app
 apps/frontend/.audit/
 apps/frontend/e2e/__shots__/
+apps/frontend/redesign-shots/
 e2e/__shots__/
 debug.log
 # Lint-run scratch output written by tooling; never source

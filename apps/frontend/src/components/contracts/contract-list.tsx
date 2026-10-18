@@ -50,7 +50,7 @@ import {
 import { trackContractEvent } from "@/lib/contracts/analytics";
 import type { ContractDefinition } from "@/lib/contracts/registry";
 import { ContractSearch } from "./contract-search";
-import { ContractCategoryChips } from "./contract-category-chips";
+import { ContractCategoryGrid } from "./contract-category-grid";
 import { ContractTemplateGrid } from "./contract-template-grid";
 import { ContractTemplatePreview } from "./contract-template-preview";
 import { MyContractsSection } from "./my-contracts-section";
@@ -146,6 +146,15 @@ export function ContractList({ headerSlot }: ContractListProps) {
     trackContractEvent("contract_search_performed", { query: searchInput });
     if (searchInput !== filters.query) setFilters({ ...filters, query: searchInput });
   };
+
+  // The empty state's «پاک کردن جست‌وجو»: clears the field AND the URL in
+  // the same tick, so the grid cannot re-apply the cleared query from the
+  // stale debounce.
+  const clearQuery = React.useCallback(() => {
+    selfWrittenQuery.current = "";
+    setSearchInput("");
+    setFilters({ ...filters, query: "" });
+  }, [filters, setFilters]);
 
   const setCategory = (value: TemplateCategory) => {
     writeParams((params) => {
@@ -262,11 +271,13 @@ export function ContractList({ headerSlot }: ContractListProps) {
           <p className="text-body-2 text-on-surface-variant">
             قرارداد موردنظرت را انتخاب و تدوین را شروع کن.
           </p>
-          {/* The category chips sit one small step below the intro, so the
-              heading, the one-line helper and the filters read as one block
-              rather than three stacked rows. */}
+          {/* The category grid sits one small step below the intro, so the
+              heading, the one-line helper and the buckets read as one block
+              rather than three stacked rows. Each tile carries its real
+              template count, so the grid is a browsing decision — the rail
+              below stays the single place a contract is actually started. */}
           <div className="pt-1.5">
-            <ContractCategoryChips value={category} onChange={setCategory} />
+            <ContractCategoryGrid value={category} onChange={setCategory} />
           </div>
         </div>
 
@@ -276,6 +287,7 @@ export function ContractList({ headerSlot }: ContractListProps) {
           onStart={handleStart}
           onPreview={setPreviewed}
           startingTypeId={startingTypeId}
+          onClearQuery={clearQuery}
         />
       </section>
 

@@ -38,3 +38,11 @@ export { ResultsBar, type ResultsBarProps, type ActiveFilter } from "./results-b
 // between sections never re-flows the content column.
 export { PageContainer } from "./page-container";
 export { SectionHeader, type SectionHeaderProps } from "./section-header";
+
+// --- Shared browse primitives (Category Grid · Carousel · Promo Card) ---
+// One rail, one category cell and one promo panel, reused by the
+// /contracts, /calculators and /lawyers catalogs so the three browse
+// surfaces share a single scrolling/RTL/keyboard implementation.
+export { CardRail, type CardRailProps } from "./card-rail";
+export { CategoryTile, type CategoryTileProps } from "./category-tile";
+export { PromoCard, type PromoCardProps } from "./promo-card";
