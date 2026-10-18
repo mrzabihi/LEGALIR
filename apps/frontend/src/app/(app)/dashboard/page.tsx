@@ -26,6 +26,7 @@ import {
   ProfileCompletionPromptModal,
 } from "@/features/profile-completion-prompt";
 import Link from "next/link";
+import { buttonClasses } from "@legalir/ui";
 import { getServiceById } from "@/lib/services";
 import { PageContainer, PromoModule, SectionHeader } from "@/components/shared";
 import { DiscoveryEntryCard } from "@/components/services";
@@ -105,6 +106,15 @@ export default function DashboardPage() {
       />
 
       {/* ── 3) ONGOING WORK ─────────────────────────────────── */}
+      {/* One group heading names the block, so the page reads as a sequence
+          of labelled groups rather than an unbroken stack of cards. The
+          heading is purely structural — the three cards keep their own
+          headers, data and «مشاهده همه» links untouched. */}
+      <SectionHeader
+        id="ongoing-work-title"
+        title="کارهای در جریان"
+        description="آخرین فعالیت‌ها، درخواست‌های فعال و پیشنهادهای هوشمند"
+      />
       {/* Three cards share one equal-height row on desktop; each card owns its
           own header (icon + title + subtitle + «مشاهده همه»). */}
       <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-3 items-stretch gap-4 mb-6">
@@ -190,7 +200,10 @@ export default function DashboardPage() {
         {blogLoading ? (
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-32 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] skeleton-shimmer" />
+              <div
+                key={i}
+                className="h-32 rounded-large border border-[color:var(--color-outline-variant)] bg-surface-container-low skeleton-shimmer"
+              />
             ))}
           </div>
         ) : blog.data?.items && blog.data.items.length > 0 ? (
@@ -199,25 +212,27 @@ export default function DashboardPage() {
               <Link
                 key={post.id}
                 href={`/blog/${post.slug}`}
-                className="group rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-5 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary-200 transition-all duration-200 flex flex-col"
+                className="group flex flex-col rounded-large border border-[color:var(--color-outline-variant)] bg-surface-container-low p-5 shadow-elevation-1 transition-[box-shadow,border-color] duration-short4 ease-standard hover:border-[color:var(--color-outline)] hover:shadow-elevation-3"
               >
-                <span className="inline-flex items-center gap-1 w-fit text-caption text-secondary-700 bg-secondary-50 border border-[color-mix(in_srgb,var(--color-secondary-200)_60%,transparent)] rounded-full px-2.5 py-0.5 mb-3">
+                {/* Category pill lives in the gold family, the one accent the
+                    blog owns, so it never competes with a status chip. */}
+                <span className="mb-3 inline-flex w-fit items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--color-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-secondary)_10%,transparent)] px-2.5 py-0.5 text-caption text-[color:var(--color-secondary)]">
                   {post.category}
                 </span>
-                <h3 className="text-body-1 text-on-surface font-semibold mb-2 group-hover:text-primary-700 transition-colors line-clamp-2 leading-snug">
+                <h3 className="mb-2 line-clamp-2 text-body-1 font-semibold leading-snug text-on-surface transition-colors group-hover:text-primary">
                   {post.titleFa}
                 </h3>
-                <p className="text-caption text-muted leading-relaxed line-clamp-2 flex-1">
+                <p className="line-clamp-2 flex-1 text-caption leading-relaxed text-muted">
                   {post.excerpt}
                 </p>
-                <span className="text-caption text-neutral-400 mt-3 tabular-nums">
+                <span className="mt-3 text-caption tabular-nums text-muted">
                   {post.readingTime} دقیقه مطالعه
                 </span>
               </Link>
             ))}
           </div>
         ) : (
-          <div className="rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-6 text-center">
+          <div className="rounded-large border border-[color:var(--color-outline-variant)] bg-surface-container-low p-6 text-center">
             <p className="text-body-2 text-muted">هنوز مطلبی در وبلاگ منتشر نشده است.</p>
           </div>
         )}
@@ -225,9 +240,9 @@ export default function DashboardPage() {
 
       {/* Empty state CTA when no activity exists */}
       {hasNoActivity && (
-        <section className="mb-6 rounded-large bg-surface border border-[color-mix(in_srgb,var(--color-divider)_60%,transparent)] p-8 text-center">
+        <section className="mb-6 rounded-large border border-[color:var(--color-outline-variant)] bg-surface-container-low p-8 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-large bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-elevation-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-large bg-[linear-gradient(135deg,var(--brand-teal)_0%,var(--brand-green)_100%)] shadow-elevation-2">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
@@ -235,14 +250,14 @@ export default function DashboardPage() {
               </svg>
             </div>
           </div>
-          <h2 className="text-h3 text-onSurface mb-3">شروع کنید!</h2>
-          <p className="text-body-1 text-muted mb-6 max-w-lg mx-auto">
+          <h2 className="mb-3 text-h3 text-on-surface">شروع کنید!</h2>
+          <p className="mx-auto mb-6 max-w-lg text-body-1 text-muted">
             هنوز فعالیتی ثبت نشده است. یکی از گزینه‌های زیر را انتخاب کنید تا با LEGALIR شروع به کار کنید.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href={getServiceById("legal_consultation")?.href ?? "/chat"}
-              className="inline-flex items-center gap-2 rounded-medium bg-primary text-primary-on px-5 py-2.5 text-body-2 font-medium hover:bg-primary-600 hover:text-white transition-colors touch-target shadow-elevation-1"
+              className={buttonClasses({ className: "px-5", size: "large" })}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -251,7 +266,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href={getServiceById("document_analysis")?.href ?? "/documents"}
-              className="inline-flex items-center gap-2 rounded-medium border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
+              className={buttonClasses({ variant: "outlined", size: "large", className: "px-5" })}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -261,7 +276,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href={getServiceById("contract_drafting")?.href ?? "/contracts"}
-              className="inline-flex items-center gap-2 rounded-medium border border-divider px-5 py-2.5 text-onSurface text-body-2 font-medium hover:bg-neutral-50 transition-colors touch-target"
+              className={buttonClasses({ variant: "outlined", size: "large", className: "px-5" })}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

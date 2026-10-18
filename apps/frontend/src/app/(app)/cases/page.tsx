@@ -17,7 +17,15 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { TextField, Textarea, Select, Dialog, Button, snackbar } from "@legalir/ui";
+import {
+  TextField,
+  Textarea,
+  Select,
+  Dialog,
+  Button,
+  snackbar,
+  buttonClasses,
+} from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
 import { toPersianDate } from "@/lib/persian-utils";
@@ -62,6 +70,24 @@ const PRIORITY_TONE: Record<CasePriority, StatusTone> = {
   medium: "info",
   high: "warning",
   urgent: "error",
+};
+
+/**
+ * The leading tile's fill, derived from the SAME status the badge names —
+ * so a row's state is legible from the edge of the list before any word is
+ * read. The badge always repeats it in text, so colour is never the only
+ * carrier of meaning.
+ */
+const CASE_TILE_TONE: Record<CaseStatus, string> = {
+  DRAFT: "bg-surface-container text-on-surface-variant",
+  ACTIVE: "bg-info-container text-info",
+  UNDER_REVIEW: "bg-warning-container text-warning",
+  WAITING_DOCUMENTS: "bg-warning-container text-warning",
+  // `selected-text` is the readable-on-tint tone; `selected` itself is the
+  // 3:1 fill and would not pass as text on its own pale background.
+  LAWYER_ASSIGNED: "bg-control-selected-surface text-control-selected-text",
+  CLOSED: "bg-success-container text-success",
+  ARCHIVED: "bg-surface-container text-on-surface-variant",
 };
 
 // ============================================================
@@ -446,30 +472,27 @@ export default function CasesPage() {
 
           <div className="space-y-2.5">
             {cases.map((c) => (
+              // Three zones, identical at every width — identity, status,
+              // action — so the eye can run down one column instead of
+              // re-reading each card. On phones identity takes the first
+              // line and status + action share the second.
               <article
                 key={c.id}
-                className="flex flex-col gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:grid-cols-[minmax(0,1fr)_9.5rem_auto] tablet:gap-x-5 tablet:p-4"
               >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
+                {/* --- Identity --- */}
+                <div className="col-span-2 flex min-w-0 items-center gap-3 tablet:col-span-1">
                   <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary-on-container"
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${CASE_TILE_TONE[c.status]}`}
                     aria-hidden="true"
                   >
                     <IconBalance size={20} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
-                        {c.title}
-                      </h3>
-                      <StatusBadge label={CASE_STATUS_FA[c.status]} tone={CASE_STATUS_TONE[c.status]} />
-                      <StatusBadge
-                        label={CASE_PRIORITY_FA[c.priority]}
-                        tone={PRIORITY_TONE[c.priority]}
-                        dot={false}
-                      />
-                    </div>
+                    <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
+                      {c.title}
+                    </h3>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
                       <span className="font-medium text-on-surface-variant">{CASE_CATEGORY_FA[c.category]}</span>
@@ -497,10 +520,21 @@ export default function CasesPage() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
+                {/* --- Status (its own column, aligned across rows) --- */}
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 tablet:flex-col tablet:items-start tablet:gap-1">
+                  <StatusBadge label={CASE_STATUS_FA[c.status]} tone={CASE_STATUS_TONE[c.status]} />
+                  <StatusBadge
+                    label={CASE_PRIORITY_FA[c.priority]}
+                    tone={PRIORITY_TONE[c.priority]}
+                    dot={false}
+                  />
+                </div>
+
+                {/* --- Action --- */}
+                <div className="flex shrink-0 items-center justify-end gap-1.5 tablet:border-s tablet:border-divider tablet:ps-5">
                   <Link
                     href={`/cases/${c.id}`}
-                    className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+                    className={buttonClasses()}
                   >
                     مشاهده پرونده
                   </Link>

@@ -6,6 +6,7 @@ export { ContractList } from "./contract-list";
 export { ContractTypeGrid } from "./type-grid";
 
 // --- Contracts page (v0.6) — template library + my contracts ---
+export { ContractPathCards } from "./contract-path-cards";
 export { ContractSearch } from "./contract-search";
 export { ContractCategoryChips } from "./contract-category-chips";
 export { ContractTemplateCard } from "./contract-template-card";

@@ -34,6 +34,7 @@ import { toPersianNumber } from "@/lib/persian-utils";
 import { ContractList } from "./contract-list";
 import { ContractCatalog } from "./catalog";
 import { ContractsPageHeader } from "./contracts-page-header";
+import { ContractPathCards } from "./contract-path-cards";
 import { PageContainer } from "@/components/shared/page-container";
 
 const ID_BASE = "contracts-view";
@@ -89,6 +90,13 @@ export function ContractsHub() {
           when the user switches — the brief's "header stays fixed". It is
           the same `ContractsPageHeader` the workspace has always used. */}
       <ContractsPageHeader />
+
+      {/* The page's TWO product paths — the primary content. They sit
+          directly under the title and ABOVE the search, because choosing
+          "build or review" is the first decision; searching the template
+          library only makes sense after that. Rendered outside the view
+          panels, so switching views never moves them. */}
+      <ContractPathCards className="mt-3 tablet:mt-4" />
 
       {/* Active view — the workspace (my contracts + template library). */}
       {view === "active" ? (

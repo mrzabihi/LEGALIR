@@ -6,25 +6,24 @@
 // rendered ABOVE the two-tab switcher, so it stays pixel-identical when
 // the user switches between «قراردادهای فعال» and «بزودی».
 //
-// The header hosts TWO services that must never be confused:
+// The page offers TWO services that must never be confused:
 //
-//   • تنظیم پیش‌نویس  — build a new contract from a template
-//   • بررسی قرارداد   — have an EXISTING contract analysed by AI
+//   • تنظیم قرارداد  — build a new contract from a template
+//   • بررسی قرارداد  — have an EXISTING contract analysed
 //
-// so it states the job in one sentence and offers the two entry points as
-// a primary and a secondary action, both real navigations.
+// Those two entries are now large, distinct PATH CARDS rendered directly
+// below this header (`ContractPathCards`), so the identity block itself
+// stays a quiet title: breadcrumb, one H1, one short line. The cards own
+// the destinations; the header never duplicates them as small pills.
 //
-// It is a thin wrapper over the shared `PageIntroBanner`: the compact
-// identity banner (breadcrumb + icon + title + description + actions) used
-// across the product, so this page can never drift from the rest.
+// It is a thin wrapper over the shared `CompactPageHeader`, so this page
+// can never drift from the rest of the list surfaces.
 // ============================================================
 
 "use client";
 
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { resolveService } from "@/lib/services";
-import { IconFilePen, IconFileSearch } from "@/lib/icons";
 import { CompactPageHeader } from "@/components/shared";
 
 interface ContractsPageHeaderProps {
@@ -53,24 +52,6 @@ export function ContractsPageHeader({ className = "" }: ContractsPageHeaderProps
       // One short line, not the old two-clause sentence — the page is
       // scan-oriented, and a single line keeps the whole header low.
       description="قراردادهای حقوقی موردنیاز شما"
-      actions={
-        <>
-          <Link
-            href="/contracts/new"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-5 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-          >
-            <IconFilePen size={20} aria-hidden="true" />
-            تنظیم پیش‌نویس جدید
-          </Link>
-          <Link
-            href="/contracts/review"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[color:var(--color-outline-variant)] px-5 text-labelLarge font-medium text-on-surface transition-colors duration-short3 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-          >
-            <IconFileSearch size={20} aria-hidden="true" />
-            بررسی یک قرارداد
-          </Link>
-        </>
-      }
     />
   );
 }

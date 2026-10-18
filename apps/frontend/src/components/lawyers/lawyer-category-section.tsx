@@ -7,6 +7,13 @@
 // optional description + a «مشاهده همه» affordance) over a horizontal
 // carousel of compact tiles.
 //
+// This block is a TOPICAL SHORTCUT, not the roster. The complete, flat
+// list of every lawyer lives in the grid above it, so nothing is only
+// reachable by scrolling this rail; «مشاهده همه» narrows the page to that
+// domain's flat result grid. Keeping the shortcut compact is what makes
+// twenty practice areas readable on a phone without turning the page into
+// a forty-row wall of cards.
+//
 // Each section is a visually distinct card — a tinted, bordered container
 // with a soft brand wash at the top edge and a gradient accent bar beside
 // the title — so consecutive categories read as separate blocks rather

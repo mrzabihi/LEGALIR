@@ -5,10 +5,11 @@
 // actually needs it:
 //
 //   1. intro + prominent search
-//   2. filter chips (category + legal standing)
-//   3. «دسترسی سریع» — a grid of six real calculators, one per category
-//   4. «محاسبه‌گرهای پیشنهادی» — a curated horizontal row
-//   5. one horizontal row per real category, each with its own banner
+//   2. filter controls (category + legal standing)
+//   3. Category Grid — one tile per real category, with its real count
+//   4. «دسترسی سریع» — a grid of six real calculators, one per category
+//   5. «محاسبه‌گرهای پیشنهادی» — the one rail: a short, curated set
+//   6. one flat grid per real category, each under its own banner
 //
 // While a query or a filter is active the browse sections are replaced
 // by a flat, scannable result grid — you are either browsing or
@@ -16,9 +17,13 @@
 //
 // Everything on this page derives from the calculator registry via
 // `@/lib/calculators/catalog`, so a new calculator appears here with no
-// edit to this file. The page is wrapped in `overflow-x-clip` and every
-// horizontal rail is clipped by its own track, so the page itself never
+// edit to this file. The page is wrapped in `overflow-x-clip` and the one
+// remaining rail is clipped by its own track, so the page itself never
 // scrolls sideways on a phone.
+//
+// NOTHING in this file touches a formula, an input, an output or a
+// validation rule: every calculator's own page and engine are untouched,
+// and every card still links to its unchanged `/calculators/{slug}` path.
 // ============================================================
 
 "use client";
@@ -41,9 +46,33 @@ import {
   CalculatorCard,
   CalculatorCategoryBanner,
   CalculatorControls,
-  CalculatorRow,
 } from "@/components/calculators";
-import { PageContainer, PageIntroBanner, SectionHeader } from "@/components/shared";
+import {
+  CardRail,
+  CategoryTile,
+  PageContainer,
+  PageIntroBanner,
+  SectionHeader,
+} from "@/components/shared";
+import type { CalculatorCategoryTone } from "@/lib/calculators/catalog";
+
+/**
+ * One accent per semantic tone, resolved from tokens (never a hex), so a
+ * category tile matches the tone its section banner already uses and dark
+ * mode follows for free. Brand hues are preferred where they coincide.
+ */
+const CATEGORY_ACCENT: Record<CalculatorCategoryTone, string> = {
+  primary: "var(--color-primary)",
+  secondary: "var(--brand-gold)",
+  success: "var(--brand-green)",
+  warning: "var(--brand-gold)",
+  error: "var(--color-error)",
+  info: "var(--color-info)",
+  neutral: "var(--brand-teal)",
+};
+
+/** The suggested rail keeps one card width at every breakpoint. */
+const SUGGESTED_ITEM = "w-[240px] shrink-0 snap-start tablet:w-[256px]";
 
 export default function CalculatorsPage() {
   const [query, setQuery] = useState("");
@@ -59,6 +88,10 @@ export default function CalculatorsPage() {
 
   const trimmed = query.trim();
   const isFiltering = trimmed.length > 0 || category !== "all" || status !== "all";
+  // Widened back to `string` so the browse branch (where TS can prove the
+  // filter is off) can still compare it against a tile id without the
+  // compiler collapsing the comparison.
+  const activeCategoryId: string = category;
 
   const results = useMemo(
     () => (isFiltering ? applyCalculatorQuery(allCards, trimmed, { category, status }) : []),
@@ -156,7 +189,47 @@ export default function CalculatorsPage() {
       ) : (
         <>
           {/* ============================================================
-              2. Quick access — six real calculators, one per category
+              2. Category grid — one tile per category that actually has
+                 calculators, with its real count. Selecting a tile applies
+                 the SAME category filter the dropdown writes, so the page
+                 switches to its flat result grid without a new code path.
+              ============================================================ */}
+          <section aria-labelledby="categories-title" className="mb-10">
+            <SectionHeader
+              id="categories-title"
+              title="دسته‌بندی محاسبه‌گرها"
+              description="موضوع حقوقی خود را انتخاب کنید تا محاسبه‌گرهای همان دسته نمایش داده شوند."
+            />
+            <div
+              role="group"
+              aria-label="دسته‌بندی محاسبه‌گرها"
+              className="grid grid-cols-2 gap-2.5 tablet:grid-cols-3 desktop:grid-cols-4"
+            >
+              {groups.map((group) => {
+                const Icon = group.meta.icon;
+                return (
+                  <CategoryTile
+                    key={group.meta.id}
+                    label={group.meta.title}
+                    description={group.meta.description}
+                    countLabel={`${group.items.length.toLocaleString("fa-IR")} محاسبه‌گر`}
+                    icon={<Icon size={20} />}
+                    accent={CATEGORY_ACCENT[group.meta.tone]}
+                    selected={activeCategoryId === group.meta.id}
+                    onClick={() =>
+                      // Selecting a category reuses the existing filter, so
+                      // the page switches to its flat result grid exactly as
+                      // it does from the dropdown.
+                      setCategory(activeCategoryId === group.meta.id ? "all" : group.meta.id)
+                    }
+                  />
+                );
+              })}
+            </div>
+          </section>
+
+          {/* ============================================================
+              3. Quick access — six real calculators, one per category
               ============================================================ */}
           <section aria-labelledby="quick-access-title" className="mb-10">
             <SectionHeader
@@ -192,7 +265,9 @@ export default function CalculatorsPage() {
           </section>
 
           {/* ============================================================
-              3. Suggested — a curated horizontal row
+              4. Suggested — the one place a rail is appropriate: a short,
+                 curated set. The complete list is always one link away and
+                 lives in a flat grid, never behind a slider.
               ============================================================ */}
           {suggested.length > 0 && (
             <section aria-labelledby="suggested-title" className="mb-10">
@@ -201,7 +276,11 @@ export default function CalculatorsPage() {
                 title="محاسبه‌گرهای پیشنهادی"
                 description="انتخاب‌شده‌ای از محاسبه‌گرهای پراستفاده"
               />
-              <CalculatorRow items={suggested} ariaLabel="محاسبه‌گرهای پیشنهادی" />
+              <CardRail ariaLabel="محاسبه‌گرهای پیشنهادی" itemClassName={SUGGESTED_ITEM}>
+                {suggested.map((card) => (
+                  <CalculatorCard key={card.slug} card={card} />
+                ))}
+              </CardRail>
             </section>
           )}
 
@@ -210,12 +289,22 @@ export default function CalculatorsPage() {
               ============================================================ */}
           {groups.map((group) => (
             <section key={group.meta.id} aria-label={group.meta.title} className="mb-10">
+              {/* The banner keeps its count and its route to the full,
+                  pre-filtered list, so every calculator in the category is
+                  reachable without touching a rail. */}
               <CalculatorCategoryBanner meta={group.meta} count={group.items.length} />
-              <CalculatorRow
-                items={group.items}
-                ariaLabel={`محاسبه‌گرهای دسته ${group.meta.title}`}
-                className="mt-3"
-              />
+              {/* A category is a flat, scannable grid — never a carousel.
+                  Every card is a real link to its own calculator page. */}
+              <ul
+                aria-label={`محاسبه‌گرهای دسته ${group.meta.title}`}
+                className="mt-3 grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4"
+              >
+                {group.items.map((card) => (
+                  <li key={card.slug} className="h-full">
+                    <CalculatorCard card={card} />
+                  </li>
+                ))}
+              </ul>
             </section>
           ))}
         </>
