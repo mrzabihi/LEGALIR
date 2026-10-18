@@ -28,9 +28,17 @@ import type {
 import {
   CONTRACT_ADMIN_REVIEW_STATUS_FA,
   SIGNATURE_ASSURANCE_LABELS_FA,
+  SIGNATURE_ATTESTATION_CHANNEL_FA,
   SIGNATURE_SIGN_METHOD_FA,
 } from "@legalir/types";
-import { useAdminContract, useAdminContractReview, useAdminMe } from "@/hooks/useAdmin";
+import type { SignatureAttestationChannel } from "@legalir/types";
+import {
+  useAdminContract,
+  useAdminContractAttestation,
+  useAdminContractReview,
+  useAdminMe,
+  useAdminResendInvitations,
+} from "@/hooks/useAdmin";
 import { ContractStampPanel } from "./contract-stamp-panel";
 import {
   Badge,
@@ -39,9 +47,10 @@ import {
   Field,
   InfoBanner,
   LoadingBlock,
+  Select,
   TextArea,
 } from "@/components/admin/ui";
-import { IconCheckCircle, IconClose, IconDocument, IconShield } from "@/lib/icons";
+import { IconCheckCircle, IconClose, IconCopy, IconDocument, IconShield } from "@/lib/icons";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 
 /** The Persian label for each decision. */
@@ -93,6 +102,13 @@ const INVITATION_STATUS_FA: Record<string, string> = {
   EXPIRED: "منقضی‌شده",
 };
 
+/** The review state of a legal citation, in Persian. */
+const CITATION_STATUS_FA: Record<string, string> = {
+  reviewed: "بازبینی‌شده",
+  pending: "در انتظار بازبینی",
+  needs_revision: "نیازمند اصلاح",
+};
+
 /** Actions that require a written reason before they may be submitted. */
 const REASON_REQUIRED: ContractAdminReviewAction[] = ["reject", "request_info", "cancel"];
 
@@ -130,6 +146,22 @@ export function ContractDetailDrawer({
   const [reason, setReason] = useState("");
   const [pendingConfirm, setPendingConfirm] = useState<ContractAdminReviewAction | null>(null);
 
+  // The attestation form: an admin's VERIFICATION of a signature a party
+  // already gave. It never alters the party's status or the contract state.
+  const attestation = useAdminContractAttestation();
+  const [attestationParticipantId, setAttestationParticipantId] = useState("");
+  const [attestationChannel, setAttestationChannel] =
+    useState<SignatureAttestationChannel>("party_link");
+  const [attestationNote, setAttestationNote] = useState("");
+
+  // The per-party resend (§5). One party at a time; the raw link is shown
+  // exactly for the parties whose SMS did NOT go out.
+  const resend = useAdminResendInvitations();
+  const [resendingParticipantId, setResendingParticipantId] = useState<string | null>(null);
+  const [handoverLinks, setHandoverLinks] = useState<
+    Record<string, { token: string; expiresAt: string }>
+  >({});
+
   const data = detail.data;
   const events = data?.adminReview?.events ?? [];
   // The decision panel only appears while a review is PENDING; a decision can
@@ -159,6 +191,89 @@ export function ContractDetailDrawer({
       snackbar.show({ message: errMessage(err, "ثبت بررسی ناموفق بود"), variant: "error" });
       setActiveAction(null);
       setPendingConfirm(null);
+    }
+  }
+
+  /**
+   * Record that an admin checked a signature the PARTY gave. The origin
+   * (channel) and the note are mandatory; the server refuses a party who
+   * has not signed, and never changes any status from here.
+   */
+  async function submitAttestation() {
+    if (!contractId || !attestationParticipantId) return;
+    const noteFa = attestationNote.trim();
+    if (noteFa.length < 5) {
+      snackbar.show({
+        message: "بنویسید دقیقاً چه چیزی را بررسی کردید (حداقل ۵ نویسه).",
+        variant: "warning",
+      });
+      return;
+    }
+    try {
+      await attestation.mutateAsync({
+        id: contractId,
+        input: { participantId: attestationParticipantId, channel: attestationChannel, noteFa },
+      });
+      snackbar.show({
+        message: "تأییدیهٔ بررسی ثبت شد. وضعیت طرف و قرارداد تغییری نکرد.",
+        variant: "success",
+      });
+      setAttestationNote("");
+      setAttestationParticipantId("");
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "ثبت تأییدیهٔ بررسی ناموفق بود"), variant: "error" });
+    }
+  }
+
+  /**
+   * Resend the signature link to ONE party. The server revokes that party's
+   * previous ACTIVE link in the same call, so two working links can never
+   * coexist. Delivery is REAL: a failed SMS yields a handover link here
+   * instead of a claim that a message went out.
+   */
+  async function resendToParticipant(participantId: string, roleFa: string) {
+    if (!contractId) return;
+    setResendingParticipantId(participantId);
+    try {
+      const result = await resend.mutateAsync({
+        id: contractId,
+        input: { participantIds: [participantId] },
+      });
+      const invitation = result.invitations[0];
+      if (invitation && !invitation.delivered) {
+        setHandoverLinks((prev) => ({
+          ...prev,
+          [participantId]: { token: invitation.token, expiresAt: invitation.expiresAt },
+        }));
+        snackbar.show({
+          message: `ارسال پیامک برای ${roleFa} انجام نشد. لینک را دستی تحویل دهید.`,
+          variant: "warning",
+        });
+      } else if (invitation) {
+        snackbar.show({
+          message: `لینک تازه برای ${roleFa} ارسال شد${
+            invitation.channel === "dev-console" ? " (خروجی توسعه — پیامک واقعی نبود)" : ""
+          }.`,
+          variant: "success",
+        });
+      }
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "ارسال مجدد لینک ناموفق بود"), variant: "error" });
+    } finally {
+      setResendingParticipantId(null);
+    }
+  }
+
+  /** Copy the one-time handover link so the operator can send it directly. */
+  async function copyHandoverLink(token: string) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/contracts/sign/${token}`);
+      snackbar.show({ message: "لینک کپی شد.", variant: "success" });
+    } catch {
+      snackbar.show({
+        message: "کپی لینک در این مرورگر ممکن نبود؛ لینک را دستی انتخاب کنید.",
+        variant: "warning",
+      });
     }
   }
 
@@ -417,6 +532,79 @@ export function ContractDetailDrawer({
               </Section>
             )}
 
+            {/* --- §7 per-type legal review: source, version, review state --- */}
+            <Section title="وضعیت بازبینی حقوقی این نوع قرارداد">
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <Badge tone="success" dot>
+                  بازبینی‌شده: {toPersianNumber(data.legalReview.reviewedClauseCount)}
+                </Badge>
+                <Badge tone="warning" dot>
+                  در انتظار: {toPersianNumber(data.legalReview.pendingClauseCount)}
+                </Badge>
+                <Badge tone="danger" dot>
+                  نیازمند اصلاح: {toPersianNumber(data.legalReview.needsRevisionCount)}
+                </Badge>
+                <Badge tone="neutral" dot>
+                  بدون منبع: {toPersianNumber(data.legalReview.unflaggedCount)}
+                </Badge>
+              </div>
+              <ul className="space-y-1.5">
+                {data.legalReview.clauses.map((clause) => {
+                  const stored = clause.records.length > 0;
+                  const rows = stored
+                    ? clause.records.map((r) => ({
+                        key: r.id,
+                        articleFa: r.articleFa,
+                        sourceNameFa: r.sourceNameFa,
+                        status: r.status,
+                        contentVersion: r.contentVersion as number | null,
+                      }))
+                    : clause.seeded.map((s, i) => ({
+                        key: `${clause.clauseId}-${i}`,
+                        articleFa: s.articleFa,
+                        sourceNameFa: s.sourceNameFa,
+                        status: s.status,
+                        contentVersion: null as number | null,
+                      }));
+                  if (rows.length === 0) {
+                    return (
+                      <li
+                        key={clause.clauseId}
+                        className="rounded-medium bg-warning-soft px-2 py-1.5 text-caption leading-6 text-on-surface-variant"
+                      >
+                        <span className="font-medium">{clause.clauseHeadingFa}</span> — بدون منبع
+                        بازبینی‌شده؛ به‌عنوان بند قطعی ارائه نمی‌شود.
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={clause.clauseId} className="text-caption leading-6">
+                      <span className="font-medium text-on-surface">{clause.clauseHeadingFa}</span>
+                      <ul className="mt-0.5 space-y-0.5 ps-3">
+                        {rows.map((r) => (
+                          <li key={r.key} className="text-on-surface-variant">
+                            {r.articleFa} ({r.sourceNameFa})
+                            <span className="ms-1 rounded-small bg-surface-container px-1.5 py-0.5 text-labelSmall text-muted">
+                              {CITATION_STATUS_FA[r.status]}
+                              {r.contentVersion !== null
+                                ? ` · نسخهٔ ${toPersianNumber(r.contentVersion)}`
+                                : ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+              {data.legalReview.tips.length > 0 && (
+                <p className="mt-2 text-caption text-muted">
+                  {toPersianNumber(data.legalReview.tips.length)} نکتهٔ «قبل از امضا» برای این نوع
+                  فعال است؛ بخشی از متن تعهدآور قرارداد نیست.
+                </p>
+              )}
+            </Section>
+
             {/* --- Parties --- */}
             {data.parties.length > 0 && (
               <Section title="طرفین">
@@ -454,6 +642,44 @@ export function ContractDetailDrawer({
                 <p className="text-caption text-muted">
                   یادداشت تکمیلی ثبت نشده است؛ در این حالت هیچ بخشی در پایان سند چاپ نمی‌شود.
                 </p>
+              )}
+            </Section>
+
+            {/* --- §2.5 contract annexes — files the owner made part of the
+                agreement. Listed separately from the note, with the exact
+                SHA-256 that the printed annex carries. --- */}
+            <Section title="پیوست‌های قرارداد">
+              {data.supplementary.attachments.length === 0 ? (
+                <p className="text-caption text-muted">پیوستی ثبت نشده است.</p>
+              ) : (
+                <div className="space-y-2">
+                  <ul className="space-y-1.5 text-caption">
+                    {data.supplementary.attachments.map((a) => (
+                      <li
+                        key={a.documentId}
+                        className="rounded-medium border border-divider p-2.5"
+                      >
+                        <p className="text-labelMedium text-on-surface">{a.titleFa}</p>
+                        <p className="mt-0.5 text-labelSmall text-muted">
+                          {a.fileName} · {toPersianDate(a.addedAt)}
+                        </p>
+                        <p
+                          className="mt-1 break-all font-mono text-labelSmall text-muted"
+                          dir="ltr"
+                        >
+                          SHA-256: {a.hash}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-labelSmall text-muted">
+                    {data.supplementary.attachmentsConfirmedAt
+                      ? `تأیید پیوست‌ها: ${toPersianDate(
+                          data.supplementary.attachmentsConfirmedAt
+                        )} · پیوست‌ها به‌عنوان یک مادهٔ مستقل در سند چاپ می‌شوند.`
+                      : "این پیوست‌ها هنوز توسط مالک تأیید نشده‌اند."}
+                  </p>
+                </div>
               )}
             </Section>
 
@@ -608,6 +834,54 @@ export function ContractDetailDrawer({
                               {INVITATION_STATUS_FA[inv.status]}
                             </p>
                           )}
+
+                          {/* §5 — resend to THIS party alone. Never available
+                              once the party has signed: there is nothing to
+                              resend, and the link would be meaningless. */}
+                          {canReview && p.status !== "SIGNED" && p.status !== "DECLINED" && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                loading={resendingParticipantId === p.id}
+                                disabled={
+                                  resendingParticipantId !== null &&
+                                  resendingParticipantId !== p.id
+                                }
+                                onClick={() => void resendToParticipant(p.id, p.roleFa)}
+                              >
+                                ارسال مجدد لینک به {p.roleFa}
+                              </Button>
+                              {handoverLinks[p.id] && (
+                                <span className="text-labelSmall text-warning-700 dark:text-warning-300">
+                                  ارسال نشد — لینک دستی تا {toPersianDate(handoverLinks[p.id]!.expiresAt)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {handoverLinks[p.id] && (
+                            <div className="mt-1 rounded-medium bg-surface-container p-2">
+                              <p className="mb-1 text-labelSmall text-muted">
+                                لینک اختصاصی {p.roleFa} — فقط همین یک‌بار نمایش داده می‌شود و پس از
+                                بستن پنجره قابل بازیابی نیست:
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <code className="break-all font-mono text-labelSmall" dir="ltr">
+                                  /contracts/sign/{handoverLinks[p.id]!.token}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  startIcon={<IconCopy size={13} />}
+                                  onClick={() =>
+                                    void copyHandoverLink(handoverLinks[p.id]!.token)
+                                  }
+                                >
+                                  کپی لینک
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </li>
                       );
                     })}
@@ -636,6 +910,122 @@ export function ContractDetailDrawer({
                   </ul>
                 </div>
               )}
+            </Section>
+
+            {/* --- §3/§5 admin attestations — evidence ABOUT a signature --- */}
+            <Section title="تأییدیهٔ بررسی امضا (ادمین)">
+              <p className="mb-2 text-caption leading-6 text-muted">
+                این بخش فقط برای ثبت <b>بررسی</b> امضایی است که خودِ طرف داده است. منشأ تأیید و
+                یادداشت الزامی‌اند. ثبت این تأییدیه وضعیت طرف یا وضعیت قرارداد را تغییر نمی‌دهد و
+                هرگز جایگزین امضای طرفین نیست.
+              </p>
+
+              {data.attestations.length > 0 && (
+                <ul className="mb-3 space-y-1.5 text-caption">
+                  {data.attestations.map((a) => {
+                    const participant = data.signatureRequest?.participants.find(
+                      (p) => p.id === a.participantId
+                    );
+                    const version = data.versions.find((v) => v.id === a.contractVersionId);
+                    return (
+                      <li
+                        key={a.id}
+                        className="rounded-medium border border-divider p-2.5 text-labelSmall"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-on-surface">
+                            {SIGNATURE_ATTESTATION_CHANNEL_FA[a.channel]}
+                          </span>
+                          <span className="text-muted">{toPersianDate(a.createdAt)}</span>
+                        </div>
+                        <p className="mt-0.5 text-muted">
+                          طرف: {participant?.roleFa ?? "—"}
+                          {participant?.nameFa ? ` (${participant.nameFa})` : ""}
+                          {version ? ` · نسخه ${toPersianNumber(version.versionNumber)}` : ""}
+                          {" · "}ثبت توسط {a.adminLabelFa}
+                        </p>
+                        <p className="mt-1 text-on-surface-variant">{a.noteFa}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {canReview && data.signatureRequest ? (
+                (() => {
+                  const signed = data.signatureRequest.participants.filter(
+                    (p) => p.status === "SIGNED"
+                  );
+                  if (signed.length === 0) {
+                    return (
+                      <p className="text-caption text-muted">
+                        تا زمانی که هیچ طرفی امضا نکند، چیزی برای تأییدِ بررسی وجود ندارد.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2.5">
+                      <Field label="طرف قرارداد" required>
+                        <Select
+                          value={attestationParticipantId}
+                          onChange={(e) => setAttestationParticipantId(e.target.value)}
+                        >
+                          <option value="">— انتخاب طرف امضاشده —</option>
+                          {signed.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.roleFa}
+                              {p.nameFa ? ` — ${p.nameFa}` : ""}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label="منشأ تأیید" required>
+                        <Select
+                          value={attestationChannel}
+                          onChange={(e) =>
+                            setAttestationChannel(e.target.value as SignatureAttestationChannel)
+                          }
+                        >
+                          {(
+                            Object.keys(
+                              SIGNATURE_ATTESTATION_CHANNEL_FA
+                            ) as SignatureAttestationChannel[]
+                          ).map((c) => (
+                            <option key={c} value={c}>
+                              {SIGNATURE_ATTESTATION_CHANNEL_FA[c]}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field
+                        label="یادداشت بررسی"
+                        required
+                        hint="دقیقاً بنویسید چه چیزی را دیدید یا بررسی کردید."
+                      >
+                        <TextArea
+                          rows={3}
+                          value={attestationNote}
+                          onChange={(e) => setAttestationNote(e.target.value)}
+                          placeholder="مثلاً: کد پیامکی در تماس تلفنی برای این شماره خوانده شد…"
+                        />
+                      </Field>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={attestation.isPending}
+                        disabled={
+                          !attestationParticipantId ||
+                          attestationNote.trim().length < 5 ||
+                          attestation.isPending
+                        }
+                        onClick={() => void submitAttestation()}
+                      >
+                        ثبت تأییدیهٔ بررسی
+                      </Button>
+                    </div>
+                  );
+                })()
+              ) : null}
             </Section>
 
             {/* --- The owner's review thread, including internal notes --- */}

@@ -51,6 +51,17 @@ vi.mock("@/hooks/useAdmin", () => ({
     }),
     isPending: false,
   }),
+  // Attestations are evidence ABOUT a signature; these tests cover the
+  // review decision, so the mutation is inert here.
+  useAdminContractAttestation: () => ({
+    mutateAsync: vi.fn(async () => ({})),
+    isPending: false,
+  }),
+  // Per-party resend (§5) — inert here; these tests cover the decision surface.
+  useAdminResendInvitations: () => ({
+    mutateAsync: vi.fn(async () => ({ invitations: [], revokedInvitationIds: [] })),
+    isPending: false,
+  }),
 }));
 
 import { ContractDetailDrawer } from "@/components/admin/contract-detail-drawer";
@@ -90,6 +101,18 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
       uncitedClauseCount: 0,
       sections: [],
       hasPendingCitations: false,
+      flaggedClauses: [],
+    },
+    // §7 — the type's legal-review report, rendered as its own section.
+    legalReview: {
+      typeId: "property_rent",
+      clauses: [],
+      knownClauses: [],
+      tips: [],
+      reviewedClauseCount: 0,
+      pendingClauseCount: 0,
+      needsRevisionCount: 0,
+      unflaggedCount: 0,
     },
     comments: [],
     adminReview: {
@@ -112,11 +135,18 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
     },
     approved: false,
     stamp: { applied: false, text: "لیـــــــگالیر - بررسی شد", disclaimerFa: "..." },
-    supplementary: { notes: "", noteConfirmedAt: null, confirmedAt: null },
+    supplementary: {
+      notes: "",
+      noteConfirmedAt: null,
+      attachments: [],
+      attachmentsConfirmedAt: null,
+      confirmedAt: null,
+    },
     customClauses: [],
     approvals: [],
     signatureRequest: null,
     signatureRequests: [],
+    attestations: [],
     ...overrides,
   };
 }
@@ -204,6 +234,8 @@ describe("ContractDetailDrawer — the admin decision surface (§6/§10)", () =>
       supplementary: {
         notes: NOTE,
         noteConfirmedAt: "2026-01-02T09:00:00.000Z",
+        attachments: [],
+        attachmentsConfirmedAt: null,
         confirmedAt: "2026-01-02T09:05:00.000Z",
       },
     });

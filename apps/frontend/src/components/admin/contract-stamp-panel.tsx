@@ -128,7 +128,22 @@ export function ContractStampPanel({
     try {
       const result = await decide.mutateAsync({ id: contractId, input });
       setNotifications(result.notifications);
-      snackbar.show({ message: `${ACTION_FA[action]} انجام شد.`, variant: "success" });
+      // `apply` freezes the final version in the same act. Report what the
+      // server actually did — a failed finalization is never dressed up as
+      // a successful approval.
+      if (result.finalization && !result.finalization.ok) {
+        snackbar.show({
+          message: `مهر ثبت شد اما نهایی‌سازی قرارداد ناموفق بود: ${result.finalization.messageFa}`,
+          variant: "warning",
+        });
+      } else if (result.finalization?.ok) {
+        snackbar.show({
+          message: "مهر رسمی درج و نسخهٔ نهایی قرارداد قفل شد.",
+          variant: "success",
+        });
+      } else {
+        snackbar.show({ message: `${ACTION_FA[action]} انجام شد.`, variant: "success" });
+      }
       setActiveAction(null);
       setReason("");
     } catch (err) {
@@ -141,20 +156,28 @@ export function ContractStampPanel({
   if (stamp.isError || !data) return <ErrorBlock onRetry={() => stamp.refetch()} />;
 
   // --- Why the apply action is unavailable, in the operator's words ---
+  // The last gate is the one §4 names explicitly: the final approval is
+  // only possible once EVERY party bound to this version has signed. The
+  // server refuses it anyway; the panel simply never offers a button the
+  // server would reject.
   const applyBlockedFa = !data.featureEnabled
     ? "سطح مهر رسمی لیگالیر در حال حاضر فعال نیست."
     : !data.currentVersion
       ? "نسخه‌ای برای مهر وجود ندارد."
       : !data.reviewed
         ? "نسخهٔ فعلی هنوز تأیید بررسی داخلی را ندارد؛ مهر فقط روی نسخهٔ تأییدشده درج می‌شود."
-        : !pending
-          ? "درخواست مهرِ باز برای تصمیم‌گیری وجود ندارد."
-          : !canManage
-            ? "صدور مهر رسمی فقط در اختیار مدیر ارشد است."
-            : null;
+        : !data.signatures.ready
+          ? data.signatures.reasonFa ?? "پیش از تأیید نهایی، همهٔ طرفین باید قرارداد را امضا کنند."
+          : !pending
+            ? "درخواست مهرِ باز برای تصمیم‌گیری وجود ندارد."
+            : !canManage
+              ? "صدور مهر رسمی فقط در اختیار مدیر ارشد است."
+              : null;
 
-  const canRequest = data.featureEnabled && data.reviewed && !data.applied && !pending;
-  const canApply = data.featureEnabled && Boolean(pending) && canManage && !data.applied;
+  const canRequest =
+    data.featureEnabled && data.reviewed && data.signatures.ready && !data.applied && !pending;
+  const canApply =
+    data.featureEnabled && Boolean(pending) && canManage && data.signatures.ready && !data.applied;
   const canDecidePending = Boolean(pending) && canManage;
 
   return (

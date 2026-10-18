@@ -13,8 +13,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Button } from "@legalir/ui";
-import { SectionCard, Field, FieldGrid, Notice } from "../primitives";
+import { SectionCard, Field, FieldGrid, Notice, ActionButton } from "../primitives";
 import { useWizard } from "../wizard-context";
 import { useSaveParty } from "@/hooks/usePropertyContracts";
 import { partyRoleLabelFa } from "@/lib/contracts/registry";
@@ -57,7 +56,8 @@ export function PartyBankingEditor({ role }: { role: PartyRole }) {
     return issues.find((i) => i.field === field)?.messageFa;
   };
 
-  async function handleSave() {
+  /** Resolves true only when the server accepted the banking details. */
+  async function handleSave(): Promise<boolean> {
     setTouched(true);
     setServerErrors({});
     try {
@@ -66,7 +66,9 @@ export function PartyBankingEditor({ role }: { role: PartyRole }) {
         party: { id: party?.id, role, banking },
       });
       setSaved(true);
+      return true;
     } catch (error) {
+      setSaved(false);
       if (error instanceof ApiClientError && error.fieldErrors) {
         setServerErrors(
           Object.fromEntries(error.fieldErrors.map((e) => [e.path, e.reason]))
@@ -74,6 +76,7 @@ export function PartyBankingEditor({ role }: { role: PartyRole }) {
       } else {
         setServerErrors({ _form: "ذخیره اطلاعات بانکی ناموفق بود." });
       }
+      return false;
     }
   }
 
@@ -136,9 +139,11 @@ export function PartyBankingEditor({ role }: { role: PartyRole }) {
       {serverErrors["_form"] && <Notice tone="error">{serverErrors["_form"]}</Notice>}
 
       <div className="flex justify-end">
-        <Button onClick={() => void handleSave()} loading={saveParty.isPending} disabled={!party}>
-          ذخیره اطلاعات بانکی
-        </Button>
+        <ActionButton
+          idleLabel="ذخیره اطلاعات بانکی"
+          onAction={handleSave}
+          disabled={!party}
+        />
       </div>
     </SectionCard>
   );

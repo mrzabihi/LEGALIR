@@ -32,7 +32,7 @@ import {
   IconShield,
 } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice } from "../primitives";
+import { ActionButton, SectionCard, Notice } from "../primitives";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import { formatIsoJalali, formatIsoJalaliDateTime } from "@/lib/contracts/dates";
 import { toPersianNumber } from "@/lib/persian-utils";
@@ -138,12 +138,18 @@ export function SignatureStep() {
     [contract.parties, def.roles]
   );
 
-  async function run(fn: () => Promise<unknown>) {
+  /**
+   * Runs a write and reports whether it actually persisted, so the button
+   * that triggered it can only claim success for a real write.
+   */
+  async function runResult(fn: () => Promise<unknown>): Promise<boolean> {
     setActionError(null);
     try {
       await fn();
+      return true;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "عملیات ناموفق بود");
+      return false;
     }
   }
 
@@ -152,8 +158,8 @@ export function SignatureStep() {
    * this is the first send) and then issues the invitations for every
    * participant. Both steps are server-authorised; a refusal is shown.
    */
-  async function sendForSignature() {
-    await run(async () => {
+  async function sendForSignature(): Promise<boolean> {
+    return runResult(async () => {
       if (!request) {
         await prepare.mutateAsync({ id: contract.id });
       }
@@ -167,14 +173,18 @@ export function SignatureStep() {
     });
   }
 
+  /** Resolves `true` only after the replacement link was issued. */
   async function resend(
     participant: SignatureParticipant,
     invitation: SignatureInvitation | undefined
-  ) {
-    await run(async () => {
-      if (invitation && invitation.status === "ACTIVE") {
-        await revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id });
-      }
+  ): Promise<boolean> {
+    if (invitation && invitation.status === "ACTIVE") {
+      const revoked = await runResult(() =>
+        revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id })
+      );
+      if (!revoked) return false;
+    }
+    return runResult(async () => {
       const res = await issueInvitations.mutateAsync({
         id: contract.id,
         participantIds: [participant.id],
@@ -345,15 +355,17 @@ export function SignatureStep() {
                   )}
 
                   {(invitation || token) && participant.status !== "SIGNED" && (
-                    <Button
+                    <ActionButton
                       size="small"
                       variant="outlined"
+                      idleLabel="ارسال مجدد لینک"
+                      busyLabel="در حال ارسال…"
+                      successLabel="لینک تازه صادر شد"
+                      errorLabel="ارسال نشد — تلاش مجدد"
                       startIcon={<IconRefresh className="w-3.5 h-3.5" />}
-                      onClick={() => void resend(participant, invitation)}
                       disabled={issueInvitations.isPending || revokeInvitation.isPending}
-                    >
-                      ارسال مجدد لینک
-                    </Button>
+                      onAction={() => resend(participant, invitation)}
+                    />
                   )}
                 </div>
               );
@@ -404,7 +416,6 @@ export function SignatureStep() {
             startIcon={<IconSend className="w-4 h-4" />}
             onClick={() => setConfirmOpen(true)}
             disabled={sendDisabled || !canSendAgain}
-            loading={prepare.isPending || issueInvitations.isPending}
           >
             ارسال برای طرفین جهت امضا
           </Button>
@@ -422,12 +433,13 @@ export function SignatureStep() {
             <Button variant="text" onClick={() => setConfirmOpen(false)}>
               انصراف
             </Button>
-            <Button
-              onClick={() => void sendForSignature()}
-              loading={prepare.isPending || issueInvitations.isPending}
-            >
-              ارسال به همهٔ طرفین
-            </Button>
+            <ActionButton
+              idleLabel="ارسال به همهٔ طرفین"
+              busyLabel="در حال ارسال…"
+              successLabel="لینک‌ها صادر شدند"
+              errorLabel="ارسال نشد — تلاش مجدد"
+              onAction={sendForSignature}
+            />
           </>
         }
       >

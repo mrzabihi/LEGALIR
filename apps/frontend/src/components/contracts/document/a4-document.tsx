@@ -30,10 +30,12 @@ import { createPortal } from "react-dom";
 import type {
   ContractParty,
   ContractPayment,
+  ContractPreSignTip,
   PropertyContract,
 } from "@legalir/types";
 import {
   CONTRACT_DRAFT_WATERMARK_FA,
+  CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA,
   CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
   CONTRACT_REVIEW_STAMP_TEXT,
 } from "@legalir/types";
@@ -43,7 +45,11 @@ import {
   type RenderedContract,
   type RenderedTable,
 } from "@/lib/contracts/template";
-import { buildLegalBasisReport } from "@/lib/contracts/legal-basis";
+import {
+  LEGAL_BASIS_SEED,
+  buildLegalBasisReport,
+  seedPreSignTips,
+} from "@/lib/contracts/legal-basis";
 import { formatIsoJalali } from "@/lib/contracts/dates";
 
 /** Per-party signature state, keyed by the rendered role label. */
@@ -118,6 +124,11 @@ export interface A4DocumentProps {
   signatureMarks?: Record<string, A4SignatureMark>;
   /** Show the legal-basis annex (default true). */
   includeLegalBasis?: boolean;
+  /**
+   * §7 — the type's non-compulsory «قبل از امضا بدانید» tips, printed as a
+   * SEPARATE annex. Omit to fall back to the reviewed seed for the type.
+   */
+  preSignTips?: ContractPreSignTip[];
   /** PDF / print actions. */
   pdfHref?: string;
   showActions?: boolean;
@@ -306,6 +317,7 @@ export function A4Document({
   reviewStamp,
   signatureMarks,
   includeLegalBasis = true,
+  preSignTips: preSignTipsProp,
   pdfHref,
   showActions = false,
   className = "",
@@ -320,8 +332,19 @@ export function A4Document({
   // available where that row exists (never for the public signer view,
   // which receives rendered text only).
   const legalBasis = useMemo(
-    () => (includeLegalBasis && contract && rendered ? buildLegalBasisReport(contract, rendered) : null),
+    () =>
+      includeLegalBasis && contract && rendered
+        ? buildLegalBasisReport(contract, rendered, LEGAL_BASIS_SEED)
+        : null,
     [contract, rendered, includeLegalBasis]
+  );
+
+  // §7 — the pre-sign tips. A caller that already read the merged (stored)
+  // rows passes them in; otherwise the reviewed seed for the type is used,
+  // so the annex is never empty for a seeded type.
+  const tips = useMemo<ContractPreSignTip[]>(
+    () => preSignTipsProp ?? (contract ? seedPreSignTips(contract.type) : []),
+    [preSignTipsProp, contract]
   );
 
   // The contract date: the property-rent wizard stores its own date; every
@@ -525,6 +548,40 @@ export function A4Document({
       }
     }
 
+    // §7 — the pre-sign tips annex: a SEPARATE, non-compulsory block that
+    // belongs to the contract TYPE, not to its text. It is never presented
+    // as a term and requires no acknowledgement.
+    if (tips.length > 0) {
+      list.push({
+        id: "tips-heading",
+        node: clauseHeading("پیوست — نکات پیش از امضا (غیرالزام‌آور)"),
+        keepWithNext: true,
+        breakBefore: true,
+        estimate: 34,
+      });
+      list.push({
+        id: "tips-disclaimer",
+        node: <p className="a4-annex-disclaimer">{CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA}</p>,
+        estimate: estimate(CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA),
+      });
+      tips.forEach((tip, index) => {
+        list.push({
+          id: `tips-${index}-heading`,
+          node: <p className="a4-annex-heading">{tip.titleFa}</p>,
+          keepWithNext: true,
+          estimate: 24,
+        });
+        const body = `${tip.bodyFa} (منبع: ${tip.sourceNameFa} — نسخهٔ محتوا ${tip.contentVersion})${
+          tip.status === "pending" ? " — در انتظار بررسی حقوقی" : ""
+        }`;
+        list.push({
+          id: `tips-${index}-body`,
+          node: <p className="a4-annex-item">{body}</p>,
+          estimate: estimate(body, 22),
+        });
+      });
+    }
+
     // §2.2 — the closing note, immediately before the signatures: it is the
     // last thing a reader sees before signing, exactly as the wizard promised.
     if (closingNote) {
@@ -581,6 +638,7 @@ export function A4Document({
     signatureMarks,
     stateFa,
     templateVersion,
+    tips,
     typeFa,
     versionNumber,
   ]);

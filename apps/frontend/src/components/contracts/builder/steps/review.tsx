@@ -36,7 +36,7 @@ import {
   IconWarning,
 } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice } from "../primitives";
+import { ActionButton, SectionCard, Notice } from "../primitives";
 import { LivePreview } from "../live-preview";
 import { ContractCommentComposer } from "../contract-comments";
 import type { A4SignatureMark } from "../../document/a4-document";
@@ -45,7 +45,11 @@ import { getContractDefinition } from "@/lib/contracts/registry";
 import { renderContract } from "@/lib/contracts/template";
 import { stateLabelFa } from "@/lib/contracts/state-machine";
 import { formatIsoJalali, formatIsoJalaliDateTime } from "@/lib/contracts/dates";
-import { useFinalizeContract, useSubmitForReview } from "@/hooks/usePropertyContracts";
+import {
+  useFinalizeContract,
+  useSubmitForAdminReview,
+  useSubmitForReview,
+} from "@/hooks/usePropertyContracts";
 import {
   useAcceptLawyerReview,
   useCancelLawyerReview,
@@ -153,6 +157,7 @@ export function ReviewStep() {
   const createAi = useCreateAiReview();
   const finalize = useFinalizeContract();
   const submit = useSubmitForReview();
+  const submitAdmin = useSubmitForAdminReview();
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [signTarget, setSignTarget] = useState<SignatureParticipant | null>(null);
@@ -328,21 +333,33 @@ export function ReviewStep() {
     return items;
   }, [contract.finalizedAt, currentVersion, request, view?.adminReview]);
 
-  async function run(fn: () => Promise<unknown>) {
+  /**
+   * Runs a write and reports whether it actually persisted. `ActionButton`
+   * needs the boolean: a label may only say «انجام شد» after the server
+   * accepted the write.
+   */
+  async function runResult(fn: () => Promise<unknown>): Promise<boolean> {
     setActionError(null);
     try {
       await fn();
+      return true;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "عملیات ناموفق بود");
+      return false;
     }
+  }
+
+  async function run(fn: () => Promise<unknown>): Promise<void> {
+    await runResult(fn);
   }
 
   // ----------------------------------------------------------
   // Invitations — send the draft to the parties
   // ----------------------------------------------------------
 
-  async function sendInvitations(participantIds?: string[]) {
-    await run(async () => {
+  /** Resolves `true` only when the server issued the new links. */
+  async function sendInvitations(participantIds?: string[]): Promise<boolean> {
+    return runResult(async () => {
       const res = await issueInvitations.mutateAsync({ id: contract.id, participantIds });
       const tokens: Record<string, string> = {};
       for (const invitation of res.invitations) {
@@ -357,13 +374,14 @@ export function ReviewStep() {
   async function resendInvitation(
     participant: SignatureParticipant,
     invitation: SignatureInvitation | undefined
-  ) {
-    await run(async () => {
-      if (invitation && invitation.status === "ACTIVE") {
-        await revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id });
-      }
-      await sendInvitations([participant.id]);
-    });
+  ): Promise<boolean> {
+    if (invitation && invitation.status === "ACTIVE") {
+      const revoked = await runResult(() =>
+        revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id })
+      );
+      if (!revoked) return false;
+    }
+    return sendInvitations([participant.id]);
   }
 
   async function copyInviteLink(participantId: string, token: string) {
@@ -500,13 +518,14 @@ export function ReviewStep() {
             <p className="text-caption text-muted">
               برای شروع بررسی، ابتدا محتوای قرارداد را تثبیت کنید.
             </p>
-            <Button
-              onClick={() => void run(() => submit.mutateAsync(contract.id))}
+            <ActionButton
+              idleLabel="تثبیت نسخه و ارسال برای بررسی"
+              busyLabel="در حال ارسال…"
+              successLabel="نسخه تثبیت و ارسال شد"
+              errorLabel="ارسال نشد — تلاش مجدد"
               disabled={completeness.blockers.length > 0}
-              loading={submit.isPending}
-            >
-              تثبیت نسخه و ارسال برای بررسی
-            </Button>
+              onAction={() => runResult(() => submit.mutateAsync(contract.id))}
+            />
           </div>
         )}
       </div>
@@ -577,6 +596,25 @@ export function ReviewStep() {
           </button>
         </div>
 
+        {/* §4 — the compulsory LEGALIR admin review. The version on screen
+            is frozen and bound to its hash, and no signature can be issued
+            until an admin has approved THAT hash. */}
+        {view?.canSubmitForAdminReview && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-divider pt-3">
+            <p className="text-caption text-muted">
+              نسخهٔ فعلی برای بررسی واحد حقوقی لیگالیر ارسال می‌شود؛ پس از تأیید ادمین،
+              امکان امضا فراهم می‌شود.
+            </p>
+            <ActionButton
+              idleLabel="ارسال به بررسی لیگالیر"
+              busyLabel="در حال ارسال…"
+              successLabel="برای بررسی ارسال شد"
+              errorLabel="ارسال نشد — تلاش مجدد"
+              onAction={() => runResult(() => submitAdmin.mutateAsync(contract.id))}
+            />
+          </div>
+        )}
+
         {/* The one committing signature action, reachable from the preview
             itself — without leaving the page the parties are reviewed on. */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-divider pt-3">
@@ -591,6 +629,37 @@ export function ReviewStep() {
           </Button>
         </div>
       </SectionCard>
+
+      {/* ------------------------------------------------------
+          §7 — «قبل از امضا بدانید»
+          A section of its OWN, outside the contract text. It is
+          informational: no acknowledgement, no gate, and it never
+          changes what the contract says.
+          ------------------------------------------------------ */}
+      {(view?.preSignTips?.length ?? 0) > 0 && (
+        <SectionCard
+          title="نکات پیش از امضا"
+          description="اطلاعات راهنما برای این نوع قرارداد — الزام‌آور نیست و نیازی به تأیید ندارد"
+        >
+          <ul className="space-y-3">
+            {view!.preSignTips.map((tip) => (
+              <li key={tip.id}>
+                <p className="text-labelLarge text-on-surface">{tip.titleFa}</p>
+                <p className="mt-1 text-caption leading-6 text-muted">{tip.bodyFa}</p>
+                <p className="mt-1 text-labelSmall text-muted">
+                  منبع: {tip.sourceNameFa} — نسخهٔ محتوا {tip.contentVersion}
+                  {tip.status === "pending" && " — در انتظار بازبینی حقوقی"}
+                  {tip.status === "needs_revision" && " — نیازمند اصلاح حقوقی"}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 border-t border-divider pt-2 text-labelSmall leading-5 text-muted">
+            این نکات بخشی از قرارداد نیستند، جایگزین مشاورهٔ حقوقی نمی‌شوند و امضای شما به معنای
+            پذیرش آن‌ها به‌عنوان شرط قرارداد نیست.
+          </p>
+        </SectionCard>
+      )}
 
       {/* ------------------------------------------------------
           Invitations — send the DRAFT to the parties
@@ -647,19 +716,21 @@ export function ReviewStep() {
 
                   {(invitation || token) && (
                     <div className="flex gap-2 flex-wrap">
-                      <Button
+                      <ActionButton
                         size="small"
                         variant="outlined"
+                        idleLabel="ارسال مجدد لینک"
+                        busyLabel="در حال ارسال…"
+                        successLabel="لینک تازه صادر شد"
+                        errorLabel="ارسال نشد — تلاش مجدد"
                         startIcon={<IconRefresh className="w-3.5 h-3.5" />}
-                        onClick={() => void resendInvitation(participant, invitation)}
                         disabled={
                           issueInvitations.isPending ||
                           revokeInvitation.isPending ||
                           participant.status === "SIGNED"
                         }
-                      >
-                        ارسال مجدد لینک
-                      </Button>
+                        onAction={() => resendInvitation(participant, invitation)}
+                      />
                     </div>
                   )}
                 </div>
@@ -675,7 +746,6 @@ export function ReviewStep() {
             <Button
               startIcon={<IconSend className="w-4 h-4" />}
               onClick={() => setInviteDialogOpen(true)}
-              loading={issueInvitations.isPending}
               disabled={!requestAcceptsInvitations(request.status)}
             >
               ارسال پیش‌نویس به طرفین
@@ -696,12 +766,13 @@ export function ReviewStep() {
             <Button variant="text" onClick={() => setInviteDialogOpen(false)}>
               انصراف
             </Button>
-            <Button
-              onClick={() => void sendInvitations()}
-              loading={issueInvitations.isPending}
-            >
-              ارسال به همهٔ طرفین
-            </Button>
+            <ActionButton
+              idleLabel="ارسال به همهٔ طرفین"
+              busyLabel="در حال ارسال…"
+              successLabel="لینک‌ها صادر شدند"
+              errorLabel="ارسال نشد — تلاش مجدد"
+              onAction={() => sendInvitations()}
+            />
           </>
         }
       >
@@ -1091,12 +1162,13 @@ export function ReviewStep() {
           ------------------------------------------------------ */}
       <SectionCard title="تکمیل و بایگانی" description="نسخه غیرقابل‌تغییر قرارداد">
         {view?.canFinalize ? (
-          <Button
-            onClick={() => void run(() => finalize.mutateAsync(contract.id))}
-            loading={finalize.isPending}
-          >
-            نهایی‌سازی قرارداد
-          </Button>
+          <ActionButton
+            idleLabel="نهایی‌سازی قرارداد"
+            busyLabel="در حال نهایی‌سازی…"
+            successLabel="قرارداد نهایی شد"
+            errorLabel="نهایی‌سازی ناموفق — تلاش مجدد"
+            onAction={() => runResult(() => finalize.mutateAsync(contract.id))}
+          />
         ) : (
           <p className="text-body-2 text-muted">نهایی‌سازی پس از امضای همه طرفین فعال می‌شود.</p>
         )}

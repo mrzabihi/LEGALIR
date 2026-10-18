@@ -12,7 +12,7 @@
 
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   TextField,
   Select,
@@ -416,6 +416,144 @@ export function AddRowButton({
     <Button variant="outlined" size="small" onClick={onClick} type="button" disabled={disabled}>
       {label}
     </Button>
+  );
+}
+
+// ------------------------------------------------------------
+// Action button — save/confirm feedback (§1)
+// ------------------------------------------------------------
+// One implementation of the product's save/confirm contract, used by every
+// button that writes something:
+//
+//   idle ──click──▶ busy ──ok──▶ success (auto-clear)
+//                     └──fail──▶ error (retry, message stays)
+//
+// Rules it enforces:
+//   • The button never shows success for a call that rejected — the label
+//     follows the promise, not the click.
+//   • While the call is in flight the button is disabled, so a double
+//     click cannot fire twice.
+//   • Both the label and a polite live region announce the outcome, so a
+//     screen reader hears «ذخیره شد» / «ذخیره نشد» without a focus move.
+//   • Works identically on mobile and desktop (one Button, width never
+//     forced) and in RTL (label-only).
+//
+// `resetAfterMs` controls whether the success label stays or reverts to
+// the idle label. Persistent outcomes (a contract that is now «تأیید شد»)
+// pass 0; transient writes revert on their own.
+
+/**
+ * The three honest outcomes of a write. `"cancelled"` exists for actions
+ * that may legitimately stop before writing (the user closed a file
+ * picker): it returns the button to idle without claiming success or
+ * failure.
+ */
+export type ActionOutcome = boolean | "cancelled";
+
+export function ActionButton({
+  idleLabel,
+  busyLabel = "در حال ذخیره…",
+  successLabel = "ذخیره شد",
+  errorLabel = "ذخیره نشد — تلاش مجدد",
+  onAction,
+  disabled,
+  variant = "filled",
+  size,
+  startIcon,
+  endIcon,
+  resetAfterMs = 4000,
+  fullWidth,
+  className,
+}: {
+  idleLabel: string;
+  busyLabel?: string;
+  successLabel?: string;
+  errorLabel?: string;
+  /**
+   * Must resolve `true` only when the write actually persisted and
+   * `"cancelled"` when the user backed out before any write happened.
+   */
+  onAction: () => Promise<ActionOutcome>;
+  disabled?: boolean;
+  variant?: "filled" | "outlined" | "text" | "tonal";
+  size?: "small" | "medium" | "large";
+  startIcon?: React.ReactNode;
+  endIcon?: React.ReactNode;
+  /** 0 keeps the success label until the component unmounts/changes. */
+  resetAfterMs?: number;
+  fullWidth?: boolean;
+  className?: string;
+}) {
+  const [phase, setPhase] = useState<"idle" | "busy" | "success" | "error">("idle");
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const run = async () => {
+    if (phase === "busy") return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setPhase("busy");
+    let outcome: ActionOutcome = false;
+    try {
+      outcome = await onAction();
+    } catch {
+      outcome = false;
+    }
+    if (outcome === "cancelled") {
+      setPhase("idle");
+      return;
+    }
+    if (!outcome) {
+      setPhase("error");
+      return;
+    }
+    setPhase("success");
+    if (resetAfterMs > 0) {
+      timerRef.current = setTimeout(() => setPhase("idle"), resetAfterMs);
+    }
+  };
+
+  const label =
+    phase === "busy"
+      ? busyLabel
+      : phase === "success"
+        ? successLabel
+        : phase === "error"
+          ? errorLabel
+          : idleLabel;
+
+  return (
+    <span className="inline-flex flex-col items-stretch gap-1">
+      <Button
+        type="button"
+        variant={phase === "error" ? "outlined" : variant}
+        size={size}
+        startIcon={startIcon}
+        endIcon={phase === "busy" ? undefined : endIcon}
+        loading={phase === "busy"}
+        disabled={disabled || phase === "busy"}
+        fullWidth={fullWidth}
+        onClick={() => void run()}
+        className={className}
+      >
+        {label}
+      </Button>
+      {/* The visual label alone is not reliably announced; this live
+          region is, and carries the same information. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {phase === "busy"
+          ? busyLabel
+          : phase === "success"
+            ? successLabel
+            : phase === "error"
+              ? "ذخیره نشد. برای تلاش دوباره همین دکمه را بزنید."
+              : ""}
+      </span>
+    </span>
   );
 }
 

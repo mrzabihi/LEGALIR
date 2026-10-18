@@ -12,10 +12,10 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Button, Dialog } from "@legalir/ui";
+import { Dialog } from "@legalir/ui";
 import { IconUpload, IconDelete, IconDocument, IconFile } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice } from "../primitives";
+import { ActionButton, SectionCard, Notice, type ActionOutcome } from "../primitives";
 import { getContractDefinition } from "@/lib/contracts/registry";
 import {
   useDeleteContractDocument,
@@ -89,12 +89,43 @@ function DocumentSlot({
 
   const existing = documents.filter((d) => d.category === category);
 
-  async function onPick(file: File) {
+  /**
+   * Opens the native picker and resolves with the chosen file. Resolves
+   * `null` when the user dismisses the dialog — that is a cancel, not a
+   * failed upload, so the button must not claim an error.
+   */
+  function pickFile(): Promise<File | null> {
+    const input = inputRef.current;
+    if (!input) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const finish = (file: File | null) => {
+        input.removeEventListener("change", onChange);
+        input.removeEventListener("cancel", onCancel);
+        resolve(file);
+      };
+      const onChange = () => {
+        const file = input.files?.[0] ?? null;
+        input.value = "";
+        finish(file);
+      };
+      const onCancel = () => finish(null);
+      input.addEventListener("change", onChange);
+      input.addEventListener("cancel", onCancel);
+      input.click();
+    });
+  }
+
+  /** Resolves `true` only after the upload endpoint accepted the file. */
+  async function onUpload(): Promise<ActionOutcome> {
     setError(null);
+    const file = await pickFile();
+    if (!file) return "cancelled";
     try {
       await upload.mutateAsync({ id: contractId, file, category });
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "بارگذاری ناموفق بود");
+      return false;
     }
   }
 
@@ -117,15 +148,16 @@ function DocumentSlot({
           <p className="text-caption text-muted mt-0.5">تهیه‌کننده: {providerFa}</p>
         </div>
         {editable && (
-          <Button
+          <ActionButton
+            idleLabel="بارگذاری"
+            busyLabel="در حال بارگذاری…"
+            successLabel="بارگذاری شد"
+            errorLabel="بارگذاری نشد — تلاش مجدد"
             variant="outlined"
             size="small"
             startIcon={<IconUpload className="w-4 h-4" />}
-            loading={upload.isPending}
-            onClick={() => inputRef.current?.click()}
-          >
-            بارگذاری
-          </Button>
+            onAction={onUpload}
+          />
         )}
       </div>
 
@@ -134,11 +166,6 @@ function DocumentSlot({
         type="file"
         className="hidden"
         accept="application/pdf,image/png,image/jpeg,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (file) void onPick(file);
-        }}
       />
 
       {error && <p className="text-caption text-error">{error}</p>}
@@ -169,7 +196,16 @@ function DocumentSlot({
                 <button
                   type="button"
                   aria-label={`حذف ${doc.fileName}`}
-                  onClick={() => remove.mutate({ id: contractId, documentId: doc.id })}
+                  onClick={() => {
+                    setError(null);
+                    remove.mutate(
+                      { id: contractId, documentId: doc.id },
+                      {
+                        onError: (e) =>
+                          setError(e instanceof Error ? e.message : "حذف فایل ناموفق بود"),
+                      }
+                    );
+                  }}
                   className="shrink-0 text-muted hover:text-error"
                 >
                   <IconDelete className="w-4 h-4" />

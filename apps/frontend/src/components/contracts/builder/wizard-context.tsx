@@ -49,6 +49,13 @@ interface WizardContextValue {
   data: DomainData;
   /** Patch the domain data. Deep-merges one level of nesting. */
   patchData: (patch: Partial<DomainData>) => void;
+  /**
+   * Patch AND persist in one step, resolving `true` only once the server
+   * has accepted the exact merged data. Used by confirmation buttons: a
+   * «تأیید شد» badge must never be shown for a change that did not reach
+   * the store, otherwise a reload would contradict the screen.
+   */
+  patchDataNow: (patch: Partial<DomainData>) => Promise<boolean>;
   /** Replace the whole domain data (used by resets). */
   setData: (next: DomainData) => void;
 
@@ -72,7 +79,8 @@ interface WizardContextValue {
 
   saveStatus: SaveStatus;
   lastSavedAt: string | null;
-  saveNow: () => Promise<void>;
+  /** Resolves `true` when the store accepted the data. */
+  saveNow: () => Promise<boolean>;
   /** True when the contract is still editable. */
   editable: boolean;
 
@@ -174,20 +182,31 @@ export function WizardProvider({
   // with the API about whether a contract is editable.
   const editable = useMemo(() => stateIsEditable(serverState), [serverState]);
 
-  /** Push the current local state to the server. */
-  const flush = useCallback(async (): Promise<void> => {
-    if (inFlightRef.current) return;
+  /**
+   * Push the current local state to the server.
+   *
+   * Resolves `true` only when THIS call's payload reached the store. A
+   * confirmation button uses that boolean to decide whether «تأیید شد»
+   * may be shown at all — a badge that outlives a failed save would be
+   * contradicted by the next reload.
+   */
+  const flush = useCallback(async (dataOverride?: DomainData): Promise<boolean> => {
+    if (inFlightRef.current) return false;
     inFlightRef.current = true;
     const sentRevision = revisionRef.current;
     const payload = {
       currentStep: stepRef.current,
-      data: dataRef.current as unknown as Record<string, unknown>,
+      data: (dataOverride ?? dataRef.current) as unknown as Record<string, unknown>,
     };
     setSaveStatus("saving");
 
+    // `persisted` tracks whether exactly the payload of this call landed.
+    // A newer edit mid-flight means the server now holds a superset, so
+    // for a confirmation the honest answer is still "not yet".
+    let persisted = false;
     try {
       const detail = await updatePropertyContract(contract.id, payload);
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
 
       // Server-derived fields always refresh; local data is only
       // adopted when nothing changed while the request was in flight.
@@ -200,13 +219,14 @@ export function WizardProvider({
         dirtyRef.current = false;
         setSaveStatus("saved");
         setLastSavedAt(new Date().toISOString());
+        persisted = true;
       } else {
         // A newer edit landed mid-flight — save again immediately.
         setSaveStatus("idle");
       }
       retryRef.current = 0;
     } catch {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
       setSaveStatus("error");
       if (retryRef.current < MAX_RETRIES) {
         retryRef.current += 1;
@@ -227,6 +247,7 @@ export function WizardProvider({
         timerRef.current = setTimeout(() => void flush(), AUTOSAVE_DEBOUNCE_MS);
       }
     }
+    return persisted;
   }, [contract.id, queryClient]);
 
   const scheduleSave = useCallback(() => {
@@ -245,6 +266,26 @@ export function WizardProvider({
       scheduleSave();
     },
     [scheduleSave]
+  );
+
+  /**
+   * Patch and persist in one shot. The merged value is computed here and
+   * handed to `flush` directly, because React state updates are async: a
+   * plain `patchData()` followed by `saveNow()` would send the PREVIOUS
+   * data and the confirmation timestamp would be lost.
+   */
+  const patchDataNow = useCallback(
+    async (patch: Partial<DomainData>): Promise<boolean> => {
+      revisionRef.current += 1;
+      const merged = mergeData(dataRef.current, patch);
+      dataRef.current = merged;
+      setDataState(merged);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      retryPendingRef.current = false;
+      dirtyRef.current = true;
+      return flush(merged);
+    },
+    [flush]
   );
 
   const setData = useCallback(
@@ -361,6 +402,7 @@ export function WizardProvider({
     contract,
     data,
     patchData,
+    patchDataNow,
     setData,
     parties: contract.parties,
     payments,

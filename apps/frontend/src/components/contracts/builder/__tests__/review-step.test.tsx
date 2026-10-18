@@ -130,6 +130,8 @@ function lifecycleView(
     stamped: false,
     officialStamp: null,
     comments: [],
+    // §7 — informational only; no test here asserts on the tips itself.
+    preSignTips: [],
     canPrepareForSignature: false,
     canSign: false,
     canFinalize: false,
