@@ -66,7 +66,7 @@ export function reviewStepIndex(id: ReviewStepId): number {
 // Step 1 — document source
 // ------------------------------------------------------------
 
-export type ReviewDocumentSource = "upload" | "drafts" | "documents";
+export type ReviewDocumentSource = "upload" | "paste" | "drafts" | "documents";
 
 export interface ReviewSourceDescriptor {
   id: ReviewDocumentSource;
@@ -81,6 +81,11 @@ export const REVIEW_SOURCES: ReviewSourceDescriptor[] = [
     descriptionFa: "فایل قرارداد را از دستگاه خود بارگذاری کنید (PDF یا تصویر).",
   },
   {
+    id: "paste",
+    titleFa: "جای‌گذاری متن قرارداد",
+    descriptionFa: "متن قرارداد را جای‌گذاری کنید؛ بدون ذخیرهٔ فایل، در گفتگو بررسی می‌شود.",
+  },
+  {
     id: "drafts",
     titleFa: "از پیش‌نویس‌های من",
     descriptionFa: "قراردادی که در لیگالیر ساخته یا نیمه‌کاره رها کرده‌اید.",
@@ -91,6 +96,38 @@ export const REVIEW_SOURCES: ReviewSourceDescriptor[] = [
     descriptionFa: "سندی که قبلاً در بخش اسناد بارگذاری کرده‌اید.",
   },
 ];
+
+// ------------------------------------------------------------
+// Pasted text — a supported intake that is NOT a file upload
+// ------------------------------------------------------------
+// The document pipeline accepts PDF/DOCX/images only (text/plain is
+// deliberately not an accepted upload type). Pasted text therefore takes
+// the chat path: it becomes the message the analysis reads, and it is
+// never stored as a document in the user's account.
+//
+// The bounds are honest limits, not decoration: below the minimum there
+// is not enough contract to analyse, and above the maximum the text would
+// exceed what a single message should carry.
+
+export const PASTED_CONTRACT_MIN_CHARS = 40;
+export const PASTED_CONTRACT_MAX_CHARS = 20_000;
+
+/**
+ * Compose the message the analysis receives for a pasted contract. It is
+ * the user's own confirmed scope (`buildReviewQuestion`) plus the pasted
+ * text, verbatim and clearly delimited — nothing is summarised or edited
+ * on the user's behalf.
+ */
+export function buildPastedReviewMessage(pastedText: string, context: ReviewContext): string {
+  return [
+    buildReviewQuestion(context),
+    "",
+    "متن قرارداد که کاربر جای‌گذاری کرده است:",
+    "«««",
+    pastedText.trim(),
+    "»»»",
+  ].join("\n");
+}
 
 // ------------------------------------------------------------
 // Step 2 — analysis context

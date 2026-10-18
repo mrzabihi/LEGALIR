@@ -43,6 +43,7 @@ import {
   type LiveTurn,
 } from "@/lib/ai/live-turn";
 import { serviceTypeFromQuery, composerPlaceholder, type ServiceType } from "@/lib/ai/service-context";
+import { takePastedReview } from "@/lib/contracts/pasted-review";
 import { PageContextHeader } from "@/components/shared";
 import { DocumentViewer } from "@/components/documents/document-viewer";
 import type {
@@ -174,6 +175,30 @@ export default function ConversationPage() {
     if (!ask) return;
     setComposerInitialValue(ask);
     params.delete("ask");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${qs ? `?${qs}` : ""}`
+    );
+  }, [id]);
+
+  // Arriving from /contracts/review with a PASTED contract: the text was
+  // handed over through sessionStorage because it can be far too long for
+  // a URL. Taking it retires the token, so a refresh cannot replay it.
+  // Unlike `?ask=`, this message IS sent automatically once: the user
+  // already confirmed the scope and pressed «شروع بررسی», so waiting for
+  // a second send would be a silent no-op.
+  const [pastedReviewMessage, setPastedReviewMessage] = useState<string | null>(null);
+  const pastedReviewSent = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("reviewPasted");
+    if (!token) return;
+    setPastedReviewMessage(takePastedReview(token));
+    params.delete("reviewPasted");
     const qs = params.toString();
     window.history.replaceState(
       null,
@@ -338,6 +363,19 @@ export default function ConversationPage() {
     },
     [id, isStreaming, serviceType, attachedDocuments, queryClient, handlePipelineEvent]
   );
+
+  // Send the confirmed pasted review exactly once, as soon as the
+  // conversation is actually loaded. The `sent` ref makes this immune to
+  // re-renders and to React strict-mode double effects, so the message can
+  // never be charged or sent twice.
+  useEffect(() => {
+    if (!pastedReviewMessage || pastedReviewSent.current) return;
+    if (!convData || isStreaming) return;
+    pastedReviewSent.current = true;
+    const message = pastedReviewMessage;
+    setPastedReviewMessage(null);
+    void handleSendMessage(message);
+  }, [pastedReviewMessage, convData, isStreaming, handleSendMessage]);
 
   const handleStopGeneration = useCallback(() => {
     // Aborting the fetch signals the backend to record the cancellation

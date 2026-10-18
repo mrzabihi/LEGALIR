@@ -5,7 +5,7 @@
 "use client";
 
 import React from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   useDocumentDetail,
   useDocumentStatus,
@@ -17,6 +17,9 @@ import {
 import { DocumentChatPanel } from "@/components/documents/document-chat-panel";
 import { DocumentPreviewCard } from "@/components/documents/document-preview-card";
 import { ReviewResult } from "@/components/documents/review-result";
+import { ReviewDigest } from "@/components/documents/review-digest";
+import { ReviewClarifications } from "@/components/documents/review-clarifications";
+import { ReviewNextSteps } from "@/components/documents/review-next-steps";
 import { TrialBadge } from "@/components/documents/trial-badge";
 import { TrialScenarioPicker } from "@/components/documents/trial-scenario-picker";
 import { DocumentLawyerSuggestions } from "@/components/documents/document-lawyer-suggestions";
@@ -35,7 +38,12 @@ import type { V1DocumentDetail } from "@legalir/types";
 export default function DocumentDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params?.['id'] as string | undefined;
+  // The review scope the user confirmed on /contracts/review. It only seeds
+  // the chat once the analysis is ready and the model is genuinely connected;
+  // the panel sends it as the user's own first question.
+  const askFromReview = searchParams?.get("ask") ?? null;
 
   // --- Queries ---
   const {
@@ -85,6 +93,17 @@ export default function DocumentDetailPage() {
   React.useEffect(() => {
     if (aiConnected) setScenario(null);
   }, [aiConnected]);
+
+  // Hand the confirmed review scope to the chat exactly once per value, and
+  // only when a real analysis exists and the model can actually answer.
+  const seededAskRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!askFromReview || !aiConnected) return;
+    if (document?.status !== "ready") return;
+    if (seededAskRef.current === askFromReview) return;
+    seededAskRef.current = askFromReview;
+    setPendingQuestion({ text: askFromReview, nonce: Date.now() });
+  }, [askFromReview, aiConnected, document?.status]);
 
   // --- Status polling effect ---
   const isProcessing =
@@ -138,6 +157,13 @@ export default function DocumentDetailPage() {
       nonce: Date.now(),
     });
   }, []);
+
+  // The clarification answers travel to the chat through the same channel the
+  // finding buttons use: the panel sends the composed message itself.
+  const sendToChat = React.useCallback((message: string) => {
+    setPendingQuestion({ text: message, nonce: Date.now() });
+  }, []);
+
 
   // --- Missing ID guard ---
   if (!id) {
@@ -266,6 +292,13 @@ export default function DocumentDetailPage() {
           </div>
           <p className="mt-1 text-caption text-muted">{TRIAL_DISCLAIMER_FA}</p>
 
+          <ReviewDigest
+            report={scenario.report}
+            extractedText={scenario.extractedText}
+            documentName={scenario.docLabelFa}
+            className="mt-4"
+          />
+
           <div className="mt-4">
             <ReviewResult
               report={scenario.report}
@@ -304,6 +337,15 @@ export default function DocumentDetailPage() {
       {!aiStatusLoading && !scenario && aiConnected && (
         document.status === "ready" ? (
           <>
+            {/* 1 — The digest: subject, structure, attention order, limits */}
+            <ReviewDigest
+              report={document.report}
+              extractedText={document.extractedText}
+              documentName={document.name}
+              className="mt-6"
+            />
+
+            {/* 2 — The full, six-tab result surface */}
             <div className="mt-6">
               <h2 className="text-h3 text-on-surface mb-4">نتیجه بررسی</h2>
               <ReviewResult
@@ -312,6 +354,27 @@ export default function DocumentDetailPage() {
                 onAskAboutFinding={askAboutFinding}
               />
             </div>
+
+            {/* 3 — The gaps the analysis could not settle, one question at
+                a time. Answers go through the chat, so the model re-reads
+                the document with them. */}
+            <ReviewClarifications
+              documentId={document.id}
+              report={document.report}
+              onSend={sendToChat}
+              className="mt-6"
+            />
+
+            {/* 4 — Real next steps, below the result, never over it. The
+                lawyer row is left out here because the full lawyer section
+                follows below. */}
+            <ReviewNextSteps
+              documentName={document.name}
+              report={document.report}
+              extractedText={document.extractedText}
+              showLawyer={false}
+              className="mt-6"
+            />
 
             <div className="mt-6">
               <DocumentChatPanel
