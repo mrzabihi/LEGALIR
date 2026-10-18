@@ -442,17 +442,25 @@ export function SupplementaryStep() {
             </li>
           </ul>
 
-          <p
-            className={`text-caption ${saveStatus === "error" ? "text-error" : "text-muted"}`}
+          <div
+            className={`flex flex-wrap items-center gap-x-2 text-caption ${
+              saveStatus === "error" ? "text-error" : "text-muted"
+            }`}
             role={saveStatus === "error" ? "alert" : undefined}
           >
-            {saveLine}
+            <span>{saveLine}</span>
             {saveStatus === "error" && (
-              <button type="button" onClick={() => void saveNow()} className="ms-2 underline">
+              <Button
+                type="button"
+                variant="text"
+                size="small"
+                onClick={() => void saveNow()}
+                className="!h-auto !px-1 text-caption max-desktop:!min-h-0"
+              >
                 تلاش مجدد
-              </button>
+              </Button>
             )}
-          </p>
+          </div>
 
           {blockedMessage && (
             <div

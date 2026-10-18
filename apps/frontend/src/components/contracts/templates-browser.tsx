@@ -316,13 +316,18 @@ export function TemplatesBrowser() {
               {category !== "all" && <> در دستهٔ «{activeCategoryLabel}»</>}
             </p>
             {clearing && (
-              <button
+              <Button
                 type="button"
+                variant="text"
+                size="small"
                 onClick={clearAll}
-                className="rounded-small text-caption font-medium text-primary transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                startIcon={<IconClose size={14} />}
+                // -my-2 keeps the caption row's optical height while the
+                // control keeps the shared 36px (44px on touch) hit area.
+                className="-my-2 !px-1 text-caption"
               >
                 پاک کردن جست‌وجو و فیلترها
-              </button>
+              </Button>
             )}
           </div>
         </div>
