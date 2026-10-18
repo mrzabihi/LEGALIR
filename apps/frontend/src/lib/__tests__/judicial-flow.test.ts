@@ -91,11 +91,33 @@ interface DraftBody {
   replayed: boolean;
 }
 
+/**
+ * The route envelope as these tests read it: success bodies carry `data`,
+ * refusals carry `code`. Members are declared flat because each assertion only
+ * reads the one it is checking, on the branch it has already proven.
+ */
+interface ApiBody {
+  code: string;
+  missing: { fieldId: string }[];
+  fieldErrors: Record<string, string>;
+  completeness: {
+    complete: boolean;
+    contradictions: string[];
+    routingUndetermined?: boolean;
+  };
+  data: {
+    request: { id: string; documentType: string | null };
+    replayed: boolean;
+    completeness: { complete: boolean; contradictions: string[] };
+    draft: DraftBody["draft"];
+  };
+}
+
 /** POST the collection route and return status + parsed body. */
 async function createRequest(
   session: string,
   over: Record<string, unknown> = {}
-): Promise<{ status: number; data: any }> {
+): Promise<{ status: number; data: ApiBody }> {
   const body = {
     serviceId: "judicial_statement",
     startMode: "ai_draft",
@@ -117,7 +139,7 @@ async function saveStep(
   stepId: string,
   answers: Record<string, string>,
   questionnaireVersion = 1
-): Promise<{ status: number; data: any }> {
+): Promise<{ status: number; data: ApiBody }> {
   const res = await answersRoute.POST(
     req(`${BASE}/${id}/answers`, session, {
       method: "POST",
@@ -133,7 +155,7 @@ async function requestDraft(
   session: string,
   id: string,
   key = `gen-${crypto.randomUUID()}`
-): Promise<{ status: number; data: any }> {
+): Promise<{ status: number; data: ApiBody }> {
   const res = await draftRoute.POST(
     req(`${BASE}/${id}/draft`, session, {
       method: "POST",
@@ -148,7 +170,7 @@ async function requestDraft(
 async function getDetail(
   session: string,
   id: string
-): Promise<{ status: number; data: any }> {
+): Promise<{ status: number; data: ApiBody }> {
   const res = await itemRoute.GET(req(`${BASE}/${id}`, session), params(id));
   return { status: res.status, data: await res.json() };
 }
