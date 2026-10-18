@@ -1,16 +1,16 @@
 /**
  * ============================================================
- * LEGALIR — Subscription checkout E2E (select → pay → active)
+ * LEGALIR — Subscription checkout E2E
  * ============================================================
- * The reported bug: a Gold subscriber selects Diamond, pays successfully, and
- * the subscription stays Gold. This spec drives the real checkout end-to-end
- * against the live dev server (the mock gateway auto-confirms on poll) and
- * asserts the §7/§32 contract:
+ * Covers the shipped checkout contract:
  *
- *   Select plan → Create intent → (gateway) Verify → Activate → UI reflects it
+ *   Select plan → server-quoted review dialog → commit attempt
  *
- * The final assertion is the §34 requirement: the current-plan card must update
- * WITHOUT a manual refresh once the payment settles.
+ * The online gateway is intentionally inactive, so a positive-amount order
+ * cannot be paid. The correct behaviour — which this spec pins — is that the
+ * commit surfaces an honest «درگاه پرداخت به‌زودی فعال می‌شود» notice and
+ * activates nothing. The second test pins that the status panel re-resolves
+ * to the same persisted state across a reload.
  */
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
@@ -72,14 +72,17 @@ async function mockAuth(page: Page, sessionId: string) {
 const APP_READY_TIMEOUT = 20_000;
 
 /**
- * A plan CTA in any state: «انتخاب اشتراک» (unsubscribed), «خرید اشتراک»
- * (subscribed) or «ارتقا به …» (tier upgrade). The card's own label wins over
- * the page default, so match all three and drive the first visible one.
+ * A plan CTA in any state:
+ *   - «انتخاب و خرید»    — the PlanSummaryCard on the default Status tab
+ *   - «انتخاب اشتراک»    — the Plans-tab carousel, unsubscribed
+ *   - «خرید اشتراک»      — the Plans-tab carousel, subscribed
+ *   - «ارتقا به …»       — the Plans-tab carousel, tier upgrade
+ * Match all four and drive the first visible one.
  */
-const PLAN_CTA = /انتخاب اشتراک|خرید اشتراک|ارتقا به/;
+const PLAN_CTA = /انتخاب و خرید|انتخاب اشتراک|خرید اشتراک|ارتقا به/;
 
 test.describe("Subscription checkout", () => {
-  test("select → pay → the plan becomes active without a manual refresh", async ({
+  test("select → review dialog → the inactive gateway never fabricates activation", async ({
     page,
     request,
   }) => {
@@ -87,47 +90,65 @@ test.describe("Subscription checkout", () => {
     await mockAuth(page, sessionId);
     await page.goto("/subscription");
 
-    // The page renders; the current-plan card shows EITHER the active markup
-    // («وضعیت اشتراک») or the empty state («بدون اشتراک فعال»).
+    // The page renders and its status Panel is mounted.
     await expect(page.getByRole("heading", { name: "اشتراک", level: 1 })).toBeVisible({
       timeout: APP_READY_TIMEOUT,
     });
+    // Match the Panel's own <h2>. A bare `getByText("وضعیت اشتراک")` is
+    // ambiguous now that the page subtitle and the first tab both contain
+    // that phrase (strict-mode violation).
     await expect(
-      page.getByText("وضعیت اشتراک").or(page.getByText("بدون اشتراک فعال")),
+      page.getByRole("heading", { name: "وضعیت اشتراک", level: 2 }),
     ).toBeVisible({ timeout: APP_READY_TIMEOUT });
+
+    // Buy on the «پلن‌ها» tab: it always renders the full plan catalogue,
+    // whereas the Status tab only surfaces plans while nothing is active.
+    await page.getByRole("tab", { name: "پلن‌ها" }).click();
 
     // Wait until the plan catalogue has loaded, then drive the FIRST plan CTA.
     const pickButtons = page.getByRole("button", { name: PLAN_CTA });
     await expect(pickButtons.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await pickButtons.first().click();
 
-    // Confirmation dialog → confirm & pay.
-    const confirm = page.getByRole("button", { name: "تأیید و پرداخت" });
-    await expect(confirm).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await confirm.click();
+    // The review dialog opens with the SERVER's quote — never local pricing.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    await expect(dialog.getByText("بازبینی و تأیید سفارش")).toBeVisible();
+    await expect(dialog.getByText("مبلغ نهایی")).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
-    // The mock gateway confirms on poll: the payment banner shows «پرداخت شده».
-    await expect(page.getByText(/پرداخت شده/)).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    // The online gateway is intentionally NOT active, so the commit button
+    // says «پرداخت و فعال‌سازی» and clicking it must surface the honest notice
+    // rather than fabricate a paid subscription.
+    const pay = dialog.getByRole("button", { name: "پرداخت و فعال‌سازی" });
+    await expect(pay).toBeVisible();
+    await pay.click();
 
-    // §34 — the current-plan card must reflect the new active plan WITHOUT a
-    // reload. «وضعیت اشتراک» + «فعال» only render once a plan is live.
-    await expect(page.getByText("وضعیت اشتراک")).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await expect(page.getByText("فعال").first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
-
-    // The unsubscribed banner must be gone — the plan is no longer "none".
-    await expect(page.getByText("بدون اشتراک فعال")).toHaveCount(0);
+    await expect(page.getByText(/درگاه پرداخت به‌زودی فعال می‌شود/)).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+    // Nothing was activated — no success panel, no fabricated order.
+    await expect(page.getByText("اشتراک فعال شد")).toHaveCount(0);
+    await expect(page.getByText("سفارش در انتظار پرداخت")).toHaveCount(0);
   });
 
-  test("the active subscription survives a reload (payment was persisted)", async ({
-    page,
-    request,
-  }) => {
+  test("the status panel survives a reload unchanged", async ({ page, request }) => {
     const sessionId = await getOrCreateSession(request);
     await mockAuth(page, sessionId);
     await page.goto("/subscription");
 
-    await expect(page.getByText("وضعیت اشتراک")).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await expect(page.getByText("فعال").first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await expect(page.getByText("بدون اشتراک فعال")).toHaveCount(0);
+    const panel = page.getByRole("heading", { name: "وضعیت اشتراک", level: 2 });
+    await expect(panel).toBeVisible({ timeout: APP_READY_TIMEOUT });
+
+    // Snapshot whichever state the account is in (active plan or empty),
+    // then prove a reload resolves to the same one from the persisted data.
+    const card = page.locator("section", { has: panel });
+    const before = (await card.innerText()).trim();
+    expect(before.length).toBeGreaterThan(0);
+
+    await page.reload();
+    await expect(panel).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    const after = (await page.locator("section", { has: panel }).innerText()).trim();
+
+    expect(after).toBe(before);
   });
 });

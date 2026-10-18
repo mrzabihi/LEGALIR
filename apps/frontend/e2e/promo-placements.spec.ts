@@ -50,39 +50,106 @@ async function mockAuth(page: Page, sessionId: string) {
 
 const BREAKPOINTS = [320, 360, 390, 430, 768, 1024, 1440];
 
-/** route → the promo art key expected on it */
-const PLACEMENTS: { route: string; art: string; cta: string }[] = [
-  { route: "/", art: "one", cta: "/lawyers" },
-  { route: "/services", art: "three", cta: "/legal-library" },
-  { route: "/lawyers", art: "four", cta: "/consultations/new" },
-  { route: "/dashboard", art: "five", cta: "/services" },
-  { route: "/blog", art: "six", cta: "/legal-library" },
+/** Pages hydrate and fetch data client-side; the default 5s is too tight
+ *  for a cold route on a shared dev server. */
+const READY_TIMEOUT = 15_000;
+
+/**
+ * route → the artwork expected on it.
+ *
+ * `square` placements render the ≈354×357 illustration inside a framed
+ * square (`PromoArt`), so the frame must preserve the source ratio.
+ * `photo` placements are the later photographic banners (`PromoPanel`
+ * with a `photo`, and `PromoModule` on the dashboard): a wide editorial
+ * image cropped with `object-cover`, so the frame deliberately matches
+ * the section, not the source.
+ */
+type PlacementKind = "square" | "photo";
+
+const PLACEMENTS: { route: string; asset: string; kind: PlacementKind; cta: string }[] = [
+  { route: "/", asset: "legalir-promo-one", kind: "square", cta: "/lawyers" },
+  {
+    route: "/services",
+    asset: "legalir-banner-legal-sources",
+    kind: "photo",
+    cta: "/legal-library",
+  },
+  {
+    route: "/lawyers",
+    asset: "legalir-promo-four",
+    kind: "square",
+    cta: "/consultations/new",
+  },
+  {
+    route: "/dashboard",
+    asset: "legalir-banner-legal-services",
+    kind: "photo",
+    cta: "/services",
+  },
+  { route: "/blog", asset: "legalir-promo-six", kind: "square", cta: "/legal-library" },
 ];
 
 for (const bp of BREAKPOINTS) {
   test.describe(`@${bp}px`, () => {
+    // 58 tests share one dev server; a cold Turbopack compile of /services
+    // can outlast the 30s default before first paint. The per-assertion
+    // budgets below still fail fast on a real layout break.
+    test.describe.configure({ timeout: 90_000 });
     test.use({ viewport: { width: bp, height: 900 } });
 
-    for (const { route, art, cta } of PLACEMENTS) {
-      test(`${route} renders promo "${art}"`, async ({ page, request }) => {
+    for (const { route, asset, kind, cta } of PLACEMENTS) {
+      test(`${route} renders promo "${asset}"`, async ({ page, request }) => {
         await mockAuth(page, await getOrCreateSession(request));
-        await page.goto(route, { waitUntil: "domcontentloaded" });
+        await page.goto(route, { waitUntil: "domcontentloaded", timeout: READY_TIMEOUT * 3 });
 
-        const img = page.locator(`img[src*="/assets/promo/legalir-promo-${art}"]`).first();
-        await img.scrollIntoViewIfNeeded();
-        await expect(img).toBeVisible();
+        const img = page.locator(`img[src*="/assets/promo/${asset}"]`).first();
+        await img.scrollIntoViewIfNeeded({ timeout: READY_TIMEOUT });
+        await expect(img).toBeVisible({ timeout: READY_TIMEOUT });
 
-        // Loaded, and the frame preserves the source aspect ratio.
+        // Loaded, and the image has real pixel dimensions. The artwork is
+        // `loading="lazy"`, and this runs 7 breakpoints x 6 routes against a
+        // shared dev server: the intersection update can be missed under a
+        // cold compile and the lazy fetch never starts, leaving
+        // `naturalWidth` at 0 forever. Flip it to eager and `decode()` on
+        // every poll iteration — `decode()` actively requests the bytes, so
+        // a stalled fetch is retried instead of waited out.
         await expect
-          .poll(async () => img.evaluate((el: HTMLImageElement) => el.naturalWidth))
+          .poll(
+            async () =>
+              img.evaluate(async (el: HTMLImageElement) => {
+                el.loading = "eager";
+                if (!(el.complete && el.naturalWidth > 0)) {
+                  try {
+                    await el.decode();
+                  } catch {
+                    /* not decodable yet — the next poll retries */
+                  }
+                }
+                return el.naturalWidth;
+              }),
+            { timeout: READY_TIMEOUT },
+          )
           .toBeGreaterThan(0);
 
         const box = await img.boundingBox();
         expect(box).not.toBeNull();
         const ratio = box!.width / box!.height;
-        // Source is 354×357 (0.992). Allow a small tolerance for rounding.
-        expect(ratio).toBeGreaterThan(0.96);
-        expect(ratio).toBeLessThan(1.03);
+
+        if (kind === "square") {
+          // Square illustrations render in an `aspect-[354/357]` frame:
+          // source is 354×357 (0.992), so allow a small rounding tolerance.
+          expect(ratio).toBeGreaterThan(0.96);
+          expect(ratio).toBeLessThan(1.03);
+        } else {
+          // Photographic banners are section backgrounds cropped with
+          // `object-cover`, so the frame follows the section (portrait-ish
+          // on a phone, wide on desktop) rather than the source ratio. The
+          // contract is the crop, not a fixed aspect.
+          const fit = await img.evaluate(
+            (el: HTMLImageElement) => getComputedStyle(el).objectFit,
+          );
+          expect(fit).toBe("cover");
+        }
 
         // No horizontal overflow at this width.
         const overflow = await page.evaluate(
@@ -93,9 +160,9 @@ for (const bp of BREAKPOINTS) {
         // The CTA, when the placement has one, points at a real route.
         if (cta) {
           const link = page
-            .locator(`section:has(img[src*="legalir-promo-${art}"]) a[href="${cta}"]`)
+            .locator(`section:has(img[src*="${asset}"]) a[href="${cta}"]`)
             .first();
-          await expect(link).toBeVisible();
+          await expect(link).toBeVisible({ timeout: READY_TIMEOUT });
         }
       });
     }
@@ -106,10 +173,13 @@ for (const bp of BREAKPOINTS) {
     // real case data is on screen.
     test(`/cases keeps promo "two" out of the populated list`, async ({ page, request }) => {
       await mockAuth(page, await getOrCreateSession(request));
-      await page.goto("/cases", { waitUntil: "domcontentloaded" });
+      await page.goto("/cases", {
+        waitUntil: "domcontentloaded",
+        timeout: READY_TIMEOUT * 3,
+      });
 
       const cards = page.locator('a[href^="/cases/"]');
-      await expect(cards.first()).toBeVisible();
+      await expect(cards.first()).toBeVisible({ timeout: READY_TIMEOUT });
 
       await expect(page.locator('img[src*="/assets/promo/legalir-promo-two"]')).toHaveCount(0);
 

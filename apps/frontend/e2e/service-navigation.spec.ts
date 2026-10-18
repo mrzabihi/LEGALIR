@@ -11,7 +11,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 
 const DEMO_MOBILE = "09120000003";
-const OTP_CODE = "405405";
+const DEMO_PASSWORD = "123456";
 const SESSION_COOKIE = "legalir-session";
 
 let cachedSessionId: string | null = null;
@@ -19,19 +19,14 @@ let cachedSessionId: string | null = null;
 async function getOrCreateSession(request: APIRequestContext): Promise<string> {
   if (cachedSessionId) return cachedSessionId;
 
-  const reqRes = await request.post("/api/auth/otp/request", {
-    data: { mobile: DEMO_MOBILE },
+  // Password login, not OTP: the OTP endpoint rate-limits per mobile
+  // (3 requests / 5 min), which made this spec flake under repeated runs.
+  const res = await request.post("/api/auth/login", {
+    data: { mobile: DEMO_MOBILE, password: DEMO_PASSWORD },
   });
-  const reqBody = (await reqRes.json()) as { data?: { challengeId?: string } };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) throw new Error("Failed to request OTP challenge");
-
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const verifyBody = (await verifyRes.json()) as { data?: { sessionId?: string } };
-  const sessionId = verifyBody.data?.sessionId;
-  if (!sessionId) throw new Error("Failed to verify OTP and create a session");
+  const sessionId = ((await res.json()) as { data?: { sessionId?: string } }).data
+    ?.sessionId;
+  if (!sessionId) throw new Error("Failed to create a demo session");
 
   cachedSessionId = sessionId;
   return sessionId;
@@ -79,9 +74,8 @@ const SERVICES = [
 ] as const;
 
 test.describe("Service navigation & page context", () => {
-  // The OTP endpoint rate-limits to 3 requests / 5 min per mobile
-  // (src/app/api/auth/otp/request/route.ts). Run serially so the
-  // cached session is shared instead of re-requested per worker.
+  // Serial so the cached demo session is shared from a single login
+  // instead of being re-requested per test.
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ page, request }) => {

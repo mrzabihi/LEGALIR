@@ -15,14 +15,18 @@
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 
-const OTP_CODE = "405405";
+const DEMO_PASSWORD = "123456";
 const SESSION_COOKIE = "legalir-session";
 const DEMO_MOBILE = "09120000003";
 const OTHER_MOBILE = "09120000009";
 
 const PDF_DOC = "doc-emp-001"; // real multi-page PDF fixture
 const UNSUPPORTED_DOC = "doc-board-001"; // DOCX, no preview
-const MISSING_DOC = "doc-rent-001"; // PDF metadata, bytes absent
+// JPEG (a previewable kind) whose row has neither a storageKey nor a
+// previewUrl, so its bytes are genuinely absent. `doc-rent-001` used to
+// serve this role, but its PDF is now committed under
+// public/demo-documents/, so it renders a real first page instead.
+const MISSING_DOC = "doc-check-001"; // previewable kind, bytes absent
 
 interface SessionInfo {
   sessionId: string;
@@ -30,25 +34,44 @@ interface SessionInfo {
   mobileDisplay: string;
 }
 
-async function createSessionFor(request: APIRequestContext, mobile: string): Promise<SessionInfo> {
-  const reqRes = await request.post("/api/auth/otp/request", { data: { mobile } });
-  const reqBody = (await reqRes.json()) as { data?: { challengeId?: string } };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) throw new Error("Failed to request OTP challenge");
-
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const verifyBody = (await verifyRes.json()) as {
-    data?: { sessionId?: string; userId?: string; mobileDisplay?: string };
+/**
+ * Log in (or register, for an unseeded mobile) and return the session.
+ * Never the OTP flow — `/api/auth/otp/request` is rate-limited to 3
+ * requests / 5 min per mobile, so running this spec after any other
+ * OTP-based spec failed at session creation.
+ */
+async function createSessionFor(
+  request: APIRequestContext,
+  mobile: string,
+): Promise<SessionInfo> {
+  const attempt = async (m: string) => {
+    const credentials = { mobile: m, password: DEMO_PASSWORD };
+    const login = await request.post("/api/auth/login", { data: credentials });
+    if (login.ok()) return login;
+    return request.post("/api/auth/register", { data: credentials });
   };
-  const sessionId = verifyBody.data?.sessionId;
-  if (!sessionId) throw new Error("Failed to verify OTP and create a session");
+
+  let res = await attempt(mobile);
+  if (!res.ok() && res.status() === 409) {
+    // The mobile already exists from an earlier OTP run, which assigned it a
+    // random password nobody knows. Any *other* account serves this spec's
+    // cross-user isolation check, so fall back to a fresh identity.
+    res = await attempt(`0912${Math.floor(1000000 + Math.random() * 8999999)}`);
+  }
+  if (!res.ok()) {
+    throw new Error(`Failed to create a session for ${mobile} (${res.status()})`);
+  }
+
+  const body = (await res.json()) as {
+    data?: { sessionId?: string; user?: { id?: string; mobileDisplay?: string } };
+  };
+  const sessionId = body.data?.sessionId;
+  if (!sessionId) throw new Error("Failed to create a session");
 
   return {
     sessionId,
-    userId: verifyBody.data?.userId ?? "unknown-user",
-    mobileDisplay: verifyBody.data?.mobileDisplay ?? mobile,
+    userId: body.data?.user?.id ?? "unknown-user",
+    mobileDisplay: body.data?.user?.mobileDisplay ?? mobile,
   };
 }
 
@@ -78,8 +101,7 @@ async function mockAuth(page: Page, session: SessionInfo) {
 
 const APP_READY_TIMEOUT = 15_000;
 
-// The OTP endpoint rate-limits to 3 requests / 5 min per mobile, so the
-// sessions are created once and reused across the tests.
+// Sessions are created once and reused across the tests.
 let demoSession: SessionInfo;
 let otherSession: SessionInfo;
 

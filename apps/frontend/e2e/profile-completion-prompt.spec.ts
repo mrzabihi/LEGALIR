@@ -16,7 +16,7 @@
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 
-const OTP_CODE = "405405";
+const DEMO_PASSWORD = "123456";
 const SESSION_COOKIE = "legalir-session";
 
 // Demo user has a 100%-complete profile (امیر رضایی).
@@ -26,9 +26,7 @@ const COMPLETE_MOBILE = "09120000003";
 // Each test gets a UNIQUE mobile so a suppress persisted in one test can never
 // leak into another (the JSON DB is shared and persists across tests, and the
 // suite runs fully parallel).
-let mobileCounter = 0;
 function freshMobile(): string {
-  mobileCounter += 1;
   // 091 + 8 random digits → 11 chars, always matches /^09\d{9}$/.
   const rand = Math.floor(10000000 + Math.random() * 90000000);
   return `091${rand}`;
@@ -45,28 +43,39 @@ interface SessionInfo {
 }
 
 /**
- * Create a real session through the OTP API for a given mobile. A brand-new
- * mobile yields a brand-new user with an empty profile (incomplete).
+ * Create a real session for a given mobile: log in if the account already
+ * exists, otherwise register it. A brand-new mobile yields a brand-new user
+ * with an empty profile (incomplete).
+ *
+ * Deliberately NOT the OTP flow: `/api/auth/otp/request` is rate-limited to
+ * 3 requests / 5 min per mobile, and the suite's other specs spend that
+ * budget on the shared demo number, so the "complete profile" case (which
+ * uses `COMPLETE_MOBILE`) failed with `RATE_LIMITED` on repeat runs. Both
+ * `login` and `register` are unlimited and return the same session shape.
  */
 async function createSessionFor(request: APIRequestContext, mobile: string): Promise<SessionInfo> {
-  const reqRes = await request.post("/api/auth/otp/request", { data: { mobile } });
-  const reqBody = (await reqRes.json()) as { data?: { challengeId?: string } };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) throw new Error("Failed to request OTP challenge");
+  const credentials = { mobile, password: DEMO_PASSWORD };
 
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const verifyBody = (await verifyRes.json()) as {
-    data?: { sessionId?: string; userId?: string; mobileDisplay?: string };
+  let res = await request.post("/api/auth/login", { data: credentials });
+  if (!res.ok()) {
+    // Not registered yet — create the account (same empty-profile state the
+    // OTP flow produced for a fresh mobile).
+    res = await request.post("/api/auth/register", { data: credentials });
+  }
+  if (!res.ok()) {
+    throw new Error(`Failed to create a session for ${mobile} (${res.status()})`);
+  }
+
+  const body = (await res.json()) as {
+    data?: { sessionId?: string; user?: { id?: string; mobileDisplay?: string } };
   };
-  const sessionId = verifyBody.data?.sessionId;
-  if (!sessionId) throw new Error("Failed to verify OTP and create a session");
+  const sessionId = body.data?.sessionId;
+  if (!sessionId) throw new Error("Failed to create a session");
 
   return {
     sessionId,
-    userId: verifyBody.data?.userId ?? "unknown-user",
-    mobileDisplay: verifyBody.data?.mobileDisplay ?? mobile,
+    userId: body.data?.user?.id ?? "unknown-user",
+    mobileDisplay: body.data?.user?.mobileDisplay ?? mobile,
   };
 }
 

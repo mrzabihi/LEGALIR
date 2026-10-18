@@ -13,7 +13,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 
 const DEMO_MOBILE = "09120000003";
-const OTP_CODE = "405405";
+const DEMO_PASSWORD = "123456";
 const SESSION_COOKIE = "legalir-session";
 const APP_READY_TIMEOUT = 15_000;
 
@@ -22,19 +22,14 @@ let cachedSessionId: string | null = null;
 async function getOrCreateSession(request: APIRequestContext): Promise<string> {
   if (cachedSessionId) return cachedSessionId;
 
-  const reqRes = await request.post("/api/auth/otp/request", {
-    data: { mobile: DEMO_MOBILE },
+  // Password login, not OTP: the OTP endpoint rate-limits per mobile
+  // (3 requests / 5 min), which made this spec fail on repeat runs.
+  const res = await request.post("/api/auth/login", {
+    data: { mobile: DEMO_MOBILE, password: DEMO_PASSWORD },
   });
-  const challengeId = ((await reqRes.json()) as { data?: { challengeId?: string } }).data
-    ?.challengeId;
-  if (!challengeId) throw new Error("Failed to request OTP challenge");
-
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const sessionId = ((await verifyRes.json()) as { data?: { sessionId?: string } }).data
+  const sessionId = ((await res.json()) as { data?: { sessionId?: string } }).data
     ?.sessionId;
-  if (!sessionId) throw new Error("Failed to verify OTP and create a session");
+  if (!sessionId) throw new Error("Failed to create a demo session");
 
   cachedSessionId = sessionId;
   return sessionId;
@@ -75,7 +70,11 @@ test.describe("Dashboard points card", () => {
     await mockAuth(page, sessionId);
     await page.goto("/dashboard");
 
-    const card = page.locator('a[href="/points"]').last();
+    // Target the hero stat card by its own aria-label. A bare
+    // `a[href="/points"]` matches the header badge AND the later
+    // «امتیازهای شما» row inside SubscriptionUsageCard, so `.last()`
+    // used to resolve to the wrong card.
+    const card = page.getByRole("link", { name: /مشاهده جزئیات امتیازها/ });
     await expect(card).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await expect(card).toContainText("امتیاز من");
 
@@ -92,8 +91,8 @@ test.describe("Dashboard points card", () => {
     await mockAuth(page, sessionId);
     await page.goto("/dashboard");
 
-    const headerBadge = page.locator('a[href="/points"]').first();
-    const card = page.locator('a[href="/points"]').last();
+    const headerBadge = page.getByRole("link", { name: /امتیاز من:/ });
+    const card = page.getByRole("link", { name: /مشاهده جزئیات امتیازها/ });
     await expect(headerBadge).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     // Wait for the card's balance to leave the loading skeleton.
@@ -118,7 +117,7 @@ test.describe("Dashboard points card", () => {
     await mockAuth(page, sessionId);
     await page.goto("/dashboard");
 
-    const card = page.locator('a[href="/points"]').last();
+    const card = page.getByRole("link", { name: /مشاهده جزئیات امتیازها/ });
     await expect(card).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     // Wait past the loading skeleton — the balance is a Persian numeral.
@@ -141,7 +140,7 @@ test.describe("Dashboard points card", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/dashboard");
 
-    const card = page.locator('a[href="/points"]').last();
+    const card = page.getByRole("link", { name: /مشاهده جزئیات امتیازها/ });
     await expect(card).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     const overflow = await page.evaluate(
@@ -156,7 +155,7 @@ test.describe("Dashboard points card", () => {
     await page.addInitScript(() => localStorage.setItem("legalir-theme", "dark"));
     await page.goto("/dashboard");
 
-    const card = page.locator('a[href="/points"]').last();
+    const card = page.getByRole("link", { name: /مشاهده جزئیات امتیازها/ });
     await expect(card).toBeVisible({ timeout: APP_READY_TIMEOUT });
     await expect(card).toContainText("امتیاز من");
   });

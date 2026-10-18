@@ -7,7 +7,13 @@
  * wizard whose steps are rendered from the registry field schema.
  */
 
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Locator,
+  type Page,
+  type APIRequestContext,
+} from "@playwright/test";
 
 const DEMO_MOBILE = "09120000003";
 const DEMO_PASSWORD = "123456";
@@ -29,6 +35,21 @@ async function getOrCreateSession(request: APIRequestContext): Promise<string> {
   if (!sessionId) throw new Error("Failed to create a demo session");
   cachedSessionId = sessionId;
   return sessionId;
+}
+
+/**
+ * Wait until React has hydrated this element. Server-rendered markup appears
+ * before the client attaches handlers, so a click that lands too early is a
+ * silent no-op — which is what made this spec flake once the full suite put
+ * the dev server under sustained load. React marks a hydrated host node with
+ * an internal `__reactFiber$` key: the only reliable "interactive now" signal.
+ */
+async function waitForHydration(locator: Locator) {
+  await expect
+    .poll(() =>
+      locator.evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactFiber$"))),
+    )
+    .toBe(true);
 }
 
 async function mockAuth(page: Page, sessionId: string) {
@@ -91,7 +112,9 @@ test.describe("Contract types", () => {
       .locator("article")
       .filter({ hasText: "خرید و فروش خودرو" })
       .first();
-    await vehicleCard.getByRole("button", { name: "تنظیم قولنامه خودرو" }).click();
+    const startButton = vehicleCard.getByRole("button", { name: "تنظیم قولنامه خودرو" });
+    await waitForHydration(startButton);
+    await startButton.click();
     await page.waitForURL(/\/contracts\/cnt-/, { timeout: APP_READY_TIMEOUT });
 
     // The wizard shell renders the registry's first step.
