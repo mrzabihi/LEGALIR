@@ -101,6 +101,31 @@ const FULL_MS = "laptop:ms-72";
 
 const COLLAPSE_KEY = "legalir.admin.sidebar.collapsed";
 
+/**
+ * The prefix `middleware.ts` treats as the admin console. Mirrored here so
+ * the console can tell which host it is running on.
+ */
+const ADMIN_HOST_PREFIX = "admin.";
+
+/**
+ * Absolute URL for a path on the CONSUMER app.
+ *
+ * On the admin subdomain, every relative path is rewritten onto the `/admin`
+ * tree — that is what makes `admin.localhost/orders` work. So a relative
+ * «بازگشت به اپلیکیشن» (`/dashboard`) would loop straight back into the
+ * console. The app lives on the ROOT host, so strip the subdomain prefix.
+ * Read from `window.location` at click time: the affordance only acts after
+ * a user gesture, so this never runs during SSR.
+ */
+function consumerAppUrl(path: string): string {
+  if (typeof window === "undefined") return path;
+  const { protocol, host } = window.location;
+  const rootHost = host.startsWith(ADMIN_HOST_PREFIX)
+    ? host.slice(ADMIN_HOST_PREFIX.length)
+    : host;
+  return `${protocol}//${rootHost}${path}`;
+}
+
 function useSidebarCollapsed() {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
@@ -387,7 +412,7 @@ function UserMenu({
             <button
               type="button"
               role="menuitem"
-              onClick={() => go("/dashboard")}
+              onClick={() => go(consumerAppUrl("/dashboard"))}
               className="flex w-full items-center gap-3 px-4 py-2.5 text-start text-body-2 text-on-surface-variant transition-colors hover:bg-surface-hover"
             >
               <IconHome size={17} className="text-outline" /> بازگشت به اپلیکیشن
@@ -463,12 +488,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="mt-2 text-body-2 text-muted">
             این پنل فقط برای کارکنان و مدیران پلتفرم در دسترس است.
           </p>
-          <Link
-            href="/dashboard"
+          {/* An action rather than a `<Link>`: on the admin subdomain the
+              destination must leave the console's host entirely, and that
+              origin is only known on the client — rendering it during SSR
+              would mismatch hydration. */}
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = consumerAppUrl("/dashboard");
+            }}
             className="mt-5 inline-flex items-center gap-1.5 rounded-medium border border-divider px-4 py-2 text-body-2 font-medium text-on-surface-variant hover:bg-surface-hover"
           >
             <IconHome size={16} /> بازگشت به اپلیکیشن
-          </Link>
+          </button>
         </div>
       </div>
     );
