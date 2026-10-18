@@ -63,6 +63,7 @@ import {
   type SignContext,
 } from "./signature/workflow";
 import { DEV_OTP } from "./signature/otp-provider";
+import { smsConfigured } from "../sms/gateway";
 import { isContractFeatureEnabled } from "./feature-flags";
 import {
   appendStampEvent,
@@ -319,6 +320,13 @@ async function completeSampleLifecycle(
   contract: PropertyContract,
   userId: string
 ): Promise<void> {
+  // §2.7 — completing the lifecycle drives the REAL OTP workflow, which
+  // delivers through the active gateway. With a real gateway configured
+  // that would turn a dev seed into a text to a stranger's phone, so the
+  // seed deliberately stops where the invitation was prepared and leaves
+  // the request open for an operator to drive by hand.
+  if (smsConfigured()) return;
+
   const label = "سامانهٔ نمونه (توسعه)";
   const ctxFor = (current: PropertyContract): SignContext => ({
     contract: current,
@@ -423,7 +431,11 @@ export function seedSampleContract(userId: string): void {
     } catch {
       /* a repair must never break the boot */
     }
-    void completeSampleLifecycle(existing, userId).catch(() => {});
+    void completeSampleLifecycle(existing, userId).catch((error: unknown) => {
+      // Never fatal, but never silent either: a broken sample should be
+      // visible in the dev log rather than leaving a half-filled fixture.
+      console.warn("[legalir:sample-contract] lifecycle completion failed", error);
+    });
     return;
   }
 
@@ -480,7 +492,11 @@ export function seedSampleContract(userId: string): void {
   // signatures go through the shipped OTP workflow and the seal is only
   // recorded after every party has signed.
   const seeded = getContractById(contract.id);
-  if (seeded) void completeSampleLifecycle(seeded, userId).catch(() => {});
+  if (seeded) {
+    void completeSampleLifecycle(seeded, userId).catch((error: unknown) => {
+      console.warn("[legalir:sample-contract] lifecycle completion failed", error);
+    });
+  }
 }
 
 /**
