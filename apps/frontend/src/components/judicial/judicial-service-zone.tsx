@@ -9,8 +9,10 @@
 //
 // Two rules keep it honest:
 //   • a service links only when its configured status AND feature flag AND
-//     declared requirement all allow it, and when a real wizard entry exists
-//     (`judicialEntryType`); otherwise the card explains and offers no button;
+//     declared requirement all allow it, and when a real entry exists — the
+//     drafting wizard for the four document families, the tracked intake for
+//     the two provider services; otherwise the card explains and offers no
+//     button;
 //   • a failing or empty catalog renders NOTHING here — the surrounding page
 //     keeps working exactly as before.
 // ============================================================
@@ -31,9 +33,8 @@ import {
 import { StatusBadge, type StatusTone } from "@/components/shared";
 import { useJudicialServices } from "@/hooks/useJudicial";
 import {
-  judicialEntryHref,
-  judicialEntryType,
   judicialSearchHaystack,
+  judicialServiceEntryHref,
 } from "@/lib/judicial/entry";
 import type { IconComponent } from "@/lib/services/catalog";
 
@@ -62,15 +63,27 @@ const STATUS_TONE: Record<string, StatusTone> = {
   unavailable: "neutral",
 };
 
+/** The badge text for a service that is not fully available. */
+const STATUS_LABEL_FA: Record<string, string> = {
+  soon: "به‌زودی",
+  unavailable: "در دسترس نیست",
+  request_only: "ثبت درخواست — تحویل پس از بررسی",
+};
+
 /**
  * The CTA destination for this caller. Discovery surfaces reachable without
  * a session send the visitor through login first and return them to the same
- * wizard URL, exactly like the other home entry points.
+ * URL, exactly like the other home entry points.
+ *
+ * `available` opens the drafting wizard; `request_only` opens the tracked
+ * intake. Nothing else links at all.
  */
 function ctaHref(service: JudicialServiceView, mode: "app" | "public"): string | null {
-  const type = judicialEntryType(service.id);
-  if (!type || service.availability !== "available") return null;
-  const target = judicialEntryHref(type);
+  if (service.availability !== "available" && service.availability !== "request_only") {
+    return null;
+  }
+  const target = judicialServiceEntryHref(service.id);
+  if (!target) return null;
   return mode === "public"
     ? `/auth/mobile?intent=${encodeURIComponent(target)}`
     : target;
@@ -78,7 +91,10 @@ function ctaHref(service: JudicialServiceView, mode: "app" | "public"): string |
 
 /** Whether a service can be entered right now (real route + real status). */
 function isEnterable(service: JudicialServiceView): boolean {
-  return service.availability === "available" && judicialEntryType(service.id) !== null;
+  if (service.availability !== "available" && service.availability !== "request_only") {
+    return false;
+  }
+  return judicialServiceEntryHref(service.id) !== null;
 }
 
 function JudicialServiceCard({
@@ -106,7 +122,7 @@ function JudicialServiceCard({
             <h3 className="text-body-1 font-semibold text-on-surface">{service.titleFa}</h3>
             {service.availability !== "available" && (
               <StatusBadge
-                label={service.availability === "soon" ? "به‌زودی" : "در دسترس نیست"}
+                label={STATUS_LABEL_FA[service.availability] ?? "در دسترس نیست"}
                 tone={STATUS_TONE[service.availability] ?? "neutral"}
                 dot={false}
               />
@@ -118,7 +134,10 @@ function JudicialServiceCard({
         </div>
       </div>
 
-      {!enterable && (
+      {/* A request-only service IS enterable, but its card still states who
+          actually delivers the artifact. The note is the same server string
+          the intake page repeats — one source, two placements. */}
+      {(!enterable || service.availability === "request_only") && (
         <p className="mt-3 flex items-start gap-1.5 rounded-medium bg-surface-container-low px-2.5 py-2 text-caption leading-6 text-on-surface-variant">
           <IconInfo size={14} className="mt-1 shrink-0" />
           {service.availabilityNoteFa ??

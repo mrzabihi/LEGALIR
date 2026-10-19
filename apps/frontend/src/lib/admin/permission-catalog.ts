@@ -198,6 +198,11 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   "admin:plans:manage": { fa: "مدیریت پلن‌ها و سهمیه‌ها", group: "plans" },
   "admin:services:read": { fa: "مشاهده خدمات", group: "plans" },
   "admin:services:manage": { fa: "مدیریت خدمات", group: "plans" },
+  "admin:judicial:read": { fa: "مشاهده صف بررسی اوراق قضایی", group: "requests" },
+  "admin:judicial:review": {
+    fa: "بررسی، اصلاح و تأیید اوراق قضایی",
+    group: "requests",
+  },
   "admin:flags:manage": { fa: "مدیریت پرچم‌های ویژگی", group: "plans" },
   "admin:calculators:read": { fa: "مشاهده محاسبه‌گرها", group: "plans" },
   "admin:calculators:manage": { fa: "مدیریت محاسبه‌گرها", group: "plans" },

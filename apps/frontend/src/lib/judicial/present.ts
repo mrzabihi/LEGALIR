@@ -18,11 +18,14 @@ import type {
   JudicialAttachment,
   JudicialCompleteness,
   JudicialDraftVersion,
+  JudicialFinalDocument,
   JudicialQuestionnaire,
   JudicialQuestionnaireResponse,
   JudicialRequest,
   JudicialRequestDetail,
   JudicialRequestSummary,
+  JudicialReviewDetail,
+  JudicialStatusEvent,
 } from "@legalir/types";
 import { listCases } from "@/lib/case-db";
 import {
@@ -32,13 +35,52 @@ import {
   listDrafts,
   requestCounts,
 } from "./db";
+import {
+  getFinalDocumentForRequest,
+  listReviewsForRequest,
+  listStatusEvents,
+  ownerReviewEvents,
+} from "./review-db";
 import { getQuestionnaireVersion } from "./questionnaires";
 import { computeCompleteness } from "./completeness";
 import { buildAnalysis } from "./analysis";
 import { availableTransitions } from "./workflow";
 
+/**
+ * The owner-facing review projection. The ACTIVE review wins; when none is in
+ * flight the newest closed one is shown so the owner can still read the
+ * decision and its history. Internal operator notes are filtered out by
+ * `ownerReviewEvents`, so this payload can be returned to the browser as-is.
+ */
+export function ownerReviewProjection(
+  userId: string,
+  requestId: string
+): JudicialReviewDetail | null {
+  const [review] = listReviewsForRequest(userId, requestId);
+  if (!review) return null;
+  return { ...review, events: ownerReviewEvents(review.id) };
+}
+
+/** Owner-visible status history, oldest first. */
+function statusHistoryProjection(
+  userId: string,
+  requestId: string
+): JudicialStatusEvent[] {
+  return listStatusEvents(userId, requestId);
+}
+
+/** The issued artifact, only when it belongs to this owner. */
+function finalDocumentProjection(
+  userId: string,
+  requestId: string
+): JudicialFinalDocument | null {
+  const doc = getFinalDocumentForRequest(requestId);
+  return doc && doc.userId === userId ? doc : null;
+}
+
 export function toRequestSummary(request: JudicialRequest): JudicialRequestSummary {
   const counts = requestCounts(request.userId, request.id);
+  const finalDoc = getFinalDocumentForRequest(request.id);
   return {
     id: request.id,
     serviceId: request.serviceId,
@@ -46,11 +88,16 @@ export function toRequestSummary(request: JudicialRequest): JudicialRequestSumma
     status: request.status,
     currentStep: request.currentStep,
     titleFa: request.titleFa,
+    createdAt: request.createdAt,
     updatedAt: request.updatedAt,
     documentCount: counts.documentCount,
     draftCount: counts.draftCount,
     latestDraftVersion: counts.latestDraftVersion,
     hasApprovedDraft: counts.hasApprovedDraft,
+    // The row is reached through an owner-scoped read, so `finalDoc` can only
+    // belong to this owner; the id check keeps the projection safe even if a
+    // caller ever passes a foreign request.
+    hasFinalDocument: finalDoc !== null && finalDoc.userId === request.userId,
   };
 }
 
@@ -101,6 +148,13 @@ export interface RequestDetailOptions {
   withAnalysis?: boolean;
   /** Include the caller's cases for the link picker. */
   withLinkableCases?: boolean;
+  /**
+   * Include the review / status-history / final-document projections. The
+   * list route sets this to false: those payloads carry full draft text and
+   * belong on the detail read, not in a list response.
+   */
+  withReview?: boolean;
+  withStatusHistory?: boolean;
 }
 
 /**
@@ -151,6 +205,15 @@ export function buildRequestDetail(
     analysis,
     availableTransitions: availableTransitions(request),
     linkableCases: options.withLinkableCases ? linkableCasesFor(request.userId) : [],
+    review: options.withReview === false ? null : ownerReviewProjection(request.userId, request.id),
+    statusHistory:
+      options.withStatusHistory === false
+        ? []
+        : statusHistoryProjection(request.userId, request.id),
+    finalDocument:
+      options.withReview === false
+        ? null
+        : finalDocumentProjection(request.userId, request.id),
   };
 }
 

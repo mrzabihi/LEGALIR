@@ -59,13 +59,21 @@ export const JUDICIAL_SERVICE_FA: Record<JudicialServiceId, string> = {
 
 /**
  * The single honest status vocabulary. `available` means the real capability
- * exists; `soon` means the page explains why and offers no fake action;
- * `unavailable` means it is switched off entirely.
+ * exists; `request_only` means the service accepts a tracked request that a
+ * Ligalir operator processes (the certificate/result itself is issued by an
+ * external authority, and this product never pretends to issue it); `soon`
+ * means the page explains why and offers no fake action; `unavailable` means
+ * it is switched off entirely.
  */
-export type JudicialServiceStatus = "available" | "soon" | "unavailable";
+export type JudicialServiceStatus =
+  | "available"
+  | "request_only"
+  | "soon"
+  | "unavailable";
 
 export const JUDICIAL_STATUS_FA: Record<JudicialServiceStatus, string> = {
   available: "در دسترس",
+  request_only: "ثبت درخواست",
   soon: "به‌زودی",
   unavailable: "در دسترس نیست",
 };
@@ -212,21 +220,31 @@ export type JudicialRequestStatus =
   | "generating"
   | "draft_ready"
   | "ready_to_review"
+  | "under_review"
   | "needs_correction"
   | "approved"
+  | "finalized"
   | "cancelled"
   | "archived";
 
+/**
+ * The owner-facing status vocabulary. `approved` means Ligalir approved the
+ * exact submitted version and the final artifact was issued; `finalized`
+ * means the owner confirmed receipt and the request was closed. No status
+ * ever claims a document was filed or served.
+ */
 export const JUDICIAL_REQUEST_STATUS_FA: Record<JudicialRequestStatus, string> = {
-  draft: "ثبت شده",
-  collecting: "در حال نوشتن شرح موضوع",
-  needs_answers: "نیازمند پاسخ به پرسش‌ها",
+  draft: "پیش‌نویس",
+  collecting: "در حال تکمیل",
+  needs_answers: "نیازمند تکمیل اطلاعات",
   ready_to_generate: "آمادهٔ تنظیم پیش‌نویس",
   generating: "در حال تنظیم پیش‌نویس",
   draft_ready: "پیش‌نویس آمادهٔ بازبینی",
-  ready_to_review: "آمادهٔ بازبینی نهایی",
-  needs_correction: "نیازمند اصلاح اطلاعات",
-  approved: "پیش‌نویس تأییدشده توسط شما",
+  ready_to_review: "آمادهٔ بررسی",
+  under_review: "در انتظار بررسی وکیل یا لیگالیر",
+  needs_correction: "نیازمند اصلاح",
+  approved: "تأییدشده",
+  finalized: "تکمیل‌شده",
   cancelled: "لغو شده",
   archived: "بایگانی‌شده",
 };
@@ -234,6 +252,11 @@ export const JUDICIAL_REQUEST_STATUS_FA: Record<JudicialRequestStatus, string> =
 /**
  * Legal transitions, enforced server-side. Anything not listed is rejected
  * with 409 — the client can request a move but never force one.
+ *
+ * The review lane is explicit: only `submit-review` can move a request into
+ * `under_review`, only an admin decision can move it to `approved` (and that
+ * decision issues the final artifact), and only the owner can confirm
+ * receipt (`finalized`).
  */
 export const JUDICIAL_TRANSITIONS: Record<
   JudicialRequestStatus,
@@ -248,16 +271,19 @@ export const JUDICIAL_TRANSITIONS: Record<
   ready_to_generate: ["generating", "needs_answers", "cancelled"],
   generating: ["draft_ready", "ready_to_generate", "cancelled"],
   draft_ready: ["ready_to_review", "needs_correction", "generating", "cancelled"],
-  ready_to_review: ["approved", "needs_correction", "generating", "cancelled"],
+  ready_to_review: ["under_review", "needs_correction", "generating", "cancelled"],
+  under_review: ["needs_correction", "approved", "cancelled"],
   needs_correction: [
     "collecting",
     "needs_answers",
     "ready_to_generate",
     "ready_to_review",
+    "under_review",
     "generating",
     "cancelled",
   ],
-  approved: ["generating", "archived"],
+  approved: ["finalized", "archived", "under_review"],
+  finalized: ["archived"],
   cancelled: ["archived"],
   archived: [],
 };
@@ -473,12 +499,14 @@ export interface JudicialDraftInputSnapshot {
 export type JudicialDraftGenerator =
   | "structured_composer"
   | "model_refined"
-  | "user_edited";
+  | "user_edited"
+  | "admin_revised";
 
 export const JUDICIAL_DRAFT_GENERATOR_FA: Record<JudicialDraftGenerator, string> = {
   structured_composer: "چیدمان ساختاریافته از پاسخ‌های شما",
   model_refined: "بازنویسی با مدل هوش مصنوعی",
   user_edited: "ویرایش‌شده به‌دست شما",
+  admin_revised: "نسخهٔ اصلاح‌شدهٔ واحد بررسی لیگالیر",
 };
 
 export interface JudicialDraftVersion {
@@ -523,6 +551,281 @@ export interface JudicialCompleteness {
 }
 
 // ------------------------------------------------------------
+// Review lane (لیگالیر / وکیل) — one review per submitted version
+// ------------------------------------------------------------
+// A review is bound to ONE immutable submitted version (`documentHash` of the
+// draft text the owner sent). If the text changes, the user resubmits and a
+// NEW review row is opened — an approval can never drift onto a version the
+// reviewer did not read.
+
+export type JudicialReviewKind = "legalir" | "lawyer";
+
+export const JUDICIAL_REVIEW_KIND_FA: Record<JudicialReviewKind, string> = {
+  legalir: "بررسی لیگالیر",
+  lawyer: "نظر وکیل",
+};
+
+export type JudicialReviewStatus =
+  /** Awaiting an operator. */
+  | "pending"
+  /** Being worked on. */
+  | "in_progress"
+  /** Waiting for an answer, file or confirmation from the owner. */
+  | "waiting_user"
+  /** Returned to the owner with corrections. */
+  | "changes_requested"
+  /** The submitted version was approved and the final artifact issued. */
+  | "approved"
+  /** The owner's submission was rejected (not a draft-quality issue). */
+  | "rejected"
+  /** Withdrawn by the owner before a decision. */
+  | "cancelled";
+
+export const JUDICIAL_REVIEW_STATUS_FA: Record<JudicialReviewStatus, string> = {
+  pending: "در انتظار بررسی",
+  in_progress: "در حال بررسی",
+  waiting_user: "منتظر پاسخ شما",
+  changes_requested: "نیازمند اصلاح",
+  approved: "تأییدشده",
+  rejected: "رد شده",
+  cancelled: "لغو شده",
+};
+
+/** Terminal statuses — no further decision is possible. */
+export const JUDICIAL_REVIEW_TERMINAL: readonly JudicialReviewStatus[] = [
+  "approved",
+  "rejected",
+  "cancelled",
+] as const;
+
+export type JudicialReviewEventKind =
+  | "submitted"
+  | "assigned"
+  | "note"
+  | "change_request"
+  | "approval_note"
+  | "revision"
+  | "user_reply"
+  | "resubmitted"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "final_issued"
+  | "status_changed";
+
+/**
+ * One entry in the review's history. Append-only: nothing here is ever
+ * edited or removed, so the owner and the operator read the same record.
+ */
+export interface JudicialReviewEvent {
+  id: string;
+  reviewId: string;
+  requestId: string;
+  kind: JudicialReviewEventKind;
+  /** `admin` events are hidden from the owner unless `visibleToOwner`. */
+  authorKind: "owner" | "admin" | "lawyer" | "system";
+  /** Public-safe label (display name or organising office), never a user id. */
+  authorLabelFa: string;
+  /** Body for notes/corrections/replies. */
+  bodyFa: string | null;
+  /**
+   * When false the event is an INTERNAL operator note: it appears in the
+   * admin timeline only and must never be projected into the owner payload
+   * nor into the final PDF.
+   */
+  visibleToOwner: boolean;
+  /** Draft version this event refers to, when applicable. */
+  versionId: string | null;
+  versionNumber: number | null;
+  createdAt: string;
+}
+
+export interface JudicialReview {
+  id: string;
+  requestId: string;
+  userId: string;
+  kind: JudicialReviewKind;
+  status: JudicialReviewStatus;
+  /** Exactly the version the owner submitted — approval binds to this. */
+  submittedVersionId: string;
+  submittedVersionNumber: number;
+  /** sha256 of the submitted text; any later edit invalidates approval. */
+  submittedTextHash: string;
+  /** Snapshot of what the owner sent, so the admin reads the same text. */
+  submittedText: string;
+  serviceId: JudicialServiceId;
+  documentType: JudicialDocumentType | null;
+  /** The owner's question, in their own words. */
+  noteFa: string | null;
+  /** Display name of the operator the review is assigned to. */
+  assignedToUserId: string | null;
+  assignedToLabelFa: string | null;
+  /** The operator's decision note, shown to the owner on request-changes. */
+  decisionNoteFa: string | null;
+  /** Bound lawyer request, for the "ارجاع به وکیل" path. */
+  lawyerRequestId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+  decidedByLabelFa: string | null;
+}
+
+export interface JudicialReviewDetail extends JudicialReview {
+  events: JudicialReviewEvent[];
+  /** Admin-only: internal notes are included only in this projection. */
+  internalEvents?: JudicialReviewEvent[];
+}
+
+/** The submit-review request body. */
+export interface JudicialSubmitReviewInput {
+  draftId: string;
+  note?: string;
+  kind?: JudicialReviewKind;
+  idempotencyKey: string;
+}
+
+/** Actions an operator can take on a review. */
+export type JudicialReviewAction =
+  | "assign"
+  | "note"
+  | "request_changes"
+  | "approve"
+  | "reject"
+  | "cancel";
+
+export const JUDICIAL_REVIEW_ACTION_FA: Record<JudicialReviewAction, string> = {
+  assign: "تخصیص به کارشناس",
+  note: "ثبت یادداشت / پاسخ",
+  request_changes: "درخواست اصلاح",
+  approve: "تأیید و صدور نسخهٔ نهایی",
+  reject: "رد درخواست",
+  cancel: "لغو بررسی",
+};
+
+// ------------------------------------------------------------
+// Service orders (گواهی عدم سوءپیشینه / استعلام اعتبار معاملاتی)
+// ------------------------------------------------------------
+// These two services cannot be fulfilled inside the product: the certificate
+// or credit report is issued by an external authority. What the product DOES
+// own — and what this record is — is the request: the applicant's details,
+// the declared purpose, the attached documents, the operator's processing
+// notes and the eventual outcome. The status vocabulary never claims a
+// certificate was issued by Ligalir.
+
+export type JudicialOrderStatus =
+  | "draft"
+  | "submitted"
+  | "in_progress"
+  | "waiting_user"
+  | "ready"
+  | "delivered"
+  | "rejected"
+  | "cancelled";
+
+export const JUDICIAL_ORDER_STATUS_FA: Record<JudicialOrderStatus, string> = {
+  draft: "پیش‌نویس",
+  submitted: "ثبت‌شده — در انتظار بررسی",
+  in_progress: "در حال پیگیری",
+  waiting_user: "نیازمند اقدام شما",
+  ready: "آمادهٔ تحویل",
+  delivered: "تحویل‌شده",
+  rejected: "رد شده",
+  cancelled: "لغو شده",
+};
+
+export interface JudicialOrderAnswer {
+  fieldId: string;
+  labelFa: string;
+  value: string;
+}
+
+export interface JudicialOrder {
+  id: string;
+  userId: string;
+  serviceId: JudicialServiceId;
+  status: JudicialOrderStatus;
+  /** What the applicant asked for, in one line. */
+  titleFa: string;
+  /** The form fields this service actually collected. */
+  answers: JudicialOrderAnswer[];
+  noteFa: string | null;
+  /** Declared lawful purpose (credit check) / delivery note. */
+  purposeFa: string | null;
+  attachmentIds: string[];
+  assignedToUserId: string | null;
+  assignedToLabelFa: string | null;
+  /** Operator note visible to the owner (never internal notes). */
+  operatorNoteFa: string | null;
+  /** The delivered artifact, when the operator attached one. */
+  deliveryDocumentId: string | null;
+  deliveryNameFa: string | null;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt: string | null;
+  deliveredAt: string | null;
+}
+
+// ------------------------------------------------------------
+// Final document (issued only after an admin approval)
+// ------------------------------------------------------------
+
+export interface JudicialFinalDocument {
+  id: string;
+  requestId: string;
+  userId: string;
+  /** Human-readable unique serial, e.g. «LGR-JD-1405-000123». */
+  serialFa: string;
+  /** The exact draft version this artifact renders. */
+  versionId: string;
+  versionNumber: number;
+  /** sha256 of the text — must match the approved review's hash. */
+  documentHash: string;
+  /** sha256 of the generated PDF bytes. */
+  pdfHash: string;
+  fileName: string;
+  mime: string;
+  sizeBytes: number;
+  issuedAt: string;
+  issuedByLabelFa: string;
+  reviewId: string;
+  /** Public-safe initials of the approving operator. */
+  approvedByInitials: string | null;
+  /** Storage key inside the private contract-document root. */
+  storageKey: string;
+  /** Number of pages the artifact was rendered with. */
+  pageCount: number;
+}
+
+// ------------------------------------------------------------
+// Delivery methods for the finished draft
+// ------------------------------------------------------------
+
+export type JudicialDeliveryMethod = "none" | "lawyer" | "legalir";
+
+export const JUDICIAL_DELIVERY_METHOD_FA: Record<JudicialDeliveryMethod, string> = {
+  none: "بدون ارجاع",
+  lawyer: "ارجاع به وکیل",
+  legalir: "ارسال به بررسی لیگالیر",
+};
+
+// ------------------------------------------------------------
+// Status history (append-only) — owner-visible
+// ------------------------------------------------------------
+
+export interface JudicialStatusEvent {
+  id: string;
+  requestId: string;
+  userId: string;
+  fromStatus: JudicialRequestStatus | null;
+  toStatus: JudicialRequestStatus;
+  /** Who caused the change — display label only, never a raw user id. */
+  actorLabelFa: string;
+  /** Optional human-readable reason. */
+  noteFa: string | null;
+  createdAt: string;
+}
+
+// ------------------------------------------------------------
 // API contracts
 // ------------------------------------------------------------
 
@@ -559,11 +862,19 @@ export interface JudicialRequestSummary {
   status: JudicialRequestStatus;
   currentStep: JudicialRequestStep;
   titleFa: string;
+  /** When the request was started — the history list's "created" column. */
+  createdAt: string;
   updatedAt: string;
   documentCount: number;
   draftCount: number;
   latestDraftVersion: number | null;
   hasApprovedDraft: boolean;
+  /**
+   * Whether an issued artifact exists for this request. Derived from the
+   * stored final-document row (never from the status label), so the history
+   * can offer «دریافت نسخهٔ نهایی» only when there is a real file to serve.
+   */
+  hasFinalDocument: boolean;
 }
 
 /**
@@ -598,6 +909,207 @@ export interface JudicialRequestDetail {
   availableTransitions: JudicialRequestStatus[];
   /** The caller's OWN cases, for the optional link picker. */
   linkableCases: { id: string; titleFa: string; internalRef: string | null }[];
+  /** The owner-visible review of the CURRENTLY submitted version, if any. */
+  review: JudicialReviewDetail | null;
+  /** Appended status changes, oldest first. */
+  statusHistory: JudicialStatusEvent[];
+  /** The issued artifact; present only after an admin approval. */
+  finalDocument: JudicialFinalDocument | null;
+}
+
+// ------------------------------------------------------------
+// Admin review queue & operator workspace
+// ------------------------------------------------------------
+// These are the EXACT projections the admin dispatcher returns (built in
+// `lib/judicial/admin-review.ts`). They live here so the panel and the server
+// agree on ONE shape: the client renders what it is given, and never
+// re-derives a label, a count or an owner identity of its own.
+
+/** Operator-safe owner identity for a queue row. */
+export interface JudicialAdminOwnerBadge {
+  labelFa: string;
+  /** Full E.164 — operators see the real contact; the UI decides masking. */
+  mobile: string | null;
+  email: string | null;
+}
+
+/** ONE row in the triage queue: labels and counters, never a draft body. */
+export interface JudicialReviewQueueRow {
+  id: string;
+  requestId: string;
+  kind: JudicialReviewKind;
+  kindFa: string;
+  status: JudicialReviewStatus;
+  statusFa: string;
+  serviceId: JudicialServiceId;
+  serviceFa: string;
+  documentType: JudicialDocumentType | null;
+  documentTypeFa: string | null;
+  titleFa: string;
+  owner: JudicialAdminOwnerBadge;
+  requestStatusFa: string;
+  submittedVersionNumber: number;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+  assignedToLabelFa: string | null;
+  /** True while no decision has been recorded. */
+  open: boolean;
+  eventCount: number;
+  hasFinalDocument: boolean;
+}
+
+export interface JudicialReviewQueueFilters {
+  status?: JudicialReviewStatus | "open" | "closed" | "all";
+  kind?: JudicialReviewKind | "all";
+  assigned?: string;
+  q?: string;
+}
+
+export interface JudicialReviewQueuePage {
+  items: JudicialReviewQueueRow[];
+  total: number;
+  /** Computed over the UNFILTERED set so the tabs stay stable. */
+  counts: {
+    all: number;
+    open: number;
+    closed: number;
+    byStatus: Record<JudicialReviewStatus, number>;
+  };
+}
+
+/** One resolved answer, in the questionnaire's own wording. */
+export interface JudicialAdminAnswerRow {
+  questionId: string;
+  labelFa: string;
+  valueFa: string;
+  stepTitleFa: string;
+  sensitive: boolean;
+}
+
+/** The operator workspace: everything needed to judge ONE submission. */
+export interface JudicialReviewDetailView {
+  review: JudicialReview;
+  owner: JudicialAdminOwnerBadge;
+  serviceFa: string;
+  documentTypeFa: string | null;
+  request: {
+    id: string;
+    titleFa: string;
+    statusFa: string;
+    currentStep: string;
+    updatedAt: string;
+    narrative: string;
+  } | null;
+  /** Resolved against the questionnaire version the request was FILLED with. */
+  answers: JudicialAdminAnswerRow[];
+  drafts: JudicialDraftVersion[];
+  attachments: {
+    id: string;
+    nameFa: string;
+    roleFa: string;
+    mime: string | null;
+    sizeBytes: number | null;
+  }[];
+  /** The COMPLETE timeline, internal notes included (admin-only). */
+  events: JudicialReviewEvent[];
+  internalEvents: JudicialReviewEvent[];
+  finalDocument: JudicialFinalDocument | null;
+  /**
+   * Operators this review may be assigned to — every staff user whose role
+   * actually holds `admin:judicial:read`, so an assignment can never point at
+   * a colleague who cannot open the queue.
+   */
+  assignableStaff: { userId: string; labelFa: string; roleFa: string }[];
+}
+
+/** The admin action body. `approve` requires the reviewed version id. */
+export interface JudicialAdminReviewActionInput {
+  action: JudicialReviewAction;
+  /** Required for note / request_changes / reject; optional on approve. */
+  noteFa?: string;
+  /** Only for `assign`; null unassigns. */
+  assigneeUserId?: string | null;
+  /** Required for `approve`: the submitted version the operator read. */
+  versionId?: string;
+  /** Optional corrected text, stored as a new version. */
+  revisedText?: string;
+  /** `true` keeps the note out of every owner projection. */
+  internalNote?: boolean;
+}
+
+export interface JudicialAdminReviewActionResponse {
+  review: JudicialReview;
+  /** Present only when this action issued the final artifact. */
+  finalDocument: { serialFa: string } | null;
+}
+
+/** ONE row in the tracked-order queue (the two provider services). */
+export interface JudicialOrderQueueRow {
+  id: string;
+  serviceId: JudicialServiceId;
+  serviceFa: string;
+  status: JudicialOrderStatus;
+  statusFa: string;
+  titleFa: string;
+  owner: JudicialAdminOwnerBadge;
+  answers: JudicialOrderAnswer[];
+  noteFa: string | null;
+  purposeFa: string | null;
+  attachmentIds: string[];
+  assignedToLabelFa: string | null;
+  operatorNoteFa: string | null;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt: string | null;
+  deliveredAt: string | null;
+  deliveryNameFa: string | null;
+}
+
+export interface JudicialOrderQueueFilters {
+  status?: JudicialOrderStatus | "open" | "all";
+  serviceId?: JudicialServiceId;
+  q?: string;
+}
+
+export interface JudicialOrderQueuePage {
+  items: JudicialOrderQueueRow[];
+  total: number;
+  counts: { all: number; open: number };
+}
+
+/** The admin update body for a tracked order. */
+export interface JudicialAdminOrderUpdateInput {
+  status?: JudicialOrderStatus;
+  assignedToUserId?: string | null;
+  operatorNoteFa?: string | null;
+  deliveryDocumentId?: string | null;
+  deliveryNameFa?: string | null;
+}
+
+// ------------------------------------------------------------
+// Entry availability per service
+// ------------------------------------------------------------
+// A single projection the two /cases cards and the discovery surfaces read:
+// whether the service can be STARTED right now, and which real entry route
+// it leads to. `request_only` services lead to the order intake, `available`
+// drafting services lead to the wizard, and anything else offers no action.
+
+export interface JudicialEntryAvailability {
+  serviceId: JudicialServiceId;
+  titleFa: string;
+  shortTitleFa: string;
+  descriptionFa: string;
+  ctaFa: string;
+  status: JudicialServiceStatus;
+  /** The EFFECTIVE status after flags + requirements. */
+  availability: JudicialServiceStatus;
+  /** True when a start action exists right now. */
+  enabled: boolean;
+  /** Real route, or null when the service cannot be entered. */
+  href: string | null;
+  noteFa: string | null;
+  openCount: number;
 }
 
 export interface JudicialCreateRequestInput {

@@ -57,15 +57,16 @@ function seedRows(): Omit<FeatureFlag, "createdAt" | "updatedAt">[] {
     { key: "export_data", nameFa: "خروجی گرفتن از داده", descriptionFa: "دریافت بسته ZIP از داده‌های کاربر", ...off },
     { key: "voice_video_consult", nameFa: "مشاوره صوتی/تصویری", descriptionFa: "نیازمند اتصال ارائه‌دهنده ویدیو", ...off },
     // --- Judicial documents family -------------------------------------
-    // The four drafting services ship on. The two provider-dependent ones ship
-    // OFF: their service config status is `soon` and their requirement is
-    // unconfigured, so flipping the flag alone can never make them look live.
+    // All six ship ON. The two provider-dependent services are `request_only`
+    // in their config: the flag releases the TRACKED REQUEST intake, not an
+    // issuance. The unconfigured external requirement is what keeps them from
+    // ever projecting as `available`, regardless of this flag.
     { key: "judicial_statement", nameFa: "اظهارنامه قضایی", descriptionFa: "تنظیم پیش‌نویس اظهارنامه با هوش مصنوعی", ...on },
     { key: "judicial_brief", nameFa: "لایحه", descriptionFa: "تنظیم پیش‌نویس لایحه با هوش مصنوعی", ...on },
     { key: "judicial_petition", nameFa: "دادخواست حقوقی", descriptionFa: "تنظیم پیش‌نویس دادخواست با هوش مصنوعی", ...on },
     { key: "judicial_complaint", nameFa: "شکواییه کیفری", descriptionFa: "تنظیم پیش‌نویس شکواییه با هوش مصنوعی", ...on },
-    { key: "judicial_criminal_record", nameFa: "گواهی عدم سوءپیشینه", descriptionFa: "نیازمند اتصال رسمی به سامانهٔ صدور گواهی", ...off },
-    { key: "judicial_credit_check", nameFa: "استعلام اعتبار معاملاتی", descriptionFa: "نیازمند رضایت صاحب داده و ارائه‌دهندهٔ استعلام", ...off },
+    { key: "judicial_criminal_record", nameFa: "گواهی عدم سوءپیشینه", descriptionFa: "ثبت و پیگیری درخواست گواهی؛ صدور تنها توسط مرجع رسمی", ...on },
+    { key: "judicial_credit_check", nameFa: "استعلام اعتبار معاملاتی", descriptionFa: "ثبت و پیگیری درخواست استعلام با رضایت صاحب داده", ...on },
   ];
 }
 
@@ -77,21 +78,59 @@ function seed(): FeatureFlag[] {
 }
 
 /**
+ * Flags whose shipped default changed in a later release. Only a row an
+ * operator has NEVER touched (`updatedBy === null`) follows the new default;
+ * a deliberate operator choice always survives the upgrade.
+ */
+const RESEED_ON_UPGRADE = new Set<string>([
+  // 2026-10: the provider-dependent judicial services gained a real tracked
+  // request lane, so their flags now release that intake instead of a
+  // placeholder. The service config — not the flag — still forbids issuance.
+  "judicial_criminal_record",
+  "judicial_credit_check",
+]);
+
+function reseedUntouched(row: FeatureFlag, def: Omit<FeatureFlag, "createdAt" | "updatedAt">) {
+  if (row.updatedBy !== null) return row;
+  return {
+    ...row,
+    status: def.status,
+    rolloutPercent: def.rolloutPercent,
+    nameFa: def.nameFa,
+    descriptionFa: def.descriptionFa,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * All flags, seeding the defaults on first access.
  *
  * ADDITIVE for an existing database: when the product ships a NEW capability
  * flag, a database that was seeded earlier must still gain it. Existing rows
  * are never rewritten or dropped — only seed keys that are missing are
- * appended — so an operator's edits to an existing flag always survive.
+ * appended — so an operator's edits to an existing flag always survive. The
+ * single exception is `RESEED_ON_UPGRADE`: keys whose shipped DEFAULT changed,
+ * and only where the row was never edited.
  */
 export function listFlags(): FeatureFlag[] {
-  const rows = readTable<FeatureFlag>(TABLE);
-  if (rows.length === 0) return seed();
+  const stored = readTable<FeatureFlag>(TABLE);
+  if (stored.length === 0) return seed();
+
+  const defs = new Map(seedRows().map((f) => [f.key, f]));
+  let changed = false;
+  const rows = stored.map((row) => {
+    if (!RESEED_ON_UPGRADE.has(row.key)) return row;
+    const def = defs.get(row.key);
+    if (!def || row.updatedBy !== null) return row;
+    const reseeded = reseedUntouched(row, def);
+    changed = true;
+    return reseeded;
+  });
 
   const present = new Set(rows.map((r) => r.key));
   const now = new Date().toISOString();
   const missing = seedRows().filter((f) => !present.has(f.key));
-  if (missing.length === 0) return rows;
+  if (missing.length === 0 && !changed) return rows;
 
   const next = [...rows, ...missing.map((f) => ({ ...f, createdAt: now, updatedAt: now }))];
   writeTable(TABLE, next);

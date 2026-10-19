@@ -1,16 +1,21 @@
 "use client";
 
 // ============================================================
-// LEGALIR — /cases (client list)
+// LEGALIR — /cases «پرونده‌ها و دادخواست‌ها»
 // ============================================================
-// A compact, single-column MD3 scan-list of the user's cases: one low
-// header, one search toolbar, a status chip row, a results line, then
-// flat rows. Each row shows the identity (category-tinted tile, title,
-// status + priority), one low-emphasis meta line, and exactly ONE
-// primary action («مشاهده پرونده») plus a ⋮ menu carrying the real,
-// owner-only supplementary operations (copy reference · archive).
+// The page's structure follows the brief, top to bottom:
 //
-// All data logic is unchanged: the same `/api/v1/cases` query, the same
+//   1. one low header — «پرونده‌ها و دادخواست‌ها»;
+//   2. the service section: TWO cards, «ساخت پرونده جدید» and «تنظیم
+//      دادخواست و شکواییه تخصصی» (same visual language as /contracts);
+//   3. two history tabs — پرونده‌ها (this file) and دادخواست‌ها و
+//      شکواییه‌ها (`JudicialHistory`).
+//
+// The case tab is the compact MD3 scan-list it has always been: one search
+// toolbar, a status chip row, a results line, then flat rows with exactly
+// ONE primary action plus a ⋮ menu for owner-only supplementary operations.
+//
+// All case data logic is unchanged: the same `/api/v1/cases` query, the same
 // `?create=true` deep link, the same create modal and idempotency key.
 // ============================================================
 
@@ -23,6 +28,7 @@ import {
   Select,
   Dialog,
   Button,
+  SegmentedControl,
   snackbar,
   buttonClasses,
 } from "@legalir/ui";
@@ -50,7 +56,9 @@ import {
   type ActiveFilter,
 } from "@/components/shared";
 import type { StatusTone } from "@/components/shared";
-import { JudicialCasesCard } from "@/components/judicial/judicial-cases-card";
+import { CasesServiceCards } from "@/components/judicial/cases-service-cards";
+import { JudicialHistory } from "@/components/judicial/judicial-history";
+import { useJudicialRequests } from "@/hooks/useJudicial";
 
 // ============================================================
 // Status → shared tone + priority → shared tone
@@ -251,9 +259,35 @@ function ArchiveCaseDialog({
 // Main Page
 // ============================================================
 
+type HistoryTab = "cases" | "judicial";
+const TAB_ID_BASE = "cases-history";
+
 export default function CasesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // The tab is URL state so a deep link can open either history and the
+  // browser Back button returns to the one the user came from. Default is
+  // the case list, exactly as before this page gained a second tab.
+  const tab: HistoryTab =
+    searchParams.get("tab") === "judicial" ? "judicial" : "cases";
+  const setTab = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "judicial") params.set("tab", "judicial");
+      else params.delete("tab");
+      // The create deep link belongs to the case tab only.
+      if (next === "judicial") params.delete("create");
+      const qs = params.toString();
+      router.replace(qs ? `/cases?${qs}` : "/cases", { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  // The judicial list is read here only for its tab count; `JudicialHistory`
+  // reads the SAME cache key, so switching tabs never refetches twice.
+  const judicialRequests = useJudicialRequests();
+
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -308,6 +342,12 @@ export default function CasesPage() {
     router.push(`/cases/${id}`);
   };
 
+  /** Open the create modal on the case tab, wherever the user currently is. */
+  const openCreate = useCallback(() => {
+    if (tab !== "cases") setTab("cases");
+    setShowCreate(true);
+  }, [tab, setTab]);
+
   const clearAllFilters = useCallback(() => {
     setSearch("");
     setStatusFilter("all");
@@ -361,17 +401,17 @@ export default function CasesPage() {
   return (
     <PageContainer dir="rtl">
       <CompactPageHeader
-        title="پرونده‌های من"
-        description="مدیریت و پیگیری پرونده‌های حقوقی"
+        title="پرونده‌ها و دادخواست‌ها"
+        description="پرونده‌های حقوقی و اوراق قضایی خود را در یک جا شروع، تکمیل و پیگیری کنید"
         actions={
           // Internal case creation is kept exactly as it was — same modal,
           // same endpoint, same idempotency key — but demoted to the page's
-          // secondary action: the drafting service card below carries the
-          // primary CTA, and a hidden/unavailable card leaves this one fully
-          // working rather than removing the capability.
+          // secondary action: the service card below carries the primary CTA,
+          // and a hidden/unavailable card leaves this one fully working rather
+          // than removing the capability.
           <Button
             variant="outlined"
-            onClick={() => setShowCreate(true)}
+            onClick={openCreate}
             startIcon={<IconAdd size={20} />}
             className="w-full tablet:w-auto"
           >
@@ -380,10 +420,59 @@ export default function CasesPage() {
         }
       />
 
-      {/* The judicial drafting entry point — inside the existing flow, above
-          the list, never replacing or hiding it. */}
-      <JudicialCasesCard />
+      {/* The page's TWO starting points, in the /contracts card language.
+          Both cards read their state from the server; neither can invent a
+          service that is switched off. */}
+      <CasesServiceCards
+        caseCount={loading ? null : cases.length}
+        onCreateCase={openCreate}
+      />
 
+      {/* Two histories, one panel at a time. The switcher is a real MD3
+          tablist and the panels are labelled by it, so the page keeps a
+          single H1 while exposing both lists to assistive tech. */}
+      <div className="mt-6 flex justify-start">
+        <SegmentedControl
+          ariaLabel="تاریخچهٔ پرونده‌ها و دادخواست‌ها"
+          idBase={TAB_ID_BASE}
+          value={tab}
+          onChange={setTab}
+          glow
+          className="w-full tablet:w-auto"
+          segments={[
+            {
+              value: "cases",
+              label: "پرونده‌ها",
+              badge: loading ? undefined : cases.length,
+            },
+            {
+              value: "judicial",
+              label: "دادخواست‌ها و شکواییه‌ها",
+              badge: judicialRequests.data?.items.length,
+            },
+          ]}
+        />
+      </div>
+
+      <section
+        id={`${TAB_ID_BASE}-panel-judicial`}
+        role="tabpanel"
+        aria-labelledby={`${TAB_ID_BASE}-tab-judicial`}
+        tabIndex={0}
+        hidden={tab !== "judicial"}
+        className="focus-visible:outline-none"
+      >
+        <JudicialHistory />
+      </section>
+
+      <section
+        id={`${TAB_ID_BASE}-panel-cases`}
+        role="tabpanel"
+        aria-labelledby={`${TAB_ID_BASE}-tab-cases`}
+        tabIndex={0}
+        hidden={tab !== "cases"}
+        className="focus-visible:outline-none"
+      >
       {/* Toolbar — search owns the space; status chips scroll in their own row. */}
       <div className="mt-4 flex flex-col gap-3">
         <SearchField
@@ -577,6 +666,7 @@ export default function CasesPage() {
           </div>
         </div>
       )}
+      </section>
 
       {showCreate && (
         <CreateCaseModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />

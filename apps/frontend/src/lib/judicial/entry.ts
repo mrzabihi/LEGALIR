@@ -8,8 +8,9 @@
 // All four drafting families are enterable because each one now has its OWN
 // questionnaire, its own completeness rules and its own composer template
 // (`lib/judicial/compose.ts`). `judicial_criminal_record` and
-// `judicial_credit_check` still need external integrations and therefore render
-// as explanatory cards, never as links.
+// `judicial_credit_check` have no drafting wizard — they never produce text —
+// but they DO have a real tracked intake, so their entry is an order form
+// rather than a link to `/judicial`.
 // ============================================================
 
 import type {
@@ -17,6 +18,7 @@ import type {
   JudicialServiceId,
   JudicialServiceView,
 } from "@legalir/types";
+import { isOrderableJudicialService } from "./order-fields";
 
 /** Services whose questionnaire, analysis and draft are wired end to end. */
 const ENTRY_TYPE: Partial<Record<JudicialServiceId, JudicialDocumentType>> = {
@@ -34,6 +36,23 @@ export function judicialEntryType(id: JudicialServiceId): JudicialDocumentType |
 /** The one destination for an enterable judicial service. */
 export function judicialEntryHref(type: JudicialDocumentType): string {
   return `/judicial?type=${type}`;
+}
+
+/** The order-intake destination for a `request_only` service. */
+export function judicialOrderHref(serviceId: JudicialServiceId): string {
+  return `/judicial/orders/new?service=${serviceId}`;
+}
+
+/**
+ * The single start path a service has for this caller, or `null` when the
+ * service has no entry at all. Mirrors the server's `judicialEntryMode`:
+ * drafting services open the wizard, order-only services open the intake.
+ */
+export function judicialServiceEntryHref(id: JudicialServiceId): string | null {
+  const type = judicialEntryType(id);
+  if (type) return judicialEntryHref(type);
+  if (isOrderableJudicialService(id)) return judicialOrderHref(id);
+  return null;
 }
 
 /** Whether the launcher can pre-select this value from `?type=`. */

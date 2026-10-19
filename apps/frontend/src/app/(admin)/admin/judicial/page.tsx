@@ -47,10 +47,14 @@ import {
   Section,
   Select,
   StateView,
+  Tabs,
   Td,
   TextInput,
   Th,
+  type TabItem,
 } from "@/components/admin/ui";
+import { JudicialReviewQueue } from "@/components/admin/judicial-review-queue";
+import { JudicialOrdersQueue } from "@/components/admin/judicial-orders-queue";
 
 const DOCUMENT_TYPE_FA: Record<JudicialDocumentType, string> = {
   statement: "اظهارنامه",
@@ -61,9 +65,10 @@ const DOCUMENT_TYPE_FA: Record<JudicialDocumentType, string> = {
 
 const STATUS_TONE: Record<
   JudicialServiceStatus,
-  "success" | "warning" | "danger"
+  "success" | "info" | "warning" | "danger"
 > = {
   available: "success",
+  request_only: "info",
   soon: "warning",
   unavailable: "danger",
 };
@@ -80,7 +85,51 @@ function errMessage(err: unknown, fallback: string): string {
     : fallback;
 }
 
+type AdminJudicialTab = "reviews" | "orders" | "catalog";
+
+/**
+ * The section shell: the review queue, the tracked orders and the service
+ * catalog are three distinct jobs with three distinct permissions. Each tab
+ * is only offered when the caller actually holds its read permission, so a
+ * legal reviewer never opens a tab that would 403 — and the server still
+ * re-checks every call.
+ */
 export default function AdminJudicialPage() {
+  const { can } = useAdminMe();
+  const canReadReviews = can("admin:judicial:read");
+  const canReadCatalog = can("admin:services:read");
+
+  const tabs: TabItem<AdminJudicialTab>[] = [
+    ...(canReadReviews
+      ? [
+          { value: "reviews" as const, label: "صف بررسی" },
+          { value: "orders" as const, label: "سفارش‌ها" },
+        ]
+      : []),
+    ...(canReadCatalog
+      ? [{ value: "catalog" as const, label: "خدمات و پرسش‌نامه‌ها" }]
+      : []),
+  ];
+
+  const [tab, setTab] = useState<AdminJudicialTab>(tabs[0]?.value ?? "catalog");
+
+  return (
+    <div>
+      <PageHeader
+        title="اوراق قضایی"
+        description="بررسی متن‌های ارسال‌شده پیش از صدور نسخهٔ نهایی، پیگیری سفارش‌های دو خدمت بیرونی، و کنترل انتشار خدمات و نسخهٔ پرسش‌نامه‌ها."
+      />
+      {tabs.length > 1 && (
+        <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel="بخش‌های اوراق قضایی" />
+      )}
+      {tab === "reviews" && canReadReviews && <JudicialReviewQueue />}
+      {tab === "orders" && canReadReviews && <JudicialOrdersQueue />}
+      {tab === "catalog" && canReadCatalog && <CatalogSection />}
+    </div>
+  );
+}
+
+function CatalogSection() {
   const { can } = useAdminMe();
   const canManage = can("admin:services:manage");
 
@@ -154,10 +203,11 @@ export default function AdminJudicialPage() {
 
   return (
     <div>
-      <PageHeader
-        title="خدمات اوراق قضایی"
-        description="وضعیت انتشار، متن‌های نمایشی و نسخهٔ پرسش‌نامهٔ هر خدمت. وضعیت مؤثر از تنظیم خدمت + پرچم ویژگی + الزام اتصال بیرونی محاسبه می‌شود؛ تغییر متن به‌تنهایی خدمتی را فعال نمی‌کند."
-      />
+      <p className="mb-4 max-w-3xl text-body-2 text-muted">
+        وضعیت انتشار، متن‌های نمایشی و نسخهٔ پرسش‌نامهٔ هر خدمت. وضعیت مؤثر از تنظیم خدمت +
+        پرچم ویژگی + الزام اتصال بیرونی محاسبه می‌شود؛ تغییر متن به‌تنهایی خدمتی را فعال
+        نمی‌کند.
+      </p>
 
       {!canManage && (
         <InfoBanner tone="warning">

@@ -24,6 +24,7 @@ import {
   patchRequest,
 } from "@/lib/judicial/db";
 import { buildRequestDetail, getOwnedRequestDetail } from "@/lib/judicial/present";
+import { getOwnedFinalDocument, purgeReviewRows } from "@/lib/judicial/review-db";
 import {
   JUDICIAL_STEP_FA,
   type JudicialRequestStep,
@@ -135,6 +136,23 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
+
+  // An issued artifact is a registered legal record. Deleting the request
+  // would orphan it, so the owner is offered the archive path instead.
+  if (getOwnedFinalDocument(auth.ctx.userId, id)) {
+    return NextResponse.json(
+      {
+        code: "FINAL_DOCUMENT_ISSUED",
+        message:
+          "برای این درخواست نسخهٔ نهایی صادر شده است و حذف امکان‌پذیر نیست؛ می‌توانید آن را بایگانی کنید.",
+      },
+      { status: 409 }
+    );
+  }
+
+  // Review rows, status history and orders are private to the request and
+  // must go with it — otherwise an operator queue would keep a ghost entry.
+  purgeReviewRows(auth.ctx.userId, id);
   const removed = deleteRequest(auth.ctx.userId, id);
   if (!removed) {
     return NextResponse.json(

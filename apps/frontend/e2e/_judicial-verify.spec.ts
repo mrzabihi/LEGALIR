@@ -10,7 +10,8 @@
  *   2. the CTA opens the launcher, and `?type=` pre-selects the family;
  *   3. a real request can be started, its narrative saved, and the wizard
  *      resumes the saved text after a hard reload;
- *   4. /services, /new and the public home page show the admin-managed zone;
+ *   4. /services, /new, /dashboard and the public home page show the
+ *      admin-managed zone;
  *   5. toggling `surfaces.services` off in the admin hides it from /services
  *      while /cases keeps working — then restores it;
  *   6. no horizontal overflow at 360 / 768 / 1440;
@@ -38,7 +39,20 @@ const ADMIN_SESSION_CACHE = join(tmpdir(), "legalir-e2e-judicial-admin-session.j
 const CARD_TITLE = "تنظیم دادخواست و شکواییه تخصصی";
 const CARD_DESCRIPTION =
   "موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید.";
-const CARD_CTA = "شروع تنظیم";
+/**
+ * The card CTA is admin-managed (`settings.ctaFa` on the petition service), so
+ * the harness reads it from the same endpoint the card renders. A hard-coded
+ * label fails the moment an operator renames the button — the toggle is the
+ * product's switch, the spec must not pin its copy.
+ */
+async function cardCtaLabel(request: APIRequestContext, auth: { cookie: string }): Promise<string> {
+  const res = await request.get("/api/v1/judicial/card", { headers: auth });
+  expect(res.ok()).toBeTruthy();
+  const body = (await res.json()) as {
+    data: { summary: { settings: { ctaFa: string } } };
+  };
+  return body.data.summary.settings.ctaFa;
+}
 
 test.describe.configure({ timeout: 180_000 });
 
@@ -188,7 +202,8 @@ test.describe("Judicial drafting", () => {
     await expect(page.getByLabel("جست‌وجو در پرونده‌ها")).toBeVisible();
     await expect(page.getByLabel("فیلتر وضعیت پرونده")).toBeVisible();
 
-    const cta = page.getByRole("link", { name: CARD_CTA }).first();
+    const ctaLabel = await cardCtaLabel(request, auth);
+    const cta = page.getByRole("link", { name: ctaLabel }).first();
     await expect(cta).toBeVisible();
     await expectNoHorizontalScroll(page, "/cases @1440");
 
@@ -284,6 +299,12 @@ test.describe("Judicial drafting", () => {
     await page.goto("/new");
     await expect(page.getByText(CARD_TITLE).first()).toBeVisible({ timeout: 20_000 });
 
+    // §6 — the signed-in dashboard is a discovery surface too. It renders the
+    // same admin-managed zone (the `home` flag), so the surface toggles the
+    // panel owns decide what a returning user sees here.
+    await page.goto("/dashboard");
+    await expect(page.getByText(CARD_TITLE).first()).toBeVisible({ timeout: 20_000 });
+
     // Public home renders for a signed-out visitor too; its CTA must route
     // through login instead of dropping them on a gated page.
     const anon = await page.context().browser()!.newContext();
@@ -315,12 +336,15 @@ test.describe("Judicial drafting", () => {
     expect(denied.status()).toBe(403);
 
     // The admin surface itself renders the real rows and the per-surface
-    // checkboxes the product reads — not a placeholder.
+    // checkboxes the product reads — not a placeholder. The catalog lives in
+    // its own tab (the page opens on the review queue), so the harness walks
+    // there exactly as an operator would.
     await mockAuth(page, admin);
     await page.goto("/admin/judicial");
-    await expect(
-      page.getByRole("heading", { name: "خدمات اوراق قضایی" }).first()
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("heading", { name: "اوراق قضایی", level: 1 }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByRole("tab", { name: "خدمات و پرسش‌نامه‌ها" }).click();
     await expect(page.getByText("judicial_petition").first()).toBeVisible();
     await expect(page.getByText("judicial_criminal_record").first()).toBeVisible();
     await expect(page.getByLabel(/عنوان تنظیم دادخواست حقوقی/).first()).toBeVisible();
@@ -346,6 +370,13 @@ test.describe("Judicial drafting", () => {
       await expect(
         page.locator("article").filter({ hasText: "تنظیم اظهارنامه قضایی" })
       ).toHaveCount(1);
+
+      // Each surface flag is independent: `services` is off, `home` is still
+      // on, so the dashboard keeps its card while /services loses it.
+      await page.goto("/dashboard");
+      await expect(
+        page.locator("article").filter({ hasText: "تنظیم دادخواست حقوقی" })
+      ).toHaveCount(1, { timeout: 20_000 });
 
       // /cases must be unaffected by another surface's toggle.
       await page.goto("/cases");
@@ -377,6 +408,11 @@ test.describe("Judicial drafting", () => {
         timeout: 20_000,
       });
       await expectNoHorizontalScroll(page, `/cases @${width}`);
+      // The dashboard placement shares the same cards; it must not overflow
+      // its own shell either.
+      await page.goto("/dashboard");
+      await expect(page.getByText(CARD_TITLE).first()).toBeVisible({ timeout: 20_000 });
+      await expectNoHorizontalScroll(page, `/dashboard @${width}`);
     }
   });
 

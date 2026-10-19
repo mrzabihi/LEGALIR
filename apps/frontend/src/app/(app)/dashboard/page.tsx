@@ -30,6 +30,7 @@ import { buttonClasses } from "@legalir/ui";
 import { getServiceById } from "@/lib/services";
 import { PageContainer, PromoModule, SectionHeader } from "@/components/shared";
 import { DiscoveryEntryCard } from "@/components/services";
+import { JudicialServiceZone } from "@/components/judicial/judicial-service-zone";
 import { IconServices } from "@/lib/icons";
 
 export default function DashboardPage() {
@@ -99,6 +100,31 @@ export default function DashboardPage() {
           does not yet know which service fits. Placed right after the quick
           actions so it is impossible to miss on first visit. */}
       <DiscoveryEntryCard className="mb-6" />
+
+      {/* Judicial documents — the admin-managed discovery surface. The «خانه»
+          flag in the admin panel decides whether this block exists, and a
+          service that is switched off still shows its honest status note
+          without a working CTA. The zone renders nothing when the flag is off
+          or the catalog cannot be read, so the page keeps its existing shape. */}
+      <JudicialServiceZone
+        surface="home"
+        mode="app"
+        className="mb-6"
+        description="پرونده، دادخواست و شکواییه — با پرسش‌نامهٔ مرحله‌به‌مرحله، پیش‌نویس قابل ویرایش و پیگیری وضعیت."
+        footer={
+          <div className="mt-3">
+            <Link
+              href="/cases"
+              className="inline-flex items-center gap-1.5 text-caption font-medium text-primary transition-colors hover:text-primary-600"
+            >
+              مشاهدهٔ همهٔ پرونده‌ها و دادخواست‌ها
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+        }
+      />
 
       {/* Promo Banner — upgrade CTA */}
       <PromoBanner

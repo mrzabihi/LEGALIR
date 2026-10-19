@@ -107,9 +107,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
     key: "judicial",
     path: "/admin/judicial",
     titleFa: "اوراق قضایی",
-    hintFa: "انتشار خدمات، متن‌ها و پرسش‌نامه‌ها",
+    hintFa: "صف بررسی، سفارش‌ها و انتشار خدمات",
     icon: "Balance",
-    permission: "admin:services:read",
+    // The page carries three jobs with three permissions: the review queue
+    // and the tracked orders read `admin:judicial:read`, the service catalog
+    // reads `admin:services:read`. The legal-review roles hold the former but
+    // not the latter, so the link is gated by the queue permission and each
+    // tab is offered only to a caller who can actually open it.
+    permission: "admin:judicial:read",
   },
   {
     key: "energy",

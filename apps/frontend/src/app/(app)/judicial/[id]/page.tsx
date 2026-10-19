@@ -617,6 +617,7 @@ function Wizard({ id }: { id: string }) {
             initialDrafts={drafts}
             readyDocumentPath={request.startMode === "ready_document"}
             readyDocument={request.readyDocument}
+            finalDocument={detail.finalDocument}
             onGenerateMore={() => void buildDraft()}
             onFixAnswers={() => go("questionnaire")}
             onBackToAnalysis={() => go("analysis")}

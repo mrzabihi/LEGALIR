@@ -37,6 +37,7 @@ import type {
   AiTestResult,
   AiPromptVersion,
   AiUsageMetrics,
+  ChatToolAdminView,
   RagSource,
   RagReviewState,
   RagPipelineStatus,
@@ -74,6 +75,8 @@ import type {
   ServiceCostRule,
   ServiceCostUnit,
   ServiceCostRuleCondition,
+  ServiceBillingMode,
+  ServiceChargeBasis,
   UsageLedgerEntry,
   UsageLedgerSummary,
   ActivityType,
@@ -138,6 +141,18 @@ import type {
   JudicialDocumentType,
   JudicialServiceStatus,
   JudicialServiceSurfaces,
+  JudicialReviewQueueFilters,
+  JudicialReviewQueuePage,
+  JudicialReviewDetailView,
+  JudicialAdminReviewActionInput,
+  JudicialAdminReviewActionResponse,
+  JudicialOrderQueueFilters,
+  JudicialOrderQueuePage,
+  JudicialOrderQueueRow,
+  JudicialAdminOrderUpdateInput,
+  UsageReportQuery,
+  UsageReportResponse,
+  TariffVersionEntry,
 } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
@@ -233,7 +248,13 @@ export interface AdminSettingsResponse {
   timezone: string;
   currency: string;
   secretStorageConfigured: boolean;
-  aiProviders: { id: string; nameFa: string; status: string; hasKey: boolean; isDefault: boolean }[];
+  aiProviders: {
+    id: string;
+    nameFa: string;
+    status: string;
+    hasKey: boolean;
+    isDefault: boolean;
+  }[];
   integrations: { key: string; labelFa: string; configured: boolean; noteFa: string }[];
   organizations: { total: number };
   lawyers: { total: number };
@@ -243,7 +264,13 @@ export interface AdminContentResponse {
   blog: {
     total: number;
     published: number;
-    items: { id: string; title: string; slug: string; publishedAt: string | null; updatedAt?: string }[];
+    items: {
+      id: string;
+      title: string;
+      slug: string;
+      publishedAt: string | null;
+      updatedAt?: string;
+    }[];
   };
 }
 
@@ -498,9 +525,7 @@ export function fetchAdminUser(id: string): Promise<AdminUserDetail> {
 // ---------------------------------------------------------------------------
 
 /** One user's full billing dossier: plan, energy, history, payments, ledger. */
-export function fetchAdminUserSubscription(
-  userId: string
-): Promise<AdminUserSubscriptionView> {
+export function fetchAdminUserSubscription(userId: string): Promise<AdminUserSubscriptionView> {
   return apiClient.get<AdminUserSubscriptionView>(
     `${A}/users/${encodeURIComponent(userId)}/subscription`
   );
@@ -536,6 +561,38 @@ export function adminEnergyAction(
     `${A}/users/${encodeURIComponent(userId)}/energy`,
     input
   );
+}
+
+/** One user's «مصرف انرژی و توکن» report — the exact same projection the
+ *  user's own usage page renders, gated server-side by `admin:energy:read`. */
+export function fetchAdminUserUsageReport(
+  userId: string,
+  query: UsageReportQuery = {}
+): Promise<{
+  report: UsageReportResponse;
+  services: { serviceKey: string; serviceNameFa: string }[];
+}> {
+  return apiClient.get<{
+    report: UsageReportResponse;
+    services: { serviceKey: string; serviceNameFa: string }[];
+  }>(
+    `${A}/users/${encodeURIComponent(userId)}/usage${qs({
+      from: query.from,
+      to: query.to,
+      serviceKey: query.serviceKey,
+      activityType: query.activityType,
+      status: query.status,
+      page: query.page,
+      pageSize: query.pageSize,
+    })}`
+  );
+}
+
+/** The append-only tariff change log (who changed what, and when). */
+export function fetchAdminTariffHistory(entityId?: string): Promise<TariffVersionEntry[]> {
+  return apiClient
+    .get<{ items: TariffVersionEntry[] }>(`${A}/energy/history${qs({ entityId })}`)
+    .then((r) => r.items);
 }
 
 export function fetchAdminRequests(query: AdminRequestsQuery = {}): Promise<AdminRequestsResponse> {
@@ -651,10 +708,7 @@ export function fetchAdminRequest(id: string): Promise<AdminRequestDetail> {
 }
 
 /** Assign or replace the lawyer on a request (PATCH). */
-export function assignRequestLawyer(
-  id: string,
-  lawyerId: string | null
-): Promise<LegalRequest> {
+export function assignRequestLawyer(id: string, lawyerId: string | null): Promise<LegalRequest> {
   return apiClient.patch<LegalRequest>(`${A}/requests/${encodeURIComponent(id)}`, {
     selectedLawyerId: lawyerId,
   });
@@ -885,6 +939,24 @@ export interface AdminContractDetail {
    * never blurred.
    */
   attestations: SignatureAttestation[];
+  /**
+   * The STORED final artifact (the printable PDF with the official seal and
+   * hologram on every page). `null` until the contract is finalized.
+   * `sealed` is false when the artifact exists but its stamp is no longer
+   * validly bound to the final version's hash.
+   */
+  finalDocument: {
+    documentId: string;
+    fileName: string;
+    sizeBytes: number;
+    hash: string;
+    uploadedAt: string;
+    sealed: boolean;
+    sealAssetVersion: string | null;
+    sealedAt: string | null;
+    url: string;
+    downloadUrl: string;
+  } | null;
 }
 
 export function fetchAdminContract(id: string): Promise<AdminContractDetail> {
@@ -1198,12 +1270,96 @@ export function createAdminJudicialQuestionnaireVersion(input: {
   return apiClient.post<JudicialQuestionnaire>(`${A}/judicial/questionnaires`, input);
 }
 
-export function publishAdminJudicialQuestionnaire(
-  id: string
-): Promise<JudicialQuestionnaire> {
+export function publishAdminJudicialQuestionnaire(id: string): Promise<JudicialQuestionnaire> {
   return apiClient.post<JudicialQuestionnaire>(
     `${A}/judicial/questionnaires/${encodeURIComponent(id)}/publish`,
     {}
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Judicial review queue & tracked orders (§7)
+// ---------------------------------------------------------------------------
+// The operator side of the judicial lane. Queue counts come from the server
+// (computed over the unfiltered set), the detail is the ONE workspace a
+// reviewer judges from, and every action is decided server-side against the
+// version hash — nothing here invents a transition or a status label.
+
+export function fetchAdminJudicialReviews(
+  query: JudicialReviewQueueFilters = {}
+): Promise<JudicialReviewQueuePage> {
+  return apiClient.get<JudicialReviewQueuePage>(
+    `${A}/judicial/reviews${qs({
+      status: query.status,
+      kind: query.kind,
+      assigned: query.assigned,
+      q: query.q,
+    })}`
+  );
+}
+
+export function fetchAdminJudicialReview(reviewId: string): Promise<JudicialReviewDetailView> {
+  return apiClient.get<JudicialReviewDetailView>(
+    `${A}/judicial/reviews/${encodeURIComponent(reviewId)}`
+  );
+}
+
+/**
+ * Record ONE review action. `approve` also issues the final artifact in the
+ * same server call, so the decision and the document can never diverge.
+ */
+export function actOnAdminJudicialReview(
+  reviewId: string,
+  input: JudicialAdminReviewActionInput
+): Promise<JudicialAdminReviewActionResponse> {
+  return apiClient.patch<JudicialAdminReviewActionResponse>(
+    `${A}/judicial/reviews/${encodeURIComponent(reviewId)}`,
+    input
+  );
+}
+
+/**
+ * The issued artifact for one review. Resolved through the review id, so an
+ * operator can only open a document they can already see in the queue.
+ */
+export function adminJudicialFinalDocumentUrl(reviewId: string, download = false): string {
+  return `${A}/judicial/reviews/${encodeURIComponent(reviewId)}/final-document${
+    download ? "?download=1" : ""
+  }`;
+}
+
+export function fetchAdminJudicialOrders(
+  query: JudicialOrderQueueFilters = {}
+): Promise<JudicialOrderQueuePage> {
+  return apiClient.get<JudicialOrderQueuePage>(
+    `${A}/judicial/orders${qs({
+      status: query.status,
+      serviceId: query.serviceId,
+      q: query.q,
+    })}`
+  );
+}
+
+export function fetchAdminJudicialOrder(orderId: string): Promise<{
+  order: JudicialOrderQueueRow;
+}> {
+  return apiClient.get<{ order: JudicialOrderQueueRow }>(
+    `${A}/judicial/orders/${encodeURIComponent(orderId)}`
+  );
+}
+
+/**
+ * Move a tracked order. `delivered` is refused by the server unless a real
+ * artifact is attached — the status can never claim a document that does not
+ * exist.
+ */
+export function updateAdminJudicialOrder(
+  orderId: string,
+  input: JudicialAdminOrderUpdateInput
+): Promise<{ order: JudicialOrderQueueRow }> {
+  return apiClient.patch<{ order: JudicialOrderQueueRow }>(
+    `${A}/judicial/orders/${encodeURIComponent(orderId)}`,
+    input
   );
 }
 
@@ -1354,10 +1510,12 @@ export function updateCommissionRule(input: UpdateCommissionRuleInput): Promise<
   return apiClient.post<CommissionRule>(`${A}/finance/commission-rules`, input);
 }
 
-export function fetchAdminSettlements(filter: {
-  lawyerId?: string;
-  status?: SettlementStatus;
-} = {}): Promise<{ items: LawyerSettlement[] }> {
+export function fetchAdminSettlements(
+  filter: {
+    lawyerId?: string;
+    status?: SettlementStatus;
+  } = {}
+): Promise<{ items: LawyerSettlement[] }> {
   return apiClient.get<{ items: LawyerSettlement[] }>(
     `${A}/settlements${qs({ lawyerId: filter.lawyerId, status: filter.status })}`
   );
@@ -1470,14 +1628,44 @@ export function fetchAiUsageMetrics(rangeDays = 30): Promise<AiUsageMetrics> {
   return apiClient.get<AiUsageMetrics>(`${A}/ai/metrics${qs({ rangeDays })}`);
 }
 
+// --- Contextual chat tools ------------------------------------------------
+// `available` in each row is the SERVER's capability verdict (e.g. a real
+// precedent source exists). A toggle changes `enabled`, never `available` —
+// the admin cannot fabricate a source by enabling a tool.
+
+export function fetchChatToolSettings(): Promise<{
+  items: ChatToolAdminView[];
+  serviceTypes: string[];
+}> {
+  return apiClient.get<{ items: ChatToolAdminView[]; serviceTypes: string[] }>(`${A}/ai/tools`);
+}
+
+export interface UpdateChatToolSettingInput {
+  enabled?: boolean;
+  allowedServiceTypes?: string[];
+  labelFa?: string;
+  descriptionFa?: string;
+  effectNoteFa?: string;
+  order?: number;
+}
+
+export function updateChatToolSetting(
+  toolId: string,
+  input: UpdateChatToolSettingInput
+): Promise<ChatToolAdminView> {
+  return apiClient.post<ChatToolAdminView>(`${A}/ai/tools/${encodeURIComponent(toolId)}`, input);
+}
+
 // ---------------------------------------------------------------------------
 // RAG sources
 // ---------------------------------------------------------------------------
 
-export function fetchRagSources(filter: {
-  reviewState?: RagReviewState;
-  search?: string;
-} = {}): Promise<{ items: RagSource[]; counts: Record<string, number> }> {
+export function fetchRagSources(
+  filter: {
+    reviewState?: RagReviewState;
+    search?: string;
+  } = {}
+): Promise<{ items: RagSource[]; counts: Record<string, number> }> {
   return apiClient.get<{ items: RagSource[]; counts: Record<string, number> }>(
     `${A}/rag/sources${qs({ reviewState: filter.reviewState, search: filter.search })}`
   );
@@ -1642,6 +1830,8 @@ export interface SaveCostProfileInput {
   descriptionFa?: string;
   activity: ActivityType;
   enabled: boolean;
+  billingMode?: ServiceBillingMode;
+  chargeBasis?: ServiceChargeBasis;
   baseRequestCost: number;
   inputTokenPer1k: number;
   outputTokenPer1k: number;
@@ -1685,7 +1875,9 @@ export interface AdminLedgerQuery {
 }
 
 /** The queryable consumption ledger, newest first. */
-export function fetchUsageLedger(query: AdminLedgerQuery = {}): Promise<{ items: UsageLedgerEntry[] }> {
+export function fetchUsageLedger(
+  query: AdminLedgerQuery = {}
+): Promise<{ items: UsageLedgerEntry[] }> {
   return apiClient.get<{ items: UsageLedgerEntry[] }>(
     `${A}/energy/ledger${qs({ userId: query.userId, serviceKey: query.serviceKey, from: query.from, to: query.to })}`
   );
@@ -1770,10 +1962,9 @@ export function previewCalculatorRuleDraft(
   datasetId: string,
   rates: Record<string, unknown>
 ): Promise<RulePublishPreview> {
-  return apiClient.post<RulePublishPreview>(
-    `${A}/calculators/rules/${datasetId}/preview`,
-    { rates }
-  );
+  return apiClient.post<RulePublishPreview>(`${A}/calculators/rules/${datasetId}/preview`, {
+    rates,
+  });
 }
 
 /** Publish a draft; archives the previously-active version. */
@@ -1781,10 +1972,9 @@ export function publishCalculatorRule(
   datasetId: string,
   versionId: string
 ): Promise<CalculatorRuleVersion> {
-  return apiClient.post<CalculatorRuleVersion>(
-    `${A}/calculators/rules/${datasetId}/publish`,
-    { versionId }
-  );
+  return apiClient.post<CalculatorRuleVersion>(`${A}/calculators/rules/${datasetId}/publish`, {
+    versionId,
+  });
 }
 
 /** Create a new draft copying a prior version's figures (rollback). */
@@ -1792,10 +1982,9 @@ export function rollbackCalculatorRule(
   datasetId: string,
   versionId: string
 ): Promise<CalculatorRuleVersion> {
-  return apiClient.post<CalculatorRuleVersion>(
-    `${A}/calculators/rules/${datasetId}/rollback`,
-    { versionId }
-  );
+  return apiClient.post<CalculatorRuleVersion>(`${A}/calculators/rules/${datasetId}/rollback`, {
+    versionId,
+  });
 }
 
 /** Discard the open draft of one dataset. */
@@ -1803,10 +1992,9 @@ export function deleteCalculatorRuleDraft(
   datasetId: string,
   versionId: string
 ): Promise<{ ok: boolean }> {
-  return apiClient.post<{ ok: boolean }>(
-    `${A}/calculators/rules/${datasetId}/discard`,
-    { versionId }
-  );
+  return apiClient.post<{ ok: boolean }>(`${A}/calculators/rules/${datasetId}/discard`, {
+    versionId,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1874,17 +2062,11 @@ export function createAdminCoupon(input: AdminCouponDraft): Promise<AdminCouponR
   return apiClient.post<AdminCouponRow>(`${A}/coupons`, input);
 }
 
-export function updateAdminCoupon(
-  id: string,
-  input: AdminCouponDraft
-): Promise<AdminCouponRow> {
+export function updateAdminCoupon(id: string, input: AdminCouponDraft): Promise<AdminCouponRow> {
   return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, input);
 }
 
-export function setAdminCouponStatus(
-  id: string,
-  status: CouponStatus
-): Promise<AdminCouponRow> {
+export function setAdminCouponStatus(id: string, status: CouponStatus): Promise<AdminCouponRow> {
   return apiClient.patch<AdminCouponRow>(`${A}/coupons/${encodeURIComponent(id)}`, { status });
 }
 
@@ -1892,16 +2074,20 @@ export function setAdminCouponStatus(
 // Support tickets
 // ---------------------------------------------------------------------------
 
-export function fetchSupportTickets(filter: {
-  status?: SupportTicketStatus;
-  priority?: SupportTicketPriority;
-} = {}): Promise<AdminSupportResponse> {
+export function fetchSupportTickets(
+  filter: {
+    status?: SupportTicketStatus;
+    priority?: SupportTicketPriority;
+  } = {}
+): Promise<AdminSupportResponse> {
   return apiClient.get<AdminSupportResponse>(
     `${A}/support${qs({ status: filter.status, priority: filter.priority })}`
   );
 }
 
-export function fetchSupportTicket(id: string): Promise<{ ticket: SupportTicket; overdue: boolean }> {
+export function fetchSupportTicket(
+  id: string
+): Promise<{ ticket: SupportTicket; overdue: boolean }> {
   return apiClient.get<{ ticket: SupportTicket; overdue: boolean }>(
     `${A}/support/${encodeURIComponent(id)}`
   );
@@ -1925,10 +2111,10 @@ export function addSupportMessage(
   body: string,
   isInternal = false
 ): Promise<SupportTicket> {
-  return apiClient.post<SupportTicket>(
-    `${A}/support/${encodeURIComponent(ticketId)}/messages`,
-    { body, isInternal }
-  );
+  return apiClient.post<SupportTicket>(`${A}/support/${encodeURIComponent(ticketId)}/messages`, {
+    body,
+    isInternal,
+  });
 }
 
 export interface UpdateTicketInput {
@@ -2013,15 +2199,17 @@ export function fetchAdminSettings(): Promise<AdminSettingsResponse> {
 /** List the management table. `bucket` is the 4-way review filter, `lifecycle`
  *  the operator status, `search` matches name / licence / specialty / city /
  *  masked mobile. Pass no args for "همه". */
-export function fetchAdminLawyers(params: {
-  bucket?: LawyerDecisionBucket;
-  status?: LawyerVerificationStatus;
-  lifecycle?: AdminLawyerStatus;
-  featured?: boolean;
-  search?: string;
-  page?: number;
-  pageSize?: number;
-} = {}): Promise<AdminLawyersResponse> {
+export function fetchAdminLawyers(
+  params: {
+    bucket?: LawyerDecisionBucket;
+    status?: LawyerVerificationStatus;
+    lifecycle?: AdminLawyerStatus;
+    featured?: boolean;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}
+): Promise<AdminLawyersResponse> {
   return apiClient.get<AdminLawyersResponse>(
     `${A}/lawyers${qs({
       bucket: params.bucket,
@@ -2224,6 +2412,7 @@ export type {
   AiTestResult,
   AiPromptVersion,
   AiUsageMetrics,
+  ChatToolAdminView,
   RagSource,
   RagReviewState,
   RagPipelineStatus,

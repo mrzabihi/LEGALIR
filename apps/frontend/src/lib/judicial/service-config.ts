@@ -38,7 +38,7 @@ import type {
 const TABLE = "judicial_service_config";
 
 /** The config table's own schema version, migrated additively. */
-export const JUDICIAL_CONFIG_VERSION = 1;
+export const JUDICIAL_CONFIG_VERSION = 2;
 
 /** The feature-flag key that gates each service. */
 export const JUDICIAL_FLAG_KEY: Record<JudicialServiceId, string> = {
@@ -74,13 +74,19 @@ const INTERNAL: JudicialServiceRequirement = {
   noteFa: null,
 };
 
-/** Criminal record needs an authorized certificate-issuing integration. */
+/**
+ * Criminal record: the CERTIFICATE can only be issued by the official
+ * authority. Ligalir does not issue it, so the service is `request_only` —
+ * a real, tracked request whose status an operator moves by hand. When the
+ * official integration is connected the flag `configured` flips and the
+ * service may be published as fully available.
+ */
 const CRIMINAL_REQUIREMENT: JudicialServiceRequirement = {
   kind: "external",
   providerFa: "سامانهٔ رسمی صدور گواهی عدم سوءپیشینه",
   configured: false,
   noteFa:
-    "صدور و دریافت گواهی تنها از طریق سامانهٔ رسمی امکان‌پذیر است و این اتصال هنوز برقرار نشده است. تا آن زمان هیچ درخواستی ثبت یا هیچ گواهی‌ای تولید نمی‌شود.",
+    "گواهی را فقط مرجع رسمی صادر می‌کند و لیگالیر گواهی صادر یا شبیه‌سازی نمی‌کند. درخواست شما ثبت و توسط کارشناس پیگیری می‌شود؛ تحویل گواهی تنها پس از اتصال رسمی ممکن است.",
 };
 
 /** Credit check needs the subject's verifiable consent plus a real provider. */
@@ -89,7 +95,7 @@ const CREDIT_REQUIREMENT: JudicialServiceRequirement = {
   providerFa: "ارائه‌دهندهٔ رسمی استعلام اعتبار",
   configured: false,
   noteFa:
-    "استعلام اعتبار معاملاتی نیازمند رضایت قابل‌اثبات صاحب داده و ارائه‌دهندهٔ رسمی استعلام است. این زیرساخت هنوز متصل نشده و هیچ نتیجه‌ای شبیه‌سازی نمی‌شود.",
+    "استعلام اعتبار نیازمند رضایت قابل‌اثبات صاحب داده و ارائه‌دهندهٔ رسمی است. لیگالیر هیچ نتیجه‌ای شبیه‌سازی نمی‌کند؛ درخواست شما ثبت و پیگیری می‌شود تا زیرساخت رسمی متصل شود.",
 };
 
 interface SeedDef {
@@ -183,9 +189,9 @@ function seedDefs(): SeedDef[] {
       titleFa: "گواهی عدم سوءپیشینه",
       shortTitleFa: "عدم سوءپیشینه",
       descriptionFa:
-        "درخواست گواهی عدم سوءپیشینه از مرجع رسمی. این خدمت به اتصال رسمی نیاز دارد و هنوز فعال نشده است.",
-      ctaFa: "جزئیات خدمت",
-      status: "soon",
+        "درخواست گواهی عدم سوءپیشینه را ثبت کنید، مدارک را پیوست کنید و وضعیت پیگیری را ببینید. گواهی را فقط مرجع رسمی صادر می‌کند.",
+      ctaFa: "ثبت درخواست گواهی",
+      status: "request_only",
       statusNoteFa: CRIMINAL_REQUIREMENT.noteFa,
       surfaces: allSurfaces,
       access: { mode: "free", activity: null },
@@ -198,9 +204,9 @@ function seedDefs(): SeedDef[] {
       titleFa: "استعلام اعتبار معاملاتی",
       shortTitleFa: "اعتبار معاملاتی",
       descriptionFa:
-        "بررسی سابقهٔ اعتباری اشخاص با رضایت آن‌ها. این خدمت به ارائه‌دهندهٔ رسمی و تأیید هویت نیاز دارد و هنوز فعال نشده است.",
-      ctaFa: "جزئیات خدمت",
-      status: "soon",
+        "با رضایت صاحب داده، درخواست استعلام اعتبار را ثبت کنید و روند بررسی را پیگیری کنید. نتیجه فقط از ارائه‌دهندهٔ رسمی می‌آید.",
+      ctaFa: "ثبت درخواست استعلام",
+      status: "request_only",
       statusNoteFa: CREDIT_REQUIREMENT.noteFa,
       surfaces: allSurfaces,
       access: { mode: "free", activity: null },
@@ -239,10 +245,11 @@ export function listJudicialServices(): JudicialServiceConfig[] {
   const stored = readTable<StoredConfig>(TABLE);
   if (stored.length === 0) return seed();
 
-  const present = new Set(stored.map((r) => r.id));
+  const { rows, changed } = migrateLegacy(stored);
+  const present = new Set(rows.map((r) => r.id));
   const now = new Date().toISOString();
   const missing = seedDefs().filter((d) => !present.has(d.id));
-  if (missing.length === 0) return stored.map(normalize);
+  if (missing.length === 0 && !changed) return rows.map(normalize);
 
   const appended: StoredConfig[] = missing.map((d) => ({
     ...d,
@@ -253,9 +260,49 @@ export function listJudicialServices(): JudicialServiceConfig[] {
     updatedBy: null,
     schemaVersion: JUDICIAL_CONFIG_VERSION,
   }));
-  const next = [...stored, ...appended];
+  const next = [...rows, ...appended];
   writeTable(TABLE, next);
   return next.map(normalize);
+}
+
+/**
+ * Additive schema migration. An untouched seed row (`updatedBy === null`)
+ * follows the current product definition — that is how the two provider
+ * services moved from a bare `soon` placeholder to a real `request_only`
+ * intake. A row an operator has edited is never rewritten: it only gains the
+ * new schema marker.
+ */
+function migrateLegacy(rows: StoredConfig[]): {
+  rows: StoredConfig[];
+  changed: boolean;
+} {
+  const defs = new Map(seedDefs().map((d) => [d.id, d]));
+  const now = new Date().toISOString();
+  let changed = false;
+
+  const migrated = rows.map((row) => {
+    const version = row.schemaVersion ?? 1;
+    if (version >= JUDICIAL_CONFIG_VERSION) return row;
+    changed = true;
+
+    const def = defs.get(row.id);
+    if (!def || row.updatedBy !== null) {
+      return { ...row, schemaVersion: JUDICIAL_CONFIG_VERSION };
+    }
+    const migrated: StoredConfig = {
+      ...row,
+      ...def,
+      family: JUDICIAL_FAMILY_ID,
+      requiresAuth: true,
+      version: row.version + 1,
+      updatedAt: now,
+      updatedBy: null,
+      schemaVersion: JUDICIAL_CONFIG_VERSION,
+    };
+    return migrated;
+  });
+
+  return { rows: migrated, changed };
 }
 
 /**
@@ -296,24 +343,39 @@ export function getJudicialServiceForDocumentType(
  * Effective status: `available` requires the config to say so AND the flag to
  * be on AND any declared requirement to be configured. Any failing condition
  * downgrades — never silently upgrades.
+ *
+ * `request_only` is the honest middle state for a service whose deliverable
+ * comes from an external authority that is not connected yet: a tracked
+ * request is accepted and an operator moves it forward by hand, but nothing
+ * is issued automatically and the label never claims availability.
  */
 function projectAvailability(
   cfg: JudicialServiceConfig,
   flagEnabled: boolean
 ): { availability: JudicialServiceStatus; note: string | null } {
-  if (cfg.requirement.kind === "external" && !cfg.requirement.configured) {
+  const unconfiguredExternal =
+    cfg.requirement.kind === "external" && !cfg.requirement.configured;
+
+  if (unconfiguredExternal) {
+    if (cfg.status === "request_only" && flagEnabled) {
+      return {
+        availability: "request_only",
+        note: cfg.requirement.noteFa ?? cfg.statusNoteFa,
+      };
+    }
     return {
       availability: cfg.status === "unavailable" ? "unavailable" : "soon",
       note: cfg.requirement.noteFa ?? cfg.statusNoteFa,
     };
   }
-  if (cfg.status !== "available") {
+
+  if (cfg.status !== "available" && cfg.status !== "request_only") {
     return { availability: cfg.status, note: cfg.statusNoteFa };
   }
   if (!flagEnabled) {
     return { availability: "unavailable", note: null };
   }
-  return { availability: "available", note: cfg.statusNoteFa };
+  return { availability: cfg.status, note: cfg.statusNoteFa };
 }
 
 /** Project every service for one caller (plan-aware flag evaluation). */
@@ -341,11 +403,36 @@ export function getJudicialServiceView(
 }
 
 /**
- * Whether the wizard may be entered RIGHT NOW. Every mutating route calls
- * this — hiding a button is not access control.
+ * Whether the drafting WIZARD may be entered RIGHT NOW. Every mutating
+ * drafting route calls this — hiding a button is not access control.
  */
 export function isJudicialServiceEnterable(id: string, ctx?: Partial<FlagContext>): boolean {
   return getJudicialServiceView(id, ctx)?.availability === "available";
+}
+
+/**
+ * Whether a tracked ORDER request may be submitted RIGHT NOW (the
+ * `request_only` lane). Orderable and draftable are deliberately separate:
+ * a drafting service never collects an order and an order-only service never
+ * pretends to draft.
+ */
+export function isJudicialServiceOrderable(id: string, ctx?: Partial<FlagContext>): boolean {
+  return getJudicialServiceView(id, ctx)?.availability === "request_only";
+}
+
+/**
+ * The one real start path a service has for this caller, or `null` when the
+ * service may not be started at all. Both the /cases cards and the discovery
+ * surfaces read this instead of re-deriving availability.
+ */
+export function judicialEntryMode(
+  id: string,
+  ctx?: Partial<FlagContext>
+): "draft" | "order" | null {
+  const availability = getJudicialServiceView(id, ctx)?.availability;
+  if (availability === "available") return "draft";
+  if (availability === "request_only") return "order";
+  return null;
 }
 
 // ------------------------------------------------------------

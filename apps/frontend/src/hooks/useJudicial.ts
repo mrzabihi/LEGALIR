@@ -12,26 +12,37 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  actOnJudicialReview,
   analyzeJudicialRequest,
   approveJudicialDraft,
   approveJudicialReadyDocument,
+  cancelJudicialOrder,
+  createJudicialOrder,
   createJudicialRequest,
   deleteJudicialRequest,
   fetchJudicialCard,
   fetchJudicialDocuments,
   fetchJudicialDrafts,
+  fetchJudicialOrder,
+  fetchJudicialOrders,
   fetchJudicialRequest,
   fetchJudicialRequests,
+  fetchJudicialReviews,
   fetchJudicialServices,
   generateJudicialDraft,
   linkJudicialDocument,
   reviseJudicialDraft,
   saveJudicialAnswers,
   setJudicialReadyDocument,
+  submitJudicialOrder,
+  submitJudicialReview,
   transitionJudicialRequest,
   unlinkJudicialDocument,
+  updateJudicialOrder,
   updateJudicialRequest,
+  type CreateJudicialOrderInput,
   type CreateJudicialRequestInput,
+  type UpdateJudicialOrderInput,
   type UpdateJudicialRequestInput,
 } from "@/lib/api/judicial";
 import type { JudicialAttachmentRole } from "@legalir/types";
@@ -43,6 +54,9 @@ export const judicialKeys = {
   detail: (id: string) => ["judicial", "requests", id] as const,
   documents: (id: string) => ["judicial", "requests", id, "documents"] as const,
   drafts: (id: string) => ["judicial", "requests", id, "drafts"] as const,
+  reviews: (id: string) => ["judicial", "requests", id, "reviews"] as const,
+  orders: ["judicial", "orders"] as const,
+  order: (id: string) => ["judicial", "orders", id] as const,
 };
 
 /** Invalidate everything that shows this request's state. */
@@ -53,6 +67,7 @@ function invalidateRequest(qc: ReturnType<typeof useQueryClient>, id?: string) {
     void qc.invalidateQueries({ queryKey: judicialKeys.detail(id) });
     void qc.invalidateQueries({ queryKey: judicialKeys.drafts(id) });
     void qc.invalidateQueries({ queryKey: judicialKeys.documents(id) });
+    void qc.invalidateQueries({ queryKey: judicialKeys.reviews(id) });
   }
 }
 
@@ -256,5 +271,125 @@ export function useTransitionJudicialRequest(id: string) {
   return useMutation({
     mutationFn: (to: string) => transitionJudicialRequest(id, to),
     onSuccess: () => invalidateRequest(qc, id),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Review lane (owner side)
+// ---------------------------------------------------------------------------
+
+export function useJudicialReviews(id: string | undefined) {
+  return useQuery({
+    queryKey: judicialKeys.reviews(id ?? ""),
+    queryFn: () => fetchJudicialReviews(id!),
+    enabled: Boolean(id),
+    staleTime: 10_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Send ONE draft version for review. The caller mints one key per logical
+ * attempt so a double click returns the same review (no duplicate queue row).
+ */
+export function useSubmitJudicialReview(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      draftId: string;
+      note?: string;
+      kind?: "legalir" | "lawyer";
+      idempotencyKey: string;
+    }) => submitJudicialReview(id, input),
+    onSuccess: () => invalidateRequest(qc, id),
+  });
+}
+
+/** The owner's answer / new version / withdrawal on an OPEN review. */
+export function useActOnJudicialReview(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      reviewId: string;
+      action: "reply" | "resubmit" | "cancel";
+      bodyFa?: string;
+      versionId?: string;
+    }) =>
+      actOnJudicialReview(id, input.reviewId, {
+        action: input.action,
+        bodyFa: input.bodyFa,
+        versionId: input.versionId,
+      }),
+    onSuccess: () => invalidateRequest(qc, id),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tracked orders (the two provider services)
+// ---------------------------------------------------------------------------
+
+/** The caller's own tracked requests. The server scopes them by session. */
+export function useJudicialOrders() {
+  return useQuery({
+    queryKey: judicialKeys.orders,
+    queryFn: fetchJudicialOrders,
+    staleTime: 15_000,
+  });
+}
+
+export function useJudicialOrder(orderId: string | undefined) {
+  return useQuery({
+    queryKey: judicialKeys.order(orderId ?? ""),
+    queryFn: () => fetchJudicialOrder(orderId!),
+    enabled: Boolean(orderId),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/** One invalidation path for everything that shows an order's state. */
+function invalidateOrders(qc: ReturnType<typeof useQueryClient>, orderId?: string) {
+  void qc.invalidateQueries({ queryKey: judicialKeys.orders });
+  if (orderId) void qc.invalidateQueries({ queryKey: judicialKeys.order(orderId) });
+  // The cards count open work across both lanes.
+  void qc.invalidateQueries({ queryKey: judicialKeys.card });
+}
+
+export function useCreateJudicialOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateJudicialOrderInput) => createJudicialOrder(input),
+    onSuccess: () => invalidateOrders(qc),
+  });
+}
+
+export function useUpdateJudicialOrder(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateJudicialOrderInput) =>
+      updateJudicialOrder(orderId, input),
+    onSuccess: () => invalidateOrders(qc, orderId),
+  });
+}
+
+/** Hand a completed draft to an operator. Only `draft`/`waiting_user` move. */
+export function useSubmitJudicialOrder(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => submitJudicialOrder(orderId),
+    onSuccess: (result) => {
+      // The response carries the row the server actually stored — write it
+      // straight into the cache so the detail page flips without a refetch.
+      qc.setQueryData(judicialKeys.order(orderId), result);
+      invalidateOrders(qc, orderId);
+    },
+  });
+}
+
+export function useCancelJudicialOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => cancelJudicialOrder(orderId),
+    onSuccess: (_res, orderId) => invalidateOrders(qc, orderId),
   });
 }

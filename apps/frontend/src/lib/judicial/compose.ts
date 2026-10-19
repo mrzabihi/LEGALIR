@@ -26,7 +26,7 @@ import type {
   JudicialQuestionnaire,
   JudicialRequest,
 } from "@legalir/types";
-import type { AiProvider } from "@/lib/ai/provider";
+import type { AiProvider, AiUsage } from "@/lib/ai/provider";
 import { flattenQuestions, isQuestionVisible, optionLabel } from "./schemas";
 
 /** The marker a reader (and the UI) can search for incomplete spots. */
@@ -522,7 +522,7 @@ export async function refineWithModel(
   composed: string,
   references: JudicialDraftReference[],
   signal?: AbortSignal
-): Promise<string | null> {
+): Promise<{ text: string; usage: AiUsage | null } | null> {
   if (!provider.configured) return null;
 
   const sourceList =
@@ -531,6 +531,7 @@ export async function refineWithModel(
       : references.map((r) => `- ${r.title} — ${r.locator} (${r.tierFa})`).join("\n");
 
   let out = "";
+  let usage: AiUsage | null = null;
   try {
     for await (const chunk of provider.stream({
       system: REFINE_SYSTEM,
@@ -541,6 +542,11 @@ export async function refineWithModel(
         },
       ],
       signal,
+      // The provider's real token report — recorded on the usage ledger so the
+      // draft's consumption is attributable, not estimated at display time.
+      onUsage: (u) => {
+        usage = u;
+      },
     })) {
       out += chunk;
     }
@@ -555,7 +561,7 @@ export async function refineWithModel(
   if (composed.includes(INCOMPLETE_MARKER) && !text.includes(INCOMPLETE_MARKER)) {
     return null;
   }
-  return text;
+  return { text, usage };
 }
 
 // ------------------------------------------------------------

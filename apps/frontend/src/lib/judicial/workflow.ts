@@ -27,11 +27,19 @@ export type TransitionResult =
   | { ok: true; request: JudicialRequest }
   | { ok: false; code: "NOT_FOUND" | "ILLEGAL_TRANSITION" | "APPROVAL_REQUIRES_DRAFT" };
 
-/** Statuses the generic transition route may never set on its own. */
+/**
+ * Statuses the generic transition route may never set on its own. The review
+ * lane is server-owned: `under_review` is written by the submit route, and
+ * `approved`/`finalized` only by an admin decision, so a client can never talk
+ * itself past the review gate.
+ */
 const ROUTE_FORBIDDEN_TARGETS: readonly JudicialRequestStatus[] = [
   "generating",
   "draft_ready",
+  "ready_to_review",
+  "under_review",
   "approved",
+  "finalized",
 ];
 
 export interface TransitionOptions {
@@ -91,7 +99,11 @@ export function availableTransitions(request: JudicialRequest): JudicialRequestS
   );
 }
 
-/** Statuses that count as "still open work" for the card's counter. */
+/**
+ * Statuses that count as "still open work" for the card's counter. `approved`
+ * is included deliberately: the artifact has not been issued yet, so the
+ * request is still something the owner is waiting on.
+ */
 export const OPEN_STATUSES: readonly JudicialRequestStatus[] = [
   "draft",
   "collecting",
@@ -100,7 +112,9 @@ export const OPEN_STATUSES: readonly JudicialRequestStatus[] = [
   "generating",
   "draft_ready",
   "ready_to_review",
+  "under_review",
   "needs_correction",
+  "approved",
 ] as const;
 
 export function isOpenStatus(status: JudicialRequestStatus): boolean {

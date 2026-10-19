@@ -34,7 +34,11 @@ import type {
 } from "@legalir/types";
 import { JUDICIAL_TRANSITIONS } from "@legalir/types";
 import { retrieveGroundedSources } from "@/lib/ai/grounding";
-import { createAiProvider, readAiProviderConfig } from "@/lib/ai/provider";
+import {
+  createAiProvider,
+  readAiProviderConfig,
+  type AiUsage,
+} from "@/lib/ai/provider";
 import { completeUsage, reserveUsage, reverseUsage } from "@/lib/usage/engine";
 import { JUDICIAL_SERVICE_FA } from "@legalir/types";
 import {
@@ -253,10 +257,12 @@ export async function generateDraft(params: {
   let generator: JudicialDraftVersion["generator"] = "structured_composer";
   const provider = createAiProvider(readAiProviderConfig());
 
+  let refineUsage: AiUsage | null = null;
   if (provider.configured) {
     const refined = await refineWithModel(provider, composed.text, references, params.signal);
     if (refined) {
-      text = refined;
+      text = refined.text;
+      refineUsage = refined.usage;
       generator = "model_refined";
     }
   }
@@ -269,6 +275,11 @@ export async function generateDraft(params: {
     source: "judicial",
     relatedEntityId: params.requestId,
     idempotencyKey: chargeKey,
+    // The model actually used for refinement — priced and recorded as such.
+    costContext: {
+      model: provider.model,
+      ragCalls: references.length > 0 ? 1 : 0,
+    },
   });
 
   if (!reservation.ok) {
@@ -304,7 +315,28 @@ export async function generateDraft(params: {
     return { ok: false, code: "NOT_FOUND", messageFa: "درخواست یافت نشد" };
   }
 
-  if (reservation.transaction) completeUsage(reservation.transaction.id);
+  if (reservation.transaction) {
+    // The structured draft itself used no tokens; a model refinement did, and
+    // its provider-reported usage is what gets recorded (never a guess).
+    const usage = refineUsage;
+    completeUsage(reservation.transaction.id, {
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      tokens: usage?.totalTokens ?? 0,
+      model: provider.model,
+      provider: provider.configured ? provider.name : null,
+      tokenUsageStatus: usage
+        ? usage.estimated
+          ? "ESTIMATED"
+          : "ACTUAL"
+        : "UNAVAILABLE",
+      tokenUsageNoteFa: usage
+        ? null
+        : provider.configured
+          ? "بازنویسی مدل انجام نشد؛ پیش‌نویس ساختاریافته بدون مصرف توکن ساخته شد."
+          : "ارائه‌دهندهٔ مدل تنظیم نشده است؛ پیش‌نویس ساختاریافته بدون مصرف توکن ساخته شد.",
+    });
+  }
 
   // The workflow move is internal: only this module may enter `draft_ready`.
   // Each step is validated against the shared table, so a regenerated draft

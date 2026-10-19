@@ -22,6 +22,7 @@ import { Button, Textarea } from "@legalir/ui";
 import type {
   JudicialCompleteness,
   JudicialDraftVersion,
+  JudicialFinalDocument,
   JudicialReadyDocumentRef,
   JudicialRequest,
 } from "@legalir/types";
@@ -45,6 +46,8 @@ import {
   useReviseJudicialDraft,
 } from "@/hooks/useJudicial";
 import { formatFileSize, toPersianDate } from "@/lib/persian-utils";
+import { DraftA4Preview } from "./draft-a4-preview";
+import { ReviewWorkspace } from "./review-workspace";
 
 const DRAFT_STATUS_FA: Record<JudicialDraftVersion["status"], string> = {
   draft: "پیش‌نویس",
@@ -73,6 +76,8 @@ export interface ReviewPanelProps {
   initialDrafts: JudicialDraftVersion[];
   readyDocumentPath: boolean;
   readyDocument: JudicialReadyDocumentRef | null;
+  /** The issued artifact, when an admin approval already produced one. */
+  finalDocument: JudicialFinalDocument | null;
   onGenerateMore: () => void;
   onFixAnswers: () => void;
   onBackToAnalysis: () => void;
@@ -85,6 +90,7 @@ export function ReviewPanel({
   initialDrafts,
   readyDocumentPath,
   readyDocument,
+  finalDocument,
   onGenerateMore,
   onFixAnswers,
   onBackToAnalysis,
@@ -101,6 +107,9 @@ export function ReviewPanel({
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // The A4 sheet is heavy to paginate, so it opens on request rather than on
+  // every version switch.
+  const [showPreview, setShowPreview] = useState(false);
 
   const selected = drafts.find((d) => d.id === selectedId) ?? drafts[0] ?? null;
   const newest = drafts[0] ?? null;
@@ -112,6 +121,12 @@ export function ReviewPanel({
     setEditing(false);
     setDraftText(selected?.text ?? "");
   }, [selected?.id, selected?.text]);
+
+  // The preview is bound to ONE version — switching versions must not leave
+  // a sheet of the previous text on screen.
+  useEffect(() => {
+    setShowPreview(false);
+  }, [selected?.id]);
 
   async function saveEdit() {
     if (!selected) return;
@@ -150,6 +165,7 @@ export function ReviewPanel({
   }
 
   return (
+    <div className="space-y-4">
     <section
       aria-labelledby="judicial-review-title"
       className="space-y-4 rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4 tablet:p-5"
@@ -412,7 +428,41 @@ export function ReviewPanel({
                     >
                       ویرایش متن
                     </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setShowPreview((v) => !v)}
+                      startIcon={<IconFileText size={16} />}
+                    >
+                      {showPreview ? "بستن پیش‌نمایش A4" : "پیش‌نمایش A4 و چاپ"}
+                    </Button>
                   </div>
+
+                  {/* A4 preview — the same page box and CSS as the contract
+                      document, so what prints here is the layout the server
+                      PDF will render for the approved version. The watermark
+                      is driven by the STORED status, never by this component. */}
+                  {showPreview && (
+                    <div className="mt-4">
+                      <DraftA4Preview
+                        titleFa={request.titleFa}
+                        documentTypeFa={
+                          request.documentType
+                            ? JUDICIAL_DOCUMENT_TYPE_FA[request.documentType]
+                            : "پیش‌نویس قضایی"
+                        }
+                        referenceId={request.id}
+                        versionNumber={selected.version}
+                        text={selected.text}
+                        approved={selected.status === "approved"}
+                        approvedAtLabelFa={
+                          selected.approvedAt
+                            ? toPersianDate(selected.approvedAt)
+                            : null
+                        }
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -498,5 +548,14 @@ export function ReviewPanel({
         </Button>
       </div>
     </section>
+
+    {/* Human review + the issued artifact. Read-only about issuance: this
+        surface only ever READS a final document the admin decision created. */}
+    <ReviewWorkspace
+      request={request}
+      drafts={drafts}
+      finalDocument={finalDocument}
+    />
+    </div>
   );
 }

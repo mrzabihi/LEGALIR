@@ -12,8 +12,6 @@
 
 import type {
   JudicialCapabilities,
-  JudicialRequest,
-  JudicialRequestSummary,
   JudicialServiceConfig,
   JudicialServiceSummary,
   JudicialServiceView,
@@ -22,28 +20,12 @@ import { readAiProviderConfig } from "@/lib/ai/provider";
 import { JUDICIAL_STATUS_FA } from "@legalir/types";
 import type { FlagContext } from "@/lib/admin/flags";
 import { JUDICIAL_FLAG_KEY, listJudicialServiceViews } from "./service-config";
-import { listRequestsForUser, requestCounts } from "./db";
+import { listRequestsForUser } from "./db";
+import { toRequestSummary } from "./present";
 import { isOpenStatus } from "./workflow";
 
 /** The config row the /cases entry point presents (the petition family). */
 export const CASES_CARD_SERVICE_ID = "judicial_petition" as const;
-
-function summarize(request: JudicialRequest): JudicialRequestSummary {
-  const counts = requestCounts(request.userId, request.id);
-  return {
-    id: request.id,
-    serviceId: request.serviceId,
-    documentType: request.documentType,
-    status: request.status,
-    currentStep: request.currentStep,
-    titleFa: request.titleFa,
-    updatedAt: request.updatedAt,
-    documentCount: counts.documentCount,
-    draftCount: counts.draftCount,
-    latestDraftVersion: counts.latestDraftVersion,
-    hasApprovedDraft: counts.hasApprovedDraft,
-  };
-}
 
 function availabilityOf(view: JudicialServiceView): JudicialServiceSummary["availability"] {
   return {
@@ -73,7 +55,7 @@ export function getJudicialCardSummary(
     settings,
     availability: availabilityOf(view),
     openCount: open.length,
-    latest: open[0] ? summarize(open[0]) : null,
+    latest: open[0] ? toRequestSummary(open[0]) : null,
   };
 }
 
