@@ -125,7 +125,7 @@ function party(contractId: string, role: ContractParty["role"], initiator = fals
 
 let rentData: PropertyContract["data"];
 
-function seedContract(contractId: string, finalHash: string): PropertyContract {
+function seedContract(contractId: string): PropertyContract {
   const now = "2026-01-06T00:00:00.000Z";
   return {
     id: contractId,
@@ -249,7 +249,7 @@ beforeAll(async () => {
   const masterSha = master!.sha256;
 
   // 1 — the normal case: artifact + a stamp bound to the final hash.
-  contractDb.insertContract(seedContract(SEALED, FINAL_HASH));
+  contractDb.insertContract(seedContract(SEALED));
   contractDb.upsertParty(party(SEALED, "landlord", true));
   contractDb.upsertParty(party(SEALED, "tenant"));
   contractDb.insertVersion(seedVersion(SEALED, FINAL_HASH));
@@ -257,12 +257,12 @@ beforeAll(async () => {
   seedStamp(SEALED, FINAL_HASH, masterSha);
 
   // 2 — never finalized: no final_pdf row at all.
-  contractDb.insertContract(seedContract(NO_ARTIFACT, "d".repeat(64)));
+  contractDb.insertContract(seedContract(NO_ARTIFACT));
   contractDb.upsertParty(party(NO_ARTIFACT, "landlord", true));
   contractDb.insertVersion(seedVersion(NO_ARTIFACT, "d".repeat(64)));
 
   // 3 — an artifact whose stamp was bound to a DIFFERENT hash.
-  contractDb.insertContract(seedContract(STALE_SEAL, STALE_FINAL_HASH));
+  contractDb.insertContract(seedContract(STALE_SEAL));
   contractDb.upsertParty(party(STALE_SEAL, "landlord", true));
   contractDb.insertVersion(seedVersion(STALE_SEAL, STALE_FINAL_HASH));
   staleArtifact = storeArtifact(STALE_SEAL, "doc-stale-1", STALE_ARTIFACT_BYTES);

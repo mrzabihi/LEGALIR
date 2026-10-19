@@ -39,8 +39,6 @@ let originalCwd: string;
 // `createUser` mints its own id, so the real ids are captured in `beforeAll`.
 let OWNER: string;
 let OTHER: string;
-let ANALYST: string;
-let AUDITOR: string;
 
 let ownerSession: string;
 let analystSession: string;
@@ -116,8 +114,8 @@ beforeAll(async () => {
 
   ({ userId: OWNER, sessionId: ownerSession } = createWithRole("USER"));
   ({ userId: OTHER } = createWithRole("USER"));
-  ({ userId: ANALYST, sessionId: analystSession } = createWithRole("ANALYST"));
-  ({ userId: AUDITOR, sessionId: auditorSession } = createWithRole("AUDITOR"));
+  ({ sessionId: analystSession } = createWithRole("ANALYST"));
+  ({ sessionId: auditorSession } = createWithRole("AUDITOR"));
 
   // --- Real rows: the owner has an AI message (tokens) + a token-free action.
   db.writeTable<UsageTransaction>("usage_transactions", [

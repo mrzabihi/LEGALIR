@@ -90,11 +90,11 @@ const TOKEN_STATUS_LABEL: Record<UsageReportItem["tokenStatus"], string> = {
   UNAVAILABLE: "ناموجود",
 };
 
-export type UsageReportData = {
+export interface UsageReportData {
   report: UsageReportResponse;
   services?: { serviceKey: string; serviceNameFa: string }[];
   actions?: { activityType: ActivityType; actionNameFa: string }[];
-};
+}
 
 function formatDateTime(iso: string): string {
   return toPersianDate(iso, { dateStyle: "short", timeStyle: "short" });

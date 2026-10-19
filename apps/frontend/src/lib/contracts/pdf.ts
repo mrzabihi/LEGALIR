@@ -555,7 +555,6 @@ class Layout {
     // from the physical bottom-left corner — identical to the sheet.
     const holoX = MARGIN;
     const sealLeft = MARGIN + (hologram ? holoWidth + gap : 0);
-    const sealCx = sealLeft + sealWidth / 2;
     const sealCy = MARK_ROW_BOTTOM + sealHeight / 2;
 
     for (const page of this.doc.getPages()) {
