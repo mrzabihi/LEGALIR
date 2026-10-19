@@ -113,7 +113,7 @@ test("VERIFY desktop: sheet has a full-width chat card + two-column 2+1 grid", a
     "/chat",
     "/contracts/new",
     "/contracts/review",
-    "/chat?service=legal_notice",
+    "/judicial",
     "/lawyers",
   ]) {
     await expect(dialog.locator(`a[href="${href}"]`)).toHaveCount(1);
@@ -129,7 +129,7 @@ test("VERIFY desktop: sheet has a full-width chat card + two-column 2+1 grid", a
   const featured = await dialog.locator('a[href="/chat"]').boundingBox();
   const draft = await dialog.locator('a[href="/contracts/new"]').boundingBox();
   const review = await dialog.locator('a[href="/contracts/review"]').boundingBox();
-  const notice = await dialog.locator('a[href="/chat?service=legal_notice"]').boundingBox();
+  const notice = await dialog.locator('a[href="/judicial"]').boundingBox();
   const lawyer = await dialog.locator('a[href="/lawyers"]').boundingBox();
   expect(featured && draft && review && notice && lawyer).toBeTruthy();
   if (featured && draft && review && notice && lawyer) {
@@ -241,7 +241,7 @@ test("VERIFY: every create card navigates to its real destination on click", asy
     { href: "/chat", url: /\/chat$/ },
     { href: "/contracts/new", url: /\/contracts\/new$/ },
     { href: "/contracts/review", url: /\/contracts\/review$/ },
-    { href: "/chat?service=legal_notice", url: /\/chat\?service=legal_notice$/ },
+    { href: "/judicial", url: /\/judicial$/ },
     { href: "/lawyers", url: /\/lawyers$/ },
   ];
 

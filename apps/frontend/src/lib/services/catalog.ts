@@ -513,9 +513,9 @@ export const SERVICE_BANNERS: ServiceBannerDef[] = [
   {
     id: "banner-legal-notice",
     title: "تولید اظهارنامه",
-    message: "نامه‌نگاری حقوقی حرفه‌ای با ذکر مستندات قانونی",
+    message: "موضوع اظهارنامه را توضیح دهید و پیش‌نویس را مرحله‌به‌مرحله آماده کنید",
     cta: "تنظیم اظهارنامه",
-    href: "/chat?service=legal_notice",
+    href: "/judicial",
     icon: IconFileText,
     gradient: "from-orange-500 to-amber-500",
     accent: "#D89A13",

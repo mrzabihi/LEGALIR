@@ -221,9 +221,11 @@ test.describe("Judicial drafting", () => {
     const complaintChoice = page.getByRole("button", { name: /شکواییه کیفری/ });
     await expect(complaintChoice).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
 
+    // An unknown value is untrusted URL state: it falls back to the route's
+    // own default, which is the declaration (bare /judicial is its entry).
     await page.goto("/judicial?type=not-a-family");
-    const petitionChoice = page.getByRole("button", { name: /دادخواست حقوقی/ });
-    await expect(petitionChoice).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
+    const statementChoice = page.getByRole("button", { name: /اظهارنامه قضایی/ });
+    await expect(statementChoice).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
 
     // ---------------------------------------------------------------
     // §15.5 — narrative is saved and survives a hard reload
@@ -368,7 +370,7 @@ test.describe("Judicial drafting", () => {
         .filter({ hasText: "تنظیم دادخواست حقوقی" });
       await expect(petitionCard).toHaveCount(0, { timeout: 20_000 });
       await expect(
-        page.locator("article").filter({ hasText: "تنظیم اظهارنامه قضایی" })
+        page.locator("article").filter({ hasText: "تنظیم اظهارنامه تخصصی" })
       ).toHaveCount(1);
 
       // Each surface flag is independent: `services` is off, `home` is still

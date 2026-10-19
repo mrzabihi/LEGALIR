@@ -180,7 +180,7 @@ test.describe("Services discovery page", () => {
     const expected = [
       "/calculators",
       "/documents?service=document_analysis",
-      "/chat?service=legal_notice",
+      "/judicial",
       "/contracts?service=contract_drafting",
       "/documents?service=contract_review",
       "/chat?service=legal_consultation",

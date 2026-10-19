@@ -40,7 +40,13 @@ describe("LEGAL_SERVICES registry", () => {
   it("gives every service a route, href, gradient and icon", () => {
     for (const service of LEGAL_SERVICES) {
       expect(service.route).toMatch(/^\//);
-      expect(service.href).toBe(`${service.route}?${SERVICE_QUERY_KEY}=${service.id}`);
+      // The declaration is the one service whose card opens the judicial
+      // entry point rather than a chat context on its own route.
+      if (service.id === "legal_notice") {
+        expect(service.href).toBe("/judicial");
+      } else {
+        expect(service.href).toBe(`${service.route}?${SERVICE_QUERY_KEY}=${service.id}`);
+      }
       expect(service.gradient).toMatch(/^from-/);
       expect(service.icon).toBeTruthy();
     }

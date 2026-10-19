@@ -522,7 +522,6 @@ export default function LandingPage() {
         surface="home"
         mode="public"
         className="mx-auto max-w-6xl px-4 pb-20 tablet:pb-24"
-        description="موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."
         footer={
           <p className="mt-4 text-caption leading-6 text-neutral-500">
             پیش‌نویس‌ها برای بازبینی خودتان و وکیل است؛ لیگالیر هیچ سندی را در مرجع قضایی ثبت،

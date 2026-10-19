@@ -324,12 +324,23 @@ function Wizard({ id }: { id: string }) {
         }
         breadcrumb={[
           { label: "پرونده‌ها", href: "/cases" },
-          { label: "تنظیم دادخواست و شکواییه", href: "/judicial" },
+          // The launcher preselected to this request's family — not the bare
+          // route, which is the declaration entry.
+          {
+            label: "تنظیم دادخواست و شکواییه",
+            href: request.documentType
+              ? `/judicial?type=${request.documentType}`
+              : "/judicial",
+          },
           { label: request.titleFa },
         ]}
         actions={
           <Link
-            href="/judicial"
+            href={
+              request.documentType
+                ? `/judicial?type=${request.documentType}`
+                : "/judicial"
+            }
             className="inline-flex items-center gap-1 text-labelLarge text-primary hover:underline"
           >
             بازگشت به فهرست

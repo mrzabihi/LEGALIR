@@ -64,14 +64,25 @@ const APP_READY_TIMEOUT = 15_000;
  * replaced it with the calculator launcher, which navigates straight to
  * `/calculators` and carries no `?service=` context (see
  * `components/dashboard/quick-access.tsx`).
+ *
+ * `legal_notice` is absent too: «تولید اظهارنامه» is a judicial service, so
+ * its card opens `/judicial` instead of a `?service=` chat context. It has
+ * its own assertions below.
  */
 const SERVICES = [
   { id: "legal_consultation", title: "مشاوره حقوقی", route: "/chat" },
   { id: "contract_review", title: "بررسی قرارداد", route: "/documents" },
   { id: "contract_drafting", title: "تنظیم قرارداد", route: "/contracts" },
-  { id: "legal_notice", title: "تولید اظهارنامه", route: "/chat" },
   { id: "document_analysis", title: "تحلیل اسناد", route: "/documents" },
 ] as const;
+
+/** The declaration card's own destination and the copy it must show. */
+const DECLARATION = {
+  href: "/judicial",
+  title: "تنظیم اظهارنامه تخصصی",
+  description:
+    "موضوع اظهارنامه را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید.",
+} as const;
 
 test.describe("Service navigation & page context", () => {
   // Serial so the cached demo session is shared from a single login
@@ -92,11 +103,37 @@ test.describe("Service navigation & page context", () => {
     const quick = page.getByRole("heading", { name: "دسترسی سریع" });
     await expect(quick).toBeVisible();
 
-    // Every service card is a link carrying ?service=<id>.
+    // Every AI service card is a link carrying ?service=<id>.
     for (const service of SERVICES) {
       const link = page.locator(`a[href="${service.route}?service=${service.id}"]`);
       await expect(link).toHaveCount(1);
     }
+    // …except the declaration, which opens the judicial entry itself.
+    await expect(page.locator(`a[href="${DECLARATION.href}"]`).first()).toBeVisible();
+    await expect(
+      page.locator('a[href="/chat?service=legal_notice"]'),
+    ).toHaveCount(0);
+  });
+
+  test("selecting «تولید اظهارنامه» opens the judicial declaration entry", async ({ page }) => {
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
+      timeout: APP_READY_TIMEOUT,
+    });
+
+    await page.locator(`a[href="${DECLARATION.href}"]`).first().click();
+
+    await expect(page).toHaveURL(new RegExp(`${DECLARATION.href}$`), {
+      timeout: APP_READY_TIMEOUT,
+    });
+    // The /judicial header carries the /cases identity: eyebrow, title,
+    // status and description all come from the shared judicial source.
+    await expect(
+      page.getByRole("heading", { level: 1, name: DECLARATION.title }),
+    ).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    await expect(page.getByText("دادخواست و شکواییه").first()).toBeVisible();
+    await expect(page.getByText("در دسترس").first()).toBeVisible();
+    await expect(page.getByText(DECLARATION.description).first()).toBeVisible();
   });
 
   for (const service of SERVICES) {

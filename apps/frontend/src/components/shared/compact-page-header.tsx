@@ -17,8 +17,20 @@ import type { ReactNode } from "react";
 import { Breadcrumb, type BreadcrumbItem } from "./Breadcrumb";
 
 export interface CompactPageHeaderProps {
+  /**
+   * A small category label above the title — the list-page analogue of the
+   * eyebrow a service card carries. Decorative to the document outline, so it
+   * never replaces the H1.
+   */
+  eyebrow?: ReactNode;
   /** The page title — the page's single H1. */
   title: ReactNode;
+  /**
+   * A status chip rendered immediately after the title, on the same line.
+   * Service pages use it to state availability in exactly the place a /cases
+   * service card does. Always text — never colour alone.
+   */
+  badge?: ReactNode;
   /** One short line of context. Wraps naturally; never truncated. */
   description?: ReactNode;
   /** Optional low-emphasis trail above the title. */
@@ -35,7 +47,9 @@ export interface CompactPageHeaderProps {
 }
 
 export function CompactPageHeader({
+  eyebrow,
   title,
+  badge,
   description,
   breadcrumb,
   breadcrumbAriaLabel,
@@ -65,7 +79,26 @@ export function CompactPageHeader({
             ariaLabel={breadcrumbAriaLabel}
           />
         )}
-        <h1 className="text-h3 font-bold text-on-surface">{title}</h1>
+        {eyebrow && (
+          <p
+            className={[
+              "text-labelSmall font-medium tracking-wide text-primary",
+              compact ? "mb-0.5" : "mb-1",
+            ].join(" ")}
+          >
+            {eyebrow}
+          </p>
+        )}
+        {badge ? (
+          // Badge sits beside the title, never inside it: the H1's accessible
+          // name must stay exactly the service name.
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-h3 font-bold text-on-surface">{title}</h1>
+            {badge}
+          </div>
+        ) : (
+          <h1 className="text-h3 font-bold text-on-surface">{title}</h1>
+        )}
         {description && (
           <p
             className={[

@@ -563,7 +563,9 @@ export function JudicialHistory() {
               موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را
               مرحله‌به‌مرحله آماده کنید.
             </p>
-            <Link href="/judicial" className={`${buttonClasses()} mt-2`}>
+            {/* Family start. The bare /judicial route is the declaration
+                entry now, so a generic family start names its family. */}
+            <Link href="/judicial?type=petition" className={`${buttonClasses()} mt-2`}>
               شروع تنظیم
             </Link>
           </div>

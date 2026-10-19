@@ -110,9 +110,10 @@ const quickServices: QuickService[] = [
 
   // --- Documents ---
   {
-    href: "/chat?category=formal_letter",
+    href: "/judicial",
     title: "تولید اظهارنامه",
-    description: "اظهارنامه رسمی حقوقی با ذکر مستندات قانونی و خواسته‌های شما",
+    description:
+      "موضوع اظهارنامه را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید",
     icon: "✉️",
     category: "اسناد",
   },

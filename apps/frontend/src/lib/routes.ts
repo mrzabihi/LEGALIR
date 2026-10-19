@@ -200,8 +200,8 @@ export const createActions: CreateAction[] = [
   {
     id: "generate-notice",
     titleFa: "تولید اظهارنامه",
-    descriptionFa: "اظهارنامه رسمی با مستندات قانونی",
-    href: "/chat?service=legal_notice",
+    descriptionFa: "تنظیم اظهارنامه تخصصی با مستندات قانونی",
+    href: "/judicial",
     icon: "FileText",
   },
 ];

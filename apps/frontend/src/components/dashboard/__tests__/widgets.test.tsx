@@ -376,7 +376,9 @@ describe("QuickActions", () => {
     expect(hrefs).toContain("/documents?service=contract_review");
     expect(hrefs).toContain("/contracts?service=contract_drafting");
     expect(hrefs).toContain("/documents?service=document_analysis");
-    expect(hrefs).toContain("/chat?service=legal_notice");
+    // «تولید اظهارنامه» is a first-class judicial service: the card opens the
+    // declaration entry point itself, while the AI siblings keep `?service=`.
+    expect(hrefs).toContain("/judicial");
   });
 
   it("features the legal calculator launcher linking to the hub", () => {

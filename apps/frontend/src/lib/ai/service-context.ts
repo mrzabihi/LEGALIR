@@ -42,7 +42,7 @@ export const SERVICE_CONTEXTS: Record<ServiceType, ServiceContext> = {
   legal_notice: {
     serviceType: "legal_notice",
     label: "تولید اظهارنامه",
-    description: "تنظیم اظهارنامه رسمی با ذکر مستندات قانونی",
+    description: "تنظیم اظهارنامه تخصصی با درج مستندات و خواسته‌های شما",
   },
   document_analysis: {
     serviceType: "document_analysis",

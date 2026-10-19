@@ -22,8 +22,13 @@ import { Button, Textarea, Select, snackbar } from "@legalir/ui";
 import {
   JUDICIAL_DOCUMENT_TYPE_FA,
   JUDICIAL_REQUEST_STATUS_FA,
+  JUDICIAL_STATUS_FA,
 } from "@legalir/types";
-import type { JudicialDocumentType, JudicialRequestSummary } from "@legalir/types";
+import type {
+  JudicialDocumentType,
+  JudicialRequestSummary,
+  JudicialServiceId,
+} from "@legalir/types";
 import {
   IconArrowBack,
   IconFilePen,
@@ -40,8 +45,15 @@ import {
   useCreateJudicialRequest,
   useJudicialCard,
   useJudicialRequests,
+  useJudicialServices,
 } from "@/hooks/useJudicial";
 import { isJudicialEntryQuery } from "@/lib/judicial/entry";
+import {
+  JUDICIAL_FAMILY_DESCRIPTION_FA,
+  JUDICIAL_FAMILY_EYEBROW_FA,
+  JUDICIAL_FAMILY_TITLE_FA,
+  JUDICIAL_STATUS_TONE,
+} from "@/lib/judicial/identity";
 import { toPersianDate } from "@/lib/persian-utils";
 
 /** Every drafting family this surface can start, plus "help me decide". */
@@ -73,7 +85,7 @@ const START_TYPES: { value: JudicialDocumentType | "unknown"; labelFa: string; h
   },
 ];
 
-const SERVICE_FOR_TYPE: Record<JudicialDocumentType | "unknown", string> = {
+const SERVICE_FOR_TYPE: Record<JudicialDocumentType | "unknown", JudicialServiceId> = {
   petition: "judicial_petition",
   complaint: "judicial_complaint",
   statement: "judicial_statement",
@@ -120,17 +132,22 @@ function JudicialLauncher() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const card = useJudicialCard();
+  const services = useJudicialServices();
   const requests = useJudicialRequests();
   const create = useCreateJudicialRequest();
 
   // Entry links from the discovery surfaces carry the family in the query
-  // (`/judicial?type=complaint`). Only the two real families are accepted —
+  // (`/judicial?type=complaint`). Only the four real families are accepted —
   // the value is untrusted URL state, so anything else falls back to the
   // default rather than pre-selecting a service that cannot start.
+  //
+  // The bare route IS the declaration entry: every «تولید اظهارنامه» card
+  // links here without a query, so it must preselect the اظهارنامه family.
+  // The /cases family card names its family explicitly (`?type=petition`).
   const requestedType = searchParams.get("type");
   const initialKind: JudicialDocumentType | "unknown" = isJudicialEntryQuery(requestedType)
     ? requestedType
-    : "petition";
+    : "statement";
 
   const [kind, setKind] = useState<JudicialDocumentType | "unknown">(initialKind);
   const [narrative, setNarrative] = useState("");
@@ -138,9 +155,33 @@ function JudicialLauncher() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const enabled = card.data?.summary.availability.enabled ?? false;
-  const settings = card.data?.summary.settings;
+  const summary = card.data?.summary;
+  const settings = summary?.settings;
   const capabilities = card.data?.capabilities;
+
+  // The family shell names the page; the SELECTED document type names the
+  // form. Reading the chosen service's own row is what keeps an اظهارنامه
+  // request from being described with the دادخواست copy — and what keeps its
+  // availability honest when only that one family is switched off.
+  const kindService = services.data?.items.find((s) => s.id === SERVICE_FOR_TYPE[kind]);
+  const enabled = kindService
+    ? kindService.availability === "available"
+    : (summary?.availability.enabled ?? false);
+  const kindDescriptionFa =
+    kindService?.descriptionFa ?? settings?.descriptionFa ?? JUDICIAL_FAMILY_DESCRIPTION_FA;
+
+  // The declaration is its own service with its own entry point, so the page
+  // must name it with its own words. Every other family keeps the shared
+  // «دادخواست و شکواییه» shell the /cases card uses — never the reverse, or a
+  // declaration visitor would be told they are filing a petition.
+  const headerTitleFa =
+    kind === "statement"
+      ? (kindService?.titleFa ?? JUDICIAL_FAMILY_TITLE_FA)
+      : JUDICIAL_FAMILY_TITLE_FA;
+  const headerDescriptionFa =
+    kind === "statement"
+      ? (kindService?.descriptionFa ?? JUDICIAL_FAMILY_DESCRIPTION_FA)
+      : JUDICIAL_FAMILY_DESCRIPTION_FA;
 
   const openRequests = (requests.data?.items ?? []).filter(
     (r) => r.status !== "archived" && r.status !== "cancelled"
@@ -172,8 +213,24 @@ function JudicialLauncher() {
   return (
     <PageContainer dir="rtl">
       <CompactPageHeader
-        title="تنظیم دادخواست و شکواییه تخصصی"
-        description="موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."
+        eyebrow={JUDICIAL_FAMILY_EYEBROW_FA}
+        title={headerTitleFa}
+        description={headerDescriptionFa}
+        badge={
+          kindService ? (
+            <StatusBadge
+              label={JUDICIAL_STATUS_FA[kindService.availability]}
+              tone={JUDICIAL_STATUS_TONE[kindService.status]}
+              dot={false}
+            />
+          ) : summary ? (
+            <StatusBadge
+              label={summary.availability.statusLabelFa}
+              tone={JUDICIAL_STATUS_TONE[summary.settings.status]}
+              dot={false}
+            />
+          ) : undefined
+        }
         breadcrumb={[{ label: "پرونده‌ها", href: "/cases" }, { label: "تنظیم دادخواست و شکواییه" }]}
         actions={
           <Link
@@ -241,10 +298,11 @@ function JudicialLauncher() {
         <h2 id="judicial-start-title" className="text-titleMedium text-on-surface">
           درخواست جدید
         </h2>
-        <p className="mt-1 text-body-2 text-on-surface-variant">
-          {settings?.descriptionFa ??
-            "موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."}
-        </p>
+        {/* The declaration already explains itself in the page header; a
+            second identical line would just repeat it. */}
+        {kindDescriptionFa !== headerDescriptionFa && (
+          <p className="mt-1 text-body-2 text-on-surface-variant">{kindDescriptionFa}</p>
+        )}
 
         {!enabled && !card.isLoading && (
           <p className="mt-3 rounded-medium bg-surface-container px-3 py-2 text-caption leading-6 text-on-surface-variant">

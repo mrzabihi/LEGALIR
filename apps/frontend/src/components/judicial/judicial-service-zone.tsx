@@ -30,8 +30,14 @@ import {
   IconScale,
   IconShieldCheck,
 } from "@/lib/icons";
-import { StatusBadge, type StatusTone } from "@/components/shared";
+import { StatusBadge } from "@/components/shared";
 import { useJudicialServices } from "@/hooks/useJudicial";
+import {
+  JUDICIAL_FAMILY_DESCRIPTION_FA,
+  JUDICIAL_FAMILY_EYEBROW_FA,
+  JUDICIAL_FAMILY_TITLE_FA,
+  JUDICIAL_STATUS_TONE,
+} from "@/lib/judicial/identity";
 import {
   judicialSearchHaystack,
   judicialServiceEntryHref,
@@ -58,13 +64,13 @@ const SERVICE_GRADIENT: Record<JudicialServiceId, string> = {
   judicial_credit_check: "from-cyan-600 to-blue-700",
 };
 
-const STATUS_TONE: Record<string, StatusTone> = {
-  soon: "warning",
-  unavailable: "neutral",
-};
-
-/** The badge text for a service that is not fully available. */
+/**
+ * The badge text for a service that is not fully `available`. An available
+ * service reads «در دسترس» — the same word the /cases card shows — so the two
+ * surfaces describe the same state with the same vocabulary.
+ */
 const STATUS_LABEL_FA: Record<string, string> = {
+  available: "در دسترس",
   soon: "به‌زودی",
   unavailable: "در دسترس نیست",
   request_only: "ثبت درخواست — تحویل پس از بررسی",
@@ -120,13 +126,14 @@ function JudicialServiceCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-body-1 font-semibold text-on-surface">{service.titleFa}</h3>
-            {service.availability !== "available" && (
-              <StatusBadge
-                label={STATUS_LABEL_FA[service.availability] ?? "در دسترس نیست"}
-                tone={STATUS_TONE[service.availability] ?? "neutral"}
-                dot={false}
-              />
-            )}
+            {/* Every state carries its label — «در دسترس» included — so the
+                badge position matches the /cases card and a working service
+                is never quieter than a disabled one. */}
+            <StatusBadge
+              label={STATUS_LABEL_FA[service.availability] ?? "در دسترس نیست"}
+              tone={JUDICIAL_STATUS_TONE[service.availability]}
+              dot={false}
+            />
           </div>
           <p className="mt-1 text-caption leading-6 text-on-surface-variant">
             {service.descriptionFa}
@@ -236,15 +243,18 @@ export function JudicialServiceZone({
     >
       {title !== null && (
         <div className="mb-3">
+          {/* Same eyebrow → title → description stack as the /cases card. */}
+          <p className="text-labelSmall font-medium tracking-wide text-primary">
+            {JUDICIAL_FAMILY_EYEBROW_FA}
+          </p>
           <h2
             id={`judicial-zone-${surface}`}
-            className="text-h4 font-bold text-on-surface"
+            className="mt-0.5 text-h4 font-bold text-on-surface"
           >
-            {title ?? "تنظیم دادخواست و شکواییه تخصصی"}
+            {title ?? JUDICIAL_FAMILY_TITLE_FA}
           </h2>
           <p className="mt-1 text-caption text-on-surface-variant">
-            {description ??
-              "موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."}
+            {description ?? JUDICIAL_FAMILY_DESCRIPTION_FA}
           </p>
         </div>
       )}

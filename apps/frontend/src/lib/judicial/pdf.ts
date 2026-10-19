@@ -530,7 +530,7 @@ export function reviewKindFa(kind: JudicialReviewEventKind): string {
 }
 
 const SERVICE_TITLE_FA: Record<JudicialServiceId, string> = {
-  judicial_statement: "تنظیم اظهارنامه قضایی",
+  judicial_statement: "تنظیم اظهارنامه تخصصی",
   judicial_brief: "تنظیم لایحه",
   judicial_petition: "تنظیم دادخواست حقوقی",
   judicial_complaint: "تنظیم شکواییه کیفری",

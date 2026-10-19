@@ -66,6 +66,13 @@ interface ServiceSeed {
   id: ServiceType;
   subtitle: string;
   route: string;
+  /**
+   * Overrides the derived `${route}?service=` href. «تولید اظهارنامه» is a
+   * first-class judicial service, so its card opens the real declaration entry
+   * point (`/judicial`) instead of a chat context. `route` still names where
+   * the AI context resolves, so `?service=legal_notice` keeps working.
+   */
+  href?: string;
   gradient: string;
   accent: string;
   icon: ServiceIcon;
@@ -99,8 +106,9 @@ const SEEDS: ServiceSeed[] = [
   },
   {
     id: "legal_notice",
-    subtitle: "نامه‌نگاری حقوقی حرفه‌ای",
+    subtitle: "تنظیم اظهارنامه تخصصی",
     route: "/chat",
+    href: "/judicial",
     gradient: "from-orange-500 to-orange-600",
     accent: "#D89A13",
     icon: IconFileText,
@@ -131,7 +139,7 @@ export const LEGAL_SERVICES: LegalService[] = SEEDS.map((seed) => {
     subtitle: seed.subtitle,
     description: ctx.description,
     route: seed.route,
-    href: serviceHref(seed.id, seed.route),
+    href: seed.href ?? serviceHref(seed.id, seed.route),
     gradient: seed.gradient,
     accent: seed.accent,
     icon: seed.icon,

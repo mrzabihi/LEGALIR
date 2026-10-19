@@ -30,15 +30,14 @@ import {
   IconInfo,
   IconRefresh,
 } from "@/lib/icons";
-import { StatusBadge, type StatusTone } from "@/components/shared";
+import { StatusBadge } from "@/components/shared";
 import { useJudicialCard } from "@/hooks/useJudicial";
-
-const STATUS_TONE: Record<string, StatusTone> = {
-  available: "success",
-  request_only: "info",
-  soon: "warning",
-  unavailable: "neutral",
-};
+import {
+  JUDICIAL_FAMILY_DESCRIPTION_FA,
+  JUDICIAL_FAMILY_EYEBROW_FA,
+  JUDICIAL_FAMILY_TITLE_FA,
+  JUDICIAL_STATUS_TONE,
+} from "@/lib/judicial/identity";
 
 const CARD_MOTION =
   "transition-[transform,box-shadow,border-color] duration-short3 ease-standard " +
@@ -199,15 +198,15 @@ function JudicialDraftCardBody() {
   return (
     <>
       <CardHead
-        eyebrow="دادخواست و شکواییه"
-        title="تنظیم دادخواست و شکواییه تخصصی"
-        description="موضوع را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید."
+        eyebrow={JUDICIAL_FAMILY_EYEBROW_FA}
+        title={JUDICIAL_FAMILY_TITLE_FA}
+        description={JUDICIAL_FAMILY_DESCRIPTION_FA}
         icon={<IconFilePen size={24} aria-hidden="true" />}
         badge={
           summary ? (
             <StatusBadge
               label={summary.availability.statusLabelFa}
-              tone={STATUS_TONE[summary.settings.status] ?? "neutral"}
+              tone={JUDICIAL_STATUS_TONE[summary.settings.status] ?? "neutral"}
               dot={false}
             />
           ) : undefined
@@ -294,7 +293,11 @@ function JudicialDraftCard() {
   }
 
   return (
-    <Link href="/judicial" style={style} className={`${CARD_BASE} ${CARD_MOTION}`}>
+    <Link
+      href={`/judicial?type=petition`}
+      style={style}
+      className={`${CARD_BASE} ${CARD_MOTION}`}
+    >
       <JudicialDraftCardBody />
     </Link>
   );

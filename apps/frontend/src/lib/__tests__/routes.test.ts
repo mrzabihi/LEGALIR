@@ -169,7 +169,9 @@ describe("createActions", () => {
     expect(byId).toMatchObject({
       "draft-contract": "/contracts/new",
       "review-contract": "/contracts/review",
-      "generate-notice": "/chat?service=legal_notice",
+      // «تولید اظهارنامه» is a judicial service: its card opens the real
+      // declaration entry, not a chat context.
+      "generate-notice": "/judicial",
     });
   });
 

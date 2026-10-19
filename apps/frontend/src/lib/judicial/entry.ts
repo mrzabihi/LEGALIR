@@ -33,6 +33,17 @@ export function judicialEntryType(id: JudicialServiceId): JudicialDocumentType |
   return ENTRY_TYPE[id] ?? null;
 }
 
+/**
+ * Services whose entry is the bare launcher rather than a preselected type.
+ *
+ * «تولید اظهارنامه» is a first-class service with its own cards on the home
+ * page, /services and /new, and every one of them must land on the same URL —
+ * `/judicial` — the way the /cases card does. The launcher itself preselects
+ * the اظهارنامه family when no `?type=` is present, so this does not drop the
+ * user into a different document type.
+ */
+const BARE_ENTRY_SERVICES: ReadonlySet<JudicialServiceId> = new Set(["judicial_statement"]);
+
 /** The one destination for an enterable judicial service. */
 export function judicialEntryHref(type: JudicialDocumentType): string {
   return `/judicial?type=${type}`;
@@ -49,6 +60,7 @@ export function judicialOrderHref(serviceId: JudicialServiceId): string {
  * drafting services open the wizard, order-only services open the intake.
  */
 export function judicialServiceEntryHref(id: JudicialServiceId): string | null {
+  if (BARE_ENTRY_SERVICES.has(id)) return "/judicial";
   const type = judicialEntryType(id);
   if (type) return judicialEntryHref(type);
   if (isOrderableJudicialService(id)) return judicialOrderHref(id);

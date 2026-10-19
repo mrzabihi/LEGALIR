@@ -37,8 +37,14 @@ import type {
 
 const TABLE = "judicial_service_config";
 
-/** The config table's own schema version, migrated additively. */
-export const JUDICIAL_CONFIG_VERSION = 2;
+/**
+ * The config table's own schema version, migrated additively.
+ *
+ * v3 renamed the statement service to the declaration entry point (and its
+ * copy) so every «تولید اظهارنامه» entry in the product names the same
+ * service the same way.
+ */
+export const JUDICIAL_CONFIG_VERSION = 3;
 
 /** The feature-flag key that gates each service. */
 export const JUDICIAL_FLAG_KEY: Record<JudicialServiceId, string> = {
@@ -126,10 +132,12 @@ function seedDefs(): SeedDef[] {
       id: "judicial_statement",
       documentType: "statement",
       order: 10,
-      titleFa: "تنظیم اظهارنامه قضایی",
+      // Same identity as the /cases card: one eyebrow-free title, a plain
+      // declaration description, and the CTA that the discovery surfaces show.
+      titleFa: "تنظیم اظهارنامه تخصصی",
       shortTitleFa: "اظهارنامه",
       descriptionFa:
-        "شرح موضوع را بنویس، پرسش‌های مرتبط را پاسخ بده و مدارک را وصل کن تا پیش‌نویس اظهارنامه برای بازبینی آماده شود.",
+        "موضوع اظهارنامه را توضیح دهید، به پرسش‌های لازم پاسخ دهید و پیش‌نویس خود را مرحله‌به‌مرحله آماده کنید.",
       ctaFa: "تنظیم اظهارنامه",
       status: "available",
       statusNoteFa: null,

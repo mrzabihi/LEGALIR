@@ -201,7 +201,8 @@ describe("SERVICE_BANNERS", () => {
     const hrefs = SERVICE_BANNERS.map((b) => b.href);
     expect(hrefs).toContain("/calculators");
     expect(hrefs).toContain("/documents?service=document_analysis");
-    expect(hrefs).toContain("/chat?service=legal_notice");
+    // The declaration banner is a judicial service; it opens /judicial.
+    expect(hrefs).toContain("/judicial");
     expect(hrefs).toContain("/contracts?service=contract_drafting");
     expect(hrefs).toContain("/contracts/review");
     expect(hrefs).toContain("/chat?service=legal_consultation");
