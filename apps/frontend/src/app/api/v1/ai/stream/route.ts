@@ -26,7 +26,11 @@ import {
   reverseUsage,
   getUsageSummary,
 } from "@/lib/usage/engine";
-import { createAiProvider, readAiProviderConfig } from "@/lib/ai/provider";
+import {
+  createAiProvider,
+  readAiProviderConfig,
+  type AiProvider,
+} from "@/lib/ai/provider";
 import { retrieveGroundedSources, retrieveDocumentContext } from "@/lib/ai/grounding";
 import { buildAnswerContract } from "@/lib/knowledge/answer-contract";
 import { appendMessage, getMessages } from "@/lib/ai/store";
@@ -205,7 +209,9 @@ async function streamAssistant(
   requestId: string,
   userMessageId: string,
   usageTransactionId: string,
-  turnContext: TurnContext
+  turnContext: TurnContext,
+  /** The provider resolved before pricing, so the ledger names the real model. */
+  provider: AiProvider
 ): Promise<void> {
   // Persist the user message first (§22 — no message loss).
   appendMessage(body.conversationId, {
@@ -269,8 +275,6 @@ async function streamAssistant(
       rejectedTools: turnContext.rejectedTools,
     });
   }
-
-  const provider = createAiProvider();
 
   // ----------------------------------------------------------
   // STAGE 1 — IDENTIFY (real classification)
@@ -515,9 +519,24 @@ async function streamAssistant(
     createdAt: new Date().toISOString(),
   });
 
-  // The activity succeeded — commit the reservation and record the real
-  // token usage reported by the provider (never an estimate).
-  completeUsage(usageTransactionId, { tokens: providerUsage.totalTokens });
+  // The activity succeeded — commit the reservation and record the real token
+  // usage reported by the provider. An estimate is labelled «تخمینی» and a
+  // silent provider is labelled «ناموجود» — never recorded as actual.
+  completeUsage(usageTransactionId, {
+    tokens: providerUsage.totalTokens,
+    inputTokens: providerUsage.inputTokens,
+    outputTokens: providerUsage.outputTokens,
+    model: provider.model,
+    provider: provider.name,
+    tokenUsageStatus: providerUsage.totalTokens > 0
+      ? providerUsage.estimated
+        ? "ESTIMATED"
+        : "ACTUAL"
+      : "UNAVAILABLE",
+    // What actually executed, so the tariff can re-price correctly.
+    ragCalls: retrievalFailed || !classification.requiresSources ? 0 : 1,
+    toolCalls: turnContext.toolIds.length,
+  });
 
   completeStage(requestId, "RESPOND", { characters: text.length });
   emit({ type: "response.completed", requestId, stage: "RESPOND" });
@@ -625,12 +644,29 @@ export async function POST(request: Request) {
   // reservation is idempotent per user message, so a retried stream can
   // never double-charge. On an internal failure the reservation is reversed.
   const userMessageId = crypto.randomUUID();
+  // The provider is resolved BEFORE pricing so the tariff can price the real
+  // model (and the ledger records which model actually ran).
+  const provider = createAiProvider();
+  // The admin-configured chat tariff distinguishes the first message from the
+  // rest (PER_CONVERSATION basis) and can adjust by message position, so the
+  // real position is computed from the persisted conversation — never guessed.
+  const priorUserTurns = getMessages(body.conversationId).filter(
+    (m) => m.role === "user"
+  ).length;
   const reservation = reserveUsage({
     userId,
     activity: "AI_MESSAGE",
     source: "chat",
     relatedEntityId: userMessageId,
     idempotencyKey: `chat:${userMessageId}`,
+    costContext: {
+      model: provider.model,
+      messageIndex: priorUserTurns + 1,
+      firstInConversation: priorUserTurns === 0,
+      fileCount:
+        (body.attachmentDocumentIds?.length ?? 0) +
+        (body.context?.documentId ? 1 : 0),
+    },
   });
   if (!reservation.ok || !reservation.transaction) {
     return new Response(
@@ -691,7 +727,8 @@ export async function POST(request: Request) {
           requestId,
           userMessageId,
           usageTransactionId,
-          turnContext
+          turnContext,
+          provider
         );
 
         emit({ type: "status", status: "validating" });
@@ -699,8 +736,11 @@ export async function POST(request: Request) {
       } catch (err) {
         const isAbort = err instanceof Error && err.name === "AbortError";
         if (isAbort) {
-          // The user pressed stop — record the cancellation rather than a
-          // failure, so the run history distinguishes the two.
+          // The user pressed stop. No answer was committed, so the defined
+          // rule is to release the whole reservation — cancellation must not
+          // burn quota. The run is recorded as cancelled (not failed) so the
+          // history distinguishes the two.
+          reverseUsage(usageTransactionId);
           cancelRun(requestId);
         } else {
           // Internal failure — refund the reservation so the user's quota is

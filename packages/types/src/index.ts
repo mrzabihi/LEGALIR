@@ -2794,6 +2794,29 @@ export interface UsageTransaction {
   ragCalls?: number;
   /** Energy contributed by matched pricing rules + auxiliary units. */
   additionalCost?: number;
+  // --- Settlement + traceability (additive; absent on legacy rows) ----------
+  /**
+   * The energy actually debited. Equal to `pointsCost` once COMPLETED, or a
+   * corrected amount when the final settlement re-priced the operation (e.g.
+   * real token usage differed from the reservation).
+   */
+  energyFinal?: number;
+  /** Energy returned to the user (reversals and post-settlement credits). */
+  energyRefunded?: number;
+  /** How the recorded token figure was obtained. */
+  tokenUsageStatus?: "ACTUAL" | "ESTIMATED" | "UNAVAILABLE";
+  /** Persian explanation when the token figure is estimated / unavailable. */
+  tokenUsageNoteFa?: string | null;
+  /** The model provider (e.g. "openai-compatible", "mock"). */
+  provider?: string | null;
+  /** A user-facing tracking id ("UT-…") for support and traceability. */
+  trackingId?: string;
+  /** 1-based message index within the conversation, when the action is a chat. */
+  messageIndex?: number | null;
+  /** The tariff profile version in force at reserve time. */
+  tariffVersion?: number | null;
+  /** The full pricing facts frozen at reserve time. */
+  tariffSnapshot?: import("./energy").UsageTariffSnapshot | null;
   createdAt: string;
   updatedAt: string;
 }

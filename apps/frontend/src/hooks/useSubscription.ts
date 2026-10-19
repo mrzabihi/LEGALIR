@@ -3,14 +3,16 @@
 // ============================================================
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { PlanCode } from "@legalir/types";
+import type { PlanCode, UsageReportQuery } from "@legalir/types";
 import {
   fetchPlans,
   fetchCurrentSubscription,
   fetchEntitlements,
   fetchUsage,
   fetchSubscriptionUsage,
+  fetchSubscriptionUsageCards,
   fetchSubscriptionUsageHistory,
+  fetchUsageReport,
   createCheckoutIntent,
   getCheckoutIntent,
 } from "@/lib/api/v1";
@@ -88,6 +90,35 @@ export function useSubscriptionUsageHistory(page = 1, pageSize = 20) {
     queryKey: ["v1", "subscription", "usage", "history", page, pageSize],
     queryFn: () => fetchSubscriptionUsageHistory(page, pageSize),
     staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+// ============================================================
+// useSubscriptionUsageCards — one real consumption card per active plan
+// ============================================================
+// These cards read `usage_transactions` through the same projection as the
+// usage page and the admin user tab, so the numbers are identical everywhere.
+
+export function useSubscriptionUsageCards() {
+  return useQuery({
+    queryKey: ["v1", "subscription", "usage", "cards"],
+    queryFn: fetchSubscriptionUsageCards,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+// ============================================================
+// useUsageReport — the «تاریخچه و مصرف» report
+// ============================================================
+// Energy and tokens stay separate all the way from the ledger to the screen.
+
+export function useUsageReport(query: UsageReportQuery = {}) {
+  return useQuery({
+    queryKey: ["v1", "usage", "report", query],
+    queryFn: () => fetchUsageReport(query),
+    staleTime: 30_000,
     retry: 1,
   });
 }

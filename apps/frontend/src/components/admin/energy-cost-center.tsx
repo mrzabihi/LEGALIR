@@ -21,13 +21,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Drawer,
-  Switch,
-  SwitchRow,
-  ConfirmDialog,
-  snackbar,
-} from "@legalir/ui";
+import { Drawer, Switch, SwitchRow, ConfirmDialog, snackbar } from "@legalir/ui";
 import {
   SERVICE_COST_UNITS,
   SERVICE_COST_UNIT_FA,
@@ -37,6 +31,9 @@ import {
   type ServiceCostRule,
   type ServiceCostRuleCondition,
   type ServiceCostUnit,
+  type ServiceBillingMode,
+  type ServiceChargeBasis,
+  type TariffVersionEntry,
   type UsageLedgerEntry,
 } from "@legalir/types";
 import { ACTIVITY_REGISTRY } from "@/lib/usage/activities";
@@ -48,6 +45,7 @@ import {
   useDeleteCostRule,
   useUsageLedger,
   useUsageSummary,
+  useAdminTariffHistory,
 } from "@/hooks/useAdmin";
 import type { SaveCostProfileInput } from "@/lib/api/admin";
 import { toPersianNumber, toPersianDate, toRelativeTime } from "@/lib/persian-utils";
@@ -164,7 +162,11 @@ function SummarySection() {
               icon={<IconBolt size={18} />}
               accent
             />
-            <StatCard label="تعداد تراکنش" value={s.totalEntries} icon={<IconDatabase size={18} />} />
+            <StatCard
+              label="تعداد تراکنش"
+              value={s.totalEntries}
+              icon={<IconDatabase size={18} />}
+            />
             <StatCard
               label="انرژی رزروشده"
               value={s.reservedEnergy}
@@ -347,7 +349,12 @@ function RuleDialog({
   }
 
   return (
-    <Drawer open={open} onClose={onClose} width={460} title={rule ? "ویرایش قاعدهٔ هزینه" : "قاعدهٔ هزینهٔ جدید"}>
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width={460}
+      title={rule ? "ویرایش قاعدهٔ هزینه" : "قاعدهٔ هزینهٔ جدید"}
+    >
       <div className="space-y-4">
         <Field label="برچسب قاعده">
           <TextInput
@@ -505,6 +512,8 @@ function ProfileDrawer({
       descriptionFa: profile.descriptionFa,
       activity: profile.activity,
       enabled: profile.enabled,
+      billingMode: profile.billingMode ?? "ENERGY",
+      chargeBasis: profile.chargeBasis ?? "PER_MESSAGE",
       baseRequestCost: profile.baseRequestCost,
       inputTokenPer1k: profile.inputTokenPer1k,
       outputTokenPer1k: profile.outputTokenPer1k,
@@ -607,12 +616,49 @@ function ProfileDrawer({
                   disabledReason={
                     !canManage ? "برای تغییر به مجوز مدیریت هزینه نیاز دارید." : undefined
                   }
-                  onChange={(e) =>
-                    setDraft((d) => (d ? { ...d, enabled: e.target.checked } : d))
-                  }
+                  onChange={(e) => setDraft((d) => (d ? { ...d, enabled: e.target.checked } : d))}
                 />
               </div>
             </div>
+
+            <SectionRow title="نحوهٔ محاسبه">
+              <div className="grid gap-3 tablet:grid-cols-2">
+                <Field
+                  label="وضعیت محاسبه"
+                  hint="رایگان = هیچ انرژی‌ای کسر نمی‌شود، اما مصرف و توکن واقعی ثبت می‌گردد."
+                >
+                  <Select
+                    value={draft.billingMode ?? "ENERGY"}
+                    disabled={!canManage}
+                    onChange={(e) =>
+                      setDraft((d) =>
+                        d ? { ...d, billingMode: e.target.value as ServiceBillingMode } : d
+                      )
+                    }
+                  >
+                    <option value="ENERGY">محاسبه‌پذیر (کسر انرژی)</option>
+                    <option value="FREE">رایگان (بدون کسر انرژی)</option>
+                  </Select>
+                </Field>
+                <Field
+                  label="مبنای شمارش"
+                  hint="گفتگو = فقط نخستین درخواست هر گفتگو محاسبه می‌شود."
+                >
+                  <Select
+                    value={draft.chargeBasis ?? "PER_MESSAGE"}
+                    disabled={!canManage || draft.billingMode === "FREE"}
+                    onChange={(e) =>
+                      setDraft((d) =>
+                        d ? { ...d, chargeBasis: e.target.value as ServiceChargeBasis } : d
+                      )
+                    }
+                  >
+                    <option value="PER_MESSAGE">هر پیام / درخواست</option>
+                    <option value="PER_CONVERSATION">هر گفتگو (فقط پیام نخست)</option>
+                  </Select>
+                </Field>
+              </div>
+            </SectionRow>
 
             <SectionRow title="هزینهٔ پایه و توکن‌ها">
               <div className="grid gap-3 tablet:grid-cols-2">
@@ -620,7 +666,7 @@ function ProfileDrawer({
                   <TextInput
                     type="number"
                     value={draft.baseRequestCost}
-                    disabled={!canManage}
+                    disabled={!canManage || draft.billingMode === "FREE"}
                     onChange={(e) =>
                       setDraft((d) => (d ? { ...d, baseRequestCost: Number(e.target.value) } : d))
                     }
@@ -631,7 +677,7 @@ function ProfileDrawer({
                   <TextInput
                     type="number"
                     value={draft.inputTokenPer1k}
-                    disabled={!canManage}
+                    disabled={!canManage || draft.billingMode === "FREE"}
                     onChange={(e) =>
                       setDraft((d) => (d ? { ...d, inputTokenPer1k: Number(e.target.value) } : d))
                     }
@@ -641,7 +687,7 @@ function ProfileDrawer({
                   <TextInput
                     type="number"
                     value={draft.outputTokenPer1k}
-                    disabled={!canManage}
+                    disabled={!canManage || draft.billingMode === "FREE"}
                     onChange={(e) =>
                       setDraft((d) => (d ? { ...d, outputTokenPer1k: Number(e.target.value) } : d))
                     }
@@ -651,7 +697,7 @@ function ProfileDrawer({
                   <TextInput
                     type="number"
                     value={draft.contextTokenPer1k}
-                    disabled={!canManage}
+                    disabled={!canManage || draft.billingMode === "FREE"}
                     onChange={(e) =>
                       setDraft((d) => (d ? { ...d, contextTokenPer1k: Number(e.target.value) } : d))
                     }
@@ -732,11 +778,15 @@ function ProfileDrawer({
                   ))}
                 </ul>
               )}
-              {canManage && <AddModelRow onAdd={(model, factor) =>
-                setDraft((d) =>
-                  d ? { ...d, modelMultipliers: { ...d.modelMultipliers, [model]: factor } } : d
-                )
-              } />}
+              {canManage && (
+                <AddModelRow
+                  onAdd={(model, factor) =>
+                    setDraft((d) =>
+                      d ? { ...d, modelMultipliers: { ...d.modelMultipliers, [model]: factor } } : d
+                    )
+                  }
+                />
+              )}
             </SectionRow>
 
             <SectionRow
@@ -959,6 +1009,8 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
         descriptionFa: p.descriptionFa,
         activity: p.activity,
         enabled,
+        billingMode: p.billingMode ?? "ENERGY",
+        chargeBasis: p.chargeBasis ?? "PER_MESSAGE",
         baseRequestCost: p.baseRequestCost,
         inputTokenPer1k: p.inputTokenPer1k,
         outputTokenPer1k: p.outputTokenPer1k,
@@ -990,99 +1042,113 @@ function ProfilesSection({ canManage }: { canManage: boolean }) {
             <EmptyBlock message="سرویسی مطابق جست‌وجو یافت نشد." />
           ) : (
             <>
-            <DataTable
-              minWidth={820}
-              head={
-                <tr>
-                  <Th>سرویس</Th>
-                  <Th>فعال</Th>
-                  <Th>هزینهٔ پایه</Th>
-                  <Th>توکن (ورودی/خروجی/زمینه)</Th>
-                  <Th>واحدهای جانبی</Th>
-                  <Th>ضرایب مدل</Th>
-                  <Th>تنظیمات</Th>
-                </tr>
-              }
-            >
-              {pager.pageItems.map((p) => {
-                const units = Object.entries(p.unitCosts);
-                const models = Object.keys(p.modelMultipliers);
-                return (
-                  <tr key={p.id}>
-                    <Td>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-on-surface">{p.nameFa}</span>
-                        <span className="text-caption text-muted" dir="ltr">
-                          {p.serviceKey}
-                        </span>
-                        <span className="text-caption text-muted">{ACTIVITY_LABEL[p.activity]}</span>
-                      </div>
-                    </Td>
-                    <Td>
-                      <Switch
-                        checked={p.enabled}
-                        disabled={!canManage}
-                        disabledReason={
-                          !canManage
-                            ? "برای تغییر به مجوز مدیریت هزینه نیاز دارید."
-                            : undefined
-                        }
-                        aria-label={`فعال بودن مدل هزینهٔ ${p.nameFa}`}
-                        onChange={(e) => toggleEnabled(p, e.target.checked)}
-                      />
-                    </Td>
-                    <Td>
-                      <span className="tabular-nums">{toPersianNumber(p.baseRequestCost)}</span>
-                    </Td>
-                    <Td>
-                      <span className="text-caption tabular-nums" dir="ltr">
-                        {toPersianNumber(p.inputTokenPer1k)} / {toPersianNumber(p.outputTokenPer1k)} /
-                        {" "}
-                        {toPersianNumber(p.contextTokenPer1k)}
-                      </span>
-                    </Td>
-                    <Td>
-                      {units.length === 0 ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <span className="text-caption text-muted">
-                          {toPersianNumber(units.length)} واحد
-                        </span>
-                      )}
-                    </Td>
-                    <Td>
-                      {models.length === 0 ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <span className="text-caption text-muted" dir="ltr" title={models.join(", ")}>
-                          {models.length}
-                        </span>
-                      )}
-                    </Td>
-                    <Td>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        startIcon={<IconEdit size={15} />}
-                        onClick={() => setOpenId(p.id)}
-                      >
-                        مدیریت
-                      </Button>
-                    </Td>
+              <DataTable
+                minWidth={900}
+                head={
+                  <tr>
+                    <Th>سرویس</Th>
+                    <Th>فعال</Th>
+                    <Th>نحوهٔ محاسبه</Th>
+                    <Th>هزینهٔ پایه</Th>
+                    <Th>توکن (ورودی/خروجی/زمینه)</Th>
+                    <Th>واحدهای جانبی</Th>
+                    <Th>ضرایب مدل</Th>
+                    <Th>تنظیمات</Th>
                   </tr>
-                );
-              })}
-            </DataTable>
+                }
+              >
+                {pager.pageItems.map((p) => {
+                  const units = Object.entries(p.unitCosts);
+                  const models = Object.keys(p.modelMultipliers);
+                  return (
+                    <tr key={p.id}>
+                      <Td>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-on-surface">{p.nameFa}</span>
+                          <span className="text-caption text-muted" dir="ltr">
+                            {p.serviceKey}
+                          </span>
+                          <span className="text-caption text-muted">
+                            {ACTIVITY_LABEL[p.activity]}
+                          </span>
+                        </div>
+                      </Td>
+                      <Td>
+                        <Switch
+                          checked={p.enabled}
+                          disabled={!canManage}
+                          disabledReason={
+                            !canManage ? "برای تغییر به مجوز مدیریت هزینه نیاز دارید." : undefined
+                          }
+                          aria-label={`فعال بودن مدل هزینهٔ ${p.nameFa}`}
+                          onChange={(e) => toggleEnabled(p, e.target.checked)}
+                        />
+                      </Td>
+                      <Td>
+                        {p.billingMode === "FREE" ? (
+                          <Badge tone="info">رایگان</Badge>
+                        ) : (
+                          <span className="text-caption text-muted">
+                            {p.chargeBasis === "PER_CONVERSATION" ? "هر گفتگو" : "هر پیام"}
+                          </span>
+                        )}
+                      </Td>
+                      <Td>
+                        <span className="tabular-nums">{toPersianNumber(p.baseRequestCost)}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-caption tabular-nums" dir="ltr">
+                          {toPersianNumber(p.inputTokenPer1k)} /{" "}
+                          {toPersianNumber(p.outputTokenPer1k)} /{" "}
+                          {toPersianNumber(p.contextTokenPer1k)}
+                        </span>
+                      </Td>
+                      <Td>
+                        {units.length === 0 ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span className="text-caption text-muted">
+                            {toPersianNumber(units.length)} واحد
+                          </span>
+                        )}
+                      </Td>
+                      <Td>
+                        {models.length === 0 ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span
+                            className="text-caption text-muted"
+                            dir="ltr"
+                            title={models.join(", ")}
+                          >
+                            {models.length}
+                          </span>
+                        )}
+                      </Td>
+                      <Td>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          startIcon={<IconEdit size={15} />}
+                          onClick={() => setOpenId(p.id)}
+                        >
+                          مدیریت
+                        </Button>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </DataTable>
 
-            <Pagination
-              page={pager.page}
-              pageSize={pager.pageSize}
-              total={pager.total}
-              totalPages={pager.totalPages}
-              itemLabel="سرویس"
-              onPageChange={pager.setPage}
-              onPageSizeChange={pager.setPageSize}
-            />
+              <Pagination
+                page={pager.page}
+                pageSize={pager.pageSize}
+                total={pager.total}
+                totalPages={pager.totalPages}
+                itemLabel="سرویس"
+                onPageChange={pager.setPage}
+                onPageSizeChange={pager.setPageSize}
+              />
             </>
           )
         }
@@ -1209,49 +1275,55 @@ function LedgerSection() {
               {pageItems.map((row) => (
                 <tr key={row.id}>
                   <Td title={new Date(row.createdAt).toLocaleString("fa-IR")}>
-                      {toRelativeTime(row.createdAt)}
-                    </Td>
-                    <Td>
-                      <span className="font-mono text-caption text-muted" dir="ltr" title={row.userId}>
-                        {row.userId.length > 14 ? `${row.userId.slice(0, 14)}…` : row.userId}
+                    {toRelativeTime(row.createdAt)}
+                  </Td>
+                  <Td>
+                    <span
+                      className="font-mono text-caption text-muted"
+                      dir="ltr"
+                      title={row.userId}
+                    >
+                      {row.userId.length > 14 ? `${row.userId.slice(0, 14)}…` : row.userId}
+                    </span>
+                  </Td>
+                  <Td>{ACTIVITY_LABEL[row.activityType] ?? row.serviceKey}</Td>
+                  <Td>
+                    {row.model ? (
+                      <span className="font-mono text-caption" dir="ltr">
+                        {row.model}
                       </span>
-                    </Td>
-                    <Td>{ACTIVITY_LABEL[row.activityType] ?? row.serviceKey}</Td>
-                    <Td>
-                      {row.model ? (
-                        <span className="font-mono text-caption" dir="ltr">
-                          {row.model}
-                        </span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </Td>
-                    <Td>
-                      <span className="tabular-nums text-caption" dir="ltr">
-                        {toPersianNumber(row.inputTokens)} / {toPersianNumber(row.outputTokens)}
-                      </span>
-                    </Td>
-                    <Td>
-                      {row.ragCalls > 0 ? (
-                        <Badge tone="brand">{toPersianNumber(row.ragCalls)}</Badge>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </Td>
-                    <Td>
-                      <span className="font-medium tabular-nums text-on-surface">
-                        {toPersianNumber(row.totalEnergy)}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="text-caption text-muted">{CREDIT_SOURCE_FA[row.creditSource]}</span>
-                    </Td>
-                    <Td>
-                      <Badge tone={LEDGER_STATUS_FA[row.status].tone}>
-                        {LEDGER_STATUS_FA[row.status].label}
-                      </Badge>
-                    </Td>
-                  </tr>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className="tabular-nums text-caption" dir="ltr">
+                      {toPersianNumber(row.inputTokens)} / {toPersianNumber(row.outputTokens)}
+                    </span>
+                  </Td>
+                  <Td>
+                    {row.ragCalls > 0 ? (
+                      <Badge tone="brand">{toPersianNumber(row.ragCalls)}</Badge>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className="font-medium tabular-nums text-on-surface">
+                      {toPersianNumber(row.totalEnergy)}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="text-caption text-muted">
+                      {CREDIT_SOURCE_FA[row.creditSource]}
+                    </span>
+                  </Td>
+                  <Td>
+                    <Badge tone={LEDGER_STATUS_FA[row.status].tone}>
+                      {LEDGER_STATUS_FA[row.status].label}
+                    </Badge>
+                  </Td>
+                </tr>
               ))}
             </DataTable>
 
@@ -1272,10 +1344,121 @@ function LedgerSection() {
 }
 
 // ---------------------------------------------------------------------------
+// Tariff change log — append-only, who changed what and when
+// ---------------------------------------------------------------------------
+
+const CHANGE_KIND_FA: Record<TariffVersionEntry["changeKind"], string> = {
+  CREATE: "ایجاد",
+  UPDATE: "ویرایش",
+  DELETE: "حذف",
+};
+
+const ENTITY_FA: Record<TariffVersionEntry["entity"], string> = {
+  PROFILE: "تعرفهٔ سرویس",
+  RULE: "قاعده",
+};
+
+function TariffHistorySection() {
+  const history = useAdminTariffHistory();
+  const items = history.data ?? [];
+  const pager = useClientPagination(items);
+  const { reset: resetHistoryPage } = pager;
+  useEffect(() => {
+    resetHistoryPage();
+  }, [resetHistoryPage]);
+
+  return (
+    <>
+      <InfoBanner tone="info">
+        هر تغییر تعرفه یک ردیف تغییرناپذیر در این فهرست ثبت می‌کند. تراکنش‌های گذشته نسخهٔ تعرفهٔ
+        زمان خود را حفظ می‌کنند؛ ویرایش تعرفه هرگز گزارش‌های قبلی را بازنویسی نمی‌کند.
+      </InfoBanner>
+
+      <div className="mt-3">
+        <StateView
+          query={history}
+          loadingRows={6}
+          isEmpty={(d) => d.length === 0}
+          emptyMessage="هنوز تغییری در تعرفه‌ها ثبت نشده است."
+          emptyHint="با ذخیرهٔ اولین مدل هزینه، تاریخچه اینجا ساخته می‌شود."
+        >
+          {() => (
+            <>
+              <DataTable
+                minWidth={760}
+                head={
+                  <tr>
+                    <Th>زمان</Th>
+                    <Th>موجودیت</Th>
+                    <Th>نسخه</Th>
+                    <Th>نوع تغییر</Th>
+                    <Th>شرح</Th>
+                    <Th>تغییردهنده</Th>
+                  </tr>
+                }
+              >
+                {pager.pageItems.map((h) => (
+                  <tr key={h.id}>
+                    <Td
+                      className="whitespace-nowrap"
+                      title={new Date(h.changedAt).toLocaleString("fa-IR")}
+                    >
+                      {toRelativeTime(h.changedAt)}
+                    </Td>
+                    <Td>
+                      <div className="flex flex-col">
+                        <span className="text-caption text-muted">{ENTITY_FA[h.entity]}</span>
+                        <span className="font-mono text-caption" dir="ltr">
+                          {h.entityId}
+                        </span>
+                      </div>
+                    </Td>
+                    <Td className="tabular-nums">{toPersianNumber(h.version)}</Td>
+                    <Td>
+                      <Badge
+                        tone={
+                          h.changeKind === "CREATE"
+                            ? "success"
+                            : h.changeKind === "DELETE"
+                              ? "danger"
+                              : "warning"
+                        }
+                      >
+                        {CHANGE_KIND_FA[h.changeKind]}
+                      </Badge>
+                    </Td>
+                    <Td className="text-caption text-muted">{h.changeSummaryFa}</Td>
+                    <Td>
+                      <span className="font-mono text-caption text-muted" dir="ltr">
+                        {h.changedBy}
+                      </span>
+                    </Td>
+                  </tr>
+                ))}
+              </DataTable>
+
+              <Pagination
+                page={pager.page}
+                pageSize={pager.pageSize}
+                total={pager.total}
+                totalPages={pager.totalPages}
+                itemLabel="تغییر"
+                onPageChange={pager.setPage}
+                onPageSizeChange={pager.setPageSize}
+              />
+            </>
+          )}
+        </StateView>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The page-level center
 // ---------------------------------------------------------------------------
 
-type EnergyTab = "summary" | "services" | "ledger";
+type EnergyTab = "summary" | "services" | "ledger" | "history";
 
 /**
  * The complete §6 surface. `canManage` is derived once at the page from the
@@ -1289,6 +1472,7 @@ export function EnergyCostCenter({ canManage }: { canManage: boolean }) {
     { value: "summary", label: "خلاصه و شاخص‌ها", icon: <IconBolt size={16} /> },
     { value: "services", label: "هزینهٔ خدمات", icon: <IconCoin size={16} /> },
     { value: "ledger", label: "دفتر مصرف", icon: <IconDatabase size={16} /> },
+    { value: "history", label: "تاریخچهٔ تعرفه", icon: <IconRefresh size={16} /> },
   ];
 
   return (
@@ -1312,6 +1496,7 @@ export function EnergyCostCenter({ canManage }: { canManage: boolean }) {
       {tab === "summary" && <SummarySection />}
       {tab === "services" && <ProfilesSection canManage={canManage} />}
       {tab === "ledger" && <LedgerSection />}
+      {tab === "history" && <TariffHistorySection />}
     </div>
   );
 }

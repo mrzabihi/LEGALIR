@@ -26,7 +26,7 @@ import {
 } from "@/lib/db";
 import { tehranDateString } from "@/lib/rewards";
 import { getActivity, SERVICE_QUOTA_LABELS } from "./activities";
-import { pricedPointsFor } from "./energy";
+import { listCostRules, priceWithFrozenSnapshot, pricedPointsFor } from "./energy";
 import {
   getPlanByCode,
   snapshotFor,
@@ -45,8 +45,10 @@ import type {
   SubscriptionUsageSummary,
   UsageCostContext,
   UsageErrorCode,
+  UsageTariffSnapshot,
   UsageTransaction,
 } from "@legalir/types";
+import type { RewardLedgerEntry } from "@/lib/db";
 
 // ============================================================
 // Stored rows
@@ -343,7 +345,15 @@ const ERROR_MESSAGES: Record<UsageErrorCode, string> = {
  */
 export function checkEntitlement(
   userId: string,
-  activity: ActivityType
+  activity: ActivityType,
+  opts: {
+    /**
+     * The energy this request will cost. When 0 (a FREE tariff or an admin
+     * zero-price), the credit balance is not a blocker — the daily REQUEST
+     * allowance and period quotas still apply.
+     */
+    energyCost?: number;
+  } = {}
 ): EntitlementCheck {
   const def = getActivity(activity);
   const ent = resolveEntitlement(userId);
@@ -362,14 +372,15 @@ export function checkEntitlement(
   const bucket = resolveDailyBucket(userId, ent, today);
 
   // --- Daily credit: the request allowance AND the points budget ---
+  const requiredPoints = opts.energyCost ?? def.pointCost;
   const requestExhausted =
     def.countsAsDailyRequest && bucket.requestUsed >= bucket.requestLimit;
   const pointsRemaining = bucket.pointsTotal - bucket.pointsUsed;
-  const pointsExhausted = pointsRemaining < def.pointCost;
+  const pointsExhausted = requiredPoints > 0 && pointsRemaining < requiredPoints;
 
   if (requestExhausted || pointsExhausted) {
     // Fall back to reward points only when the product has enabled it.
-    if (allowRewardPointsAfterLimit() && getRewardBalance(userId) >= def.pointCost) {
+    if (allowRewardPointsAfterLimit() && getRewardBalance(userId) >= requiredPoints) {
       return {
         allowed: true,
         code: null,
@@ -444,6 +455,65 @@ export interface ReserveResult {
   replayed: boolean;
 }
 
+/** A stable, human-traceable id shown to users and support. */
+function newTrackingId(): string {
+  return `UT-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+}
+
+/** Credit `amount` energy back to the source the transaction was charged from. */
+function refundToSource(
+  tx: UsageTransaction,
+  amount: number,
+  descriptionFa: string
+): void {
+  if (amount <= 0) return;
+
+  if (tx.creditSource === "REWARD") {
+    const rows = readTable<RewardLedgerEntry>("reward_ledger");
+    rows.push({
+      id: crypto.randomUUID(),
+      user_id: tx.userId,
+      event_type: "REFUND",
+      points_delta: amount,
+      source_type: tx.source,
+      source_id: tx.id,
+      // One refund per transaction: a second reverse can never double-credit.
+      idempotency_key: `reward-refund:${tx.id}`,
+      description: descriptionFa,
+      metadata: { usageTransactionId: tx.id, trackingId: tx.trackingId },
+      created_at: new Date().toISOString(),
+    });
+    writeTable("reward_ledger", rows);
+    return;
+  }
+
+  const ent = resolveEntitlement(tx.userId);
+  const today = tehranDateString();
+  const bucket = resolveDailyBucket(tx.userId, ent, today);
+  bucket.pointsUsed = Math.max(0, bucket.pointsUsed - amount);
+  saveDailyBucket(bucket);
+}
+
+/** Debit `amount` extra energy from the source the transaction was charged from. */
+function debitExtra(tx: UsageTransaction, amount: number): void {
+  if (amount <= 0) return;
+  if (tx.creditSource === "REWARD") {
+    spendRewardPoints({
+      userId: tx.userId,
+      points: amount,
+      sourceType: `${tx.source}:extra`,
+      sourceId: tx.id,
+      description: `تکمیل انرژی پس از تسویهٔ ${tx.trackingId ?? tx.id}`,
+    });
+    return;
+  }
+  const ent = resolveEntitlement(tx.userId);
+  const today = tehranDateString();
+  const bucket = resolveDailyBucket(tx.userId, ent, today);
+  bucket.pointsUsed += amount;
+  saveDailyBucket(bucket);
+}
+
 /**
  * Atomically check entitlements and reserve the cost of an activity.
  *
@@ -488,7 +558,39 @@ export function reserveUsage(params: {
     };
   }
 
-  const check = checkEntitlement(userId, activity);
+  const def = getActivity(activity);
+  if (!def) {
+    return {
+      ok: false,
+      code: "NO_ACTIVE_SUBSCRIPTION",
+      messageFa: "این فعالیت در دسترس نیست.",
+      transaction: null,
+      replayed: false,
+    };
+  }
+  const ctx = params.costContext ?? {};
+
+  // --- Admin energy model (disabled-by-default) ---
+  // When an ENABLED pricing profile exists for this activity, its computed
+  // total REPLACES the registry's flat `pointCost`. Otherwise `priced` is null
+  // and the flat cost is charged — behaviour is never changed by merely
+  // shipping the energy module.
+  //
+  // The context is always supplied (never gated on the caller): once an admin
+  // enables a tariff it must apply to every request, not only those that
+  // happen to pass runtime facts.
+  const priced = pricedPointsFor(activity, ctx);
+  const chargedPoints =
+    params.overridePoints !== undefined
+      ? Math.max(0, Math.round(params.overridePoints))
+      : priced
+        ? priced.points
+        : def.pointCost;
+  const breakdown = priced?.breakdown ?? null;
+
+  // Price is resolved BEFORE the entitlement check so a FREE (zero-energy)
+  // action is not blocked by an exhausted energy balance.
+  const check = checkEntitlement(userId, activity, { energyCost: chargedPoints });
   if (!check.allowed) {
     return {
       ok: false,
@@ -499,23 +601,24 @@ export function reserveUsage(params: {
     };
   }
 
-  const def = getActivity(activity)!;
   const ent = check.entitlement;
   const today = tehranDateString();
 
-  // --- Admin energy model (disabled-by-default) ---
-  // When an ENABLED pricing profile exists for this activity, its computed
-  // total REPLACES the registry's flat `pointCost`. Otherwise `priced` is null
-  // and the flat cost is charged — behaviour is never changed by merely
-  // shipping the energy module.
-  const priced = params.costContext ? pricedPointsFor(activity, params.costContext) : null;
-  const chargedPoints =
-    params.overridePoints !== undefined
-      ? Math.max(0, Math.round(params.overridePoints))
-      : priced
-        ? priced.points
-        : def.pointCost;
-  const breakdown = priced?.breakdown ?? null;
+  const tariffSnapshot: UsageTariffSnapshot | null = priced
+    ? {
+        profileId: priced.profile.id,
+        serviceKey: priced.profile.serviceKey,
+        nameFa: priced.profile.nameFa,
+        version: priced.profile.version ?? 1,
+        billingMode: priced.profile.billingMode ?? "ENERGY",
+        chargeBasis: priced.profile.chargeBasis ?? "PER_MESSAGE",
+        ruleVersions: listCostRules(priced.profile.id).map((r) => ({
+          id: r.id,
+          version: r.version ?? 1,
+        })),
+        breakdown,
+      }
+    : null;
 
   // --- Debit the daily bucket (or the reward wallet) ---
   if (check.creditSource === "REWARD") {
@@ -541,7 +644,6 @@ export function reserveUsage(params: {
   }
 
   const now = new Date().toISOString();
-  const ctx = params.costContext ?? {};
   const tx: UsageTransaction = {
     id: `utx-${crypto.randomUUID()}`,
     userId,
@@ -566,6 +668,18 @@ export function reserveUsage(params: {
     toolCalls: ctx.toolCalls ?? 0,
     ragCalls: ctx.ragCalls ?? 0,
     additionalCost: breakdown ? breakdown.unitCost + breakdown.ruleCost : 0,
+    // --- Settlement + traceability ---
+    energyFinal: chargedPoints,
+    energyRefunded: 0,
+    // No token figure has been observed yet; the caller must settle with the
+    // provider's real usage (or explicitly declare it unavailable).
+    tokenUsageStatus: "UNAVAILABLE",
+    tokenUsageNoteFa: "در انتظار گزارش مصرف واقعی از ارائه‌دهندهٔ مدل",
+    provider: null,
+    trackingId: newTrackingId(),
+    messageIndex: ctx.messageIndex ?? null,
+    tariffVersion: priced ? (priced.profile.version ?? 1) : null,
+    tariffSnapshot,
     createdAt: now,
     updatedAt: now,
   };
@@ -576,55 +690,138 @@ export function reserveUsage(params: {
   return { ok: true, code: null, messageFa: "", transaction: tx, replayed: false };
 }
 
+export interface CompleteUsageOptions {
+  tokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  contextTokens?: number;
+  model?: string | null;
+  provider?: string | null;
+  /**
+   * Runtime facts only known AFTER the operation ran (retrieval passes, tool
+   * calls). They are written to the row before the frozen tariff re-prices, so
+   * the final energy reflects what actually executed.
+   */
+  ragCalls?: number;
+  toolCalls?: number;
+  /**
+   * How the token figure was obtained. `ACTUAL` = the provider reported it.
+   * `ESTIMATED` = derived locally; `UNAVAILABLE` = no usable figure.
+   */
+  tokenUsageStatus?: "ACTUAL" | "ESTIMATED" | "UNAVAILABLE";
+  tokenUsageNoteFa?: string | null;
+}
+
+/** The token figure as it should be persisted (never silently "actual"). */
+function resolvedTokenFigure(opts: CompleteUsageOptions): {
+  input: number;
+  output: number;
+  total: number;
+  status: "ACTUAL" | "ESTIMATED" | "UNAVAILABLE";
+  note: string | null;
+} {
+  const input = Math.max(0, Math.round(opts.inputTokens ?? 0));
+  const output = Math.max(0, Math.round(opts.outputTokens ?? 0));
+  const total = Math.max(0, Math.round(opts.tokens ?? input + output));
+  const status = opts.tokenUsageStatus ?? (total > 0 ? "ACTUAL" : "UNAVAILABLE");
+  const note =
+    opts.tokenUsageNoteFa ??
+    (status === "ESTIMATED"
+      ? "تخمین محلی بر پایهٔ طول متن — ارائه‌دهنده مصرف واقعی را گزارش نکرد."
+      : status === "UNAVAILABLE"
+        ? opts.provider
+          ? "مصرف واقعی توکن از ارائه‌دهنده دریافت نشد."
+          : "این عملیات از مدل هوش مصنوعی استفاده نمی‌کند؛ توکنی مصرف نشده است."
+        : null);
+  return { input, output, total, status, note };
+}
+
 /**
- * Mark a reservation COMPLETED and record the actual token usage.
+ * Mark a reservation COMPLETED and settle the ENERGY against the real result.
  *
- * `opts.tokens` records the period-quota token consumption (unchanged). The
- * optional per-direction counts are written to the energy-ledger attribution
- * fields ONLY — they never overwrite `pointsCost`, which was fixed at reserve
- * time so the charge stays provably equal to what the engine reserved.
+ * `opts.tokens` records the period-quota token consumption. The per-direction
+ * counts are attributed to the ledger row.
+ *
+ * Settlement rule (explicit, testable):
+ *   • The tariff that priced the reservation is RE-USED (frozen snapshot), so
+ *     an admin edit between reserve and complete cannot change the price.
+ *   • The final energy is recomputed with the observed token counts. A
+ *     difference is refunded to, or debited from, the same source that paid
+ *     the reservation. A zero-cost (FREE) tariff is never charged.
+ *   • The transaction is terminal after this call — a repeated completion is a
+ *     no-op, so a retried request can never charge twice.
  */
 export function completeUsage(
   transactionId: string,
-  opts: {
-    tokens?: number;
-    inputTokens?: number;
-    outputTokens?: number;
-    contextTokens?: number;
-    model?: string | null;
-  } = {}
+  opts: CompleteUsageOptions = {}
 ): UsageTransaction | null {
   const rows = readTable<UsageTransaction>(TX_TABLE);
   const tx = rows.find((t) => t.id === transactionId);
   if (!tx) return null;
-  if (tx.status === "COMPLETED") return tx;
+  if (tx.status === "COMPLETED" || tx.status === "REVERSED" || tx.status === "FAILED")
+    return tx;
 
   tx.status = "COMPLETED";
   tx.updatedAt = new Date().toISOString();
 
-  // Energy-ledger attribution (does not affect the already-charged amount).
-  if (opts.inputTokens !== undefined) tx.inputTokens = opts.inputTokens;
-  if (opts.outputTokens !== undefined) tx.outputTokens = opts.outputTokens;
+  const figure = resolvedTokenFigure(opts);
+  tx.inputTokens = figure.input;
+  tx.outputTokens = figure.output;
   if (opts.contextTokens !== undefined) tx.contextTokens = opts.contextTokens;
   if (opts.model !== undefined) tx.model = opts.model;
+  if (opts.provider !== undefined) tx.provider = opts.provider;
+  if (opts.ragCalls !== undefined) tx.ragCalls = Math.max(0, Math.round(opts.ragCalls));
+  if (opts.toolCalls !== undefined) tx.toolCalls = Math.max(0, Math.round(opts.toolCalls));
+  tx.tokenUsageStatus = figure.status;
+  tx.tokenUsageNoteFa = figure.note;
 
-  // Record real token usage against the period quota (never estimated when
-  // the provider reports actual usage).
-  const tokens = opts.tokens ?? 0;
-  if (tokens > 0) {
-    tx.tokenCost = tokens;
+  // Record real token usage against the period quota.
+  if (figure.total > 0) {
+    tx.tokenCost = figure.total;
     const period = resolvePeriodUsage(tx.userId, tx.subscriptionId ?? FREE_SUBSCRIPTION_ID);
-    period.tokensUsed += tokens;
+    period.tokensUsed += figure.total;
     savePeriodUsage(period);
   }
+
+  // --- Energy settlement against the frozen tariff ------------------------
+  const reserved = tx.energyFinal ?? tx.pointsCost;
+  let finalEnergy = reserved;
+
+  if (tx.tariffSnapshot?.breakdown) {
+    const repriced = priceWithFrozenSnapshot(tx.tariffSnapshot, {
+      model: tx.model ?? undefined,
+      inputTokens: tx.inputTokens ?? 0,
+      outputTokens: tx.outputTokens ?? 0,
+      contextTokens: tx.contextTokens ?? 0,
+      messageIndex: tx.messageIndex ?? undefined,
+      ragCalls: tx.ragCalls ?? 0,
+      toolCalls: tx.toolCalls ?? 0,
+    });
+    // A snapshot that cannot be re-priced keeps the reserved amount — never a
+    // guess, never a silent change.
+    if (repriced) finalEnergy = repriced.total;
+  }
+
+  const delta = finalEnergy - reserved;
+  if (delta < 0) {
+    const credit = -delta;
+    refundToSource(tx, credit, `بازگشت مابه‌التفاوت انرژی ${tx.trackingId ?? tx.id}`);
+    tx.energyRefunded = (tx.energyRefunded ?? 0) + credit;
+  } else if (delta > 0) {
+    debitExtra(tx, delta);
+  }
+  tx.energyFinal = finalEnergy;
 
   writeTable(TX_TABLE, rows);
   return tx;
 }
 
 /**
- * Reverse a reservation — used when the service failed for an internal
- * reason, so the user's quota is not burned for nothing.
+ * Reverse a reservation — the operation failed, was cancelled, or produced
+ * nothing. Both the daily-credit and reward-funded paths are fully refunded,
+ * the period quota is released, and the row is marked REVERSED.
+ *
+ * Idempotent: a second call returns the already-reversed row untouched.
  */
 export function reverseUsage(transactionId: string): UsageTransaction | null {
   const rows = readTable<UsageTransaction>(TX_TABLE);
@@ -633,6 +830,7 @@ export function reverseUsage(transactionId: string): UsageTransaction | null {
   if (tx.status === "REVERSED" || tx.status === "FAILED") return tx;
 
   const ent = resolveEntitlement(tx.userId);
+  const refundable = tx.energyFinal ?? tx.pointsCost;
 
   // Refund the daily bucket (only when the credit came from it).
   if (tx.creditSource === "SUBSCRIPTION") {
@@ -641,8 +839,10 @@ export function reverseUsage(transactionId: string): UsageTransaction | null {
     if (tx.requestCost > 0) {
       bucket.requestUsed = Math.max(0, bucket.requestUsed - tx.requestCost);
     }
-    bucket.pointsUsed = Math.max(0, bucket.pointsUsed - tx.pointsCost);
+    bucket.pointsUsed = Math.max(0, bucket.pointsUsed - refundable);
     saveDailyBucket(bucket);
+  } else if (tx.creditSource === "REWARD" && refundable > 0) {
+    refundToSource(tx, refundable, `بازگشت انرژی ${tx.trackingId ?? tx.id}`);
   }
 
   // Refund the period-scoped service quota.
@@ -659,21 +859,90 @@ export function reverseUsage(transactionId: string): UsageTransaction | null {
     savePeriodUsage(period);
   }
 
+  tx.energyRefunded = (tx.energyRefunded ?? 0) + refundable;
+  tx.energyFinal = 0;
   tx.status = "REVERSED";
   tx.updatedAt = new Date().toISOString();
   writeTable(TX_TABLE, rows);
   return tx;
 }
 
-/** Mark a reservation FAILED (terminal, no refund — e.g. a user error). */
-export function failUsage(transactionId: string): UsageTransaction | null {
+/**
+ * Mark a reservation FAILED.
+ *
+ * Default rule: the energy IS refunded — a failure must never silently burn a
+ * user's quota. The explicit opt-out (`{ refund: false }`) exists only for the
+ * rare case where the consumed resource was caused by the user and the product
+ * has decided to charge for it; the row then keeps `energyFinal` and records
+ * `energyRefunded = 0`, which the usage report surfaces as «ناموفق».
+ */
+export function failUsage(
+  transactionId: string,
+  opts: { refund?: boolean } = {}
+): UsageTransaction | null {
   const rows = readTable<UsageTransaction>(TX_TABLE);
   const tx = rows.find((t) => t.id === transactionId);
   if (!tx) return null;
+  if (tx.status === "FAILED" || tx.status === "REVERSED" || tx.status === "COMPLETED")
+    return tx;
+
+  if (opts.refund !== false) {
+    const refundable = tx.energyFinal ?? tx.pointsCost;
+    const ent = resolveEntitlement(tx.userId);
+    if (tx.creditSource === "SUBSCRIPTION") {
+      const bucket = resolveDailyBucket(tx.userId, ent, tehranDateString());
+      if (tx.requestCost > 0) {
+        bucket.requestUsed = Math.max(0, bucket.requestUsed - tx.requestCost);
+      }
+      bucket.pointsUsed = Math.max(0, bucket.pointsUsed - refundable);
+      saveDailyBucket(bucket);
+    } else if (tx.creditSource === "REWARD" && refundable > 0) {
+      refundToSource(tx, refundable, `بازگشت انرژی ${tx.trackingId ?? tx.id}`);
+    }
+    if (tx.serviceQuotaType && tx.serviceQuotaCost > 0) {
+      const period = resolvePeriodUsage(tx.userId, tx.subscriptionId ?? FREE_SUBSCRIPTION_ID);
+      incrementPeriodUsed(tx.serviceQuotaType, period, -tx.serviceQuotaCost);
+      savePeriodUsage(period);
+    }
+    if (tx.tokenCost > 0) {
+      const period = resolvePeriodUsage(tx.userId, tx.subscriptionId ?? FREE_SUBSCRIPTION_ID);
+      period.tokensUsed = Math.max(0, period.tokensUsed - tx.tokenCost);
+      savePeriodUsage(period);
+    }
+    tx.energyRefunded = (tx.energyRefunded ?? 0) + refundable;
+    tx.energyFinal = 0;
+  }
+
   tx.status = "FAILED";
+  tx.tokenUsageStatus = tx.tokenUsageStatus ?? "UNAVAILABLE";
   tx.updatedAt = new Date().toISOString();
   writeTable(TX_TABLE, rows);
   return tx;
+}
+
+/**
+ * Settle a reservation addressed by its idempotency key rather than its row
+ * id — the caller (document upload/complete, delete) only knows the key it
+ * generated. Returns null when no reservation exists for that key.
+ */
+export function completeUsageByKey(
+  idempotencyKey: string,
+  opts: CompleteUsageOptions = {}
+): UsageTransaction | null {
+  const tx = readTable<UsageTransaction>(TX_TABLE).find(
+    (t) => t.idempotencyKey === idempotencyKey
+  );
+  return tx ? completeUsage(tx.id, opts) : null;
+}
+
+/** Release a still-RESERVED charge addressed by its idempotency key. A row
+ *  that already settled is left untouched (refund is not a delete). */
+export function releaseReservedByKey(idempotencyKey: string): UsageTransaction | null {
+  const tx = readTable<UsageTransaction>(TX_TABLE).find(
+    (t) => t.idempotencyKey === idempotencyKey
+  );
+  if (!tx || tx.status !== "RESERVED") return tx ?? null;
+  return reverseUsage(tx.id);
 }
 
 // ============================================================

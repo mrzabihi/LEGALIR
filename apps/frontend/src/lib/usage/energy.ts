@@ -19,28 +19,39 @@
 // STORAGE
 //   service_cost_profiles  — one row per billable service
 //   service_cost_rules     — pricing rules, keyed by profileId
+//   service_cost_history   — append-only version history (never rewritten)
 //
 // The queryable ledger is DERIVED from `usage_transactions` (the same rows the
 // engine already writes), so there is one and only one consumption record.
+//
+// VERSIONING. Every save appends an immutable `TariffVersionEntry` and bumps
+// the row's `version`. A usage transaction freezes the profile version and the
+// computed breakdown it was priced under, so changing a tariff can never
+// retroactively alter past consumption.
 // ============================================================
 
 import { readTable, writeTable } from "@/lib/db";
 import { getActivity, ACTIVITY_REGISTRY } from "./activities";
 import type {
   ActivityType,
+  ServiceBillingMode,
+  ServiceChargeBasis,
   ServiceCostProfile,
   ServiceCostRule,
   ServiceCostRuleCondition,
   ServiceCostUnit,
+  TariffVersionEntry,
   UsageCostBreakdown,
   UsageCostContext,
   UsageLedgerEntry,
   UsageLedgerSummary,
+  UsageTariffSnapshot,
   UsageTransaction,
 } from "@legalir/types";
 
 const PROFILES_TABLE = "service_cost_profiles";
 const RULES_TABLE = "service_cost_rules";
+const HISTORY_TABLE = "service_cost_history";
 
 // ============================================================
 // Seeding
@@ -75,6 +86,9 @@ function seedProfiles(): ServiceCostProfile[] {
       descriptionFa: `مدل هزینهٔ سرویس ${def.displayNameFa}`,
       activity: def.code,
       enabled: false,
+      version: 1,
+      billingMode: "ENERGY",
+      chargeBasis: "PER_MESSAGE",
       baseRequestCost: def.pointCost,
       inputTokenPer1k: 0,
       outputTokenPer1k: 0,
@@ -110,6 +124,22 @@ export function getCostProfileForActivity(
   return listCostProfiles().find((p) => p.activity === activity);
 }
 
+/**
+ * The canonical service key for an activity — the SAME slug whether or not a
+ * tariff profile is enabled. Usage rows written before a tariff existed have no
+ * `serviceKey`, so the report and the admin ledger must resolve it from here;
+ * otherwise a service would appear under two keys ("document_analysis" vs
+ * "document-analysis") and its filter would silently drop half its rows.
+ */
+export function serviceKeyForActivity(activity: ActivityType): string {
+  return SEED_SERVICE[activity]?.serviceKey ?? activity.toLowerCase();
+}
+
+/** The Persian display name for an activity's service. */
+export function serviceNameForActivity(activity: ActivityType): string | null {
+  return SEED_SERVICE[activity]?.nameFa ?? null;
+}
+
 export interface SaveCostProfileInput {
   id?: string;
   serviceKey: string;
@@ -117,6 +147,8 @@ export interface SaveCostProfileInput {
   descriptionFa?: string;
   activity: ActivityType;
   enabled: boolean;
+  billingMode?: ServiceBillingMode;
+  chargeBasis?: ServiceChargeBasis;
   baseRequestCost: number;
   inputTokenPer1k: number;
   outputTokenPer1k: number;
@@ -126,7 +158,71 @@ export interface SaveCostProfileInput {
   updatedBy: string;
 }
 
-/** Create or update a pricing profile. */
+/** Persian, human-readable summary of what changed between two profiles. */
+function profileChangeSummaryFa(
+  prev: ServiceCostProfile | null,
+  next: ServiceCostProfile
+): string {
+  if (!prev) return `ایجاد تعرفهٔ «${next.nameFa}»`;
+  const parts: string[] = [];
+  if (prev.enabled !== next.enabled)
+    parts.push(next.enabled ? "فعال‌سازی" : "غیرفعال‌سازی");
+  if (prev.billingMode !== next.billingMode)
+    parts.push(next.billingMode === "FREE" ? "رایگان شد" : "مشمول انرژی شد");
+  if (prev.chargeBasis !== next.chargeBasis)
+    parts.push(
+      next.chargeBasis === "PER_CONVERSATION" ? "مبنای شمارش: گفتگو" : "مبنای شمارش: پیام"
+    );
+  if (prev.baseRequestCost !== next.baseRequestCost)
+    parts.push(`انرژی پایه ${prev.baseRequestCost} ← ${next.baseRequestCost}`);
+  if (prev.nameFa !== next.nameFa) parts.push(`نام «${prev.nameFa}» ← «${next.nameFa}»`);
+  if (prev.inputTokenPer1k !== next.inputTokenPer1k) parts.push("تعرفهٔ توکن ورودی");
+  if (prev.outputTokenPer1k !== next.outputTokenPer1k) parts.push("تعرفهٔ توکن خروجی");
+  if (prev.contextTokenPer1k !== next.contextTokenPer1k) parts.push("تعرفهٔ توکن زمینه");
+  if (JSON.stringify(prev.unitCosts) !== JSON.stringify(next.unitCosts))
+    parts.push("هزینهٔ واحدهای جانبی");
+  if (JSON.stringify(prev.modelMultipliers) !== JSON.stringify(next.modelMultipliers))
+    parts.push("ضریب مدل");
+  return parts.length ? parts.join("، ") : "ذخیرهٔ بدون تغییر مؤثر";
+}
+
+/** Append an immutable version row. Never overwrites an earlier version. */
+export function appendTariffVersion(entry: {
+  entity: TariffVersionEntry["entity"];
+  entityId: string;
+  activity: ActivityType | null;
+  version: number;
+  snapshot: ServiceCostProfile | ServiceCostRule;
+  changeKind: TariffVersionEntry["changeKind"];
+  changeSummaryFa: string;
+  changedBy: string;
+}): TariffVersionEntry {
+  const row: TariffVersionEntry = {
+    id: `tver-${crypto.randomUUID()}`,
+    entity: entry.entity,
+    entityId: entry.entityId,
+    activity: entry.activity,
+    version: entry.version,
+    snapshot: entry.snapshot,
+    changeKind: entry.changeKind,
+    changeSummaryFa: entry.changeSummaryFa,
+    changedBy: entry.changedBy,
+    changedAt: new Date().toISOString(),
+  };
+  const rows = readTable<TariffVersionEntry>(HISTORY_TABLE);
+  rows.push(row);
+  writeTable(HISTORY_TABLE, rows);
+  return row;
+}
+
+/** The append-only tariff history, newest first. Optionally one entity. */
+export function listTariffHistory(entityId?: string): TariffVersionEntry[] {
+  const rows = readTable<TariffVersionEntry>(HISTORY_TABLE);
+  const scoped = entityId ? rows.filter((h) => h.entityId === entityId) : rows;
+  return [...scoped].sort((a, b) => b.changedAt.localeCompare(a.changedAt));
+}
+
+/** Create or update a pricing profile. Each write appends a version row. */
 export function saveCostProfile(
   input: SaveCostProfileInput
 ): ServiceCostProfile | { error: string } {
@@ -146,6 +242,9 @@ export function saveCostProfile(
   for (const [k, v] of Object.entries(input.modelMultipliers ?? {})) {
     if (typeof v === "number" && v > 0) modelMultipliers[k] = v;
   }
+  const billingMode: ServiceBillingMode = input.billingMode === "FREE" ? "FREE" : "ENERGY";
+  const chargeBasis: ServiceChargeBasis =
+    input.chargeBasis === "PER_CONVERSATION" ? "PER_CONVERSATION" : "PER_MESSAGE";
 
   if (idx >= 0) {
     const prev = rows[idx]!;
@@ -155,17 +254,30 @@ export function saveCostProfile(
       descriptionFa: input.descriptionFa?.trim() ?? prev.descriptionFa,
       activity: input.activity,
       enabled: input.enabled,
+      billingMode,
+      chargeBasis,
       baseRequestCost: clean(input.baseRequestCost),
       inputTokenPer1k: clean(input.inputTokenPer1k),
       outputTokenPer1k: clean(input.outputTokenPer1k),
       contextTokenPer1k: clean(input.contextTokenPer1k),
       unitCosts,
       modelMultipliers,
+      version: (prev.version ?? 1) + 1,
       updatedAt: now,
       updatedBy: input.updatedBy,
     };
     rows[idx] = next;
     writeTable(PROFILES_TABLE, rows);
+    appendTariffVersion({
+      entity: "PROFILE",
+      entityId: next.id,
+      activity: next.activity,
+      version: next.version!,
+      snapshot: next,
+      changeKind: "UPDATE",
+      changeSummaryFa: profileChangeSummaryFa(prev, next),
+      changedBy: input.updatedBy,
+    });
     return next;
   }
 
@@ -176,6 +288,9 @@ export function saveCostProfile(
     descriptionFa: input.descriptionFa?.trim() ?? "",
     activity: input.activity,
     enabled: input.enabled,
+    version: 1,
+    billingMode,
+    chargeBasis,
     baseRequestCost: clean(input.baseRequestCost),
     inputTokenPer1k: clean(input.inputTokenPer1k),
     outputTokenPer1k: clean(input.outputTokenPer1k),
@@ -188,6 +303,16 @@ export function saveCostProfile(
   };
   rows.push(created);
   writeTable(PROFILES_TABLE, rows);
+  appendTariffVersion({
+    entity: "PROFILE",
+    entityId: created.id,
+    activity: created.activity,
+    version: 1,
+    snapshot: created,
+    changeKind: "CREATE",
+    changeSummaryFa: profileChangeSummaryFa(null, created),
+    changedBy: input.updatedBy,
+  });
   return created;
 }
 
@@ -215,6 +340,8 @@ export interface SaveCostRuleInput {
   models: string[];
   addEnergy: number;
   multiply: number | null;
+  /** Who made the change — recorded in the append-only tariff history. */
+  updatedBy?: string;
 }
 
 /** Create or update a pricing rule. */
@@ -243,10 +370,21 @@ export function saveCostRule(input: SaveCostRuleInput): ServiceCostRule | { erro
       models: input.models.filter(Boolean),
       addEnergy: Math.round(input.addEnergy) || 0,
       multiply,
+      version: (prev.version ?? 1) + 1,
       updatedAt: now,
     };
     rows[idx] = next;
     writeTable(RULES_TABLE, rows);
+    appendTariffVersion({
+      entity: "RULE",
+      entityId: next.id,
+      activity: next.activity,
+      version: next.version!,
+      snapshot: next,
+      changeKind: "UPDATE",
+      changeSummaryFa: `به‌روزرسانی قاعدهٔ «${next.labelFa}» (${next.enabled ? "فعال" : "غیرفعال"})`,
+      changedBy: input.updatedBy ?? "system",
+    });
     return next;
   }
 
@@ -263,20 +401,47 @@ export function saveCostRule(input: SaveCostRuleInput): ServiceCostRule | { erro
     models: input.models.filter(Boolean),
     addEnergy: Math.round(input.addEnergy) || 0,
     multiply,
+    version: 1,
     createdAt: now,
     updatedAt: now,
   };
   rows.push(created);
   writeTable(RULES_TABLE, rows);
+  appendTariffVersion({
+    entity: "RULE",
+    entityId: created.id,
+    activity: created.activity,
+    version: 1,
+    snapshot: created,
+    changeKind: "CREATE",
+    changeSummaryFa: `ایجاد قاعدهٔ «${created.labelFa}»`,
+    changedBy: input.updatedBy ?? "system",
+  });
   return created;
 }
 
-/** Delete a pricing rule. */
-export function deleteCostRule(id: string): { ok: true } | { error: string } {
+/** Delete a pricing rule (the deletion is itself versioned). */
+export function deleteCostRule(
+  id: string,
+  deletedBy = "system"
+): { ok: true } | { error: string } {
   const rows = readTable<ServiceCostRule>(RULES_TABLE);
+  const target = rows.find((r) => r.id === id);
   const next = rows.filter((r) => r.id !== id);
   if (next.length === rows.length) return { error: "NOT_FOUND" };
   writeTable(RULES_TABLE, next);
+  if (target) {
+    appendTariffVersion({
+      entity: "RULE",
+      entityId: target.id,
+      activity: target.activity,
+      version: (target.version ?? 1) + 1,
+      snapshot: target,
+      changeKind: "DELETE",
+      changeSummaryFa: `حذف قاعدهٔ «${target.labelFa}»`,
+      changedBy: deletedBy,
+    });
+  }
   return { ok: true };
 }
 
@@ -325,6 +490,26 @@ export function computeUsageCost(
 ): UsageCostBreakdown {
   const num = (v: number | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   const round = (n: number) => Math.max(0, Math.round(n));
+
+  // A FREE service, or a conversation-billed service on a follow-up message,
+  // is priced at exactly zero — the breakdown is still returned so the ledger
+  // can explain WHY nothing was charged.
+  const freeByBasis =
+    (profile.chargeBasis ?? "PER_MESSAGE") === "PER_CONVERSATION" &&
+    ctx.firstInConversation === false;
+  if (profile.billingMode === "FREE" || freeByBasis) {
+    return {
+      baseCost: 0,
+      tokenCost: 0,
+      contextCost: 0,
+      unitCost: 0,
+      ruleCost: 0,
+      modelMultiplier: 1,
+      subtotal: 0,
+      total: 0,
+      appliedRuleIds: [],
+    };
+  }
 
   const baseCost = profile.baseRequestCost;
 
@@ -393,6 +578,37 @@ export function pricedPointsFor(
   const rules = listCostRules(profile.id);
   const breakdown = computeUsageCost(profile, rules, ctx);
   return { points: breakdown.total, breakdown, profile };
+}
+
+/**
+ * Re-price a request against the tariff that was in force when it was
+ * reserved. Reads the immutable history rows; returns `null` if the frozen
+ * version cannot be found (the caller then keeps the reserved amount, never a
+ * guess). A tariff edit can therefore never rewrite an in-flight or past
+ * charge.
+ */
+export function priceWithFrozenSnapshot(
+  snapshot: UsageTariffSnapshot,
+  ctx: UsageCostContext
+): UsageCostBreakdown | null {
+  if (!snapshot.breakdown) return null; // flat registry cost — not tariff-driven
+
+  const history = listTariffHistory(snapshot.profileId);
+  const profileEntry = history.find(
+    (h) => h.entity === "PROFILE" && h.version === snapshot.version
+  );
+  if (!profileEntry) return null;
+  const profile = profileEntry.snapshot as ServiceCostProfile;
+
+  const rules: ServiceCostRule[] = [];
+  for (const ref of snapshot.ruleVersions) {
+    const entry = listTariffHistory(ref.id).find(
+      (h) => h.entity === "RULE" && h.version === ref.version
+    );
+    if (entry) rules.push(entry.snapshot as ServiceCostRule);
+  }
+
+  return computeUsageCost(profile, rules, ctx);
 }
 
 // ============================================================

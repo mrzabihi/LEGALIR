@@ -110,7 +110,17 @@ import type {
   LawyerOnboardingInput,
   ChatToolsResponse,
   ChatToolId,
+  UsageReportQuery,
+  UsageReportResponse,
+  SubscriptionUsageCard,
 } from "@legalir/types";
+
+/** The usage report plus its real filter menus (derived from the user's rows). */
+export interface UsageReportApiResponse {
+  report: UsageReportResponse;
+  services: { serviceKey: string; serviceNameFa: string }[];
+  actions: { activityType: NonNullable<UsageReportQuery["activityType"]>; actionNameFa: string }[];
+}
 
 // ============================================================
 // Helper: build query string with URLSearchParams
@@ -219,6 +229,31 @@ export function fetchSubscriptionUsageHistory(
   return apiClient.get<UsageHistoryResponse>(
     `/api/v1/subscription/usage/history${qs(p)}`
   );
+}
+
+/** One real consumption card per ACTIVE subscription (same ledger as below). */
+export function fetchSubscriptionUsageCards(): Promise<SubscriptionUsageCard[]> {
+  return apiClient.get<{ items: SubscriptionUsageCard[] }>(
+    "/api/v1/subscription/usage/cards"
+  ).then((r) => r.items);
+}
+
+/**
+ * The signed-in user's own energy + token report. Energy and tokens arrive in
+ * separate fields — the caller must never add them together.
+ */
+export function fetchUsageReport(
+  query: UsageReportQuery = {}
+): Promise<UsageReportApiResponse> {
+  const p = new URLSearchParams();
+  if (query.from) p.set("from", query.from);
+  if (query.to) p.set("to", query.to);
+  if (query.serviceKey) p.set("serviceKey", query.serviceKey);
+  if (query.activityType) p.set("activityType", query.activityType);
+  if (query.status) p.set("status", query.status);
+  if (query.page) p.set("page", String(query.page));
+  if (query.pageSize) p.set("pageSize", String(query.pageSize));
+  return apiClient.get<UsageReportApiResponse>(`/api/v1/usage/report${qs(p)}`);
 }
 
 // ============================================================
