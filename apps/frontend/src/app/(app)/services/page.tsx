@@ -321,11 +321,7 @@ export default function ServicesPage() {
               the static catalog, so they render here from their own endpoint.
               The zone returns null when the admin switched this surface off,
               which leaves the sections above and below untouched. */}
-          <JudicialServiceZone
-            surface="services"
-            className="mb-8"
-            description="شرح موضوع، پرسش‌نامهٔ مرحله‌به‌مرحله و پیش‌نویس ساختارمند — با امکان ذخیره و ادامه در هر مرحله."
-          />
+          <JudicialServiceZone surface="services" className="mb-8" />
 
           {/* ============================================================
               4b. Coverage panel — the breadth of the legal system

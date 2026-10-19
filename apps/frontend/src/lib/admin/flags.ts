@@ -61,7 +61,7 @@ function seedRows(): Omit<FeatureFlag, "createdAt" | "updatedAt">[] {
     // in their config: the flag releases the TRACKED REQUEST intake, not an
     // issuance. The unconfigured external requirement is what keeps them from
     // ever projecting as `available`, regardless of this flag.
-    { key: "judicial_statement", nameFa: "اظهارنامه قضایی", descriptionFa: "تنظیم پیش‌نویس اظهارنامه با هوش مصنوعی", ...on },
+    { key: "judicial_statement", nameFa: "تنظیم اظهارنامه تخصصی", descriptionFa: "تنظیم پیش‌نویس اظهارنامه با هوش مصنوعی", ...on },
     { key: "judicial_brief", nameFa: "لایحه", descriptionFa: "تنظیم پیش‌نویس لایحه با هوش مصنوعی", ...on },
     { key: "judicial_petition", nameFa: "دادخواست حقوقی", descriptionFa: "تنظیم پیش‌نویس دادخواست با هوش مصنوعی", ...on },
     { key: "judicial_complaint", nameFa: "شکواییه کیفری", descriptionFa: "تنظیم پیش‌نویس شکواییه با هوش مصنوعی", ...on },
@@ -88,6 +88,10 @@ const RESEED_ON_UPGRADE = new Set<string>([
   // placeholder. The service config — not the flag — still forbids issuance.
   "judicial_criminal_record",
   "judicial_credit_check",
+  // 2026-10: the declaration's shipped title changed to «تنظیم اظهارنامه
+  // تخصصی» so the panel names the same capability the discovery surfaces and
+  // /judicial show. Only the label moved; status and rollout are unchanged.
+  "judicial_statement",
 ]);
 
 function reseedUntouched(row: FeatureFlag, def: Omit<FeatureFlag, "createdAt" | "updatedAt">) {

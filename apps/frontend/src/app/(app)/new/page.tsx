@@ -361,7 +361,6 @@ export default function NewServicePage() {
             <JudicialServiceZone
               surface="new"
               className="mb-6 rounded-xlarge border border-[color:var(--color-outline-variant)] bg-surface-container-low p-5"
-              description="شرح موضوع، پرسش‌نامهٔ مرحله‌به‌مرحله و پیش‌نویس ساختارمند — با امکان ذخیره و ادامه در هر مرحله."
             />
           )}
         </div>

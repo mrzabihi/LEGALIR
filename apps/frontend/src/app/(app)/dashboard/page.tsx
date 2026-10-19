@@ -110,7 +110,6 @@ export default function DashboardPage() {
         surface="home"
         mode="app"
         className="mb-6"
-        description="پرونده، دادخواست و شکواییه — با پرسش‌نامهٔ مرحله‌به‌مرحله، پیش‌نویس قابل ویرایش و پیگیری وضعیت."
         footer={
           <div className="mt-3">
             <Link
