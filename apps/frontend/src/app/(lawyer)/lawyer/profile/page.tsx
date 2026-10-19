@@ -107,6 +107,11 @@ function CompletenessPanel({ completeness }: { completeness: LawyerProfileComple
         </div>
         <Badge tone="warning">{toPersianNumber(completeness.percent)}٪</Badge>
       </div>
+      {/* Progress reads in the brand green, not `bg-primary`: the primary
+          scale is the deep-navy text ink, and a near-black bar on a light
+          card reads as an unstyled block rather than a measure. Green is the
+          product's action/growth hue, so it matches the percentage badge's
+          meaning as well as its palette. */}
       <div
         className="mt-3 h-2 overflow-hidden rounded-full bg-surface-container"
         role="progressbar"
@@ -116,7 +121,7 @@ function CompletenessPanel({ completeness }: { completeness: LawyerProfileComple
         aria-label="درصد تکمیل پروفایل"
       >
         <div
-          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          className="h-full rounded-full bg-[var(--brand-green)] transition-[width] duration-300"
           style={{ width: `${completeness.percent}%` }}
         />
       </div>
@@ -415,8 +420,15 @@ function ProfileContent({
                 <p className="mb-3 text-body-2 text-muted">هنوز تخصصی ثبت نکرده‌اید.</p>
               ) : (
                 <ul className="mb-3 flex flex-wrap gap-2">
-                  {form.specializations.map((s) => (
-                    <li key={s.category}>
+                  {/* A profile can legitimately hold the same specialty twice
+                      with different years of experience (the stored record is
+                      a list of {category, years}). The category alone is
+                      therefore not unique — keying on it logged a React
+                      "two children with the same key" error and made the two
+                      chips share an identity across updates. Position is the
+                      only stable discriminator here. */}
+                  {form.specializations.map((s, index) => (
+                    <li key={`${s.category}-${index}`}>
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-divider bg-surface-container px-3 py-1 text-caption text-on-surface">
                         {taxonomyLabel(s.category)}
                         {s.yearsExperience > 0 && (
