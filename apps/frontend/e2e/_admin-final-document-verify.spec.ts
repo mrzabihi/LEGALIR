@@ -78,8 +78,17 @@ test.describe("admin · the stamped final contract", () => {
     );
     expect(listRes.ok()).toBeTruthy();
     const list = (await listRes.json()) as ListResponse;
-    const sample = list.data.items.find((i) => i.referenceCode === SAMPLE_REF);
-    expect(sample, `sample ${SAMPLE_REF} must be in the admin queue`).toBeTruthy();
+    // A dev database may hold more than one sample row (the seed is per
+    // owner and the JSON store is not atomic across concurrent dev servers).
+    // The contract under test is the FINALIZED one — the only state that can
+    // carry a stored, sealed artifact.
+    const sample = list.data.items.find(
+      (i) => i.referenceCode === SAMPLE_REF && i.state === "FINALIZED"
+    );
+    expect(
+      sample,
+      `finalized sample ${SAMPLE_REF} must be in the admin queue`
+    ).toBeTruthy();
 
     // --- 2. the detail payload carries a SEALED artifact -------------------
     const detailRes = await request.get(`/api/v1/admin/contracts/${sample!.id}`, {
@@ -193,7 +202,12 @@ test.describe("admin · the stamped final contract", () => {
     await expect(search).toBeVisible({ timeout: 30_000 });
     await search.fill(SAMPLE_REF);
 
-    const row = page.getByRole("row", { name: new RegExp(SAMPLE_REF) }).first();
+    // Target the FINALIZED row, not whichever sample happens to sort first:
+    // a signed-but-unfinalized sample correctly shows «سند نهایی هنوز تولید
+    // نشده است» and must not be confused with the artifact under test.
+    const row = page
+      .getByRole("row", { name: new RegExp(`${SAMPLE_REF}.*نهایی‌شده`) })
+      .first();
     await expect(row).toBeVisible({ timeout: 20_000 });
     await row.getByRole("button", { name: /بررسی|مشاهده/ }).click();
 
