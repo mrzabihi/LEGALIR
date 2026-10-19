@@ -28,7 +28,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { ContractCompletenessSection } from "@legalir/types";
-import type { SaveStatus } from "./wizard-context";
+import type { SaveErrorInfo, SaveStatus } from "./wizard-context";
 import {
   IconArrowBack,
   IconCopy,
@@ -50,6 +50,8 @@ interface ContractWorkspaceHeaderProps {
   stepIndex: number;
   stepCount: number;
   saveStatus: SaveStatus;
+  /** The real reason the last write failed, shown instead of a generic label. */
+  saveError?: SaveErrorInfo | null;
   lastSavedAt: string | null;
   onRetrySave: () => void;
   onCopyId: () => void;
@@ -82,6 +84,7 @@ export function ContractWorkspaceHeader({
   stepIndex,
   stepCount,
   saveStatus,
+  saveError = null,
   lastSavedAt,
   onRetrySave,
   onCopyId,
@@ -170,6 +173,7 @@ export function ContractWorkspaceHeader({
           <div className="shrink-0" aria-live="polite">
             <SaveStatusLabel
               status={saveStatus}
+              error={saveError}
               lastSavedAt={lastSavedAt}
               onRetry={onRetrySave}
             />
@@ -307,10 +311,12 @@ export function ContractWorkspaceHeader({
 
 function SaveStatusLabel({
   status,
+  error,
   lastSavedAt,
   onRetry,
 }: {
   status: SaveStatus;
+  error: SaveErrorInfo | null;
   lastSavedAt: string | null;
   onRetry: () => void;
 }) {
@@ -327,15 +333,27 @@ function SaveStatusLabel({
   }
 
   if (status === "error") {
+    // The REAL cause, not a generic label. A retry is only offered when it
+    // can actually change the outcome: resending a request the server has
+    // already rejected as "not editable" or "invalid step" would just
+    // reproduce the same error forever.
     return (
-      <button
-        type="button"
-        onClick={onRetry}
-        className="inline-flex items-center gap-1.5 rounded-small text-caption text-error hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--contract-sticky-fill)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--contract-sticky-bg)]"
-      >
-        <IconRefresh size={14} />
-        ذخیره انجام نشد — تلاش مجدد
-      </button>
+      <span className="inline-flex items-center gap-1.5 text-caption text-error">
+        <IconWarning size={14} className="shrink-0" />
+        <span className="min-w-0">
+          ذخیره نشد{error ? ` — ${error.messageFa}` : ""}
+        </span>
+        {(!error || error.retryable) && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex shrink-0 items-center gap-1 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--contract-sticky-fill)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--contract-sticky-bg)]"
+          >
+            <IconRefresh size={12} />
+            تلاش مجدد
+          </button>
+        )}
+      </span>
     );
   }
 

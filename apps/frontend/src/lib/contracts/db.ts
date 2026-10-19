@@ -619,6 +619,19 @@ export function updatePayment(
 // Helpers
 // ------------------------------------------------------------
 
+/**
+ * Pure deep-merge of a domain-data patch. Exposed so a route can build the
+ * WHOLE next row in memory and write it once, instead of a read-modify-write
+ * per field — three sequential writes let a concurrent request land between
+ * them and lose an edit.
+ */
+export function mergeDomainData(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  return deepMerge(base, patch);
+}
+
 /** Deep-merge a partial patch into a nested object (arrays replace). */
 function deepMerge(
   base: Record<string, unknown>,

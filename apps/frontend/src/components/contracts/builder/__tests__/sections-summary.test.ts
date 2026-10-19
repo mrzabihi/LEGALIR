@@ -2,8 +2,8 @@
 // LEGALIR — Section summary status tests (§6)
 // ============================================================
 // The detail page's summary row must reflect the REAL completeness,
-// never "did the user open this step". These tests pin the three
-// states and the review step's derived status.
+// never "did the user open this step". These tests pin the three states
+// and the rule that only stages owning data are listed at all.
 // ============================================================
 
 import { describe, it, expect } from "vitest";
@@ -57,29 +57,24 @@ describe("buildSectionSummary", () => {
     expect(items[0]!.reasonFa).toBe("الف، ب و ۲ مورد دیگر");
   });
 
-  it("derives the review step from the other sections", () => {
-    const blocked = buildSectionSummary(STEPS, [
+  it("never lists a stage that owns no fields", () => {
+    const items = buildSectionSummary(STEPS, [
       section("parties", 100),
       section("financial", 40, ["ودیعه"]),
     ]);
-    expect(blocked[3]).toMatchObject({ state: "review", percent: null });
-    expect(blocked[3]!.reasonFa).toBe("۱ بخش هنوز تکمیل نشده است");
-
-    const ready = buildSectionSummary(STEPS, [
-      section("parties", 100),
-      section("financial", 100),
-    ]);
-    expect(ready[3]!.reasonFa).toBeNull();
+    // The review/signature stages are drawn by the lifecycle rail inside
+    // their own steps. Listing them here too made one stage appear twice,
+    // with two different statuses — the duplicated-stage defect.
+    expect(items.map((i) => i.stepId)).toEqual(["parties", "financial"]);
   });
 
-  it("marks the signature stage as its own stage, not as a data step", () => {
+  it("reports a data step as complete only when every owned section is at 100%", () => {
     const items = buildSectionSummary(STEPS, [
       section("parties", 100),
       section("financial", 100),
     ]);
-    // It owns no fields, so it can never be reported as a missing-data
-    // step — but it is told apart from the final review step.
-    expect(items[2]).toMatchObject({ stepId: "signature", state: "stage", percent: null });
-    expect(items[3]).toMatchObject({ stepId: "review", state: "review" });
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.state === "complete" && i.percent === 100)).toBe(true);
+    expect(items.every((i) => i.reasonFa === null)).toBe(true);
   });
 });

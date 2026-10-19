@@ -39,6 +39,7 @@ import {
   useAdminMe,
   useAdminResendInvitations,
 } from "@/hooks/useAdmin";
+import type { AdminContractDetail } from "@/lib/api/admin";
 import { ContractStampPanel } from "./contract-stamp-panel";
 import {
   Badge,
@@ -401,6 +402,21 @@ export function ContractDetailDrawer({
                     ))}
                   </ul>
                 </div>
+              )}
+            </Section>
+
+            {/* --- The FINAL stamped artifact — the printable evidence --- */}
+            <Section
+              title="سند نهایی و مهر رسمی"
+              icon={<IconShield size={16} className="text-primary" />}
+            >
+              {data.finalDocument ? (
+                <FinalDocumentBlock doc={data.finalDocument} />
+              ) : (
+                <p className="text-caption text-muted">
+                  سند نهایی هنوز تولید نشده است. پس از امضای هر دو طرف و تأیید نهایی، نسخهٔ
+                  چاپی با مهر رسمی و هولوگرام در همین بخش در دسترس قرار می‌گیرد.
+                </p>
               )}
             </Section>
 
@@ -1247,6 +1263,81 @@ function Section({
         {title}
       </h4>
       {children}
+    </div>
+  );
+}
+
+/**
+ * The stored FINAL artifact. Unlike the review text above it, this is the
+ * actual printable file the owner downloads: the A4 PDF with the official
+ * seal and the hologram printed at the bottom of EVERY page.
+ *
+ * It is embedded inline so the operator can page through the real artifact
+ * without leaving the drawer; the download button is the same bytes.
+ */
+function FinalDocumentBlock({ doc }: { doc: NonNullable<AdminContractDetail["finalDocument"]> }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        {doc.sealed ? (
+          <Badge tone="success" dot>
+            مهر رسمی + هولوگرام روی همهٔ صفحات
+          </Badge>
+        ) : (
+          <Badge tone="warning" dot>
+            بدون مهر معتبر
+          </Badge>
+        )}
+        <Badge tone="neutral">نسخهٔ نهایی</Badge>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-caption">
+        <Info label="نام فایل" value={doc.fileName} mono />
+        <Info
+          label="حجم"
+          value={`${toPersianNumber(Math.max(1, Math.round(doc.sizeBytes / 1024)))} کیلوبایت`}
+        />
+        <Info label="تولید" value={toPersianDate(doc.uploadedAt)} />
+        <Info label="مهر اعمال‌شده" value={doc.sealedAt ? toPersianDate(doc.sealedAt) : "—"} />
+        <Info label="نسخهٔ مهر" value={doc.sealAssetVersion ?? "—"} mono />
+      </dl>
+
+      <div>
+        <dt className="mb-1 text-caption text-muted">اثر انگشت فایل نهایی (SHA-256)</dt>
+        <dd className="break-all font-mono text-caption text-on-surface" dir="ltr">
+          {doc.hash}
+        </dd>
+      </div>
+
+      {!doc.sealed && (
+        <p className="rounded-medium bg-surface-container-low p-2 text-caption leading-6 text-muted">
+          نسخهٔ نهایی ذخیره شده است، اما مهر رسمی آن دیگر به محتوای فعلی گره نخورده و به‌عنوان
+          مهر معتبر نمایش داده نمی‌شود. برای صدور دوباره، قرارداد باید مجدداً بررسی و مهر شود.
+        </p>
+      )}
+
+      <iframe
+        src={doc.url}
+        title={`سند نهایی ${doc.fileName}`}
+        className="h-[520px] w-full rounded-medium border border-divider bg-surface-container-low"
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <a href={doc.url} target="_blank" rel="noreferrer">
+          <Button startIcon={<IconDocument size={16} />} variant="secondary">
+            باز کردن سند نهایی
+          </Button>
+        </a>
+        <a href={doc.downloadUrl}>
+          <Button startIcon={<IconShield size={16} />} variant="primary">
+            دانلود نسخهٔ مهرشده
+          </Button>
+        </a>
+      </div>
+
+      <p className="text-caption leading-6 text-muted">{doc.sealed
+        ? "چه چیزی در فایل نهایی می‌بینید: مهر رسمی لیگالیر و هولوگرام در پایین هر صفحه، به‌همراه متن سلب‌مسئولیت بررسی؛ واترمارک «پیش‌نویس» روی نسخهٔ نهایی وجود ندارد."
+        : "فایل قابل مشاهده، نسخهٔ نهایی ذخیره‌شده است."}</p>
     </div>
   );
 }

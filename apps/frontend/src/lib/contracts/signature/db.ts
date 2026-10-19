@@ -16,6 +16,7 @@
 // ============================================================
 
 import crypto from "node:crypto";
+import { SIGNATURE_PARTICIPANT_STATUS_FA } from "@legalir/types";
 import type {
   SignatureAttestation,
   SignatureEvent,
@@ -306,4 +307,29 @@ export function activeSignatureRequestDetail(contractId: string): SignatureReque
 export function latestSignatureRequestDetail(contractId: string): SignatureRequestDetail | null {
   const request = latestSignatureRequest(contractId);
   return request ? toRequestDetail(request) : null;
+}
+
+/**
+ * The REAL signature state per rendered role label, for ONE frozen version.
+ *
+ * A signature binds to the version it was applied to and never travels: if
+ * the newest request belongs to a different version, nothing is returned
+ * and the document's table reads «در انتظار امضا» for every role. The
+ * document renderers only ever print what this returns, so an unconfirmed
+ * or other-version signature can never be presented as real.
+ */
+export function signatureMarksForVersion(
+  contractId: string,
+  versionId: string
+): Record<string, { signedAt: string | null; statusFa: string }> {
+  const request = latestSignatureRequestDetail(contractId);
+  if (!request || request.contractVersionId !== versionId) return {};
+  const marks: Record<string, { signedAt: string | null; statusFa: string }> = {};
+  for (const participant of request.participants) {
+    marks[participant.roleFa] = {
+      signedAt: participant.signedAt,
+      statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[participant.status],
+    };
+  }
+  return marks;
 }

@@ -42,6 +42,7 @@ function WizardBody() {
     editable,
     state,
     saveStatus,
+    saveError,
     lastSavedAt,
     saveNow,
     advanceBlockedReason,
@@ -57,13 +58,10 @@ function WizardBody() {
     () => buildSectionSummary(def.wizardSteps, completeness.sections),
     [def.wizardSteps, completeness.sections]
   );
-  // Only data steps can be "the thing still missing". The review and
-  // signature stages own no fields, so they are never offered as a
+  // Only data steps can be "the thing still missing". The summary row is
+  // built from data-owning steps only, so every item here is a real
   // completion target.
-  const firstOpenStep = summaryItems.find(
-    (item) =>
-      item.state !== "complete" && item.state !== "review" && item.state !== "stage"
-  );
+  const firstOpenStep = summaryItems.find((item) => item.state !== "complete");
 
   const handleCopyId = () => {
     void navigator.clipboard?.writeText(contract.referenceCode).then(
@@ -85,6 +83,7 @@ function WizardBody() {
         stepIndex={stepIndex}
         stepCount={stepCount}
         saveStatus={saveStatus}
+        saveError={saveError}
         lastSavedAt={lastSavedAt}
         onRetrySave={() => void saveNow()}
         onCopyId={handleCopyId}

@@ -992,8 +992,8 @@ export interface ContractSupplementary {
    */
   attachmentsConfirmedAt?: string | null;
   /**
-   * ISO timestamp of «تأیید و ادامه به امضا» on the supplementary step.
-   * The signature step reads it to know the material was acknowledged.
+   * ISO timestamp of «تأیید و ادامه به بازبینی» on the supplementary step.
+   * The review step reads it to know the material was acknowledged.
    */
   confirmedAt?: string | null;
 }

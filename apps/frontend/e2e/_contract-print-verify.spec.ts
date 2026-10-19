@@ -9,7 +9,13 @@
  * assert page count, per-page text presence and the page numbering.
  */
 
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Page,
+  type APIRequestContext,
+  type Locator,
+} from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -177,6 +183,31 @@ function filledRentData(base: Record<string, unknown>) {
     ],
     supplementary: { notes: "تمدید قرارداد منوط به توافق کتبی طرفین است." },
   };
+}
+
+/**
+ * The paginator measures on mount and AGAIN after `document.fonts.ready`:
+ * fallback metrics over-estimate, so the page list legitimately shrinks
+ * right after the print root mounts (6 sheets → 3 in this workspace). The
+ * print flow itself awaits fonts before calling `window.print`, so the
+ * printed output is correct — but a spec that samples the DOM immediately
+ * would compare the PDF against a pre-font layout. Wait for the count to
+ * stop changing before measuring anything about it.
+ */
+async function settlePagination(page: Page, root: Locator): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts?.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+  });
+  let last = -1;
+  for (let i = 0; i < 50; i++) {
+    const count = await root.locator(".a4-page").count();
+    if (count === last && count > 0) return;
+    last = count;
+    await page.waitForTimeout(100);
+  }
 }
 
 async function seed(request: APIRequestContext, sessionId: string): Promise<string> {
@@ -372,6 +403,9 @@ test("cloud IaaS print output — service model, tables, A4, page numbers", asyn
   const printRoot = page.locator(".a4-print-root");
   await expect(printRoot).toBeAttached({ timeout: 15_000 });
   await expect(printRoot.locator(".a4-page").first()).toBeVisible();
+  // Pre-font measurements over-estimate; compare the PDF against the
+  // SETTLED pagination, which is what the browser prints.
+  await settlePagination(page, printRoot);
 
   const domPages = await printRoot.locator(".a4-page").count();
   const clipped = await printRoot.locator(".a4-page").evaluateAll((els) =>
@@ -536,6 +570,9 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
   const printRoot = page.locator(".a4-print-root");
   await expect(printRoot).toBeAttached({ timeout: 15_000 });
   await expect(printRoot.locator(".a4-page").first()).toBeVisible();
+  // Pre-font measurements over-estimate; compare the PDF against the
+  // SETTLED pagination, which is what the browser prints.
+  await settlePagination(page, printRoot);
 
   // Clipping check on the ACTUAL print root: `overflow: hidden` would
   // silently cut content that the paginator mis-measured.
@@ -662,8 +699,11 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
       : -1;
     const sigBox = box(signatures[0] ?? null);
     const lastPageBox = box(pages[pages.length - 1] ?? null);
-    const sigBoxes = Array.from(root.querySelectorAll(".a4-signature-box"));
+    // The signing area is an RTL table, one row per party. A row — not a
+    // floating box — is what makes «who signs where» unambiguous on paper.
+    const sigRows = Array.from(root.querySelectorAll(".a4-signature-table tbody tr"));
     const rules = Array.from(root.querySelectorAll(".a4-signature-rule"));
+    const nameCells = Array.from(root.querySelectorAll(".a4-signature-name"));
 
     // --- §2.5 parties: two columns, party 1 (landlord) LEFT, party 2 RIGHT.
     // Scoped by caption, so a different two-column table can never satisfy it.
@@ -692,10 +732,15 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
       signatureOnLastPage: sigPageIndex === pages.length - 1,
       signatureInsideLastPage:
         !!sigBox && !!lastPageBox && sigBox.top >= lastPageBox.top - 1 && sigBox.bottom <= lastPageBox.bottom + 1,
-      signatureBoxCount: sigBoxes.length,
-      // A ruled area inside each signer's box is the physical space a wet
-      // signature goes in; a zero-height rule means no real signing area.
+      signatureRowCount: sigRows.length,
+      // A ruled area inside each row is the physical space a wet signature
+      // goes in; a zero-height rule means no real signing area.
       signatureRulesLegible: rules.every((r) => r.getBoundingClientRect().height >= 6),
+      // ≥14px bold: the party's name is the identifying fact on the sheet.
+      signatureNamesLegible: nameCells.every((n) => {
+        const style = getComputedStyle(n);
+        return parseInt(style.fontSize, 10) >= 14 && parseInt(style.fontWeight, 10) >= 700;
+      }),
       partyHeaderCount: headers.length,
       headers,
       partyCells: cellBoxes.length,
@@ -730,8 +775,12 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
   expect(sheetGeometry.signatureCount, "the signature block is missing or duplicated").toBe(1);
   expect(sheetGeometry.signatureOnLastPage, "the signature block is not on the last page").toBe(true);
   expect(sheetGeometry.signatureInsideLastPage, "the signature block spills past its page").toBe(true);
-  expect(sheetGeometry.signatureBoxCount, "not every signer has a signature box").toBeGreaterThanOrEqual(2);
+  expect(sheetGeometry.signatureRowCount, "not every signer has a table row").toBeGreaterThanOrEqual(2);
   expect(sheetGeometry.signatureRulesLegible, "a signing rule has no writable height").toBe(true);
+  expect(
+    sheetGeometry.signatureNamesLegible,
+    "a party's name is not ≥14px bold"
+  ).toBe(true);
   // §2.5 — two columns; party 1 left, party 2 right.
   expect(sheetGeometry.partyHeaderCount, "the parties table is not two columns").toBe(2);
   expect(sheetGeometry.headers[0], "the right column is not party 2").toContain("مستأجر");
@@ -805,8 +854,10 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
   expect(report.allPagesA4, "a printed page is not A4").toBe(true);
   expect(report.refCodeOnPage2, "the running head is missing on page 2").toBe(true);
 
-  // Block B — letterhead: logo and identification sit top-left, the title
-  // is centred on its own line, and nothing overlaps anything.
+  // Block B — letterhead: the logo keeps the physical top-left and the
+  // identification block is RIGHT-ALIGNED on the opposite side, where a
+  // Persian reader looks for the document identity. The title is centred on
+  // its own line, and nothing overlaps anything.
   expect(report.letterhead.logo, "the letterhead logo is missing").toBeTruthy();
   expect(report.letterhead.meta, "the identification block is missing").toBeTruthy();
   expect(report.letterhead.title, "the document title is missing").toBeTruthy();
@@ -814,12 +865,15 @@ test("contract print output — real PDF, A4, page numbers", async ({ page, requ
   expect(report.letterhead.logoOverlapsTitle, "logo overlaps the title").toBe(false);
   expect(report.letterhead.metaOverlapsTitle, "identification block overlaps the title").toBe(false);
   expect(report.letterhead.titleCentred, "the document title is not centred").toBe(true);
-  // The identification block sits in the LEFT HALF of the sheet (the title
-  // spans the full width, so its own box cannot be the reference point).
+  // The title spans the full width, so it cannot be the reference point:
+  // compare against the letterhead container's own midline.
   const { container } = report.letterhead;
   const midpoint = container.left + container.width / 2;
-  expect(report.letterhead.meta!.left).toBeLessThan(midpoint);
-  expect(report.letterhead.logo!.left).toBeLessThan(midpoint);
+  expect(
+    report.letterhead.meta!.right,
+    "the identification block is not in the right half"
+  ).toBeGreaterThan(midpoint);
+  expect(report.letterhead.logo!.left, "the logo is not at the physical left").toBeLessThan(midpoint);
 
   // Block B — tables: real tables with repeating headings and whole rows.
   expect(report.tables.length, "the document has no tables").toBeGreaterThan(0);

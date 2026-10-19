@@ -28,7 +28,10 @@ import type {
   ContractLegalClauseRecord,
   ContractPreSignTip,
   ContractTypeId,
+  GenericContractData,
   PropertyContract,
+  PropertyRentData,
+  PropertySaleData,
 } from "@legalir/types";
 import { readTable, writeTable } from "@/lib/db";
 import {
@@ -303,10 +306,54 @@ export interface LegalReviewKnownClause {
 }
 
 /**
- * Every clause a type can emit, with its real heading — rendered from a
- * throwaway, empty contract so the registry stays the single source. Used
- * only to LABEL the report rows; nothing here is stored.
+ * Fill the synthetic data so EVERY clause the type CAN emit renders.
+ *
+ * The default data leaves optional steps empty and conditional clauses off,
+ * which would hide a real clause (e.g. `rent.late_penalty` or a schema-driven
+ * `generic.obligations`). The legal report must still name it, so the
+ * catalog renders from a maximal draft, never from the printable defaults.
  */
+function maximisedSyntheticData(typeId: ContractTypeId): PropertyContract["data"] {
+  const def = getContractDefinition(typeId);
+  const data = def.createDefaultData("apartment");
+
+  if (def.fields.length > 0) {
+    const generic = data as GenericContractData;
+    const values = { ...(generic.values ?? {}) };
+    for (const f of def.fields) {
+      // Satisfy a conditional gate before deciding the field applies.
+      if (f.requiredWhen) {
+        const gate = f.requiredWhen;
+        if (gate.oneOf?.length) {
+          values[gate.key] = gate.oneOf[0] ?? null;
+        } else if (gate.equals !== undefined) {
+          values[gate.key] = gate.equals;
+        }
+      }
+      if (values[f.key] !== undefined && values[f.key] !== null && values[f.key] !== "") continue;
+      values[f.key] =
+        f.kind === "number" || f.kind === "money"
+          ? 1
+          : f.kind === "toggle"
+            ? true
+            : f.kind === "date"
+              ? "2026-01-01"
+              : f.kind === "repeatable"
+                ? []
+                : "—";
+    }
+    return { ...generic, values };
+  }
+
+  const property = data as PropertyRentData | PropertySaleData;
+  if (typeId === "property_rent") {
+    const rent = data as PropertyRentData;
+    rent.terms.hasLatePenalty = true;
+    rent.terms.latePenaltyAmount = { amount: 1_000_000, currency: "IRR" };
+  }
+  return property;
+}
+
 function knownClausesForType(typeId: ContractTypeId): LegalReviewKnownClause[] {
   const def = getContractDefinition(typeId);
   const now = new Date().toISOString();
@@ -327,7 +374,7 @@ function knownClausesForType(typeId: ContractTypeId): LegalReviewKnownClause[] {
     progress: 0,
     templateVersion: def.templateVersion,
     schemaVersion: def.schemaVersion,
-    data: def.createDefaultData("apartment"),
+    data: maximisedSyntheticData(typeId),
     currentVersionId: null,
     currentVersionNumber: 0,
     finalVersionId: null,

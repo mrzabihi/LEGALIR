@@ -16,9 +16,9 @@
 //
 // «مادهٔ بازبینی» shows, before anything is confirmed, exactly what this
 // step will print — so the user is approving a visible text, not a
-// promise. The step ends with one explicit «تأیید و ادامه به امضا» that
-// saves and advances, and it refuses to advance while a row is
-// half-filled or a written note has not been confirmed yet.
+// promise. The step ends with one explicit «تأیید و ادامه به بازبینی» that
+// saves and advances to the review stage, and it refuses to advance while
+// a row is half-filled or a written note has not been confirmed yet.
 //
 // Every row lives in `data.customClauses`, the note in
 // `data.supplementary`; nothing here writes directly into another
@@ -38,7 +38,7 @@ import {
   AddRowButton,
   Notice,
 } from "../primitives";
-import { getContractDefinition } from "@/lib/contracts/registry";
+import { getContractDefinition, TERMINAL_WIZARD_STEP_IDS } from "@/lib/contracts/registry";
 import { formatIsoJalaliDateTime } from "@/lib/contracts/dates";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { IconArrowForward, IconFile, IconUpload } from "@/lib/icons";
@@ -91,6 +91,8 @@ export function SupplementaryStep() {
     patchData,
     patchDataNow,
     saveStatus,
+    saveError,
+    getSaveError,
     lastSavedAt,
     saveNow,
     goToStep,
@@ -130,13 +132,14 @@ export function SupplementaryStep() {
   const confirmedAt = supplementary.confirmedAt ?? null;
 
   // «کل قرارداد» is the empty value; every other option names the step
-  // the entry is about. The review and supplementary steps are excluded —
-  // a note about the note has no place in the document.
+  // the entry is about. The supplementary step itself and the terminal
+  // stages (review/signature/final) are excluded — they own no contract
+  // text, so nothing in the document can be "about" them.
   const sectionOptions = useMemo(
     () => [
       { value: "", label: "کل قرارداد" },
       ...def.wizardSteps
-        .filter((s) => s.id !== "review" && s.id !== "supplementary")
+        .filter((s) => s.id !== "supplementary" && !TERMINAL_WIZARD_STEP_IDS.includes(s.id))
         .map((s) => ({ value: s.id, label: s.titleFa })),
     ],
     [def.wizardSteps]
@@ -378,13 +381,19 @@ export function SupplementaryStep() {
     } as Partial<ContractDomainData>);
     if (!persisted) {
       setStepAction("error");
-      setBlockedMessage("تأیید ذخیره نشد. اتصال را بررسی کنید و دوباره تلاش کنید.");
+      // Name the REAL failure the API reported; a generic «اتصال» message
+      // sent users into a retry loop for conflicts and validation errors
+      // that no amount of retrying could resolve.
+      const cause = getSaveError();
+      setBlockedMessage(
+        cause ? `تأیید ذخیره نشد — ${cause.messageFa}` : "تأیید ذخیره نشد. دوباره تلاش کنید."
+      );
       return;
     }
     setStepAction("saved");
-    // The confirmed supplementary step leads straight to the signature
-    // stage — review stays reachable from there for the final preview.
-    goToStep("signature");
+    // Confirmed material goes to the review stage next: the parties must
+    // see exactly what will be signed BEFORE the signing links are sent.
+    goToStep("review");
   };
 
   const saveLine =
@@ -395,7 +404,9 @@ export function SupplementaryStep() {
           ? `ذخیره شد — ${formatIsoJalaliDateTime(lastSavedAt)}`
           : "ذخیره شد."
         : saveStatus === "error"
-          ? "ذخیره نشد. اتصال را بررسی کنید و دوباره تلاش کنید."
+          ? saveError
+            ? `ذخیره نشد — ${saveError.messageFa}`
+            : "ذخیره نشد. دوباره تلاش کنید."
           : "تغییری در انتظار ذخیره نیست.";
 
   return (
@@ -760,7 +771,7 @@ export function SupplementaryStep() {
             role={saveStatus === "error" ? "alert" : undefined}
           >
             <span>{saveLine}</span>
-            {saveStatus === "error" && (
+            {saveStatus === "error" && (!saveError || saveError.retryable) && (
               <Button
                 type="button"
                 variant="text"
@@ -786,7 +797,7 @@ export function SupplementaryStep() {
             <p className="text-caption text-muted">
               {confirmedAt
                 ? `این مرحله در ${formatIsoJalaliDateTime(confirmedAt)} تأیید شده است.`
-                : "با تأیید، خلاصهٔ بالا ذخیره و مرحلهٔ امضا باز می‌شود."}
+                : "با تأیید، خلاصهٔ بالا ذخیره و مرحلهٔ بازبینی باز می‌شود."}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {confirmedAt && (
@@ -808,10 +819,10 @@ export function SupplementaryStep() {
                 {stepAction === "saving"
                   ? "در حال تأیید…"
                   : confirmedAt
-                    ? "ادامه به مرحله امضا"
+                    ? "ادامه به بازبینی و پیش‌نمایش"
                     : stepAction === "error"
                       ? "تلاش مجدد برای تأیید"
-                      : "تأیید و ادامه به امضا"}
+                      : "تأیید و ادامه به بازبینی"}
               </Button>
             </div>
           </div>

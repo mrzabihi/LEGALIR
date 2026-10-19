@@ -58,6 +58,7 @@ import {
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { computeCompleteness } from "@/lib/contracts/completeness";
+import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { listReviewComments } from "@/lib/contracts/review-db";
 import {
   latestSignatureRequestDetail,
@@ -147,6 +148,32 @@ export async function GET(request: NextRequest, { params }: Params) {
   // the preview and the PDF use, so what is approved is what the owner sees.
   const rendered = renderContract(contract, parties, payments);
   const owner = findUserById(contract.userId);
+
+  // The FINAL artifact is the printable evidence. The owner-facing routes
+  // are owner-scoped, so the admin needs its own: the stored `final_pdf`
+  // row (seal + hologram drawn on every page) plus whether the stamp that
+  // produced it is still validly bound to the final version's hash.
+  const finalDoc = documents.find((d) => d.category === "final_pdf") ?? null;
+  const finalVersion = contract.finalVersionId
+    ? getVersion(contract.id, contract.finalVersionId)
+    : null;
+  const finalSeal = finalVersion
+    ? currentVersionStamp(contract, finalVersion.documentHash)
+    : null;
+  const finalDocument = finalDoc
+    ? {
+        documentId: finalDoc.id,
+        fileName: finalDoc.fileName,
+        sizeBytes: finalDoc.sizeBytes,
+        hash: finalDoc.hash,
+        uploadedAt: finalDoc.uploadedAt,
+        sealed: finalSeal !== null,
+        sealAssetVersion: finalSeal?.stampAssetVersion ?? null,
+        sealedAt: finalSeal?.appliedAt ?? null,
+        url: `/api/v1/admin/contracts/${contract.id}/final-document`,
+        downloadUrl: `/api/v1/admin/contracts/${contract.id}/final-document?download=1`,
+      }
+    : null;
 
   // §2.4 — the reviewer records the whole lifecycle, not just the rendered
   // text: what the owner asked to change, the note they confirmed, every
@@ -324,6 +351,9 @@ export async function GET(request: NextRequest, { params }: Params) {
         text: CONTRACT_REVIEW_STAMP_TEXT,
         disclaimerFa: CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
       },
+      // The stored final PDF (seal + hologram on every page) — opened
+      // inline by the drawer, downloadable as evidence.
+      finalDocument,
     },
   });
 }

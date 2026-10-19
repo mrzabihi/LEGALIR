@@ -42,15 +42,17 @@ import { implementedContractDefinitions, getContractDefinition } from "@/lib/con
 // --- Registry invariants ----------------------------------------------------
 
 describe("supplementary step — registry", () => {
-  it("leads straight to signature, with review right after it", () => {
+  it("leads into the four-stage final flow: review → signature → final", () => {
     for (const def of implementedContractDefinitions()) {
       const ids = def.wizardSteps.map((s) => s.id);
       const i = ids.indexOf("supplementary");
       expect(i, `${def.id} has no supplementary step`).toBeGreaterThanOrEqual(0);
-      // «تأیید و ادامه به امضا» — the signature stage follows the
-      // confirmed supplementary material directly.
-      expect(ids[i + 1], `${def.id} puts signature right after supplementary`).toBe("signature");
-      expect(ids[i + 2], `${def.id} puts review right after signature`).toBe("review");
+      // The supplementary material is confirmed, THEN previewed/reviewed,
+      // and only then signed — the review must never come after the
+      // signature, or the parties would sign content nobody reviewed.
+      expect(ids[i + 1], `${def.id} puts review right after supplementary`).toBe("review");
+      expect(ids[i + 2], `${def.id} puts signature right after review`).toBe("signature");
+      expect(ids[i + 3], `${def.id} puts final right after signature`).toBe("final");
     }
   });
 
@@ -288,7 +290,7 @@ describe("supplementary step — UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "افزودن توافق" }));
     fireEvent.change(screen.getByLabelText("عنوان"), { target: { value: "شرط نیمه‌کاره" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
 
     expect(
       screen.getByText("پیش از ادامه، متن ۱ مورد نیمه‌کاره را کامل کنید.")
@@ -301,7 +303,7 @@ describe("supplementary step — UI", () => {
       target: { value: "یادداشت تأییدنشده" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
 
     expect(
       screen.getByText(
@@ -310,7 +312,7 @@ describe("supplementary step — UI", () => {
     ).toBeInTheDocument();
   });
 
-  it("records the step confirmation when the user advances to signature", async () => {
+  it("records the step confirmation when the user advances to review", async () => {
     updatePropertyContract.mockResolvedValue({
       ...makeContract(),
       progress: 60,
@@ -318,7 +320,7 @@ describe("supplementary step — UI", () => {
     });
     renderStep();
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
 
     // The advance schedules the normal autosave with the new step id.
     await act(async () => {
@@ -330,7 +332,7 @@ describe("supplementary step — UI", () => {
       currentStep?: string;
       data?: { supplementary?: { confirmedAt?: string | null } };
     };
-    expect(last.currentStep).toBe("signature");
+    expect(last.currentStep).toBe("review");
     // The approved state is persisted with the navigation — a confirmed
     // step is never "navigated to" without a matching saved timestamp.
     expect(last.data?.supplementary?.confirmedAt).toBeTruthy();
@@ -385,7 +387,7 @@ describe("supplementary step — UI", () => {
       },
     ], { confirmedAttachments: false });
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
     expect(
       screen.getByText(
         "پیوست‌های قرارداد ثبت شده‌اند اما هنوز تأیید نشده‌اند. ابتدا دکمهٔ «تأیید پیوست‌ها» را بزنید."

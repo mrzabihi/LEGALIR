@@ -22,6 +22,8 @@ import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { renderContractPdf } from "@/lib/contracts/pdf";
 import { mergedLegalBasisCatalog, preSignTipsForType } from "@/lib/contracts/legal-review-db";
+import { signatureMarksForVersion } from "@/lib/contracts/signature/db";
+import { stateLabelFa } from "@/lib/contracts/state-machine";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -82,6 +84,11 @@ export async function GET(request: Request, { params }: Params) {
       baseUrl,
       legalBasisCatalog: mergedLegalBasisCatalog(),
       preSignTips: preSignTipsForType(contract.type),
+      stateFa: stateLabelFa(contract.state),
+      // REAL per-party signature state, read from the request bound to THIS
+      // version. A request for another version yields no marks, so a
+      // signature can never be printed onto a document it does not cover.
+      signatureMarks: signatureMarksForVersion(contract.id, version.id),
       stamp: approval
         ? {
             applied: true,

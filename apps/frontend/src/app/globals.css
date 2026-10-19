@@ -2535,22 +2535,16 @@ html {
   margin-bottom: 4px;
 }
 
-/* Logo and identification block hug the TOP-LEFT corner. `direction: ltr`
-   anchors the group to the physical left edge; the meta text itself stays
-   RTL so Persian reads correctly. The title is a separate, centred line. */
+/* The mark keeps the physical TOP-LEFT corner; the identification block is
+   RIGHT-ALIGNED on the opposite side of the same row. `direction: ltr` makes
+   `space-between` mean physical left/right; the meta text itself stays RTL so
+   Persian reads correctly. The title is a separate, centred line. */
 .a4-letterhead-top {
   display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 16px;
   direction: ltr;
-}
-
-.a4-letterhead-ident {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
 }
 
 .a4-letterhead-logo {
@@ -2565,6 +2559,7 @@ html {
   font-size: 10px;
   line-height: 1.9;
   color: var(--a4-muted);
+  min-width: 0;
 }
 
 .a4-doc-type {
@@ -2600,53 +2595,107 @@ html {
   color: var(--a4-ink);
 }
 
-/* --- Review mark (only on an approved version) --- */
+/* --- Review mark (on EVERY page of an approved version) ---
+   The mark is multi-line and uses real per-contract review fields. It sits
+   in the reserved footer band, never over the contract text, and the
+   mandatory disclaimer is the last line of the block itself — so a stamp
+   can never be printed without it. */
 
 .a4-review-stamp {
-  margin-top: 10px;
   display: inline-flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   border: 2px dashed #1c4e9c;
   border-radius: 6px;
-  padding: 6px 12px;
+  padding: 5px 10px;
   color: #1c4e9c;
+  max-width: 96mm;
+}
+
+.a4-review-stamp-page {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .a4-review-stamp-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .a4-review-stamp-meta,
 .a4-review-stamp-note {
-  font-size: 9px;
-  line-height: 1.7;
-  max-width: 130mm;
+  font-size: 8px;
+  line-height: 1.65;
+  max-width: 92mm;
 }
 
-/* --- Official seal + print-only hologram (Super-Admin stamped only) --- */
+.a4-review-stamp-note {
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px dotted rgba(28, 78, 156, 0.4);
+}
 
-.a4-official-mark {
-  margin-top: 10px;
+/* --- The per-page mark row: review block (reading edge) + official seal
+   group (physical bottom-left) ---
+   Both occupants live INSIDE the measured footer band, so neither can ever
+   overlap body text, tables, signatures or the page number. The row is
+   `space-between` in physical LTR, which is what puts the seal/hologram
+   group at the bottom-LEFT and the review mark at the right. */
+
+.a4-page-marks {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4mm;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6mm;
+  direction: ltr;
+  padding: 1mm 0;
 }
 
-.a4-seal,
+/* --- Official seal + print-only hologram (Super-Admin stamped only) ---
+   §4 — the seal is enlarged to 40mm (was 16mm) and the hologram to 32mm
+   (was 16mm). Both keep `width: auto` + `object-fit: contain`, so the
+   aspect ratio of the source art is preserved — never stretched. */
+
+.a4-page-official {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 4mm;
+  flex: 0 0 auto;
+}
+
+.a4-seal {
+  display: block;
+  width: auto;
+  height: 40mm;
+  max-width: 42mm;
+  object-fit: contain;
+}
+
 .a4-hologram {
   display: block;
-  width: 22mm;
-  height: 22mm;
+  width: auto;
+  height: 32mm;
+  max-width: 32mm;
   object-fit: contain;
 }
 
 .a4-hologram-wrap {
   position: relative;
-  width: 22mm;
-  height: 22mm;
+  height: 32mm;
+  width: 32mm;
+  flex: 0 0 auto;
+}
+
+/* The per-page disclaimer printed under the seal row — the same sentence
+   the server PDF writes at the very bottom of the band. */
+.a4-page-official-note {
+  display: block;
+  text-align: center;
+  font-size: 8px;
+  line-height: 1.6;
+  color: var(--a4-muted);
 }
 
 /* The ink exists in the DOM on every surface, but is only PAINTED by
@@ -2686,6 +2735,13 @@ html {
   line-height: 1.7;
   color: var(--a4-accent);
   font-weight: 600;
+}
+
+/* The letterhead records the approval as TEXT; the seal/hologram images
+   themselves are drawn in the footer of each page (`.a4-page-official`). */
+.a4-official-letterhead {
+  display: block;
+  margin-top: 8px;
 }
 
 @media print {
@@ -2767,52 +2823,115 @@ html {
   page-break-inside: avoid;
 }
 
-/* --- Signatures --- */
+/* --- Signatures ---
+   §6 — the signature area is an RTL TABLE (role / full name / signing place /
+   state), not floating boxes: the two parties stay aligned and «who signs
+   where» is unambiguous. The whole block is one unbreakable unit in the
+   paginator, so the table is moved to a fresh page rather than split, and a
+   row is never broken mid-cell. The party's full name is 14px bold. */
 
 .a4-signatures {
   border-top: 1px solid var(--a4-line);
   padding-top: 10px;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
-.a4-signature-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.a4-signature-table {
+  width: 100%;
   margin-top: 8px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 10.5px;
+  line-height: 1.8;
+  color: var(--a4-ink);
 }
 
-.a4-signature-box {
-  border: 1px dashed #b9c4bf;
-  border-radius: 6px;
-  padding: 8px 10px;
-  min-height: 92px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.a4-signature-table th,
+.a4-signature-table td {
+  border: 1px solid #b9c4bf;
+  padding: 7px 8px;
+  text-align: right;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.a4-signature-table thead th {
+  background: #f1f6f3;
+  color: var(--a4-accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.a4-signature-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Column budget: role 20% · name 30% · signing place 28% · state 22%. */
+.a4-signature-table thead th:nth-child(1),
+.a4-signature-table tbody th {
+  width: 20%;
+}
+.a4-signature-table thead th:nth-child(2) {
+  width: 30%;
+}
+.a4-signature-table thead th:nth-child(3) {
+  width: 28%;
+}
+.a4-signature-table thead th:nth-child(4) {
+  width: 22%;
 }
 
 .a4-signature-role {
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
   color: var(--a4-muted);
 }
 
 .a4-signature-name {
-  font-size: 12.5px;
-  font-weight: 600;
+  display: block;
+  /* ≥14px bold — the party's name is the identifying fact on the sheet. */
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
   color: var(--a4-ink);
 }
 
-.a4-signature-id,
-.a4-signature-date,
+.a4-signature-id {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--a4-muted);
+}
+
+.a4-signature-place {
+  padding: 4px 8px;
+}
+
 .a4-signature-state {
   font-size: 9.5px;
   color: var(--a4-muted);
 }
 
-.a4-signature-state {
-  margin-top: auto;
-  font-weight: 600;
+.a4-signature-state-label {
+  display: block;
+  font-weight: 700;
   color: var(--a4-accent);
+}
+
+.a4-signature-pending {
+  display: block;
+  font-size: 9.5px;
+  color: var(--a4-muted);
+}
+
+.a4-signature-date {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--a4-muted);
 }
 
 .a4-footer-note {
@@ -2943,12 +3062,13 @@ html {
 
 /* --- Signature block (§2.6) --- */
 
-/* A ruled signing area inside each party's box: the physical space for a
-   wet signature or paraphe, distant from the typed name above it. */
+/* The ruled signing area inside the table's «محل امضا» cell: the physical
+   space for a wet signature or paraphe, distant from the typed name so the
+   two can never be confused with an electronic signature. */
 .a4-signature-rule {
-  height: 16mm;
+  height: 15mm;
   border-bottom: 1px solid #9fb0a9;
-  margin: 5px 0 3px;
+  margin: 2px 0;
 }
 
 /* --- Hidden measurer --- */

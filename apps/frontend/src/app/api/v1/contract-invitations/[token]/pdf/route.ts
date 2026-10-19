@@ -21,12 +21,14 @@ import { NextResponse } from "next/server";
 import {
   findInvitationByTokenHash,
   getSignatureRequest,
+  signatureMarksForVersion,
 } from "@/lib/contracts/signature/db";
 import { getContractById, getVersion } from "@/lib/contracts/db";
 import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { renderContractPdf } from "@/lib/contracts/pdf";
 import { mergedLegalBasisCatalog, preSignTipsForType } from "@/lib/contracts/legal-review-db";
+import { stateLabelFa } from "@/lib/contracts/state-machine";
 
 interface Params {
   params: Promise<{ token: string }>;
@@ -93,6 +95,10 @@ export async function GET(request: Request, { params }: Params) {
       baseUrl: new URL(request.url).origin,
       legalBasisCatalog: mergedLegalBasisCatalog(),
       preSignTips: preSignTipsForType(contract.type),
+      stateFa: stateLabelFa(contract.state),
+      // The invited party sees the TRUE state of every role on the version
+      // they were invited to sign — no more and no less.
+      signatureMarks: signatureMarksForVersion(contract.id, version.id),
       stamp: approval
         ? {
             applied: true,

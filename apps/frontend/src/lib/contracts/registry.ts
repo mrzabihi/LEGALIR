@@ -347,24 +347,47 @@ function emptyHandover() {
  */
 const SUPPLEMENTARY_STEP: WizardStepDescriptor = {
   id: "supplementary",
-  titleFa: "اطلاعات تکمیلی و تغییرات",
-  descriptionFa: "یادداشت، توافقات خاص و درخواست تغییر — پیش از پیش‌نمایش",
+  titleFa: "تکمیل اطلاعات تکمیلی",
+  descriptionFa: "یادداشت، توافق‌های خاص و پیوست‌های قرارداد — پیش از بازبینی نهایی",
   sections: [],
 };
 
 /**
+ * The terminal stages — «بازبینی و پیش‌نمایش», «امضای طرفین» and
+ * «نسخه نهایی». They own no editable fields: each one reads and drives
+ * the lifecycle engine, so anything that counts, lists or navigates by
+ * "sections the user fills in" must skip all three. A stage that was
+ * counted as a fillable section appeared twice — once as a step and once
+ * as a summary card — which is the duplicated-stage confusion the final
+ * flow was simplified to remove.
+ */
+export const TERMINAL_WIZARD_STEP_IDS: readonly string[] = ["review", "signature", "final"];
+
+/**
  * The signature stage, shared by EVERY contract type.
  *
- * It sits immediately after the supplementary confirmation and before the
- * final review: the parties' material is confirmed, the final version and
- * note are shown once more, and the invitation is sent to each party's
- * registered mobile. It owns no data sections — it reads and drives the
- * lifecycle engine, so it can never block the wizard on missing fields.
+ * It sits after the review stage: the parties' material is confirmed and
+ * reviewed, the final version and note are shown once more, and the
+ * invitation is sent to each party's registered mobile. It owns no data
+ * sections — it reads and drives the lifecycle engine, so it can never
+ * block the wizard on missing fields.
  */
 const SIGNATURE_STEP: WizardStepDescriptor = {
   id: "signature",
-  titleFa: "امضا",
-  descriptionFa: "مرور نسخهٔ نهایی و ارسال برای طرفین جهت امضا",
+  titleFa: "امضای طرفین",
+  descriptionFa: "ارسال لینک امضا به هر طرف و پیگیری وضعیت امضای همان نسخه",
+  sections: [],
+};
+
+/**
+ * The fourth and last final stage: the immutable final copy. It owns no
+ * editable data — it finalises the signed version and exposes the
+ * archived PDF/Word and the public verification page.
+ */
+const FINAL_STEP: WizardStepDescriptor = {
+  id: "final",
+  titleFa: "نسخه نهایی",
+  descriptionFa: "نهایی‌سازی نسخهٔ امضاشده و دریافت فایل‌های بایگانی",
   sections: [],
 };
 
@@ -416,13 +439,14 @@ const RENT_STEPS: WizardStepDescriptor[] = [
     sections: ["documents"],
   },
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   {
     id: "review",
     titleFa: "بازبینی و پیش‌نمایش",
-    descriptionFa: "متن نهایی قرارداد را بررسی کنید",
+    descriptionFa: "متن نهایی را ببینید و برای امضای طرفین آماده کنید",
     sections: [],
   },
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const RENT_SECTIONS: ContractSectionDefinition[] = [
@@ -612,13 +636,14 @@ const SALE_STEPS: WizardStepDescriptor[] = [
     sections: ["documents"],
   },
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   {
     id: "review",
     titleFa: "بازبینی و پیش‌نمایش",
-    descriptionFa: "متن نهایی قرارداد را بررسی کنید",
+    descriptionFa: "متن نهایی را ببینید و برای امضای طرفین آماده کنید",
     sections: [],
   },
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const SALE_SECTIONS: ContractSectionDefinition[] = [
@@ -840,7 +865,7 @@ function sectionsFromFields(
 const REVIEW_STEP: WizardStepDescriptor = {
   id: "review",
   titleFa: "بازبینی و پیش‌نمایش",
-  descriptionFa: "متن نهایی قرارداد را بررسی کنید",
+  descriptionFa: "متن نهایی را ببینید و برای امضای طرفین آماده کنید",
   sections: [],
 };
 
@@ -853,8 +878,9 @@ const VEHICLE_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و شرایط", "تخلفات، خسارت و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const VEHICLE_FIELDS: ContractFieldDescriptor[] = [
@@ -935,8 +961,9 @@ const DEBT_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "وجه التزام تأخیر و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const DEBT_FIELDS: ContractFieldDescriptor[] = [
@@ -992,8 +1019,9 @@ const FREELANCE_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const FREELANCE_FIELDS: ContractFieldDescriptor[] = [
@@ -1041,8 +1069,9 @@ const NDA_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و ضمانت اجرا", "تعهدات طرفین و وجه التزام نقض", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const NDA_FIELDS: ContractFieldDescriptor[] = [
@@ -1103,8 +1132,9 @@ const SAAS_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین، SLA و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const SAAS_FIELDS: ContractFieldDescriptor[] = [
@@ -1174,8 +1204,9 @@ const STARTUP_STEPS: WizardStepDescriptor[] = [
   step("obligations", "محرمانگی و حل اختلاف", "عدم رقابت، مالکیت معنوی و حل اختلاف", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const STARTUP_FIELDS: ContractFieldDescriptor[] = [
@@ -1278,8 +1309,9 @@ const EMPLOYMENT_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و شروط خاص", "تعهدات متقابل، محرمانگی و شروط توافق‌شده", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const EMPLOYMENT_FIELDS: ContractFieldDescriptor[] = [
@@ -1445,8 +1477,9 @@ const COMMERCIAL_RENT_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "تعهدات طرفین، تعمیرات، فسخ و تخلیه", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const COMMERCIAL_RENT_FIELDS: ContractFieldDescriptor[] = [
@@ -1548,8 +1581,9 @@ const COMMERCIAL_SALE_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و تحویل", "تخلیه، بدهی‌های قبلی و تجهیزات", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 const COMMERCIAL_SALE_FIELDS: ContractFieldDescriptor[] = [
@@ -1659,8 +1693,9 @@ const CLOUD_SHARED_STEPS: WizardStepDescriptor[] = [
   step("obligations", "تعهدات و فسخ", "مسئولیت‌ها، جریمه و شرایط فسخ", ["obligations"]),
   step("documents", "مدارک", "بارگذاری مدارک لازم", ["documents"]),
   SUPPLEMENTARY_STEP,
-  SIGNATURE_STEP,
   REVIEW_STEP,
+  SIGNATURE_STEP,
+  FINAL_STEP,
 ];
 
 function cloudServiceFields(model: "iaas" | "paas" | "baas"): ContractFieldDescriptor[] {

@@ -53,9 +53,10 @@ import { createVersion } from "./snapshot";
 import { currentVersionApproval } from "./admin-review";
 import { currentVersionStamp } from "./stamp-review";
 import { evaluateRegistrationPolicy } from "./registration-policy";
-import { assertTransition, IllegalTransitionError } from "./state-machine";
+import { assertTransition, IllegalTransitionError, stateLabelFa } from "./state-machine";
 import { renderContractPdf } from "./pdf";
 import { mergedLegalBasisCatalog, preSignTipsForType } from "./legal-review-db";
+import { signatureMarksForVersion } from "./signature/db";
 import { writeContractFile } from "./storage";
 
 /** The review mark recorded on the final version's metadata. */
@@ -196,6 +197,10 @@ async function storeFinalArtifact(params: {
       // the type's non-compulsory pre-sign tips, exactly like a draft.
       legalBasisCatalog: mergedLegalBasisCatalog(),
       preSignTips: preSignTipsForType(contract.type),
+      stateFa: stateLabelFa(contract.state),
+      // The sealed final PDF records what each party really signed, for
+      // THIS version and no other.
+      signatureMarks: signatureMarksForVersion(contract.id, version.id),
       stamp: {
         applied: true,
         reviewedAt: stamp.reviewedAt ?? undefined,
