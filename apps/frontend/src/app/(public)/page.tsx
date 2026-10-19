@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 };
 
 const statsItems = [
-  { value: "۳+", label: "خدمات اصلی", icon: IconCheckCircle },
+  { value: "۷+", label: "خدمات اصلی", icon: IconCheckCircle },
   { value: "۲۰+", label: "حوزه حقوقی", icon: IconBalance },
   { value: "۲۴/۷", label: "دسترسی آنلاین", icon: IconShield },
 ];
