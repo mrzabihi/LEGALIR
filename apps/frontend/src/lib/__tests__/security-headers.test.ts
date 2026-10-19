@@ -78,7 +78,7 @@ describe("security headers — framing policy", () => {
   });
 
   it("lets the app frame the demo PDFs it ships", async () => {
-    const h = await headersFor("/demo-documents/contract.pdf");
+    const h = await headersFor("/demo-documents/قرارداد-اجاره-مسکونی.pdf");
     expect(h["x-frame-options"]).toBe("SAMEORIGIN");
     // These are plain static files, so the blanket CSP — which forbids
     // framing — must not survive on them either.
@@ -89,7 +89,7 @@ describe("security headers — framing policy", () => {
     for (const path of [
       "/api/v1/admin/contracts/cnt-1/final-document",
       "/api/v1/property-contracts/cnt-1/documents/doc-1",
-      "/demo-documents/x.pdf",
+      "/demo-documents/توافقنامه-محرمانگی-NDA.pdf",
     ]) {
       const h = await headersFor(path);
       const csp = h["content-security-policy"] ?? "";
