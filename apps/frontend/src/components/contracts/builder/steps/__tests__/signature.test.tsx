@@ -243,6 +243,18 @@ function lifecycleView(
     canSign: false,
     canFinalize: false,
     canSubmitForAdminReview: false,
+    registration: null,
+    reviewedByLegalir: false,
+    canSelfFinalize: false,
+    printIssues: [],
+    adminMessage: null,
+    printMirror: {
+      signatures: [],
+      annexes: [],
+      adminMessage: null,
+      authenticity: null,
+      selfFinal: null,
+    },
     flags: FLAGS,
     ...overrides,
   };

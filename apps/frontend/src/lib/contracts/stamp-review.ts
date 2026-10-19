@@ -85,14 +85,24 @@ export function currentVersionStamp(
   currentVersionHash: string | null
 ): ContractStampRequest | null {
   if (!currentVersionHash) return null;
-  const request = latestStampRequest(contract.id);
-  if (!request) return null;
-  if (request.status !== "APPLIED") return null;
-  if (request.documentHash !== currentVersionHash) return null;
   const asset = loadReviewStamp();
-  // The stamp master must still be byte-identical to what was approved.
-  if (!asset || !request.stampAssetSha256 || request.stampAssetSha256 !== asset.sha256) return null;
-  return request;
+  // The stamp master must still be byte-identical to what was approved;
+  // without it no applied request can authorise a drawn seal.
+  if (!asset) return null;
+  // Scan EVERY request, not only the newest: a later cancelled/rejected
+  // request says nothing about an EARLIER applied seal for the SAME
+  // version hash. Reading only the newest row let a withdrawn re-request
+  // silently unbind a valid seal from the PDF — the document would
+  // quietly lose its official mark with no record of why.
+  return (
+    listStampRequests(contract.id).find(
+      (r) =>
+        r.status === "APPLIED" &&
+        r.documentHash === currentVersionHash &&
+        !!r.stampAssetSha256 &&
+        r.stampAssetSha256 === asset.sha256
+    ) ?? null
+  );
 }
 
 /** True when the contract's current version carries a valid stamp. */

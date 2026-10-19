@@ -24,6 +24,7 @@ import {
   ok,
   refreshProgress,
   requireContract,
+  requireContractRead,
 } from "@/lib/contracts/api-helpers";
 import {
   getContractForUser,
@@ -41,7 +42,9 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;
-  const ctx = requireContract(request, id);
+  // Attachments are part of what a referred lawyer must be able to read to
+  // review the contract; the upload handler below stays owner-only.
+  const ctx = requireContractRead(request, id);
   if (isErrorResponse(ctx)) return ctx;
   return ok(listContractDocuments(ctx.contract.id));
 }

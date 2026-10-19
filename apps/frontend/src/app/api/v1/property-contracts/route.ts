@@ -23,10 +23,13 @@ import { recordActivity } from "@/lib/db";
 import {
   buildReferenceCode,
   countContractsOfType,
+  getContractById,
   insertContract,
   listContractsForUser,
   upsertParty,
 } from "@/lib/contracts/db";
+import { listLiveLawyerReviewsForLawyer } from "@/lib/contracts/review-db";
+import { getLawyerProfileByUserId } from "@/lib/lawyer-db";
 import {
   findContractDefinition,
   isImplementedContractType,
@@ -53,7 +56,40 @@ export async function GET(request: Request) {
   const type = url.searchParams.get("type") ?? "";
   const state = url.searchParams.get("state") ?? "";
 
-  let items: PropertyContractListItem[] = listContractsForUser(userId).map(toListItem);
+  // Owned contracts, plus every contract referred to this caller as a
+  // lawyer. Referral visibility is ADDITIVE and de-duplicated by contract
+  // id — a contract that is both owned and referred appears once, marked
+  // `owner` (the stronger of the two).
+  const owned = listContractsForUser(userId);
+  const ownedIds = new Set(owned.map((c) => c.id));
+  const referred = new Map<string, string>();
+
+  const lawyerProfile = getLawyerProfileByUserId(userId);
+  if (lawyerProfile) {
+    for (const review of listLiveLawyerReviewsForLawyer(lawyerProfile.id)) {
+      if (ownedIds.has(review.contractId)) continue;
+      const contract = getContractById(review.contractId);
+      if (!contract) continue;
+      // The newest live referral wins when several were opened.
+      if (!referred.has(contract.id)) referred.set(contract.id, review.id);
+    }
+  }
+
+  let items: PropertyContractListItem[] = [
+    ...owned.map((c) => ({ ...toListItem(c), access: "owner" as const })),
+    ...[...referred].flatMap(([contractId, referralId]) => {
+      const contract = getContractById(contractId);
+      return contract
+        ? [
+            {
+              ...toListItem(contract),
+              access: "assigned" as const,
+              referralId,
+            },
+          ]
+        : [];
+    }),
+  ];
 
   if (search) {
     items = items.filter(

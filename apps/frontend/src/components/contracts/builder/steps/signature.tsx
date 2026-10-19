@@ -495,6 +495,11 @@ export function SignatureStep() {
                 </div>
               );
             })}
+            <p className="text-caption text-muted">
+              اسکن امضای دستی باید تصویر PNG یا JPEG باشد؛ همان تصویر، با حفظ نسبت، در جایگاه
+              همین طرف روی نسخهٔ چاپی و PDF درج می‌شود. اگر کسی امضا نکرده باشد، جایگاه او
+              «در انتظار امضا» چاپ می‌شود.
+            </p>
           </div>
         ) : (
           <ul className="space-y-2">
@@ -605,11 +610,13 @@ export function SignatureStep() {
         </p>
       </Dialog>
 
-      {/* Hidden picker for the wet-ink scan — one file, opened per participant */}
+      {/* Hidden picker for the wet-ink scan — one file, opened per participant.
+          PNG/JPEG only: the scan is embedded into that party's own cell on the
+          printed contract, and a PDF cannot be drawn there. */}
       <input
         ref={physicalInputRef}
         type="file"
-        accept="application/pdf,image/*"
+        accept="image/png,image/jpeg"
         className="hidden"
         aria-hidden="true"
         tabIndex={-1}

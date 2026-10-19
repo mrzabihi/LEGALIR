@@ -29,6 +29,11 @@ import type {
 /** A contract detail plus the server-computed completeness. */
 export type PropertyContractDetailWithCompleteness = PropertyContractDetail & {
   completeness: ContractCompleteness;
+  /**
+   * `assigned` means a lawyer the contract was referred to is reading it.
+   * The workspace renders read-only in that case and never issues a write.
+   */
+  access?: "owner" | "assigned";
 };
 
 export interface PropertyContractListParams {
@@ -234,6 +239,26 @@ export function submitForAdminReview(id: string): Promise<{
   version: PropertyContractVersion;
 }> {
   return apiClient.post(`/api/v1/property-contracts/${id}/review`, { action: "submit_admin" });
+}
+
+/**
+ * «ثبت نهایی» — register the current version WITHOUT LEGALIR review and
+ * move straight to party signing. The caller passes the acknowledgement
+ * the user gave on screen; the server refuses any request without it.
+ */
+export function selfFinalRegister(
+  id: string,
+  params: { comment?: string } = {}
+): Promise<{
+  contract: PropertyContract;
+  version: PropertyContractVersion;
+  registration: { id: string; path: "self_final"; reviewedByLegalir: false };
+}> {
+  return apiClient.post(`/api/v1/property-contracts/${id}/review`, {
+    action: "final_register",
+    acknowledgedUnreviewed: true,
+    ...(params.comment ? { comment: params.comment } : {}),
+  });
 }
 
 export function approveContract(

@@ -36,18 +36,33 @@ import { createPendingReview, openAdminReview } from "@/lib/contracts/admin-revi
 import { createVersion } from "@/lib/contracts/snapshot";
 import { assertTransition, IllegalTransitionError } from "@/lib/contracts/state-machine";
 import { partyRoleLabelFa } from "@/lib/contracts/registry";
+import { recordSelfFinalRegistration, registrationForHash } from "@/lib/contracts/registration";
+import { canPrintFaithfully, contractPrintIssues } from "@/lib/contracts/admin-print";
 
 interface Params {
   params: Promise<{ id: string }>;
 }
 
-type ReviewAction = "submit" | "approve" | "request_changes" | "comment" | "submit_admin";
+type ReviewAction =
+  | "submit"
+  | "approve"
+  | "request_changes"
+  | "comment"
+  | "submit_admin"
+  | "final_register";
 
 interface ReviewBody {
   action?: ReviewAction;
   partyId?: string;
   comment?: string;
   method?: "otp" | "explicit_consent";
+  /**
+   * «ثبت نهایی» — the caller MUST set this true. It records that the user
+   * saw and accepted the warning that LEGALIR did not review the text.
+   * Without it the unreviewed path is refused, so it can never be entered
+   * by accident.
+   */
+  acknowledgedUnreviewed?: boolean;
   /** For the `comment` action: the comment body and optional clause ref. */
   body?: string;
   clauseRef?: string | null;
@@ -80,6 +95,7 @@ export async function POST(request: Request, { params }: Params) {
   if (body.action === "request_changes") return requestChanges(userId, contract, body);
   if (body.action === "comment") return addComment(userId, contract, body);
   if (body.action === "submit_admin") return submitForAdminReview(userId, contract);
+  if (body.action === "final_register") return selfFinalRegister(userId, contract, body);
 
   return badRequest("عملیات درخواستی معتبر نیست", "INVALID_ACTION");
 }
@@ -349,4 +365,94 @@ function submitForAdminReview(userId: string, contract: PropertyContract) {
   });
 
   return ok({ contract: updated, review, version });
+}
+
+// ------------------------------------------------------------
+// final_register — the UNREVIEWED route into party signing
+// ------------------------------------------------------------
+// «ثبت نهایی» freezes the content as a version and moves the contract
+// straight to READY_TO_SIGN. It never enters the admin review queue and
+// never writes an approval: the persisted registration record says
+// `reviewedByLegalir: false` and `path: "self_final"`, and every surface
+// reads THAT record to print the unreviewed status.
+//
+// The legal-transition table is the gate that keeps the two paths apart:
+// `PENDING_ADMIN_REVIEW` has no edge to `READY_TO_SIGN`, so a contract
+// already in the review queue can never be pulled out of it by this
+// action — it would need a decision first.
+//
+// Nothing is finalised here; the record only AUTHORISES the signature
+// stage for this exact content hash. A later edit produces a new hash,
+// the record stops matching, and the user must choose a path again.
+
+function selfFinalRegister(
+  userId: string,
+  contract: PropertyContract,
+  body: ReviewBody
+) {
+  if (body.acknowledgedUnreviewed !== true) {
+    return badRequest(
+      "برای ثبت نهایی بدون بررسی لیگالیر، ابتدا باید تأیید کنید که این هشدار را دیده‌اید.",
+      "ACKNOWLEDGEMENT_REQUIRED"
+    );
+  }
+
+  if (!contract.currentVersionId) {
+    return conflict("ابتدا محتوای قرارداد را تثبیت کنید.", "NO_VERSION");
+  }
+  const current = getVersion(contract.id, contract.currentVersionId);
+  if (!current) return conflict("نسخه جاری یافت نشد.", "NO_VERSION");
+
+  if (registrationForHash(contract.id, current.documentHash)) {
+    return conflict("برای این نسخه پیش‌تر مسیر ثبت انتخاب شده است.", "ALREADY_REGISTERED");
+  }
+
+  // A document whose annexes/signature scans cannot print must not start
+  // signing: the parties would be signing a copy that cannot be produced.
+  const printIssues = contractPrintIssues({
+    contract,
+    documents: listContractDocuments(contract.id),
+    participants: [],
+  });
+  if (!canPrintFaithfully(printIssues)) {
+    return conflict(printIssues.map((i) => i.messageFa).join(" "), "PRINT_UNFAITHFUL");
+  }
+
+  try {
+    assertTransition(contract.state, "READY_TO_SIGN");
+  } catch (err) {
+    if (err instanceof IllegalTransitionError) return conflict(err.message, "ILLEGAL_TRANSITION");
+    throw err;
+  }
+
+  const parties = listParties(contract.id);
+  const initiator = parties.find((p) => p.isInitiator);
+  const registration = recordSelfFinalRegistration({
+    contract,
+    version: current,
+    actorId: userId,
+    actorLabelFa: initiator ? partyRoleLabelFa(initiator.role) : "طرف قرارداد",
+    actorKind: "party",
+    reasonFa: body.comment,
+  });
+
+  const updated =
+    updateContractForUser(userId, contract.id, { state: "READY_TO_SIGN" }) ?? contract;
+
+  audit({
+    contractId: contract.id,
+    actorId: userId,
+    actorLabel: registration.actorLabelFa,
+    action: "contract.self_final_registered",
+    descriptionFa: `ثبت نهایی بدون بررسی لیگالیر — نسخه ${current.versionNumber} مستقیماً به مرحلهٔ امضا رفت.`,
+    metadata: {
+      registrationId: registration.id,
+      versionId: current.id,
+      documentHash: current.documentHash,
+      path: registration.path,
+      reviewedByLegalir: registration.reviewedByLegalir,
+    },
+  });
+
+  return ok({ contract: updated, registration, version: current });
 }

@@ -40,7 +40,7 @@ import type {
   PropertyContract,
 } from "@legalir/types";
 import { CONTRACT_STAMP_STATUS_FA } from "@legalir/types";
-import { requirePermission } from "@/lib/rbac";
+import { requirePermission, roleHasPermission } from "@/lib/rbac";
 import { findUserById } from "@/lib/db";
 import { recordAudit } from "@/lib/admin/audit";
 import { adminError, mapDataError, readJson, requestMeta } from "@/lib/admin/http";
@@ -49,7 +49,12 @@ import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { finalizeSignedContract } from "@/lib/contracts/finalization";
 import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
 import { reviewStampInfo } from "@/lib/contracts/stamp-asset";
-import { latestSignatureRequest, listParticipants } from "@/lib/contracts/signature/db";
+import { evaluateStampEligibility, type StampFacts } from "@/lib/contracts/stamp-eligibility";
+import {
+  latestSignatureRequest,
+  listParticipants,
+  listSignatureRequests,
+} from "@/lib/contracts/signature/db";
 import { getSmsGateway } from "@/lib/sms/gateway";
 import {
   appendStampEvent,
@@ -80,20 +85,26 @@ interface StampBody {
 function currentVersionSignatures(contractId: string, documentHash: string | null):
   | { ok: true; requestId: string }
   | { ok: false; reason: "SIGNATURES_REQUIRED" | "STALE_SIGNATURES"; detailFa: string } {
-  const request = latestSignatureRequest(contractId);
+  // Look for the request bound to THIS hash across the whole history,
+  // preferring a COMPLETED one. A newer request created for the same
+  // content (e.g. a re-issue after one party's link expired) must not
+  // hide the completed request that already proves every party signed.
+  const bound = documentHash
+    ? listSignatureRequests(contractId).filter((r) => r.documentHash === documentHash)
+    : [];
+  const request = bound.find((r) => r.status === "COMPLETED") ?? bound[0] ?? null;
   if (!request) {
+    // Distinguish "never signed" from "signed an older version" — the
+    // operator must know whether to send links or to get a new signature
+    // for the changed text.
+    const latest = latestSignatureRequest(contractId);
+    const stale = Boolean(latest && documentHash && latest.documentHash !== documentHash);
     return {
       ok: false,
-      reason: "SIGNATURES_REQUIRED",
-      detailFa: "پیش از درج مهر رسمی، قرارداد باید توسط همهٔ طرفین امضا شود.",
-    };
-  }
-  if (!documentHash || request.documentHash !== documentHash) {
-    return {
-      ok: false,
-      reason: "STALE_SIGNATURES",
-      detailFa:
-        "نسخهٔ فعلی قرارداد با نسخه‌ای که امضا شده متفاوت است؛ مهر رسمی فقط روی نسخهٔ امضاشده درج می‌شود.",
+      reason: stale ? "STALE_SIGNATURES" : "SIGNATURES_REQUIRED",
+      detailFa: stale
+        ? "نسخهٔ فعلی قرارداد با نسخه‌ای که امضا شده متفاوت است؛ مهر رسمی فقط روی نسخهٔ امضاشده درج می‌شود. ابتدا باید نسخهٔ جدید امضا شود."
+        : "پیش از درج مهر رسمی، قرارداد باید توسط همهٔ طرفین امضا شود.",
     };
   }
   const participants = listParticipants(request.id);
@@ -176,6 +187,40 @@ function toDetail(request: ContractStampRequest) {
   };
 }
 
+/**
+ * Collect the real facts the eligibility rules need. Both GET and POST
+ * use this, so the verdict the operator was shown is computed from the
+ * same inputs the write path re-checks a moment later.
+ */
+function stampFactsFor(params: {
+  contract: PropertyContract;
+  documentHash: string | null;
+  reviewed: boolean;
+  signatures: ReturnType<typeof currentVersionSignatures>;
+  applied: boolean;
+  pending: ContractStampRequest | null;
+  canManage: boolean;
+}): StampFacts {
+  const { contract, documentHash, reviewed, signatures, applied, pending, canManage } = params;
+  const asset = reviewStampInfo();
+  return {
+    featureEnabled: isContractFeatureEnabled("CONTRACT_STAMP_ENABLED"),
+    assetAvailable: asset.available,
+    hasCurrentVersion: Boolean(contract.currentVersionId && documentHash),
+    reviewed,
+    signatures: signatures.ok
+      ? "ready"
+      : signatures.reason === "STALE_SIGNATURES"
+        ? "stale"
+        : "required",
+    signaturesReasonFa: signatures.ok ? null : signatures.detailFa,
+    applied,
+    pending: pending !== null,
+    pendingMatchesCurrent: Boolean(pending && documentHash && pending.documentHash === documentHash),
+    canManage,
+  };
+}
+
 // ------------------------------------------------------------
 // GET — the stamp context
 // ------------------------------------------------------------
@@ -199,12 +244,29 @@ export async function GET(request: NextRequest, { params }: Params) {
   const signatures = currentVersionSignatures(contract.id, currentVersion?.documentHash ?? null);
 
   const requests = listStampRequests(contract.id);
+  const pending = requests.find((r) => r.status === "PENDING") ?? null;
+  // The read permission (`admin:contracts:stamp:read`) is broader than the
+  // manage one, so the caller's verdict is computed with THEIR permissions:
+  // a reviewer sees exactly why they cannot act, never a button that the
+  // server would refuse.
+  const eligibility = evaluateStampEligibility(
+    stampFactsFor({
+      contract,
+      documentHash: currentVersion?.documentHash ?? null,
+      reviewed: approval !== null,
+      signatures,
+      applied: applied !== null,
+      pending,
+      canManage: roleHasPermission(auth.ctx.role, "admin:contracts:stamp:manage"),
+    })
+  );
 
   return NextResponse.json({
     data: {
       contract: {
         id: contract.id,
         referenceCode: contract.referenceCode,
+        title: contract.title,
         typeFa: contract.typeFa,
         state: contract.state,
       },
@@ -224,6 +286,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         reasonFa: signatures.ok ? null : signatures.detailFa,
       },
       featureEnabled: isContractFeatureEnabled("CONTRACT_STAMP_ENABLED"),
+      eligibility,
       applied: applied !== null,
       appliedRequest: applied ? toDetail(applied) : null,
       requests: requests.map(toDetail),
@@ -304,6 +367,33 @@ function handleRequest(
   const asset = reviewStampInfo();
   if (!asset.available) {
     return adminError(503, "STAMP_ASSET_UNAVAILABLE", "فایل مهر رسمی لیگالیر در دسترس نیست.");
+  }
+
+  // The panel's eligibility verdict is re-asserted here, so a crafted
+  // request cannot open a state the UI would never offer: the seal is not
+  // re-requested for the version that already carries it, and a request
+  // bound to a DIFFERENT version blocks a second one instead of stacking
+  // duplicates. A repeat for the SAME hash stays idempotent — the shared
+  // `createPendingStampRequest` returns the open request untouched.
+  const currentHash = currentVersion?.documentHash ?? null;
+  const requests = listStampRequests(contract.id);
+  if (
+    currentHash &&
+    requests.some((r) => r.status === "APPLIED" && r.documentHash === currentHash)
+  ) {
+    return adminError(
+      409,
+      "ALREADY_STAMPED",
+      "مهر رسمی روی نسخهٔ فعلی درج شده است؛ درخواست مجدد لازم نیست."
+    );
+  }
+  const open = requests.find((r) => r.status === "PENDING") ?? null;
+  if (open && open.documentHash !== currentHash) {
+    return adminError(
+      409,
+      "PENDING_REQUEST",
+      "یک درخواست مهرِ باز برای نسخهٔ دیگری از این قرارداد وجود دارد؛ ابتدا آن را لغو یا تعیین تکلیف کنید."
+    );
   }
 
   const actor = findUserById(auth.ctx.userId);
@@ -392,6 +482,19 @@ async function handleDecision(
     const signatures = currentVersionSignatures(contract.id, documentHash);
     if (!signatures.ok) {
       return adminError(409, signatures.reason, signatures.detailFa);
+    }
+
+    // A review can be withdrawn between the request and the decision. The
+    // stamp is the official mark on a REVIEWED version, so an approval
+    // that no longer covers this hash refuses the seal even when the
+    // request itself is still open and the parties have signed.
+    const approval = currentVersionApproval(contract, documentHash);
+    if (!approval) {
+      return adminError(
+        409,
+        "NOT_REVIEWED",
+        "تأیید بررسی داخلی این نسخه در دسترس نیست؛ مهر رسمی روی نسخهٔ فاقد تأیید درج نمی‌شود."
+      );
     }
 
     // The stamp master must still be byte-identical to what was approved,

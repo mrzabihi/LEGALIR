@@ -38,6 +38,7 @@ import { renderContract } from "@/lib/contracts/template";
 import { stateLabelFa } from "@/lib/contracts/state-machine";
 import { formatIsoJalali, formatIsoJalaliDateTime } from "@/lib/contracts/dates";
 import {
+  useSelfFinalRegister,
   useSubmitForAdminReview,
   useSubmitForReview,
 } from "@/hooks/usePropertyContracts";
@@ -51,11 +52,8 @@ import {
   useDecideLawyerFinding,
 } from "@/hooks/useContractLifecycle";
 import { contractPdfUrl } from "@/lib/api/property-contracts";
-import {
-  CONTRACT_ADMIN_REVIEW_STATUS_FA,
-  SIGNATURE_PARTICIPANT_STATUS_FA,
-  type LawyerReviewFindingSeverity,
-} from "@legalir/types";
+import { CONTRACT_ADMIN_REVIEW_STATUS_FA, type LawyerReviewFindingSeverity } from "@legalir/types";
+import { SIGNATURE_CELL_STATUS_FA } from "@/lib/contracts/signature/labels";
 
 const SEVERITY_LABELS_FA: Record<LawyerReviewFindingSeverity, string> = {
   info: "اطلاع",
@@ -81,8 +79,11 @@ export function ReviewStep() {
   const createAi = useCreateAiReview();
   const submit = useSubmitForReview();
   const submitAdmin = useSubmitForAdminReview();
+  const selfFinal = useSelfFinalRegister();
 
   const [actionError, setActionError] = useState<string | null>(null);
+  /** The user must actively tick the unreviewed warning before «ثبت نهایی». */
+  const [unreviewedAcknowledged, setUnreviewedAcknowledged] = useState(false);
 
   const currentVersion = contract.versions.find((v) => v.id === contract.currentVersionId);
   const request = view?.signatureRequest ?? null;
@@ -154,7 +155,7 @@ export function ReviewStep() {
     for (const participant of request?.participants ?? []) {
       marks[participant.roleFa] = {
         signedAt: participant.signedAt,
-        statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[participant.status],
+        statusFa: SIGNATURE_CELL_STATUS_FA[participant.status],
       };
     }
     return marks;
@@ -261,7 +262,27 @@ export function ReviewStep() {
   // ----------------------------------------------------------
   const previewStamp = useMemo<A4ReviewStamp>(
     () =>
-      view?.adminApproved
+      // §3 — the self-final path draws its OWN amber notice in the review
+      // mark's slot. It must never borrow the blue «بررسی شد» mark, which
+      // the contract did not earn.
+      view?.registration?.path === "self_final"
+        ? {
+            applied: true,
+            path: "self_final" as const,
+            reviewedAt: null,
+            official: view.stamped === true,
+            sealHref:
+              view.stamped === true
+                ? `/api/v1/property-contracts/${contract.id}/stamp-asset/seal`
+                : undefined,
+            hologramHref:
+              view.stamped === true
+                ? `/api/v1/property-contracts/${contract.id}/stamp-asset/hologram`
+                : undefined,
+            approvedByLabelFa: view.officialStamp?.approvedByLabelFa ?? null,
+            approvedAt: view.officialStamp?.approvedAt ?? null,
+          }
+        : view?.adminApproved
         ? {
             applied: true,
             reviewedAt: view.adminReview?.decidedAt ?? null,
@@ -287,6 +308,7 @@ export function ReviewStep() {
     [
       contract.id,
       view?.adminApproved,
+      view?.registration?.path,
       view?.adminReview?.decidedAt,
       view?.adminReview?.id,
       view?.adminReview?.reviewerInitials,
@@ -407,7 +429,89 @@ export function ReviewStep() {
             stage hands over to the signing step. Two competing primary
             buttons were the source of the "which one do I press?" doubt. */}
         <div className="mt-3 border-t border-divider pt-3">
-          {view?.canSubmitForAdminReview ? (
+          {view?.printIssues && view.printIssues.length > 0 && (
+            <Notice tone="error" title="پیش از ادامه، این موارد باید اصلاح شوند">
+              <ul className="list-disc ps-5 space-y-1">
+                {view.printIssues.map((issue) => (
+                  <li key={`${issue.code}-${issue.documentId ?? issue.titleFa}`}>
+                    {issue.messageFa}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-labelSmall">
+                تا زمانی که این فایل‌ها قابل چاپ نباشند، امکان ثبت نهایی و تولید PDF کامل وجود
+                ندارد؛ هیچ پیوستی بی‌صدا حذف نمی‌شود.
+              </p>
+            </Notice>
+          )}
+
+          {view?.registration?.path === "self_final" && (
+            <Notice tone="warning" title="این نسخه بدون بررسی لیگالیر ثبت نهایی شد">
+              ثبت‌کننده: {view.registration.actorLabelFa} —{" "}
+              {formatIsoJalaliDateTime(view.registration.createdAt)}. این سند «بررسی‌شده» یا
+              «تأییدشده» توسط لیگالیر نیست.
+            </Notice>
+          )}
+
+          {view?.canSubmitForAdminReview && view?.canSelfFinalize ? (
+            /* ------------------------------------------------------
+               TWO registration paths. Exactly one is chosen, and both
+               are offered side by side so neither is a hidden default.
+               ------------------------------------------------------ */
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
+                <div className="rounded-medium border border-divider p-3">
+                  <p className="text-labelLarge text-on-surface">ارسال برای بررسی در لیگالیر</p>
+                  <p className="mt-1 text-caption leading-6 text-muted">
+                    نسخهٔ فعلی به صف بررسی واحد حقوقی لیگالیر می‌رود. پس از تأیید ادمین، امکان
+                    امضای طرفین فراهم می‌شود. وضعیت بررسی برای شما و ادمین قابل مشاهده است.
+                  </p>
+                  <div className="mt-2">
+                    <ActionButton
+                      idleLabel="ارسال به بررسی لیگالیر"
+                      busyLabel="در حال ارسال…"
+                      successLabel="برای بررسی ارسال شد"
+                      errorLabel="ارسال نشد — تلاش مجدد"
+                      onAction={() => runResult(() => submitAdmin.mutateAsync(contract.id))}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-medium border border-warning bg-warning-container p-3">
+                  <p className="text-labelLarge text-on-surface">ثبت نهایی</p>
+                  <p className="mt-1 text-caption leading-6 text-muted">
+                    قرارداد مستقیماً به مرحلهٔ امضای طرفین می‌رود و وارد صف بررسی لیگالیر
+                    نمی‌شود. این سند توسط لیگالیر بررسی نشده و هرگز «بررسی‌شده» نمایش داده
+                    نمی‌شود.
+                  </p>
+                  <label className="mt-2 flex items-start gap-2 text-caption leading-6 text-on-surface">
+                    <input
+                      type="checkbox"
+                      checked={unreviewedAcknowledged}
+                      onChange={(e) => setUnreviewedAcknowledged(e.target.checked)}
+                      className="mt-1 accent-[var(--color-warning)]"
+                    />
+                    <span>
+                      می‌دانم این قرارداد بدون بررسی لیگالیر ثبت نهایی می‌شود و مسئولیت بررسی
+                      حقوقی محتوا بر عهدهٔ طرفین است.
+                    </span>
+                  </label>
+                  <div className="mt-2">
+                    <ActionButton
+                      idleLabel="ثبت نهایی بدون بررسی"
+                      busyLabel="در حال ثبت…"
+                      successLabel="ثبت نهایی شد"
+                      errorLabel="ثبت نشد — تلاش مجدد"
+                      disabled={!unreviewedAcknowledged}
+                      onAction={() =>
+                        runResult(() => selfFinal.mutateAsync({ id: contract.id }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : view?.canSubmitForAdminReview ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-caption text-muted">
                 نسخهٔ فعلی برای بررسی واحد حقوقی لیگالیر ارسال می‌شود؛ پس از تأیید ادمین،
@@ -753,6 +857,7 @@ export function ReviewStep() {
               : undefined
           }
           stamp={previewStamp}
+          printMirror={view?.printMirror ?? null}
         />
       </div>
 

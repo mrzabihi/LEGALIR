@@ -108,6 +108,12 @@ interface WizardContextValue {
   saveNow: () => Promise<boolean>;
   /** True when the contract is still editable. */
   editable: boolean;
+  /**
+   * True when the viewer was granted READ-ONLY access — a lawyer the
+   * contract was referred to. Distinct from `editable`: the state may
+   * allow edits, but the reader does not own the contract.
+   */
+  readOnly: boolean;
 
   /** The missing field labels of the CURRENT step, from real data. */
   stepMissing: string[];
@@ -180,10 +186,13 @@ function describeSaveError(err: unknown): SaveErrorInfo {
 export function WizardProvider({
   contract,
   completeness,
+  readOnly = false,
   children,
 }: {
   contract: PropertyContractDetail;
   completeness: ContractCompleteness;
+  /** A referred lawyer views the contract; every write is suppressed. */
+  readOnly?: boolean;
   children: React.ReactNode;
 }) {
   const queryClient = useQueryClient();
@@ -242,11 +251,22 @@ export function WizardProvider({
   // One source of truth: the same predicate the server route uses. A
   // duplicated list here previously omitted REJECTED and could disagree
   // with the API about whether a contract is editable.
-  const editable = useMemo(() => stateIsEditable(serverState), [serverState]);
+  // A read-only viewer may NEVER write, whatever the contract state says.
+  // `editable` drives every step body and the autosave gate, so folding the
+  // access scope in here is what actually stops a referred lawyer's screen
+  // from issuing a PATCH the owner-only route would reject.
+  const editable = useMemo(
+    () => !readOnly && stateIsEditable(serverState),
+    [readOnly, serverState]
+  );
   // `flush` is a stable callback, so it reads editability from a ref rather
   // than closing over a value that would go stale between renders.
   const editableRef = useRef(editable);
   editableRef.current = editable;
+  // Read-only viewers navigate steps and may touch fields, but nothing they
+  // do may produce a request: every write route is owner-only.
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
 
   /**
    * Push the current local state to the server.
@@ -263,6 +283,13 @@ export function WizardProvider({
    */
   const flush = useCallback(
     (dataOverride?: DomainData): Promise<boolean> => {
+      // Read-only access: report success locally and send NOTHING. Step
+      // navigation still calls `scheduleSave`, and a 404 from the owner-only
+      // PATCH would surface as a save error on a screen that never edits.
+      if (readOnlyRef.current) {
+        dirtyRef.current = false;
+        return Promise.resolve(true);
+      }
       // Handing over data explicitly is a content write. A frozen contract
       // rejects those with 409 NOT_EDITABLE on every attempt, so report the
       // real reason instead of looping the user through a retry that can
@@ -416,6 +443,9 @@ export function WizardProvider({
   const setPayments = useCallback(
     (next: ContractPayment[]) => {
       setPaymentsState(next);
+      // Payments write through their own endpoint — also owner-only, so a
+      // read-only viewer never calls it.
+      if (readOnlyRef.current) return;
       void savePayments(contract.id, next).catch(() => {
         /* the editor surfaces its own error state */
       });
@@ -535,6 +565,7 @@ export function WizardProvider({
     lastSavedAt,
     saveNow: () => flush(),
     editable,
+    readOnly,
     stepMissing,
     advanceBlockedReason,
     clearAdvanceBlocked: () => setAdvanceBlockedReason(null),

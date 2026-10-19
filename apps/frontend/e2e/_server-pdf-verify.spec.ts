@@ -215,9 +215,12 @@ test.describe("server PDF · identity header, review mark, signature table", () 
     }
 
     // ---- §6 signature table, RTL four columns --------------------------
-    const lastPage = norm(pages[pages.length - 1]!);
-    const lastPageTight = tight(lastPage);
-    expect(lastPageTight).toContain("امضایطرفین");
+    // §T7 puts annexed sheets and the authenticity certificate AFTER the
+    // contract body, so the signature block closes the BODY — find it by
+    // its heading instead of assuming it is the file's last page.
+    const signaturePageText = pages.map(tight).find((t) => t.includes("امضایطرفین"));
+    expect(signaturePageText, "the signature block is missing").toBeTruthy();
+    const lastPageTight = signaturePageText!;
     for (const header of ["نقش", "نامکامل", "محلامضا", "وضعیتامضا"]) {
       expect(lastPageTight, `the signature table has no «${header}» column`).toContain(header);
     }

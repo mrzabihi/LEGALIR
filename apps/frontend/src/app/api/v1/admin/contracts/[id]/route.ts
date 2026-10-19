@@ -30,12 +30,13 @@ import type {
 } from "@legalir/types";
 import {
   CONTRACT_ADMIN_REVIEW_STATUS_FA,
+  CONTRACT_REGISTRATION_PATH_FA,
   CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
   CONTRACT_REVIEW_STAMP_TEXT,
   SIGNATURE_PARTICIPANT_STATUS_FA,
   SIGNATURE_REQUEST_STATUS_FA,
 } from "@legalir/types";
-import { requirePermission } from "@/lib/rbac";
+import { requirePermission, roleHasPermission } from "@/lib/rbac";
 import { findUserById } from "@/lib/db";
 import { recordAudit } from "@/lib/admin/audit";
 import { adminError, mapDataError, readJson, requestMeta } from "@/lib/admin/http";
@@ -58,8 +59,18 @@ import {
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { computeCompleteness } from "@/lib/contracts/completeness";
-import { currentVersionStamp } from "@/lib/contracts/stamp-review";
+import { buildAdminStages } from "@/lib/contracts/admin-stages";
+import { currentVersionStamp, listStampRequests } from "@/lib/contracts/stamp-review";
+import { evaluateStampEligibility } from "@/lib/contracts/stamp-eligibility";
+import { reviewStampInfo } from "@/lib/contracts/stamp-asset";
+import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
 import { listReviewComments } from "@/lib/contracts/review-db";
+import { registrationForHash } from "@/lib/contracts/registration";
+import {
+  contractPrintIssues,
+  getAdminMessage,
+  listContactChanges,
+} from "@/lib/contracts/admin-print";
 import {
   latestSignatureRequestDetail,
   listAttestations,
@@ -69,6 +80,7 @@ import {
 import { renderContract } from "@/lib/contracts/template";
 import { legalBasisReportFor, legalReviewTypeSummary } from "@/lib/contracts/legal-review-db";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
+import { maskMobile, partyDisplayName } from "@/lib/contracts/signature/workflow";
 import {
   assertTransition,
   IllegalTransitionError,
@@ -189,6 +201,149 @@ export async function GET(request: NextRequest, { params }: Params) {
   const approvals = listApprovals(contract.id);
   const signatureRequest = latestSignatureRequestDetail(contract.id);
 
+  // §3 — WHICH path produced this contract's signing authority. The record
+  // is bound to the current version hash, so a stale registration (made for
+  // an older version) never reads as authorising the content on screen.
+  const registration = registrationForHash(contract.id, currentVersion?.documentHash ?? null);
+
+  // §6 — the admin's printable message and §5 — every destination-number
+  // correction made before an invitation went out, with its real delivery
+  // outcome. Both are read from the same store the PDF renderer reads, so
+  // the drawer can never promise something the print output will not show.
+  const adminMessage = getAdminMessage(contract.id);
+  const contactChanges = listContactChanges(contract.id);
+
+  // §T1/T2 — what the PDF can honestly print right now. The admin sees the
+  // same issues the owner sees, BEFORE finalization is attempted.
+  const printIssues = contractPrintIssues({
+    contract,
+    documents,
+    participants: signatureRequest?.participants ?? [],
+  });
+
+  // §T4 — the SAME preconditions the `advance-signing` route enforces before
+  // it records a self-final path. Computed once and shared by the stage row,
+  // the payload and the panel so the three can never disagree: a stage may
+  // only offer the action the endpoint would actually accept.
+  const canAdvanceToSigning =
+    !signatureRequest &&
+    !registration &&
+    approval === null &&
+    !!contract.currentVersionId &&
+    printIssues.length === 0 &&
+    ["ADMIN_APPROVED", "READY_FOR_REVIEW", "COUNTERPARTY_REVIEW"].includes(contract.state);
+
+  // §4 — «مراحل و گردش کار قرارداد». The rows are derived from the real
+  // rows above: the TYPE's own sections, the admin review, the
+  // authorisation actually bound to this hash, the signature request, the
+  // final artifact and the official seal. Nothing is templated per type.
+  const stampRequests = listStampRequests(contract.id);
+  const openStamp = stampRequests.find((r) => r.status === "PENDING") ?? null;
+  // Which version the seal question is ABOUT: the final one once it exists,
+  // otherwise the current version the operator is working on.
+  const sealedVersionHash =
+    finalVersion?.documentHash ?? currentVersion?.documentHash ?? null;
+  const currentSeal =
+    sealedVersionHash !== null
+      ? stampRequests.find(
+          (r) => r.status === "APPLIED" && r.documentHash === sealedVersionHash
+        ) ?? null
+      : null;
+  const stampEligibility = evaluateStampEligibility({
+    featureEnabled: isContractFeatureEnabled("CONTRACT_STAMP_ENABLED"),
+    assetAvailable: reviewStampInfo().available,
+    hasCurrentVersion: Boolean(contract.currentVersionId && currentVersion?.documentHash),
+    reviewed: approval !== null,
+    signatures: signatureRequest
+      ? signatureRequest.status === "COMPLETED"
+        ? "ready"
+        : signatureRequest.participants.length > 0 &&
+            signatureRequest.participants.every((p) => p.status === "SIGNED")
+          ? "ready"
+          : signatureRequest.documentHash === (currentVersion?.documentHash ?? null)
+            ? "required"
+            : "stale"
+      : "required",
+    signaturesReasonFa: null,
+    applied: currentSeal !== null,
+    pending: openStamp !== null,
+    pendingMatchesCurrent: Boolean(
+      openStamp &&
+        currentVersion?.documentHash &&
+        openStamp.documentHash === currentVersion.documentHash
+    ),
+    canManage: roleHasPermission(auth.ctx.role, "admin:contracts:stamp:manage"),
+  });
+
+  const stages = buildAdminStages({
+    sections: completeness.sections.map((s) => ({
+      key: s.key,
+      labelFa: s.labelFa,
+      percent: s.percent,
+      missing: s.missing,
+    })),
+    state: contract.state,
+    contractUpdatedAt: contract.updatedAt,
+    currentVersionCreatedAt: currentVersion?.createdAt ?? null,
+    review: review
+      ? {
+          status: review.status,
+          submittedAt: review.submittedAt,
+          decidedAt: review.decidedAt,
+          reasonFa: review.reasonFa,
+          reviewerLabelFa: review.reviewerLabelFa,
+          validForCurrentVersion: approval?.id === review.id,
+        }
+      : null,
+    registration: registration
+      ? {
+          path: registration.path,
+          createdAt: registration.createdAt,
+          actorLabelFa: registration.actorLabelFa,
+          reasonFa: registration.reasonFa,
+        }
+      : null,
+    signatures: signatureRequest
+      ? {
+          status: signatureRequest.status,
+          createdAt: signatureRequest.createdAt,
+          completedAt: signatureRequest.completedAt,
+          participants: signatureRequest.participants.map((p) => ({
+            roleFa: p.roleFa,
+            status: p.status,
+            signedAt: p.signedAt,
+          })),
+        }
+      : null,
+    finalVersion: finalVersion
+      ? { versionNumber: finalVersion.versionNumber, finalizedAt: contract.finalizedAt }
+      : null,
+    finalDocument: finalDoc ? { uploadedAt: finalDoc.uploadedAt } : null,
+    printIssueCount: printIssues.length,
+    stamp: {
+      applied: currentSeal !== null,
+      appliedAt: currentSeal?.appliedAt ?? null,
+      approvedByLabelFa: currentSeal?.approvedByLabelFa ?? null,
+      pending: openStamp !== null,
+      requestedAt: openStamp?.requestedAt ?? null,
+      canRequest: stampEligibility.canRequest,
+      canApply: stampEligibility.canApply,
+      blockingFa: stampEligibility.blockers[0]?.messageFa ?? null,
+      staleRequest: Boolean(
+        openStamp &&
+          currentVersion?.documentHash &&
+          openStamp.documentHash !== currentVersion.documentHash
+      ),
+    },
+    permissions: {
+      review: roleHasPermission(auth.ctx.role, "admin:contracts:review"),
+      resendInvitations: roleHasPermission(auth.ctx.role, "admin:contracts:review"),
+      registerSelfFinal: roleHasPermission(auth.ctx.role, "admin:contracts:review"),
+      manageStamp: roleHasPermission(auth.ctx.role, "admin:contracts:stamp:manage"),
+    },
+    canAdvanceToSigning,
+  });
+
   return NextResponse.json({
     data: {
       contract: {
@@ -212,8 +367,14 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: p.id,
         role: p.role,
         roleFa: partyRoleLabelFa(p.role),
-        nameFa: `${p.identity.firstName} ${p.identity.lastName}`.trim(),
+        nameFa: partyDisplayName(p),
         isInitiator: p.isInitiator,
+        // §5 — the destination the signing link will go to. Shown BEFORE a
+        // request exists so a wrong number is fixed before anyone is
+        // invited; masked alongside the full form, as on the admin user
+        // screen, so an operator can verify what they will dial.
+        mobile: p.identity.mobile ?? "",
+        mobileMasked: p.identity.mobile ? maskMobile(p.identity.mobile) : "",
       })),
       currentVersion: currentVersion
         ? {
@@ -354,6 +515,71 @@ export async function GET(request: NextRequest, { params }: Params) {
       // The stored final PDF (seal + hologram on every page) — opened
       // inline by the drawer, downloadable as evidence.
       finalDocument,
+      // §3 — the registration path that authorises signing for the CURRENT
+      // version hash. `null` means nothing has been registered yet; a
+      // `self_final` record ALWAYS reports reviewedByLegalir:false, and no
+      // admin action can turn it into a review.
+      registration: registration
+        ? {
+            ...registration,
+            pathFa: CONTRACT_REGISTRATION_PATH_FA[registration.path],
+          }
+        : null,
+      reviewedByLegalir: registration?.reviewedByLegalir === true,
+      // §6 — the ≤100-character printable message (red card, last page).
+      adminMessage,
+      adminMessageMaxChars: 100,
+      // §5 — destination-number corrections + the outcome of the send that
+      // followed each one.
+      contactChanges,
+      // §T1/T2 — printable-format problems that block a faithful PDF.
+      printIssues,
+      canPrintFaithfully: printIssues.length === 0,
+      // §T4 — whether this contract can be advanced to party signing by an
+      // authorised admin, with the mandatory reason. Only possible BEFORE a
+      // signature request exists and only when no authorisation is bound
+      // yet: an admin may unblock a contract, never overwrite a decision.
+      canAdvanceToSigning,
+      // §T4/§5 — the parties an admin would send a link to, resolved from
+      // the latest request so the operator can see NAME + DESTINATION
+      // before sending, and correct one before it goes out.
+      signingParticipants: (signatureRequest?.participants ?? []).map((p) => ({
+        id: p.id,
+        partyId: p.partyId,
+        roleFa: p.roleFa,
+        nameFa: p.nameFa,
+        mobile: p.mobile,
+        mobileMasked: p.mobileMasked,
+        status: p.status,
+        statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[p.status],
+        signedAt: p.signedAt,
+        proofDocumentId: p.proofDocumentId,
+        proofUrl: p.proofDocumentId
+          ? `/api/v1/admin/contracts/${contract.id}/documents/${p.proofDocumentId}`
+          : null,
+      })),
+      // §T2/§1 — every uploaded attachment, with a direct admin URL and a
+      // printable flag so an operator can open the evidence itself.
+      documents: documents.map((d) => ({
+        id: d.id,
+        category: d.category,
+        fileName: d.fileName,
+        mime: d.mime,
+        sizeBytes: d.sizeBytes,
+        hash: d.hash,
+        titleFa: d.description || d.fileName,
+        uploadedAt: d.uploadedAt,
+        url: `/api/v1/admin/contracts/${contract.id}/documents/${d.id}`,
+      })),
+      // §4 — the contract's REAL stage walk, derived above from the rows on
+      // this page. A row's `actions` carry a server-authored reason when
+      // disabled, so the table never offers a call the route would refuse.
+      stages,
+      // §7/§9 — the SAME renderer the owner and the stored artifact use, so
+      // the operator can preview and print the exact version under review.
+      currentPdfUrl: currentVersion
+        ? `/api/v1/admin/contracts/${contract.id}/pdf?version=${currentVersion.id}`
+        : null,
     },
   });
 }

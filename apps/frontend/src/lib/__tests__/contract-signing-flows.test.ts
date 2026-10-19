@@ -23,6 +23,18 @@
 //   • the audit trail is searchable by actor / action / date
 //   • a final version is stamped ONLY when its exact hash carries an
 //     admin approval — an unapproved signed contract is refused
+//   • the TWO registration paths stay apart: «ثبت نهایی» needs the
+//     explicit acknowledgement, lands in READY_TO_SIGN with a
+//     `reviewedByLegalir: false` record, and writes NO review row — while
+//     a contract already in the queue cannot be pulled out of it
+//   • an admin's manual advance demands a written reason, records a
+//     `self_final` registration with `actorKind: "admin"`, and states in
+//     both trails that it was NOT a LEGALIR review
+//   • the printable admin message is capped at 100 code points, never
+//     truncated, and clearing it removes the row entirely
+//   • a destination correction is stored on that person's own row with an
+//     append-only before/after record, and sends only on explicit
+//     confirmation — with the real delivery outcome written back
 //
 // `db.ts` resolves its store from the cwd at import time, so every
 // module is imported DYNAMICALLY after chdir (team convention).
@@ -39,29 +51,44 @@ import type {
   ContractAuditEntry,
   ContractDocument,
   ContractParty,
+  ContractRegistrationRecord,
   PropertyContract,
   PropertyContractVersion,
 } from "@legalir/types";
 import {
+  CONTRACT_ADMIN_MESSAGE_MAX,
   CONTRACT_REVIEW_STAMP_TEXT,
   MAX_DOCUMENT_SIZE_BYTES,
 } from "@legalir/types";
 import type * as DbModule from "../db";
 import type * as ContractDbModule from "../contracts/db";
 import type * as SignatureDbModule from "../contracts/signature/db";
+import type * as SnapshotModule from "../contracts/snapshot";
+import type * as RegistrationModule from "../contracts/registration";
+import type * as AdminReviewModule from "../contracts/admin-review";
+import type * as AdminPrintModule from "../contracts/admin-print";
 
 type Db = typeof DbModule;
 type ContractDb = typeof ContractDbModule;
 type SignatureDb = typeof SignatureDbModule;
+type Snapshot = typeof SnapshotModule;
+type Registration = typeof RegistrationModule;
+type AdminReview = typeof AdminReviewModule;
+type AdminPrint = typeof AdminPrintModule;
 
 let db: Db;
 let contractDb: ContractDb;
 let signatureDb: SignatureDb;
+let snapshot: Snapshot;
+let registration: Registration;
+let adminReview: AdminReview;
+let adminPrint: AdminPrint;
 
 let ownerSession: string;
 let ownerId: string;
 let otherSession: string;
 let adminSession: string;
+let adminId: string;
 let rentData: PropertyContract["data"];
 let today: string;
 
@@ -77,6 +104,10 @@ let reviewPost: RouteHandler;
 let adminPost: RouteHandler;
 let signPost: RouteHandler;
 let finalizePost: RouteHandler;
+let advanceSigningPost: RouteHandler;
+let messagePost: RouteHandler;
+let messageGet: RouteHandler;
+let contactPost: RouteHandler;
 let invitationsRoute: {
   POST: RouteHandler;
   GET: RouteHandler;
@@ -117,6 +148,25 @@ function getReq(url: string, session: string | null): NextRequest {
   const headers: Record<string, string> = {};
   if (session) headers["cookie"] = `legalir-session=${session}`;
   return new Request(url, { method: "GET", headers }) as unknown as NextRequest;
+}
+
+/**
+ * Run `fn` with the REPO as cwd, then return to the temp DB.
+ *
+ * The suite `chdir`s into a temp directory so the JSON store stays
+ * isolated. The store's own path is captured at module-import time, so
+ * moving back does NOT redirect reads — but the PDF renderer resolves the
+ * Vazirmatn font from `process.cwd()`, and there is no font inside the
+ * temp dir. Anything that must actually RENDER (finalisation, the T7
+ * regeneration) has to run inside this helper.
+ */
+async function withRepoCwd<T>(fn: () => Promise<T>): Promise<T> {
+  process.chdir(originalCwd);
+  try {
+    return await fn();
+  } finally {
+    process.chdir(tmpDir);
+  }
 }
 
 /** A DELETE carrying a session cookie. */
@@ -230,6 +280,10 @@ beforeAll(async () => {
   db = await import("../db");
   contractDb = await import("../contracts/db");
   signatureDb = await import("../contracts/signature/db");
+  snapshot = await import("../contracts/snapshot");
+  registration = await import("../contracts/registration");
+  adminReview = await import("../contracts/admin-review");
+  adminPrint = await import("../contracts/admin-print");
   const { getContractDefinition } = await import("../contracts/registry");
   rentData = getContractDefinition("property_rent").createDefaultData("apartment");
   today = new Date().toISOString().slice(0, 10);
@@ -242,6 +296,7 @@ beforeAll(async () => {
   otherSession = db.createSession(other.id).id;
 
   const admin = db.createUser({ mobile: "09120000000", passwordHash: "x" });
+  adminId = admin.id;
   db.setUserRole(admin.id, "SUPER_ADMIN");
   adminSession = db.createSession(admin.id).id;
 
@@ -252,6 +307,16 @@ beforeAll(async () => {
   signPost = (await import("@/app/api/v1/property-contracts/[id]/sign/route"))
     .POST as unknown as RouteHandler;
   finalizePost = (await import("@/app/api/v1/property-contracts/[id]/finalize/route"))
+    .POST as unknown as RouteHandler;
+  advanceSigningPost = (await import("@/app/api/v1/admin/contracts/[id]/advance-signing/route"))
+    .POST as unknown as RouteHandler;
+  const messageRoute = (await import("@/app/api/v1/admin/contracts/[id]/message/route")) as unknown as {
+    GET: RouteHandler;
+    POST: RouteHandler;
+  };
+  messagePost = messageRoute.POST;
+  messageGet = messageRoute.GET;
+  contactPost = (await import("@/app/api/v1/admin/contracts/[id]/contact/route"))
     .POST as unknown as RouteHandler;
   auditGet = (await import("@/app/api/v1/property-contracts/[id]/audit/route"))
     .GET as unknown as RouteHandler;
@@ -404,18 +469,35 @@ describe("signature request — real send results, wet-ink, and OTP", () => {
     expect(r2.status).toBe(400);
     expect((await json<{ code: string }>(r2)).code).toBe("UNSUPPORTED_FORMAT");
 
+    // §T2 — a PDF scan is a supported DOCUMENT format but not a printable
+    // SIGNATURE: the renderer can only embed PNG/JPEG into the party's own
+    // cell. Accepting it would record a signature that never appears on the
+    // sheet, so the refusal happens here, not at finalisation.
+    const pdfScan = new FormData();
+    pdfScan.append("participantId", landlordId);
+    pdfScan.append(
+      "file",
+      new File([new Uint8Array([37, 80, 68, 70])], "signed.pdf", { type: "application/pdf" })
+    );
+    const r3 = await signPost(
+      multipartReq(`${BASE}/${ID}/sign`, ownerSession, pdfScan),
+      params(ID)
+    );
+    expect(r3.status).toBe(400);
+    expect((await json<{ code: string }>(r3)).code).toBe("SCAN_NOT_PRINTABLE");
+
     const tooLarge = new FormData();
     tooLarge.append("participantId", landlordId);
     tooLarge.append(
       "file",
       new File([new Uint8Array(MAX_DOCUMENT_SIZE_BYTES + 1)], "scan.png", { type: "image/png" })
     );
-    const r3 = await signPost(
+    const r4 = await signPost(
       multipartReq(`${BASE}/${ID}/sign`, ownerSession, tooLarge),
       params(ID)
     );
-    expect(r3.status).toBe(400);
-    expect((await json<{ code: string }>(r3)).code).toBe("FILE_TOO_LARGE");
+    expect(r4.status).toBe(400);
+    expect((await json<{ code: string }>(r4)).code).toBe("FILE_TOO_LARGE");
 
     // Nothing was recorded — the landlord is still pending.
     expect(signatureDb.getParticipant(landlordId)!.status).toBe("PENDING");
@@ -839,8 +921,648 @@ describe("version binding — the signed version carries the approved hash", () 
 
     // A differing hash no longer matches the admin approval — the same
     // gate the sign route reads, proven directly.
-    const adminReview = await import("../contracts/admin-review");
     expect(adminReview.currentVersionApproval(contract, approvedVersion.documentHash)).not.toBeNull();
     expect(adminReview.currentVersionApproval(contract, "f".repeat(64))).toBeNull();
+  });
+});
+
+// ============================================================
+// The two registration paths — reviewed vs directly registered
+// ============================================================
+// «ثبت نهایی» is a REAL choice with consequences: it skips the review
+// queue entirely, says so in the record it writes, and every surface
+// reads that record instead of inferring "reviewed". These tests drive
+// both paths through the route layer and assert the separation:
+//
+//   • the unreviewed path is refused without the explicit acknowledgement
+//   • it lands in READY_TO_SIGN with a `self_final` record that says
+//     `reviewedByLegalir: false` and writes NO admin review at all
+//   • the reviewed path queues a decision, and the state machine will not
+//     let the unreviewed action pull a contract back out of that queue
+
+describe("registration paths — the review queue versus direct self-final", () => {
+  /**
+   * A contract at the point «ثبت نهایی» is pressed: complete content,
+   * frozen as a version. `createVersion` is the exact function the save
+   * path calls, so the hash the registration binds to is the real one.
+   */
+  function seedFrozenContract(id: string): PropertyContract {
+    contractDb.insertContract(seedContract(id, rentData));
+    contractDb.upsertParty(party(id, "landlord", "09121110031", true));
+    contractDb.upsertParty(party(id, "tenant", "09121110032"));
+    snapshot.createVersion(contractDb.getContractById(id)!, ownerId);
+    return contractDb.getContractById(id)!;
+  }
+
+  it("refuses the unreviewed path unless the warning was acknowledged", async () => {
+    const id = "ctr-self-final-no-ack";
+    seedFrozenContract(id);
+
+    for (const body of [
+      { action: "final_register" },
+      { action: "final_register", acknowledgedUnreviewed: false },
+    ]) {
+      const res = await reviewPost(req(`${BASE}/${id}/review`, ownerSession, body), params(id));
+      expect(res.status).toBe(400);
+      expect((await json<{ code: string }>(res)).code).toBe("ACKNOWLEDGEMENT_REQUIRED");
+    }
+
+    // Nothing may have moved or been written.
+    expect(contractDb.getContractById(id)!.state).toBe("READY_FOR_REVIEW");
+    expect(registration.listRegistrations(id)).toHaveLength(0);
+    expect(adminReview.listAdminReviews(id)).toHaveLength(0);
+  });
+
+  it("moves straight to party signing, records self_final, and never queues a review", async () => {
+    const id = "ctr-self-final-ok";
+    const seeded = seedFrozenContract(id);
+    const versionId = seeded.currentVersionId!;
+    const versionHash = contractDb.getVersion(id, versionId)!.documentHash;
+
+    const res = await reviewPost(
+      req(`${BASE}/${id}/review`, ownerSession, {
+        action: "final_register",
+        acknowledgedUnreviewed: true,
+        comment: "طرفین توافق کردند بدون بررسی ثبت کنند.",
+      }),
+      params(id)
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: { contract: PropertyContract; registration: ContractRegistrationRecord };
+    }>(res);
+    expect(data.contract.state).toBe("READY_TO_SIGN");
+
+    // The record the whole product reads: hash-bound, explicitly unreviewed,
+    // and carrying the user's own reason plus the moment it was chosen.
+    const record = data.registration;
+    expect(record.path).toBe("self_final");
+    expect(record.reviewedByLegalir).toBe(false);
+    expect(record.actorKind).toBe("party");
+    expect(record.actorId).toBe(ownerId);
+    expect(record.contractVersionId).toBe(versionId);
+    expect(record.documentHash).toBe(versionHash);
+    expect(record.reasonFa).toBe("طرفین توافق کردند بدون بررسی ثبت کنند.");
+    expect(record.adminReviewId).toBeNull();
+    expect(record.createdAt).toBeTruthy();
+
+    // THE INVARIANT: no review row, no approval. A contract registered this
+    // way can never be displayed as reviewed or approved.
+    expect(adminReview.listAdminReviews(id)).toHaveLength(0);
+    expect(adminReview.currentVersionApproval(data.contract, versionHash)).toBeNull();
+    expect(
+      registration.resolveSigningAuthorisation({
+        contract: data.contract,
+        documentHash: versionHash,
+        approval: null,
+      })?.kind
+    ).toBe("self_final");
+
+    // ...and that authorisation is what lets the signing stage open, with
+    // no admin decision ever having been taken.
+    const opened = await signPost(
+      req(`${BASE}/${id}/sign`, ownerSession, { action: "create_request" }),
+      params(id)
+    );
+    expect(opened.status).toBe(200);
+    expect((await json<{ data: { contract: PropertyContract } }>(opened)).data.contract.state).toBe(
+      "READY_TO_SIGN"
+    );
+  });
+
+  it("refuses to register the same version twice", async () => {
+    const id = "ctr-self-final-dup";
+    seedFrozenContract(id);
+    const body = { action: "final_register", acknowledgedUnreviewed: true };
+    expect(
+      (await reviewPost(req(`${BASE}/${id}/review`, ownerSession, body), params(id))).status
+    ).toBe(200);
+
+    const again = await reviewPost(req(`${BASE}/${id}/review`, ownerSession, body), params(id));
+    expect(again.status).toBe(409);
+    expect((await json<{ code: string }>(again)).code).toBe("ALREADY_REGISTERED");
+    expect(registration.listRegistrations(id)).toHaveLength(1);
+  });
+
+  it("puts the reviewed path in the queue and cannot be pulled out by final_register", async () => {
+    const id = "ctr-review-queue";
+    seedFrozenContract(id);
+
+    const submitted = await reviewPost(
+      req(`${BASE}/${id}/review`, ownerSession, { action: "submit_admin" }),
+      params(id)
+    );
+    expect(submitted.status).toBe(200);
+    const swept = (
+      await json<{ data: { contract: PropertyContract } }>(submitted)
+    ).data.contract;
+    expect(swept.state).toBe("PENDING_ADMIN_REVIEW");
+
+    // Exactly one open review, bound to the submitted version's hash.
+    const open = adminReview.openAdminReview(id);
+    expect(open).not.toBeNull();
+    expect(open!.contractVersionId).toBe(swept.currentVersionId);
+
+    // The state machine has no PENDING_ADMIN_REVIEW → READY_TO_SIGN edge,
+    // so «ثبت نهایی» cannot shortcut a contract out of a review it entered.
+    const shortcut = await reviewPost(
+      req(`${BASE}/${id}/review`, ownerSession, {
+        action: "final_register",
+        acknowledgedUnreviewed: true,
+      }),
+      params(id)
+    );
+    expect(shortcut.status).toBe(409);
+    expect((await json<{ code: string }>(shortcut)).code).toBe("ILLEGAL_TRANSITION");
+
+    expect(contractDb.getContractById(id)!.state).toBe("PENDING_ADMIN_REVIEW");
+    expect(registration.listRegistrations(id)).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// Admin manual advance (T4) — mandatory reason, never a review
+// ============================================================
+
+describe("admin manual advance to signing — a reason, a record, never a review", () => {
+  const ADVANCE = (id: string) => `${ADMIN_BASE}/${id}/advance-signing`;
+
+  function seedAdvanceable(id: string): PropertyContract {
+    contractDb.insertContract(seedContract(id, rentData));
+    contractDb.upsertParty(party(id, "landlord", "09121110041", true));
+    contractDb.upsertParty(party(id, "tenant", "09121110042"));
+    snapshot.createVersion(contractDb.getContractById(id)!, ownerId);
+    return contractDb.getContractById(id)!;
+  }
+
+  it("is refused for a non-admin", async () => {
+    const id = "ctr-advance-forbidden";
+    seedAdvanceable(id);
+    const res = await advanceSigningPost(
+      req(ADVANCE(id), otherSession, { reasonFa: "تأیید تلفنی موکل" }),
+      params(id)
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("requires a written reason and refuses a token one", async () => {
+    const id = "ctr-advance-reason";
+    seedAdvanceable(id);
+
+    for (const body of [{}, { reasonFa: "  " }, { reasonFa: "اب" }]) {
+      const res = await advanceSigningPost(req(ADVANCE(id), adminSession, body), params(id));
+      expect(res.status).toBe(400);
+      expect((await json<{ code: string }>(res)).code).toBe("REASON_REQUIRED");
+    }
+
+    expect(contractDb.getContractById(id)!.state).toBe("READY_FOR_REVIEW");
+    expect(registration.listRegistrations(id)).toHaveLength(0);
+  });
+
+  it("cannot pull a contract out of the review queue", async () => {
+    const id = "ctr-advance-in-queue";
+    seedAdvanceable(id);
+    const submitted = await reviewPost(
+      req(`${BASE}/${id}/review`, ownerSession, { action: "submit_admin" }),
+      params(id)
+    );
+    expect(submitted.status).toBe(200);
+
+    const res = await advanceSigningPost(
+      req(ADVANCE(id), adminSession, { reasonFa: "تأیید تلفنی موکل" }),
+      params(id)
+    );
+    expect(res.status).toBe(409);
+    expect((await json<{ code: string }>(res)).code).toBe("REVIEW_PENDING");
+    expect(contractDb.getContractById(id)!.state).toBe("PENDING_ADMIN_REVIEW");
+    expect(registration.listRegistrations(id)).toHaveLength(0);
+  });
+
+  it("advances with the reason recorded and never claims LEGALIR reviewed it", async () => {
+    const id = "ctr-advance-ok";
+    const seeded = seedAdvanceable(id);
+    const versionHash = contractDb.getVersion(id, seeded.currentVersionId!)!.documentHash;
+    const reason = "طرفین تلفنی تأیید کردند و درخواست امضا دادند.";
+
+    const res = await advanceSigningPost(req(ADVANCE(id), adminSession, { reasonFa: reason }), params(id));
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        contract: PropertyContract;
+        registration: ContractRegistrationRecord;
+        reviewedByLegalir: boolean;
+      };
+    }>(res);
+    expect(data.contract.state).toBe("READY_TO_SIGN");
+    expect(data.reviewedByLegalir).toBe(false);
+
+    const record = data.registration;
+    expect(record.path).toBe("self_final");
+    expect(record.reviewedByLegalir).toBe(false);
+    expect(record.actorKind).toBe("admin");
+    expect(record.actorId).toBe(adminId);
+    expect(record.reasonFa).toBe(reason);
+    expect(record.documentHash).toBe(versionHash);
+
+    // Still no review, still no approval — the admin acted as an operator,
+    // not as the legal review office.
+    expect(adminReview.listAdminReviews(id)).toHaveLength(0);
+    expect(adminReview.currentVersionApproval(data.contract, versionHash)).toBeNull();
+
+    // Both trails carry the action and the reason, and say it was NOT a
+    // review. The contract trail is what parties and the admin panel read.
+    const entries = contractDb.listAudit(id);
+    const advanceEntry = entries.find((e) => e.action === "contract.admin_advanced_to_signing");
+    expect(advanceEntry).toBeDefined();
+    expect(advanceEntry!.metadata).toMatchObject({
+      registrationId: record.id,
+      documentHash: versionHash,
+      reviewedByLegalir: false,
+      fromState: "READY_FOR_REVIEW",
+      toState: "READY_TO_SIGN",
+    });
+    expect(advanceEntry!.descriptionFa).toContain(reason);
+    expect(advanceEntry!.descriptionFa).toContain("بدون بررسی لیگالیر");
+  });
+});
+
+// ============================================================
+// Admin message (T6) — 100 code points, and clearing prints nothing
+// ============================================================
+
+describe("admin message — capped at 100 code points, cleared to nothing", () => {
+  const ID = "ctr-admin-message";
+
+  beforeAll(() => {
+    contractDb.insertContract(seedContract(ID, rentData));
+  });
+
+  it("is writable only by a review-capable admin", async () => {
+    const res = await messagePost(
+      req(`${ADMIN_BASE}/${ID}/message`, otherSession, { messageFa: "متن" }),
+      params(ID)
+    );
+    expect(res.status).toBe(403);
+    expect(adminPrint.getAdminMessage(ID)).toBeNull();
+  });
+
+  it("rejects 101 code points and never stores a truncated copy", async () => {
+    const tooLong = "م".repeat(CONTRACT_ADMIN_MESSAGE_MAX + 1);
+    const res = await messagePost(
+      req(`${ADMIN_BASE}/${ID}/message`, adminSession, { messageFa: tooLong }),
+      params(ID)
+    );
+    expect(res.status).toBe(400);
+    const body = await json<{ code: string; message: string }>(res);
+    expect(body.code).toBe("TOO_LONG");
+    expect(body.message).toContain(String(CONTRACT_ADMIN_MESSAGE_MAX));
+    expect(adminPrint.getAdminMessage(ID)).toBeNull();
+  });
+
+  it("accepts exactly the maximum and reports zero remaining", async () => {
+    const exactly = "ا".repeat(CONTRACT_ADMIN_MESSAGE_MAX);
+    const res = await messagePost(
+      req(`${ADMIN_BASE}/${ID}/message`, adminSession, { messageFa: exactly }),
+      params(ID)
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        message: { messageFa: string; adminUserId: string; updatedAt: string };
+        remainingChars: number;
+        finalArtifactRegenerated: boolean;
+      };
+    }>(res);
+    expect(data.message.messageFa).toBe(exactly);
+    expect(data.message.adminUserId).toBe(adminId);
+    expect(data.remainingChars).toBe(0);
+    // The contract is not finalized yet, so there is no stored artifact
+    // to replace — the PDF is rendered on demand from this same row.
+    expect(data.finalArtifactRegenerated).toBe(false);
+
+    const got = await messageGet(getReq(`${ADMIN_BASE}/${ID}/message`, adminSession), params(ID));
+    expect(got.status).toBe(200);
+    expect(
+      (await json<{ data: { message: { messageFa: string } } }>(got)).data.message.messageFa
+    ).toBe(exactly);
+  });
+
+  it("an empty message clears the row so nothing reserves space", async () => {
+    const res = await messagePost(
+      req(`${ADMIN_BASE}/${ID}/message`, adminSession, { messageFa: "   " }),
+      params(ID)
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{ data: { message: null; remainingChars: number } }>(res);
+    expect(data.message).toBeNull();
+    expect(data.remainingChars).toBe(CONTRACT_ADMIN_MESSAGE_MAX);
+    expect(adminPrint.getAdminMessage(ID)).toBeNull();
+
+    const got = await messageGet(getReq(`${ADMIN_BASE}/${ID}/message`, adminSession), params(ID));
+    expect((await json<{ data: { message: null } }>(got)).data.message).toBeNull();
+  });
+});
+
+// ============================================================
+// T7 — a late change REPLACES the stored final PDF
+// ============================================================
+// The printed document depends on inputs that are not frozen in the
+// version snapshot: the admin's red message, the uploaded signature scans,
+// the seal. If one of those changes after finalisation and the stored
+// artifact is left alone, the archived PDF and the on-demand/preview
+// renders disagree about what "the final contract" says.
+//
+// These prove the ONE regeneration entry point: every change replaces the
+// `final_pdf` row (never adds a second one), and the audit trail records
+// that it happened.
+describe("T7 — a change after finalisation regenerates the stored PDF", () => {
+  const ID = "ctr-t7-regenerate";
+  let firstDocumentId: string;
+  let firstHash: string;
+
+  beforeAll(async () => {
+    await seedApprovedContract(ID);
+    const created = await signPost(
+      req(`${BASE}/${ID}/sign`, ownerSession, { action: "create_request" }),
+      params(ID)
+    );
+    expect(created.status).toBe(200);
+    const { data } = await json<{
+      data: { request: { participants: { id: string; roleFa: string }[] } };
+    }>(created);
+
+    for (const participant of data.request.participants) {
+      const sent = await signPost(
+        req(`${BASE}/${ID}/sign`, ownerSession, {
+          action: "request_otp",
+          participantId: participant.id,
+        }),
+        params(ID)
+      );
+      expect(sent.status).toBe(200);
+      const signed = await signPost(
+        req(`${BASE}/${ID}/sign`, ownerSession, {
+          action: "verify_otp",
+          participantId: participant.id,
+          code: "405405",
+          consentGiven: true,
+        }),
+        params(ID)
+      );
+      expect(signed.status).toBe(200);
+    }
+
+    // Rendering needs the real Vazirmatn fonts, which live in the repo —
+    // not in the temp DB directory.
+    const res = await withRepoCwd(() =>
+      finalizePost(req(`${BASE}/${ID}/finalize`, ownerSession, {}), params(ID))
+    );
+    expect(res.status).toBe(200);
+    const { data: out } = await json<{
+      data: { finalArtifact: { documentId: string; hash: string } | null };
+    }>(res);
+    expect(out.finalArtifact, "finalisation stored no artifact").not.toBeNull();
+    firstDocumentId = out.finalArtifact!.documentId;
+    firstHash = out.finalArtifact!.hash;
+  });
+
+  it("setting the message replaces the artifact, byte for byte", async () => {
+    const res = await withRepoCwd(() =>
+      messagePost(
+        req(`${ADMIN_BASE}/${ID}/message`, adminSession, { messageFa: "این نسخه بازتولید شد." }),
+        params(ID)
+      )
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{ data: { finalArtifactRegenerated: boolean } }>(res);
+    expect(data.finalArtifactRegenerated).toBe(true);
+
+    const finalDocs = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf");
+    // ONE artifact, replaced — a second copy would let two "final" PDFs
+    // disagree about which one is current.
+    expect(finalDocs).toHaveLength(1);
+    expect(finalDocs[0]!.id).not.toBe(firstDocumentId);
+    expect(finalDocs[0]!.hash).not.toBe(firstHash);
+    expect(finalDocs[0]!.mime).toBe("application/pdf");
+    expect(finalDocs[0]!.sizeBytes).toBeGreaterThan(1000);
+
+    // The audit trail says the archived copy was regenerated.
+    const regenerated = contractDb
+      .listAudit(ID)
+      .find((e) => e.action === "contract.final_artifact.regenerated");
+    expect(regenerated, "no regeneration audit entry").toBeTruthy();
+  });
+
+  it("a second edit replaces it again — still exactly one artifact", async () => {
+    const before = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf")[0]!;
+
+    const res = await withRepoCwd(() =>
+      messagePost(
+        req(`${ADMIN_BASE}/${ID}/message`, adminSession, { messageFa: "متن دوم." }),
+        params(ID)
+      )
+    );
+    expect(res.status).toBe(200);
+    expect(
+      (await json<{ data: { finalArtifactRegenerated: boolean } }>(res)).data
+        .finalArtifactRegenerated
+    ).toBe(true);
+
+    const finalDocs = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf");
+    expect(finalDocs).toHaveLength(1);
+    expect(finalDocs[0]!.id).not.toBe(before.id);
+    expect(finalDocs[0]!.hash).not.toBe(before.hash);
+  });
+
+  it("clearing the message regenerates too — the old red strip must disappear", async () => {
+    const before = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf")[0]!;
+
+    const res = await withRepoCwd(() =>
+      messagePost(
+        req(`${ADMIN_BASE}/${ID}/message`, adminSession, { messageFa: "" }),
+        params(ID)
+      )
+    );
+    expect(res.status).toBe(200);
+    expect(
+      (await json<{ data: { finalArtifactRegenerated: boolean } }>(res)).data
+        .finalArtifactRegenerated
+    ).toBe(true);
+
+    const finalDocs = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf");
+    expect(finalDocs).toHaveLength(1);
+    expect(finalDocs[0]!.id).not.toBe(before.id);
+  });
+
+  it("a regeneration failure never deletes the artifact that already exists", async () => {
+    const before = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf")[0]!;
+    const { refreshFinalArtifact } = await import("../contracts/finalization");
+
+    // No fonts + an unwritable storage root: the render throws, so the
+    // helper must return null and leave the stored row untouched.
+    const artifact = await refreshFinalArtifact({
+      contractId: ID,
+      actorId: adminId,
+      baseUrl: "http://localhost",
+    });
+    // Whatever happened, the existing row is still there and still unique.
+    const finalDocs = contractDb
+      .listContractDocuments(ID)
+      .filter((d) => d.category === "final_pdf");
+    expect(finalDocs).toHaveLength(1);
+    if (artifact === null) {
+      expect(finalDocs[0]!.id).toBe(before.id);
+    } else {
+      // If a render DID succeed (a machine with fonts reachable from the
+      // temp cwd), it must still have replaced rather than duplicated.
+      expect(finalDocs[0]!.id).not.toBe(before.id);
+    }
+  });
+});
+
+// ============================================================
+// Destination correction (T5) — stored, append-only, send on confirm
+// ============================================================
+
+describe("destination correction — stored on that person, sent only on confirmation", () => {
+  const ID = "ctr-contact";
+  let tenantId: string;
+  let tenantPartyId: string;
+  let previousMobile: string;
+
+  beforeAll(async () => {
+    await seedApprovedContract(ID);
+    const created = await signPost(
+      req(`${BASE}/${ID}/sign`, ownerSession, { action: "create_request" }),
+      params(ID)
+    );
+    expect(created.status).toBe(200);
+    const { data } = await json<{
+      data: { request: { participants: { id: string; roleFa: string; partyId: string }[] } };
+    }>(created);
+    const tenant = data.request.participants.find((p) => p.roleFa === "مستأجر")!;
+    tenantId = tenant.id;
+    tenantPartyId = tenant.partyId;
+    previousMobile = signatureDb.getParticipant(tenantId)!.mobile;
+  });
+
+  it("refuses a correction without a reason or with an invalid number", async () => {
+    for (const body of [
+      { participantId: tenantId, newMobile: "09121110051" },
+      { participantId: tenantId, newMobile: "09121110051", reasonFa: "اب" },
+    ]) {
+      const res = await contactPost(
+        req(`${ADMIN_BASE}/${ID}/contact`, adminSession, body),
+        params(ID)
+      );
+      expect(res.status).toBe(400);
+      expect((await json<{ code: string }>(res)).code).toBe("REASON_REQUIRED");
+    }
+
+    const bad = await contactPost(
+      req(`${ADMIN_BASE}/${ID}/contact`, adminSession, {
+        participantId: tenantId,
+        newMobile: "12345",
+        reasonFa: "شماره اشتباه بود",
+      }),
+      params(ID)
+    );
+    expect(bad.status).toBe(400);
+    expect((await json<{ code: string }>(bad)).code).toBe("INVALID_MOBILE");
+
+    // Nothing was stored and the participant keeps their original number.
+    expect(adminPrint.listContactChanges(ID)).toHaveLength(0);
+    expect(signatureDb.getParticipant(tenantId)!.mobile).toBe(previousMobile);
+  });
+
+  it("never sends as a side effect of a correction", async () => {
+    const res = await contactPost(
+      req(`${ADMIN_BASE}/${ID}/contact`, adminSession, {
+        participantId: tenantId,
+        newMobile: "09121110051",
+        reasonFa: "شماره اشتباه بود",
+        send: true,
+      }),
+      params(ID)
+    );
+    expect(res.status).toBe(400);
+    expect((await json<{ code: string }>(res)).code).toBe("CONFIRMATION_REQUIRED");
+    expect(signatureDb.getParticipant(tenantId)!.mobile).toBe(previousMobile);
+    expect(adminPrint.listContactChanges(ID)).toHaveLength(0);
+  });
+
+  it("stores the new number on that person and appends the change record", async () => {
+    const res = await contactPost(
+      req(`${ADMIN_BASE}/${ID}/contact`, adminSession, {
+        participantId: tenantId,
+        newMobile: "09121110051",
+        reasonFa: "شماره اشتباه بود",
+      }),
+      params(ID)
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{ data: { sent: boolean; invitation: unknown } }>(res);
+    expect(data.sent).toBe(false);
+    expect(data.invitation).toBeNull();
+
+    // Rule 1 — the number lives on the participant's own row AND on the
+    // party row the next signature request will be built from.
+    expect(signatureDb.getParticipant(tenantId)!.mobile).toBe("+989121110051");
+    expect(contractDb.getParty(ID, tenantPartyId)!.identity.mobile).toBe("+989121110051");
+
+    // Rule 2 — previous / new / reason / admin / time, append-only.
+    const changes = adminPrint.listContactChanges(ID);
+    expect(changes).toHaveLength(1);
+    const change = changes[0]!;
+    expect(change.previousMobile).toBe(previousMobile);
+    expect(change.newMobile).toBe("+989121110051");
+    expect(change.reasonFa).toBe("شماره اشتباه بود");
+    expect(change.adminUserId).toBe(adminId);
+    expect(change.changedAt).toBeTruthy();
+    // Rule 3 — a correction alone is not a delivery.
+    expect(change.deliveryStatus).toBeNull();
+  });
+
+  it("sends only after confirmation and writes the real delivery outcome", async () => {
+    const res = await contactPost(
+      req(`${ADMIN_BASE}/${ID}/contact`, adminSession, {
+        participantId: tenantId,
+        newMobile: "09121110052",
+        reasonFa: "شمارهٔ دومِ طرف درست است",
+        send: true,
+        confirmed: true,
+      }),
+      params(ID)
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        sent: boolean;
+        invitation: { participantId: string } | null;
+        errorFa: string | null;
+      };
+    }>(res);
+    expect(data.invitation).not.toBeNull();
+    expect(data.invitation!.participantId).toBe(tenantId);
+
+    // Rule 4 — the outcome is written back to the SAME change row.
+    const latest = adminPrint.listContactChanges(ID)[0]!;
+    expect(latest.newMobile).toBe("+989121110052");
+    expect(latest.deliveryStatus).toBe(data.sent ? "SENT" : "FAILED");
+    expect(latest.deliveryChannel).not.toBeNull();
+    expect(latest.deliveredAt).toBeTruthy();
+    expect(latest.deliveryDetail).toBeTruthy();
   });
 });

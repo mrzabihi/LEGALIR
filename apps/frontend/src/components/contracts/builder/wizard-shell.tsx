@@ -40,6 +40,7 @@ function WizardBody() {
     progress,
     completeness,
     editable,
+    readOnly,
     state,
     saveStatus,
     saveError,
@@ -112,7 +113,16 @@ function WizardBody() {
             <p className="text-body-2 text-muted mt-0.5">{step.descriptionFa}</p>
           </div>
 
-          {!editable && (
+          {/* A referred lawyer sees why nothing here is editable. This is a
+              DIFFERENT reason from the frozen-state banner below: the
+              contract may still be editable, just not by this reader. */}
+          {readOnly && (
+            <div className="rounded-medium border border-info bg-info-50 px-3 py-2.5 text-body-2 text-info-700">
+              این قرارداد برای بررسی حقوقی به شما ارجاع شده است و فقط‌خواندنی است.
+            </div>
+          )}
+
+          {!readOnly && !editable && (
             <div className="rounded-medium border border-warning bg-warning-container px-3 py-2.5 text-body-2">
               این قرارداد در وضعیت فعلی قابل ویرایش نیست. برای تغییر محتوا ابتدا از طرف مقابل درخواست اصلاح کنید.
             </div>
@@ -135,7 +145,16 @@ function WizardBody() {
           )}
 
           {StepComponent ? (
-            <StepComponent />
+            /* A disabled fieldset is what actually makes the step inert:
+               the inputs stay readable and selectable, but nothing can be
+               typed into a form the reader has no right to change. */
+            readOnly ? (
+              <fieldset disabled className="contents">
+                <StepComponent />
+              </fieldset>
+            ) : (
+              <StepComponent />
+            )
           ) : (
             <div className="rounded-large border border-divider bg-surface p-6 text-body-2 text-muted">
               این مرحله هنوز پیاده‌سازی نشده است.
@@ -190,12 +209,15 @@ function WizardBody() {
 export function ContractBuilder({
   contract,
   completeness,
+  readOnly = false,
 }: {
   contract: PropertyContractDetail;
   completeness: ContractCompleteness;
+  /** A referred lawyer (or admin reviewer) opens the contract read-only. */
+  readOnly?: boolean;
 }) {
   return (
-    <WizardProvider contract={contract} completeness={completeness}>
+    <WizardProvider contract={contract} completeness={completeness} readOnly={readOnly}>
       <WizardBody />
     </WizardProvider>
   );

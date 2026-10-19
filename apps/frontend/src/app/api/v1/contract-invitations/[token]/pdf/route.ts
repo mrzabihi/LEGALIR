@@ -18,30 +18,13 @@
 
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import {
-  findInvitationByTokenHash,
-  getSignatureRequest,
-  signatureMarksForVersion,
-} from "@/lib/contracts/signature/db";
+import { findInvitationByTokenHash, getSignatureRequest } from "@/lib/contracts/signature/db";
 import { getContractById, getVersion } from "@/lib/contracts/db";
-import { currentVersionApproval } from "@/lib/contracts/admin-review";
-import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { renderContractPdf } from "@/lib/contracts/pdf";
-import { mergedLegalBasisCatalog, preSignTipsForType } from "@/lib/contracts/legal-review-db";
-import { stateLabelFa } from "@/lib/contracts/state-machine";
+import { buildContractPdfInputs } from "@/lib/contracts/pdf-inputs";
 
 interface Params {
   params: Promise<{ token: string }>;
-}
-
-/** Public-safe initials, e.g. «م.م» — never the full name. */
-function initialsFrom(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "LG";
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join(".");
 }
 
 export async function GET(request: Request, { params }: Params) {
@@ -81,43 +64,16 @@ export async function GET(request: Request, { params }: Params) {
     );
   }
 
-  // The stamp is drawn ONLY when this exact version still carries a
-  // valid, bound approval; otherwise the renderer applies the draft
-  // watermark.
-  const approval = currentVersionApproval(contract, version.documentHash);
-  const official = currentVersionStamp(contract, version.documentHash);
-
+  // The invited party sees EXACTLY the document the owner sees for the
+  // same version — the same assembly the owner route uses, so marks,
+  // uploaded signatures and annexed pages can never differ between them.
   let bytes: Uint8Array;
   try {
     bytes = await renderContractPdf({
       contract,
       version,
       baseUrl: new URL(request.url).origin,
-      legalBasisCatalog: mergedLegalBasisCatalog(),
-      preSignTips: preSignTipsForType(contract.type),
-      stateFa: stateLabelFa(contract.state),
-      // The invited party sees the TRUE state of every role on the version
-      // they were invited to sign — no more and no less.
-      signatureMarks: signatureMarksForVersion(contract.id, version.id),
-      stamp: approval
-        ? {
-            applied: true,
-            reviewId: approval.id,
-            reviewedAt: approval.decidedAt ?? undefined,
-            reviewingOfficeFa: approval.reviewingOfficeFa,
-            reviewerInitials: approval.reviewerInitials,
-            officialStamp: official
-              ? {
-                  sha256: official.stampAssetSha256 ?? "",
-                  version: official.stampAssetVersion,
-                  approvedAt: official.appliedAt,
-                  approvedByInitials: official.approvedByLabelFa
-                    ? initialsFrom(official.approvedByLabelFa)
-                    : null,
-                }
-              : null,
-          }
-        : { applied: false },
+      ...buildContractPdfInputs({ contract, version }),
     });
   } catch {
     return NextResponse.json(

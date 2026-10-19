@@ -99,7 +99,13 @@ function BuilderContent({ id }: { id: string }) {
     );
   }
 
-  return <ContractBuilder contract={data} completeness={data.completeness} />;
+  // A contract referred to this caller for legal review opens READ-ONLY:
+  // the server grants read access only, so the workspace must never offer
+  // an edit the owner-only routes would reject.
+  const assigned = data.access === "assigned";
+  return (
+    <ContractBuilder contract={data} completeness={data.completeness} readOnly={assigned} />
+  );
 }
 
 export default function ContractBuilderPage({ params }: { params: Promise<{ id: string }> }) {

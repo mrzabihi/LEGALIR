@@ -53,22 +53,37 @@ import { createVersion } from "./snapshot";
 import { currentVersionApproval } from "./admin-review";
 import { currentVersionStamp } from "./stamp-review";
 import { evaluateRegistrationPolicy } from "./registration-policy";
-import { assertTransition, IllegalTransitionError, stateLabelFa } from "./state-machine";
+import { assertTransition, IllegalTransitionError } from "./state-machine";
 import { renderContractPdf } from "./pdf";
-import { mergedLegalBasisCatalog, preSignTipsForType } from "./legal-review-db";
-import { signatureMarksForVersion } from "./signature/db";
+import { buildContractPdfInputs } from "./pdf-inputs";
+import { contractPrintIssues } from "./admin-print";
+import { latestSignatureRequestDetail } from "./signature/db";
+import { registrationForHash, resolveSigningAuthorisation } from "./registration";
 import { writeContractFile } from "./storage";
 
 /** The review mark recorded on the final version's metadata. */
 export interface FinalStampMetadata {
   applied: true;
+  /**
+   * Which registration path authorised the final document. A
+   * `self_final` record NEVER claims a review happened: its metadata
+   * carries `reviewId: null` and the actor label instead.
+   */
+  path: "legalir_review" | "self_final";
   text: string;
   disclaimerFa: string;
-  reviewId: string;
+  reviewId: string | null;
   reviewedAt: string | null;
   reviewingOfficeFa: string;
   reviewerId: string | null;
   reviewerInitials: string | null;
+  /** The self-final record's actor and reason (null on the reviewed path). */
+  selfFinal: {
+    registrationId: string;
+    actorLabelFa: string;
+    registeredAt: string;
+    reasonFa: string;
+  } | null;
   /**
    * The OFFICIAL seal, present only when a Super-Admin stamp is validly
    * bound to the FINAL version's hash and the stamp master is still
@@ -97,6 +112,7 @@ export type FinalizeFailureCode =
   | "NOT_ALL_SIGNED"
   | "ADMIN_APPROVAL_REQUIRED"
   | "ILLEGAL_TRANSITION"
+  | "PRINT_UNFAITHFUL"
   | "FINALIZE_FAILED";
 
 export type FinalizeOutcome =
@@ -134,28 +150,63 @@ export interface FinalizeInput {
   refreshArtifact?: boolean;
 }
 
-/** Build the metadata mark from the real approval + stamp rows. */
+/**
+ * Build the metadata mark from the REAL authorisation row. On the
+ * reviewed path that is the admin approval; on the self-final path it is
+ * the registration record, printed with `reviewId: null` so nothing in
+ * the metadata can ever read as a review that did not happen.
+ */
 function buildStamp(
-  approval: ContractAdminReview,
+  contractId: string,
+  documentHash: string,
+  approval: ContractAdminReview | null,
   official: ContractStampRequest | null
 ): FinalStampMetadata {
+  const registration = registrationForHash(contractId, documentHash);
+  const seal = official
+    ? {
+        sha256: official.stampAssetSha256 ?? "",
+        version: official.stampAssetVersion,
+        approvedAt: official.appliedAt,
+        approvedByInitials: official.approvedByLabelFa ?? null,
+      }
+    : null;
+
+  if (approval) {
+    return {
+      applied: true,
+      path: "legalir_review",
+      text: CONTRACT_REVIEW_STAMP_TEXT,
+      disclaimerFa: CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
+      reviewId: approval.id,
+      reviewedAt: approval.decidedAt,
+      reviewingOfficeFa: approval.reviewingOfficeFa,
+      reviewerId: approval.reviewerId,
+      reviewerInitials: approval.reviewerInitials,
+      selfFinal: null,
+      officialStamp: seal,
+    };
+  }
+
   return {
     applied: true,
-    text: CONTRACT_REVIEW_STAMP_TEXT,
-    disclaimerFa: CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
-    reviewId: approval.id,
-    reviewedAt: approval.decidedAt,
-    reviewingOfficeFa: approval.reviewingOfficeFa,
-    reviewerId: approval.reviewerId,
-    reviewerInitials: approval.reviewerInitials,
-    officialStamp: official
+    path: "self_final",
+    text: "ثبت نهایی بدون بررسی لیگالیر",
+    disclaimerFa: "این سند بدون بررسی واحد حقوقی لیگالیر ثبت نهایی شده و «بررسی‌شده» محسوب نمی‌شود.",
+    reviewId: null,
+    reviewedAt: null,
+    reviewingOfficeFa: "بررسی لیگالیر انجام نشده است",
+    reviewerId: null,
+    reviewerInitials: null,
+    selfFinal: registration
       ? {
-          sha256: official.stampAssetSha256 ?? "",
-          version: official.stampAssetVersion,
-          approvedAt: official.appliedAt,
-          approvedByInitials: official.approvedByLabelFa ?? null,
+          registrationId: registration.id,
+          actorLabelFa: registration.actorLabelFa,
+          registeredAt: registration.createdAt,
+          reasonFa: registration.reasonFa,
         }
       : null,
+    officialStamp: seal,
   };
 }
 
@@ -187,27 +238,19 @@ async function storeFinalArtifact(params: {
   stamp: FinalStampMetadata;
   replaceExisting: boolean;
 }): Promise<FinalArtifact | null> {
-  const { baseUrl, contract, version, actorId, finalizedAt, stamp, replaceExisting } = params;
+  const { baseUrl, contract, version, actorId, finalizedAt, replaceExisting } = params;
   try {
+    // The stored artifact is rendered from the SAME input assembly the
+    // /pdf routes use, so a downloaded PDF and the archived one can
+    // never disagree about marks, uploaded signatures or annexed pages.
+    // The registration path is re-derived here too, so the amber
+    // unreviewed notice (or the blue reviewed mark) always matches the
+    // authorisation row recorded for this hash.
     const bytes = await renderContractPdf({
       contract,
       version,
       baseUrl,
-      // The sealed final PDF carries the reviewer-corrected legal annex and
-      // the type's non-compulsory pre-sign tips, exactly like a draft.
-      legalBasisCatalog: mergedLegalBasisCatalog(),
-      preSignTips: preSignTipsForType(contract.type),
-      stateFa: stateLabelFa(contract.state),
-      // The sealed final PDF records what each party really signed, for
-      // THIS version and no other.
-      signatureMarks: signatureMarksForVersion(contract.id, version.id),
-      stamp: {
-        applied: true,
-        reviewedAt: stamp.reviewedAt ?? undefined,
-        reviewingOfficeFa: stamp.reviewingOfficeFa,
-        reviewerInitials: stamp.reviewerInitials,
-        officialStamp: stamp.officialStamp,
-      },
+      ...buildContractPdfInputs({ contract, version }),
     });
 
     // A refresh replaces the previous derived artifact — the document is
@@ -278,14 +321,25 @@ export async function finalizeSignedContract(input: FinalizeInput): Promise<Fina
       return { ok: false, code: "FINALIZE_FAILED", messageFa: "نسخهٔ نهایی یافت نشد." };
     }
     const approval = currentVersionApproval(contract, version.documentHash);
-    if (!approval) {
+    const authorisation = resolveSigningAuthorisation({
+      contract,
+      documentHash: version.documentHash,
+      approval,
+    });
+    if (!authorisation) {
       return {
         ok: false,
         code: "ADMIN_APPROVAL_REQUIRED",
-        messageFa: "نسخهٔ نهایی دیگر تأیید واحد بررسی حقوقی لیگالیر را ندارد.",
+        messageFa:
+          "نسخهٔ نهایی نه تأیید واحد بررسی حقوقی لیگالیر را دارد و نه ثبت نهایی بی‌بررسی معتبری برای همین محتوا.",
       };
     }
-    const stamp = buildStamp(approval, currentVersionStamp(contract, version.documentHash));
+    const stamp = buildStamp(
+      contract.id,
+      version.documentHash,
+      approval,
+      currentVersionStamp(contract, version.documentHash)
+    );
     const artifact = input.refreshArtifact
       ? await storeFinalArtifact({
           baseUrl,
@@ -342,17 +396,50 @@ export async function finalizeSignedContract(input: FinalizeInput): Promise<Fina
   }
 
   // ----------------------------------------------------------
-  // Gate 2 — the signed content carries a bound LEGALIR approval
+  // Gate 2 — the signed content carries a valid authorisation:
+  //          a bound LEGALIR approval, OR a hash-bound self-final
+  //          registration (which explicitly means "no review happened")
   // ----------------------------------------------------------
   const signedVersion = contract.currentVersionId
     ? getVersion(contract.id, contract.currentVersionId)
     : null;
   const approval = currentVersionApproval(contract, signedVersion?.documentHash ?? null);
-  if (!approval) {
+  const authorisation = resolveSigningAuthorisation({
+    contract,
+    documentHash: signedVersion?.documentHash ?? null,
+    approval,
+  });
+  if (!authorisation) {
     return {
       ok: false,
       code: "ADMIN_APPROVAL_REQUIRED",
-      messageFa: "نسخه امضاشده باید تأیید واحد بررسی حقوقی لیگالیر را داشته باشد.",
+      messageFa:
+        "نسخه امضاشده باید تأیید واحد بررسی حقوقی لیگالیر یا ثبت نهایی بی‌بررسی معتبر برای همین محتوا داشته باشد.",
+    };
+  }
+
+  // ----------------------------------------------------------
+  // Gate 2.5 — nothing in the document is unprintable
+  //
+  // An annex in DOCX/WEBP, or a signature scan that is missing or
+  // unreadable, would leave the stored PDF incomplete. The user is told
+  // BEFORE the final act, never after: a contract must not claim to be
+  // final while one of its parts silently failed to print.
+  // ----------------------------------------------------------
+  const printRequest = latestSignatureRequestDetail(contract.id);
+  const printIssues = contractPrintIssues({
+    contract,
+    documents: listContractDocuments(contract.id),
+    participants:
+      printRequest && printRequest.contractVersionId === signedVersion?.id
+        ? printRequest.participants
+        : [],
+  });
+  if (printIssues.length > 0) {
+    return {
+      ok: false,
+      code: "PRINT_UNFAITHFUL",
+      messageFa: printIssues.map((issue) => issue.messageFa).join(" "),
     };
   }
 
@@ -387,7 +474,12 @@ export async function finalizeSignedContract(input: FinalizeInput): Promise<Fina
     return { ok: false, code: "FINALIZE_FAILED", messageFa: "نهایی‌سازی ناموفق بود." };
   }
 
-  const stamp = buildStamp(approval, currentVersionStamp(updated, version.documentHash));
+  const stamp = buildStamp(
+    updated.id,
+    version.documentHash,
+    approval,
+    currentVersionStamp(updated, version.documentHash)
+  );
   const artifact = await storeFinalArtifact({
     baseUrl,
     contract: updated,
@@ -430,4 +522,71 @@ export async function finalizeSignedContract(input: FinalizeInput): Promise<Fina
     },
     alreadyFinalized: false,
   };
+}
+
+// ------------------------------------------------------------
+// T7 — regenerate the stored final PDF after a late change
+// ------------------------------------------------------------
+// The printed document depends on more than the frozen clauses: the
+// uploaded signature scans, the annexed pages, the seal/hologram, the
+// admin's red message. When one of those changes AFTER finalization, the
+// stored artifact would otherwise keep showing the old version while the
+// preview and the /pdf route show the new one — two "final" documents that
+// disagree.
+//
+// This helper is the ONE regeneration entry point: it renders from the
+// same input assembly as the preview and the on-demand route, and replaces
+// the previous derived artifact (never keeps a stale second copy).
+//
+// Returns null when there is nothing to refresh — the contract is not
+// finalized, its final version is gone, or rendering failed. A failed
+// refresh must never corrupt the existing artifact: the write happens
+// only after a successful render.
+export async function refreshFinalArtifact(params: {
+  contractId: string;
+  actorId: string;
+  baseUrl: string;
+}): Promise<FinalArtifact | null> {
+  const contract = getContractById(params.contractId);
+  if (!contract?.finalVersionId) return null;
+
+  const version = getVersion(contract.id, contract.finalVersionId);
+  if (!version) return null;
+
+  const approval = currentVersionApproval(contract, version.documentHash);
+  const stamp = buildStamp(
+    contract.id,
+    version.documentHash,
+    approval,
+    currentVersionStamp(contract, version.documentHash)
+  );
+
+  const artifact = await storeFinalArtifact({
+    baseUrl: params.baseUrl,
+    contract,
+    version,
+    actorId: params.actorId,
+    finalizedAt: contract.finalizedAt ?? new Date().toISOString(),
+    stamp,
+    replaceExisting: true,
+  });
+
+  if (artifact) {
+    appendAudit({
+      id: `aud-${crypto.randomUUID()}`,
+      contractId: contract.id,
+      actorId: params.actorId,
+      actorLabel: "سیستم",
+      action: "contract.final_artifact.regenerated",
+      descriptionFa: "نسخهٔ نهایی PDF پس از تغییر ورودی‌های چاپ (پیام ادمین/امضا/مهر) بازتولید شد.",
+      metadata: {
+        finalVersionId: version.id,
+        documentHash: version.documentHash,
+        finalArtifact: artifact,
+      },
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return artifact;
 }

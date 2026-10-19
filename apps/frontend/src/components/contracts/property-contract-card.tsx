@@ -85,7 +85,11 @@ interface PropertyContractCardProps {
 export function PropertyContractCard({ contract, onDelete }: PropertyContractCardProps) {
   const isDone =
     contract.state === "FINALIZED" || contract.state === "READY_FOR_OFFICIAL_REGISTRATION";
-  const deletable = isDeletable(contract.state);
+  // A contract referred to this caller as a lawyer is READ-ONLY here: it
+  // isn't theirs, so it is never deletable and the primary action opens it
+  // for review instead of resuming an edit they cannot make.
+  const assigned = contract.access === "assigned";
+  const deletable = !assigned && isDeletable(contract.state);
 
   return (
     <div className="rounded-large bg-surface p-4 shadow-elevation-1 border border-divider hover:shadow-elevation-3 hover:border-primary transition-all">
@@ -94,7 +98,9 @@ export function PropertyContractCard({ contract, onDelete }: PropertyContractCar
       <Link
         href={`/contracts/${contract.id}`}
         className="block focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded-medium"
-        aria-label={`ادامه قرارداد ${contract.title}`}
+        aria-label={
+          assigned ? `مشاهدهٔ قرارداد ارجاع‌شده ${contract.title}` : `ادامه قرارداد ${contract.title}`
+        }
       >
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-medium bg-primary-container text-primary-on flex items-center justify-center shrink-0">
@@ -104,11 +110,18 @@ export function PropertyContractCard({ contract, onDelete }: PropertyContractCar
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <h3 className="text-titleSmall text-on-surface truncate">{contract.title}</h3>
-              <span
-                className={`text-labelSmall rounded-small px-2 py-0.5 shrink-0 ${stateTone(contract.state)}`}
-              >
-                {contract.stateFa}
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {assigned && (
+                  <span className="text-labelSmall rounded-small bg-primary-container px-2 py-0.5 text-primary-on">
+                    ارجاع‌شده
+                  </span>
+                )}
+                <span
+                  className={`text-labelSmall rounded-small px-2 py-0.5 ${stateTone(contract.state)}`}
+                >
+                  {contract.stateFa}
+                </span>
+              </div>
             </div>
 
             <p className="text-caption text-muted mt-1 truncate">
@@ -153,7 +166,7 @@ export function PropertyContractCard({ contract, onDelete }: PropertyContractCar
           <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center">
             <IconEdit size={18} />
           </span>
-          ادامه / ویرایش
+          {assigned ? "بررسی قرارداد" : "ادامه / ویرایش"}
         </Link>
 
         {deletable && onDelete && (

@@ -104,9 +104,14 @@ import type {
   ContractAdminReviewStatus,
   ContractStampActionRequest,
   ContractStampContextResponse,
+  ContractStagesView,
   ContractStampDecisionResponse,
+  ContractAdminMessage,
   ContractCompleteness,
+  ContractContactChange,
   ContractLegalBasisReport,
+  ContractPrintIssue,
+  ContractRegistrationRecord,
   ContractLegalCitationStatus,
   ContractLegalClauseRecord,
   ContractPreSignTip,
@@ -975,7 +980,16 @@ export interface AdminContractDetail {
     isSample: boolean;
   };
   completeness: ContractCompleteness;
-  parties: { id: string; role: string; roleFa: string; nameFa: string; isInitiator: boolean }[];
+  parties: {
+    id: string;
+    role: string;
+    roleFa: string;
+    nameFa: string;
+    isInitiator: boolean;
+    /** §5 — the destination a signing link would go to. */
+    mobile: string;
+    mobileMasked: string;
+  }[];
   currentVersion: {
     id: string;
     versionNumber: number;
@@ -1112,10 +1126,144 @@ export interface AdminContractDetail {
     url: string;
     downloadUrl: string;
   } | null;
+  /**
+   * §3 — the registration path bound to the CURRENT version hash. `null`
+   * means nothing has been registered yet. A `self_final` record always
+   * reports `reviewedByLegalir: false`.
+   */
+  registration: (ContractRegistrationRecord & { pathFa: string }) | null;
+  reviewedByLegalir: boolean;
+  /** §6 — the ≤100-character printable message printed in red, if any. */
+  adminMessage: ContractAdminMessage | null;
+  adminMessageMaxChars: number;
+  /** §5 — destination-number corrections with their delivery outcome. */
+  contactChanges: ContractContactChange[];
+  /** §T1/T2 — what the PDF cannot print right now (blocks finalization). */
+  printIssues: ContractPrintIssue[];
+  canPrintFaithfully: boolean;
+  /** §T4 — an authorised admin may advance this contract to signing. */
+  canAdvanceToSigning: boolean;
+  /** §T2/§5 — each signer with the destination the link goes to. */
+  signingParticipants: {
+    id: string;
+    partyId: string | null;
+    roleFa: string;
+    nameFa: string;
+    mobile: string;
+    mobileMasked: string;
+    status: SignatureParticipant["status"];
+    statusFa: string;
+    signedAt: string | null;
+    proofDocumentId: string | null;
+    proofUrl: string | null;
+  }[];
+  /** §T1/T2 — every stored document with a direct admin URL. */
+  documents: {
+    id: string;
+    category: string;
+    fileName: string;
+    mime: string;
+    sizeBytes: number;
+    hash: string;
+    titleFa: string;
+    uploadedAt: string;
+    url: string;
+  }[];
+  /** §4 — the contract's REAL stage walk, derived server-side. */
+  stages: ContractStagesView;
+  /** §7/§9 — preview/print URL for the version currently under review. */
+  currentPdfUrl: string | null;
 }
 
 export function fetchAdminContract(id: string): Promise<AdminContractDetail> {
   return apiClient.get<AdminContractDetail>(`${A}/contracts/${encodeURIComponent(id)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Admin print + registration controls (§5, §6, §T4)
+// ---------------------------------------------------------------------------
+
+export interface AdminContractMessageResponse {
+  message: ContractAdminMessage | null;
+  maxChars: number;
+  remainingChars: number;
+  /** True when a finalized contract's stored PDF was regenerated. */
+  finalArtifactRegenerated?: boolean;
+}
+
+/**
+ * §6 — save (or clear) the printable message. An empty string REMOVES it,
+ * so no red card and no reserved space is printed. Over 100 characters is
+ * rejected by the server with the same Persian message the counter shows.
+ */
+export function saveAdminContractMessage(
+  id: string,
+  messageFa: string
+): Promise<AdminContractMessageResponse> {
+  return apiClient.post<AdminContractMessageResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/message`,
+    { messageFa }
+  );
+}
+
+export interface CorrectAdminContractContactInput {
+  participantId?: string;
+  partyId?: string;
+  newMobile: string;
+  reasonFa: string;
+  /** Send the link to the corrected number AFTER the change is stored. */
+  send?: boolean;
+  /** Required along with `send` — no delivery without explicit consent. */
+  confirmed?: boolean;
+  expiresInHours?: number;
+}
+
+export interface CorrectAdminContractContactResponse {
+  change: ContractContactChange;
+  invitation: {
+    participantId: string;
+    token: string;
+    expiresAt: string;
+    delivered: boolean;
+    channel: "sms" | "dev-console" | null;
+    failureReasonFa: string | null;
+  } | null;
+  sent: boolean;
+  errorFa: string | null;
+}
+
+/** §5 — correct one party's destination, optionally sending afterwards. */
+export function correctAdminContractContact(
+  id: string,
+  input: CorrectAdminContractContactInput
+): Promise<CorrectAdminContractContactResponse> {
+  return apiClient.post<CorrectAdminContractContactResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/contact`,
+    input
+  );
+}
+
+export interface AdvanceAdminContractSigningResponse {
+  fromStateFa: string;
+  toStateFa: string;
+  reviewedByLegalir: false;
+  registration: ContractRegistrationRecord;
+}
+
+/**
+ * §T4 — advance to party signing WITHOUT LEGALIR review. The reason is
+ * mandatory server-side; the result is always `reviewedByLegalir: false`,
+ * and the only record written that authorises signing is a `self_final`
+ * registration with `actorKind: "admin"`.
+ */
+export function advanceAdminContractToSigning(
+  id: string,
+  reasonFa: string
+): Promise<AdvanceAdminContractSigningResponse> {
+  return apiClient.post<AdvanceAdminContractSigningResponse>(
+    `${A}/contracts/${encodeURIComponent(id)}/advance-signing`,
+    { reasonFa }
+  );
 }
 
 /** The response of a review decision: the updated contract, review and approval flag. */

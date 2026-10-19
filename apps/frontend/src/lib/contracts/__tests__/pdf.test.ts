@@ -8,6 +8,7 @@
 // correct logical order, and a Latin reference code is left intact.
 // ============================================================
 
+import zlib from "node:zlib";
 import { describe, it, expect } from "vitest";
 import type {
   ContractParty,
@@ -85,7 +86,9 @@ interface PlacedRun {
 async function extractPageRuns(bytes: Uint8Array): Promise<PlacedRun[][]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({
-    data: bytes,
+    // A COPY: pdfjs takes ownership of the buffer it is given, so a second
+    // read of the same document must not see a detached one.
+    data: new Uint8Array(bytes),
     disableFontFace: true,
     isEvalSupported: false,
     useSystemFonts: false,
@@ -110,7 +113,8 @@ async function extractPageRuns(bytes: Uint8Array): Promise<PlacedRun[][]> {
 async function extractPageTexts(bytes: Uint8Array): Promise<string[]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({
-    data: bytes,
+    // See `extractPageRuns`: every read gets its own copy of the bytes.
+    data: new Uint8Array(bytes),
     disableFontFace: true,
     isEvalSupported: false,
     useSystemFonts: false,
@@ -130,6 +134,152 @@ async function extractPageTexts(bytes: Uint8Array): Promise<string[]> {
 async function extractText(bytes: Uint8Array): Promise<string> {
   return (await extractPageTexts(bytes)).join("\n");
 }
+
+/** A painted path with the ink it used, in PDF user space. */
+interface PaintedPath {
+  /** Fill colour as pdfjs reports it: 0–255 per channel. */
+  fill: [number, number, number] | null;
+  /** Stroke colour, same scale. */
+  stroke: [number, number, number] | null;
+  /** Bounding box in page space: [minX, minY, maxX, maxY]. */
+  box: [number, number, number, number];
+}
+
+/** The admin card's red ink (#B91C1C). */
+const ADMIN_RED: [number, number, number] = [185, 28, 28];
+
+/** A dependency-free solid-white PNG, for annex fixtures with a set ratio. */
+function whitePng(width: number, height: number): Uint8Array {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  const crc = (buf: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = table[(c ^ byte) & 0xff]! ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const out = Buffer.alloc(8 + data.length + 4);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc(body), 4 + body.length);
+    return out;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // RGB
+  const raw = Buffer.alloc((width * 3 + 1) * height, 0xff);
+  for (let y = 0; y < height; y++) raw[y * (width * 3 + 1)] = 0; // filter byte
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+  return new Uint8Array(png);
+}
+
+/**
+ * Every filled/stroked path per page with its ink.
+ *
+ * Colour is the only way to prove the admin message really is RED (the
+ * brief asks for red ink, not merely for the text to be present), and a
+ * bounding box is the only way to prove it stayed inside the printable
+ * area at its fixed place. pdf-lib paints a path in absolute coordinates
+ * only through a translate matrix, so the CTM is tracked through
+ * save/restore/transform.
+ */
+async function extractPaintedPaths(bytes: Uint8Array): Promise<PaintedPath[][]> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({
+    // See `extractPageRuns`: every read gets its own copy of the bytes.
+    data: new Uint8Array(bytes),
+    disableFontFace: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  }).promise;
+
+  const pages: PaintedPath[][] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const ops = await page.getOperatorList();
+    const found: PaintedPath[] = [];
+
+    let fill: [number, number, number] | null = null;
+    let stroke: [number, number, number] | null = null;
+    let m = [1, 0, 0, 1, 0, 0];
+    const stack: number[][] = [];
+
+    const asRgb = (args: unknown): [number, number, number] | null => {
+      const a = args as Record<string, number> | number[] | null;
+      if (!a) return null;
+      const pick = (i: number) =>
+        Array.isArray(a) ? a[i] : (a as Record<string, number>)[String(i)];
+      const r = pick(0);
+      const g = pick(1);
+      const b = pick(2);
+      return typeof r === "number" && typeof g === "number" && typeof b === "number"
+        ? [r, g, b]
+        : null;
+    };
+
+    for (let k = 0; k < ops.fnArray.length; k++) {
+      const fn = ops.fnArray[k];
+      if (fn === pdfjs.OPS.save) {
+        stack.push(m.slice());
+      } else if (fn === pdfjs.OPS.restore) {
+        m = stack.pop() ?? m;
+      } else if (fn === pdfjs.OPS.transform) {
+        const [a, b, c, d, e, f] = ops.argsArray[k] as [
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+        ];
+        m = [
+          m[0]! * a + m[2]! * b,
+          m[1]! * a + m[3]! * b,
+          m[0]! * c + m[2]! * d,
+          m[1]! * c + m[3]! * d,
+          m[0]! * e + m[2]! * f + m[4]!,
+          m[1]! * e + m[3]! * f + m[5]!,
+        ];
+      } else if (fn === pdfjs.OPS.setFillRGBColor) {
+        fill = asRgb(ops.argsArray[k]);
+      } else if (fn === pdfjs.OPS.setStrokeRGBColor) {
+        stroke = asRgb(ops.argsArray[k]);
+      } else if (fn === pdfjs.OPS.constructPath) {
+        const args = ops.argsArray[k] as unknown[];
+        const raw = args[2] as number[] | undefined;
+        if (raw && raw.length === 4) {
+          const x0 = m[0]! * raw[0]! + m[2]! * raw[1]! + m[4]!;
+          const y0 = m[1]! * raw[0]! + m[3]! * raw[1]! + m[5]!;
+          const x1 = m[0]! * raw[2]! + m[2]! * raw[3]! + m[4]!;
+          const y1 = m[1]! * raw[2]! + m[3]! * raw[3]! + m[5]!;
+          found.push({
+            fill,
+            stroke,
+            box: [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)],
+          });
+        }
+      }
+    }
+    pages.push(found);
+  }
+  return pages;
+}
+
+const sameInk = (ink: [number, number, number] | null, want: [number, number, number]) =>
+  ink !== null && ink.every((v, i) => Math.abs(v - want[i]!) <= 1);
+
 
 describe("renderContractPdf — Persian shaping", () => {
   it("renders a valid PDF with the Persian title in correct logical order", async () => {
@@ -582,6 +732,141 @@ describe("renderContractPdf — review mark and the signature table", () => {
     expect(text).toContain("تاریخ امضا");
     // …and the other role still pending — never both signed by default.
     expect(text).toContain("در انتظار امضا");
+  });
+});
+
+describe("renderContractPdf — the admin message (§6)", () => {
+  /** A minimal authenticity section, so the certificate closes the file. */
+  const authenticity = {
+    path: "self_final" as const,
+    reviewedByLegalir: false,
+    registeredAt: "2026-08-10T09:00:00Z",
+    registeredByLabelFa: "مریم محمدی",
+    reviewId: null,
+    reviewedAt: null,
+    participants: [
+      {
+        roleFa: "موجر",
+        nameFa: "مریم محمدی",
+        statusFa: "امضا شده",
+        signedAt: "2026-08-09T12:00:00Z",
+        methodFa: "امضای دستی",
+      },
+      {
+        roleFa: "مستأجر",
+        nameFa: "رضا کریمی",
+        statusFa: "در انتظار",
+        signedAt: null,
+        methodFa: null,
+      },
+    ],
+    stampApplied: true,
+    stampSha256: "b".repeat(64),
+    hologramApplied: true,
+  };
+
+  it("prints the message in RED on the LAST page only, inside the printable area", async () => {
+    const message = "این نسخه بدون بررسی حقوقی لیگالیر ثبت نهایی شد.";
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      adminMessage: { messageFa: message },
+      authenticity,
+    });
+
+    const texts = await extractPageTexts(bytes);
+    const tight = (s: string) => s.replace(/\s+/g, "").replace(/[\u200c\u0640]/g, "");
+
+    // The words appear on the last page, and nowhere else.
+    const carrier = texts.findIndex((t) => tight(t).includes(tight("پیام ادمین")));
+    expect(carrier, "the admin message card is missing from the PDF").toBe(texts.length - 1);
+    expect(tight(texts[texts.length - 1]!)).toContain(tight(message));
+    for (let i = 0; i < texts.length - 1; i++) {
+      expect(tight(texts[i]!), `page ${i + 1} repeats the admin message`).not.toContain(
+        tight("پیام ادمین")
+      );
+    }
+
+    // The card really uses the red ink, and it sits above the reserved
+    // footer band inside the left/right content margins.
+    const paths = await extractPaintedPaths(bytes);
+    const lastPagePaths = paths[paths.length - 1]!;
+    const card = lastPagePaths.find((p) => sameInk(p.stroke, ADMIN_RED) && sameInk(p.fill, [255, 246, 246]));
+    expect(card, "no red-bordered card is painted on the last page").toBeTruthy();
+    expect(card!.box[0]).toBeGreaterThanOrEqual(47);
+    expect(card!.box[2]).toBeLessThanOrEqual(548);
+    expect(card!.box[1]).toBeGreaterThan(CONTENT_BOTTOM_PDF);
+    expect(card!.box[3]).toBeLessThan(400 + CONTENT_BOTTOM_PDF);
+
+    // No page may carry the red card besides the last one.
+    for (let i = 0; i < paths.length - 1; i++) {
+      expect(
+        paths[i]!.some((p) => sameInk(p.stroke, ADMIN_RED)),
+        `page ${i + 1} draws the red admin ink`
+      ).toBe(false);
+    }
+  });
+
+  it("prints the card on the LAST ANNEX page when no certificate closes the file", async () => {
+    // Some renders (a preview of a version with no registration record)
+    // have no authenticity section, so the document's last page is the
+    // last annexed sheet. The card must land there — not on the contract
+    // body and not on a sheet of its own — and the annex must still be
+    // sized above it.
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      adminMessage: { messageFa: "این نسخه بدون بررسی حقوقی لیگالیر ثبت نهایی شد." },
+      annexes: [
+        { titleFa: "پیوست الف", mime: "image/png", bytes: whitePng(40, 20) },
+        { titleFa: "پیوست ب", mime: "image/png", bytes: whitePng(20, 60) },
+      ],
+    });
+
+    const texts = await extractPageTexts(bytes);
+    const tight = (s: string) => s.replace(/\s+/g, "").replace(/[\u200c\u0640]/g, "");
+    const cardPage = texts.findIndex((t) => tight(t).includes(tight("پیام ادمین")));
+    // The closing page is the SECOND annex's sheet, and it is the last one:
+    // the card never earns a page of its own.
+    expect(cardPage, "the card is missing").toBe(texts.length - 1);
+    expect(tight(texts[cardPage]!)).toContain(tight("پیوست ب"));
+
+    const paths = await extractPaintedPaths(bytes);
+    const card = paths[cardPage]!.find(
+      (p) => sameInk(p.stroke, ADMIN_RED) && sameInk(p.fill, [255, 246, 246])
+    );
+    expect(card, "no red card is painted on the closing annex page").toBeTruthy();
+    // The card sits above the reserved band, never over the seal/hologram.
+    expect(card!.box[1]).toBeGreaterThan(CONTENT_BOTTOM_PDF);
+    expect(card!.box[3]).toBeLessThan(CONTENT_BOTTOM_PDF + 40 + 10);
+    for (let i = 0; i < cardPage; i++) {
+      expect(
+        paths[i]!.some((p) => sameInk(p.stroke, ADMIN_RED)),
+        `page ${i + 1} draws the red admin ink`
+      ).toBe(false);
+    }
+  });
+
+  it("prints no card and reserves no space when no message is set", async () => {
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      authenticity,
+    });
+
+    const texts = await extractPageTexts(bytes);
+    const tight = (s: string) => s.replace(/\s+/g, "").replace(/[\u200c\u0640]/g, "");
+    for (const text of texts) {
+      expect(tight(text)).not.toContain(tight("پیام ادمین"));
+    }
+
+    const paths = await extractPaintedPaths(bytes);
+    for (const page of paths) {
+      expect(page.some((p) => sameInk(p.stroke, ADMIN_RED))).toBe(false);
+    }
   });
 });
 

@@ -30,6 +30,7 @@ import {
   notFound,
   ok,
   requireContract,
+  requireContractRead,
 } from "@/lib/contracts/api-helpers";
 import {
   deleteContractForUser,
@@ -77,10 +78,12 @@ function buildDetail(contract: PropertyContract): ContractDetail {
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;
-  const ctx = requireContract(request, id);
+  // A contract referred for legal review is readable by the assigned
+  // lawyer; every mutating handler below stays owner-only.
+  const ctx = requireContractRead(request, id);
   if (isErrorResponse(ctx)) return ctx;
 
-  return ok(buildDetail(ctx.contract));
+  return ok({ ...buildDetail(ctx.contract), access: ctx.access, referral: ctx.referral });
 }
 
 export async function PATCH(request: Request, { params }: Params) {

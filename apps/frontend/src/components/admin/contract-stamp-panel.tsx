@@ -8,11 +8,25 @@
 //   1. the current version must carry a valid internal review;
 //   2. every participant bound to THAT version must have signed.
 //
-// The panel never decides either rule itself — it reads them from the
-// stamp context and simply does not offer an action the server would
-// reject. `apply` requires a written opinion (the mandatory reason), and
-// once the server applies the stamp the panel shows the REAL per-party
-// SMS outcome: a failure is reported, never dressed up as success.
+// The panel never decides either rule itself. The server returns an
+// `eligibility` verdict computed from the same facts the write path
+// re-checks, and every button and every disabled-explanation here is
+// rendered from THAT verdict. A disabled button therefore always carries
+// a real, server-authored reason, and a hand-crafted request cannot
+// reach a state this panel would not have offered.
+//
+// The three stamp steps are visually and semantically distinct:
+//
+//   ثبت درخواست مهر     records intent; no legal effect
+//   در انتظار تصمیم     the open request's real state
+//   اعمال مهر رسمی      approving AND sealing in one recorded act
+//
+// `apply` requires a written opinion (the mandatory reason) and opens a
+// confirmation dialog naming the contract, the exact version and its
+// fingerprint, with the real irreversibility of the act stated plainly
+// and the printable preview one click away. Once the server applies the
+// stamp the panel shows the REAL per-party SMS outcome: a failure is
+// reported, never dressed up as success.
 //
 // The seal and hologram previews load from the private asset route, so
 // what the operator approves is exactly the bytes the hash binds to. The
@@ -23,7 +37,7 @@
 "use client";
 
 import { useState } from "react";
-import { snackbar } from "@legalir/ui";
+import { Dialog, snackbar } from "@legalir/ui";
 import type {
   ContractStampActionRequest,
   ContractStampNotification,
@@ -41,14 +55,20 @@ import {
   LoadingBlock,
   TextArea,
 } from "@/components/admin/ui";
-import { IconCheckCircle, IconClose, IconShieldCheck, IconWarning } from "@/lib/icons";
+import {
+  IconCheckCircle,
+  IconClose,
+  IconDocument,
+  IconShieldCheck,
+  IconWarning,
+} from "@/lib/icons";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 
 type StampAction = ContractStampActionRequest["action"];
 
 const ACTION_FA: Record<StampAction, string> = {
   request: "ثبت درخواست مهر",
-  apply: "صدور مهر رسمی",
+  apply: "اعمال مهر رسمی",
   reject: "رد درخواست مهر",
   cancel: "لغو درخواست مهر",
 };
@@ -90,27 +110,32 @@ function DeliveryRow({ n }: { n: ContractStampNotification }) {
   );
 }
 
-export function ContractStampPanel({
-  contractId,
-  canManage,
-}: {
-  contractId: string | null;
-  /** `admin:contracts:stamp:manage` — only Super Admin has it. */
-  canManage: boolean;
-}) {
+export function ContractStampPanel({ contractId }: { contractId: string | null }) {
   const stamp = useAdminContractStamp(contractId);
   const decide = useAdminContractStampDecision();
 
   const [activeAction, setActiveAction] = useState<StampAction | null>(null);
   const [reason, setReason] = useState("");
+  const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [notifications, setNotifications] = useState<ContractStampNotification[]>([]);
 
   const data = stamp.data;
   const pending = data?.requests.find((r) => r.status === "PENDING") ?? null;
   const applied = data?.appliedRequest ?? null;
+  const eligibility = data?.eligibility ?? null;
 
   function begin(action: StampAction) {
+    setReason("");
+    if (action === "apply") {
+      setConfirmApplyOpen(true);
+      return;
+    }
     setActiveAction(action);
+  }
+
+  function closeDialog() {
+    if (decide.isPending) return;
+    setConfirmApplyOpen(false);
     setReason("");
   }
 
@@ -145,40 +170,29 @@ export function ContractStampPanel({
         snackbar.show({ message: `${ACTION_FA[action]} انجام شد.`, variant: "success" });
       }
       setActiveAction(null);
+      setConfirmApplyOpen(false);
       setReason("");
     } catch (err) {
+      // The server re-checks every precondition, so a refusal here usually
+      // means the facts moved since the panel was rendered (another
+      // operator, a content change, a withdrawn review). Show the real
+      // message and re-read the context so the verdict stops lying.
       snackbar.show({ message: errMessage(err, "ثبت اقدام مهر ناموفق بود"), variant: "error" });
       setActiveAction(null);
+      void stamp.refetch();
     }
   }
 
   if (stamp.isLoading) return <LoadingBlock rows={4} />;
-  if (stamp.isError || !data) return <ErrorBlock onRetry={() => stamp.refetch()} />;
+  if (stamp.isError || !data || !eligibility) return <ErrorBlock onRetry={() => stamp.refetch()} />;
 
-  // --- Why the apply action is unavailable, in the operator's words ---
-  // The last gate is the one §4 names explicitly: the final approval is
-  // only possible once EVERY party bound to this version has signed. The
-  // server refuses it anyway; the panel simply never offers a button the
-  // server would reject.
-  const applyBlockedFa = !data.featureEnabled
-    ? "سطح مهر رسمی لیگالیر در حال حاضر فعال نیست."
-    : !data.currentVersion
-      ? "نسخه‌ای برای مهر وجود ندارد."
-      : !data.reviewed
-        ? "نسخهٔ فعلی هنوز تأیید بررسی داخلی را ندارد؛ مهر فقط روی نسخهٔ تأییدشده درج می‌شود."
-        : !data.signatures.ready
-          ? data.signatures.reasonFa ?? "پیش از تأیید نهایی، همهٔ طرفین باید قرارداد را امضا کنند."
-          : !pending
-            ? "درخواست مهرِ باز برای تصمیم‌گیری وجود ندارد."
-            : !canManage
-              ? "صدور مهر رسمی فقط در اختیار مدیر ارشد است."
-              : null;
-
-  const canRequest =
-    data.featureEnabled && data.reviewed && data.signatures.ready && !data.applied && !pending;
-  const canApply =
-    data.featureEnabled && Boolean(pending) && canManage && data.signatures.ready && !data.applied;
-  const canDecidePending = Boolean(pending) && canManage;
+  const blockers = eligibility.blockers;
+  const primaryBlocker = blockers[0]?.messageFa;
+  const previewHref = contractId
+    ? `/api/v1/admin/contracts/${contractId}/pdf${
+        data.currentVersion ? `?version=${data.currentVersion.id}` : ""
+      }`
+    : null;
 
   return (
     <div className="space-y-4">
@@ -203,6 +217,7 @@ export function ContractStampPanel({
             <span className="text-caption text-muted">{toPersianDate(applied.appliedAt)}</span>
           )}
           {!data.reviewed && <Badge tone="warning">بدون تأیید بررسی داخلی</Badge>}
+          {pending && <Badge tone="warning">درخواست باز — در انتظار تصمیم</Badge>}
         </div>
 
         <dl className="mt-3 space-y-2 text-caption">
@@ -228,6 +243,16 @@ export function ContractStampPanel({
           مهر فقط روی همین نسخه معتبر است؛ با هر تغییر محتوا یا تعویض فایل مهر، خودکار باطل می‌شود.
           امضای همهٔ طرفین نیز پیش‌شرط صدور مهر است و مهر جایگزین امضای طرفین نیست.
         </p>
+
+        {previewHref && (
+          <div className="mt-2">
+            <a href={previewHref} target="_blank" rel="noreferrer">
+              <Button variant="ghost" size="sm" startIcon={<IconDocument size={15} />}>
+                مشاهده و چاپ نسخهٔ فعلی (PDF)
+              </Button>
+            </a>
+          </div>
+        )}
       </div>
 
       {/* --- The two masters --- */}
@@ -280,18 +305,17 @@ export function ContractStampPanel({
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder={
-                  activeAction === "apply"
-                    ? "نظر نهایی خود دربارهٔ این نسخه را بنویسید…"
-                    : "دلیل این اقدام را بنویسید…"
-                }
+                placeholder="دلیل این اقدام را بنویسید…"
               />
             </Field>
             <div className="flex justify-start gap-2">
               <Button
-                variant={activeAction === "apply" ? "primary" : "secondary"}
+                variant={
+                  activeAction === "reject" || activeAction === "cancel" ? "danger" : "primary"
+                }
                 size="sm"
                 loading={decide.isPending}
+                disabled={decide.isPending}
                 onClick={() => void submit(activeAction)}
               >
                 ثبت «{ACTION_FA[activeAction]}»
@@ -315,17 +339,18 @@ export function ContractStampPanel({
                     variant="primary"
                     size="sm"
                     startIcon={<IconCheckCircle size={15} />}
-                    disabled={!canApply || decide.isPending}
-                    title={applyBlockedFa ?? undefined}
+                    disabled={!eligibility.canApply || decide.isPending}
+                    title={eligibility.canApply ? undefined : primaryBlocker}
                     onClick={() => begin("apply")}
                   >
-                    صدور مهر رسمی
+                    تأیید و اعمال مهر رسمی
                   </Button>
                   <Button
                     variant="danger"
                     size="sm"
                     startIcon={<IconClose size={15} />}
-                    disabled={!canDecidePending || decide.isPending}
+                    disabled={!eligibility.canReject || decide.isPending}
+                    title={eligibility.canReject ? undefined : primaryBlocker}
                     onClick={() => begin("reject")}
                   >
                     رد درخواست
@@ -333,7 +358,8 @@ export function ContractStampPanel({
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={!canDecidePending || decide.isPending}
+                    disabled={!eligibility.canCancel || decide.isPending}
+                    title={eligibility.canCancel ? undefined : primaryBlocker}
                     onClick={() => begin("cancel")}
                   >
                     لغو درخواست
@@ -343,27 +369,151 @@ export function ContractStampPanel({
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={!canRequest || decide.isPending}
+                  disabled={!eligibility.canRequest || decide.isPending}
+                  title={eligibility.canRequest ? undefined : primaryBlocker}
                   onClick={() => begin("request")}
                 >
                   ثبت درخواست مهر
                 </Button>
               )}
             </div>
-            {pending && applyBlockedFa && (
-              <p className="flex items-start gap-1.5 text-caption text-muted">
-                <IconWarning size={14} className="mt-0.5 shrink-0" />
-                {applyBlockedFa}
-              </p>
+
+            {/* §9 — a disabled button ALWAYS states the real condition. The
+                list is the server's own verdict, in resolution order; it is
+                never re-derived here and never invented. */}
+            {blockers.length > 0 && (
+              <div
+                className="rounded-medium bg-surface-container-low p-2.5"
+                role="status"
+                aria-live="polite"
+              >
+                <p className="flex items-center gap-1.5 text-caption font-medium text-on-surface">
+                  <IconWarning size={14} className="shrink-0 text-warning-700" />
+                  {pending ? "برای تصمیم روی این درخواست:" : "برای ثبت درخواست مهر:"}
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 ps-5 text-caption leading-6 text-muted">
+                  {blockers.map((b, i) => (
+                    <li key={`${b.code}-${i}`}>{b.messageFa}</li>
+                  ))}
+                </ul>
+              </div>
             )}
-            {!pending && !data.applied && !data.reviewed && (
+
+            {!pending && blockers.length === 0 && eligibility.canRequest && (
               <p className="text-caption text-muted">
-                درخواست مهر پس از تأیید بررسی داخلی نسخهٔ فعلی در دسترس می‌شود.
+                ثبت درخواست، فقط قصد مهر را ثبت می‌کند و هیچ اثر حقوقی ندارد؛ صدور مهر پس از امضای
+                همهٔ طرفین و با تصمیم مدیر ارشد انجام می‌شود.
               </p>
             )}
           </div>
         )}
       </div>
+
+      {/* --- §9.3 the mandatory confirmation for the official act --- */}
+      <Dialog
+        open={confirmApplyOpen}
+        onClose={closeDialog}
+        title="تأیید اعمال مهر و هولوگرام LEGALIR"
+        maxWidth="3xl"
+        persistent={decide.isPending}
+        actions={
+          <>
+            <Button variant="ghost" size="sm" disabled={decide.isPending} onClick={closeDialog}>
+              انصراف
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={decide.isPending}
+              disabled={decide.isPending || reason.trim().length < 3}
+              startIcon={<IconShieldCheck size={15} />}
+              onClick={() => void submit("apply")}
+            >
+              تأیید و اعمال مهر
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-caption">
+            <div className="min-w-0">
+              <dt className="text-muted">شمارهٔ قرارداد</dt>
+              <dd className="font-mono text-on-surface" dir="ltr">
+                {data.contract.referenceCode}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted">نوع قرارداد</dt>
+              <dd className="truncate text-on-surface" title={data.contract.typeFa}>
+                {data.contract.typeFa}
+              </dd>
+            </div>
+            <div className="col-span-2 min-w-0">
+              <dt className="text-muted">عنوان</dt>
+              <dd className="text-on-surface">{data.contract.title}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted">نسخهٔ مهرشده</dt>
+              <dd className="text-on-surface">
+                {data.currentVersion
+                  ? `نسخه ${toPersianNumber(data.currentVersion.versionNumber)}`
+                  : "—"}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted">فایل مهر (SHA-256)</dt>
+              <dd className="truncate font-mono text-on-surface" dir="ltr">
+                {data.stampAsset.sha256 ?? "—"}
+              </dd>
+            </div>
+            <div className="col-span-2 min-w-0">
+              <dt className="text-muted">اثر انگشت نسخه</dt>
+              <dd className="break-all font-mono text-on-surface" dir="ltr">
+                {data.currentVersion?.documentHash ?? "—"}
+              </dd>
+            </div>
+          </dl>
+
+          <p className="rounded-medium bg-surface-container-low p-2.5 text-caption leading-6 text-on-surface-variant">
+            آیا از اعمال مهر و هولوگرام LEGALIR روی این نسخه از قرارداد مطمئن هستید؟ مهر روی همین
+            نسخهٔ تثبیت‌شده درج می‌شود و از آن برداشته نمی‌شود؛ هر تغییر محتوا نسخهٔ جدیدی می‌سازد و
+            مهر این نسخه را باطل می‌کند. نتیجهٔ این عملیات همراه هویت شما در سابقهٔ حسابرسی ثبت و
+            قابل‌ردیابی می‌شود. هولوگرام نشان بصری اصالت است و جای امضای طرفین یا امضای دیجیتال را
+            نمی‌گیرد.
+          </p>
+
+          {previewHref && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-caption text-muted">پیش‌نمایش نسخه‌ای که مهر می‌شود</p>
+                <a href={previewHref} target="_blank" rel="noreferrer">
+                  <Button variant="ghost" size="sm" startIcon={<IconDocument size={14} />}>
+                    باز کردن در تب جدید
+                  </Button>
+                </a>
+              </div>
+              <iframe
+                src={previewHref}
+                title="پیش‌نمایش نسخهٔ قرارداد"
+                className="h-64 w-full rounded-medium border border-divider bg-surface-container-low"
+              />
+            </div>
+          )}
+
+          <Field
+            label="دلیل/نظر تأیید"
+            hint="الزامی — این متن همراه هویت شما، زمان و اثر انگشت نسخه در سابقهٔ حسابرسی ثبت می‌شود."
+            required
+          >
+            <TextArea
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="نظر نهایی خود دربارهٔ این نسخه را بنویسید…"
+            />
+          </Field>
+        </div>
+      </Dialog>
 
       {/* --- The REAL SMS outcome of the last apply --- */}
       {notifications.length > 0 && (

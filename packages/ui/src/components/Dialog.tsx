@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "./Button";
 
 interface DialogProps {
@@ -128,7 +129,14 @@ export function Dialog({
 
   if (!open) return null;
 
-  return (
+  // A Dialog is frequently opened from INSIDE a Drawer. The drawer panel is
+  // itself `position: absolute` + animated with a transform, and a transform
+  // makes a containing block for `position: fixed` descendants — so an
+  // in-tree dialog would be laid out against the drawer's own scrolled
+  // content and could land off-screen (observed at y = −197 inside a long
+  // contract drawer). Portalling to <body> keeps the overlay anchored to the
+  // real viewport no matter which scrolling container it was opened from.
+  const overlay = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="presentation"
@@ -186,6 +194,11 @@ export function Dialog({
       </div>
     </div>
   );
+
+  // SSR/first paint has no document yet; render nothing rather than crash on
+  // a portal target that does not exist.
+  if (typeof document === "undefined") return overlay;
+  return createPortal(overlay, document.body);
 }
 
 /** Convenience: Confirm Dialog */

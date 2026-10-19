@@ -33,14 +33,18 @@ import {
 } from "@legalir/types";
 import type { SignatureAttestationChannel } from "@legalir/types";
 import {
+  useAdminAdvanceSigning,
   useAdminContract,
   useAdminContractAttestation,
+  useAdminContractContact,
+  useAdminContractMessage,
   useAdminContractReview,
   useAdminMe,
   useAdminResendInvitations,
 } from "@/hooks/useAdmin";
 import type { AdminContractDetail } from "@/lib/api/admin";
 import { ContractStampPanel } from "./contract-stamp-panel";
+import { ContractStagesTable } from "./contract-stages-table";
 import {
   Badge,
   Button,
@@ -48,8 +52,10 @@ import {
   Field,
   InfoBanner,
   LoadingBlock,
+  MobileNumber,
   Select,
   TextArea,
+  TextInput,
 } from "@/components/admin/ui";
 import { IconCheckCircle, IconClose, IconCopy, IconDocument, IconShield } from "@/lib/icons";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
@@ -137,8 +143,7 @@ export function ContractDetailDrawer({
   // cached read the page uses, so there is no extra request.
   const { can } = useAdminMe();
   // The OFFICIAL stamp is a Super-Admin-only act; the server enforces the
-  // permission, and the panel only offers what the permission allows.
-  const canStamp = can("admin:contracts:stamp:manage");
+  // permission, and the panel offers only the actions `eligibility` allows.
   // Reading the stamp context is its own permission; without it the panel is
   // never rendered, so a reviewer role never sees an empty or failing block.
   const canReadStamp = can("admin:contracts:stamp:read");
@@ -163,11 +168,62 @@ export function ContractDetailDrawer({
     Record<string, { token: string; expiresAt: string }>
   >({});
 
+  // §6 — the printable message draft. The counter is the SAME code-point
+  // count the server enforces, so the two can never disagree.
+  const message = useAdminContractMessage();
+  const [messageDraft, setMessageDraft] = useState<string | null>(null);
+  const [messageError, setMessageError] = useState<string | null>(null);
+
+  // §5 — one destination being corrected, and the send confirmation.
+  const contact = useAdminContractContact();
+  const [contactTargetId, setContactTargetId] = useState<string | null>(null);
+  const [contactMobile, setContactMobile] = useState("");
+  const [contactReason, setContactReason] = useState("");
+  const [contactConfirmed, setContactConfirmed] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+
+  // §T4 — the manual advance, with its mandatory reason.
+  const advance = useAdminAdvanceSigning();
+  const [advanceReason, setAdvanceReason] = useState("");
+  const [advanceOpen, setAdvanceOpen] = useState(false);
+
   const data = detail.data;
   const events = data?.adminReview?.events ?? [];
   // The decision panel only appears while a review is PENDING; a decision can
   // never be replayed onto a terminal review (the server rejects it too).
   const canDecide = canReview && data?.adminReview?.status === "PENDING";
+
+  // §5 — the destinations an operator must SEE before sending. A signature
+  // request carries the exact participants (and their current numbers); before
+  // one exists the parties themselves are the destination rows the request
+  // will be built from. The key tells the server which record to correct.
+  const contactTargets =
+    (data?.signingParticipants.length ?? 0) > 0
+      ? data!.signingParticipants.map((p) => ({
+          key: `participant:${p.id}`,
+          participantId: p.id as string | null,
+          partyId: p.partyId,
+          roleFa: p.roleFa,
+          nameFa: p.nameFa,
+          mobile: p.mobile,
+          locked: p.status === "SIGNED",
+        }))
+      : (data?.parties ?? []).map((p) => ({
+          key: `party:${p.id}`,
+          participantId: null as string | null,
+          partyId: p.id as string | null,
+          roleFa: p.roleFa,
+          nameFa: p.nameFa,
+          mobile: p.mobile,
+          locked: false,
+        }));
+
+  // §6 — the message the counter measures. `null` means "not edited yet", so
+  // the stored value is shown; the count is by CODE POINT (Array.from), the
+  // same count the server enforces.
+  const messageText = messageDraft ?? data?.adminMessage?.messageFa ?? "";
+  const messageMax = data?.adminMessageMaxChars ?? 100;
+  const messageRemaining = messageMax - Array.from(messageText).length;
 
   function beginAction(action: ContractAdminReviewAction) {
     if (REASON_REQUIRED.includes(action)) {
@@ -291,6 +347,131 @@ export function ContractDetailDrawer({
     }
   }
 
+  /**
+   * §6 — store the printable message. Over the limit the server refuses, so
+   * the save button is disabled while the counter is negative; an EMPTY text
+   * is a real value here: it removes the card, so no empty red band prints.
+   */
+  async function saveMessage() {
+    if (!contractId) return;
+    const text = messageText.trim();
+    if (Array.from(text).length > messageMax) {
+      setMessageError(`متن نباید بیش از ${toPersianNumber(messageMax)} کاراکتر باشد.`);
+      return;
+    }
+    setMessageError(null);
+    try {
+      await message.mutateAsync({ id: contractId, messageFa: text });
+      setMessageDraft(null);
+      snackbar.show({
+        message: text
+          ? "پیام چاپی ذخیره شد؛ نسخهٔ نهایی ذخیره‌شده دوباره تولید می‌شود."
+          : "پیام چاپی پاک شد؛ دیگر هیچ کارت قرمزی چاپ نمی‌شود.",
+        variant: "success",
+      });
+    } catch (err) {
+      setMessageError(errMessage(err, "ذخیرهٔ پیام چاپی ناموفق بود"));
+    }
+  }
+
+  /**
+   * §5 — correct ONE destination, optionally sending the link afterwards.
+   * `send` is only ever true from the button the operator pressed AFTER
+   * checking the confirmation box; the server records the real delivery
+   * outcome either way and never reports a failed send as success.
+   */
+  async function submitContactCorrection(send: boolean) {
+    if (!contractId || !contactTargetId) return;
+    const reasonFa = contactReason.trim();
+    if (reasonFa.length < 3) {
+      setContactError("دلیل اصلاح شمارهٔ تماس الزامی است (حداقل ۳ نویسه).");
+      return;
+    }
+    if (send && !contactConfirmed) {
+      setContactError("برای ارسال لینک به شمارهٔ جدید، ابتدا کادر تأیید را علامت بزنید.");
+      return;
+    }
+    const target = contactTargets.find((t) => t.key === contactTargetId);
+    if (!target) {
+      setContactError("طرف انتخاب‌شده پیدا نشد؛ فهرست را دوباره باز کنید.");
+      return;
+    }
+    setContactError(null);
+    try {
+      const result = await contact.mutateAsync({
+        id: contractId,
+        input: {
+          ...(target.participantId ? { participantId: target.participantId } : {}),
+          ...(target.partyId ? { partyId: target.partyId } : {}),
+          newMobile: contactMobile.trim(),
+          reasonFa,
+          send,
+          ...(send ? { confirmed: true } : {}),
+        },
+      });
+      setContactTargetId(null);
+      setContactMobile("");
+      setContactReason("");
+      setContactConfirmed(false);
+      if (send && result.sent) {
+        snackbar.show({
+          message: "شماره اصلاح شد و لینک امضا به شمارهٔ جدید ارسال شد.",
+          variant: "success",
+        });
+      } else if (send) {
+        snackbar.show({
+          message: result.errorFa ?? "شماره اصلاح شد اما ارسال لینک ناموفق بود.",
+          variant: "warning",
+        });
+      } else {
+        snackbar.show({
+          message: "شمارهٔ مقصد اصلاح شد؛ لینکی ارسال نشد.",
+          variant: "success",
+        });
+      }
+    } catch (err) {
+      setContactError(errMessage(err, "اصلاح شمارهٔ مقصد ناموفق بود"));
+    }
+  }
+
+  /**
+   * §T4 — advance to party signing WITHOUT the LEGALIR review queue. The
+   * reason is mandatory and the server stores the path as
+   * «بررسی‌نشده توسط لیگالیر»; this surface can never record a review.
+   */
+  async function submitAdvance() {
+    if (!contractId) return;
+    if (advanceReason.trim().length < 3) {
+      snackbar.show({ message: "ثبت دلیل پیشبرد الزامی است.", variant: "warning" });
+      return;
+    }
+    try {
+      await advance.mutateAsync({ id: contractId, reasonFa: advanceReason.trim() });
+      setAdvanceReason("");
+      setAdvanceOpen(false);
+      snackbar.show({
+        message: "قرارداد بدون بررسی لیگالیر به مرحلهٔ امضای طرفین رفت.",
+        variant: "success",
+      });
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "پیشبرد به مرحلهٔ امضا ناموفق بود"), variant: "error" });
+    }
+  }
+
+  /**
+   * §4 — the stage table never performs an operation itself. It scrolls the
+   * operator to the ONE section that owns the real action, where the server's
+   * preconditions (and their Persian reasons) are already shown. A target
+   * that is not rendered for this contract (e.g. no stamp permission) is a
+   * no-op rather than a fabricated button.
+   */
+  function scrollToStageTarget(targetId: string) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.focus({ preventScroll: true });
+  }
+
   return (
     <>
       <Drawer
@@ -342,6 +523,94 @@ export function ContractDetailDrawer({
                 <Info label="آخرین تغییر" value={toPersianDate(data.contract.updatedAt)} />
               </dl>
             </div>
+
+            {/* --- §4 the contract's REAL lifecycle walk --- */}
+            <ContractStagesTable
+              stages={data.stages}
+              currentPdfUrl={data.currentPdfUrl}
+              finalPdfUrl={data.finalDocument?.url ?? null}
+              onRunAction={scrollToStageTarget}
+            />
+
+            {/* --- §3 WHICH path produced the signing authority. The review
+                path and «ثبت نهایی بدون بررسی» are never blurred: a
+                self-final record is never shown as reviewed or approved. --- */}
+            <Section
+              title="مسیر ثبت نهایی"
+              icon={<IconShield size={16} className="text-primary" />}
+            >
+              {data.registration ? (
+                <div className="space-y-2 text-caption">
+                  {data.registration.reviewedByLegalir ? (
+                    <InfoBanner tone="success">
+                      این نسخه از مسیر «{data.registration.pathFa}» گذشته و توسط لیگالیر
+                      بررسی شده است.
+                    </InfoBanner>
+                  ) : (
+                    <InfoBanner tone="warning">
+                      این قرارداد با مسیر «{data.registration.pathFa}» ثبت شده است.{" "}
+                      <b>این نسخه توسط لیگالیر بررسی نشده است</b> و در هیچ نمایشی نباید
+                      تأییدشده یا بررسی‌شده جلوه کند.
+                    </InfoBanner>
+                  )}
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <Info label="مسیر ثبت" value={data.registration.pathFa} />
+                    <Info
+                      label="وضعیت بررسی"
+                      value={
+                        data.registration.reviewedByLegalir
+                          ? "بررسی‌شده توسط لیگالیر"
+                          : "بررسی‌نشده توسط لیگالیر"
+                      }
+                    />
+                    <Info
+                      label="ثبت‌کننده"
+                      value={`${data.registration.actorLabelFa} (${
+                        data.registration.actorKind === "admin" ? "ادمین" : "طرف قرارداد"
+                      })`}
+                    />
+                    <Info label="زمان ثبت" value={toPersianDate(data.registration.createdAt)} />
+                  </dl>
+                  {data.registration.reasonFa && (
+                    <p className="rounded-medium bg-surface-container-low p-2 leading-6 text-muted">
+                      دلیل ثبت: {data.registration.reasonFa}
+                    </p>
+                  )}
+                  <p
+                    className="break-all font-mono text-labelSmall text-muted"
+                    dir="ltr"
+                    title={data.registration.documentHash}
+                  >
+                    SHA-256: {data.registration.documentHash}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-caption leading-6 text-muted">
+                  هنوز هیچ مسیری برای ثبت نهایی این قرارداد انتخاب نشده است. مسیر در لحظهٔ ثبت
+                  نهایی انتخاب می‌شود و به اثر انگشت همان نسخه قفل می‌گردد.
+                </p>
+              )}
+            </Section>
+
+            {/* --- §T1/T2 what the PDF cannot print right now. Reported
+                BEFORE finalization so nothing is dropped silently. --- */}
+            {data.printIssues.length > 0 && (
+              <InfoBanner tone="warning">
+                <p className="font-medium">
+                  فایل نهایی نمی‌تواند همهٔ محتوای این قرارداد را چاپ کند:
+                </p>
+                <ul className="mt-1 list-disc ps-4">
+                  {data.printIssues.map((issue, i) => (
+                    <li key={`${issue.code}-${issue.documentId ?? i}`}>
+                      {issue.titleFa} — {issue.messageFa}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">
+                  تا رفع این موارد، ثبت نهایی و پیشبرد به مرحلهٔ امضا مسدود است.
+                </p>
+              </InfoBanner>
+            )}
 
             {/* --- Version binding — what the decision is bound to --- */}
             <Section title="نسخه و اثر انگشت">
@@ -419,6 +688,114 @@ export function ContractDetailDrawer({
                 </p>
               )}
             </Section>
+
+            {/* --- §T2/§1 admin access to the evidence itself: the uploaded
+                signature images and every stored document, each served by an
+                authorized admin-only route (never a public URL). --- */}
+            {(data.signingParticipants.some((p) => p.proofUrl) ||
+              data.documents.length > 0) && (
+              <Section
+                title="امضاهای بارگذاری‌شده و مدارک"
+                icon={<IconDocument size={16} className="text-primary" />}
+              >
+                {data.signingParticipants.length > 0 && (
+                  <div className={data.documents.length > 0 ? "mb-3" : undefined}>
+                    <p className="mb-1.5 text-labelSmall text-muted">وضعیت امضای هر طرف</p>
+                    <ul className="space-y-1.5 text-caption">
+                      {data.signingParticipants.map((p) => {
+                        const proofDoc = data.documents.find(
+                          (d) => d.id === p.proofDocumentId
+                        );
+                        const isImage =
+                          proofDoc?.mime === "image/png" ||
+                          proofDoc?.mime === "image/jpeg";
+                        return (
+                          <li
+                            key={p.id}
+                            className="rounded-medium border border-divider p-2.5"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-on-surface">
+                                {p.roleFa}
+                                {p.nameFa && <span className="ms-1 text-muted">— {p.nameFa}</span>}
+                              </span>
+                              <Badge
+                                tone={p.status === "SIGNED" ? "success" : "warning"}
+                                dot
+                              >
+                                {p.status === "SIGNED"
+                                  ? `امضا شد${
+                                      p.signedAt ? ` — ${toPersianDate(p.signedAt)}` : ""
+                                    }`
+                                  : "در انتظار امضا"}
+                              </Badge>
+                            </div>
+                            {p.proofUrl ? (
+                              <div className="mt-1.5 flex items-start gap-2">
+                                {isImage && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={p.proofUrl}
+                                    alt={`تصویر امضای ${p.nameFa || p.roleFa}`}
+                                    className="h-16 w-32 rounded-small border border-divider bg-white object-contain"
+                                  />
+                                )}
+                                <a
+                                  href={p.proofUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary hover:underline"
+                                >
+                                  مشاهدهٔ اصل امضای ثبت‌شده
+                                </a>
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-labelSmall text-muted">
+                                هنوز تصویر امضایی برای این طرف ذخیره نشده است.
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+
+                {data.documents.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-labelSmall text-muted">
+                      مدارک و پیوست‌های ذخیره‌شده ({toPersianNumber(data.documents.length)} فایل)
+                    </p>
+                    <ul className="space-y-1 text-caption">
+                      {data.documents.map((d) => (
+                        <li
+                          key={d.id}
+                          className="flex flex-wrap items-center justify-between gap-2 border-b border-divider pb-1 last:border-0"
+                        >
+                          <span className="min-w-0">
+                            <span className="text-on-surface">{d.titleFa}</span>
+                            <span className="ms-1 text-labelSmall text-muted">
+                              ({d.fileName})
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-2 text-labelSmall text-muted">
+                            <span>{`${toPersianNumber(Math.max(1, Math.round(d.sizeBytes / 1024)))} کیلوبایت`}</span>
+                            <a
+                              href={d.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              مشاهده
+                            </a>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Section>
+            )}
 
             {/* --- Completeness — blocking issues --- */}
             {data.completeness.blockers.length > 0 && (
@@ -640,6 +1017,182 @@ export function ContractDetailDrawer({
               </Section>
             )}
 
+            {/* --- §5 the destination check BEFORE anything is sent --- */}
+            <Section title="شمارهٔ تماس مقصد (پیش از ارسال لینک)">
+              <p className="mb-2 text-caption leading-6 text-muted">
+                پیش از ارسال لینک امضا ببینید لینک به چه شماره‌ای می‌رود. اصلاح شماره، شمارهٔ
+                قبلی و جدید، دلیل، ادمین و زمان را ثبت می‌کند؛ لینک فقط پس از تأیید صریح شما
+                ارسال می‌شود و نتیجهٔ واقعی ارسال (موفق/ناموفق) ثبت می‌گردد.
+              </p>
+
+              {contactTargets.length === 0 ? (
+                <p className="text-caption text-muted">
+                  هیچ طرفی با شمارهٔ تماس ثبت نشده است.
+                </p>
+              ) : (
+                <ul className="space-y-1.5 text-caption">
+                  {contactTargets.map((t) => (
+                    <li
+                      key={t.key}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-medium border border-divider p-2.5"
+                    >
+                      <span className="text-on-surface">
+                        {t.roleFa}
+                        {t.nameFa && <span className="ms-1 text-muted">— {t.nameFa}</span>}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        {t.mobile ? (
+                          <MobileNumber className="text-labelSmall text-on-surface-variant">
+                            {t.mobile}
+                          </MobileNumber>
+                        ) : (
+                          <span className="text-labelSmall text-danger">بدون شماره</span>
+                        )}
+                        {canReview && !t.locked && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setContactTargetId(t.key);
+                              setContactMobile(t.mobile);
+                              setContactReason("");
+                              setContactConfirmed(false);
+                              setContactError(null);
+                            }}
+                          >
+                            اصلاح شماره
+                          </Button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {canReview && contactTargetId && (() => {
+                const target = contactTargets.find((t) => t.key === contactTargetId);
+                if (!target) return null;
+                return (
+                  <div className="mt-2 space-y-2.5 rounded-medium bg-surface-container p-2.5">
+                    <p className="text-labelMedium text-on-surface">
+                      اصلاح شمارهٔ {target.roleFa}
+                      {target.nameFa ? ` — ${target.nameFa}` : ""}
+                    </p>
+                    <Field
+                      label="شمارهٔ جدید"
+                      required
+                      hint="شمارهٔ موبایل ایران؛ با ۰۹ شروع شود."
+                      error={contactError ?? undefined}
+                    >
+                      <TextInput
+                        value={contactMobile}
+                        onChange={(e) => {
+                          setContactMobile(e.target.value);
+                          setContactError(null);
+                        }}
+                        placeholder="۰۹۱۲۱۲۳۴۵۶۷"
+                        dir="ltr"
+                        inputMode="tel"
+                      />
+                    </Field>
+                    <Field label="دلیل اصلاح" required>
+                      <TextArea
+                        rows={2}
+                        value={contactReason}
+                        onChange={(e) => setContactReason(e.target.value)}
+                        placeholder="مثلاً: شمارهٔ ثبت‌شده متعلق به شخص دیگری بود؛ شمارهٔ صحیح با تماس تأیید شد."
+                      />
+                    </Field>
+                    <label className="flex items-start gap-2 text-caption text-on-surface-variant">
+                      <input
+                        type="checkbox"
+                        checked={contactConfirmed}
+                        onChange={(e) => setContactConfirmed(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        این شماره را بررسی کردم و می‌خواهم لینک امضا به شمارهٔ جدید ارسال شود؛
+                        مسئولیت ارسال به همین شماره را می‌پذیرم.
+                      </span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={contact.isPending}
+                        disabled={contact.isPending}
+                        onClick={() => void submitContactCorrection(false)}
+                      >
+                        فقط ذخیرهٔ اصلاح (بدون ارسال)
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={contact.isPending}
+                        disabled={contact.isPending || !contactConfirmed}
+                        onClick={() => void submitContactCorrection(true)}
+                      >
+                        ذخیره و ارسال لینک به شمارهٔ جدید
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={contact.isPending}
+                        onClick={() => {
+                          setContactTargetId(null);
+                          setContactMobile("");
+                          setContactReason("");
+                          setContactConfirmed(false);
+                          setContactError(null);
+                        }}
+                      >
+                        انصراف
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {data.contactChanges.length > 0 && (
+                <div className="mt-3 border-t border-divider pt-2">
+                  <p className="mb-1.5 text-labelSmall text-muted">
+                    تاریخچهٔ تغییر شمارهٔ مقصد ({toPersianNumber(data.contactChanges.length)})
+                  </p>
+                  <ul className="space-y-1.5 text-labelSmall">
+                    {data.contactChanges.map((c) => (
+                      <li
+                        key={c.id}
+                        className="rounded-medium border border-divider p-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-on-surface">
+                            {c.roleFa}
+                            {c.nameFa ? ` — ${c.nameFa}` : ""}
+                          </span>
+                          <span className="text-muted">{toPersianDate(c.changedAt)}</span>
+                        </div>
+                        <p className="mt-0.5 text-on-surface-variant" dir="ltr">
+                          {c.previousMobile || "—"} → {c.newMobile}
+                        </p>
+                        <p className="mt-0.5 text-muted">
+                          دلیل: {c.reasonFa} · ثبت توسط {c.adminLabelFa}
+                        </p>
+                        <p className="mt-0.5 text-muted">
+                          {c.deliveryStatus === "SENT"
+                            ? `ارسال موفق (${
+                                c.deliveryChannel === "sms" ? "پیامک" : "خروجی توسعه"
+                              })${c.deliveredAt ? ` — ${toPersianDate(c.deliveredAt)}` : ""}`
+                            : c.deliveryStatus === "FAILED"
+                              ? `ارسال ناموفق${c.deliveryDetail ? ` — ${c.deliveryDetail}` : ""}`
+                              : "لینکی ارسال نشد"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Section>
+
             {/* --- §2.2 the supplementary note, exactly as it will print --- */}
             <Section title="یادداشت تکمیلی">
               {data.supplementary?.notes?.trim() ? (
@@ -759,6 +1312,7 @@ export function ContractDetailDrawer({
             </Section>
 
             {/* --- §2.3/§2.4 the signature request and each party's own status --- */}
+            <div id="admin-signatures" tabIndex={-1}>
             <Section title="درخواست امضا و وضعیت هر طرف">
               {!data.signatureRequest ? (
                 <p className="text-caption text-muted">
@@ -927,6 +1481,7 @@ export function ContractDetailDrawer({
                 </div>
               )}
             </Section>
+            </div>
 
             {/* --- §3/§5 admin attestations — evidence ABOUT a signature --- */}
             <Section title="تأییدیهٔ بررسی امضا (ادمین)">
@@ -1103,6 +1658,7 @@ export function ContractDetailDrawer({
             )}
 
             {/* --- Decision --- */}
+            <div id="admin-review-decision" tabIndex={-1}>
             <Section
               title="تصمیم بررسی"
               icon={<IconShield size={16} className="text-primary" />}
@@ -1187,19 +1743,175 @@ export function ContractDetailDrawer({
                 </div>
               )}
             </Section>
+            </div>
+
+            {/* --- §6 the printable message — red text on the LAST page --- */}
+            <Section
+              title="پیام چاپی ادمین"
+              icon={<IconDocument size={16} className="text-primary" />}
+            >
+              <p className="mb-2 text-caption leading-6 text-muted">
+                این متن با رنگ قرمز در پایین آخرین صفحهٔ PDF چاپ می‌شود و حداکثر{" "}
+                {toPersianNumber(messageMax)} کاراکتر است. اگر خالی بماند، هیچ کارت قرمزی و هیچ
+                فضای خالی چاپ نمی‌شود. پس از هر تغییر، نسخهٔ نهایی ذخیره‌شده دوباره تولید می‌شود
+                تا همهٔ نمایش‌ها و PDF یکسان بمانند.
+              </p>
+
+              {!canReview ? (
+                data.adminMessage ? (
+                  <div className="space-y-1 text-caption">
+                    <p className="rounded-medium border border-danger/40 bg-danger-soft p-2 text-danger-800">
+                      {data.adminMessage.messageFa}
+                    </p>
+                    <p className="text-labelSmall text-muted">
+                      ثبت توسط {data.adminMessage.adminLabelFa} ·{" "}
+                      {toPersianDate(data.adminMessage.updatedAt)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-caption text-muted">پیامی ثبت نشده است.</p>
+                )
+              ) : (
+                <div className="space-y-2">
+                  <Field
+                    label="متن پیام"
+                    hint="متن کوتاه و روشن؛ شمارش کاراکترها همان شمارشی است که سرور اعمال می‌کند."
+                    error={messageError ?? undefined}
+                  >
+                    <TextArea
+                      rows={3}
+                      value={messageText}
+                      onChange={(e) => {
+                        setMessageDraft(e.target.value);
+                        setMessageError(null);
+                      }}
+                      placeholder="مثلاً: این قرارداد بدون بررسی حقوقی لیگالیر ثبت شده است."
+                    />
+                  </Field>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span
+                      className={`text-labelSmall ${
+                        messageRemaining < 0 ? "font-medium text-danger" : "text-muted"
+                      }`}
+                      aria-live="polite"
+                    >
+                      {messageRemaining < 0
+                        ? `${toPersianNumber(Math.abs(messageRemaining))} کاراکتر بیش از حد مجاز`
+                        : `${toPersianNumber(messageRemaining)} کاراکتر باقی مانده`}
+                    </span>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={message.isPending}
+                      disabled={
+                        message.isPending ||
+                        messageRemaining < 0 ||
+                        messageText.trim() === (data.adminMessage?.messageFa ?? "")
+                      }
+                      onClick={() => void saveMessage()}
+                    >
+                      {messageText.trim() ? "ذخیرهٔ پیام چاپی" : "پاک‌کردن پیام چاپی"}
+                    </Button>
+                  </div>
+                  {data.adminMessage && (
+                    <p className="text-labelSmall text-muted">
+                      آخرین ثبت: {data.adminMessage.adminLabelFa} ·{" "}
+                      {toPersianDate(data.adminMessage.updatedAt)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </Section>
+
+            {/* --- §T4 advance to party signing WITHOUT a LEGALIR review --- */}
+            {data.canAdvanceToSigning && (
+              <div id="admin-advance-signing" tabIndex={-1}>
+              <Section
+                title="پیشبرد به مرحلهٔ امضا (بدون بررسی لیگالیر)"
+                icon={<IconShield size={16} className="text-primary" />}
+              >
+                {!canReview ? (
+                  <p className="text-caption text-muted">
+                    برای پیشبرد قرارداد به مرحلهٔ امضا، مجوز بررسی لازم است.
+                  </p>
+                ) : !advanceOpen ? (
+                  <div className="space-y-2">
+                    <p className="text-caption leading-6 text-muted">
+                      این مسیر قرارداد را بیرون از صف بررسی و مستقیم به امضای طرفین می‌برد.
+                      نتیجه همیشه با وضعیت «بررسی‌نشده توسط لیگالیر» ثبت می‌شود و هرگز
+                      تأییدشده یا بررسی‌شده نمایش داده نمی‌شود. دلیل شما اجباری و در
+                      تاریخچه و لاگ حسابرسی ثبت است.
+                    </p>
+                    <Button variant="secondary" size="sm" onClick={() => setAdvanceOpen(true)}>
+                      ثبت نهایی بدون بررسی لیگالیر
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <InfoBanner tone="warning">
+                      با ادامه، این قرارداد <b>توسط لیگالیر بررسی نشده</b> و به‌عنوان
+                      «ثبت‌نهایی‌بدون‌بررسی» به مرحلهٔ امضای طرفین می‌رود. این عمل جای بررسی
+                      حقوقی را نمی‌گیرد.
+                    </InfoBanner>
+                    <Field
+                      label="دلیل پیشبرد"
+                      required
+                      hint="این دلیل در تاریخچه و لاگ حسابرسی ثبت می‌شود."
+                      error={
+                        advanceOpen && advance.isError
+                          ? errMessage(advance.error, "پیشبرد ناموفق بود")
+                          : undefined
+                      }
+                    >
+                      <TextArea
+                        rows={3}
+                        value={advanceReason}
+                        onChange={(e) => setAdvanceReason(e.target.value)}
+                        placeholder="مثلاً: طرفین فوریت دارند و درخواست کرده‌اند بدون بررسی لیگالیر امضا شود."
+                      />
+                    </Field>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        loading={advance.isPending}
+                        disabled={advance.isPending || advanceReason.trim().length < 3}
+                        onClick={() => void submitAdvance()}
+                      >
+                        ثبت نهایی و رفتن به امضا
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={advance.isPending}
+                        onClick={() => {
+                          setAdvanceOpen(false);
+                          setAdvanceReason("");
+                        }}
+                      >
+                        انصراف
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Section>
+              </div>
+            )}
 
             {/* --- The OFFICIAL stamp (§5) — Super-Admin only --- */}
             {canReadStamp && (
-              <Section
-                title="مهر و هولوگرام رسمی"
-                icon={<IconShield size={16} className="text-primary" />}
-              >
-                <p className="mb-3 text-caption leading-6 text-muted">
-                  این مهر قوی‌تر از بررسی داخلی است و فقط پس از امضای همهٔ طرفین و با تصمیم
-                  مدیر ارشد روی همین نسخه درج می‌شود. تأیید ادمین جایگزین امضای طرفین نیست.
-                </p>
-                <ContractStampPanel contractId={contractId} canManage={canStamp} />
-              </Section>
+              <div id="admin-stamp" tabIndex={-1}>
+                <Section
+                  title="مهر و هولوگرام رسمی"
+                  icon={<IconShield size={16} className="text-primary" />}
+                >
+                  <p className="mb-3 text-caption leading-6 text-muted">
+                    این مهر قوی‌تر از بررسی داخلی است و فقط پس از امضای همهٔ طرفین و با تصمیم
+                    مدیر ارشد روی همین نسخه درج می‌شود. تأیید ادمین جایگزین امضای طرفین نیست.
+                  </p>
+                  <ContractStampPanel contractId={contractId} />
+                </Section>
+              </div>
             )}
 
             {/* --- Review history --- */}

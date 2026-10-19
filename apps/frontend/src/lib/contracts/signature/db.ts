@@ -16,7 +16,7 @@
 // ============================================================
 
 import crypto from "node:crypto";
-import { SIGNATURE_PARTICIPANT_STATUS_FA } from "@legalir/types";
+import { SIGNATURE_CELL_STATUS_FA } from "./labels";
 import type {
   SignatureAttestation,
   SignatureEvent,
@@ -328,7 +328,10 @@ export function signatureMarksForVersion(
   for (const participant of request.participants) {
     marks[participant.roleFa] = {
       signedAt: participant.signedAt,
-      statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[participant.status],
+      // The sheet talks about a SIGNATURE PLACE: anything not yet signed
+      // reads «در انتظار امضا» — the same words the renderer uses for a
+      // role with no mark at all.
+      statusFa: SIGNATURE_CELL_STATUS_FA[participant.status],
     };
   }
   return marks;

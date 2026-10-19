@@ -16,6 +16,7 @@ import {
   ok,
   refreshProgress,
   requireContract,
+  requireContractRead,
 } from "@/lib/contracts/api-helpers";
 import {
   deleteContractDocument,
@@ -32,7 +33,9 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   const { id, documentId } = await params;
-  const ctx = requireContract(request, id);
+  // A referred lawyer must be able to open the attachments/signature images
+  // the print mirror links to. Deletion below stays owner-only.
+  const ctx = requireContractRead(request, id);
   if (isErrorResponse(ctx)) return ctx;
 
   const doc = getContractDocument(ctx.contract.id, documentId);

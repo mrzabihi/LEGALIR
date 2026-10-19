@@ -14,6 +14,7 @@
 import type {
   ContractCompleteness,
   ContractLifecycleView,
+  ContractPrintMirror,
   PropertyContract,
 } from "@legalir/types";
 import { latestSignatureRequest, latestSignatureRequestDetail, listInvitations } from "./signature/db";
@@ -21,7 +22,25 @@ import { activeLawyerReviewDetail, latestAiReview, listReviewComments } from "./
 import { currentVersionApproval, latestAdminReview } from "./admin-review";
 import { currentVersionStamp } from "./stamp-review";
 import { preSignTipsForType } from "./legal-review-db";
-import { getVersion } from "./db";
+import { getVersion, listContractDocuments } from "./db";
+import { registrationForHash, resolveSigningAuthorisation } from "./registration";
+import {
+  contractPrintIssues,
+  getAdminMessage,
+  isPrintableAttachmentMime,
+  planContractAnnexes,
+  planSignatureImages,
+} from "./admin-print";
+import { loadHologram, loadReviewStamp } from "./stamp-asset";
+
+/**
+ * The owner-scoped URL of a stored document. Inlined rather than imported
+ * from the API client module: this file runs on the server, and a URL is
+ * the only thing both layers share.
+ */
+function contractDocumentUrl(contractId: string, documentId: string): string {
+  return `/api/v1/property-contracts/${contractId}/documents/${documentId}`;
+}
 import {
   buildLifecycleSteps,
   deriveLifecycleStage,
@@ -87,17 +106,44 @@ export function buildLifecycleView(
     !signatureRequest &&
     canTransition(contract.state, "PENDING_ADMIN_REVIEW");
 
+  // The registration path chosen for this exact version hash. A
+  // `self_final` record is an authorisation that NEVER claims a review
+  // happened — every surface must branch on `kind`.
+  const currentHash = currentVersion?.documentHash ?? null;
+  const registration = registrationForHash(contract.id, currentHash);
+  const authorisation = resolveSigningAuthorisation({
+    contract,
+    documentHash: currentHash,
+    approval: approved,
+  });
+  const reviewedByLegalir = approved !== null;
+
   // The compulsory gate: a signature may only be PREPARED once the
-  // current version carries an admin approval. This is the UI's read of
-  // the same invariant the sign route enforces server-side.
+  // current version carries an authorisation — either a bound admin
+  // approval (reviewed path) or a hash-bound self-final registration
+  // (unreviewed path). This is the UI's read of the same invariant the
+  // sign route enforces server-side.
   const canPrepareForSignature =
     !signatureRequest &&
-    !!approved &&
+    !!authorisation &&
     (contract.state === "ADMIN_APPROVED" ||
       contract.state === "READY_FOR_REVIEW" ||
       contract.state === "COUNTERPARTY_REVIEW" ||
       contract.state === "READY_TO_SIGN") &&
     !isEditable(contract.state);
+
+  // «ثبت نهایی» — the unreviewed route into party signing. Offered only
+  // when no registration exists for this hash and the legal-transition
+  // table actually allows READY_TO_SIGN from here (it does not from
+  // PENDING_ADMIN_REVIEW, so a contract already in the review queue can
+  // never be silently pulled out of it).
+  const canSelfFinalize =
+    !!contract.currentVersionId &&
+    !approved &&
+    !registration &&
+    !signatureRequest &&
+    canTransition(contract.state, "READY_TO_SIGN");
+
 
   // A signature may be given only while the contract is signable and a
   // request is in flight. A BLOCKING lawyer review that is not complete
@@ -107,9 +153,94 @@ export function buildLifecycleView(
 
   // Finalization is the last step: every party has signed the current
   // version, the contract has reached SIGNED, AND the signed version
-  // carries a valid admin approval. The finalize route enforces the same
-  // two conditions, so the UI never offers a call the server would reject.
-  const canFinalize = contract.state === "SIGNED" && approved !== null;
+  // carries an authorisation — a bound approval OR a hash-bound
+  // self-final registration. The finalize route enforces the same
+  // conditions, so the UI never offers a call the server would reject.
+  const canFinalize = contract.state === "SIGNED" && authorisation !== null;
+
+  // The print plan is DERIVED from the real files on disk. Anything the
+  // PDF cannot reproduce faithfully is reported BEFORE finalisation so a
+  // contract never silently ships without one of its annexes/signatures.
+  const documents = listContractDocuments(contract.id);
+  const participants = signatureRequest?.participants ?? [];
+  const printIssues = contractPrintIssues({ contract, documents, participants });
+  const adminMessage = getAdminMessage(contract.id);
+
+  // §T7 — the on-screen sheet mirrors the STORED PDF. The plan below is
+  // the same one `buildContractPdfInputs` feeds the renderer, resolved
+  // from the same files, so the preview can never show a different set
+  // or order of signatures/annexes than the printed copy. A file that
+  // cannot be embedded stays listed with `unprintable: true` — the
+  // preview names it instead of silently dropping it, and `printIssues`
+  // blocks finalisation until it is fixed.
+  const annexPlan = planContractAnnexes({ contract, documents });
+  const signaturePlan = planSignatureImages({ participants, documents });
+  const signatureByRole = new Map(
+    signaturePlan.images.map((i) => [i.participant.roleFa, i])
+  );
+  const sealAsset = loadReviewStamp();
+  const hologram = loadHologram();
+  const stampBinding = seal
+    ? { sha256: seal.stampAssetSha256 ?? sealAsset?.sha256 ?? null, applied: true }
+    : registration?.path === "self_final" && sealAsset
+      ? { sha256: sealAsset.sha256, applied: true }
+      : null;
+  const printMirror: ContractPrintMirror = {
+    signatures: participants
+      .filter((p) => p.proofDocumentId !== null || p.signedMethod !== null)
+      .map((p) => {
+        const planned = signatureByRole.get(p.roleFa);
+        return {
+          roleFa: p.roleFa,
+          nameFa: p.nameFa,
+          href: p.proofDocumentId
+            ? contractDocumentUrl(contract.id, p.proofDocumentId)
+            : null,
+          unprintable: p.proofDocumentId !== null && !planned,
+        };
+      }),
+    annexes: annexPlan.annexes.map((annex) => ({
+      documentId: annex.document.id,
+      titleFa: annex.titleFa,
+      fileName: annex.document.fileName,
+      mime: annex.mime,
+      href:
+        annex.document.id && annex.mime
+          ? contractDocumentUrl(contract.id, annex.document.id)
+          : null,
+      unprintable: !!annex.mime && !isPrintableAttachmentMime(annex.mime),
+    })),
+    adminMessage: adminMessage?.messageFa ?? null,
+    // The sheet prints the certificate only when this version really
+    // carries a registration — the same rule `buildContractPdfInputs`
+    // applies, so the preview can never show an attestation the stored
+    // PDF omits (or claim a path the record does not hold).
+    authenticity: authorisation
+      ? {
+          path: registration?.path ?? "legalir_review",
+          reviewedByLegalir,
+          registeredAt: registration?.createdAt ?? approved?.decidedAt ?? null,
+          registeredByLabelFa:
+            registration?.actorLabelFa ??
+            approved?.reviewerInitials ??
+            approved?.reviewingOfficeFa ??
+            null,
+          reviewId: approved?.id ?? null,
+          reviewedAt: approved?.decidedAt ?? null,
+          stampApplied: stampBinding !== null,
+          stampSha256: stampBinding?.sha256 ?? null,
+          hologramApplied: stampBinding !== null && hologram !== null,
+        }
+      : null,
+    selfFinal:
+      registration?.path === "self_final"
+        ? {
+            actorLabelFa: registration.actorLabelFa,
+            registeredAt: registration.createdAt,
+            reasonFa: registration.reasonFa,
+          }
+        : null,
+  };
 
   return {
     stage,
@@ -140,6 +271,12 @@ export function buildLifecycleView(
     canSign,
     canFinalize,
     canSubmitForAdminReview,
+    registration,
+    reviewedByLegalir,
+    canSelfFinalize,
+    printIssues,
+    adminMessage,
+    printMirror,
   };
 }
 

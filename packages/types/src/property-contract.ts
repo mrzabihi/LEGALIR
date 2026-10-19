@@ -1222,6 +1222,14 @@ export interface PropertyContractListItem {
   exportedAt: string | null;
   updatedAt: string;
   createdAt: string;
+  /**
+   * How the caller reached this contract. Omitted/`owner` means they own
+   * it; `assigned` means it was referred to them for legal review, so the
+   * card is labelled as a referral and opens read-only.
+   */
+  access?: "owner" | "assigned";
+  /** The review request that grants `assigned` access, when applicable. */
+  referralId?: string | null;
 }
 
 export interface PropertyContractListResponse {
@@ -2152,6 +2160,8 @@ export interface ContractStampContextResponse {
   contract: {
     id: string;
     referenceCode: string;
+    /** The contract's own title, so a confirmation names the right document. */
+    title: string;
     typeFa: string;
     state: PropertyContractState;
   };
@@ -2175,6 +2185,13 @@ export interface ContractStampContextResponse {
   };
   /** The `CONTRACT_STAMP_ENABLED` capability, read from the server. */
   featureEnabled: boolean;
+  /**
+   * The server's own verdict on each action, with the ordered list of
+   * unmet preconditions in the operator's words. The panel renders this
+   * instead of re-deriving the rules, so a disabled button always has a
+   * real, server-authoritative reason attached to it.
+   */
+  eligibility: ContractStampEligibility;
   /** TRUE when a valid stamp is already applied to the current version. */
   applied: boolean;
   appliedRequest: ContractStampRequestDetail | null;
@@ -2219,6 +2236,141 @@ export interface ContractStampDecisionResponse {
    * because a contract is not final until LEGALIR approves it.
    */
   finalization: ContractStampFinalization | null;
+}
+
+// ------------------------------------------------------------
+// Stamp eligibility — WHY an action is or is not available
+// ------------------------------------------------------------
+// The panel used to derive availability on its own, so a disabled button
+// could be explained by nothing at all. The server now evaluates the exact
+// same rules it enforces and returns the verdict, each unmet precondition
+// carrying a stable code and the operator's own words. The panel renders
+// THAT — it never re-derives a rule, so the button and the API can never
+// disagree about what is allowed.
+
+/** A precondition that is not met for the requested stamp action. */
+export type ContractStampBlockCode =
+  /** The `CONTRACT_STAMP_ENABLED` capability is off. */
+  | "FEATURE_DISABLED"
+  /** The contract has no frozen version, so there is nothing to seal. */
+  | "NO_VERSION"
+  /** The stamp master image is missing on disk. */
+  | "STAMP_ASSET_MISSING"
+  /** The current version has no valid LEGALIR review bound to its hash. */
+  | "NOT_REVIEWED"
+  /** No signature request is bound to the current version hash. */
+  | "SIGNATURES_REQUIRED"
+  /** A signature request exists but was given for a different content hash. */
+  | "SIGNATURES_STALE"
+  /** A valid seal is already applied to the current version. */
+  | "ALREADY_STAMPED"
+  /** An open request already exists for this version. */
+  | "PENDING_REQUEST"
+  /** `apply`/`reject`/`cancel` was requested with no open request. */
+  | "NO_PENDING_REQUEST"
+  /** The caller does not hold `admin:contracts:stamp:manage`. */
+  | "NOT_MANAGER";
+
+/** One unmet precondition, in the operator's words. */
+export interface ContractStampBlocker {
+  code: ContractStampBlockCode;
+  messageFa: string;
+}
+
+/** The server's verdict on every stamp action for one contract. */
+export interface ContractStampEligibility {
+  canRequest: boolean;
+  canApply: boolean;
+  canReject: boolean;
+  canCancel: boolean;
+  /** Ordered: the FIRST entry is the one the operator should fix next. */
+  blockers: ContractStampBlocker[];
+  /**
+   * The action the panel should offer when nothing is blocking — `null`
+   * when the contract already reached its terminal stamp state.
+   */
+  nextAction: "request" | "apply" | "reject" | "cancel" | "none";
+}
+
+// ------------------------------------------------------------
+// Contract stages — the lifecycle table in the admin drawer
+// ------------------------------------------------------------
+// Every row is DERIVED from real rows (the type's own sections, the admin
+// review, the registration record, the signature request, the frozen
+// version, the seal). Nothing is a fixed template for all contract types:
+// the data stages come from the contract type's own section definitions.
+
+export type ContractStageStatus =
+  | "done" // مرحله تمام شده
+  | "active" // مرحلهٔ جاری
+  | "pending" // هنوز شروع نشده
+  | "blocked" // منتظر پیش‌شرط دیگر
+  | "needs_fix" // نیازمند اصلاح
+  | "rejected" // ردشده
+  | "skipped"; // در این مسیر لازم نبود
+
+export const CONTRACT_STAGE_STATUS_FA: Record<ContractStageStatus, string> = {
+  done: "تکمیل‌شده",
+  active: "در حال انجام",
+  pending: "در انتظار",
+  blocked: "منتظر پیش‌شرط",
+  needs_fix: "نیازمند اصلاح",
+  rejected: "ردشده",
+  skipped: "لازم نبود",
+};
+
+/**
+ * The real action a stage detail offers. Each maps to an operation that
+ * already exists on the server — no stage invents a button with no effect.
+ */
+export type ContractStageActionId =
+  | "review_decision"
+  | "resend_invitations"
+  | "register_self_final"
+  | "view_final_pdf"
+  | "stamp_action";
+
+export interface ContractStageAction {
+  id: ContractStageActionId;
+  labelFa: string;
+  /** False when the actor's permission or the stage state forbids it. */
+  enabled: boolean;
+  /** Why it is unavailable, in the operator's words. Null when enabled. */
+  reasonFa: string | null;
+}
+
+/** One stage row in the admin lifecycle table. */
+export interface ContractStageRow {
+  /** Stable key, e.g. `section:parties`, `review`, `signature`, `stamp`. */
+  key: string;
+  /** 1-based position in the table. */
+  index: number;
+  titleFa: string;
+  status: ContractStageStatus;
+  statusFa: string;
+  /** The role/person now responsible for this stage. */
+  responsibleFa: string;
+  /** ISO-8601 of the last change to this stage, when one happened. */
+  updatedAt: string | null;
+  /** The newest recorded reason/comment attached to this stage. */
+  noteFa: string | null;
+  /** Section completion, for data stages only. */
+  percent: number | null;
+  /** Required items still missing (data stages only). */
+  missingFa: string[];
+  /** A short explanation of the current status. */
+  detailFa: string | null;
+  actions: ContractStageAction[];
+}
+
+/** The whole table plus the pointer to where the contract is right now. */
+export interface ContractStagesView {
+  rows: ContractStageRow[];
+  /** Key of the row the contract currently sits on, when one is active. */
+  currentKey: string | null;
+  /** Number of rows that are done or skipped, for the header summary. */
+  doneCount: number;
+  totalCount: number;
 }
 
 // ------------------------------------------------------------
@@ -2422,6 +2574,82 @@ export interface ContractLifecycleView {
    * Requires a frozen current version and no newer un-reviewed content.
    */
   canSubmitForAdminReview: boolean;
+  /**
+   * The registration record bound to the CURRENT version hash, when one
+   * exists. This is how every surface tells «بررسی‌شده توسط لیگالیر»
+   * apart from «ثبت نهایی بدون بررسی» — never from the contract state,
+   * which is identical for both paths.
+   */
+  registration: ContractRegistrationRecord | null;
+  /** True only when `registration.reviewedByLegalir` is true. */
+  reviewedByLegalir: boolean;
+  /**
+   * True when the contract may take the «ثبت نهایی» path right now: a
+   * frozen version exists, no admin review is in flight or approved, and
+   * the state transition into the signature stage is legal.
+   */
+  canSelfFinalize: boolean;
+  /** Attachments/ signatures that cannot appear in the printed output. */
+  printIssues: ContractPrintIssue[];
+  /** The admin's 100-character printable message, when recorded. */
+  adminMessage: ContractAdminMessage | null;
+  /**
+   * §T7 — everything the STORED final PDF contains besides the contract
+   * text, so the on-screen A4 sheet can mirror it: the same signature
+   * scans in the same cells, the same annex files in registration order,
+   * the same red admin message, the same amber unreviewed notice and the
+   * same authenticity facts. Derived from the real files; `null` when a
+   * file cannot be resolved (the accompanying print issue says why).
+   */
+  printMirror: ContractPrintMirror;
+}
+
+/** One uploaded signature scan, as the preview must draw it. */
+export interface ContractPrintMirrorSignature {
+  /** The rendered role label — the same key the signature table uses. */
+  roleFa: string;
+  nameFa: string;
+  /** Owner-scoped URL of the uploaded scan; null for OTP signatures. */
+  href: string | null;
+  /** True when the uploaded file cannot be printed (reported in printIssues). */
+  unprintable: boolean;
+}
+
+/** One annex file, in the exact order the PDF appends it. */
+export interface ContractPrintMirrorAnnex {
+  documentId: string;
+  titleFa: string;
+  fileName: string;
+  mime: string;
+  /** Owner-scoped URL; null when the stored file is gone. */
+  href: string | null;
+  /** True when the format cannot be embedded in a PDF (reported in printIssues). */
+  unprintable: boolean;
+}
+
+export interface ContractPrintMirror {
+  signatures: ContractPrintMirrorSignature[];
+  annexes: ContractPrintMirrorAnnex[];
+  /** The red message printed on the last contract page, or null. */
+  adminMessage: string | null;
+  /** Registration-path facts for the «تأییدیهٔ اصالت» page. */
+  authenticity: {
+    path: ContractRegistrationPath;
+    reviewedByLegalir: boolean;
+    registeredAt: string | null;
+    registeredByLabelFa: string | null;
+    reviewId: string | null;
+    reviewedAt: string | null;
+    stampApplied: boolean;
+    stampSha256: string | null;
+    hologramApplied: boolean;
+  } | null;
+  /** The amber unreviewed notice drawn in place of the blue review mark. */
+  selfFinal: {
+    actorLabelFa: string | null;
+    registeredAt: string;
+    reasonFa: string;
+  } | null;
 }
 
 // ------------------------------------------------------------
@@ -2491,4 +2719,114 @@ export interface ReviewCommentCreateRequest {
   kind?: ReviewCommentKind;
   clauseRef?: string;
   partyId?: string;
+}
+
+// ------------------------------------------------------------
+// Final registration — the TWO paths (reviewed / self-final)
+// ------------------------------------------------------------
+// A contract may reach the signature stage in exactly one of two ways:
+//
+//   1. «ارسال برای بررسی در لیگالیر» — LEGALIR's legal team reviews the
+//      frozen version, and the approval is bound to its hash.
+//   2. «ثبت نهایی» — the parties register the contract directly. No
+//      review happened, and NO surface may claim otherwise.
+//
+// The record is the audit proof of which path was taken. It is bound to
+// a version HASH for the same reason approvals are: a content change
+// produces a new hash, and the old registration no longer authorises
+// signature or finalization.
+
+export type ContractRegistrationPath = "legalir_review" | "self_final";
+
+export const CONTRACT_REGISTRATION_PATH_FA: Record<ContractRegistrationPath, string> = {
+  legalir_review: "ارسال برای بررسی در لیگالیر",
+  self_final: "ثبت نهایی بدون بررسی لیگالیر",
+};
+
+export interface ContractRegistrationRecord {
+  id: string;
+  contractId: string;
+  contractVersionId: string;
+  documentHash: string;
+  path: ContractRegistrationPath;
+  /**
+   * TRUE only when LEGALIR actually reviewed the bound version. A
+   * `self_final` record is always false, and an admin's manual advance
+   * does not turn a false into a true.
+   */
+  reviewedByLegalir: boolean;
+  /** The admin review this record points at, when path=legalir_review. */
+  adminReviewId: string | null;
+  /** Why this path was chosen (user confirmation or the admin's reason). */
+  reasonFa: string;
+  actorId: string;
+  actorLabelFa: string;
+  actorKind: "party" | "admin";
+  createdAt: string;
+}
+
+// ------------------------------------------------------------
+// Admin print message — the red card on the last contract page
+// ------------------------------------------------------------
+
+/** Hard limit for the printable admin message, in characters. */
+export const CONTRACT_ADMIN_MESSAGE_MAX = 100;
+
+export interface ContractAdminMessage {
+  contractId: string;
+  messageFa: string;
+  adminUserId: string;
+  adminLabelFa: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ------------------------------------------------------------
+// Signature-link contact correction (admin, before sending)
+// ------------------------------------------------------------
+
+export interface ContractContactChange {
+  id: string;
+  contractId: string;
+  signatureRequestId: string | null;
+  participantId: string | null;
+  partyId: string | null;
+  roleFa: string;
+  nameFa: string;
+  /** Canonical E.164 numbers, as stored on the participant. */
+  previousMobile: string;
+  newMobile: string;
+  reasonFa: string;
+  adminUserId: string;
+  adminLabelFa: string;
+  changedAt: string;
+  /** The outcome of the invitation send that followed the change. */
+  deliveryStatus: "SENT" | "FAILED" | null;
+  deliveryChannel: "sms" | "dev-console" | "none" | null;
+  deliveryDetail: string | null;
+  deliveredAt: string | null;
+}
+
+// ------------------------------------------------------------
+// Print readiness — what the PDF/print output can honestly include
+// ------------------------------------------------------------
+// A file the platform accepts for upload is not automatically printable:
+// DOCX and WEBP cannot be embedded into the generated PDF. The server
+// reports that BEFORE finalization so neither a party nor an admin is
+// surprised by a silently missing attachment.
+
+export type ContractPrintIssueCode =
+  | "ATTACHMENT_UNPRINTABLE"
+  | "ATTACHMENT_UNREADABLE"
+  | "SIGNATURE_UNPRINTABLE"
+  | "SIGNATURE_UNREADABLE";
+
+export interface ContractPrintIssue {
+  code: ContractPrintIssueCode;
+  /** The stored document the issue concerns, when there is one. */
+  documentId: string | null;
+  /** Human label of the affected annex/signature. */
+  titleFa: string;
+  /** Clear Persian explanation, shown to the user and the admin. */
+  messageFa: string;
 }

@@ -14,7 +14,7 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import type { AdminContractDetail } from "@/lib/api/admin";
 import type { AdminContractReviewActionRequest } from "@legalir/types";
 
@@ -62,6 +62,35 @@ vi.mock("@/hooks/useAdmin", () => ({
     mutateAsync: vi.fn(async () => ({ invitations: [], revokedInvitationIds: [] })),
     isPending: false,
   }),
+  // §6/§5/§T4 operator controls — inert here; their gates are covered by the
+  // route tests. The drawer only needs them to exist to render.
+  useAdminContractMessage: () => ({
+    mutateAsync: vi.fn(async () => ({
+      message: null,
+      maxChars: 100,
+      remainingChars: 100,
+    })),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useAdminContractContact: () => ({
+    mutateAsync: vi.fn(async () => ({ change: {}, invitation: null, sent: false, errorFa: null })),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useAdminAdvanceSigning: () => ({
+    mutateAsync: vi.fn(async () => ({
+      fromStateFa: "",
+      toStateFa: "",
+      reviewedByLegalir: false,
+      registration: {},
+    })),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
 }));
 
 import { ContractDetailDrawer } from "@/components/admin/contract-detail-drawer";
@@ -85,7 +114,15 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
     },
     completeness: { overall: 100, sections: [], blockers: [] },
     parties: [
-      { id: "pty-1", role: "landlord", roleFa: "موجر", nameFa: "مریم محمدی", isInitiator: true },
+      {
+        id: "pty-1",
+        role: "landlord",
+        roleFa: "موجر",
+        nameFa: "مریم محمدی",
+        isInitiator: true,
+        mobile: "+989120000001",
+        mobileMasked: "0912***0001",
+      },
     ],
     currentVersion: {
       id: "ver-1",
@@ -148,6 +185,23 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
     signatureRequests: [],
     attestations: [],
     finalDocument: null,
+    // §3/§5/§6/§T4 — the print + registration controls. This suite covers
+    // the DECISION surface, so nothing is registered, no message is set,
+    // nothing blocks printing, and no manual advance is offered.
+    registration: null,
+    reviewedByLegalir: false,
+    adminMessage: null,
+    adminMessageMaxChars: 100,
+    contactChanges: [],
+    printIssues: [],
+    canPrintFaithfully: true,
+    canAdvanceToSigning: false,
+    signingParticipants: [],
+    documents: [],
+    // §4 — the stage table is derived server-side; an empty walk is the
+    // honest default for a fixture whose sections list is empty.
+    stages: { rows: [], currentKey: null, doneCount: 0, totalCount: 0 },
+    currentPdfUrl: null,
     ...overrides,
   };
 }
@@ -523,6 +577,169 @@ describe("ContractDetailDrawer — the admin decision surface (§6/§10)", () =>
     );
     expect(screen.getByText("c".repeat(64))).toBeInTheDocument();
     expect(screen.getByText("seal-2026-01")).toBeInTheDocument();
+  });
+
+  it("renders the contract's REAL stage walk, marking the current stage", async () => {
+    state.detail = detail({
+      stages: {
+        currentKey: "review",
+        doneCount: 1,
+        totalCount: 3,
+        rows: [
+          {
+            key: "section:parties",
+            index: 1,
+            titleFa: "طرفین",
+            status: "done",
+            statusFa: "تکمیل‌شده",
+            responsibleFa: "سازندهٔ قرارداد (کاربر)",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            noteFa: null,
+            percent: 100,
+            missingFa: [],
+            detailFa: "همهٔ اطلاعات لازم این بخش ثبت شده است.",
+            actions: [],
+          },
+          {
+            key: "review",
+            index: 2,
+            titleFa: "بررسی و تأیید داخلی لیگالیر",
+            status: "active",
+            statusFa: "در حال انجام",
+            responsibleFa: "واحد بررسی حقوقی لیگالیر",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+            noteFa: "در انتظار تصمیم واحد بررسی حقوقی.",
+            percent: null,
+            missingFa: [],
+            detailFa: null,
+            actions: [
+              {
+                id: "review_decision",
+                labelFa: "ثبت تصمیم بررسی",
+                enabled: true,
+                reasonFa: null,
+              },
+            ],
+          },
+          {
+            key: "stamp",
+            index: 3,
+            titleFa: "مهر و هولوگرام رسمی لیگالیر",
+            status: "blocked",
+            statusFa: "منتظر پیش‌شرط",
+            responsibleFa: "مدیر ارشد لیگالیر",
+            updatedAt: null,
+            noteFa: "درخواست مهر هنوز قابل ثبت نیست.",
+            percent: null,
+            missingFa: [],
+            detailFa: "نسخهٔ فعلی هنوز تأیید بررسی داخلی لیگالیر را ندارد.",
+            actions: [
+              {
+                id: "stamp_action",
+                labelFa: "اقدام مهر",
+                enabled: false,
+                reasonFa: "نسخهٔ فعلی هنوز تأیید بررسی داخلی لیگالیر را ندارد.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    renderDrawer(true);
+
+    // All seven columns are present, in the required order.
+    expect(await screen.findByText("مراحل و گردش کار قرارداد")).toBeInTheDocument();
+    for (const header of [
+      "مرحله",
+      "عنوان مرحله",
+      "وضعیت",
+      "مسئول مرحله",
+      "آخرین تغییر",
+      "آخرین توضیح",
+      "عملیات",
+    ]) {
+      expect(screen.getByRole("columnheader", { name: header })).toBeInTheDocument();
+    }
+
+    // Every real stage appears, with its own status label. («طرفین» is also
+    // a summary label elsewhere in the drawer, so the row is found by its
+    // rendered row instead of a unique string.)
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("طرفین")).toBeInTheDocument();
+    expect(within(table).getAllByText("بررسی و تأیید داخلی لیگالیر").length).toBeGreaterThan(0);
+    expect(within(table).getByText("مهر و هولوگرام رسمی لیگالیر")).toBeInTheDocument();
+    expect(within(table).getByText("منتظر پیش‌شرط")).toBeInTheDocument();
+
+    // The current stage is marked, and only it.
+    expect(within(table).getByText("مرحلهٔ جاری")).toBeInTheDocument();
+    const currentRow = within(table).getByText("بررسی و تأیید داخلی لیگالیر").closest("tr")!;
+    expect(currentRow).toHaveAttribute("aria-current", "step");
+  });
+
+  it("opens a stage's detail and explains a disabled action with the server's own reason", async () => {
+    state.detail = detail({
+      stages: {
+        currentKey: "stamp",
+        doneCount: 0,
+        totalCount: 1,
+        rows: [
+          {
+            key: "stamp",
+            index: 1,
+            titleFa: "مهر و هولوگرام رسمی لیگالیر",
+            status: "blocked",
+            statusFa: "منتظر پیش‌شرط",
+            responsibleFa: "مدیر ارشد لیگالیر",
+            updatedAt: null,
+            noteFa: "درخواست مهر هنوز قابل ثبت نیست.",
+            percent: null,
+            missingFa: [],
+            detailFa: "نسخهٔ فعلی هنوز تأیید بررسی داخلی لیگالیر را ندارد.",
+            actions: [
+              {
+                id: "stamp_action",
+                labelFa: "اقدام مهر",
+                enabled: false,
+                reasonFa: "نسخهٔ فعلی هنوز تأیید بررسی داخلی لیگالیر را ندارد.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    renderDrawer(true);
+
+    fireEvent.click(await screen.findByRole("button", { name: /جزئیات/ }));
+
+    // The detail surfaces the status, the actor and the recorded note.
+    expect(await screen.findByText("اقدام‌های مجاز این مرحله")).toBeInTheDocument();
+    expect(screen.getAllByText("مدیر ارشد لیگالیر").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/درخواست مهر هنوز قابل ثبت نیست/).length
+    ).toBeGreaterThan(0);
+
+    // The action is disabled AND carries the reason — a dead button is
+    // never left unexplained.
+    const actionButton = screen.getByRole("button", { name: "رفتن به این اقدام" });
+    expect(actionButton).toBeDisabled();
+    expect(
+      screen.getAllByText("نسخهٔ فعلی هنوز تأیید بررسی داخلی لیگالیر را ندارد.").length,
+    ).toBeGreaterThan(0);
+
+    // The stage dialog is portalled to <body>, NOT nested in the drawer: the
+    // drawer panel is absolutely positioned and transformed, which would make
+    // it the containing block for `position: fixed` and could place the dialog
+    // off-screen inside a long, scrolled drawer.
+    const stageDialog = screen.getByRole("dialog", { name: /^مرحلهٔ/ });
+    // dialog → overlay root → body: the drawer's own container is bypassed.
+    expect(stageDialog.parentElement?.parentElement).toBe(document.body);
+  });
+
+  it("shows an honest empty state when the contract has no stages yet", async () => {
+    renderDrawer(true);
+    expect(
+      await screen.findByText("برای این قرارداد هنوز مرحله‌ای قابل نمایش ثبت نشده است."),
+    ).toBeInTheDocument();
   });
 
   it("flags a stored artifact whose stamp is no longer bound to the final hash", async () => {

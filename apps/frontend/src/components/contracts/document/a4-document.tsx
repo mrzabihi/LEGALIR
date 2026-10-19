@@ -59,8 +59,62 @@ export interface A4SignatureMark {
   statusFa?: string;
 }
 
+/**
+ * §T2 — one party's uploaded signature scan. The sheet draws it in that
+ * party's OWN signing cell; a party without a scan keeps the ruled line
+ * and «در انتظار امضا». The image is never stretched: its aspect ratio is
+ * preserved and it is contained inside the cell.
+ */
+export interface A4SignatureImage {
+  /** The rendered role label — the same key the signature table uses. */
+  roleFa: string;
+  /** Owner-scoped URL, or null when the file cannot be resolved. */
+  href: string | null;
+  /** TRUE when the stored file cannot be embedded (named, never hidden). */
+  unprintable?: boolean;
+}
+
+/** §T1 — one annex file, in the order the stored PDF appends it. */
+export interface A4Annex {
+  documentId: string;
+  titleFa: string;
+  fileName: string;
+  mime: string;
+  href: string | null;
+  unprintable?: boolean;
+}
+
+/**
+ * §T7 — the «تأییدیهٔ اصالت» facts. Every field is read from the real
+ * contract record; the sheet states what LEGALIR's own records say and
+ * never implies any external authority confirmed the document.
+ */
+export interface A4Authenticity {
+  path: "legalir_review" | "self_final";
+  reviewedByLegalir: boolean;
+  registeredAt: string | null;
+  registeredByLabelFa: string | null;
+  reviewId: string | null;
+  reviewedAt: string | null;
+  stampApplied: boolean;
+  stampSha256: string | null;
+  hologramApplied: boolean;
+}
+
+/** §3 — the amber notice drawn where a review mark would otherwise sit. */
+export interface A4SelfFinalNotice {
+  actorLabelFa: string | null;
+  registeredAt: string;
+  reasonFa: string;
+}
+
 export interface A4ReviewStamp {
   applied: boolean;
+  /**
+   * The registration path. `self_final` never borrows the blue reviewed
+   * mark: an amber «بدون بررسی لیگالیر» notice takes its slot instead.
+   */
+  path?: "legalir_review" | "self_final";
   reviewedAt?: string | null;
   reviewingOfficeFa?: string;
   reviewerInitials?: string | null;
@@ -122,6 +176,24 @@ export interface A4DocumentProps {
   reviewStamp?: A4ReviewStamp | null;
   /** Signature completion per role label, from the real signature request. */
   signatureMarks?: Record<string, A4SignatureMark>;
+  /**
+   * §T2 — the parties' uploaded signature scans, drawn in their OWN cells.
+   * A role with no scan keeps its ruled line and «در انتظار امضا».
+   */
+  signatureImages?: A4SignatureImage[];
+  /**
+   * §T1 — annexed files appended AFTER the contract pages, in registration
+   * order, then the authenticity page. Images render inline; a PDF renders
+   * as a named page reference (the browser cannot embed pages); anything
+   * else is named as unprintable rather than dropped.
+   */
+  annexes?: A4Annex[];
+  /** §6 — the admin's ≤100-character message, in red on the LAST page. */
+  adminMessage?: string | null;
+  /** §T7 — the «تأییدیهٔ اصالت» page, appended after every annex. */
+  authenticity?: A4Authenticity | null;
+  /** §3 — the amber unreviewed notice (self-final path) on every page. */
+  selfFinalNotice?: A4SelfFinalNotice | null;
   /** Show the legal-basis annex (default true). */
   includeLegalBasis?: boolean;
   /**
@@ -318,10 +390,21 @@ export function A4Document({
   signatureMarks,
   includeLegalBasis = true,
   preSignTips: preSignTipsProp,
+  signatureImages,
+  annexes,
+  adminMessage,
+  authenticity,
+  selfFinalNotice,
   pdfHref,
   showActions = false,
   className = "",
 }: A4DocumentProps) {
+  /** roleFa → its uploaded scan, so the table can find its own image. */
+  const signatureImageByRole = useMemo(() => {
+    const map = new Map<string, A4SignatureImage>();
+    for (const image of signatureImages ?? []) map.set(image.roleFa, image);
+    return map;
+  }, [signatureImages]);
   const rendered = useMemo<RenderedContract | null>(() => {
     if (renderedProp) return renderedProp;
     if (!contract) return null;
@@ -615,6 +698,26 @@ export function A4Document({
                         apart from the typed name so the two can never be
                         confused with an electronic signature. */}
                     <td className="a4-signature-place">
+                      {/* §T2 — the uploaded scan goes in THIS party's own
+                          cell, above the ruled line. The ratio is preserved
+                          (`object-fit: contain`); a missing/unprintable file
+                          keeps the bare rule and says so, never a fake mark. */}
+                      {(() => {
+                        const image = signatureImageByRole.get(line.roleFa);
+                        if (!image) return null;
+                        return image.href && !image.unprintable ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={image.href}
+                            alt={`امضای ${line.nameFa}`}
+                            className="a4-signature-image"
+                          />
+                        ) : (
+                          <span className="a4-signature-image-missing">
+                            تصویر امضا قابل چاپ نیست
+                          </span>
+                        );
+                      })()}
                       <div className="a4-signature-rule" aria-hidden="true" />
                     </td>
                     <td className="a4-signature-state">
@@ -642,14 +745,217 @@ export function A4Document({
       estimate: 190 + rendered.signatureLines.length * 62,
     });
 
+    // ----------------------------------------------------------
+    // §T1 — annexed files. The order is the SAME one the stored PDF
+    // uses: registered annexes first (registration order), then any
+    // remaining `contract_annex` uploads oldest-first. Each one starts on
+    // a fresh sheet so a file can never be split or read as contract text.
+    // ----------------------------------------------------------
+    (annexes ?? []).forEach((annex, index) => {
+      list.push({
+        id: `annex-file-${annex.documentId}-${index}`,
+        node: (
+          <div className="a4-annex-file">
+            <h3 className="a4-clause-heading">
+              پیوست {faNum(index + 1)} — {annex.titleFa}
+            </h3>
+            <p className="a4-annex-file-meta">
+              {annex.fileName}
+              {annex.mime ? ` · ${annex.mime}` : ""}
+            </p>
+            {annex.unprintable || !annex.href ? (
+              <p className="a4-annex-file-missing">
+                این فایل در قالب قابل چاپ نیست و در PDF درج نمی‌شود؛ نسخهٔ فایل در سامانه
+                نگه‌داری می‌شود.
+              </p>
+            ) : annex.mime === "application/pdf" ? (
+              <div className="a4-annex-file-frame">
+                <p className="a4-annex-file-missing">
+                  این پیوست یک فایل PDF است و در نسخهٔ چاپی سامانه به‌صورت صفحات کامل درج
+                  می‌شود.
+                </p>
+                <a
+                  href={annex.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="a4-annex-file-link"
+                >
+                  مشاهدهٔ فایل پیوست
+                </a>
+              </div>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={annex.href}
+                alt={annex.titleFa}
+                className="a4-annex-file-image"
+              />
+            )}
+          </div>
+        ),
+        breakBefore: true,
+        estimate: 220,
+      });
+    });
+
+    // §6 — the admin's message, in red, at the footnote slot of the
+    // document's LAST page — the same slot the server PDF reserves. Empty
+    // ⇒ nothing renders and no space is reserved.
+    const adminCard =
+      adminMessage && adminMessage.trim() ? (
+        <div className="a4-admin-message" role="note">
+          <span className="a4-admin-message-label">پیام ادمین</span>
+          <p className="a4-admin-message-text">{adminMessage.trim()}</p>
+        </div>
+      ) : null;
+
+    // ----------------------------------------------------------
+    // §T7 — the «تأییدیهٔ اصالت» page. LAST in reading order, after every
+    // annex, exactly as the stored PDF appends it. It is a statement
+    // about LEGALIR's own records — never an external certification.
+    // ----------------------------------------------------------
+    if (authenticity) {
+      const fa = (value: string | null | undefined) => value || "—";
+      list.push({
+        id: "authenticity",
+        node: (
+          <div className="a4-authenticity">
+            <h3 className="a4-clause-heading">تأییدیهٔ اصالت سند</h3>
+            <p className="a4-annex-disclaimer">
+              این تأییدیه به‌صورت خودکار از دادهٔ ثبت‌شدهٔ همین قرارداد در سامانهٔ لیگالیر
+              ساخته شده است. هدف آن قابل‌ردیابی‌کردن نسخهٔ چاپی است و به معنای تأیید هیچ مرجع
+              بیرونی یا ثبت رسمی نیست.
+            </p>
+            <table className="a4-table a4-authenticity-table">
+              <thead>
+                <tr>
+                  <th scope="col">موضوع</th>
+                  <th scope="col">مقدار</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>مسیر ثبت</td>
+                  <td>
+                    {authenticity.path === "legalir_review"
+                      ? "ارسال برای بررسی در لیگالیر"
+                      : "ثبت نهایی بدون بررسی لیگالیر"}
+                  </td>
+                </tr>
+                <tr>
+                  <td>وضعیت بررسی لیگالیر</td>
+                  <td>
+                    {authenticity.reviewedByLegalir
+                      ? "بررسی‌شده توسط لیگالیر"
+                      : "بررسی‌نشده توسط لیگالیر"}
+                  </td>
+                </tr>
+                <tr>
+                  <td>شناسهٔ بررسی</td>
+                  <td dir="ltr">{fa(authenticity.reviewId)}</td>
+                </tr>
+                <tr>
+                  <td>تاریخ بررسی</td>
+                  <td>
+                    {authenticity.reviewedAt
+                      ? formatIsoJalali(authenticity.reviewedAt.slice(0, 10))
+                      : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <td>ثبت‌کننده</td>
+                  <td>{fa(authenticity.registeredByLabelFa)}</td>
+                </tr>
+                <tr>
+                  <td>تاریخ ورود به مرحلهٔ امضا</td>
+                  <td>
+                    {authenticity.registeredAt
+                      ? formatIsoJalali(authenticity.registeredAt.slice(0, 10))
+                      : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <td>اثر انگشت محتوا (SHA-256)</td>
+                  <td>
+                    <bdi className="a4-hash" dir="ltr">
+                      {documentHash || "—"}
+                    </bdi>
+                  </td>
+                </tr>
+                <tr>
+                  <td>مهر رسمی لیگالیر</td>
+                  <td>{authenticity.stampApplied ? "درج شده" : "درج نشده"}</td>
+                </tr>
+                <tr>
+                  <td>اثر انگشت مهر</td>
+                  <td>
+                    <bdi className="a4-hash" dir="ltr">
+                      {authenticity.stampApplied && authenticity.stampSha256
+                        ? authenticity.stampSha256
+                        : "—"}
+                    </bdi>
+                  </td>
+                </tr>
+                <tr>
+                  <td>هولوگرام</td>
+                  <td>{authenticity.hologramApplied ? "درج شده" : "درج نشده"}</td>
+                </tr>
+              </tbody>
+            </table>
+            <h4 className="a4-authenticity-subhead">وضعیت امضای طرفین</h4>
+            <table className="a4-table a4-authenticity-table">
+              <thead>
+                <tr>
+                  <th scope="col">نقش</th>
+                  <th scope="col">نام</th>
+                  <th scope="col">وضعیت</th>
+                  <th scope="col">تاریخ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rendered.signatureLines.map((line) => {
+                  const mark = signatureMarks?.[line.roleFa];
+                  return (
+                    <tr key={`auth-${line.roleFa}`}>
+                      <td>{line.roleFa}</td>
+                      <td>{line.nameFa}</td>
+                      <td>{mark?.statusFa ?? "در انتظار امضا"}</td>
+                      <td>
+                        {mark?.signedAt
+                          ? formatIsoJalali(mark.signedAt.slice(0, 10))
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {adminCard}
+          </div>
+        ),
+        breakBefore: true,
+        estimate: 420,
+      });
+    } else if (adminCard) {
+      // No certificate: the LAST page is the last annex, or the signature
+      // block when there are no annexes. The card goes there — never on a
+      // page of its own.
+      const last = list[list.length - 1];
+      if (last) last.node = <>{last.node}{adminCard}</>;
+    }
+
     return list;
   }, [
+    adminMessage,
+    annexes,
+    authenticity,
     contractDate,
     documentHash,
     legalBasis,
     referenceCode,
     officialStamp,
     rendered,
+    signatureImageByRole,
     signatureMarks,
     stateFa,
     templateVersion,
@@ -826,7 +1132,17 @@ export function A4Document({
    */
   const stampConfirmed =
     reviewStamp?.applied === true &&
+    reviewStamp.path !== "self_final" &&
     Boolean(reviewStamp.reviewedAt || reviewStamp.reviewId);
+
+  /**
+   * §3 — the SELF-FINAL notice. A contract registered without a LEGALIR
+   * review occupies the same slot as the blue review mark, in amber, and
+   * states the fact plainly. It can never be mistaken for a review: the
+   * text says «بدون بررسی لیگالیر», and the blue mark is never drawn for
+   * this path.
+   */
+  const selfFinalMarked = reviewStamp?.applied === true && reviewStamp.path === "self_final";
 
   const reviewMarkNode = (
     <div className="a4-review-stamp a4-review-stamp-page">
@@ -865,7 +1181,7 @@ export function A4Document({
           hologram group at the physical BOTTOM-LEFT. Both live inside the
           measured footer band, so neither can ever overlap body text,
           tables, signatures or the page number. */}
-      {(stampConfirmed || officialStamp) && (
+      {(stampConfirmed || officialStamp || selfFinalMarked) && (
         <div className="a4-page-marks">
           {/* Rendered FIRST so `space-between` anchors it to the physical
               left; the review block then lands on the right. */}
@@ -902,12 +1218,32 @@ export function A4Document({
             </div>
           )}
           {stampConfirmed && reviewMarkNode}
+          {selfFinalMarked && (
+            <div className="a4-self-final-mark">
+              <span className="a4-self-final-title">بدون بررسی لیگالیر</span>
+              <span className="a4-self-final-meta">
+                این سند با مسیر «ثبت نهایی بدون بررسی» ثبت شده است و توسط واحد بررسی
+                لیگالیر بررسی یا تأیید نشده است.
+              </span>
+              {selfFinalNotice?.actorLabelFa && (
+                <span className="a4-self-final-meta">
+                  ثبت‌کننده: {selfFinalNotice.actorLabelFa}
+                </span>
+              )}
+              {selfFinalNotice?.registeredAt && (
+                <span className="a4-self-final-meta">
+                  زمان ثبت:{" "}
+                  {formatIsoJalali(selfFinalNotice.registeredAt.slice(0, 10))}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
       {/* One disclaimer per page. The review block already ends with it, so
           the standalone line is only needed when the OFFICIAL seal is the
           only mark on the page. */}
-      {officialStamp && !stampConfirmed && (
+      {officialStamp && !stampConfirmed && !selfFinalMarked && (
         <span className="a4-review-stamp-note a4-page-official-note">
           {CONTRACT_REVIEW_STAMP_DISCLAIMER_FA}
         </span>

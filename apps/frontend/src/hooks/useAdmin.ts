@@ -71,6 +71,10 @@ import {
   type RecordAttestationInput,
   resendAdminInvitations,
   type ResendInvitationsInput,
+  saveAdminContractMessage,
+  correctAdminContractContact,
+  type CorrectAdminContractContactInput,
+  advanceAdminContractToSigning,
   type AdminContractsQuery,
   fetchAdminFlags,
   updateAdminFlag,
@@ -853,6 +857,57 @@ export function useAdminResendInvitations() {
       resendAdminInvitations(id, input),
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
+/**
+ * §6 — save (or clear) the printable admin message. It changes what the
+ * final PDF prints, so the detail is refreshed and the owner-facing
+ * contract slices too: the preview renders from the same row.
+ */
+export function useAdminContractMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, messageFa }: { id: string; messageFa: string }) =>
+      saveAdminContractMessage(id, messageFa),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+    },
+  });
+}
+
+/**
+ * §5 — correct one party's destination (and, only on explicit
+ * confirmation, send the link to it). Both the contact history and the
+ * party/participant rows change, so the detail is refreshed.
+ */
+export function useAdminContractContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: CorrectAdminContractContactInput }) =>
+      correctAdminContractContact(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
+/**
+ * §T4 — advance a contract to party signing without LEGALIR review. The
+ * contract state moves, so the queue and the detail both refetch; the
+ * owner-facing slices follow because the contract's status is theirs too.
+ */
+export function useAdminAdvanceSigning() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reasonFa }: { id: string; reasonFa: string }) =>
+      advanceAdminContractToSigning(id, reasonFa),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["contracts"] });
     },
   });
 }

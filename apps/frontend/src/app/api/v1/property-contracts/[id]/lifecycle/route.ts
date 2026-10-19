@@ -10,7 +10,7 @@
 // disagree with the server about what is possible.
 // ============================================================
 
-import { isErrorResponse, ok, requireContract } from "@/lib/contracts/api-helpers";
+import { isErrorResponse, ok, requireContractRead } from "@/lib/contracts/api-helpers";
 import { listContractDocuments, listParties } from "@/lib/contracts/db";
 import { computeCompleteness } from "@/lib/contracts/completeness";
 import { buildLifecycleView } from "@/lib/contracts/lifecycle-view";
@@ -22,7 +22,10 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params;
-  const ctx = requireContract(request, id);
+  // A referred lawyer may open the lifecycle view so the review workspace
+  // renders; every action it advertises is stripped below because each
+  // mutating route stays owner-only.
+  const ctx = requireContractRead(request, id);
   if (isErrorResponse(ctx)) return ctx;
 
   const { contract } = ctx;
@@ -48,5 +51,16 @@ export async function GET(request: Request, { params }: Params) {
     view.aiReview = null;
   }
 
-  return ok({ ...view, flags });
+  // A referred lawyer reads the same lifecycle, but every capability is a
+  // mutation the owner-only routes own. Strip them here so the UI cannot
+  // offer an action the server would reject — read access, not write.
+  if (ctx.access === "assigned") {
+    view.canPrepareForSignature = false;
+    view.canSign = false;
+    view.canFinalize = false;
+    view.canSubmitForAdminReview = false;
+    view.canSelfFinalize = false;
+  }
+
+  return ok({ ...view, access: ctx.access, flags });
 }

@@ -130,6 +130,8 @@ export function FinalStep() {
             <div className="flex flex-wrap gap-2">
               <a
                 href={contractPdfUrl(contract.id, contract.finalVersionId ?? undefined)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-medium border border-outline px-4 h-10 text-labelLarge text-primary hover:state-hover"
               >
                 <IconDownload className="w-4 h-4" />

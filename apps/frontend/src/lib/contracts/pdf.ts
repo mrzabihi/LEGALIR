@@ -20,7 +20,15 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { PDFDocument, rgb, degrees, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  rgb,
+  degrees,
+  type PDFEmbeddedPage,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from "pdf-lib";
 import type {
   ContractPreSignTip,
   PropertyContractVersion,
@@ -56,6 +64,19 @@ import { HOLOGRAM_PRINT_INK, loadDocumentLogo, loadHologram, loadReviewStamp } f
  */
 export interface ReviewStampInfo {
   applied: boolean;
+  /**
+   * Which registration path authorised the document. `legalir_review`
+   * (the default) draws the blue «بررسی شد» mark; `self_final` draws an
+   * amber «بدون بررسی لیگالیر» notice in the same slot instead — the
+   * unreviewed path must never borrow the reviewed mark.
+   */
+  path?: "legalir_review" | "self_final";
+  /** Who registered a `self_final` document, and why. */
+  selfFinal?: {
+    actorLabelFa?: string | null;
+    registeredAt?: string | null;
+    reasonFa?: string | null;
+  } | null;
   reviewId?: string;
   /** ISO date of the review decision. */
   reviewedAt?: string;
@@ -90,6 +111,59 @@ export interface SignatureMark {
   signedAt?: string | null;
   /** Human-readable state, e.g. «امضا شده» / «در انتظار امضا». */
   statusFa?: string;
+}
+
+/**
+ * One uploaded signature scan, to be drawn in the cell of the party it
+ * belongs to. The caller resolves the file from private storage; a role
+ * with no image keeps the ruled line and its status text, never a fake
+ * mark.
+ */
+export interface ContractSignatureImage {
+  /** The rendered role label — the same key the signature table uses. */
+  roleFa: string;
+  mime: "image/png" | "image/jpeg";
+  bytes: Uint8Array;
+}
+
+/** One annex file to append AFTER the contract pages, in registration order. */
+export interface ContractAnnexInput {
+  /** «عنوان پیوست» — printed above the annexed content. */
+  titleFa: string;
+  /** Original file name, printed for traceability. */
+  fileName?: string;
+  mime: string;
+  bytes: Uint8Array;
+}
+
+/** The red admin message printed on the last contract page. */
+export interface ContractAdminMessageInput {
+  messageFa: string;
+}
+
+/**
+ * The facts the «تأییدیهٔ اصالت» page prints. Every field comes from the
+ * real contract record — the page is a STATEMENT BY LEGALIR about its
+ * own records, never a claim that any external authority confirmed it.
+ */
+export interface AuthenticityInfo {
+  path: "legalir_review" | "self_final";
+  reviewedByLegalir: boolean;
+  /** When the document reached the signature stage. */
+  registeredAt: string | null;
+  registeredByLabelFa: string | null;
+  reviewId: string | null;
+  reviewedAt: string | null;
+  participants: {
+    roleFa: string;
+    nameFa: string;
+    statusFa: string;
+    signedAt: string | null;
+    methodFa: string | null;
+  }[];
+  stampApplied: boolean;
+  stampSha256: string | null;
+  hologramApplied: boolean;
 }
 
 const PAGE_WIDTH = 595.28; // A4 portrait, points
@@ -132,6 +206,20 @@ const MARK_ROW_BOTTOM = MARGIN + 16;
 const REVIEW_BOX_WIDTH = 208;
 /** The slight angle of the stamp — a hand-applied look, never a straight box. */
 const STAMP_ANGLE = -8;
+
+/**
+ * Annex/certificate pages reuse the SAME reserved geometry as the body,
+ * so every page LEGALIR emits — contract text, annexed file, authenticity
+ * certificate — carries the seal, hologram, paraphes and page number in
+ * the identical place, and no annexed content is ever covered by them.
+ */
+const ANNEX_HEADER_HEIGHT = 30;
+/** Height of the reserved red message strip on the last contract page. */
+const ADMIN_MESSAGE_HEIGHT = 40;
+/** The amber ink the unreviewed notice is drawn in (#B45309). */
+const SELF_FINAL_INK = rgb(0.706, 0.325, 0.035);
+/** The red ink of the admin message (#B91C1C). */
+const ADMIN_MESSAGE_INK = rgb(0.725, 0.11, 0.11);
 
 /** Locate the Vazirmatn TTF, searching up from the app directory. */
 function findFontPath(fileName: string): string | null {
@@ -179,7 +267,12 @@ class Layout {
   page: PDFPage;
   y: number;
   /** Lowest Y the cursor may reach — raised when a footer band is reserved. */
-  private readonly bottom: number;
+  /**
+   * The floor content may not cross. Normally the top of the reserved
+   * footer band; `reserveBand` raises it for a section that must leave
+   * room for the admin message card on the FINAL page.
+   */
+  private bottom: number;
 
   constructor(
     private readonly doc: PDFDocument,
@@ -203,6 +296,16 @@ class Layout {
       this.page = this.doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       this.y = PAGE_HEIGHT - MARGIN;
     }
+  }
+
+  /**
+   * Raise the content floor so the LAST page of the document keeps the
+   * admin message card's band free. Called before the closing section
+   * (the authenticity certificate) is laid out — everything after it,
+   * including a page break, respects the raised floor.
+   */
+  reserveBand(extra: number): void {
+    this.bottom = MARGIN + FOOTER_BAND + Math.max(0, extra);
   }
 
   heading(text: string, size = 13): void {
@@ -297,11 +400,17 @@ class Layout {
    * without taking any space from the body. A loose printed sheet still
    * says which contract and which revision it belongs to.
    */
-  runningHeads(typeFa: string, referenceCode: string, versionLabelFa: string): void {
+  runningHeads(
+    typeFa: string,
+    referenceCode: string,
+    versionLabelFa: string,
+    /** Section pages (annexes, certificate) draw their own head. */
+    bodyPageCount = this.doc.getPages().length
+  ): void {
     const pages = this.doc.getPages();
     const size = 8;
     const ruleY = PAGE_HEIGHT - MARGIN + 12;
-    for (let i = 1; i < pages.length; i++) {
+    for (let i = 1; i < Math.min(bodyPageCount, pages.length); i++) {
       const page = pages[i]!;
       page.drawLine({
         start: { x: MARGIN, y: ruleY },
@@ -605,6 +714,153 @@ class Layout {
   }
 
   /**
+   * The UNREVIEWED notice, drawn in the SAME footer slot the blue review
+   * mark occupies. It says plainly that LEGALIR did not review the text —
+   * a `self_final` document must never borrow the reviewed mark, and a
+   * printed copy must never be mistakable for an approved one.
+   */
+  selfFinalMarkPages(info: ReviewStampInfo): void {
+    const amber = SELF_FINAL_INK;
+    const titleSize = 8.5;
+    const metaSize = 6.4;
+    const noteSize = 6;
+    const padX = 7;
+    const padY = 5;
+    const lineGap = 2.2;
+
+    const meta = [
+      `ثبت‌کننده: ${info.selfFinal?.actorLabelFa || "طرف قرارداد"}`,
+      `تاریخ ثبت نهایی: ${
+        info.selfFinal?.registeredAt
+          ? formatIsoJalali(info.selfFinal.registeredAt.slice(0, 10))
+          : "ثبت نشده"
+      }`,
+      info.selfFinal?.reasonFa || "بدون بررسی لیگالیر",
+    ];
+    const noteLines = wrapText(
+      "این سند بدون بررسی واحد حقوقی لیگالیر ثبت نهایی شده است و «بررسی‌شده» محسوب نمی‌شود.",
+      this.fonts.regular,
+      noteSize,
+      REVIEW_BOX_WIDTH - padX * 2
+    );
+
+    const titleH = titleSize + lineGap;
+    const metaH = meta.length * (metaSize + lineGap);
+    const noteH = noteLines.length * (noteSize + 1.4);
+    const boxH = padY * 2 + titleH + metaH + 5 + noteH;
+    const boxX = RIGHT - REVIEW_BOX_WIDTH;
+    const boxY = MARK_ROW_BOTTOM;
+
+    for (const page of this.doc.getPages()) {
+      page.drawRectangle({
+        x: boxX,
+        y: boxY,
+        width: REVIEW_BOX_WIDTH,
+        height: boxH,
+        borderColor: amber,
+        borderWidth: 0.9,
+        borderDashArray: [3, 2],
+      });
+
+      let cursor = boxY + boxH - padY;
+      const title = "ثبت نهایی بدون بررسی لیگالیر";
+      const titleW = measureRtl(this.fonts.bold, title, titleSize);
+      drawRtl(page, this.fonts.bold, title, {
+        y: cursor - titleSize,
+        size: titleSize,
+        color: amber,
+        right: boxX + padX + titleW,
+      });
+      cursor -= titleH;
+
+      for (const line of meta) {
+        drawRtl(page, this.fonts.regular, line, {
+          y: cursor - metaSize,
+          size: metaSize,
+          color: amber,
+          right: RIGHT - padX,
+        });
+        cursor -= metaSize + lineGap;
+      }
+
+      cursor -= 4;
+      page.drawLine({
+        start: { x: boxX + padX, y: cursor },
+        end: { x: RIGHT - padX, y: cursor },
+        thickness: 0.4,
+        color: amber,
+        opacity: 0.5,
+      });
+      cursor -= 2;
+      for (const line of noteLines) {
+        drawRtl(page, this.fonts.regular, line, {
+          y: cursor - noteSize,
+          size: noteSize,
+          color: MUTED_INK,
+          right: RIGHT - padX,
+        });
+        cursor -= noteSize + 1.4;
+      }
+    }
+  }
+
+  /**
+   * The red admin message, printed on the page it is called on at a FIXED
+   * position just above the reserved footer band. The dashed frame reads
+   * as a stamped/perforated strip, and because the band below it is
+   * reserved, it can never touch the seal, the hologram, the paraphes or
+   * the page number. When there is no message this is never called, so
+   * no empty space is printed.
+   */
+  adminMessageBlock(messageFa: string): void {
+    const page = this.page;
+    const size = 9;
+    const labelSize = 6.5;
+    const padX = 8;
+    const padY = 6;
+    const lines = wrapText(
+      messageFa,
+      this.fonts.bold,
+      size,
+      CONTENT_WIDTH - padX * 2
+    ).slice(0, 2);
+
+    const boxH = Math.min(
+      ADMIN_MESSAGE_HEIGHT,
+      padY * 2 + labelSize + 2 + lines.length * (size + 3)
+    );
+    const boxX = MARGIN;
+    const boxY = MARGIN + FOOTER_BAND + 8;
+
+    page.drawRectangle({
+      x: boxX,
+      y: boxY,
+      width: CONTENT_WIDTH,
+      height: boxH,
+      color: rgb(1, 0.965, 0.965),
+      borderColor: ADMIN_MESSAGE_INK,
+      borderWidth: 0.9,
+      borderDashArray: [4, 2],
+    });
+    drawRtl(page, this.fonts.regular, "پیام ادمین", {
+      y: boxY + boxH - padY - labelSize,
+      size: labelSize,
+      color: ADMIN_MESSAGE_INK,
+      right: RIGHT - padX,
+    });
+    let ty = boxY + boxH - padY - labelSize - 5 - size;
+    for (const line of lines) {
+      drawRtl(page, this.fonts.bold, line, {
+        y: ty,
+        size,
+        color: ADMIN_MESSAGE_INK,
+        right: RIGHT - padX,
+      });
+      ty -= size + 3;
+    }
+  }
+
+  /**
    * §2.6 — the FULL signature block, as ONE unbreakable RTL table.
    *
    * Four columns, right → left, exactly like the on-screen sheet:
@@ -627,7 +883,12 @@ class Layout {
      *  signatures or spill onto extra sheets. */
     qr?: { payload: string; caption: string },
     /** Real per-role signature state, keyed by the rendered role label. */
-    marks: Readonly<Record<string, SignatureMark>> = {}
+    marks: Readonly<Record<string, SignatureMark>> = {},
+    /** Uploaded signature scans, keyed by the SAME role label. A role with
+     *  no image keeps its ruled line and status text — never a fake mark. */
+    images: Readonly<Record<string, PDFImage>> = {},
+    /** Extra space the last page must keep free (the red admin message). */
+    reserveExtra = 0
   ): void {
     const headingSize = 13;
     /**
@@ -657,7 +918,14 @@ class Layout {
     // footer note lines, then the QR band. The fit test uses the SAME sum,
     // so the block can never end below the reserved footer band.
     const needed =
-      10 + (headingSize + 10) + tableH + 6 + footerLines.length * 13 + qrHeight + 8;
+      10 +
+      (headingSize + 10) +
+      tableH +
+      6 +
+      footerLines.length * 13 +
+      qrHeight +
+      8 +
+      reserveExtra;
 
     // Unbreakable: move the whole block to a fresh page rather than split.
     if (this.y - needed < this.bottom) {
@@ -740,12 +1008,32 @@ class Layout {
         thickness: 0.6,
         color: rgb(0.62, 0.69, 0.66),
       });
-      drawRtl(this.page, this.fonts.regular, "امضا / پاراف", {
-        y: ruleY - 10,
-        size: 7.5,
-        color: MUTED_INK,
-        right: rights[2]! - cellPad,
-      });
+
+      // The party's OWN uploaded signature, fitted into the cell with its
+      // aspect ratio preserved (never stretched, never cropped, never in
+      // another party's row). The ruling stays beneath it so the cell
+      // still reads as a signature place on a blank copy.
+      const image = images[line.roleFa];
+      if (image) {
+        const maxW = rights[2]! - lefts[2]! - cellPad * 2;
+        const maxH = Math.max(12, rowTop - cellPad - (ruleY + 4));
+        const scale = Math.min(maxW / image.width, maxH / image.height);
+        const w = image.width * scale;
+        const h = image.height * scale;
+        this.page.drawImage(image, {
+          x: rights[2]! - cellPad - w - (maxW - w) / 2,
+          y: ruleY + 3,
+          width: w,
+          height: h,
+        });
+      } else {
+        drawRtl(this.page, this.fonts.regular, "امضا / پاراف", {
+          y: ruleY - 10,
+          size: 7.5,
+          color: MUTED_INK,
+          right: rights[2]! - cellPad,
+        });
+      }
 
       // وضعیت امضا — REAL state only; a role with no mark is pending.
       const stateRight = rights[3]! - cellPad;
@@ -842,6 +1130,200 @@ class Layout {
     }
     let ty = this.y - 20;
     for (const line of qrLines) {
+      drawRtl(this.page, this.fonts.regular, line, {
+        y: ty,
+        size: 9,
+        color: rgb(0.25, 0.25, 0.3),
+        right: RIGHT,
+      });
+      ty -= 12;
+    }
+    this.y = originY - 16;
+  }
+
+  /**
+   * Start a new page that is NOT contract body: an annexed file page or
+   * the authenticity certificate. It carries the same reserved footer
+   * band and the same identification head as body pages 2+, so every
+   * page of the file is uniform — and the next `ensure()` can never
+   * place content in the band.
+   */
+  sectionPage(args: {
+    titleFa: string;
+    partFa?: string;
+    referenceCode: string;
+    typeFa: string;
+  }): PDFPage {
+    const page = this.doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    this.page = page;
+    const headY = PAGE_HEIGHT - MARGIN - ANNEX_HEADER_HEIGHT + 14;
+    page.drawLine({
+      start: { x: MARGIN, y: headY },
+      end: { x: RIGHT, y: headY },
+      thickness: 0.5,
+      color: HAIRLINE,
+    });
+    drawRtl(page, this.fonts.bold, args.titleFa, {
+      y: headY + 5,
+      size: 9,
+      color: BRAND_ACCENT,
+      right: RIGHT,
+    });
+    drawRtl(page, this.fonts.regular, args.referenceCode, {
+      y: headY + 5,
+      size: 8,
+      color: MUTED_INK,
+      x: MARGIN,
+    });
+    if (args.partFa) {
+      drawRtl(page, this.fonts.regular, args.partFa, {
+        y: headY + 5,
+        size: 8,
+        color: MUTED_INK,
+        right: RIGHT - measureRtl(this.fonts.bold, args.titleFa, 9) - 12,
+      });
+    }
+    this.y = PAGE_HEIGHT - MARGIN - ANNEX_HEADER_HEIGHT;
+    return page;
+  }
+
+  /** The rectangle annexed content may occupy on a section page. */
+  private annexedContentBox(): { left: number; bottom: number; width: number; height: number } {
+    // `this.bottom` is the live floor: the reserved footer band, raised
+    // further when the admin card will be printed on the closing page.
+    const bottom = this.bottom + 4;
+    return {
+      left: MARGIN,
+      bottom,
+      width: CONTENT_WIDTH,
+      height: PAGE_HEIGHT - MARGIN - ANNEX_HEADER_HEIGHT - bottom,
+    };
+  }
+
+  /**
+   * Append ONE annex file AFTER the contract pages. A PDF's pages are
+   * embedded verbatim (all of them, in order) and fitted into the
+   * content box; an image is scaled with its aspect ratio preserved and
+   * centred. Neither is ever cropped, stretched or split by our layout —
+   * the reserved band keeps it clear of the seal and page number.
+   *
+   * Returns the number of pages added (0 when the file produced none).
+   */
+  async addAnnexedFile(args: {
+    titleFa: string;
+    fileName?: string;
+    mime: string;
+    bytes: Uint8Array;
+    referenceCode: string;
+    typeFa: string;
+    /**
+     * `totalPages` is known only after the file is read; the label is
+     * therefore drawn as «برگ N» and the final «صفحه X از Y» at the
+     * bottom of every page remains the authoritative count.
+     */
+  }): Promise<number> {
+    const box = this.annexedContentBox();
+    let added = 0;
+
+    if (args.mime === "application/pdf") {
+      let source: PDFDocument;
+      try {
+        source = await PDFDocument.load(args.bytes, { ignoreEncryption: true });
+      } catch {
+        throw new Error(`ANNEX_PDF_UNREADABLE:${args.titleFa}`);
+      }
+      const sourcePages = source.getPages();
+      for (const [index, sourcePage] of sourcePages.entries()) {
+        const embedded: PDFEmbeddedPage = await this.doc.embedPage(sourcePage);
+        const page = this.sectionPage({
+          titleFa: args.titleFa,
+          partFa: `برگ ${toPersianDigits(index + 1)} از ${toPersianDigits(sourcePages.length)}`,
+          referenceCode: args.referenceCode,
+          typeFa: args.typeFa,
+        });
+        const scale = Math.min(box.width / embedded.width, box.height / embedded.height);
+        const w = embedded.width * scale;
+        const h = embedded.height * scale;
+        page.drawPage(embedded, {
+          x: box.left + (box.width - w) / 2,
+          y: box.bottom + (box.height - h) / 2,
+          width: w,
+          height: h,
+        });
+        added += 1;
+      }
+      return added;
+    }
+
+    const isPng = args.mime === "image/png";
+    const isJpeg = args.mime === "image/jpeg";
+    if (!isPng && !isJpeg) throw new Error(`ANNEX_MIME_UNPRINTABLE:${args.titleFa}`);
+    let image: PDFImage;
+    try {
+      image = isPng ? await this.doc.embedPng(args.bytes) : await this.doc.embedJpg(args.bytes);
+    } catch {
+      throw new Error(`ANNEX_IMAGE_UNREADABLE:${args.titleFa}`);
+    }
+    const page = this.sectionPage({
+      titleFa: args.titleFa,
+      ...(args.fileName ? { partFa: args.fileName } : {}),
+      referenceCode: args.referenceCode,
+      typeFa: args.typeFa,
+    });
+    const scale = Math.min(box.width / image.width, box.height / image.height);
+    const w = image.width * scale;
+    const h = image.height * scale;
+    page.drawImage(image, {
+      x: box.left + (box.width - w) / 2,
+      y: box.bottom + (box.height - h) / 2,
+      width: w,
+      height: h,
+    });
+    return 1;
+  }
+
+  /**
+   * Draw the verification QR at the current cursor. Used by the
+   * authenticity page; the signature block draws its own inside the
+   * unbreakable block so the two can never separate.
+   */
+  qrBlock(qr: { payload: string; caption: string }): void {
+    // 88pt ≈ 31mm — comfortably scannable, and small enough that the
+    // authenticity certificate stays one page.
+    const boxSize = 88;
+    const captionLines = wrapText(
+      qr.caption,
+      this.fonts.regular,
+      9,
+      CONTENT_WIDTH - boxSize - 16
+    );
+    // The QR is drawn at the cursor, not inside a flowing block: keep the
+    // whole square above the content floor (the reserved band, or the
+    // admin card's band on the closing page) instead of letting it run
+    // into the seal, the hologram or the card. Reserve what the block
+    // really needs — the square, the gap above it and one line below —
+    // so a page that has room for the block does not break for it.
+    const need = Math.max(8 + boxSize + 8, 20 + captionLines.length * 12 + 8);
+    this.ensure(need);
+    const matrix = qrMatrix(qr.payload);
+    const modules = matrix.length;
+    const moduleSize = boxSize / modules;
+    const originX = MARGIN;
+    const originY = this.y - 8 - boxSize;
+    for (let r = 0; r < modules; r++) {
+      for (let c = 0; c < modules; c++) {
+        if (!matrix[r]![c]) continue;
+        this.page.drawRectangle({
+          x: originX + c * moduleSize,
+          y: originY + (modules - 1 - r) * moduleSize,
+          width: moduleSize,
+          height: moduleSize,
+          color: rgb(0, 0, 0),
+        });
+      }
+    }
+    let ty = this.y - 20;
+    for (const line of captionLines) {
       drawRtl(this.page, this.fonts.regular, line, {
         y: ty,
         size: 9,
@@ -989,6 +1471,22 @@ export interface RenderPdfParams {
    * امضا» — a signature is never assumed.
    */
   signatureMarks?: Record<string, SignatureMark>;
+  /**
+   * The parties' uploaded signature scans, drawn in their OWN row of the
+   * signature table. A party with no scan keeps its rule and status text.
+   */
+  signatureImages?: ContractSignatureImage[];
+  /**
+   * Annex files appended AFTER the contract pages, in registration order.
+   * Only printable formats reach here — the caller reports anything else
+   * as a print issue before finalisation, so nothing is silently lost.
+   */
+  annexes?: ContractAnnexInput[];
+  /** The admin's ≤100-character message, printed in red on the last
+   *  contract page. Omitted ⇒ no strip is printed at all. */
+  adminMessage?: ContractAdminMessageInput | null;
+  /** The «تأییدیهٔ اصالت» page appended after every annex. */
+  authenticity?: AuthenticityInfo | null;
   /** The contract's human-readable state, printed in the letterhead. */
   stateFa?: string;
 }
@@ -1007,6 +1505,10 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
     legalBasisCatalog = LEGAL_BASIS_SEED,
     preSignTips = seedPreSignTips(contract.type),
     signatureMarks = {},
+    signatureImages = [],
+    annexes = [],
+    adminMessage = null,
+    authenticity = null,
     stateFa,
   } = params;
 
@@ -1047,6 +1549,22 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
           hologramImage = null;
         }
       }
+    }
+  }
+
+  // The parties' uploaded signatures. Each image is embedded ONCE and
+  // drawn only in its own role's cell. A file that cannot be decoded is a
+  // hard error: shipping a contract whose signature silently vanished is
+  // worse than refusing to render.
+  const signatureImageMap: Record<string, PDFImage> = {};
+  for (const image of signatureImages) {
+    try {
+      signatureImageMap[image.roleFa] =
+        image.mime === "image/png"
+          ? await doc.embedPng(image.bytes)
+          : await doc.embedJpg(image.bytes);
+    } catch {
+      throw new Error(`SIGNATURE_IMAGE_UNREADABLE:${image.roleFa}`);
     }
   }
 
@@ -1170,6 +1688,14 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   // so the final page always holds the complete signature block and the QR
   // that verifies it; no page break can ever split them apart. ---
   const verifyUrl = `${baseUrl.replace(/\/$/, "")}/contracts/verify/${contract.publicVerificationId}`;
+  const messageFa = adminMessage?.messageFa?.trim() ?? "";
+  // The card band is needed on the document's LAST page. When an
+  // authenticity certificate closes the file it is the certificate page
+  // that must keep the band free (reserved below); when annexes follow
+  // the body it is the last annex page, which reserves the band on its
+  // own. Only a bare render leaves the signature block as the last page,
+  // and only then must it reserve the card's room.
+  const cardOnSignaturePage = Boolean(messageFa) && !authenticity && annexes.length === 0;
   layout.signatureBlock(
     rendered.signatureLines,
     rendered.footerFa,
@@ -1177,8 +1703,129 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
       payload: verifyUrl,
       caption: `برای بررسی اصالت این سند، کد QR را اسکن کنید یا به نشانی زیر مراجعه کنید:\n${verifyUrl}`,
     },
-    signatureMarks
+    signatureMarks,
+    signatureImageMap,
+    cardOnSignaturePage ? ADMIN_MESSAGE_HEIGHT + 10 : 0
   );
+
+  // Everything up to here is the contract body. Annexed files and the
+  // authenticity certificate follow it in a fixed order, so the reading
+  // order is always: contract → annexes → certificate.
+  const bodyPageCount = doc.getPageCount();
+
+  // No certificate ⇒ the LAST annex page is the closing page, so it must
+  // keep the card's band free. Reserve before that annex is laid out; the
+  // earlier annex pages take the full content box.
+  const cardOnLastAnnex = Boolean(messageFa) && !authenticity && annexes.length > 0;
+
+  for (const [index, annex] of annexes.entries()) {
+    if (cardOnLastAnnex && index === annexes.length - 1) {
+      layout.reserveBand(ADMIN_MESSAGE_HEIGHT + 10);
+    }
+    await layout.addAnnexedFile({
+      titleFa: annex.titleFa,
+      ...(annex.fileName ? { fileName: annex.fileName } : {}),
+      mime: annex.mime,
+      bytes: annex.bytes,
+      referenceCode,
+      typeFa: contract.typeFa,
+    });
+  }
+
+  if (authenticity) {
+    // This section closes the document, so it is where the admin message
+    // card is printed. Raise the floor FIRST so no row, paragraph or QR
+    // can be laid out where the card will sit.
+    layout.reserveBand(messageFa ? ADMIN_MESSAGE_HEIGHT + 10 : 0);
+    layout.sectionPage({
+      titleFa: "تأییدیهٔ اصالت سند",
+      partFa: `نسخه ${toPersianDigits(version.versionNumber)}`,
+      referenceCode,
+      typeFa: contract.typeFa,
+    });
+    layout.heading("تأییدیهٔ اصالت سند", 13);
+    layout.paragraph(
+      "این تأییدیه به‌صورت خودکار از دادهٔ ثبت‌شدهٔ همین قرارداد در سامانهٔ لیگالیر ساخته شده است. " +
+        "هدف آن، قابل‌ردیابی‌کردن نسخهٔ چاپی است و به معنای تأیید هیچ مرجع بیرونی یا ثبت رسمی نیست.",
+      9
+    );
+
+    const pathFa = authenticity.reviewedByLegalir
+      ? "ارسال برای بررسی لیگالیر — بررسی‌شده"
+      : "ثبت نهایی بدون بررسی لیگالیر — بررسی‌نشده";
+    layout.table(
+      {
+        columnsFa: ["موضوع", "مقدار"],
+        rowsFa: [
+          ["نوع سند", contract.typeFa],
+          ["شناسهٔ قرارداد", referenceCode],
+          ["نسخه", `${toPersianDigits(version.versionNumber)} — قالب ${version.templateVersion}`],
+          ["مسیر ثبت", pathFa],
+          [
+            "بررسی لیگالیر",
+            authenticity.reviewedByLegalir
+              ? [
+                  "بررسی‌شده و تأییدشده",
+                  authenticity.reviewId || null,
+                  authenticity.reviewedAt
+                    ? formatIsoJalali(authenticity.reviewedAt.slice(0, 10))
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" — ")
+              : "بررسی‌نشده توسط لیگالیر",
+          ],
+          ["ثبت‌کننده", authenticity.registeredByLabelFa || "—"],
+          [
+            "تاریخ ورود به مرحلهٔ امضا",
+            authenticity.registeredAt
+              ? formatIsoJalali(authenticity.registeredAt.slice(0, 10))
+              : "—",
+          ],
+          ["اثر انگشت محتوا (SHA-256)", version.documentHash],
+          [
+            "مهر رسمی لیگالیر",
+            authenticity.stampApplied
+              ? authenticity.stampSha256
+                ? `درج شده — ${authenticity.stampSha256}`
+                : "درج شده"
+              : "درج نشده",
+          ],
+          ["هولوگرام", authenticity.hologramApplied ? "درج شده" : "درج نشده"],
+        ],
+      },
+      8.5
+    );
+
+    layout.heading("وضعیت امضای طرفین", 11);
+    layout.table(
+      {
+        columnsFa: ["نقش", "نام", "وضعیت", "روش", "تاریخ"],
+        rowsFa: authenticity.participants.map((p) => [
+          p.roleFa,
+          p.nameFa || "—",
+          p.statusFa,
+          p.methodFa || "—",
+          p.signedAt ? formatIsoJalali(p.signedAt.slice(0, 10)) : "—",
+        ]),
+      },
+      8.5
+    );
+
+    // The QR carries its own caption («… کد QR را اسکن کنید یا به این
+    // نشانی مراجعه کنید: <url>»), so a separate sentence repeating the
+    // same URL would only push the certificate onto a second page.
+    layout.qrBlock({
+      payload: verifyUrl,
+      caption: `برای بررسی اصالت، کد QR را اسکن کنید یا به این نشانی مراجعه کنید: ${verifyUrl}`,
+    });
+  }
+
+  // §6 — the admin's message, in red, at the FIXED position just above the
+  // reserved footer band of the document's LAST page. Nothing is drawn
+  // when no message is set, so no empty space is reserved and no marker
+  // appears.
+  if (messageFa) layout.adminMessageBlock(messageFa);
 
   // The REVIEW mark is drawn on EVERY page inside the reserved footer band,
   // on the reading side. It carries the contract's real review fields and
@@ -1187,15 +1834,19 @@ export async function renderContractPdf(params: RenderPdfParams): Promise<Uint8A
   // physical bottom-left. An unapproved contract gets neither — only the
   // diagonal draft watermark on every page — so the two can never mix.
   if (stamp?.applied) {
-    layout.reviewMarkPages(stamp);
+    // A `self_final` document gets the amber unreviewed notice in the
+    // SAME slot — never the blue mark it did not earn.
+    if (stamp.path === "self_final") layout.selfFinalMarkPages(stamp);
+    else layout.reviewMarkPages(stamp);
     if (officialImage) layout.officialMarkPages(officialImage, hologramImage);
   } else {
     layout.draftWatermark();
   }
 
   // Pages 2+ repeat the identification in a slim running head, drawn in
-  // the top margin so it never takes space from the body.
-  layout.runningHeads(contract.typeFa, referenceCode, versionLabelFa);
+  // the top margin so it never takes space from the body. Section pages
+  // (annexes, certificate) draw their own head instead.
+  layout.runningHeads(contract.typeFa, referenceCode, versionLabelFa, bodyPageCount);
 
   // §2.6 — every page carries a legible paraphe strip, inside the reserved
   // footer band so it can never collide with body text or the page number.

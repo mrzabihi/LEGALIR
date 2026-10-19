@@ -18,6 +18,7 @@ import React from "react";
 import type {
   ContractParty,
   ContractPayment,
+  ContractPrintMirror,
   PropertyContract,
   PropertyContractState,
 } from "@legalir/types";
@@ -50,6 +51,7 @@ export function LivePreview({
   versionNumber,
   documentHash,
   includeLegalBasis = true,
+  printMirror,
 }: {
   contract: PropertyContract;
   parties: ContractParty[];
@@ -63,6 +65,13 @@ export function LivePreview({
   versionNumber?: number | null;
   documentHash?: string | null;
   includeLegalBasis?: boolean;
+  /**
+   * §T7 — everything the STORED final PDF carries besides the contract
+   * text: signature scans, annexed files, the red admin message and the
+   * authenticity facts. Passing it makes the on-screen sheet mirror the
+   * printed copy; omitting it renders text-only (the pre-T7 behaviour).
+   */
+  printMirror?: ContractPrintMirror | null;
 }) {
   return (
     <A4Document
@@ -75,6 +84,11 @@ export function LivePreview({
       documentHash={documentHash}
       reviewStamp={stamp}
       signatureMarks={signatureMarks}
+      signatureImages={printMirror?.signatures}
+      annexes={printMirror?.annexes}
+      adminMessage={printMirror?.adminMessage ?? null}
+      authenticity={printMirror?.authenticity ?? null}
+      selfFinalNotice={printMirror?.selfFinal ?? null}
       pdfHref={pdfHref}
       showActions={showActions}
       includeLegalBasis={includeLegalBasis}

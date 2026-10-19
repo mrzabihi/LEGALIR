@@ -46,6 +46,7 @@ import type * as SignatureDbModule from "../contracts/signature/db";
 import type * as StampReviewModule from "../contracts/stamp-review";
 import type * as StampAssetModule from "../contracts/stamp-asset";
 import type * as RegistryModule from "../contracts/registry";
+import type * as AdminReviewModule from "../contracts/admin-review";
 
 type Db = typeof DbModule;
 type ContractDb = typeof ContractDbModule;
@@ -53,6 +54,7 @@ type SignatureDb = typeof SignatureDbModule;
 type StampReview = typeof StampReviewModule;
 type StampAsset = typeof StampAssetModule;
 type Registry = typeof RegistryModule;
+type AdminReview = typeof AdminReviewModule;
 
 let db: Db;
 let contractDb: ContractDb;
@@ -60,6 +62,7 @@ let signatureDb: SignatureDb;
 let stampReview: StampReview;
 let stampAsset: StampAsset;
 let registry: Registry;
+let adminReview: AdminReview;
 
 let ownerSession: string;
 let ownerId: string;
@@ -88,6 +91,8 @@ let invitationTokenRoute: { GET: RouteHandler; POST: RouteHandler };
 let invitationStampAssetRoute: RouteHandler;
 let stampGet: RouteHandler;
 let stampPost: RouteHandler;
+let adminPdfGet: RouteHandler;
+let detailGet: RouteHandler;
 let evidenceGet: RouteHandler;
 let evidencePost: RouteHandler;
 
@@ -114,6 +119,17 @@ function getReq(url: string, session: string | null): NextRequest {
   return new Request(url, { method: "GET", headers }) as unknown as NextRequest;
 }
 
+/**
+ * A GET whose handler reads `request.nextUrl` (the PDF route resolves the
+ * `?version=` parameter through it). A bare `Request` has no `nextUrl`, so
+ * the route would throw before it ever reached its own logic.
+ */
+function getReqWithUrl(url: string, session: string | null): NextRequest {
+  const request = getReq(url, session);
+  (request as unknown as { nextUrl: URL }).nextUrl = new URL(url);
+  return request;
+}
+
 /** A multipart POST carrying a session cookie (evidence upload). */
 function multipartReq(url: string, session: string, form: FormData): NextRequest {
   return new Request(url, {
@@ -125,6 +141,24 @@ function multipartReq(url: string, session: string, form: FormData): NextRequest
 
 async function json<T = { data: unknown }>(res: Response): Promise<T> {
   return (await res.json()) as T;
+}
+
+/**
+ * Run `fn` with the REPO as cwd, then return to the temp DB.
+ *
+ * The suite `chdir`s into a temp directory so the JSON store stays
+ * isolated. The store's own path is captured at module-import time, so
+ * moving back does NOT redirect reads — but the PDF renderer resolves the
+ * Vazirmatn font from `process.cwd()`, and there is no font inside the
+ * temp dir. Without this the route can only ever answer PDF_FAILED.
+ */
+async function withRepoCwd<T>(fn: () => Promise<T>): Promise<T> {
+  process.chdir(originalCwd);
+  try {
+    return await fn();
+  } finally {
+    process.chdir(tmpDir);
+  }
 }
 
 function party(
@@ -287,6 +321,7 @@ beforeAll(async () => {
   signatureDb = await import("../contracts/signature/db");
   stampReview = await import("../contracts/stamp-review");
   stampAsset = await import("../contracts/stamp-asset");
+  adminReview = await import("../contracts/admin-review");
   registry = await import("../contracts/registry");
 
   rentData = registry.getContractDefinition("property_rent").createDefaultData("apartment");
@@ -327,6 +362,10 @@ beforeAll(async () => {
   };
   stampGet = stampRoute.GET;
   stampPost = stampRoute.POST;
+  adminPdfGet = (await import("@/app/api/v1/admin/contracts/[id]/pdf/route"))
+    .GET as unknown as RouteHandler;
+  detailGet = (await import("@/app/api/v1/admin/contracts/[id]/route"))
+    .GET as unknown as RouteHandler;
   const evidenceRoute = (await import("@/app/api/v1/admin/contracts/[id]/evidence/route")) as unknown as {
     GET: RouteHandler;
     POST: RouteHandler;
@@ -512,6 +551,196 @@ describe("official stamp — request → apply binds hash + asset bytes", () => 
     );
     expect(res.status).toBe(409);
     expect((await json<{ code: string }>(res)).code).toBe("ALREADY_DECIDED");
+  });
+});
+
+// ============================================================
+// Server authority — the panel's verdict cannot be bypassed
+// ============================================================
+// The admin drawer now renders the server's own eligibility verdict and
+// disables the action it refuses. These tests prove the REFUSALS are real
+// on the endpoint, so removing `disabled` (or hand-crafting the POST)
+// still cannot reach the forbidden state.
+
+describe("official stamp — a crafted request cannot bypass the panel", () => {
+  it("refuses a fresh request for a version that already carries the seal", async () => {
+    const ID = "ctr-stamp-bypass-applied";
+    await seedApprovedContract(ID);
+    await completeSignatures(ID);
+
+    const created = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست مهر" }),
+      params(ID)
+    );
+    expect(created.status).toBe(200);
+    const applied = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "apply", reason: "صدور مهر" }),
+      params(ID)
+    );
+    expect(applied.status).toBe(200);
+
+    // A second request for the SAME (sealed) hash must be refused, not
+    // silently accepted as another open request.
+    const again = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست دوباره" }),
+      params(ID)
+    );
+    expect(again.status).toBe(409);
+    expect((await json<{ code: string }>(again)).code).toBe("ALREADY_STAMPED");
+  });
+
+  it("refuses a second request while one is open on another hash", async () => {
+    const ID = "ctr-stamp-bypass-stale";
+    await seedApprovedContract(ID);
+
+    const created = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست مهر" }),
+      params(ID)
+    );
+    const { data } = await json<{ data: { stampRequest: { id: string } } }>(created);
+    // Simulate the version moving on behind the open request.
+    stampReview.updateStampRequest(data.stampRequest.id, { documentHash: "1".repeat(64) });
+
+    const again = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست دوباره" }),
+      params(ID)
+    );
+    expect(again.status).toBe(409);
+    expect((await json<{ code: string }>(again)).code).toBe("PENDING_REQUEST");
+  });
+
+  it("refuses to apply when the review was withdrawn after the request", async () => {
+    const ID = "ctr-stamp-bypass-unreviewed";
+    await seedApprovedContract(ID);
+    await completeSignatures(ID);
+
+    const created = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست مهر" }),
+      params(ID)
+    );
+    expect(created.status).toBe(200);
+
+    // Withdraw the approval: the stamp is the mark on a REVIEWED version.
+    const review = adminReview.latestAdminReview(ID)!;
+    adminReview.updateAdminReview(review.id, { status: "CHANGES_REQUESTED" });
+
+    const res = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "apply", reason: "تلاش صدور" }),
+      params(ID)
+    );
+    expect(res.status).toBe(409);
+    expect((await json<{ code: string }>(res)).code).toBe("NOT_REVIEWED");
+
+    // …and nothing was applied behind the refusal.
+    const contract = contractDb.getContractById(ID)!;
+    expect(stampReview.currentVersionStamp(contract, currentHash(ID))).toBeNull();
+  });
+
+  it("reports the same verdict on GET that the POST enforces", async () => {
+    const ID = "ctr-stamp-verdict-parity";
+    await seedApprovedContract(ID);
+
+    const read = await stampGet(getReq(`${ADMIN_BASE}/${ID}/stamp`, adminSession), params(ID));
+    const { data } = await json<{
+      data: { eligibility: { canRequest: boolean; canApply: boolean; blockers: { code: string }[] } };
+    }>(read);
+    // A reviewed, unsealed, unsigned version: a request IS allowed; the
+    // seal is not. The endpoint must agree with the panel's render.
+    expect(data.eligibility.canRequest).toBe(true);
+    expect(data.eligibility.canApply).toBe(false);
+
+    const created = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, { action: "request", reason: "درخواست مهر" }),
+      params(ID)
+    );
+    expect(created.status).toBe(200);
+  });
+
+  it("shows a missing permission on the stage table for a role that cannot seal", async () => {
+    // `admin:contracts:stamp:*` is SUPER_ADMIN-only, so the stamp panel
+    // itself is never rendered for another role. The STAGE TABLE is: an
+    // ADMIN can read the contract but may not manage the seal, and its
+    // stamp row must say exactly that instead of a dead button.
+    const adminRole = db.createUser({ mobile: "09120000333", passwordHash: "x" });
+    db.setUserRole(adminRole.id, "ADMIN");
+    const adminRoleSession = db.createSession(adminRole.id).id;
+
+    const ID = "ctr-stamp-verdict-permission";
+    await seedApprovedContract(ID);
+
+    const read = await detailGet(
+      getReqWithUrl(`${ADMIN_BASE}/${ID}`, adminRoleSession),
+      params(ID)
+    );
+    expect(read.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        stages: {
+          rows: { key: string; status: string; actions: { id: string; enabled: boolean; reasonFa: string | null }[] }[];
+        };
+      };
+    }>(read);
+    const stampRow = data.stages.rows.find((r) => r.key === "stamp")!;
+    expect(stampRow.actions[0]!.enabled).toBe(false);
+    expect(stampRow.actions[0]!.reasonFa).toContain("مدیریت مهر رسمی قراردادها");
+  });
+});
+
+describe("admin contract PDF — operator-scoped preview", () => {
+  it("streams a real PDF of the version the decision is bound to", async () => {
+    const ID = "ctr-admin-pdf";
+    await seedApprovedContract(ID);
+
+    const res = await withRepoCwd(() =>
+      adminPdfGet(getReqWithUrl(`${ADMIN_BASE}/${ID}/pdf`, adminSession), params(ID))
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("cache-control")).toContain("no-store");
+    expect(res.headers.get("x-document-sha256")).toBe(currentHash(ID));
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    // A real PDF starts with %PDF- — never HTML renamed to .pdf.
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+    expect(bytes.length).toBeGreaterThan(1000);
+  });
+
+  it("serves an explicitly requested version, not just the newest", async () => {
+    const ID = "ctr-admin-pdf-version";
+    await seedApprovedContract(ID);
+    const contract = contractDb.getContractById(ID)!;
+    const versionId = contract.currentVersionId!;
+
+    const res = await withRepoCwd(() =>
+      adminPdfGet(
+        getReqWithUrl(`${ADMIN_BASE}/${ID}/pdf?version=${versionId}`, adminSession),
+        params(ID)
+      )
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-document-sha256")).toBe(currentHash(ID));
+  });
+
+  it("refuses an unauthenticated and an unauthorised caller", async () => {
+    const ID = "ctr-admin-pdf-acl";
+    await seedApprovedContract(ID);
+
+    const anon = await adminPdfGet(getReqWithUrl(`${ADMIN_BASE}/${ID}/pdf`, null), params(ID));
+    expect(anon.status).toBe(401);
+
+    // The contract's OWNER is not an operator, even though it is their data.
+    const owner = await adminPdfGet(
+      getReqWithUrl(`${ADMIN_BASE}/${ID}/pdf`, ownerSession),
+      params(ID)
+    );
+    expect(owner.status).toBe(403);
+  });
+
+  it("404s for a contract that does not exist", async () => {
+    const res = await adminPdfGet(
+      getReqWithUrl(`${ADMIN_BASE}/ctr-does-not-exist/pdf`, adminSession),
+      params("ctr-does-not-exist")
+    );
+    expect(res.status).toBe(404);
   });
 });
 

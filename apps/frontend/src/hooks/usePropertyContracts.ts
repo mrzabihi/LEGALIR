@@ -44,6 +44,7 @@ import {
   requestChanges,
   requestSignOtp,
   saveParty,
+  selfFinalRegister,
   submitForAdminReview,
   savePayments,
   submitForReview,
@@ -336,6 +337,22 @@ export function useSubmitForAdminReview() {
     mutationFn: (id: string) => submitForAdminReview(id),
     onSuccess: (_res, id) => {
       invalidateContract(queryClient, id);
+    },
+  });
+}
+
+/**
+ * «ثبت نهایی» — the UNREVIEWED route. The current version is registered
+ * as `self_final` and the contract moves straight to party signing. It
+ * never enters the admin review queue and never produces an approval.
+ */
+export function useSelfFinalRegister() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { id: string; comment?: string }) =>
+      selfFinalRegister(params.id, params.comment ? { comment: params.comment } : {}),
+    onSuccess: (_res, params) => {
+      invalidateContract(queryClient, params.id);
     },
   });
 }

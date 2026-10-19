@@ -55,9 +55,11 @@ import {
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { writeContractFile } from "@/lib/contracts/storage";
+import { isPrintableSignatureScan } from "@/lib/contracts/admin-print";
 import { assertTransition, IllegalTransitionError, isSignable } from "@/lib/contracts/state-machine";
 import { partyRoleLabelFa, signingPolicyFor } from "@/lib/contracts/registry";
 import { currentVersionApproval } from "@/lib/contracts/admin-review";
+import { resolveSigningAuthorisation } from "@/lib/contracts/registration";
 import { createVersion } from "@/lib/contracts/snapshot";
 import {
   activeSignatureRequest,
@@ -160,24 +162,35 @@ export function createSignatureRequest(
     ? getVersion(contract.id, contract.currentVersionId)
     : null;
   const approval = currentVersionApproval(contract, currentVersion?.documentHash ?? null);
-  if (!approval) {
+
+  // TWO registration paths, ONE gate. The current version must carry an
+  // authorisation: a bound admin approval (reviewed) OR a hash-bound
+  // self-final registration (explicitly unreviewed). The second is a
+  // deliberate choice the user acknowledged, never an implied review —
+  // and it is bound to the hash, so an edit voids it exactly like an
+  // approval.
+  const authorisation = resolveSigningAuthorisation({
+    contract,
+    documentHash: currentVersion?.documentHash ?? null,
+    approval,
+  });
+  if (!authorisation) {
     return conflict(
-      "پیش از آماده‌سازی امضا، نسخه فعلی باید تأیید واحد بررسی حقوقی لیگالیر را دریافت کند.",
+      "پیش از آماده‌سازی امضا، نسخه فعلی باید تأیید واحد بررسی حقوقی لیگالیر یا ثبت نهایی معتبر برای همین محتوا داشته باشد.",
       "ADMIN_APPROVAL_REQUIRED"
     );
   }
 
-  // With a valid, bound approval in hand, preparing the signature IS the
-  // move into the signature stage. An approved contract sits in
-  // ADMIN_APPROVED; the UI's "آماده‌سازی برای امضا" already offers this,
-  // so the server accepts it and records the transition (ADMIN_APPROVED →
-  // READY_TO_SIGN) as part of opening the request. Any other state must
-  // still be genuinely signable.
-  const approvalUnlocksSigning =
+  // With an authorisation in hand, preparing the signature IS the move
+  // into the signature stage. An approved contract sits in ADMIN_APPROVED
+  // and a self-final one in READY_TO_SIGN; any other state must still be
+  // genuinely signable.
+  const authorisationUnlocksSigning =
     contract.state === "ADMIN_APPROVED" ||
     contract.state === "READY_FOR_REVIEW" ||
-    contract.state === "COUNTERPARTY_REVIEW";
-  if (!approvalUnlocksSigning && !isSignable(contract.state)) {
+    contract.state === "COUNTERPARTY_REVIEW" ||
+    isSignable(contract.state);
+  if (!authorisationUnlocksSigning) {
     return conflict("این قرارداد در وضعیت فعلی قابل امضا نیست.", "NOT_SIGNABLE");
   }
 
@@ -593,6 +606,18 @@ export async function recordPhysicalForParticipant(
   }
   if (!(SUPPORTED_DOCUMENT_MIMES as readonly string[]).includes(file.type)) {
     return badRequest("فرمت فایل پشتیبانی نمی‌شود", "UNSUPPORTED_FORMAT");
+  }
+  // §T2 — the scan IS the party's signature on the printed contract: it is
+  // drawn into that person's own cell, with its aspect ratio preserved.
+  // Only PNG/JPEG can be embedded by the PDF renderer, so accepting a PDF
+  // here would record a signature that can never appear on the sheet and
+  // would leave the contract unfinalizable. Refuse at the moment of
+  // signing, while the person can still produce a printable image.
+  if (!isPrintableSignatureScan(file.type)) {
+    return badRequest(
+      "اسکن امضا باید تصویر PNG یا JPEG باشد تا در جایگاه همین طرف روی قرارداد چاپ شود. فایل PDF قابل درج به‌عنوان تصویر امضا نیست.",
+      "SCAN_NOT_PRINTABLE"
+    );
   }
   if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
     return badRequest("حجم فایل بیش از حد مجاز است", "FILE_TOO_LARGE");

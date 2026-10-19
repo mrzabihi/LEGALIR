@@ -15,12 +15,14 @@ import { NextResponse } from "next/server";
 import type {
   ContractAuditEntry,
   ContractParty,
+  LawyerReviewRequest,
   PropertyContract,
   PropertyContractListItem,
 } from "@legalir/types";
 import { getUserIdFromRequest } from "@/lib/api/server-auth";
 import {
   appendAudit,
+  getContractById,
   getContractForUser,
   listAudit,
   listContractDocuments,
@@ -30,8 +32,9 @@ import {
 import { computeCompleteness } from "./completeness";
 import { domainLabelFa, getContractDefinition, partyRoleLabelFa } from "./registry";
 import { stateLabelFa } from "./state-machine";
-import { analysisStatusFor } from "./review-db";
+import { analysisStatusFor, isLiveReferral, listLawyerReviews } from "./review-db";
 import { isArchivedPropertyState } from "./status";
+import { getLawyerProfileByUserId } from "@/lib/lawyer-db";
 
 export interface ApiErrorBody {
   code: string;
@@ -75,6 +78,9 @@ export interface AuthContext {
 /**
  * Resolve the session user and load the contract they own. Returns a
  * NextResponse on failure so callers can `return` it directly.
+ *
+ * OWNER ONLY. Every mutating route uses this — a referred lawyer may read a
+ * contract that was sent to them, never change it.
  */
 export function requireContract(
   request: Request,
@@ -85,6 +91,48 @@ export function requireContract(
   const contract = getContractForUser(userId, contractId);
   if (!contract) return notFound();
   return { userId, contract };
+}
+
+/** Who is reading a contract: the owner, or a lawyer it was referred to. */
+export interface ReadContext extends AuthContext {
+  access: "owner" | "assigned";
+  /** The review request that grants `assigned` access, when applicable. */
+  referral: LawyerReviewRequest | null;
+}
+
+/**
+ * Resolve the caller for a READ. The owner always passes. A lawyer passes
+ * only when a `contract-lawyer-reviews` row for THIS contract names their
+ * profile — i.e. it was actually referred to them. Everyone else gets the
+ * same 404 as a missing contract, so an id cannot be probed for existence.
+ *
+ * Never use this for a mutation: `access: "assigned"` is read-only.
+ */
+export function requireContractRead(
+  request: Request,
+  contractId: string
+): ReadContext | NextResponse<ApiErrorBody> {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) return unauthorized();
+
+  const owned = getContractForUser(userId, contractId);
+  if (owned) return { userId, contract: owned, access: "owner", referral: null };
+
+  const profile = getLawyerProfileByUserId(userId);
+  if (!profile) return notFound();
+
+  const contract = getContractById(contractId);
+  if (!contract) return notFound();
+
+  // Only a LIVE referral grants access. A declined, expired or cancelled
+  // request ends the relationship, so the contract must 404 again — the
+  // lawyer cannot keep reading a case they turned down.
+  const referral =
+    listLawyerReviews(contractId).find((r) => r.lawyerId === profile.id && isLiveReferral(r)) ??
+    null;
+  if (!referral) return notFound();
+
+  return { userId, contract, access: "assigned", referral };
 }
 
 /** True when the value is a NextResponse (i.e. the guard failed). */
