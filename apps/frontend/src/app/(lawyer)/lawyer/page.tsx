@@ -378,9 +378,12 @@ export default function LawyerDashboardPage() {
         </CardBody>
       </Card>
 
-      <div className="grid gap-5 laptop:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        {/* Trend */}
+      <div className="grid min-w-0 gap-5 laptop:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        {/* Trend — `min-w-0` lets the card shrink to the grid column. Without
+            it the auto-sized column inherits the chart's intrinsic width and
+            the whole row overflowed a 390px phone by 67px. */}
         <ChartFrame
+          className="min-w-0"
           title="روند ۳۰ روز گذشته"
           subtitle="تعداد ارجاع‌ها؛ خط‌چین: پذیرش‌شده‌ها در همان روز"
           legend={[
@@ -407,7 +410,7 @@ export default function LawyerDashboardPage() {
         </ChartFrame>
 
         {/* Action list */}
-        <Card className="flex h-full flex-col">
+        <Card className="flex h-full min-w-0 flex-col">
           <CardHeader
             title="کارهای فوری"
             subtitle="به ترتیب اولویت — برای دیدن جزئیات کلیک کنید."

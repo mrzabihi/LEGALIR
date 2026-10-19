@@ -1,7 +1,14 @@
 // ============================================================
 // LEGALIR — Desktop Sidebar Navigation
-// Professional design with gradient active states,
-// profile section, and smooth transitions.
+// ============================================================
+// Surface: the shell's own solid navigation material (`--app-nav-*`). The
+// previous version layered a translucent gradient under a `backdrop-blur-xl`,
+// which made the compositor re-resolve the whole sidebar backdrop on every
+// scroll frame of the page behind it — the most expensive thing the shell
+// did on a mid-range phone — and read as decoration rather than navigation.
+//
+// State is carried by three agreeing signals, never colour alone: an MD3
+// secondary-container fill, the brand-gold rail mark, and `aria-current`.
 // ============================================================
 
 "use client";
@@ -59,9 +66,9 @@ const NAV_ICON_MAP: Record<string, React.ComponentType<{ size?: number }>> = {
 
 function NavIcon({ icon, isActive }: { icon?: string; isActive: boolean }) {
   const Component = icon ? NAV_ICON_MAP[icon] : null;
-  if (!Component) return <span className="w-5 h-5 flex items-center justify-center text-glass-ivory-muted">•</span>;
+  if (!Component) return <span className="w-5 h-5 flex items-center justify-center text-appnav-text-muted">•</span>;
   return (
-    <span className={isActive ? "text-glass-ivory" : "text-glass-ivory-muted group-hover:text-glass-ivory transition-colors duration-short4 ease-standard"}>
+    <span className={isActive ? "text-appnav-text" : "text-appnav-text-muted group-hover:text-appnav-text transition-colors duration-short3 ease-standard"}>
       <Component size={20} />
     </span>
   );
@@ -108,7 +115,7 @@ export function Sidebar({ userRole }: SidebarProps) {
   const displayName = profile?.displayName ?? session?.mobileDisplay ?? "کاربر";
 
   return (
-    <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
+    <div className="flex h-full flex-col bg-appnav-bg">
       {/* Logo Area — cohesive brand lockup with optical alignment */}
       <div className="flex items-center justify-center px-5 py-5">
         {/* `h-9` (not the old `h-11`): the new lockup is wider, so at 36px it
@@ -117,7 +124,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         <img src="/legalir-logo-sidebar.png" alt="LEGALIR" className="h-9 w-auto shrink-0" />
       </div>
 
-      <div className="mx-4 border-b border-glass-border" />
+      <div className="mx-4 border-b border-appnav-line" />
 
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5 scrollbar-hide" aria-label="ناوبری اصلی">
@@ -143,17 +150,17 @@ export function Sidebar({ userRole }: SidebarProps) {
                 aria-controls="create-action-sheet"
                 aria-current={createActive ? "page" : undefined}
                 className={[
-                  "group flex w-full items-center gap-3 px-4 py-3 rounded-xl text-body-2 text-start",
-                  "transition-all duration-short4 ease-standard",
-                  "min-h-[48px] select-none relative overflow-hidden",
+                  "group relative flex w-full items-center gap-3 rounded-medium px-3.5 py-3 text-body-2 text-start",
+                  "transition-colors duration-short3 ease-standard motion-reduce:transition-none",
+                  "min-h-12 select-none",
                   createActive
-                    ? "bg-glass-state-strong text-glass-ivory font-semibold"
-                    : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-gold)]",
+                    ? "bg-appnav-active text-appnav-active-text font-semibold"
+                    : "text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
                 ].join(" ")}
               >
                 {createActive && (
-                  <span className="absolute end-1 top-3 bottom-3 w-0.5 rounded-full bg-[var(--sidebar-active-mark)]" aria-hidden="true" />
+                  <span className="absolute end-1.5 top-3 bottom-3 w-[3px] rounded-full bg-appnav-mark" aria-hidden="true" />
                 )}
                 <NavIcon icon={item.icon} isActive={createActive} />
                 <span className="truncate">{item.titleFa}</span>
@@ -167,17 +174,18 @@ export function Sidebar({ userRole }: SidebarProps) {
               href={item.path}
               onClick={() => setDrawerOpen(false)}
               className={[
-                "group flex items-center gap-3 px-4 py-3 rounded-xl text-body-2",
-                "transition-all duration-short4 ease-standard",
-                "min-h-[48px] select-none relative overflow-hidden",
+                "group relative flex items-center gap-3 rounded-medium px-3.5 py-3 text-body-2",
+                "transition-colors duration-short3 ease-standard motion-reduce:transition-none",
+                "min-h-12 select-none",
                 isActive
-                  ? "bg-glass-state-strong text-glass-ivory font-semibold"
-                  : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                  ? "bg-appnav-active text-appnav-active-text font-semibold"
+                  : "text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
               ].join(" ")}
               aria-current={isActive ? "page" : undefined}
             >
               {isActive && (
-                <span className="absolute end-1 top-3 bottom-3 w-0.5 rounded-full bg-[var(--sidebar-active-mark)]" aria-hidden="true" />
+                <span className="absolute end-1.5 top-3 bottom-3 w-[3px] rounded-full bg-appnav-mark" aria-hidden="true" />
               )}
               <NavIcon icon={item.icon} isActive={isActive} />
               <span className="truncate">{item.titleFa}</span>
@@ -189,17 +197,20 @@ export function Sidebar({ userRole }: SidebarProps) {
       {/* The shared «ساخت جدید» quick-action panel (portals to <body>). */}
       <CreateActionSheet open={createOpen} onClose={closeCreate} />
 
-      {/* Footer: Profile + Subscription cards (side by side) */}
-      <div className="px-3 py-3 border-t border-glass-border">
+      {/* Footer: Settings + Subscription, then the support CTA.
+          Both tiles sit on the quiet `--app-nav-pill` wash so the footer
+          reads as one group without a second elevation. */}
+      <div className="border-t border-appnav-line px-3 py-3">
         <div className="grid grid-cols-2 gap-2">
           <Link
             href="/profile"
             className={[
-              "group flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
-              "transition-all duration-short4 ease-standard",
+              "group flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-medium px-2 py-3",
+              "transition-colors duration-short3 ease-standard motion-reduce:transition-none",
               pathname === "/profile"
-                ? "bg-glass-state-strong text-glass-ivory"
-                : "bg-[var(--sidebar-profile-bg)] text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                ? "bg-appnav-active text-appnav-active-text font-semibold"
+                : "bg-appnav-pill text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
             ].join(" ")}
             aria-current={pathname === "/profile" ? "page" : undefined}
           >
@@ -207,28 +218,29 @@ export function Sidebar({ userRole }: SidebarProps) {
               avatarUrl={profile?.avatarUrl}
               name={displayName}
               size={32}
-              className="ring-1 ring-[rgba(255,249,240,0.35)]"
-              fallbackClassName="bg-gradient-to-br from-primary-500 to-primary-700 text-white text-labelSmall font-bold"
+              className="ring-1 ring-[color:var(--app-nav-line)]"
+              fallbackClassName="bg-[var(--brand-green)] text-white text-labelSmall font-bold"
             />
-            <span className="text-caption font-medium truncate max-w-full">تنظیمات</span>
+            <span className="max-w-full truncate text-caption font-medium">تنظیمات</span>
           </Link>
 
           <Link
             href="/subscription"
             className={[
-              "group flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
-              "transition-all duration-short4 ease-standard",
+              "group flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-medium px-2 py-3",
+              "transition-colors duration-short3 ease-standard motion-reduce:transition-none",
               pathname === "/subscription"
-                ? "bg-glass-state-strong text-glass-ivory"
-                : "bg-[var(--sidebar-profile-bg)] text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                ? "bg-appnav-active text-appnav-active-text font-semibold"
+                : "bg-appnav-pill text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
             ].join(" ")}
             aria-current={pathname === "/subscription" ? "page" : undefined}
           >
-            <span className="text-[var(--brand-gold)] group-hover:text-[var(--warm-glass-ivory)] transition-colors duration-short4">
+            <span className="text-appnav-mark transition-opacity duration-short3 group-hover:opacity-80">
               <IconSubscription size={22} />
             </span>
-            <span className="flex items-center gap-1.5 min-w-0 max-w-full">
-              <span className="text-caption font-medium truncate">اشتراک</span>
+            <span className="flex min-w-0 max-w-full items-center gap-1.5">
+              <span className="truncate text-caption font-medium">اشتراک</span>
               <SubscriptionStatusBadge className="shrink-0" />
             </span>
           </Link>
@@ -239,22 +251,25 @@ export function Sidebar({ userRole }: SidebarProps) {
           href="/support"
           onClick={() => setDrawerOpen(false)}
           className={[
-            "group mt-2 flex items-center gap-3 rounded-xl px-3.5 py-3 min-h-[52px]",
-            "transition-all duration-short4 ease-standard active:scale-[0.98]",
+            "group mt-2 flex min-h-[52px] items-center gap-3 rounded-medium px-3.5 py-3",
+            "transition-colors duration-short3 ease-standard motion-reduce:transition-none active:scale-[0.99]",
             pathname === "/support"
-              ? "bg-glass-state-strong text-glass-ivory ring-1 ring-[var(--brand-gold)]/50"
-              : "bg-[color-mix(in_srgb,var(--brand-gold)_18%,transparent)] text-glass-ivory hover:bg-[color-mix(in_srgb,var(--brand-gold)_28%,transparent)]",
+              ? "bg-appnav-active text-appnav-active-text font-semibold"
+              : "bg-appnav-accent-soft text-appnav-text hover:bg-[color-mix(in_srgb,var(--brand-gold)_28%,transparent)]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
           ].join(" ")}
           aria-current={pathname === "/support" ? "page" : undefined}
         >
-          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-[var(--brand-gold)] to-[var(--brand-gold-deep)] flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand-gold)] text-[#222E2D]">
             <IconPhone size={18} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-body-2 font-semibold truncate">پشتیبانی</span>
-            <span className="block text-caption text-glass-ivory-muted truncate">پاسخگوی سوالات شما هستیم</span>
+            <span className="block truncate text-body-2 font-semibold">پشتیبانی</span>
+            <span className="block truncate text-caption text-appnav-text-muted">
+              پاسخگوی سوالات شما هستیم
+            </span>
           </span>
-          <IconChevronRight size={18} className="shrink-0 text-glass-ivory-muted group-hover:text-glass-ivory transition-colors duration-short4" />
+          <IconChevronRight size={18} className="shrink-0 text-appnav-text-muted transition-colors duration-short3 group-hover:text-appnav-text" />
         </Link>
       </div>
     </div>
@@ -276,25 +291,25 @@ export function SidebarMobile({ userRole }: SidebarProps) {
   const displayName = profile?.displayName ?? session?.mobileDisplay ?? "کاربر";
 
   return (
-    <div className="flex flex-col h-full bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
+    <div className="flex h-full flex-col bg-appnav-bg">
       {/* User header in drawer */}
-      <div className="px-4 py-4 border-b border-glass-border">
+      <div className="border-b border-appnav-line px-4 py-4">
         <div className="flex items-center gap-3">
           <UserAvatar
             avatarUrl={profile?.avatarUrl}
             name={displayName}
             size={48}
-            className="shadow-elevation-3 ring-1 ring-[rgba(252,246,232,0.35)]"
-            fallbackClassName="bg-gradient-to-br from-[var(--brand-green)] to-[var(--brand-teal)] text-white text-h3 font-bold"
+            className="ring-1 ring-[color:var(--app-nav-line)]"
+            fallbackClassName="bg-[var(--brand-green)] text-white text-h3 font-bold"
           />
           <div className="min-w-0">
-            <p className="text-body-1 text-glass-ivory font-semibold truncate">{displayName}</p>
-            <p className="text-caption text-glass-ivory-muted">{session?.mobileDisplay}</p>
+            <p className="truncate text-body-1 font-semibold text-appnav-text">{displayName}</p>
+            <p className="text-caption text-appnav-text-muted">{session?.mobileDisplay}</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 overflow-auto py-2 px-2 space-y-0.5" aria-label="ناوبری اصلی">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2" aria-label="ناوبری اصلی">
         {navItems.map((item) => {
           const isActive = pathname === item.path
             || (item.path !== "/dashboard" && pathname.startsWith(item.path + "/"));
@@ -304,51 +319,59 @@ export function SidebarMobile({ userRole }: SidebarProps) {
               href={item.path}
               onClick={() => setDrawerOpen(false)}
               className={[
-                "flex items-center gap-3 px-4 py-3.5 rounded-xl text-labelLarge transition-all duration-200 touch-target",
+                "relative flex min-h-12 items-center gap-3 rounded-medium px-3.5 py-3 text-labelLarge",
+                "transition-colors duration-short3 ease-standard motion-reduce:transition-none",
                 isActive
-                  ? "bg-glass-state-strong text-glass-ivory font-semibold"
-                  : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                  ? "bg-appnav-active text-appnav-active-text font-semibold"
+                  : "text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
               ].join(" ")}
               aria-current={isActive ? "page" : undefined}
             >
+              {isActive && (
+                <span
+                  aria-hidden="true"
+                  className="absolute end-1.5 top-3 bottom-3 w-[3px] rounded-full bg-appnav-mark"
+                />
+              )}
               <NavIcon icon={item.icon} isActive={isActive} />
-              <span>{item.titleFa}</span>
+              <span className="truncate">{item.titleFa}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="px-2 py-3 border-t border-glass-border">
+      <div className="border-t border-appnav-line px-2 py-3">
         <div className="grid grid-cols-2 gap-2">
           <Link
             href="/settings"
             onClick={() => setDrawerOpen(false)}
             className={[
-              "flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
-              "text-labelLarge transition-colors touch-target",
+              "flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-medium px-2 py-3",
+              "text-labelLarge transition-colors duration-short3 motion-reduce:transition-none",
               pathname === "/settings"
-                ? "bg-glass-state-strong text-glass-ivory font-semibold"
-                : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                ? "bg-appnav-active text-appnav-active-text font-semibold"
+                : "text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
             ].join(" ")}
             aria-current={pathname === "/settings" ? "page" : undefined}
           >
-            <IconSettings size={22} className="text-glass-ivory-muted" />
-            <span className="truncate max-w-full">تنظیمات</span>
+            <IconSettings size={22} className="text-appnav-text-muted" />
+            <span className="max-w-full truncate">تنظیمات</span>
           </Link>
           <Link
             href="/subscription"
             onClick={() => setDrawerOpen(false)}
             className={[
-              "flex flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 min-h-[72px]",
-              "text-labelLarge transition-colors touch-target",
+              "flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-medium px-2 py-3",
+              "text-labelLarge transition-colors duration-short3 motion-reduce:transition-none",
               pathname === "/subscription"
-                ? "bg-glass-state-strong text-glass-ivory font-semibold"
-                : "text-glass-ivory-muted hover:bg-glass-state hover:text-glass-ivory",
+                ? "bg-appnav-active text-appnav-active-text font-semibold"
+                : "text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
             ].join(" ")}
             aria-current={pathname === "/subscription" ? "page" : undefined}
           >
-            <IconSubscription size={22} className="text-[var(--brand-gold)]" />
-            <span className="flex items-center gap-1.5 min-w-0 max-w-full">
+            <IconSubscription size={22} className="text-appnav-mark" />
+            <span className="flex min-w-0 max-w-full items-center gap-1.5">
               <span className="truncate">اشتراک</span>
               <SubscriptionStatusBadge className="shrink-0" />
             </span>
@@ -360,22 +383,25 @@ export function SidebarMobile({ userRole }: SidebarProps) {
           href="/support"
           onClick={() => setDrawerOpen(false)}
           className={[
-            "group mt-2 flex items-center gap-3 rounded-xl px-3.5 py-3 min-h-[52px]",
-            "transition-all duration-short4 ease-standard active:scale-[0.98] touch-target",
+            "group mt-2 flex min-h-[52px] items-center gap-3 rounded-medium px-3.5 py-3",
+            "transition-colors duration-short3 ease-standard motion-reduce:transition-none active:scale-[0.99]",
             pathname === "/support"
-              ? "bg-glass-state-strong text-glass-ivory ring-1 ring-[var(--brand-gold)]/50"
-              : "bg-[color-mix(in_srgb,var(--brand-gold)_18%,transparent)] text-glass-ivory hover:bg-[color-mix(in_srgb,var(--brand-gold)_28%,transparent)]",
+              ? "bg-appnav-active text-appnav-active-text font-semibold"
+              : "bg-appnav-accent-soft text-appnav-text hover:bg-[color-mix(in_srgb,var(--brand-gold)_28%,transparent)]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
           ].join(" ")}
           aria-current={pathname === "/support" ? "page" : undefined}
         >
-          <span className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-[var(--brand-gold)] to-[var(--brand-gold-deep)] flex items-center justify-center text-white shadow-elevation-1 group-hover:scale-105 transition-transform duration-short4 ease-standard">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand-gold)] text-[#222E2D]">
             <IconPhone size={18} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-body-2 font-semibold truncate">پشتیبانی</span>
-            <span className="block text-caption text-glass-ivory-muted truncate">پاسخگوی سوالات شما هستیم</span>
+            <span className="block truncate text-body-2 font-semibold">پشتیبانی</span>
+            <span className="block truncate text-caption text-appnav-text-muted">
+              پاسخگوی سوالات شما هستیم
+            </span>
           </span>
-          <IconChevronRight size={18} className="shrink-0 text-glass-ivory-muted group-hover:text-glass-ivory transition-colors duration-short4" />
+          <IconChevronRight size={18} className="shrink-0 text-appnav-text-muted transition-colors duration-short3 group-hover:text-appnav-text" />
         </Link>
       </div>
     </div>

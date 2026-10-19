@@ -80,9 +80,11 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
     <div className="flex h-dvh overflow-hidden bg-background">
       <NavProgress />
 
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar — the app-navigation surface is opaque by design:
+          no backdrop filter, so a scroll inside <main> never forces the
+          compositor to re-resolve this layer's backdrop. */}
       {sidebar && (
-        <aside className="hidden desktop:flex flex-col w-[240px] laptop:w-[260px] wide:w-[280px] shrink-0 border-e border-glass-border bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl">
+        <aside className="hidden w-[240px] shrink-0 flex-col border-e border-appnav-line bg-appnav-bg desktop:flex laptop:w-[260px] wide:w-[280px]">
           {sidebar}
         </aside>
       )}
@@ -97,12 +99,12 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
           />
           <aside
             id="mobile-nav-drawer"
-            className="absolute top-0 bottom-0 start-0 w-[85vw] max-w-[320px] bg-glass-surface-strong [background-image:var(--sidebar-gradient)] backdrop-blur-xl shadow-elevation-16 animate-slide-in-end flex flex-col"
+            className="absolute bottom-0 start-0 top-0 flex w-[85vw] max-w-[320px] flex-col bg-appnav-bg shadow-elevation-16 animate-slide-in-end"
             role="dialog"
             aria-modal="true"
             aria-label="منوی موبایل"
           >
-            <div className="flex items-center justify-between p-4 border-b border-glass-border">
+            <div className="flex items-center justify-between border-b border-appnav-line p-4">
               <img
                 src="/legalir-logo-dashboard.png"
                 alt="LEGALIR"
@@ -110,13 +112,13 @@ export function AppShell({ children, sidebar, topBar, bottomNav }: AppShellProps
               />
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full text-glass-ivory hover:bg-glass-state transition-colors touch-target"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-appnav-text transition-colors duration-short3 hover:bg-appnav-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]"
                 aria-label="بستن منو"
               >
                 <IconClose size={20} />
               </button>
             </div>
-            <div className="flex-1 overflow-auto safe-bottom">{sidebar}</div>
+            <div className="flex-1 overflow-y-auto safe-bottom">{sidebar}</div>
           </aside>
         </div>
       )}

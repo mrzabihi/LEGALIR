@@ -350,6 +350,35 @@
   /* Brand-gold rail mark that flags the active desktop destination. */
   --sidebar-active-mark: var(--brand-gold);
 
+  /* --- App navigation surface (user panel shell) ---
+     The authenticated shell's own material, deliberately separate from the
+     decorative `--warm-glass-*` family above. It is a SOLID brand-teal
+     navigation surface: no gradient, no backdrop blur. Two reasons:
+
+       · the brief's visual language is MD3 — a navigation surface is a
+         surface, not a translucent pane; and
+       · a blurred, gradient layer behind every app page forces the
+         compositor to re-resolve the backdrop on each scroll frame, which
+         is the single most expensive thing the shell can do on a mid-range
+         phone.
+
+     Active destinations use an MD3 secondary-container fill (the emerald
+     family) plus the brand-gold rail mark, so state is never colour-alone:
+     the fill, the mark and `aria-current` all agree.
+
+     Contrast on #222E2D: ivory 12.6:1 (AAA), muted ivory 8.4:1 (AA). */
+  --app-nav-bg: #222E2D;
+  --app-nav-bg-elevated: #1B2524;
+  --app-nav-line: rgba(252, 246, 232, 0.12);
+  --app-nav-text: #FCF6E8;
+  --app-nav-text-muted: rgba(252, 246, 232, 0.74);
+  --app-nav-hover: rgba(252, 246, 232, 0.08);
+  --app-nav-active: rgba(29, 98, 78, 0.62);
+  --app-nav-active-text: #FCF6E8;
+  --app-nav-pill: rgba(252, 246, 232, 0.06);
+  --app-nav-mark: var(--brand-gold);
+  --app-nav-accent-soft: rgba(198, 155, 56, 0.18);
+
   /* --- Contract workspace sticky header ---
      The sticky status surface of the contract draft workspace. It floats
      above the white contract form, so it must read as a distinct control
@@ -666,6 +695,22 @@
     var(--warm-glass-gradient-top) 0%,
     var(--warm-glass-gradient-bottom) 100%
   );
+
+  /* App navigation surface — dark theme. The page is deep navy (#0B1220), so
+     the nav lifts one step to the brand teal and the active fill brightens,
+     keeping the same ivory foregrounds. Contrast on #1E2B29: ivory 11.6:1,
+     muted ivory 7.6:1 — both AAA/AA. */
+  --app-nav-bg: #1E2B29;
+  --app-nav-bg-elevated: #17211F;
+  --app-nav-line: rgba(252, 246, 232, 0.14);
+  --app-nav-text: #FCF6E8;
+  --app-nav-text-muted: rgba(252, 246, 232, 0.72);
+  --app-nav-hover: rgba(252, 246, 232, 0.08);
+  --app-nav-active: rgba(52, 163, 128, 0.26);
+  --app-nav-active-text: #FCF6E8;
+  --app-nav-pill: rgba(252, 246, 232, 0.06);
+  --app-nav-mark: var(--brand-gold);
+  --app-nav-accent-soft: rgba(198, 155, 56, 0.22);
 
   /* Contract workspace sticky header — dark counterpart. The ivory surface
      becomes a lifted deep-teal panel; the gold accent is brightened so it
@@ -3214,6 +3259,436 @@ html {
     animation: none !important;
   }
   .card-lift:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================
+   LANDING — public home page design system (scoped)
+   ============================================================
+   Everything below is scoped to `.landing` (the wrapper rendered only by
+   the public home route). Nothing here can reach the user panel, the
+   lawyer panel or the admin console, so the landing can evolve on its own
+   tokens without restyling the rest of the product.
+
+   Palette provenance — this is a *mapping*, not a second palette:
+     navy    → the shipped brand navy   (--color-primary-700/900)
+     emerald → the shipped brand green  (--brand-green #1D624E)
+     gold    → the shipped brand gold   (--brand-gold  #C69B38)
+   The redesign brief's #14213D / #16866A / #C6A15B are within a couple of
+   units of these; the shipped values win because they are already used by
+   every other public surface (header buttons, footer, /pricing) and because
+   white-on-#16866A lands at 4.0:1 — below AA for 14px button text, while
+   white-on-#1D624E lands at 6.3:1. Accessibility decides the tie.
+   Only the brief's neutral scale (#202938 ink, #667085 muted, #E6E9EF line,
+   #F7F8FA canvas) is new; the MD3 ramp has no exact equivalent. */
+
+/* `.landing-portal` carries the same tokens for the one element rendered
+   through `createPortal(..., document.body)` — the mobile drawer. A portal
+   is not a DOM descendant of `.landing`, so without this every `var(--ln-*)`
+   inside the drawer resolves to nothing (a transparent primary button with
+   white text). It is a token carrier only; the ink/background pair stays on
+   `.landing` below. */
+.landing,
+.landing-portal {
+  /* Surfaces & text */
+  --ln-canvas: #f7f8fa;
+  --ln-surface: #ffffff;
+  --ln-ink: #202938;
+  --ln-ink-soft: #3a465c;
+  --ln-muted: #667085;
+  --ln-line: #e6e9ef;
+  --ln-line-strong: #d5dae3;
+
+  /* Brand roles */
+  --ln-navy: var(--color-primary-700); /* #162033 */
+  --ln-navy-deep: var(--color-primary-900); /* #0B1220 */
+  --ln-green: var(--brand-green); /* #1D624E — AA on white */
+  --ln-green-bright: #16866a; /* accents / dots only, never small text */
+  --ln-green-soft: #eef6f2;
+  --ln-gold: var(--brand-gold); /* #C69B38 */
+  --ln-gold-deep: var(--brand-fg-gold); /* #8A6A33 — gold text on light */
+  --ln-gold-soft: #faf4e6;
+
+  /* Radii — a tighter set than the app's, tuned for large marketing cards */
+  --ln-r-sm: 8px;
+  --ln-r-md: 12px;
+  --ln-r-lg: 16px;
+  --ln-r-xl: 24px;
+
+  /* Elevation — flat at rest, one quiet step on hover. Never stacked. */
+  --ln-shadow-1: 0 1px 2px rgba(16, 23, 42, 0.04), 0 1px 3px rgba(16, 23, 42, 0.03);
+  --ln-shadow-2: 0 4px 10px -2px rgba(16, 23, 42, 0.07), 0 12px 24px -12px rgba(16, 23, 42, 0.10);
+  --ln-shadow-3: 0 12px 32px -12px rgba(16, 23, 42, 0.16), 0 2px 6px rgba(16, 23, 42, 0.04);
+
+  /* Motion */
+  --ln-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ln-dur: 420ms;
+
+  /* Layout */
+  --ln-container: 1200px;
+  --ln-gutter: 1.25rem;
+}
+
+.landing {
+  color: var(--ln-ink);
+  background: var(--ln-surface);
+}
+
+@media (min-width: 600px) {
+  .landing,
+  .landing-portal {
+    --ln-gutter: 2rem;
+  }
+}
+
+/* Container + vertical rhythm. One scale for every section so the page
+   reads as a sequence of bands, not a stack of unrelated blocks. */
+.landing-container {
+  width: 100%;
+  max-width: calc(var(--ln-container) + var(--ln-gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--ln-gutter);
+}
+
+.landing-section {
+  padding-block: 3.5rem;
+}
+
+@media (min-width: 600px) {
+  .landing-section {
+    padding-block: 5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-section {
+    padding-block: 6rem;
+  }
+}
+
+.landing-section--tight {
+  padding-block: 2.5rem;
+}
+
+@media (min-width: 1024px) {
+  .landing-section--tight {
+    padding-block: 3.5rem;
+  }
+}
+
+/* Section heading block — one shared shape for eyebrow → title → lead. */
+.landing-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--ln-green);
+}
+
+.landing-eyebrow::before {
+  content: "";
+  width: 1.5rem;
+  height: 1px;
+  background: var(--ln-gold);
+  flex: none;
+}
+
+.landing-title {
+  color: var(--ln-navy);
+  font-weight: 700;
+  font-size: clamp(1.375rem, 1.05rem + 1.4vw, 2rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.landing-lead {
+  color: var(--ln-muted);
+  font-size: 0.9375rem;
+  line-height: 2;
+  text-wrap: pretty;
+}
+
+@media (min-width: 600px) {
+  .landing-lead {
+    font-size: 1rem;
+  }
+}
+
+/* Cards — a single surface recipe used by every grid on the page.
+   Border carries the structure; the shadow appears only as a hover
+   affordance on a real pointer. Touch devices never depend on it. */
+.landing-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--ln-line);
+  border-radius: var(--ln-r-lg);
+  background: var(--ln-surface);
+  transition:
+    border-color var(--ln-dur) var(--ln-ease),
+    box-shadow var(--ln-dur) var(--ln-ease),
+    transform var(--ln-dur) var(--ln-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-card:hover {
+    border-color: var(--ln-line-strong);
+    box-shadow: var(--ln-shadow-2);
+    transform: translateY(-2px);
+  }
+}
+
+/* The card's focus ring lives on the anchor itself, so a keyboard user
+   sees exactly one ring around the whole card. */
+.landing-card:focus-visible,
+.landing-link:focus-visible,
+.landing-btn:focus-visible {
+  outline: 2px solid var(--ln-green);
+  outline-offset: 3px;
+}
+
+/* Icon chip — the only repeated decorative element in the page. */
+.landing-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--ln-r-md);
+  background: var(--ln-green-soft);
+  color: var(--ln-green);
+}
+
+/* Primary / secondary buttons. These are landing-local anchors: the app's
+   own Button lives in @legalir/ui and stays untouched. */
+.landing-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding-inline: 1.5rem;
+  border-radius: var(--ln-r-md);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color 200ms var(--ln-ease),
+    border-color 200ms var(--ln-ease),
+    box-shadow 200ms var(--ln-ease),
+    transform 200ms var(--ln-ease);
+}
+
+.landing-btn:active {
+  transform: scale(0.985);
+}
+
+.landing-btn--primary {
+  background: var(--ln-green);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(16, 23, 42, 0.12);
+}
+
+@media (hover: hover) {
+  .landing-btn--primary:hover {
+    background: #175241;
+    box-shadow: var(--ln-shadow-2);
+  }
+}
+
+.landing-btn--secondary {
+  background: var(--ln-surface);
+  color: var(--ln-navy);
+  border: 1px solid var(--ln-line-strong);
+}
+
+@media (hover: hover) {
+  .landing-btn--secondary:hover {
+    background: var(--ln-canvas);
+    border-color: #c2c9d6;
+  }
+}
+
+.landing-btn--onDark {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+@media (hover: hover) {
+  .landing-btn--onDark:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.48);
+  }
+}
+
+/* Horizontal rail — used only where a sideways collection genuinely beats
+   a four-screen vertical stack (the legal-source cards on phones). Snap
+   points, no page overflow, and RTL-correct because it follows the writing
+   direction. */
+.landing-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(82%, 20rem);
+  gap: 0.875rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--ln-gutter);
+  padding-inline: var(--ln-gutter);
+  padding-block: 0.25rem 0.75rem;
+  scrollbar-width: none;
+}
+
+.landing-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.landing-rail > * {
+  scroll-snap-align: start;
+}
+
+@media (min-width: 600px) {
+  .landing-rail {
+    grid-auto-columns: min(46%, 20rem);
+  }
+}
+
+/* From `laptop` (900px) the rail becomes a normal grid — by then all the
+   items fit and horizontal scrolling would only hide content. The source
+   list holds four items, so the grid is four columns: a three-column grid
+   would strand the fourth card beside a large empty quadrant. */
+@media (min-width: 900px) {
+  .landing-rail {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-columns: auto;
+    overflow: visible;
+    scroll-snap-type: none;
+    padding-inline: 0;
+    gap: 1rem;
+  }
+}
+
+/* FAQ — native <details> so it is keyboard operable, screen-reader
+   announced and functional with JavaScript disabled. Only the marker is
+   replaced; the disclosure semantics stay the browser's. */
+.landing-faq summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.landing-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-faq summary::after {
+  content: "";
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-inline-start: auto;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 250ms var(--ln-ease);
+}
+
+.landing-faq details[open] summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.landing-faq summary:focus-visible {
+  outline: 2px solid var(--ln-green);
+  outline-offset: 2px;
+  border-radius: var(--ln-r-sm);
+}
+
+/* Hero entrance — CSS, not JS, on purpose: it must start on the first
+   painted frame and must never leave content hidden when JavaScript fails
+   or is slow to hydrate. `both` keeps the end state; `will-change` is
+   deliberately omitted so the compositor does not hold large layers. */
+@keyframes ln-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-rise {
+  animation: ln-rise 700ms var(--ln-ease) both;
+}
+
+.landing-rise-2 {
+  animation-delay: 90ms;
+}
+
+.landing-rise-3 {
+  animation-delay: 180ms;
+}
+
+.landing-rise-4 {
+  animation-delay: 280ms;
+}
+
+/* The scroll-reveal state is applied by LandingMotion (GSAP). The class
+   `.ln-reveal-ready` is only added client-side, after GSAP has registered
+   — so a no-JS visitor, a crawler, or a failed bundle always sees the
+   finished page. */
+.ln-reveal-ready [data-ln-reveal]:not(.is-in) {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0);
+}
+
+/* Lenis: while the smooth scroller owns the wheel, `scroll-behavior`
+   must stay `auto` or anchor jumps fight the interpolator. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-rise-2,
+  .landing-rise-3,
+  .landing-rise-4 {
+    animation: none !important;
+  }
+  .ln-reveal-ready [data-ln-reveal]:not(.is-in) {
+    opacity: 1;
+    transform: none;
+  }
+  .landing-card,
+  .landing-btn {
+    transition: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
+  .landing-card:hover {
     transform: none;
   }
 }

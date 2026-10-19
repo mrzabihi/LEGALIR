@@ -252,6 +252,22 @@ const config: Config = {
           state: "var(--warm-glass-state-layer)",
           "state-strong": "var(--warm-glass-state-layer-strong)",
         },
+        // App navigation surface — the authenticated shell's own solid
+        // material (sidebar, mobile drawer, bottom bar). Separate from the
+        // decorative glass tokens above: no gradient, no backdrop blur.
+        appnav: {
+          bg: "var(--app-nav-bg)",
+          "bg-elevated": "var(--app-nav-bg-elevated)",
+          line: "var(--app-nav-line)",
+          text: "var(--app-nav-text)",
+          "text-muted": "var(--app-nav-text-muted)",
+          hover: "var(--app-nav-hover)",
+          active: "var(--app-nav-active)",
+          "active-text": "var(--app-nav-active-text)",
+          pill: "var(--app-nav-pill)",
+          mark: "var(--app-nav-mark)",
+          "accent-soft": "var(--app-nav-accent-soft)",
+        },
         border: "var(--color-border)",
         divider: "var(--color-divider)",
         outline: "var(--color-outline)",
