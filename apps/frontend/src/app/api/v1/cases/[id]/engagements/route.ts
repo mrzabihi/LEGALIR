@@ -26,6 +26,7 @@ import {
   addCaseTimelineEvent,
 } from "@/lib/case-db";
 import { resolveCaseAccess } from "@/lib/cases/access";
+import { getLawyerProfileById } from "@/lib/lawyer-db";
 import { toEngagement } from "@/lib/cases/dto";
 import {
   CASE_ENGAGEMENT_SCOPES,
@@ -99,12 +100,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
+  // The engagement names a lawyer PROFILE, but case membership is keyed by
+  // the account's USER id — that is the id `resolveCaseAccess` receives. A
+  // profile that cannot be resolved to a user would create a membership row
+  // nobody can ever match, so it is rejected outright.
+  const lawyerProfileId = body.lawyerProfileId.trim();
+  const lawyerProfile = getLawyerProfileById(lawyerProfileId);
+  if (!lawyerProfile) {
+    return NextResponse.json({ code: "NOT_FOUND", message: "وکیل یافت نشد" }, { status: 404 });
+  }
+  const lawyerUserId = lawyerProfile.userId;
+
   const now = new Date().toISOString();
   const engagement = createCaseEngagement({
     id: generateId(),
     caseId: id,
-    lawyerProfileId: body.lawyerProfileId.trim(),
-    lawyerUserId: null,
+    lawyerProfileId,
+    lawyerUserId,
     kind: body.kind,
     sharedScopes: scopes,
     ownerConsentAt: now,
@@ -116,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   addCaseMember({
     id: generateId(),
     caseId: id,
-    accountId: body.lawyerProfileId.trim(),
+    accountId: lawyerUserId,
     role: "pending",
     scopes,
     grantedByUserId: userId,
@@ -175,19 +187,39 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // On acceptance the pending member becomes an active collaborating lawyer.
   // The member row already exists (created as `pending` when the request was
-  // sent), so we PROMOTE it rather than adding a second row.
+  // sent), so we PROMOTE it rather than adding a second row. The row is keyed
+  // by the lawyer's USER id; legacy rows were keyed by the profile id, so
+  // both are tried before granting a fresh membership.
   if (body.state === "accepted") {
-    const promoted = updateCaseMemberRole(id, existing.lawyer_profile_id, "lawyer", existing.shared_scopes);
+    const profile = getLawyerProfileById(existing.lawyer_profile_id);
+    const lawyerUserId = profile?.userId ?? existing.lawyer_user_id ?? null;
+    const candidateIds = [lawyerUserId, existing.lawyer_profile_id].filter(
+      (v): v is string => Boolean(v)
+    );
+
+    let promoted = false;
+    for (const accountId of candidateIds) {
+      if (updateCaseMemberRole(id, accountId, "lawyer", existing.shared_scopes)) {
+        promoted = true;
+        break;
+      }
+    }
     if (!promoted) {
       // No pending row (e.g. it was revoked) — grant a fresh lawyer membership.
       addCaseMember({
         id: generateId(),
         caseId: id,
-        accountId: existing.lawyer_profile_id,
+        accountId: lawyerUserId ?? existing.lawyer_profile_id,
         role: "lawyer",
         scopes: existing.shared_scopes,
         grantedByUserId: userId,
       });
+    }
+
+    // Backfill the user id on legacy engagement rows so future lookups never
+    // have to resolve the profile again.
+    if (lawyerUserId && updated.lawyer_user_id !== lawyerUserId) {
+      updateCaseEngagement(id, updated.id, { lawyer_user_id: lawyerUserId });
     }
     addCaseTimelineEvent({
       id: generateId(),

@@ -20,6 +20,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useAdminSettings } from "@/hooks/useAdmin";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -72,6 +73,27 @@ export default function AdminSettingsPage() {
                 ذخیره نمی‌شود.
               </InfoBanner>
             )}
+
+            <Section
+              title="مهلت‌ها و تقویم کاری"
+              subtitle="سیاست SLA هر خدمت و تقویم کاری مشترک، مستقل از این صفحه ویرایش می‌شود."
+            >
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="max-w-[560px] text-body-2 text-on-surface-variant">
+                    مهلت پاسخ و تکمیل هر خدمت، نوع ساعت (تقویمی یا ساعت کاری)، رفتار توقف هنگام
+                    انتظار کاربر و روزها/ساعات کاری در صفحهٔ جداگانه مدیریت می‌شوند. تغییر آن‌ها
+                    روی مهلت درخواست‌های موجود اثر ندارد.
+                  </p>
+                  <Link
+                    href="/admin/settings/sla"
+                    className="rounded-medium border border-divider px-3 py-2 text-body-2 font-medium text-primary transition-colors hover:border-primary"
+                  >
+                    مدیریت مهلت‌ها و تقویم →
+                  </Link>
+                </div>
+              </Card>
+            </Section>
 
             <Section title="یکپارچه‌سازی‌ها" subtitle="وضعیت واقعی هر یکپارچه‌سازی بر پایه پیکربندی سرور.">
               <DataTable

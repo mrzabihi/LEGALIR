@@ -38,6 +38,7 @@ import {
   useSetAdminLawyerAvatar,
   useSetAdminLawyerRating,
   useModerateAdminLawyerReview,
+  useReviewLawyerBank,
 } from "@/hooks/useAdmin";
 import {
   Badge,
@@ -83,6 +84,9 @@ import {
   type LawyerLocation,
   type LawyerReviewStatus,
   type AdminLawyerStatus,
+  LAWYER_BANK_STATUS_FA,
+  LAWYER_RATE_UNIT_FA,
+  type LawyerBankStatus,
 } from "@legalir/types";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
@@ -1487,6 +1491,216 @@ function ProfileEditForm({ detail, canEdit }: { detail: AdminLawyerDetail; canEd
 // Dossier tab (read-only file + decision + message)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// §6 — published rates + append-only price history
+// ---------------------------------------------------------------------------
+
+const BANK_STATUS_TONES: Record<
+  LawyerBankStatus,
+  "neutral" | "success" | "warning" | "danger" | "info" | "brand"
+> = {
+  NOT_SET: "neutral",
+  PENDING_REVIEW: "warning",
+  VERIFIED: "success",
+  NEEDS_CORRECTION: "danger",
+};
+
+function RatesPanel({ detail }: { detail: AdminLawyerDetail }) {
+  const [showHistory, setShowHistory] = useState(false);
+
+  return (
+    <div className="space-y-3">
+      <InfoBanner tone="info">
+        نرخ‌ها فقط بر درخواست‌های آینده اثر دارند. درخواستی که پذیرش شده، قیمت توافق‌شدهٔ خود را
+        حفظ می‌کند.
+      </InfoBanner>
+
+      <Block title="نرخ‌های منتشرشده">
+        {detail.rates.length === 0 ? (
+          <p className="text-caption text-muted">این وکیل هنوز نرخی ثبت نکرده است.</p>
+        ) : (
+          <ul className="divide-y divide-divider">
+            {detail.rates.map((r) => (
+              <li
+                key={r.serviceKey}
+                className="flex flex-wrap items-baseline justify-between gap-2 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-body-2 text-on-surface">
+                    {lawyerServiceLabel(r.serviceKey)}
+                  </p>
+                  {r.noteFa && <p className="text-caption text-muted">{r.noteFa}</p>}
+                </div>
+                <div className="text-end">
+                  <p className="tabular-nums text-body-2 font-medium text-on-surface">
+                    {toPersianNumber(r.amountToman)} تومان
+                  </p>
+                  <p className="text-caption text-muted">{LAWYER_RATE_UNIT_FA[r.unit]}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Block>
+
+      <Block title="تاریخچهٔ تغییر نرخ">
+        <div className="mb-2 flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => setShowHistory((v) => !v)}>
+            {showHistory ? "پنهان کردن" : `نمایش ${toPersianNumber(detail.rateChanges.length)} تغییر`}
+          </Button>
+        </div>
+        {showHistory &&
+          (detail.rateChanges.length === 0 ? (
+            <p className="text-caption text-muted">تغییری ثبت نشده است.</p>
+          ) : (
+            <ul className="space-y-1 text-caption">
+              {detail.rateChanges.map((c) => (
+                <li key={c.id} className="flex flex-wrap justify-between gap-2 py-1">
+                  <span className="text-on-surface-variant">
+                    {lawyerServiceLabel(c.serviceKey)}:{" "}
+                    {c.previousAmountToman == null
+                      ? "—"
+                      : `${toPersianNumber(c.previousAmountToman)} تومان`}{" "}
+                    ←{" "}
+                    {c.nextAmountToman == null
+                      ? "حذف‌شده"
+                      : `${toPersianNumber(c.nextAmountToman)} تومان`}
+                  </span>
+                  <span className="tabular-nums text-muted">{toPersianDate(c.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          ))}
+      </Block>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// §7 — settlement account (masked) + review decision
+// ---------------------------------------------------------------------------
+
+function BankPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage: boolean }) {
+  const review = useReviewLawyerBank();
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const bank = detail.bank;
+  const actionable = bank.status === "PENDING_REVIEW" || bank.status === "NEEDS_CORRECTION";
+
+  async function decide(action: "VERIFY" | "REQUEST_CORRECTION") {
+    setError(null);
+    if (action === "REQUEST_CORRECTION" && reason.trim().length < 5) {
+      setError("برای درخواست اصلاح، ثبت دلیل الزامی است (حداقل ۵ نویسه).");
+      return;
+    }
+    try {
+      await review.mutateAsync({
+        lawyerId: detail.profile.id,
+        review: { action, reason: reason.trim() || undefined },
+      });
+      snackbar.show({
+        message:
+          action === "VERIFY" ? "حساب تسویه تأیید شد." : "درخواست اصلاح برای وکیل ثبت شد.",
+        variant: "success",
+      });
+      setReason("");
+    } catch (err) {
+      setError(errMessage(err, "ثبت تصمیم ناموفق بود"));
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <InfoBanner tone="info">
+        اطلاعات حساب فقط به‌صورت ماسک‌شده نمایش داده می‌شود. شمارهٔ شبا کامل تنها در صفحهٔ
+        اختصاصی خود وکیل قابل مشاهده است.
+      </InfoBanner>
+
+      <Block title="وضعیت حساب تسویه">
+        <div className="mb-2">
+          <Badge tone={BANK_STATUS_TONES[bank.status]}>
+            {LAWYER_BANK_STATUS_FA[bank.status]}
+          </Badge>
+        </div>
+        {bank.account ? (
+          <dl className="space-y-1.5 text-caption">
+            <Row label="صاحب حساب" value={bank.account.holderName} />
+            <Row label="بانک" value={bank.account.bankName} />
+            <Row label="شبا" value={<span dir="ltr">{bank.account.iban}</span>} />
+            {bank.account.accountNumber && (
+              <Row label="شمارهٔ حساب" value={<span dir="ltr">{bank.account.accountNumber}</span>} />
+            )}
+            {bank.account.cardLast4 && (
+              <Row label="کارت" value={<span dir="ltr">{bank.account.cardLast4}</span>} />
+            )}
+            {bank.submittedAt && <Row label="آخرین ثبت" value={toPersianDate(bank.submittedAt)} />}
+            {bank.reviewedAt && <Row label="آخرین بررسی" value={toPersianDate(bank.reviewedAt)} />}
+            {bank.reviewNote && <Row label="یادداشت بررسی" value={bank.reviewNote} />}
+          </dl>
+        ) : (
+          <p className="text-caption text-muted">این وکیل هنوز حساب تسویه ثبت نکرده است.</p>
+        )}
+      </Block>
+
+      {canManage && actionable && (
+        <Block title="تصمیم بررسی">
+          <Field
+            label="دلیل (برای درخواست اصلاح الزامی است)"
+            error={error ?? undefined}
+          >
+            <TextArea
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={400}
+            />
+          </Field>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="danger"
+              loading={review.isPending}
+              onClick={() => void decide("REQUEST_CORRECTION")}
+            >
+              درخواست اصلاح
+            </Button>
+            <Button
+              size="sm"
+              loading={review.isPending}
+              onClick={() => void decide("VERIFY")}
+            >
+              تأیید حساب
+            </Button>
+          </div>
+        </Block>
+      )}
+
+      <Block title="سابقهٔ بررسی">
+        {detail.bankEvents.length === 0 ? (
+          <p className="text-caption text-muted">رویدادی ثبت نشده است.</p>
+        ) : (
+          <ul className="space-y-1.5 text-caption">
+            {detail.bankEvents.map((e) => (
+              <li key={e.id} className="flex flex-wrap justify-between gap-2">
+                <span className="text-on-surface-variant">
+                  {e.action === "VERIFIED"
+                    ? "تأیید"
+                    : e.action === "CORRECTION_REQUESTED"
+                      ? "درخواست اصلاح"
+                      : "ثبت اطلاعات"}
+                  {e.reason ? ` — ${e.reason}` : ""}
+                </span>
+                <span className="tabular-nums text-muted">{toPersianDate(e.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Block>
+    </div>
+  );
+}
+
 function DossierPanel({ detail }: { detail: AdminLawyerDetail }) {
   const sendMessage = useSendLawyerMessage();
   const [subject, setSubject] = useState("");
@@ -1703,7 +1917,15 @@ function DossierPanel({ detail }: { detail: AdminLawyerDetail }) {
 // The drawer
 // ---------------------------------------------------------------------------
 
-type DrawerTab = "dossier" | "edit" | "avatar" | "rating" | "reviews" | "status";
+type DrawerTab =
+  | "dossier"
+  | "edit"
+  | "rates"
+  | "bank"
+  | "avatar"
+  | "rating"
+  | "reviews"
+  | "status";
 
 export function LawyerDetailDrawer({
   lawyerId,
@@ -1728,6 +1950,7 @@ export function LawyerDetailDrawer({
   const detail = query.data;
 
   const canEdit = can("admin:lawyer:update");
+  const canBank = can("admin:lawyer:update");
   const canAvatar = can("admin:lawyer:avatar:manage");
   const canRating = can("admin:lawyer:rating:manage");
   const canReviewManage = can("admin:lawyer:review:manage");
@@ -1784,6 +2007,12 @@ export function LawyerDetailDrawer({
             items={[
               { value: "dossier", label: "پرونده" },
               { value: "edit", label: "ویرایش" },
+              { value: "rates", label: "نرخ‌ها", badge: detail.rates.length },
+              {
+                value: "bank",
+                label: "حساب تسویه",
+                badge: detail.bank.status === "PENDING_REVIEW" ? "!" : undefined,
+              },
               { value: "avatar", label: "آواتار" },
               { value: "rating", label: "امتیاز" },
               { value: "reviews", label: "نظرات", badge: detail.stats.reviews },
@@ -1793,6 +2022,8 @@ export function LawyerDetailDrawer({
 
           {tab === "dossier" && <DossierPanel detail={detail} />}
           {tab === "edit" && <ProfileEditForm detail={detail} canEdit={canEdit} />}
+          {tab === "rates" && <RatesPanel detail={detail} />}
+          {tab === "bank" && <BankPanel detail={detail} canManage={canBank} />}
           {tab === "avatar" && <AvatarPanel detail={detail} canManage={canAvatar} />}
           {tab === "rating" && <RatingPanel detail={detail} canManage={canRating} />}
           {tab === "reviews" && <ReviewsPanel detail={detail} canManage={canReviewManage} />}

@@ -84,6 +84,19 @@ import type {
   LegalRequestEvent,
   LegalRequestState,
   LegalRequestDiscovery,
+  LegalRequestSla,
+  PlatformWorkCalendar,
+  RequestAction,
+  ServiceSlaPolicy,
+  SlaHealth,
+  SlaOverride,
+  SlaPhase,
+  SlaSnapshot,
+  LawyerBankEvent,
+  LawyerBankRecord,
+  LawyerBankReview,
+  LawyerRateChange,
+  LawyerServiceRate,
   DiscoveryIntent,
   AdminContractListResponse,
   AdminContractReviewActionRequest,
@@ -200,6 +213,25 @@ export interface AdminRequestsQuery {
   state?: string;
   /** Tri-state discovery filter: `"yes"` keeps only discovery requests. */
   discovery?: "yes" | "no";
+  /** §8 — the assigned lawyer. */
+  lawyerId?: string;
+  /** §8 — the service the request was placed for. */
+  serviceKey?: string;
+  /** §8 — referral-window bounds (inclusive ISO instants). */
+  fromIso?: string;
+  toIso?: string;
+  /** §8 — the live clock health of the referral. */
+  slaHealth?: SlaHealth;
+}
+
+/** The clock projection the queue and the drawer share. */
+export interface AdminRequestSlaCell {
+  health: SlaHealth;
+  healthFa: string;
+  phase: SlaPhase;
+  dueAt: string | null;
+  remainingMs: number | null;
+  paused: boolean;
 }
 
 export interface AdminRequestRow {
@@ -212,12 +244,16 @@ export interface AdminRequestRow {
   orgId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** The service the request was placed for, when it carries one. */
+  serviceKey: string | null;
   /** True when the request came through the path-discovery intake. */
   hasDiscovery: boolean;
   /** How the recorded analysis was produced, or null when there is none. */
   discoverySource: "ai" | "rules" | null;
   /** The legal area the engine inferred, or null. */
   inferredCategory: string | null;
+  /** §5/§8 — the referral clock as observed at request time. */
+  sla: AdminRequestSlaCell;
 }
 
 export interface AdminRequestsResponse {
@@ -227,6 +263,11 @@ export interface AdminRequestsResponse {
   pageSize: number;
   /** Total pages matching the query. */
   totalPages: number;
+  /** Filter vocabularies derived from the rows in play. */
+  facets: {
+    lawyers: { id: string; fullName: string | null }[];
+    services: string[];
+  };
 }
 
 export interface AdminReportsResponse {
@@ -401,6 +442,14 @@ export interface AdminLawyerDetail {
     }
   >;
   stats: { messagesSent: number; decisions: number; reviews: number; openReports: number };
+  /** §6 — the published per-service prices. */
+  rates: LawyerServiceRate[];
+  /** Append-only price history, newest first (capped at 30). */
+  rateChanges: LawyerRateChange[];
+  /** §7 — the settlement account, ALWAYS masked. */
+  bank: LawyerBankRecord;
+  /** The bank review trail, newest first (capped at 30). */
+  bankEvents: LawyerBankEvent[];
 }
 
 // ---------------------------------------------------------------------------
@@ -597,7 +646,18 @@ export function fetchAdminTariffHistory(entityId?: string): Promise<TariffVersio
 
 export function fetchAdminRequests(query: AdminRequestsQuery = {}): Promise<AdminRequestsResponse> {
   return apiClient.get<AdminRequestsResponse>(
-    `${A}/requests${qs({ page: query.page, pageSize: query.pageSize, search: query.search, state: query.state, discovery: query.discovery })}`
+    `${A}/requests${qs({
+      page: query.page,
+      pageSize: query.pageSize,
+      search: query.search,
+      state: query.state,
+      discovery: query.discovery,
+      lawyerId: query.lawyerId,
+      serviceKey: query.serviceKey,
+      fromIso: query.fromIso,
+      toIso: query.toIso,
+      slaHealth: query.slaHealth,
+    })}`
   );
 }
 
@@ -701,10 +761,105 @@ export interface AdminRequestDetail {
   allowedTransitions: LegalRequestState[];
   events: LegalRequestEvent[];
   assignableLawyers: AdminAssignableLawyer[];
+  /**
+   * §4 — the lawyer's own workflow log (view / accept / decline / notes /
+   * SLA pause·resume·override). Kept apart from `events` so the drawer can
+   * mark internal notes without filtering a merged stream.
+   */
+  actions: RequestAction[];
+  /** §5 — the live clock, its policy and the deadline edits applied so far. */
+  sla: {
+    state: LegalRequestSla | null;
+    policy: ServiceSlaPolicy;
+    snapshot: SlaSnapshot;
+    overrides: SlaOverride[];
+    calendar: PlatformWorkCalendar;
+  };
 }
 
 export function fetchAdminRequest(id: string): Promise<AdminRequestDetail> {
   return apiClient.get<AdminRequestDetail>(`${A}/requests/${encodeURIComponent(id)}`);
+}
+
+/** §5 — move one deadline, with a mandatory recorded reason (PATCH). */
+export function overrideRequestDeadline(
+  id: string,
+  input: { phase: "RESPONSE" | "COMPLETION"; nextDueAt: string | null; reason: string }
+): Promise<LegalRequest> {
+  return apiClient.patch<LegalRequest>(`${A}/requests/${encodeURIComponent(id)}`, {
+    slaOverride: input,
+  });
+}
+
+/** §8 — re-refer to another (approved) lawyer, with a mandatory reason. */
+export function reassignRequest(
+  id: string,
+  input: { lawyerId: string; reason: string }
+): Promise<LegalRequest> {
+  return apiClient.patch<LegalRequest>(`${A}/requests/${encodeURIComponent(id)}`, {
+    reassignTo: input.lawyerId,
+    reason: input.reason,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// §5 — SLA configuration (policies + working calendar)
+// ---------------------------------------------------------------------------
+
+export interface AdminSlaResponse {
+  policies: ServiceSlaPolicy[];
+  calendar: PlatformWorkCalendar;
+}
+
+export function fetchAdminSla(): Promise<AdminSlaResponse> {
+  return apiClient.get<AdminSlaResponse>(`${A}/sla`);
+}
+
+export type AdminSlaPolicyInput = Omit<ServiceSlaPolicy, "id" | "updatedAt" | "updatedBy">;
+
+export function saveAdminSlaPolicy(
+  serviceKey: string,
+  input: AdminSlaPolicyInput
+): Promise<ServiceSlaPolicy> {
+  return apiClient.patch<ServiceSlaPolicy>(
+    `${A}/sla/policies/${encodeURIComponent(serviceKey)}`,
+    input
+  );
+}
+
+export function saveAdminWorkCalendar(
+  input: Omit<PlatformWorkCalendar, "updatedAt" | "updatedBy">
+): Promise<PlatformWorkCalendar> {
+  return apiClient.patch<PlatformWorkCalendar>(`${A}/sla/calendar`, input);
+}
+
+// ---------------------------------------------------------------------------
+// §8 — one user's request/referral history
+// ---------------------------------------------------------------------------
+
+export interface AdminUserRequestRow {
+  id: string;
+  title: string;
+  category: string;
+  state: LegalRequestState;
+  selectedLawyerId: string | null;
+  selectedLawyerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sla: {
+    health: SlaHealth;
+    healthFa: string;
+    phase: SlaPhase;
+    dueAt: string | null;
+    remainingMs: number | null;
+    paused: boolean;
+  };
+}
+
+export function fetchAdminUserRequests(userId: string): Promise<{ items: AdminUserRequestRow[] }> {
+  return apiClient.get<{ items: AdminUserRequestRow[] }>(
+    `${A}/users/${encodeURIComponent(userId)}/requests`
+  );
 }
 
 /** Assign or replace the lawyer on a request (PATCH). */
@@ -2226,6 +2381,21 @@ export function fetchAdminLawyers(
 /** Full registration dossier for one lawyer (detail drawer). */
 export function fetchAdminLawyer(id: string): Promise<AdminLawyerDetail> {
   return apiClient.get<AdminLawyerDetail>(`${A}/lawyers/${encodeURIComponent(id)}`);
+}
+
+/**
+ * §7 — verify the settlement account or send it back for correction. A
+ * correction request must carry a reason; the server enforces it and records
+ * the decision on the account and as an immutable event.
+ */
+export function reviewAdminLawyerBank(
+  id: string,
+  review: LawyerBankReview
+): Promise<LawyerBankRecord> {
+  return apiClient.post<LawyerBankRecord>(
+    `${A}/lawyers/${encodeURIComponent(id)}`,
+    review
+  );
 }
 
 /**

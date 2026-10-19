@@ -18,6 +18,7 @@ import { useUsersList } from "@/hooks/useAnalyticsDrill";
 import { DrillWindowBanner } from "@/components/admin/drill-window-banner";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { UserSubscriptionDrawer } from "@/components/admin/user-subscription-drawer";
+import { UserRequestsDrawer } from "@/components/admin/user-requests-drawer";
 import { toPersianDate } from "@/lib/persian-utils";
 import { ROLE_FA, STAFF_ROLES } from "@legalir/types";
 import type { PlatformRole } from "@legalir/types";
@@ -66,12 +67,17 @@ export default function AdminUsersPage() {
 function AdminUsersView() {
   const { can } = useAdminMe();
   const canManage = can("admin:users:manage");
+  // §8 — reading a user's request history is its own permission, so a staff
+  // member who may only inspect requests still gets the drill-down.
+  const canReadRequests = can("admin:requests:read");
+  const showActions = canManage || canReadRequests;
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<string | null>(null);
   const [billingUserId, setBillingUserId] = useState<string | null>(null);
+  const [requestsUser, setRequestsUser] = useState<{ id: string; name: string } | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   // Server-side search: debounce the raw input so typing stays instant while
@@ -148,7 +154,7 @@ function AdminUsersView() {
                   <Th>نوع حساب</Th>
                   <Th>اشتراک</Th>
                   <Th>عضویت</Th>
-                  {canManage && <Th>عملیات</Th>}
+                  {showActions && <Th>عملیات</Th>}
                 </tr>
               }
             >
@@ -199,22 +205,37 @@ function AdminUsersView() {
                     )}
                   </Td>
                   <Td className="whitespace-nowrap">{toPersianDate(u.createdAt)}</Td>
-                  {canManage && (
+                  {showActions && (
                     <Td>
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setFeedback(null);
-                            setEditing(u.id);
-                          }}
-                        >
-                          تغییر نقش
-                        </Button>
-                        <Button size="sm" variant="tonal" onClick={() => setBillingUserId(u.id)}>
-                          اشتراک و انرژی
-                        </Button>
+                        {canManage && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                setFeedback(null);
+                                setEditing(u.id);
+                              }}
+                            >
+                              تغییر نقش
+                            </Button>
+                            <Button size="sm" variant="tonal" onClick={() => setBillingUserId(u.id)}>
+                              اشتراک و انرژی
+                            </Button>
+                          </>
+                        )}
+                        {canReadRequests && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              setRequestsUser({ id: u.id, name: u.displayName ?? "بدون نام" })
+                            }
+                          >
+                            درخواست‌ها
+                          </Button>
+                        )}
                       </div>
                     </Td>
                   )}
@@ -245,6 +266,14 @@ function AdminUsersView() {
         userId={billingUserId}
         open={Boolean(billingUserId)}
         onClose={() => setBillingUserId(null)}
+      />
+
+      <UserRequestsDrawer
+        userId={requestsUser?.id ?? null}
+        userName={requestsUser?.name ?? null}
+        canManage={canManage}
+        open={Boolean(requestsUser)}
+        onClose={() => setRequestsUser(null)}
       />
     </div>
   );

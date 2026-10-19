@@ -26,6 +26,8 @@ import type {
   JudicialOrderQueueFilters,
   JudicialAdminOrderUpdateInput,
   UsageReportQuery,
+  PlatformWorkCalendar,
+  LawyerBankReview,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -46,6 +48,14 @@ import {
   fetchAdminDiscovery,
   assignRequestLawyer,
   changeRequestState,
+  overrideRequestDeadline,
+  reassignRequest,
+  fetchAdminSla,
+  saveAdminSlaPolicy,
+  saveAdminWorkCalendar,
+  fetchAdminUserRequests,
+  reviewAdminLawyerBank,
+  type AdminSlaPolicyInput,
   fetchAdminContracts,
   fetchAdminContract,
   reviewAdminContract,
@@ -563,6 +573,112 @@ export function useChangeRequestState() {
       qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
       qc.invalidateQueries({ queryKey: ["admin", "requests"] });
     },
+  });
+}
+
+/**
+ * §5 — shift one SLA deadline. The server refuses a missing reason and records
+ * the previous/next instants itself, so the client only carries the input.
+ */
+export function useOverrideRequestDeadline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      phase,
+      nextDueAt,
+      reason,
+    }: {
+      id: string;
+      phase: "RESPONSE" | "COMPLETION";
+      nextDueAt: string | null;
+      reason: string;
+    }) => overrideRequestDeadline(id, { phase, nextDueAt, reason }),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    },
+  });
+}
+
+/** §8 — re-refer a request to another approved lawyer, with a reason. */
+export function useReassignRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lawyerId, reason }: { id: string; lawyerId: string; reason: string }) =>
+      reassignRequest(id, { lawyerId, reason }),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "requests", "detail", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// §5 — SLA configuration
+// ---------------------------------------------------------------------------
+
+export function useAdminSla() {
+  return useQuery({
+    queryKey: ["admin", "sla"],
+    queryFn: fetchAdminSla,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+export function useSaveAdminSlaPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serviceKey, input }: { serviceKey: string; input: AdminSlaPolicyInput }) =>
+      saveAdminSlaPolicy(serviceKey, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "sla"] });
+    },
+  });
+}
+
+export function useSaveAdminWorkCalendar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<PlatformWorkCalendar, "updatedAt" | "updatedBy">) =>
+      saveAdminWorkCalendar(input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "sla"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// §8 — one user's requests
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// §7 — settlement-account review
+// ---------------------------------------------------------------------------
+
+export function useReviewLawyerBank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lawyerId, review }: { lawyerId: string; review: LawyerBankReview }) =>
+      reviewAdminLawyerBank(lawyerId, review),
+    onSuccess: (_res, { lawyerId }) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", lawyerId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// §8 — one user's requests
+// ---------------------------------------------------------------------------
+
+export function useAdminUserRequests(userId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "users", "requests", userId],
+    queryFn: () => fetchAdminUserRequests(userId as string),
+    enabled: Boolean(userId),
+    staleTime: 30_000,
+    retry: 1,
   });
 }
 

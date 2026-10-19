@@ -74,6 +74,16 @@ vi.mock("@/lib/case-db", () => ({
   getCaseProceeding: () => undefined,
   getCaseEngagement: () => undefined,
   getActiveCaseMember: (caseId: string, accountId: string) => activeMembers.get(`${caseId}:${accountId}`),
+  // `resolveCaseAccess` now tries every id the same person may be keyed by
+  // (user id first, then the legacy lawyer-profile id). Isolation is
+  // unchanged: a row belonging to another case never resolves.
+  getActiveCaseMemberAny: (caseId: string, accountIds: readonly string[]) => {
+    for (const accountId of accountIds) {
+      const row = activeMembers.get(`${caseId}:${accountId}`);
+      if (row) return row;
+    }
+    return undefined;
+  },
   createCaseParty: vi.fn(),
   deleteCaseParty: vi.fn(),
   createCaseProceeding: vi.fn(),
@@ -137,6 +147,10 @@ vi.mock("@/lib/lawyer-db", () => ({
   // returns undefined so the request falls through to a 404 once it has
   // cleared the auth + reason gates.
   getLawyerProfileById: vi.fn().mockReturnValue(undefined),
+  // `caseMemberAccountIds` asks for the caller's lawyer profile to derive
+  // the legacy id. No profile ⇒ membership is keyed by the user id alone,
+  // which is exactly what these cases assert.
+  getLawyerProfileByUserId: vi.fn().mockReturnValue(undefined),
   recordStatusDecision: vi.fn(),
 }));
 

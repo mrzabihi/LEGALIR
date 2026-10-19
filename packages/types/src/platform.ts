@@ -17,6 +17,13 @@ import type {
   LawyerMarketplaceVisibility,
   LawyerGender,
 } from "./lawyer-taxonomy";
+// Type-only cycle: lawyer-portal imports the request state/role/lawyer types
+// from this module. Both sides are erased at runtime, so the cycle is safe.
+import type {
+  LegalRequestSla,
+  ReferralAgreedRate,
+  LegalRequestResult,
+} from "./lawyer-portal";
 
 // ---------------------------------------------------------------------------
 // Account types (PART 1)
@@ -139,6 +146,11 @@ export type Permission =
   | "lawyer:case:read:assigned"
   | "lawyer:case:write:assigned"
   | "lawyer:message:send"
+  // Lawyer portal — money is separated from the profile: publishing a price
+  // and naming a settlement account are auditable financial acts, so each has
+  // its own key rather than riding on `lawyer:profile:write`.
+  | "lawyer:rates:manage"
+  | "lawyer:bank:manage"
   // Organization workspace
   | "org:read"
   | "org:member:invite"
@@ -187,6 +199,13 @@ export type Permission =
   | "admin:lawyer:review:manage"
   | "admin:lawyer:rating:manage"
   | "admin:lawyer:avatar:manage"
+  // Settlement destinations are financial data: reviewing a lawyer's account
+  // is a finance duty, distinct from profile maintenance.
+  | "admin:lawyer:bank:review"
+  // SLA policies and the work calendar decide how long a lawyer has to
+  // respond; editing them is an operations decision, not a profile edit.
+  | "admin:sla:read"
+  | "admin:sla:manage"
   | "admin:services:read"
   | "admin:services:manage"
   // Judicial drafting review — separate from service settings: an operator
@@ -264,6 +283,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "lawyer:case:read:assigned",
     "lawyer:case:write:assigned",
     "lawyer:message:send",
+    "lawyer:rates:manage",
+    "lawyer:bank:manage",
   ],
   COMPANY_MEMBER: [
     "case:read:own",
@@ -362,6 +383,10 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:lawyer:read",
     "admin:support:read",
     "admin:support:manage",
+    // Operations owns the referral queue day-to-day, so it may adjust a
+    // deadline (with a recorded reason) as well as read the policy.
+    "admin:sla:read",
+    "admin:sla:manage",
     "admin:reports:read",
     "admin:analytics:read",
   ],
@@ -386,6 +411,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:lawyer:review:manage",
     "admin:lawyer:rating:manage",
     "admin:lawyer:avatar:manage",
+    "admin:lawyer:bank:review",
+    "admin:sla:read",
+    "admin:sla:manage",
     "admin:reports:read",
     "admin:analytics:read",
   ],
@@ -399,6 +427,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:finance:manage",
     "admin:settlement:manage",
     "admin:settlement:approve",
+    "admin:lawyer:bank:review",
+    "admin:sla:read",
     "admin:plans:read",
     "admin:plans:manage",
     "admin:energy:read",
@@ -460,6 +490,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:lawyer:review:manage",
     "admin:lawyer:rating:manage",
     "admin:lawyer:avatar:manage",
+    "admin:lawyer:bank:review",
+    "admin:sla:read",
+    "admin:sla:manage",
     "admin:services:read",
     "admin:services:manage",
     "admin:flags:manage",
@@ -522,6 +555,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:lawyer:review:manage",
     "admin:lawyer:rating:manage",
     "admin:lawyer:avatar:manage",
+    "admin:lawyer:bank:review",
+    "admin:sla:read",
+    "admin:sla:manage",
     "admin:services:read",
     "admin:services:manage",
     "admin:flags:manage",
@@ -2022,8 +2058,35 @@ export interface LegalRequest {
   discovery?: LegalRequestDiscovery;
   /** The organization this request belongs to, when org-scoped. */
   orgId: string | null;
+  /**
+   * The `LawyerService.id` this request was placed for. Optional — legacy
+   * rows predate the lawyer service catalogue; the SLA layer falls back to
+   * the default policy when it is absent.
+   */
+  serviceKey?: string | null;
+  /**
+   * The SLA clock for this referral. Written when a lawyer is assigned and
+   * advanced by every workflow action; absent on requests that were never
+   * referred.
+   */
+  sla?: LegalRequestSla | null;
+  /**
+   * The agreed price, frozen at acceptance so a later rate change never
+   * rewrites the price of a request already accepted.
+   */
+  agreedRate?: ReferralAgreedRate | null;
+  /** The delivered result, visible to the client once the lawyer completes. */
+  result?: LegalRequestResult | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A listed consultation, tagged with how the caller reached it. The tag is
+ * a RESPONSE field only — it is never stored on the request row.
+ */
+export interface LegalRequestListItem extends LegalRequest {
+  access: "owner" | "assigned";
 }
 
 /**
@@ -2265,6 +2328,51 @@ export interface LawyerWorkspaceStats {
   performance: LawyerPerformance;
 }
 
+/**
+ * The four product surfaces a referral can be seen in. One referral may be
+ * relevant to several of them (a case referral with a power of attorney is
+ * visible under both «پرونده‌ها» and «وکالت»), but it stays ONE item — the
+ * list never repeats a referral, it only tags it with the surfaces it
+ * belongs to.
+ */
+export type LawyerReferralSurface = "case" | "contract" | "consultation" | "representation";
+
+/** Render order of the four surfaces, matching the product's own ordering. */
+export const LAWYER_REFERRAL_SURFACES: readonly LawyerReferralSurface[] = [
+  "case",
+  "contract",
+  "consultation",
+  "representation",
+];
+
+export const LAWYER_REFERRAL_SURFACE_FA: Record<LawyerReferralSurface, string> = {
+  case: "پرونده‌ها",
+  contract: "قراردادها",
+  consultation: "مشاوره‌ها",
+  representation: "وکالت",
+};
+
+/** One referral assigned to the lawyer, unified across the four surfaces. */
+export interface LawyerReferralItem {
+  /** Stable de-duplication key: `${kind}:${refId}`. */
+  id: string;
+  /** What the referral points at. */
+  kind: "case" | "contract" | "consultation";
+  refId: string;
+  /** Every surface this referral must appear in. Never empty. */
+  surfaces: LawyerReferralSurface[];
+  titleFa: string;
+  /** The client's display name, or null when it cannot be resolved. */
+  clientNameFa: string | null;
+  state: string;
+  stateFa: string;
+  /** The case this referral belongs to, when it belongs to one. */
+  caseId: string | null;
+  /** Where the lawyer opens it. */
+  href: string;
+  updatedAt: string;
+}
+
 /** The full lawyer workspace payload. */
 export interface LawyerWorkspace {
   /** The lawyer's own profile, or null when they have not created one. */
@@ -2272,6 +2380,13 @@ export interface LawyerWorkspace {
   stats: LawyerWorkspaceStats;
   inbox: LawyerInboxItem[];
   cases: LawyerCaseItem[];
+  /**
+   * Every referral assigned to this lawyer — contracts sent for legal
+   * review, consultations routed to them, and cases (with or without a
+   * power of attorney) shared through an accepted engagement. De-duplicated
+   * by `id`; nothing the lawyer was not referred to ever appears here.
+   */
+  referrals: LawyerReferralItem[];
 }
 
 // ---------------------------------------------------------------------------

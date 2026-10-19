@@ -13,10 +13,34 @@
 // Membership on one case NEVER grants access to another case. A `pending`
 // member (a lawyer awaiting acceptance) sees only a minimal summary and can
 // never read documents or private notes.
+//
+// The membership row is keyed by the account's USER id. Legacy rows written
+// before the engagement route stored the lawyer PROFILE id, so the lookup
+// also tries that id (`caseMemberAccountIds`) — the same person must never
+// lose access because of how an old row was written.
 // ============================================================
 
-import { getCaseById, getActiveCaseMember, type DbCase, type DbCaseMember } from "@/lib/case-db";
+import {
+  getCaseById,
+  getActiveCaseMemberAny,
+  type DbCase,
+  type DbCaseMember,
+} from "@/lib/case-db";
+import { getLawyerProfileByUserId } from "@/lib/lawyer-db";
 import type { CaseMemberRole } from "@legalir/types";
+
+/**
+ * Every id the SAME person may be keyed by in `case_members`.
+ *
+ * New rows key the membership by the account's USER id, which is what
+ * `resolveCaseAccess` receives. Rows written before the engagement route was
+ * corrected store the lawyer PROFILE id instead; a referred lawyer must keep
+ * their access, so both ids are tried, user id first.
+ */
+export function caseMemberAccountIds(userId: string): string[] {
+  const profile = getLawyerProfileByUserId(userId);
+  return profile && profile.id !== userId ? [userId, profile.id] : [userId];
+}
 
 export interface CaseAccess {
   case: DbCase;
@@ -59,7 +83,7 @@ export function resolveCaseAccess(userId: string, caseId: string): CaseAccess | 
     };
   }
 
-  const member = getActiveCaseMember(caseId, userId);
+  const member = getActiveCaseMemberAny(caseId, caseMemberAccountIds(userId));
   if (!member) return null;
 
   const role = member.role;

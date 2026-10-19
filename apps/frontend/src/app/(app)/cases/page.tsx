@@ -587,9 +587,19 @@ export default function CasesPage() {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
-                      {c.title}
-                    </h3>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
+                        {c.title}
+                      </h3>
+                      {/* A case opened through an accepted referral is
+                          labelled so it is never mistaken for one the caller
+                          created — read access, not ownership. */}
+                      {c.access === "assigned" && (
+                        <span className="shrink-0 rounded-full bg-primary-container px-2 py-0.5 text-caption text-primary-on">
+                          ارجاع‌شده به شما
+                        </span>
+                      )}
+                    </div>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
                       <span className="font-medium text-on-surface-variant">{CASE_CATEGORY_FA[c.category]}</span>

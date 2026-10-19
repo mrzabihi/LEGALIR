@@ -91,6 +91,46 @@ export function listLawyerReviews(contractId: string): LawyerReviewRequest[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/**
+ * Every review request assigned to a specific lawyer, newest first.
+ *
+ * `lawyerId` is the lawyer PROFILE id — the id stored on the request. This
+ * is the only scope the lawyer's referral view uses, so an unassigned
+ * (`MATCHING`) request never appears in anybody's queue.
+ */
+export function listLawyerReviewsForLawyer(lawyerId: string): LawyerReviewRequest[] {
+  return readTable<LawyerReviewRequest>(T_LAWYER)
+    .filter((r) => r.lawyerId === lawyerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * States in which a referral still grants the named lawyer read access.
+ *
+ * `DECLINED`, `EXPIRED` and `CANCELLED` end the relationship: the lawyer
+ * turned the work down (or it lapsed), so the contract must disappear from
+ * their surfaces and the read guard must answer 404 again. `COMPLETED`
+ * stays live on purpose — the lawyer keeps read access to work they did.
+ */
+const LIVE_REFERRAL_STATES: ReadonlySet<string> = new Set([
+  "REQUESTED",
+  "MATCHING",
+  "AWAITING_ACCEPTANCE",
+  "ACCEPTED",
+  "IN_PROGRESS",
+  "COMPLETED",
+]);
+
+/** True when a review request still counts as an active referral. */
+export function isLiveReferral(review: Pick<LawyerReviewRequest, "state">): boolean {
+  return LIVE_REFERRAL_STATES.has(review.state);
+}
+
+/** Live referrals for a lawyer — the only scope their surfaces may show. */
+export function listLiveLawyerReviewsForLawyer(lawyerId: string): LawyerReviewRequest[] {
+  return listLawyerReviewsForLawyer(lawyerId).filter(isLiveReferral);
+}
+
 export function getLawyerReview(
   contractId: string,
   reviewId: string

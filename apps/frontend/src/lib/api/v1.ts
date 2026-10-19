@@ -98,6 +98,7 @@ import type {
   IntakeDraft,
   LegalRequest,
   LegalRequestEvent,
+  LegalRequestListItem,
   LegalRequestDiscovery,
   LegalRequestState,
   LawyerWorkspace,
@@ -1097,8 +1098,13 @@ export interface LegalRequestDetail {
   events: LegalRequestEvent[];
 }
 
-export function fetchLegalRequests(): Promise<LegalRequest[]> {
-  return apiClient.get<LegalRequest[]>("/api/v1/legal-requests");
+/**
+ * The caller's consultations. Each row carries `access`: a lawyer sees the
+ * requests routed to them (`assigned`) alongside their own (`owner`), and
+ * the UI must label the two differently.
+ */
+export function fetchLegalRequests(): Promise<LegalRequestListItem[]> {
+  return apiClient.get<LegalRequestListItem[]>("/api/v1/legal-requests");
 }
 
 export function createLegalRequest(

@@ -39,6 +39,19 @@ import {
 import { maskMobileMiddle } from "@/lib/admin/mobile";
 import { recordAudit } from "@/lib/admin/audit";
 import { requestMeta, readJson } from "@/lib/admin/http";
+// §6/§7 — the per-service prices and the settlement account are the SAME
+// records the lawyer portal writes. The dossier reads them through the store
+// so the operator never sees a parallel copy, and the bank account is rendered
+// in its MASKED form — the full IBAN never leaves the owner's own surface.
+import {
+  getBankRecord,
+  listBankEvents,
+  listLawyerRateChanges,
+  listLawyerRates,
+  maskBankAccount,
+  reviewBankAccount,
+} from "@/lib/lawyer-portal/store";
+import type { LawyerBankReview } from "@legalir/types";
 import {
   lawyerDecisionBucket,
   type LawyerProfile,
@@ -115,6 +128,20 @@ export async function GET(
         reviews: reviews.length,
         openReports: reviews.reduce((n, r) => n + r.openReports, 0),
       },
+      // §6 — the prices the lawyer published, with the append-only history so
+      // an operator can see when a rate moved and who moved it.
+      rates: listLawyerRates(id),
+      rateChanges: listLawyerRateChanges(id).slice(0, 30),
+      // §7 — the settlement account in MASKED form plus its review trail. The
+      // drawer must never render the full IBAN; only the owner's own page does.
+      bank: (() => {
+        const record = getBankRecord(id);
+        return {
+          ...record,
+          account: record.account ? maskBankAccount(record.account) : null,
+        };
+      })(),
+      bankEvents: listBankEvents(id).slice(0, 30),
     },
   });
 }
@@ -250,4 +277,44 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: { id: updated.id, profile: updated } });
+}
+
+// ---------------------------------------------------------------------------
+// §7 — settlement-account review
+// ---------------------------------------------------------------------------
+// A POST sub-action so the review decision is a single, auditable write. The
+// action and its reason are validated by the store (a correction request must
+// carry a reason), the account is never returned in full, and the decision is
+// recorded on the account AND as an immutable event.
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = requirePermission(request, "admin:lawyer:update");
+  if (!auth.ok) return auth.response;
+  const { id } = await params;
+
+  const body = (await readJson(request)) as (LawyerBankReview & { action?: string }) | null;
+  if (!body || (body.action !== "VERIFY" && body.action !== "REQUEST_CORRECTION")) {
+    return NextResponse.json(
+      { code: "VALIDATION_ERROR", message: "نوع تصمیم معتبر نیست" },
+      { status: 400 }
+    );
+  }
+
+  const res = reviewBankAccount({
+    lawyerId: id,
+    actor: { userId: auth.ctx.userId, role: auth.ctx.role },
+    review: { action: body.action, reason: body.reason },
+  });
+  if (!res.ok) {
+    return NextResponse.json({ code: "VALIDATION_ERROR", message: res.messageFa }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    data: {
+      ...res.record,
+      account: res.record.account ? maskBankAccount(res.record.account) : null,
+    },
+  });
 }

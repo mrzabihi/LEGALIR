@@ -140,10 +140,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // --- Guest-only routes: redirect to dashboard if already authenticated ---
+  // --- Guest-only routes: redirect to the session's workspace if signed in ---
   if (isGuestOnly(pathname)) {
     if (sessionCookie) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      // The login routes write `legalir-home` from the user's role, so a
+      // lawyer is never bounced into the consumer dashboard. Only internal
+      // paths are honoured — the cookie is httpOnly but still untrusted
+      // input for a redirect target.
+      const home = request.cookies.get("legalir-home")?.value;
+      const target = home && home.startsWith("/") && !home.startsWith("//") ? home : "/dashboard";
+      return NextResponse.redirect(new URL(target, request.url));
     }
     return NextResponse.next();
   }

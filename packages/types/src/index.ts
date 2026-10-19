@@ -10,6 +10,7 @@ import type {
   PlatformRole,
   OrgMemberRole,
 } from "./platform";
+import type { CaseMemberRole } from "./case-management";
 
 // The feature-flag status union is re-exported below via `export * from
 // "./admin"`; importing it here brings the name into local scope for the
@@ -65,6 +66,12 @@ export interface OtpResult {
   sessionId: string;
   user: UserSummary;
   isNewUser: boolean;
+  /**
+   * The workspace the SERVER decided this account opens after sign-in
+   * (`/lawyer` for a lawyer, `/dashboard` otherwise). Absent on legacy
+   * payloads — the client then falls back to the consumer dashboard.
+   */
+  redirectTo?: string;
 }
 
 export interface UserSummary {
@@ -1647,6 +1654,14 @@ export interface CaseListItem {
   lifecycle?: "ACTIVE" | "ON_HOLD" | "CLOSED" | "ARCHIVED";
   /** The human-facing LEGALIR reference (LGL-CASE-…). */
   internalRef?: string;
+  /**
+   * How the caller reached this case. Omitted/`owner` means they own it;
+   * `assigned` means a lawyer opened it through an accepted referral, so the
+   * UI labels it as referred and never as their own.
+   */
+  access?: "owner" | "assigned";
+  /** The caller's role on an `assigned` case. */
+  accessRole?: CaseMemberRole;
 }
 
 export type CaseTimelineEventType =
@@ -3019,6 +3034,11 @@ export * from "./property-contract";
 // Legal Operating Platform (account types, RBAC, lawyers, orgs, requests)
 // ---------------------------------------------------------------------------
 export * from "./platform";
+
+// ---------------------------------------------------------------------------
+// Lawyer Portal (referral workflow, SLA clock, rates, settlement account)
+// ---------------------------------------------------------------------------
+export * from "./lawyer-portal";
 
 // ---------------------------------------------------------------------------
 // Admin panel (audit, flags, orders, settlements, AI/RAG, support)

@@ -372,13 +372,62 @@ export function normalizeDeadline(row: DbCaseDeadline): DbCaseDeadline {
 // Case CRUD
 // ---------------------------------------------------------------------------
 
+/**
+ * Cases the account collaborates on through an ACTIVE membership row that is
+ * not ownership. `pending` is excluded on purpose: a lawyer who has not
+ * accepted an engagement has no case access (`resolveCaseAccess`), so the
+ * case must not appear in their list either.
+ *
+ * `accountIds` carries every id the SAME person may be keyed by — their user
+ * id and, for legacy rows written before the engagement route was fixed,
+ * their lawyer profile id. Callers pass the full set (see
+ * `caseMemberAccountIds` in `lib/cases/access.ts`); a case is listed once
+ * even when several rows match.
+ */
+export function listReferredCases(accountIds: readonly string[]): DbCase[] {
+  const ids = new Set(accountIds);
+  const referredIds = new Set(
+    readTable<DbCaseMember>("case_members")
+      .filter(
+        (m) =>
+          ids.has(m.account_id) &&
+          m.status === "active" &&
+          m.role !== "owner" &&
+          m.role !== "pending"
+      )
+      .map((m) => m.case_id)
+  );
+  if (referredIds.size === 0) return [];
+  return readTable<DbCase>("cases")
+    .filter((c) => referredIds.has(c.id))
+    .map(normalizeCase);
+}
+
 export function listCases(
   userId: string,
-  params?: { status?: string; category?: string; priority?: string; search?: string; page?: number; pageSize?: number }
+  params?: {
+    status?: string;
+    category?: string;
+    priority?: string;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+    /**
+     * Include cases shared with this account by an accepted referral. Pass
+     * every id the caller may be keyed by; when omitted, only `userId` is
+     * used.
+     */
+    includeAssigned?: readonly string[];
+  }
 ): { items: DbCase[]; total: number } {
-  let rows = readTable<DbCase>("cases")
-    .filter((c) => c.user_id === userId)
-    .map(normalizeCase);
+  const owned = readTable<DbCase>("cases").filter((c) => c.user_id === userId);
+  let rows: DbCase[] = owned.map(normalizeCase);
+  if (params?.includeAssigned) {
+    // Referral visibility is ADDITIVE and de-duplicated by case id: a case
+    // the caller both owns and collaborates on is listed exactly once.
+    const ownedIds = new Set(owned.map((c) => c.id));
+    rows = [...rows, ...listReferredCases(params.includeAssigned).filter((c) => !ownedIds.has(c.id))];
+  }
   if (params?.status) rows = rows.filter((c) => c.status === params.status);
   if (params?.category) rows = rows.filter((c) => c.category === params.category);
   if (params?.priority) rows = rows.filter((c) => c.priority === params.priority);
@@ -810,6 +859,25 @@ export function getActiveCaseMember(caseId: string, accountId: string): DbCaseMe
   return readTable<DbCaseMember>("case_members").find(
     (m) => m.case_id === caseId && m.account_id === accountId && m.status === "active"
   );
+}
+
+/**
+ * The caller's active membership row, accepting every id that may key the
+ * SAME person. `accountIds` is ordered by preference: the user id first,
+ * then any legacy lawyer-profile-keyed row.
+ */
+export function getActiveCaseMemberAny(
+  caseId: string,
+  accountIds: readonly string[]
+): DbCaseMember | undefined {
+  const members = readTable<DbCaseMember>("case_members");
+  for (const accountId of accountIds) {
+    const found = members.find(
+      (m) => m.case_id === caseId && m.account_id === accountId && m.status === "active"
+    );
+    if (found) return found;
+  }
+  return undefined;
 }
 
 export function addCaseMember(data: {

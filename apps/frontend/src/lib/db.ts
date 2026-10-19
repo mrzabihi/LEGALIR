@@ -21,13 +21,34 @@ import { seedSampleContract } from "./contracts/sample";
 import { listRenewalReminders } from "./contracts/db";
 import { seedDemoLawyers } from "./lawyer-seed";
 import { getPlanByCode } from "./usage/plans";
+import {
+  DEFAULT_SLA_SERVICE_KEY,
+  SLA_HEALTH_FA,
+  isStaffRole,
+  roleHasPermission,
+  type LegalRequestSla,
+} from "@legalir/types";
+import {
+  DEFAULT_WORK_CALENDAR,
+  defaultPolicy,
+  formatRemaining,
+  slaSnapshot,
+} from "./lawyer-portal/sla";
 import type {
+  LegalRequest,
+  LegalRequestEvent,
+  LawyerProfile,
+  MessageThread,
   NotificationItem,
   PlatformAccountType,
   PlatformRole,
+  PlatformWorkCalendar,
   PlanEntitlementSnapshot,
   RegistrationIntent,
   RegistrationOrigin,
+  RequestAction,
+  SecureMessage,
+  ServiceSlaPolicy,
   StoredSubscription,
   OnboardingType,
   OnboardingStatus,
@@ -1673,6 +1694,376 @@ function readNotificationReads(userId: string): NotificationReadRow[] {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Request-workflow notifications
+// ---------------------------------------------------------------------------
+// The referral workflow is the second large source of real events. As with
+// points/activities, these are DERIVED from the records the workflow already
+// writes — never a duplicate inbox:
+//
+//   legal_request_events → referral, accept/decline, start, info request,
+//                          completion, cancellation, re-referral
+//   secure_messages      → the actual conversation on the request's thread
+//   legal_requests.sla   → the live clock (at-risk / breached)
+//
+// Every id embeds the source row id, so one event yields one stable
+// notification and a repeated derivation can never duplicate it. Delivery in
+// this product is in-app only — the persisted read receipt (`notification_
+// reads`) is the delivery record for each id.
+//
+// Visibility:
+//   client  → their own requests only, public events and the lawyer's
+//             messages; internal notes are never projected.
+//   lawyer  → requests assigned to their own profile; the client's messages.
+//   staff   → SLA and workflow events for every request, gated on
+//             `admin:requests:read`; internal notes included.
+//   anyone  → never another participant's conversation.
+
+type WorkflowPerspective = "client" | "lawyer" | "staff";
+
+interface WorkflowEventNotification {
+  title: string;
+  tone: NotificationItem["tone"];
+  actionLabel: string;
+  /** `RESPONSE` items follow the `lawyerResponse` preference. */
+  class: "RESPONSE" | "CASE";
+}
+
+function isWorkflowStaff(userId: string): boolean {
+  const role = findUserById(userId)?.role as PlatformRole | undefined;
+  return !!role && isStaffRole(role) && roleHasPermission(role, "admin:requests:read");
+}
+
+function eventNotification(
+  event: LegalRequestEvent,
+  perspective: WorkflowPerspective
+): WorkflowEventNotification | null {
+  // Internal notes are the operator's private record — never delivered.
+  if (event.noteVisibility === "internal" && perspective !== "staff") return null;
+
+  switch (event.toState) {
+    case "LAWYER_SELECTED":
+    case "WAITING_FOR_ACCEPTANCE":
+      return perspective === "client"
+        ? {
+            title: "درخواست شما به وکیل ارجاع شد",
+            tone: "neutral",
+            actionLabel: "مشاهده درخواست",
+            class: "CASE",
+          }
+        : perspective === "lawyer"
+          ? {
+              title: "درخواست جدید برای شما",
+              tone: "warning",
+              actionLabel: "بررسی درخواست",
+              class: "CASE",
+            }
+          : {
+              title: "درخواست به وکیل ارجاع شد",
+              tone: "neutral",
+              actionLabel: "مشاهده درخواست",
+              class: "CASE",
+            };
+    case "ACCEPTED":
+      return {
+        title: perspective === "client" ? "وکیل درخواست شما را پذیرفت" : "درخواست پذیرفته شد",
+        tone: "success",
+        actionLabel: "مشاهده درخواست",
+        class: "RESPONSE",
+      };
+    case "DECLINED":
+      return {
+        title: perspective === "client" ? "وکیل درخواست شما را رد کرد" : "درخواست رد شد",
+        tone: "warning",
+        actionLabel: "مشاهده درخواست",
+        class: "RESPONSE",
+      };
+    case "IN_PROGRESS":
+      return perspective === "client"
+        ? {
+            title:
+              event.fromState === "WAITING_FOR_CLIENT"
+                ? "اطلاعات شما دریافت شد و کار ادامه یافت"
+                : "وکیل کار روی درخواست را آغاز کرد",
+            tone: "neutral",
+            actionLabel: "مشاهده درخواست",
+            class: "CASE",
+          }
+        : {
+            title: "کار روی درخواست آغاز شد",
+            tone: "neutral",
+            actionLabel: "مشاهده درخواست",
+            class: "CASE",
+          };
+    case "WAITING_FOR_CLIENT":
+      return {
+        title:
+          perspective === "client"
+            ? "وکیل به اطلاعات بیشتری نیاز دارد"
+            : "درخواست منتظر پاسخ کاربر است",
+        tone: "warning",
+        actionLabel: perspective === "client" ? "پاسخ به وکیل" : "مشاهده درخواست",
+        class: "RESPONSE",
+      };
+    case "COMPLETED":
+      return {
+        title: perspective === "client" ? "نتیجهٔ کار آماده است" : "درخواست تکمیل شد",
+        tone: "success",
+        actionLabel: perspective === "client" ? "مشاهده نتیجه" : "مشاهده درخواست",
+        class: "CASE",
+      };
+    case "CANCELLED":
+      return {
+        title: "درخواست لغو شد",
+        tone: "error",
+        actionLabel: "مشاهده درخواست",
+        class: "CASE",
+      };
+    default:
+      return null;
+  }
+}
+
+function slaNotification(
+  sla: LegalRequestSla,
+  policy: ServiceSlaPolicy,
+  calendar: PlatformWorkCalendar,
+  requestState: LegalRequest["state"]
+): {
+  title: string;
+  message: string;
+  tone: NotificationItem["tone"];
+  fingerprint: string;
+  /** When the alert became true — deterministic so the feed sorts stably. */
+  at: string;
+} | null {
+  const snapshot = slaSnapshot({ state: sla, policy, calendar, requestState });
+  if (!snapshot.atRisk && !snapshot.breached) return null;
+
+  const phaseFa = snapshot.phase === "COMPLETION" ? "تکمیل کار" : "پاسخ‌گویی";
+  const title = snapshot.breached
+    ? `مهلت ${phaseFa} گذشته است`
+    : `مهلت ${phaseFa} نزدیک است`;
+  const message =
+    snapshot.remainingMs === null
+      ? SLA_HEALTH_FA[snapshot.health]
+      : formatRemaining(snapshot.remainingMs);
+
+  const dueMs = snapshot.dueAt ? Date.parse(snapshot.dueAt) : Number.NaN;
+  const warnMs = Number.isFinite(dueMs)
+    ? dueMs - Math.max(0, policy.warnBeforeHours) * 3_600_000
+    : Number.NaN;
+
+  return {
+    title,
+    message,
+    tone: snapshot.breached ? "error" : "warning",
+    // The due instant is part of the fingerprint: a manual override opens a
+    // NEW alert instead of resurrecting the old one, and an escalation from
+    // at-risk to breached becomes a distinct item.
+    fingerprint: `${sla.serviceKey}:${snapshot.phase}:${snapshot.dueAt ?? "none"}:${snapshot.health}`,
+    at: snapshot.breached
+      ? sla.breachedAt ?? new Date().toISOString()
+      : Number.isFinite(warnMs)
+        ? new Date(warnMs).toISOString()
+        : new Date().toISOString(),
+  };
+}
+
+function workflowNotifications(userId: string): NotificationItem[] {
+  const requests = readTable<LegalRequest>("legal_requests");
+  if (requests.length === 0) return [];
+
+  const profiles = new Map<string, LawyerProfile>();
+  for (const profile of readTable<LawyerProfile>("lawyer_profiles")) {
+    profiles.set(profile.id, profile);
+  }
+
+  const events = readTable<LegalRequestEvent>("legal_request_events");
+  const actions = readTable<RequestAction>("request_actions");
+  const threads = readTable<MessageThread>("message_threads");
+  const messages = readTable<SecureMessage>("secure_messages");
+  const policies = new Map<string, ServiceSlaPolicy>();
+  for (const policy of readTable<ServiceSlaPolicy>("sla_policies")) {
+    policies.set(policy.serviceKey, policy);
+  }
+  const calendar = readTable<PlatformWorkCalendar>("platform_work_calendar")[0] ?? DEFAULT_WORK_CALENDAR;
+
+  const prefs = getPreferences(userId).notifications;
+  const staff = isWorkflowStaff(userId);
+  if (!prefs.caseUpdate && !prefs.lawyerResponse && !staff) return [];
+  const allowCase = prefs.caseUpdate || staff;
+  const allowResponse = prefs.lawyerResponse || staff;
+
+  const readIds = new Set(readNotificationReads(userId).map((r) => r.notification_id));
+  const items: NotificationItem[] = [];
+
+  const eventsByRequest = new Map<string, LegalRequestEvent[]>();
+  for (const event of events) {
+    const list = eventsByRequest.get(event.requestId) ?? [];
+    list.push(event);
+    eventsByRequest.set(event.requestId, list);
+  }
+  const actionsByRequest = new Map<string, RequestAction[]>();
+  for (const action of actions) {
+    const list = actionsByRequest.get(action.requestId) ?? [];
+    list.push(action);
+    actionsByRequest.set(action.requestId, list);
+  }
+  const threadIdByRequest = new Map<string, string>();
+  for (const thread of threads) {
+    if (thread.requestId) threadIdByRequest.set(thread.requestId, thread.id);
+  }
+
+  for (const request of requests) {
+    const lawyerUserId = request.selectedLawyerId
+      ? profiles.get(request.selectedLawyerId)?.userId ?? null
+      : null;
+    const isClient = request.userId === userId;
+    const isLawyer = lawyerUserId === userId;
+    if (!isClient && !isLawyer && !staff) continue;
+
+    const perspective: WorkflowPerspective = isClient ? "client" : isLawyer ? "lawyer" : "staff";
+    const href = isClient
+      ? `/consultations/${request.id}`
+      : isLawyer
+        ? `/lawyer/referrals/${request.id}`
+        : "/admin/requests";
+    const requestEvents = eventsByRequest.get(request.id) ?? [];
+
+    // --- State changes ---
+    for (const event of requestEvents) {
+      // Never tell a person what they just did themselves.
+      if (event.actorId === userId) continue;
+      const shape = eventNotification(event, perspective);
+      if (!shape) continue;
+      if (shape.class === "CASE" && !allowCase) continue;
+      if (shape.class === "RESPONSE" && !allowResponse) continue;
+      const id = `request:${request.id}:event:${event.id}`;
+      items.push({
+        id,
+        category: "personal",
+        tone: shape.tone,
+        title: shape.title,
+        message: event.note ?? undefined,
+        createdAt: event.createdAt,
+        read: readIds.has(id),
+        href,
+        actionLabel: shape.actionLabel,
+      });
+    }
+
+    // --- Lawyer opened the request (§4: the client is told) ---
+    // A view is a PUBLIC action row written once per request, so its id is a
+    // stable notification id — re-reading the feed never duplicates it. A
+    // view performed BY this user is not news to them.
+    if (isClient && allowCase) {
+      for (const action of actionsByRequest.get(request.id) ?? []) {
+        if (action.kind !== "VIEWED") continue;
+        if (action.visibility === "internal") continue;
+        if (action.actorId === userId) continue;
+        const id = `request:${request.id}:action:${action.id}`;
+        items.push({
+          id,
+          category: "personal",
+          tone: "neutral",
+          title: "وکیل درخواست شما را بررسی کرد",
+          message: request.title,
+          createdAt: action.createdAt,
+          read: readIds.has(id),
+          href,
+          actionLabel: "مشاهده درخواست",
+        });
+      }
+    }
+
+    // --- Conversation (client ↔ lawyer) ---
+    // Staff do not receive message notifications: the admin surfaces read the
+    // thread directly, and a per-message feed for every operator would be
+    // noise. Message bodies that merely mirror a state event (the decline
+    // reason, the completion summary) are skipped so one act is one item.
+    if (!staff && (isClient || isLawyer)) {
+      const threadId = threadIdByRequest.get(request.id);
+      if (threadId) {
+        const mirrored = new Set(
+          requestEvents.map((e) => e.note).filter((n): n is string => typeof n === "string" && n.length > 0)
+        );
+        const visibleFrom = isClient ? "lawyer" : "client";
+        for (const message of messages) {
+          if (message.threadId !== threadId) continue;
+          if (message.senderUserId === userId) continue;
+          if (mirrored.has(message.body)) continue;
+
+          if (visibleFrom === "lawyer") {
+            const fromLawyer = lawyerUserId !== null && message.senderUserId === lawyerUserId;
+            const fromStaff = isStaffRole(message.senderRole);
+            if (!fromLawyer && !fromStaff) continue;
+          } else if (message.senderUserId !== request.userId) {
+            continue;
+          }
+          if (!allowResponse) continue;
+
+          const id = `request:${request.id}:message:${message.id}`;
+          items.push({
+            id,
+            category: "personal",
+            tone: "neutral",
+            title: visibleFrom === "lawyer" ? "پیام جدید از وکیل" : "پیام جدید از کاربر",
+            message: message.body,
+            createdAt: message.createdAt,
+            read: readIds.has(id),
+            href,
+            actionLabel: "مشاهده گفت‌وگو",
+          });
+        }
+      }
+    }
+
+    // --- Internal workflow notes for staff (pause/resume/re-referral) ---
+    if (staff) {
+      for (const action of actionsByRequest.get(request.id) ?? []) {
+        if (action.kind !== "REASSIGNED" && action.kind !== "SLA_OVERRIDDEN") continue;
+        const id = `request:${request.id}:action:${action.id}`;
+        items.push({
+          id,
+          category: "personal",
+          tone: action.kind === "SLA_OVERRIDDEN" ? "warning" : "neutral",
+          title: action.kind === "REASSIGNED" ? "درخواست به وکیل دیگری ارجاع شد" : "مهلت به‌صورت دستی تغییر کرد",
+          message: action.note ?? undefined,
+          createdAt: action.createdAt,
+          read: readIds.has(id),
+          href,
+          actionLabel: "مشاهده درخواست",
+        });
+      }
+    }
+
+    // --- SLA clock (at-risk / breached) ---
+    if (allowCase && request.sla) {
+      const serviceKey = request.sla.serviceKey || DEFAULT_SLA_SERVICE_KEY;
+      const policy =
+        policies.get(serviceKey) ?? defaultPolicy(serviceKey, "پیش‌فرض");
+      const alert = slaNotification(request.sla, policy, calendar, request.state);
+      if (alert) {
+        const id = `request:${request.id}:sla:${alert.fingerprint}`;
+        items.push({
+          id,
+          category: "personal",
+          tone: alert.tone,
+          title: alert.title,
+          message: alert.message,
+          createdAt: alert.at,
+          read: readIds.has(id),
+          href,
+          actionLabel: "مشاهده درخواست",
+        });
+      }
+    }
+  }
+
+  return items;
+}
+
 /**
  * Build the canonical notification feed for a user, newest first.
  * Pure derivation — calling this twice yields identical ids, so read
@@ -1788,6 +2179,9 @@ export function deriveNotifications(userId: string): NotificationItem[] {
       actionLabel: ann.actionLabel ?? undefined,
     });
   }
+
+  // --- Referral workflow (requests, threads, SLA) ---
+  items.push(...workflowNotifications(userId));
 
   return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

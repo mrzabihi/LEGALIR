@@ -14,6 +14,8 @@ import {
   cleanupExpiredSessions,
 } from "@/lib/db";
 import { clientIpFromHeaders } from "@/lib/user-agent";
+import { getUserRole, findActiveMembership } from "@/lib/rbac";
+import { homeRouteForRole } from "@/lib/auth/home-route";
 import { normalizeIranMobile, toNationalMobile } from "@legalir/validation";
 
 export async function POST(request: Request) {
@@ -108,12 +110,17 @@ export async function POST(request: Request) {
       status: "active",
     };
 
+    // Server-decided post-login workspace (see lib/auth/home-route.ts).
+    const membership = findActiveMembership(foundUser.id);
+    const role = membership ? membership.role : getUserRole(foundUser);
+
     const response = NextResponse.json(
       {
         data: {
           sessionId: session.id,
           user: userResponse,
           isNewUser: false,
+          redirectTo: homeRouteForRole(role),
         },
         meta: {
           requestId: crypto.randomUUID(),
@@ -129,6 +136,17 @@ export async function POST(request: Request) {
       sameSite: "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
+
+    // Session-scoped home route (see lib/auth/home-route.ts). Middleware
+    // reads it to bounce a signed-in visitor of a guest page to the correct
+    // workspace without touching the user table at the edge.
+    response.cookies.set("legalir-home", homeRouteForRole(role), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
     });
 
     return response;

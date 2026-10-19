@@ -8,6 +8,8 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { findUserByMobile, createUser, createSession, cleanupExpiredSessions, MobileConflictError, ensureUserPublicIds } from '@/lib/db';
 import { clientIpFromHeaders } from '@/lib/user-agent';
+import { getUserRole, findActiveMembership } from '@/lib/rbac';
+import { homeRouteForRole } from '@/lib/auth/home-route';
 import { toNationalMobile } from '@legalir/validation';
 
 const OTP_CODE = '405405';
@@ -109,6 +111,11 @@ export async function POST(request: Request) {
       ip: clientIpFromHeaders(request.headers),
     });
 
+    // The post-login destination is a server decision: a lawyer lands in the
+    // lawyer workbench even if the browser asked for the consumer dashboard.
+    const membership = findActiveMembership(user.id);
+    const role = membership ? membership.role : getUserRole(user);
+
     const response = NextResponse.json({
       data: {
         sessionId: session.id,
@@ -122,11 +129,23 @@ export async function POST(request: Request) {
         },
         mobileE164: user.mobile,
         mobileDisplay: toNationalMobile(user.mobile),
+        redirectTo: homeRouteForRole(role),
       },
       meta: { requestId: crypto.randomUUID() },
     });
 
     response.cookies.set('legalir-session', session.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    // The workspace home for THIS session, so the middleware can send a
+    // signed-in visitor of a guest route to the right place without reading
+    // the user table at the edge.
+    response.cookies.set('legalir-home', homeRouteForRole(role), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

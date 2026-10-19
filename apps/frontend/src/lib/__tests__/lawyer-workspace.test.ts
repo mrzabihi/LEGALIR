@@ -49,6 +49,18 @@ vi.mock("../case-db", () => ({
   getCaseById: (caseId: string) => cases.get(caseId),
   getCaseDeadlines: (caseId: string) => deadlines.get(caseId) ?? [],
   getCaseTasks: (caseId: string) => tasks.get(caseId) ?? [],
+  // Case sharing is a separate referral source. These tests drive cases
+  // through the requests that produced them, so none is shared here.
+  getCaseRepresentations: () => [],
+  listReferredCases: () => [],
+  getActiveCaseMemberAny: () => null,
+}));
+
+// The workspace also projects contract reviews; these tests pin the
+// request-driven inbox/cases, so no contract is referred to this lawyer.
+vi.mock("../contracts/db", () => ({ getContractById: () => null }));
+vi.mock("../contracts/review-db", () => ({
+  listLiveLawyerReviewsForLawyer: () => [],
 }));
 
 import { buildLawyerWorkspace, UPCOMING_DEADLINE_DAYS } from "../lawyer-workspace";

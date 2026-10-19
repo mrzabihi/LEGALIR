@@ -36,6 +36,13 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 0, // Expire immediately
     });
+    response.cookies.set("legalir-home", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
 
     return response;
   } catch (err) {
@@ -52,6 +59,13 @@ export async function POST(request: Request) {
     );
 
     response.cookies.set("legalir-session", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+    response.cookies.set("legalir-home", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

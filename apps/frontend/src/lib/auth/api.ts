@@ -182,6 +182,8 @@ export interface PasswordLoginResult {
     status: string;
   };
   isNewUser: boolean;
+  /** Server-decided workspace home (`/lawyer` for a lawyer, `/dashboard` otherwise). */
+  redirectTo?: string;
 }
 
 export async function passwordLoginApi(payload: PasswordLoginPayload): Promise<ApiSuccess<PasswordLoginResult>> {

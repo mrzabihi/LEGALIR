@@ -80,7 +80,18 @@ export default function ConsultationsPage() {
                 className="flex items-center justify-between gap-4 rounded-large border border-divider bg-surface p-5 transition-all hover:border-primary hover:shadow-elevation-1"
               >
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-body-1 font-semibold text-on-surface">{r.title}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="truncate text-body-1 font-semibold text-on-surface">
+                      {r.title}
+                    </h2>
+                    {/* A consultation routed to this lawyer is marked so it
+                        can never be mistaken for one they opened. */}
+                    {r.access === "assigned" && (
+                      <span className="shrink-0 rounded-full bg-primary-container px-2 py-0.5 text-caption text-primary-on">
+                        ارجاع‌شده به شما
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-1 text-caption text-muted">
                     {LEGAL_CATEGORY_FA[r.category] ?? r.category}
                   </p>

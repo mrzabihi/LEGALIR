@@ -13,6 +13,7 @@ import {
   createCaseProceeding,
   createCaseTask,
 } from "@/lib/case-db";
+import { resolveCaseAccess, caseMemberAccountIds } from "@/lib/cases/access";
 import { recordActivity } from "@/lib/db";
 import type { CaseCreateRequestV2 } from "@legalir/types";
 
@@ -29,6 +30,10 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ code: "UNAUTHORIZED", message: "لطفاً وارد شوید" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
+  // A referred lawyer sees the cases shared with them through an accepted
+  // engagement, alongside the cases they own. `listCases` de-duplicates by
+  // case id, so a case that is both owned and shared appears once.
+  const accountIds = caseMemberAccountIds(userId);
   const result = listCases(userId, {
     status: searchParams.get("status") || undefined,
     category: searchParams.get("category") || undefined,
@@ -36,22 +41,29 @@ export async function GET(req: NextRequest) {
     search: searchParams.get("search") || undefined,
     page: Number(searchParams.get("page")) || 1,
     pageSize: Number(searchParams.get("pageSize")) || 20,
+    includeAssigned: accountIds,
   });
 
-  const items = result.items.map((c) => ({
-    id: c.id,
-    title: c.title,
-    category: c.category,
-    status: c.status,
-    priority: c.priority,
-    lifecycle: c.lifecycle ?? "ACTIVE",
-    internalRef: c.internal_ref ?? "",
-    documentCount: getCaseDocuments(c.id).length,
-    contractCount: getCaseContractLinks(c.id).length,
-    taskCount: getCaseTasks(c.id).length,
-    createdAt: c.created_at,
-    updatedAt: c.updated_at,
-  }));
+  const items = result.items.map((c) => {
+    const access = resolveCaseAccess(userId, c.id);
+    const assigned = access !== null && !access.isOwner;
+    return {
+      id: c.id,
+      title: c.title,
+      category: c.category,
+      status: c.status,
+      priority: c.priority,
+      lifecycle: c.lifecycle ?? "ACTIVE",
+      internalRef: c.internal_ref ?? "",
+      documentCount: getCaseDocuments(c.id).length,
+      contractCount: getCaseContractLinks(c.id).length,
+      taskCount: getCaseTasks(c.id).length,
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+      access: assigned ? ("assigned" as const) : ("owner" as const),
+      accessRole: access?.role,
+    };
+  });
 
   return NextResponse.json({
     data: {

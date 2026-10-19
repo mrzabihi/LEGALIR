@@ -18,8 +18,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/rbac";
-import { listRequestsForUser, createRequest } from "@/lib/legal-request-db";
-import { getLawyerProfileById } from "@/lib/lawyer-db";
+import {
+  listRequestsForLawyer,
+  listRequestsForUser,
+  createRequest,
+} from "@/lib/legal-request-db";
+import { getLawyerProfileById, getLawyerProfileByUserId } from "@/lib/lawyer-db";
 import { isSupportedCategory } from "@/lib/intake-schemas";
 import { runIdempotent } from "@/lib/api/idempotency-store";
 import type { LegalRequest } from "@legalir/types";
@@ -32,7 +36,23 @@ interface ErrorPayload {
 export async function GET(request: NextRequest) {
   const auth = requireAuth(request);
   if (!auth.ok) return auth.response;
-  return NextResponse.json({ data: listRequestsForUser(auth.ctx.userId) });
+
+  // The caller's own requests, plus — when they hold a lawyer profile —
+  // every consultation routed to them. `access` tells the UI which is which.
+  // De-duplication is by request id, so a lawyer requesting their own
+  // consultation from themselves still sees it once.
+  const owned = listRequestsForUser(auth.ctx.userId).map((r) => ({ ...r, access: "owner" as const }));
+  const seen = new Set(owned.map((r) => r.id));
+
+  const lawyerProfile = getLawyerProfileByUserId(auth.ctx.userId);
+  const assigned = lawyerProfile
+    ? listRequestsForLawyer(lawyerProfile.id)
+        .filter((r) => !seen.has(r.id))
+        .map((r) => ({ ...r, access: "assigned" as const }))
+    : [];
+
+  const items = [...owned, ...assigned].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return NextResponse.json({ data: items });
 }
 
 export async function POST(request: NextRequest) {

@@ -60,6 +60,7 @@ import {
   IconLogout,
   IconLibrary,
   IconSparkle,
+  IconClock,
 } from "@/lib/icons";
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
@@ -83,6 +84,7 @@ const ICONS: Record<string, IconComponent> = {
   Sparkle: IconSparkle,
   Shield: IconShield,
   Settings: IconSettings,
+  Clock: IconClock,
 };
 
 const RAIL_W = "w-20";

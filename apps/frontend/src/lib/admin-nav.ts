@@ -232,6 +232,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
     permission: "admin:staff:read",
   },
   {
+    key: "sla",
+    path: "/admin/settings/sla",
+    titleFa: "مهلت‌ها و تقویم کاری",
+    hintFa: "SLA هر خدمت، ساعت کاری و تعطیلات",
+    icon: "Clock",
+    permission: "admin:settings:read",
+  },
+  {
     key: "settings",
     path: "/admin/settings",
     titleFa: "تنظیمات سازمان و اتصال‌ها",

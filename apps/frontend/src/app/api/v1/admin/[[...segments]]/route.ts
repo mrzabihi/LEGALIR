@@ -27,6 +27,7 @@ import {
   ANNOUNCEMENT_STATUSES,
   type Permission,
   type PlatformRole,
+  type LegalRequest,
   type LegalRequestState,
   type LegalRequestDiscovery,
   type AnnouncementAudience,
@@ -212,6 +213,25 @@ import {
   assignRequestLawyer,
   transitionRequest,
 } from "@/lib/legal-request-db";
+// §5/§8 — SLA settings and the per-request deadline / re-referral controls
+// write through the SAME store the lawyer portal uses, so an operator's edit
+// and a lawyer's clock can never disagree. Both paths append to
+// `request_actions` and to the platform audit trail.
+import {
+  ensureRequestSla,
+  getSlaPolicyForService,
+  getWorkCalendar,
+  listRequestActions,
+  listSlaPolicies,
+  observeSla,
+  overrideRequestDeadline,
+  reassignRequest,
+  saveSlaPolicy,
+  saveWorkCalendar,
+  type SlaPolicyInput,
+} from "@/lib/lawyer-portal/store";
+import { slaSnapshot } from "@/lib/lawyer-portal/sla";
+import type { SlaPhase } from "@legalir/types";
 import type {
   AiProviderKind,
   AdjustmentKind,
@@ -377,14 +397,39 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
     // Tri-state discovery filter: "yes" keeps only requests that came through
     // the path-discovery flow, "no" only the rest, anything else keeps all.
     const discovery = url.searchParams.get("discovery");
-    let rows = readTable<LegalRequestRow>("legal_requests");
+    // §8 — the oversight filters: WHO the request was referred to, WHICH
+    // service it was placed for, WHEN it was referred, and how its clock
+    // stands right now. All four are computed over the same live rows the
+    // detail endpoint reads, so a filter can never disagree with the drawer.
+    const lawyerId = url.searchParams.get("lawyerId") ?? "";
+    const serviceKey = url.searchParams.get("serviceKey") ?? "";
+    const fromIso = url.searchParams.get("fromIso") ?? "";
+    const toIso = url.searchParams.get("toIso") ?? "";
+    const slaHealth = url.searchParams.get("slaHealth") ?? "";
+    const calendar = getWorkCalendar();
+
+    let rows = readTable<LegalRequest>("legal_requests");
     if (state) rows = rows.filter((r) => r.state === state);
     if (discovery === "yes") rows = rows.filter((r) => hasDiscovery(r));
     else if (discovery === "no") rows = rows.filter((r) => !hasDiscovery(r));
+    if (lawyerId) rows = rows.filter((r) => r.selectedLawyerId === lawyerId);
+    if (serviceKey) rows = rows.filter((r) => (r.serviceKey ?? "") === serviceKey);
+    if (fromIso) rows = rows.filter((r) => r.createdAt >= fromIso);
+    if (toIso) rows = rows.filter((r) => r.createdAt <= toIso);
+
     const mapped = rows
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((r) => {
         const user = findUserById(r.userId);
+        // The clock is observed (not mutated) here: the list must not advance
+        // a referral just because an operator refreshed the queue.
+        const observed = observeSla(ensureRequestSla(r));
+        const snapshot = slaSnapshot({
+          state: observed.sla ?? null,
+          policy: getSlaPolicyForService(observed.sla?.serviceKey),
+          calendar,
+          requestState: observed.state,
+        });
         return {
           id: r.id,
           title: r.title,
@@ -395,17 +440,37 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
           orgId: r.orgId,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
+          serviceKey: r.serviceKey ?? null,
           // The discovery outcome, projected so the list can tell at a glance
           // whether the request came through the intake and how it was
           // analysed — without a second round-trip to the detail endpoint.
           hasDiscovery: hasDiscovery(r),
           discoverySource: r.discovery?.source ?? null,
           inferredCategory: r.discovery?.inferredCategory ?? null,
+          sla: {
+            health: snapshot.health,
+            healthFa: snapshot.healthFa,
+            phase: snapshot.phase,
+            dueAt: snapshot.dueAt,
+            remainingMs: snapshot.remainingMs,
+            paused: snapshot.paused,
+          },
         };
       })
+      .filter((r) => (slaHealth ? r.sla.health === slaHealth : true))
       .filter((r) =>
         search.trim() ? matchesRow(search, { texts: [r.title, r.id, r.userDisplayName] }) : true
       );
+
+    // The filter vocabularies are derived from the very rows in play, so an
+    // operator can never pick a lawyer/service that yields an empty queue by
+    // construction.
+    const lawyerNames = new Map(listLawyerProfiles().map((l) => [l.id, l.fullName]));
+    const facetLawyers = [...new Set(rows.map((r) => r.selectedLawyerId).filter(Boolean))].map(
+      (id) => ({ id: id as string, fullName: lawyerNames.get(id as string) ?? null })
+    );
+    const facetServices = [...new Set(rows.map((r) => r.serviceKey).filter(Boolean))] as string[];
+
     const p = paginate(mapped, page, pageSize);
     return ok({
       items: p.items,
@@ -413,6 +478,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       page: p.page,
       pageSize: p.pageSize,
       totalPages: p.totalPages,
+      facets: { lawyers: facetLawyers, services: facetServices },
     });
   },
 
@@ -592,6 +658,16 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       })
     ),
 
+  // §5 — the SLA configuration surface: one policy per service plus the
+  // platform working calendar. Both come straight from the store the lawyer
+  // portal reads when it starts a clock, so what the operator configures here
+  // is exactly what governs a live referral.
+  sla: () =>
+    ok({
+      policies: listSlaPolicies(),
+      calendar: getWorkCalendar(),
+    }),
+
   settings: () => {
     const orgs = listOrganizations();
     const providers = listAiProviders();
@@ -728,6 +804,45 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
           services: listUserServiceOptions(b!),
         });
       }
+      // §8 — every request this user owns, with the lawyer assigned and the
+      // live SLA verdict. This is what the user dossier's «درخواست‌ها» tab
+      // reads, and it is the entry point to each request's own timeline.
+      if (d === "requests") {
+        const rows = readTable<LegalRequest>("legal_requests")
+          .filter((r) => r.userId === b)
+          .sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+        const lawyerNames = new Map(listLawyerProfiles().map((l) => [l.id, l.fullName]));
+        const items = rows.map((r) => {
+          const observed = observeSla(ensureRequestSla(r));
+          const snapshot = slaSnapshot({
+            state: observed.sla ?? null,
+            policy: getSlaPolicyForService(observed.sla?.serviceKey),
+            calendar: getWorkCalendar(),
+            requestState: observed.state,
+          });
+          return {
+            id: r.id,
+            title: r.title,
+            category: r.category,
+            state: r.state,
+            selectedLawyerId: r.selectedLawyerId,
+            selectedLawyerName: r.selectedLawyerId
+              ? (lawyerNames.get(r.selectedLawyerId) ?? null)
+              : null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            sla: {
+              health: snapshot.health,
+              healthFa: snapshot.healthFa,
+              phase: snapshot.phase,
+              dueAt: snapshot.dueAt,
+              remainingMs: snapshot.remainingMs,
+              paused: snapshot.paused,
+            },
+          };
+        });
+        return ok({ items });
+      }
       return ok({
         id: user.id,
         publicId: user.publicId ?? null,
@@ -758,6 +873,18 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
           fullName: l.fullName,
           professionalTitle: l.professionalTitle ?? null,
         }));
+      // §5 — the clock as it stands right now. `observeSla` persists a breach
+      // the first time it is seen, so the operator and the lawyer read the
+      // same verdict from the same record.
+      const observed = observeSla(ensureRequestSla(req));
+      const policy = getSlaPolicyForService(observed.sla?.serviceKey);
+      const sla = slaSnapshot({
+        state: observed.sla ?? null,
+        policy,
+        calendar: getWorkCalendar(),
+        requestState: observed.state,
+      });
+
       return ok({
         request: {
           id: req.id,
@@ -782,6 +909,20 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
         allowedTransitions: LEGAL_REQUEST_TRANSITIONS[req.state],
         events,
         assignableLawyers,
+        // §4/§5 — the lawyer's own attributable workflow log (view, accept,
+        // decline, notes, SLA pause/resume/override) kept SEPARATE from the
+        // state events so an operator can tell client-visible messages from
+        // internal notes at a glance.
+        actions: listRequestActions(req.id),
+        sla: {
+          state: observed.sla ?? null,
+          policy,
+          snapshot: sla,
+          /** Deadline edits already applied, oldest → newest. */
+          overrides: observed.sla?.overrides ?? [],
+          /** The live calendar, so an operator can read the deadline in context. */
+          calendar: getWorkCalendar(),
+        },
       });
     }
     case "orders": {
@@ -2960,6 +3101,64 @@ async function handlePatch(
       return ok(res.request);
     }
 
+    // --- §5 — shift one deadline, with a recorded reason ---
+    if ("slaOverride" in body) {
+      const raw = body["slaOverride"];
+      if (!raw || typeof raw !== "object") {
+        return adminError(400, "INVALID_BODY", "اطلاعات تغییر مهلت نامعتبر است");
+      }
+      const o = raw as Body;
+      const phase = o["phase"];
+      if (phase !== "RESPONSE" && phase !== "COMPLETION") {
+        return adminError(400, "INVALID_PHASE", "فاز مهلت باید «پاسخ» یا «تکمیل» باشد.");
+      }
+      const nextDueRaw = o["nextDueAt"];
+      const res = overrideRequestDeadline({
+        requestId: b,
+        actor: { userId: actor.userId, role: actor.role },
+        phase: phase as SlaPhase,
+        nextDueAt:
+          nextDueRaw === null || nextDueRaw === "" || nextDueRaw === undefined
+            ? null
+            : String(nextDueRaw),
+        reason: str(o["reason"]),
+      });
+      if (!res.ok) {
+        if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+        if (res.reason === "invalid_input") {
+          return adminError(400, "INVALID_INPUT", res.messageFa);
+        }
+        return adminError(409, "SLA_CONFLICT", res.messageFa);
+      }
+      // `overrideRequestDeadline` writes its own audit row (with the reason and
+      // both instants); nothing more to record here.
+      return ok(res.request);
+    }
+
+    // --- §8 — re-refer to another lawyer, with a recorded reason ---
+    if ("reassignTo" in body) {
+      const lawyerId = str(body["reassignTo"]);
+      const profile = listLawyerProfiles().find((l) => l.id === lawyerId);
+      if (!profile) return adminError(404, "LAWYER_NOT_FOUND", "وکیل یافت نشد");
+      if (lawyerDecisionBucket(profile.verificationStatus) !== "APPROVED") {
+        return adminError(409, "LAWYER_NOT_ELIGIBLE", "این وکیل برای ارجاع مجدد مجاز نیست.");
+      }
+      const res = reassignRequest({
+        requestId: b,
+        actor: { userId: actor.userId, role: actor.role },
+        lawyerId,
+        reason: str(body["reason"]),
+      });
+      if (!res.ok) {
+        if (res.reason === "not_found") return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+        if (res.reason === "invalid_input") {
+          return adminError(400, "INVALID_INPUT", res.messageFa);
+        }
+        return adminError(409, "ILLEGAL_REASSIGN", res.messageFa);
+      }
+      return ok(res.request);
+    }
+
     // --- Change the status via the authoritative state machine ---
     if ("state" in body) {
       const to = body["state"] as LegalRequestState;
@@ -3040,6 +3239,83 @@ async function handlePatch(
     return ok(res);
   }
 
+  // §5 — edit one service's SLA policy. The body is the full policy (the
+  // store validates every field); the service key is taken from the path so
+  // a save can never silently relocate a policy.
+  if (a === "sla" && b === "policies" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const input: SlaPolicyInput = {
+      serviceKey: c,
+      labelFa: str(body["labelFa"]),
+      responseHours: num(body["responseHours"]),
+      completionHours: num(body["completionHours"]),
+      clock: body["clock"] === "BUSINESS_HOURS" ? "BUSINESS_HOURS" : "CALENDAR",
+      pauseBehavior: body["pauseBehavior"] === "CONTINUE" ? "CONTINUE" : "PAUSE",
+      warnBeforeHours: num(body["warnBeforeHours"]),
+      enabled: body["enabled"] !== false,
+    };
+    const res = saveSlaPolicy(input, actor);
+    if (!res.ok) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "sla.policy.update",
+        resourceType: "sla_policy",
+        resourceId: c,
+        result: "denied",
+        reason: res.messageFa,
+        ...meta,
+      });
+      return adminError(400, "INVALID_POLICY", res.messageFa);
+    }
+    return ok(res.policy);
+  }
+  if (a === "sla" && b === "policies") {
+    return adminError(400, "BAD_PATH", "شناسهٔ سرویس الزامی است");
+  }
+
+  // §5 — the platform working calendar (timezone, working days, hours,
+  // holidays). The store validates it and audits every save.
+  if (a === "sla" && b === "calendar") {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const hours = body["hours"];
+    const input = {
+      timezone: str(body["timezone"]),
+      workingDays: Array.isArray(body["workingDays"])
+        ? (body["workingDays"] as unknown[]).map((x) => num(x, -1))
+        : [],
+      hours: {
+        startTime:
+          hours && typeof hours === "object" ? str((hours as Body)["startTime"]) : "",
+        endTime: hours && typeof hours === "object" ? str((hours as Body)["endTime"]) : "",
+      },
+      holidays: Array.isArray(body["holidays"])
+        ? (body["holidays"] as unknown[]).map((x) => str(x))
+        : [],
+      updatedAt: new Date().toISOString(),
+      updatedBy: actor.userId,
+    };
+    const res = saveWorkCalendar(input, actor);
+    if (!res.ok) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "sla.calendar.update",
+        resourceType: "platform_work_calendar",
+        resourceId: "default",
+        result: "denied",
+        reason: res.messageFa,
+        ...meta,
+      });
+      return adminError(400, "INVALID_CALENDAR", res.messageFa);
+    }
+    return ok(res.calendar);
+  }
+
   if (a === "rag" && b === "sources" && c) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
@@ -3098,6 +3374,11 @@ function permissionFor(method: string, segments: string[]): Permission {
       if (segments[2] === "energy" || segments[2] === "usage" || segments[2] === "tariff-history") {
         return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
       }
+      // §8 — a user's request/referral history is REQUEST data, not identity
+      // data: an operator who may read requests but not edit user records
+      // still needs it, and one who may edit identity but not requests must
+      // not acquire it here.
+      if (segments[2] === "requests") return "admin:requests:read";
       return method === "GET" ? "admin:users:read" : "admin:users:manage";
     case "requests":
       return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
@@ -3169,6 +3450,11 @@ function permissionFor(method: string, segments: string[]): Permission {
       return "admin:staff:read";
     case "audit":
       return "admin:audit:read";
+    // §5 — the SLA policies and working calendar are platform configuration,
+    // so they ride on the same settings pair. A read-only operator can inspect
+    // the deadlines; only a settings manager may move them.
+    case "sla":
+      return method === "GET" ? "admin:settings:read" : "admin:settings:manage";
     case "settings":
       return method === "GET" ? "admin:settings:read" : "admin:settings:manage";
     default:

@@ -24,6 +24,7 @@ import {
   MOBILE_ERROR_MESSAGE,
 } from "./api";
 import type { OtpRequestResult } from "./otp-provider";
+import { homeRouteForRole } from "./home-route";
 import type { RegistrationIntent } from "@legalir/types";
 
 // ============================================================
@@ -106,6 +107,27 @@ export function resolveIntendedRoute(intendedRoute: string | null): string {
   return INTENT_ROUTE_MAP[intendedRoute] ?? "/dashboard";
 }
 
+/**
+ * Where to land after a successful sign-in.
+ *
+ * Order of precedence:
+ *   1. A lawyer account always opens the lawyer workbench — the role home the
+ *      server sent beats any consumer-service intent token.
+ *   2. An explicit, same-origin intent (a deep link the user followed).
+ *   3. The workspace the SERVER chose for this account — so role routing is
+ *      never re-derived from stale client state.
+ *   4. The consumer dashboard.
+ */
+export function resolvePostLoginRoute(
+  intendedRoute: string | null,
+  serverRedirectTo: string | null | undefined
+): string {
+  if (serverRedirectTo === "/lawyer") return "/lawyer";
+  if (intendedRoute) return resolveIntendedRoute(intendedRoute);
+  if (serverRedirectTo && isSafeReturnPath(serverRedirectTo)) return serverRedirectTo;
+  return "/dashboard";
+}
+
 // ============================================================
 // useVerifyOtp
 // ============================================================
@@ -150,8 +172,8 @@ export function useVerifyOtp(): UseVerifyOtpReturn {
           createdAt: Date.now(),
         });
 
-        // Determine redirect target
-        const target = resolveIntendedRoute(intendedRoute);
+        // Determine redirect target — the server's role home wins for a lawyer.
+        const target = resolvePostLoginRoute(intendedRoute, response.data.redirectTo);
         setIntendedRoute(null);
 
         router.push(target);
@@ -369,7 +391,7 @@ export function usePasswordLogin(): UsePasswordLoginReturn {
           createdAt: Date.now(),
         });
 
-        const target = resolveIntendedRoute(intendedRoute);
+        const target = resolvePostLoginRoute(intendedRoute, response.data.redirectTo);
         setIntendedRoute(null);
         router.push(target);
         return true;
@@ -633,11 +655,15 @@ export function useRedirectAuthenticated(skip = false): void {
   const router = useRouter();
   const { isAuthenticated } = useSessionStatus();
   const intendedRoute = useAuthStore((s) => s.intendedRoute);
+  // `useSessionStatus` already holds the `/api/v1/me` query, so reading the
+  // role here is a cache hit — no second request.
+  const role = useMe().data?.user?.role;
 
   useEffect(() => {
     if (skip) return;
     if (isAuthenticated) {
-      router.replace(resolveIntendedRoute(intendedRoute));
+      const home = role ? homeRouteForRole(role) : undefined;
+      router.replace(resolvePostLoginRoute(intendedRoute, home));
     }
-  }, [skip, isAuthenticated, intendedRoute, router]);
+  }, [skip, isAuthenticated, intendedRoute, role, router]);
 }

@@ -138,6 +138,11 @@ export const PERMISSION_META: Record<Permission, PermissionMeta> = {
   // --- Lawyer workspace ---
   "lawyer:profile:write": { fa: "ویرایش پروفایل حرفه‌ای", group: "lawyer" },
   "lawyer:request:read:assigned": { fa: "مشاهده درخواست‌های ارجاع‌شده", group: "lawyer" },
+  "lawyer:rates:manage": { fa: "مدیریت نرخ خدمات وکیل", group: "lawyer" },
+  "lawyer:bank:manage": { fa: "مدیریت حساب تسویه وکیل", group: "lawyer" },
+  "admin:lawyer:bank:review": { fa: "بررسی حساب تسویه وکلا", group: "lawyers" },
+  "admin:sla:read": { fa: "مشاهدهٔ تنظیمات و وضعیت SLA", group: "requests" },
+  "admin:sla:manage": { fa: "مدیریت سیاست‌های SLA و تقویم کاری", group: "requests" },
   "lawyer:request:respond": { fa: "پاسخ به درخواست ارجاع‌شده", group: "lawyer" },
   "lawyer:case:read:assigned": { fa: "مشاهده پرونده‌های ارجاع‌شده", group: "lawyer" },
   "lawyer:case:write:assigned": { fa: "ویرایش پرونده‌های ارجاع‌شده", group: "lawyer" },
