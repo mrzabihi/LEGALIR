@@ -186,7 +186,7 @@ function UsageTabContent({
       {/* ── The two distinct assets ─────────────────────────────── */}
       <div className="grid grid-cols-1 tablet:grid-cols-2 gap-3">
         {/* 1) Today's subscription credit — resets at Tehran midnight */}
-        <div className="group relative overflow-hidden rounded-large border border-[color:color-mix(in_srgb,var(--brand-gold)_24%,transparent)] bg-gradient-to-br from-[var(--brand-green)] to-[var(--brand-teal)] p-5 text-[var(--brand-ivory)] backdrop-blur">
+        <div className="group relative overflow-hidden rounded-large border border-[color:color-mix(in_srgb,var(--brand-gold)_24%,transparent)] bg-gradient-to-br from-[var(--brand-green)] to-[var(--brand-teal)] p-5 text-[var(--brand-ivory)]">
           <span className="pointer-events-none absolute -top-10 -end-10 w-32 h-32 rounded-full bg-[color-mix(in_srgb,var(--brand-gold)_45%,transparent)] blur-3xl transition-opacity duration-long2 opacity-60 group-hover:opacity-100" aria-hidden="true" />
           <div className="relative flex items-center gap-4">
             <div

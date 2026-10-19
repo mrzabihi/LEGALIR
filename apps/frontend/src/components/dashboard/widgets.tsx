@@ -321,13 +321,15 @@ interface HeroSectionProps {
 }
 
 /**
- * One shared surface for the hero's stat cards: a soft frosted panel in the
- * warm frosted-glass material so the cards read as one family while each
- * keeps its own accent glow. White text on the navy scrim clears WCAG AA
- * comfortably at every breakpoint.
+ * One shared surface for the hero's stat cards: a flat ivory veil over the
+ * photographic hero, so the cards read as one family while each keeps its own
+ * accent glow. No `backdrop-blur` — nothing moves behind these cards, so the
+ * blur bought no legibility and cost five full-frame backdrop layers on the
+ * first paint of every dashboard visit. White text on the navy scrim still
+ * clears WCAG AA comfortably at every breakpoint.
  */
 const HERO_STAT_CARD =
-  "group relative overflow-hidden rounded-large border border-white/15 bg-white/10 backdrop-blur-md p-3.5 tablet:p-4 flex flex-col gap-2 text-white transition-colors duration-short4 ease-standard hover:bg-white/15 hover:border-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
+  "group relative overflow-hidden rounded-large border border-white/15 bg-white/[0.12] p-3.5 tablet:p-4 flex flex-col gap-2 text-white transition-colors duration-short4 ease-standard hover:bg-white/[0.18] hover:border-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
 
 /**
  * Photographic hero backdrop: one image, responsively cropped, sitting under a
@@ -599,7 +601,7 @@ export function LibraryBanner() {
       </div>
 
       <div className="relative flex flex-col items-center gap-4 p-5 text-center tablet:flex-row tablet:p-6 tablet:text-right">
-        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-large bg-white/15 text-secondary-300 ring-1 ring-inset ring-white/20 backdrop-blur-md">
+        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-large bg-white/15 text-secondary-300 ring-1 ring-inset ring-white/20">
           <IconLibrary size={24} />
         </span>
 
@@ -686,7 +688,7 @@ export function PromoBanner({ planCode }: PromoBannerProps) {
 
       <div className="relative flex flex-col items-center gap-4 p-5 text-center tablet:flex-row tablet:justify-between tablet:p-6 tablet:text-right">
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-gold)_22%,transparent)] text-[var(--brand-ivory)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--brand-gold)_55%,transparent)] backdrop-blur-md">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-gold)_22%,transparent)] text-[var(--brand-ivory)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--brand-gold)_55%,transparent)]">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
@@ -1531,9 +1533,9 @@ export function RecentDocuments({ items, isLoading, error, onRetry }: RecentDocu
             <Link
               key={doc.id}
               href="/documents"
-              className="flex items-center gap-3 p-3 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-high)_58%,transparent)] border border-[color:color-mix(in_srgb,var(--color-outline-variant)_80%,transparent)] shadow-elevation-1 hover:bg-[color-mix(in_srgb,var(--color-surface-container-high)_88%,transparent)] hover:shadow-elevation-2 transition-[background-color,box-shadow,border-color] duration-short4 ease-standard touch-target group"
+              className="flex items-center gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface-container-high p-3 shadow-elevation-1 transition-[background-color,box-shadow,border-color] duration-short4 ease-standard hover:bg-surface-container-highest hover:shadow-elevation-2 touch-target group"
             >
-              <span className="text-xl shrink-0 w-10 h-10 rounded-medium backdrop-blur-md bg-[color-mix(in_srgb,var(--color-surface-container-highest)_70%,transparent)] border border-[color:color-mix(in_srgb,var(--color-outline-variant)_55%,transparent)] flex items-center justify-center transition-colors">
+              <span className="text-xl shrink-0 w-10 h-10 rounded-medium bg-surface-container-highest border border-[color:var(--color-outline-variant)] flex items-center justify-center transition-colors">
                 {doc.mime?.includes("pdf") ? "📄" : doc.mime?.includes("image") ? "🖼️" : "📎"}
               </span>
               <div className="flex-1 min-w-0">

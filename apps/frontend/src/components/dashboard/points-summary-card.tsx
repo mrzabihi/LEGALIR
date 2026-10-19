@@ -47,7 +47,9 @@ export function PointsSummaryCard() {
     <Link
       href="/points"
       aria-label={ariaLabel}
-      className="group relative col-span-2 tablet:col-span-1 overflow-hidden rounded-large bg-[linear-gradient(135deg,rgba(176,141,87,0.28),rgba(163,124,60,0.10))] text-secondary-100 border border-white/15 backdrop-blur-md p-3.5 tablet:p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(213,190,151,0.40)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+      // Gold-tinted sibling of HERO_STAT_CARD: same flat veil, no
+      // `backdrop-blur`, so the hero row paints in one layer.
+      className="group relative col-span-2 tablet:col-span-1 overflow-hidden rounded-large bg-[linear-gradient(135deg,rgba(176,141,87,0.36),rgba(163,124,60,0.16))] text-secondary-100 border border-white/15 p-3.5 tablet:p-4 flex flex-col gap-2 transition-colors duration-short4 ease-standard hover:border-[rgba(213,190,151,0.40)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
     >
       {/* soft glow that intensifies on hover */}
       <span

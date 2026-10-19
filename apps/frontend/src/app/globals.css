@@ -319,16 +319,18 @@
   --bottom-nav-shadow: var(--warm-glass-shadow);
 
   /* Bottom navigation — Persian capsule bar (v0.6 redesign).
-     The body stays on the shared warm-glass surface so the bar can never
-     drift from the sidebar. The centre action is the brand green with a soft
-     gold hairline. The active destination draws no box at all: only its icon
-     takes the gold complement and a soft glow settles under its label. Every
-     value aliases the brand palette — no ad-hoc raw colours. */
-  --bottom-nav-body: var(--warm-glass-surface-strong);
+     The body aliases the app-navigation surface (`--app-nav-*`) rather than
+     the translucent warm-glass family, so the floating bar and the desktop
+     rail are one material: solid brand teal, no backdrop filter. The centre
+     action is the brand green with a soft gold hairline. The active
+     destination draws no box at all: only its icon takes the gold complement
+     and a soft glow settles under its label. Every value aliases the brand
+     palette — no ad-hoc raw colours. */
+  --bottom-nav-body: var(--app-nav-bg);
   --bottom-nav-center-bg: var(--brand-green);
   --bottom-nav-accent: var(--brand-gold);
-  --bottom-nav-icon: var(--warm-glass-ivory);
-  --bottom-nav-icon-muted: var(--warm-glass-ivory-muted);
+  --bottom-nav-icon: var(--app-nav-text);
+  --bottom-nav-icon-muted: var(--app-nav-text-muted);
   --bottom-nav-active-icon: var(--brand-gold);
   --bottom-nav-badge-text: var(--brand-teal);
   /* Motion — colour shift, press feedback, sheet reveal. Kept as tokens so

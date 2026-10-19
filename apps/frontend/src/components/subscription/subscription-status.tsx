@@ -209,13 +209,13 @@ export function SubscriptionStatusBadge({ className = "" }: { className?: string
     return <span className={`inline-block h-4 w-12 animate-pulse rounded-full bg-surface-container-high ${className}`} aria-hidden="true" />;
   }
 
-  // On the dark warm-glass sidebar the semantic tone colours fail contrast,
-  // so the badge uses the sidebar's own ivory foreground: white text, white
-  // border, translucent white fill. The plan tier is carried by the animated
+  // On the dark app-navigation rail the semantic tone colours fail contrast,
+  // so the badge uses the rail's own foreground token: ivory text, ivory
+  // border, translucent ivory fill. The plan tier is carried by the animated
   // glyph instead of by colour.
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border border-[rgba(255,249,240,0.45)] bg-[rgba(255,249,240,0.12)] px-2 py-0.5 text-[10px] font-semibold text-glass-ivory whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full border border-[rgba(252,246,232,0.45)] bg-[rgba(252,246,232,0.12)] px-2 py-0.5 text-[10px] font-semibold text-appnav-text whitespace-nowrap ${className}`}
       aria-label={ariaLabel(status)}
     >
       {status.planCode ? (

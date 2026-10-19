@@ -30,6 +30,7 @@ import {
 import { useMe } from "@/hooks/useDashboard";
 import { useLogout } from "@/lib/auth/use-auth";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { OfflineBanner } from "@/components/shared";
 import { UserAvatar } from "@/components/user/user-avatar";
 import {
   IconDashboard,
@@ -109,23 +110,27 @@ function NavItemRow({
       className={[
         "group relative flex items-center rounded-medium transition-colors duration-short3 ease-standard motion-reduce:transition-none",
         collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2",
+        // Same navigation material and state language as the user shell:
+        // MD3 secondary-container fill + brand-gold rail mark + `aria-current`,
+        // so a destination is never signalled by colour alone.
         isActive
-          ? "bg-primary-soft text-primary"
-          : "text-on-surface-variant hover:bg-surface-hover hover:text-on-surface",
+          ? "bg-appnav-active text-appnav-active-text"
+          : "text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]",
       ].join(" ")}
     >
       {isActive && (
         <span
           aria-hidden="true"
-          className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-primary"
+          className="absolute inset-y-1.5 end-1.5 w-[3px] rounded-full bg-appnav-mark"
         />
       )}
       <span
         aria-hidden="true"
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-medium transition-[background-color,color,transform] duration-short3 ease-standard can-hover:group-hover:scale-[1.04] motion-reduce:transition-none ${
           isActive
-            ? "bg-primary text-on-primary"
-            : "bg-surface-container text-on-surface-variant group-hover:text-primary"
+            ? "bg-[var(--brand-gold)] text-[#222E2D]"
+            : "bg-appnav-pill text-appnav-text-muted group-hover:text-appnav-text"
         }`}
       >
         {Icon ? <Icon size={18} /> : <span className="inline-block h-4 w-4" />}
@@ -137,7 +142,7 @@ function NavItemRow({
           >
             {item.titleFa}
           </span>
-          <span className="block truncate text-caption text-muted">{item.hintFa}</span>
+          <span className="block truncate text-caption text-appnav-text-muted">{item.hintFa}</span>
         </span>
       )}
     </Link>
@@ -334,14 +339,15 @@ export function LawyerShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-surface-container-low" dir="rtl">
+      <OfflineBanner />
       {/* Desktop sidebar — fixed on the inline-start edge (right in RTL). */}
       <aside
-        className={`fixed inset-y-0 start-0 z-30 hidden flex-col border-e border-divider bg-surface laptop:flex ${
+        className={`fixed inset-y-0 start-0 z-30 hidden flex-col border-e border-appnav-line bg-appnav-bg laptop:flex ${
           collapsed ? RAIL_W : FULL_W
         }`}
       >
         <div
-          className={`flex h-16 shrink-0 items-center border-b border-divider ${
+          className={`flex h-16 shrink-0 items-center border-b border-appnav-line ${
             collapsed ? "justify-center px-2" : "justify-between px-4"
           }`}
         >
@@ -352,25 +358,25 @@ export function LawyerShell({ children }: { children: React.ReactNode }) {
               className={`w-auto ${collapsed ? "h-7" : "h-8"}`}
             />
             {!collapsed && (
-              <span className="text-body-2 font-bold text-onSurface">میزکار وکیل</span>
+              <span className="text-body-2 font-bold text-appnav-text">میزکار وکیل</span>
             )}
           </Link>
         </div>
 
         <SidebarNav collapsed={collapsed} can={can} />
 
-        <div className="shrink-0 border-t border-divider p-2.5">
+        <div className="shrink-0 border-t border-appnav-line p-2.5">
           {!collapsed && (
-            <div className="mb-2 flex items-center justify-between rounded-medium bg-surface-container-low px-3 py-2">
-              <span className="text-caption text-muted">نقش شما</span>
-              <span className="text-caption font-semibold text-on-surface-variant">{roleFa}</span>
+            <div className="mb-2 flex items-center justify-between rounded-medium bg-appnav-pill px-3 py-2">
+              <span className="text-caption text-appnav-text-muted">نقش شما</span>
+              <span className="text-caption font-semibold text-appnav-text">{roleFa}</span>
             </div>
           )}
           <button
             type="button"
             onClick={toggle}
             aria-label={collapsed ? "باز کردن نوار کناری" : "جمع کردن نوار کناری"}
-            className={`flex w-full items-center rounded-medium px-2.5 py-2 text-caption font-medium text-muted transition-colors hover:bg-surface-hover hover:text-on-surface ${
+            className={`flex w-full items-center rounded-medium px-2.5 py-2 text-caption font-medium text-appnav-text-muted transition-colors hover:bg-appnav-hover hover:text-appnav-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)] ${
               collapsed ? "justify-center" : "gap-2"
             }`}
           >
@@ -394,17 +400,17 @@ export function LawyerShell({ children }: { children: React.ReactNode }) {
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 start-0 flex w-80 max-w-[85%] flex-col border-e border-divider bg-surface">
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-divider px-4">
+          <div className="absolute inset-y-0 start-0 flex w-80 max-w-[85%] flex-col border-e border-appnav-line bg-appnav-bg">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-appnav-line px-4">
               <div className="flex items-center gap-2">
                 <img src="/legalir-logo-dashboard.png" alt="LEGALIR" className="h-8 w-auto" />
-                <span className="text-body-2 font-bold text-onSurface">میزکار وکیل</span>
+                <span className="text-body-2 font-bold text-appnav-text">میزکار وکیل</span>
               </div>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 aria-label="بستن"
-                className="rounded-lg p-1.5 text-muted hover:bg-surface-hover"
+                className="rounded-lg p-1.5 text-appnav-text-muted hover:bg-appnav-hover hover:text-appnav-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-nav-mark)]"
               >
                 <IconClose size={20} />
               </button>
@@ -414,10 +420,10 @@ export function LawyerShell({ children }: { children: React.ReactNode }) {
               can={can}
               onNavigate={() => setDrawerOpen(false)}
             />
-            <div className="shrink-0 border-t border-divider p-3">
-              <div className="flex items-center justify-between rounded-medium bg-surface-container-low px-3 py-2">
-                <span className="text-caption text-muted">نقش شما</span>
-                <span className="text-caption font-semibold text-on-surface-variant">{roleFa}</span>
+            <div className="shrink-0 border-t border-appnav-line p-3">
+              <div className="flex items-center justify-between rounded-medium bg-appnav-pill px-3 py-2">
+                <span className="text-caption text-appnav-text-muted">نقش شما</span>
+                <span className="text-caption font-semibold text-appnav-text">{roleFa}</span>
               </div>
             </div>
           </div>
@@ -426,7 +432,10 @@ export function LawyerShell({ children }: { children: React.ReactNode }) {
 
       {/* Main column — offset by the sidebar width on laptop+. */}
       <div className={`${collapsed ? RAIL_MS : FULL_MS} transition-[margin] duration-medium2`}>
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-divider bg-surface px-4 backdrop-blur tablet:px-6">
+        {/* The header is opaque (`bg-surface`, no `backdrop-blur`): it sits
+            over a static page surface, and the page scrolls inside the window,
+            so every blurred scroll frame would re-resolve this band. */}
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-divider bg-surface px-4 tablet:px-6">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}

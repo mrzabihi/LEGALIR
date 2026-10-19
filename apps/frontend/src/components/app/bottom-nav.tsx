@@ -74,7 +74,11 @@ export function BottomNav() {
         style={{ bottom: "calc(12px + env(safe-area-inset-bottom, 0px))" }}
         className={[
           "pointer-events-auto fixed inset-x-3 mx-auto flex h-16 max-w-[440px] items-center",
-          "rounded-full border border-glass-border bg-glass-surface-strong backdrop-blur-xl",
+          // Same solid navigation material as the desktop rail. The pill floats
+          // over scrolling content on every mobile page, so it drops
+          // `backdrop-blur-xl` — the blur forced a backdrop re-resolve on each
+          // scroll frame, the most expensive thing the mobile shell did.
+          "rounded-full border border-appnav-line bg-appnav-bg",
           "[box-shadow:var(--bottom-nav-shadow)]",
           // While the sheet is open the bar rides above it so the centre
           // button (now showing ×) stays visible and tappable.

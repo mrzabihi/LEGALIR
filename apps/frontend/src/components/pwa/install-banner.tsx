@@ -92,7 +92,7 @@ export function InstallBanner() {
         role="region"
         aria-label="نصب لیگالیر"
         data-pwa-install-banner
-        className="desktop:hidden fixed inset-x-3 z-30 mx-auto flex max-w-[440px] animate-slide-up-fade flex-col gap-3 rounded-large border border-glass-border bg-glass-surface-strong p-3.5 backdrop-blur-xl [box-shadow:var(--bottom-nav-shadow)]"
+        className="desktop:hidden fixed inset-x-3 z-30 mx-auto flex max-w-[440px] animate-slide-up-fade flex-col gap-3 rounded-large border border-appnav-line bg-appnav-bg p-3.5 [box-shadow:var(--bottom-nav-shadow)]"
         style={{ bottom: BANNER_BOTTOM }}
       >
         <div className="flex items-start gap-3">
@@ -105,10 +105,10 @@ export function InstallBanner() {
             draggable={false}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-body-2 font-semibold leading-snug text-glass-ivory">
+            <p className="text-body-2 font-semibold leading-snug text-appnav-text">
               لیگالیر را به صفحه اصلی گوشی اضافه کنید
             </p>
-            <p className="mt-0.5 text-caption text-glass-ivory-muted">
+            <p className="mt-0.5 text-caption text-appnav-text-muted">
               دسترسی سریع‌تر به خدمات حقوقی
             </p>
           </div>
@@ -116,7 +116,7 @@ export function InstallBanner() {
             type="button"
             onClick={handleDismiss}
             aria-label="بستن"
-            className="-me-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-glass-ivory-muted transition-colors hover:bg-glass-state focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)]"
+            className="-me-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-appnav-text-muted transition-colors hover:bg-appnav-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)]"
           >
             <IconClose size={18} />
           </button>
@@ -134,7 +134,7 @@ export function InstallBanner() {
           <button
             type="button"
             onClick={handleDismiss}
-            className="flex h-10 items-center justify-center rounded-medium px-4 text-labelLarge font-medium text-glass-ivory-muted transition-colors hover:bg-glass-state focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)]"
+            className="flex h-10 items-center justify-center rounded-medium px-4 text-labelLarge font-medium text-appnav-text-muted transition-colors hover:bg-appnav-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bottom-nav-accent)]"
           >
             بعداً
           </button>
