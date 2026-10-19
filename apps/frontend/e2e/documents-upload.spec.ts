@@ -11,24 +11,21 @@
  * Uses the seeded demo user (09120000003) who owns 6 documents.
  */
 
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Locator,
+  type Page,
+  type APIRequestContext,
+} from "@playwright/test";
 
-const OTP_CODE = "405405";
 const SESSION_COOKIE = "legalir-session";
 // Demo user owns the 6 seeded documents (used only by the library test).
 const DEMO_MOBILE = "09120000003";
-
-// Fresh mobiles for tests that don't need the demo user's documents, so the
-// OTP endpoint's per-mobile rate limit isn't tripped by parallel workers.
-let mobileCounter = 0;
-function freshMobile(): string {
-  mobileCounter += 1;
-  const rand = Math.floor(10000000 + Math.random() * 90000000);
-  return `091${rand}`;
-}
+const DEMO_PASSWORD = "123456";
 
 // ---------------------------------------------------------------------------
-// Auth helpers (mirror profile-completion-prompt.spec.ts)
+// Auth helpers
 // ---------------------------------------------------------------------------
 
 interface SessionInfo {
@@ -37,25 +34,35 @@ interface SessionInfo {
   mobileDisplay: string;
 }
 
-async function createSessionFor(request: APIRequestContext, mobile: string): Promise<SessionInfo> {
-  const reqRes = await request.post("/api/auth/otp/request", { data: { mobile } });
-  const reqBody = (await reqRes.json()) as { data?: { challengeId?: string } };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) throw new Error("Failed to request OTP challenge");
-
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
+/**
+ * Sign in as the demo user over the password endpoint.
+ *
+ * Two reasons this replaced the OTP flow:
+ *   1. OTP is rate-limited per mobile (3 requests / 5 min), so repeated
+ *      runs failed at session creation.
+ *   2. A brand-new OTP user lands on a plan whose document-analysis
+ *      quota is 0, so the upload pipeline answered
+ *      `429 DOCUMENT_ANALYSIS_LIMIT_EXCEEDED` — the wizard error state,
+ *      never the success screen this spec is about. The demo user has an
+ *      active plan with quota, which is what the flow needs.
+ */
+async function createDemoSession(request: APIRequestContext): Promise<SessionInfo> {
+  const res = await request.post("/api/auth/login", {
+    data: { mobile: DEMO_MOBILE, password: DEMO_PASSWORD },
   });
-  const verifyBody = (await verifyRes.json()) as {
-    data?: { sessionId?: string; userId?: string; mobileDisplay?: string };
+  const body = (await res.json()) as {
+    data?: {
+      sessionId?: string;
+      user?: { id?: string; mobileDisplay?: string };
+    };
   };
-  const sessionId = verifyBody.data?.sessionId;
-  if (!sessionId) throw new Error("Failed to verify OTP and create a session");
+  const sessionId = body.data?.sessionId;
+  if (!sessionId) throw new Error("Failed to create a demo session");
 
   return {
     sessionId,
-    userId: verifyBody.data?.userId ?? "unknown-user",
-    mobileDisplay: verifyBody.data?.mobileDisplay ?? mobile,
+    userId: body.data?.user?.id ?? "demo-user-id",
+    mobileDisplay: body.data?.user?.mobileDisplay ?? DEMO_MOBILE,
   };
 }
 
@@ -83,6 +90,20 @@ async function mockAuth(page: Page, session: SessionInfo) {
   );
 }
 
+/**
+ * Wait until React has hydrated this element. Server-rendered markup appears
+ * before the client attaches handlers, so a click that lands too early is a
+ * silent no-op — the library row never navigates and the URL assertion times
+ * out. React marks a hydrated host node with an internal `__reactFiber$` key.
+ */
+async function waitForHydration(locator: Locator) {
+  await expect
+    .poll(() =>
+      locator.evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactFiber$"))),
+    )
+    .toBe(true);
+}
+
 const APP_READY_TIMEOUT = 15_000;
 
 // ---------------------------------------------------------------------------
@@ -91,7 +112,7 @@ const APP_READY_TIMEOUT = 15_000;
 
 test.describe("Document Upload Wizard", () => {
   test("choose-source step shows both options", async ({ page, request }) => {
-    const session = await createSessionFor(request, freshMobile());
+    const session = await createDemoSession(request);
     await mockAuth(page, session);
     await page.goto("/documents/upload");
 
@@ -106,7 +127,7 @@ test.describe("Document Upload Wizard", () => {
     page,
     request,
   }) => {
-    const session = await createSessionFor(request, DEMO_MOBILE);
+    const session = await createDemoSession(request);
     await mockAuth(page, session);
     await page.goto("/documents/upload");
 
@@ -116,17 +137,20 @@ test.describe("Document Upload Wizard", () => {
     await page.getByText("اسناد لیگالیر").click();
 
     // Demo user owns 6 documents — at least one should render.
-    await expect(page.getByText("قرارداد-کار-و-تعهدات-بیمه.pdf")).toBeVisible({
+    const row = page.getByText("قرارداد-کار-و-تعهدات-بیمه.pdf");
+    await expect(row).toBeVisible({ timeout: APP_READY_TIMEOUT });
+
+    // Selecting a document navigates to its detail page. Wait for the row to
+    // be interactive first, or the click silently no-ops.
+    await waitForHydration(row);
+    await row.click();
+    await expect(page).toHaveURL(/\/documents\/doc-emp-001/, {
       timeout: APP_READY_TIMEOUT,
     });
-
-    // Selecting a document navigates to its detail page.
-    await page.getByText("قرارداد-کار-و-تعهدات-بیمه.pdf").click();
-    await expect(page).toHaveURL(/\/documents\/doc-emp-001/);
   });
 
   test("system upload shows the drag & drop zone", async ({ page, request }) => {
-    const session = await createSessionFor(request, freshMobile());
+    const session = await createDemoSession(request);
     await mockAuth(page, session);
     await page.goto("/documents/upload");
 
@@ -145,7 +169,7 @@ test.describe("Document Upload Wizard", () => {
     page,
     request,
   }) => {
-    const session = await createSessionFor(request, freshMobile());
+    const session = await createDemoSession(request);
     await mockAuth(page, session);
     await page.goto("/documents/upload");
 

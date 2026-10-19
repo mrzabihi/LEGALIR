@@ -13,6 +13,7 @@ import {
   deleteDemoRelationshipsFor,
 } from "@/lib/demo-seed";
 import { removeActivity } from "@/lib/db";
+import { releaseReservedByKey } from "@/lib/usage/engine";
 import { deleteDocumentFile, documentFileReference } from "@/lib/document-storage";
 
 export async function GET(
@@ -76,6 +77,10 @@ export async function DELETE(
   removeActivity(userId, id);
   deleteDemoRelationshipsFor(userId, id);
   deleteDocumentFile(documentFileReference(doc));
+  // An upload that was charged but never completed releases its reservation.
+  // An already-settled analysis is left charged — deleting a document does not
+  // erase consumption that really happened.
+  releaseReservedByKey(`document:${id}`);
 
   return NextResponse.json({ data: { deleted: true as const } });
 }

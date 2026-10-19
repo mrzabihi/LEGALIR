@@ -15,10 +15,16 @@ import { useEffect, useState } from "react";
 import { Drawer, snackbar } from "@legalir/ui";
 import {
   useAdminUserSubscription,
+  useAdminUserUsageReport,
   useAdminSubscriptionAction,
   useAdminEnergyAction,
   useAdminPlans,
 } from "@/hooks/useAdmin";
+import {
+  UsageReportPanel,
+  resolveRange,
+  type UsageReportFilters,
+} from "@/components/usage/usage-report-panel";
 import {
   Badge,
   Button,
@@ -35,11 +41,7 @@ import {
   Td,
 } from "@/components/admin/ui";
 import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
-import type {
-  AdminSubscriptionAction,
-  EnergyTransactionType,
-  PlanCode,
-} from "@legalir/types";
+import type { AdminSubscriptionAction, EnergyTransactionType, PlanCode } from "@legalir/types";
 
 // ---------------------------------------------------------------------------
 // Presentation maps
@@ -98,6 +100,13 @@ export function UserSubscriptionDrawer({
   const [energyAmount, setEnergyAmount] = useState("1000");
   const [energyReason, setEnergyReason] = useState("");
 
+  const [tab, setTab] = useState<"dossier" | "usage">("dossier");
+  const [usageQuery, setUsageQuery] = useState<UsageReportFilters>(() => {
+    const range = resolveRange("30d");
+    return { from: range.from, to: range.to, page: 1, pageSize: 20 };
+  });
+  const usage = useAdminUserUsageReport(open && tab === "usage" ? userId : null, usageQuery);
+
   // Reset the transient form state whenever a new user is opened.
   useEffect(() => {
     setAction("activate");
@@ -106,6 +115,9 @@ export function UserSubscriptionDrawer({
     setSubReason("");
     setEnergyAmount("1000");
     setEnergyReason("");
+    setTab("dossier");
+    const range = resolveRange("30d");
+    setUsageQuery({ from: range.from, to: range.to, page: 1, pageSize: 20 });
   }, [userId, open]);
 
   async function runSubAction() {
@@ -148,203 +160,271 @@ export function UserSubscriptionDrawer({
 
   return (
     <Drawer open={open} onClose={onClose} width={560} title="اشتراک و انرژی کاربر">
-      {query.isLoading && <LoadingBlock rows={6} />}
-      {query.isError && <ErrorBlock onRetry={() => query.refetch()} />}
-      {data && (
-        <div className="flex flex-col gap-4">
-          {/* Identity + current plan */}
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-on-surface">{data.displayName ?? "بدون نام"}</span>
-              <MaskedMobile className="text-caption text-muted" value={data.mobile} />
-            </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="text-caption text-muted">شناسهٔ سیستمی:</span>
-              <IdChip id={data.publicId ?? "—"} />
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <Badge tone={data.current.isFree ? "neutral" : "brand"}>
-                {data.current.planNameFa ?? "بدون اشتراک"}
-              </Badge>
-              <Badge tone={data.current.status === "active" ? "success" : "neutral"}>
-                {SUB_STATUS_FA[data.current.status] ?? data.current.status}
-              </Badge>
-              {data.current.daysRemaining !== null && !data.current.isFree && (
-                <span className="text-caption text-muted">
-                  {toPersianNumber(data.current.daysRemaining)} روز باقی‌مانده
-                </span>
-              )}
-            </div>
-            {data.current.endAt && (
-              <div className="mt-1 text-caption text-muted">
-                پایان: {toPersianDate(data.current.endAt)}
+      <div
+        role="tablist"
+        aria-label="بخش‌های پرونده کاربر"
+        className="mb-4 flex gap-1 rounded-full border border-divider bg-surface-container p-1"
+      >
+        {(
+          [
+            ["dossier", "اشتراک و انرژی"],
+            ["usage", "مصرف انرژی و توکن"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            type="button"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`flex-1 rounded-full px-3 py-1.5 text-caption font-medium transition-colors ${
+              tab === key
+                ? "bg-surface text-on-surface shadow-elevation-1"
+                : "text-muted hover:text-on-surface"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "usage" ? (
+        <UsageReportPanel
+          data={usage.data}
+          isLoading={usage.isLoading}
+          error={usage.error as Error | null}
+          onRetry={() => usage.refetch()}
+          query={usageQuery}
+          onQueryChange={setUsageQuery}
+          compact
+          hiddenActions
+        />
+      ) : (
+        <>
+          {query.isLoading && <LoadingBlock rows={6} />}
+          {query.isError && <ErrorBlock onRetry={() => query.refetch()} />}
+          {data && (
+            <div className="flex flex-col gap-4">
+              {/* Identity + current plan */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-on-surface">
+                    {data.displayName ?? "بدون نام"}
+                  </span>
+                  <MaskedMobile className="text-caption text-muted" value={data.mobile} />
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-caption text-muted">شناسهٔ سیستمی:</span>
+                  <IdChip id={data.publicId ?? "—"} />
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge tone={data.current.isFree ? "neutral" : "brand"}>
+                    {data.current.planNameFa ?? "بدون اشتراک"}
+                  </Badge>
+                  <Badge tone={data.current.status === "active" ? "success" : "neutral"}>
+                    {SUB_STATUS_FA[data.current.status] ?? data.current.status}
+                  </Badge>
+                  {data.current.daysRemaining !== null && !data.current.isFree && (
+                    <span className="text-caption text-muted">
+                      {toPersianNumber(data.current.daysRemaining)} روز باقی‌مانده
+                    </span>
+                  )}
+                </div>
+                {data.current.endAt && (
+                  <div className="mt-1 text-caption text-muted">
+                    پایان: {toPersianDate(data.current.endAt)}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Energy summary */}
-          <div className="grid grid-cols-2 gap-2">
-            <Stat label="امتیاز پاداش (ماندگار)" value={toPersianNumber(data.energy.rewardBalance)} />
-            <Stat label="اعتبار اشتراک امروز" value={toPersianNumber(data.energy.subscriptionRemaining)} />
-            <Stat label="مجموع کسب‌شده" value={toPersianNumber(data.energy.lifetimeEarned)} />
-            <Stat label="مجموع مصرف‌شده" value={toPersianNumber(data.energy.lifetimeSpent)} />
-          </div>
+              {/* Energy summary */}
+              <div className="grid grid-cols-2 gap-2">
+                <Stat
+                  label="امتیاز پاداش (ماندگار)"
+                  value={toPersianNumber(data.energy.rewardBalance)}
+                />
+                <Stat
+                  label="اعتبار اشتراک امروز"
+                  value={toPersianNumber(data.energy.subscriptionRemaining)}
+                />
+                <Stat label="مجموع کسب‌شده" value={toPersianNumber(data.energy.lifetimeEarned)} />
+                <Stat label="مجموع مصرف‌شده" value={toPersianNumber(data.energy.lifetimeSpent)} />
+              </div>
 
-          {/* Subscription actions */}
-          <div className="rounded-large border border-divider p-3">
-            <div className="mb-2 font-medium text-on-surface">عملیات اشتراک</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="عملیات">
-                <Select value={action} onChange={(e) => setAction(e.target.value as AdminSubscriptionAction)}>
-                  <option value="activate">فعال‌سازی پلن</option>
-                  <option value="change_plan">تغییر پلن</option>
-                  <option value="extend">تمدید</option>
-                  <option value="deactivate">لغو اشتراک</option>
-                </Select>
-              </Field>
-              {(action === "activate" || action === "change_plan") && (
-                <Field label="پلن">
-                  <Select value={planCode} onChange={(e) => setPlanCode(e.target.value as PlanCode)}>
-                    {(plans.data?.items ?? []).map((p) => (
-                      <option key={p.code} value={p.code}>
-                        {p.nameFa}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
-              {action === "extend" && (
-                <Field label="تعداد روز">
+              {/* Subscription actions */}
+              <div className="rounded-large border border-divider p-3">
+                <div className="mb-2 font-medium text-on-surface">عملیات اشتراک</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="عملیات">
+                    <Select
+                      value={action}
+                      onChange={(e) => setAction(e.target.value as AdminSubscriptionAction)}
+                    >
+                      <option value="activate">فعال‌سازی پلن</option>
+                      <option value="change_plan">تغییر پلن</option>
+                      <option value="extend">تمدید</option>
+                      <option value="deactivate">لغو اشتراک</option>
+                    </Select>
+                  </Field>
+                  {(action === "activate" || action === "change_plan") && (
+                    <Field label="پلن">
+                      <Select
+                        value={planCode}
+                        onChange={(e) => setPlanCode(e.target.value as PlanCode)}
+                      >
+                        {(plans.data?.items ?? []).map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.nameFa}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  )}
+                  {action === "extend" && (
+                    <Field label="تعداد روز">
+                      <TextInput
+                        type="number"
+                        value={days}
+                        onChange={(e) => setDays(e.target.value)}
+                        min={1}
+                      />
+                    </Field>
+                  )}
+                </div>
+                <Field label="دلیل (الزامی)">
                   <TextInput
-                    type="number"
-                    value={days}
-                    onChange={(e) => setDays(e.target.value)}
-                    min={1}
+                    value={subReason}
+                    onChange={(e) => setSubReason(e.target.value)}
+                    placeholder="دلیل این عملیات"
                   />
                 </Field>
-              )}
-            </div>
-            <Field label="دلیل (الزامی)">
-              <TextInput value={subReason} onChange={(e) => setSubReason(e.target.value)} placeholder="دلیل این عملیات" />
-            </Field>
-            <div className="mt-2">
-              <Button
-                variant="primary"
-                size="sm"
-                loading={subAction.isPending}
-                disabled={!subReason.trim()}
-                onClick={runSubAction}
-              >
-                اجرا
-              </Button>
-            </div>
-          </div>
+                <div className="mt-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={subAction.isPending}
+                    disabled={!subReason.trim()}
+                    onClick={runSubAction}
+                  >
+                    اجرا
+                  </Button>
+                </div>
+              </div>
 
-          {/* Energy actions */}
-          <div className="rounded-large border border-divider p-3">
-            <div className="mb-2 font-medium text-on-surface">انرژی (امتیاز پاداش)</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="مقدار">
-                <TextInput
-                  type="number"
-                  value={energyAmount}
-                  onChange={(e) => setEnergyAmount(e.target.value)}
-                />
-              </Field>
-              <Field label="دلیل (الزامی)">
-                <TextInput value={energyReason} onChange={(e) => setEnergyReason(e.target.value)} placeholder="دلیل اعطا/تعدیل" />
-              </Field>
-            </div>
-            <div className="mt-2 flex gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                loading={energyAction.isPending}
-                disabled={!energyReason.trim()}
-                onClick={() => runEnergyAction("grant")}
-              >
-                اعطا
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                loading={energyAction.isPending}
-                disabled={!energyReason.trim()}
-                onClick={() => runEnergyAction("adjust")}
-              >
-                کاهش
-              </Button>
-            </div>
-            <InfoBanner tone="info">
-              انرژی اعطاشده به امتیاز پاداش (ماندگار) افزوده می‌شود و در دفتر کل ثبت و حسابرسی می‌گردد.
-            </InfoBanner>
-          </div>
+              {/* Energy actions */}
+              <div className="rounded-large border border-divider p-3">
+                <div className="mb-2 font-medium text-on-surface">انرژی (امتیاز پاداش)</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="مقدار">
+                    <TextInput
+                      type="number"
+                      value={energyAmount}
+                      onChange={(e) => setEnergyAmount(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="دلیل (الزامی)">
+                    <TextInput
+                      value={energyReason}
+                      onChange={(e) => setEnergyReason(e.target.value)}
+                      placeholder="دلیل اعطا/تعدیل"
+                    />
+                  </Field>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={energyAction.isPending}
+                    disabled={!energyReason.trim()}
+                    onClick={() => runEnergyAction("grant")}
+                  >
+                    اعطا
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    loading={energyAction.isPending}
+                    disabled={!energyReason.trim()}
+                    onClick={() => runEnergyAction("adjust")}
+                  >
+                    کاهش
+                  </Button>
+                </div>
+                <InfoBanner tone="info">
+                  انرژی اعطاشده به امتیاز پاداش (ماندگار) افزوده می‌شود و در دفتر کل ثبت و حسابرسی
+                  می‌گردد.
+                </InfoBanner>
+              </div>
 
-          {/* History */}
-          <div>
-            <div className="mb-2 font-medium text-on-surface">تاریخچهٔ اشتراک</div>
-            {data.history.length === 0 ? (
-              <div className="text-caption text-muted">تاریخچه‌ای ثبت نشده است.</div>
-            ) : (
-              <DataTable
-                head={
-                  <tr>
-                    <Th>پلن</Th>
-                    <Th>وضعیت</Th>
-                    <Th>شروع</Th>
-                    <Th>پایان</Th>
-                  </tr>
-                }
-              >
-                {data.history.map((h) => (
-                  <tr key={h.id}>
-                    <Td>{h.planNameFa}</Td>
-                    <Td>{h.statusFa || SUB_STATUS_FA[h.status] || h.status}</Td>
-                    <Td className="whitespace-nowrap">{toPersianDate(h.startAt)}</Td>
-                    <Td className="whitespace-nowrap">{toPersianDate(h.endAt)}</Td>
-                  </tr>
-                ))}
-              </DataTable>
-            )}
-          </div>
+              {/* History */}
+              <div>
+                <div className="mb-2 font-medium text-on-surface">تاریخچهٔ اشتراک</div>
+                {data.history.length === 0 ? (
+                  <div className="text-caption text-muted">تاریخچه‌ای ثبت نشده است.</div>
+                ) : (
+                  <DataTable
+                    head={
+                      <tr>
+                        <Th>پلن</Th>
+                        <Th>وضعیت</Th>
+                        <Th>شروع</Th>
+                        <Th>پایان</Th>
+                      </tr>
+                    }
+                  >
+                    {data.history.map((h) => (
+                      <tr key={h.id}>
+                        <Td>{h.planNameFa}</Td>
+                        <Td>{h.statusFa || SUB_STATUS_FA[h.status] || h.status}</Td>
+                        <Td className="whitespace-nowrap">{toPersianDate(h.startAt)}</Td>
+                        <Td className="whitespace-nowrap">{toPersianDate(h.endAt)}</Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                )}
+              </div>
 
-          {/* Ledger */}
-          <div>
-            <div className="mb-2 font-medium text-on-surface">دفتر کل انرژی</div>
-            {data.ledger.length === 0 ? (
-              <div className="text-caption text-muted">تراکنش انرژی‌ای ثبت نشده است.</div>
-            ) : (
-              <DataTable
-                head={
-                  <tr>
-                    <Th>نوع</Th>
-                    <Th>منبع</Th>
-                    <Th>مقدار</Th>
-                    <Th>مانده</Th>
-                    <Th>تاریخ</Th>
-                  </tr>
-                }
-              >
-                {data.ledger.map((e) => (
-                  <tr key={e.id}>
-                    <Td>{ENERGY_TYPE_FA[e.type] ?? e.type}</Td>
-                    <Td>
-                      <Badge tone={e.source === "REWARD" ? "brand" : "info"}>
-                        {e.source === "REWARD" ? "پاداش" : "اشتراک"}
-                      </Badge>
-                    </Td>
-                    <Td className={`tabular-nums ${e.amount < 0 ? "text-error" : "text-success"}`}>
-                      {e.amount > 0 ? "+" : ""}
-                      {toPersianNumber(e.amount)}
-                    </Td>
-                    <Td className="tabular-nums">{toPersianNumber(e.balanceAfter)}</Td>
-                    <Td className="whitespace-nowrap">{toPersianDate(e.createdAt)}</Td>
-                  </tr>
-                ))}
-              </DataTable>
-            )}
-          </div>
-        </div>
+              {/* Ledger */}
+              <div>
+                <div className="mb-2 font-medium text-on-surface">دفتر کل انرژی</div>
+                {data.ledger.length === 0 ? (
+                  <div className="text-caption text-muted">تراکنش انرژی‌ای ثبت نشده است.</div>
+                ) : (
+                  <DataTable
+                    head={
+                      <tr>
+                        <Th>نوع</Th>
+                        <Th>منبع</Th>
+                        <Th>مقدار</Th>
+                        <Th>مانده</Th>
+                        <Th>تاریخ</Th>
+                      </tr>
+                    }
+                  >
+                    {data.ledger.map((e) => (
+                      <tr key={e.id}>
+                        <Td>{ENERGY_TYPE_FA[e.type] ?? e.type}</Td>
+                        <Td>
+                          <Badge tone={e.source === "REWARD" ? "brand" : "info"}>
+                            {e.source === "REWARD" ? "پاداش" : "اشتراک"}
+                          </Badge>
+                        </Td>
+                        <Td
+                          className={`tabular-nums ${e.amount < 0 ? "text-error" : "text-success"}`}
+                        >
+                          {e.amount > 0 ? "+" : ""}
+                          {toPersianNumber(e.amount)}
+                        </Td>
+                        <Td className="tabular-nums">{toPersianNumber(e.balanceAfter)}</Td>
+                        <Td className="whitespace-nowrap">{toPersianDate(e.createdAt)}</Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </Drawer>
   );

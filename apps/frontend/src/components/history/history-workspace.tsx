@@ -70,6 +70,7 @@ import {
   IconOpenInNew,
   IconClock,
   IconInfo,
+  IconGavel,
 } from "@/lib/icons";
 import type { V1HistoryItem } from "@legalir/types";
 
@@ -94,6 +95,7 @@ const TYPE_OPTIONS: { key: string; label: string }[] = [
   { key: "contract", label: "قرارداد" },
   { key: "subscription", label: "اشتراک" },
   { key: "case", label: "پرونده" },
+  { key: "judicial", label: "اوراق قضایی" },
 ];
 
 const SORT_OPTIONS: { key: string; label: string }[] = [
@@ -129,6 +131,7 @@ const TYPE_VISUAL: Record<
   contract: { icon: <IconContract size={20} />, bg: "bg-warning-50", fg: "text-warning-700", labelFa: "قرارداد" },
   case: { icon: <IconShield size={20} />, bg: "bg-info-50", fg: "text-info-700", labelFa: "پرونده" },
   subscription: { icon: <IconSubscription size={20} />, bg: "bg-secondary-container", fg: "text-secondary-on-container", labelFa: "اشتراک" },
+  judicial: { icon: <IconGavel size={20} />, bg: "bg-warning-50", fg: "text-warning-700", labelFa: "اوراق قضایی" },
 };
 
 function actionIcon(key: HistoryActionKey, size = 16): ReactNode {
@@ -302,16 +305,19 @@ function HistoryCard({
   const nearPurge = isNearPurge(item);
 
   return (
+    // Three zones, identical at every width — identity, state, action — so
+    // the eye runs down one column instead of re-reading every card. On
+    // phones identity takes the first line, state and action the second.
     <article
       className={[
-        "flex flex-col gap-3 rounded-medium border p-3 transition-colors duration-short3 tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4",
+        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-medium border p-3 transition-colors duration-short3 tablet:grid-cols-[minmax(0,1fr)_9.5rem_auto] tablet:gap-x-5 tablet:p-4",
         item.archived
           ? "border-[color:var(--color-outline-variant)] bg-surface-container"
           : "border-[color:var(--color-outline-variant)] bg-surface hover:border-[color:var(--color-outline)]",
       ].join(" ")}
     >
-      {/* Identity + metadata */}
-      <div className="flex min-w-0 flex-1 items-start gap-3">
+      {/* --- Identity --- */}
+      <div className="col-span-2 flex min-w-0 items-center gap-3 tablet:col-span-1">
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${visual.bg}`}
           aria-hidden="true"
@@ -320,29 +326,12 @@ function HistoryCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
-              {item.title}
-            </h3>
-            <RawStatusBadge status={item.status} label={item.statusFa} />
-            {item.archived && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-2 py-0.5 text-caption text-on-surface-variant">
-                <IconArchive size={12} aria-hidden="true" />
-                بایگانی‌شده
-              </span>
-            )}
-            {nearPurge && (
-              <Tooltip content="این مورد به‌زودی از تاریخچه فعال حذف می‌شود؛ برای نگهداری، آن را بایگانی کنید.">
-                <span className="inline-flex items-center gap-1 rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-caption text-warning-700">
-                  <IconClock size={12} aria-hidden="true" />
-                  نزدیک به پاک‌سازی
-                </span>
-              </Tooltip>
-            )}
-          </div>
+          <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
+            {item.title}
+          </h3>
 
           {item.description && (
-            <p className="mt-1 truncate text-body-2 text-on-surface-variant">{item.description}</p>
+            <p className="mt-0.5 truncate text-body-2 text-on-surface-variant">{item.description}</p>
           )}
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
@@ -361,27 +350,36 @@ function HistoryCard({
         </div>
       </div>
 
-      {/* The ONE primary action + the ⋮ overflow menu. On mobile both sit
-          on their own line (full-width primary); from `tablet` up they pin
-          to the end edge of the same row. */}
+      {/* --- State (its own column, so statuses align across rows) --- */}
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 tablet:flex-col tablet:items-start tablet:gap-1">
+        <RawStatusBadge status={item.status} label={item.statusFa} />
+        {item.archived && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--color-outline-variant)] bg-surface px-2 py-0.5 text-caption text-on-surface-variant">
+            <IconArchive size={12} aria-hidden="true" />
+            بایگانی‌شده
+          </span>
+        )}
+        {nearPurge && (
+          <Tooltip content="این مورد به‌زودی از تاریخچه فعال حذف می‌شود؛ برای نگهداری، آن را بایگانی کنید.">
+            <span className="inline-flex items-center gap-1 rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-caption text-warning-700">
+              <IconClock size={12} aria-hidden="true" />
+              نزدیک به پاک‌سازی
+            </span>
+          </Tooltip>
+        )}
+      </div>
+
+      {/* --- Action: the ONE primary action + the ⋮ overflow menu --- */}
       {(primary || secondary.length > 0) && (
-        <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
+        <div className="flex shrink-0 items-center justify-end gap-1.5 tablet:border-s tablet:border-divider tablet:ps-5">
           {primary &&
             (primary.href ? (
-              <Link
-                href={primary.href}
-                className={buttonClasses({ className: "flex-1 tablet:flex-none" })}
-              >
+              <Link href={primary.href} className={buttonClasses()}>
                 {actionIcon(primary.key, 16)}
                 {primary.labelFa}
               </Link>
             ) : (
-              <Button
-                type="button"
-                onClick={() => onAction(primary, item)}
-                disabled={busy}
-                className="flex-1 tablet:flex-none"
-              >
+              <Button type="button" onClick={() => onAction(primary, item)} disabled={busy}>
                 {actionIcon(primary.key, 16)}
                 {primary.labelFa}
               </Button>
@@ -770,23 +768,31 @@ export function HistoryWorkspace() {
                 onChange={setSearchQuery}
               />
             </div>
+            {/* `fullWidth` on both: the control's own wrapper is `w-64`
+                by default, which overflowed a two-column phone toolbar. The
+                sizing now comes from the cell (mobile) or the wrapper
+                (tablet), so the row can never scroll sideways. */}
             <div className="grid grid-cols-2 gap-3 tablet:flex tablet:items-end">
-              <Select
-                label="نوع"
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                selectSize="small"
-                className="tablet:w-[150px]"
-                options={TYPE_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
-              />
-              <Select
-                label="مرتب‌سازی"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                selectSize="small"
-                className="tablet:w-[150px]"
-                options={SORT_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
-              />
+              <div className="min-w-0 tablet:w-[150px]">
+                <Select
+                  label="نوع"
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  selectSize="small"
+                  fullWidth
+                  options={TYPE_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
+                />
+              </div>
+              <div className="min-w-0 tablet:w-[150px]">
+                <Select
+                  label="مرتب‌سازی"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  selectSize="small"
+                  fullWidth
+                  options={SORT_OPTIONS.map((opt) => ({ value: opt.key, label: opt.label }))}
+                />
+              </div>
             </div>
           </div>
 

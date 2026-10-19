@@ -21,6 +21,7 @@ import {
 import { getVersion, listVersions } from "@/lib/contracts/db";
 import { currentVersionApproval } from "@/lib/contracts/admin-review";
 import { renderContractDocx } from "@/lib/contracts/docx";
+import { mergedLegalBasisCatalog, preSignTipsForType } from "@/lib/contracts/legal-review-db";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -58,6 +59,8 @@ export async function GET(request: Request, { params }: Params) {
     bytes = renderContractDocx({
       contract,
       version,
+      legalBasisCatalog: mergedLegalBasisCatalog(),
+      preSignTips: preSignTipsForType(contract.type),
       stamp: approval
         ? {
             applied: true,

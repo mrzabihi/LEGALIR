@@ -21,9 +21,16 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@legalir/ui";
 import { useWizard } from "../wizard-context";
-import { ChoiceField, Field, FieldGrid, SectionCard, Notice, DateField } from "../primitives";
+import {
+  ActionButton,
+  ChoiceField,
+  DateField,
+  Field,
+  FieldGrid,
+  Notice,
+  SectionCard,
+} from "../primitives";
 import { useSaveParty } from "@/hooks/usePropertyContracts";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import {
@@ -237,7 +244,7 @@ function PartyForm({ role, entity }: PartyFormProps) {
   // A save is always allowed: partial data is a legitimate draft state,
   // and nothing the user typed may be lost. The completeness scorer and
   // the step-advance guard decide when the party is truly complete.
-  async function persist(markTouched: boolean) {
+  async function persist(markTouched: boolean): Promise<boolean> {
     if (markTouched) setTouched(true);
     setServerErrors({});
     try {
@@ -256,7 +263,11 @@ function PartyForm({ role, entity }: PartyFormProps) {
       });
       dirtyRef.current = false;
       setSaved(true);
+      return true;
     } catch (error) {
+      // A failed save must revoke the success state — otherwise «ذخیره شد»
+      // would sit above data the server does not have.
+      setSaved(false);
       if (error instanceof ApiClientError && error.fieldErrors) {
         setServerErrors(
           Object.fromEntries(error.fieldErrors.map((e) => [e.path, e.reason]))
@@ -264,11 +275,12 @@ function PartyForm({ role, entity }: PartyFormProps) {
       } else {
         setServerErrors({ _form: "ذخیره اطلاعات ناموفق بود. دوباره تلاش کنید." });
       }
+      return false;
     }
   }
 
-  async function handleSave() {
-    await persist(true);
+  async function handleSave(): Promise<boolean> {
+    return persist(true);
   }
 
   const persistRef = useRef(persist);
@@ -537,9 +549,10 @@ function PartyForm({ role, entity }: PartyFormProps) {
       {serverErrors["_form"] && <Notice tone="error">{serverErrors["_form"]}</Notice>}
 
       <div className="flex justify-end">
-        <Button onClick={() => void handleSave()} loading={saveParty.isPending}>
-          ذخیره {isRepresentative ? "نمایندهٔ قانونی" : partyRoleLabelFa(role)}
-        </Button>
+        <ActionButton
+          idleLabel={`ذخیره ${isRepresentative ? "نمایندهٔ قانونی" : partyRoleLabelFa(role)}`}
+          onAction={handleSave}
+        />
       </div>
     </SectionCard>
   );

@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   useAiProviders,
   useSaveAiProvider,
@@ -25,10 +25,18 @@ import {
   useActivateAiPrompt,
   useAiMetrics,
   useAdminMe,
+  useChatToolSettings,
+  useUpdateChatToolSetting,
 } from "@/hooks/useAdmin";
 import { toPersianNumber, toPersianDate, toRelativeTime } from "@/lib/persian-utils";
 import { AI_PROVIDER_KIND_FA, AI_PROVIDER_STATUS_FA } from "@legalir/types";
-import type { AiProviderKind, AiProviderConfig, AiPromptVersion } from "@legalir/types";
+import type {
+  AiProviderKind,
+  AiProviderConfig,
+  AiPromptVersion,
+  ChatToolAdminView,
+} from "@legalir/types";
+import { SERVICE_CONTEXTS } from "@/lib/ai/service-context";
 import type { SaveAiProviderInput } from "@/lib/api/admin";
 import {
   PageHeader,
@@ -571,6 +579,261 @@ function Metrics() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Contextual chat tools
+// ---------------------------------------------------------------------------
+// Two layers, kept visibly separate so the panel can never imply that a
+// toggle creates a capability:
+//   • «فعال» is the admin's decision and is editable here;
+//   • «در دسترس» is the server's capability verdict (does a real source
+//     exist?) and is read-only. Enabling a tool whose source is missing
+//     changes nothing for the user — the capability check still refuses it.
+
+function ChatTools() {
+  const { can } = useAdminMe();
+  const canManage = can("admin:ai:manage");
+  const toolsQuery = useChatToolSettings();
+  const update = useUpdateChatToolSetting();
+
+  const [feedback, setFeedback] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{
+    labelFa: string;
+    descriptionFa: string;
+    effectNoteFa: string;
+    order: number;
+    allowedServiceTypes: string[];
+  } | null>(null);
+
+  const serviceOptions = Object.values(SERVICE_CONTEXTS);
+
+  async function apply(toolId: string, input: Parameters<typeof update.mutateAsync>[0]["input"]) {
+    setFeedback(null);
+    try {
+      await update.mutateAsync({ toolId, input });
+      setFeedback({ tone: "success", text: "تنظیمات ابزار ذخیره و ثبت شد." });
+    } catch (err) {
+      setFeedback({ tone: "error", text: errMessage(err, "ذخیره تنظیمات ناموفق بود") });
+    }
+  }
+
+  function startEdit(tool: ChatToolAdminView) {
+    setEditingId(tool.toolId);
+    setDraft({
+      labelFa: tool.labelFa,
+      descriptionFa: tool.descriptionFa,
+      effectNoteFa: tool.effectNoteFa,
+      order: tool.order,
+      allowedServiceTypes: tool.allowedServiceTypes,
+    });
+  }
+
+  return (
+    <Section
+      title="ابزارهای زمینه‌ای چت"
+      subtitle="فعال/غیرفعال بودن، سرویس‌های مجاز و متن نمایشی هر ابزار. «در دسترس» را سرور تعیین می‌کند و با این تنظیمات تغییر نمی‌کند."
+    >
+      <Feedback value={feedback} />
+      {!canManage && (
+        <InfoBanner tone="warning">
+          شما مجوز مدیریت هوش مصنوعی را ندارید؛ این بخش فقط‌خواندنی است.
+        </InfoBanner>
+      )}
+
+      <StateView query={toolsQuery} loadingRows={3}>
+        {(data) => (
+          <DataTable
+            head={
+              <tr>
+                <Th>ابزار</Th>
+                <Th>فعال</Th>
+                <Th>در دسترس</Th>
+                <Th>سرویس‌های مجاز</Th>
+                <Th>ترتیب</Th>
+                <Th>آخرین تغییر</Th>
+                {canManage && <Th>ویرایش</Th>}
+              </tr>
+            }
+          >
+            {data.items.map((tool) => (
+              <Fragment key={tool.toolId}>
+                <tr>
+                  <Td>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-onSurface">{tool.labelFa}</span>
+                      <span className="text-caption text-muted" dir="ltr">
+                        {tool.toolId}
+                      </span>
+                      <span className="text-caption text-muted">{tool.effectNoteFa}</span>
+                    </div>
+                  </Td>
+                  <Td>
+                    <Switch
+                      checked={tool.enabled}
+                      disabled={!canManage}
+                      onChange={(e) => void apply(tool.toolId, { enabled: e.target.checked })}
+                      // The visible label is only the state («فعال»), which is
+                      // identical on every row — name the switch after its tool
+                      // so a screen reader (and a test) can tell them apart.
+                      aria-label={`ابزار ${tool.labelFa}`}
+                      label={tool.enabled ? "فعال" : "غیرفعال"}
+                      tone="selection"
+                    />
+                  </Td>
+                  <Td>
+                    {tool.available ? (
+                      <Badge tone="success">در دسترس</Badge>
+                    ) : (
+                      <div className="flex max-w-[240px] flex-col gap-1">
+                        <Badge tone="neutral">در دسترس نیست</Badge>
+                        {tool.unavailableReasonFa && (
+                          <span className="text-caption leading-relaxed text-muted">
+                            {tool.unavailableReasonFa}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </Td>
+                  <Td className="text-caption text-muted">
+                    {tool.allowedServiceTypes.length === 0
+                      ? "همه سرویس‌ها"
+                      : tool.allowedServiceTypes
+                          .map((s) => SERVICE_CONTEXTS[s as keyof typeof SERVICE_CONTEXTS]?.label ?? s)
+                          .join("، ")}
+                  </Td>
+                  <Td className="tabular-nums">{toPersianNumber(tool.order)}</Td>
+                  <Td className="whitespace-nowrap text-caption text-muted">
+                    {tool.updatedBy ? (
+                      <span>
+                        {toRelativeTime(tool.updatedAt)}
+                        <span className="block text-[11px]">{tool.updatedBy}</span>
+                      </span>
+                    ) : (
+                      "پیش‌فرض"
+                    )}
+                  </Td>
+                  {canManage && (
+                    <Td>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => startEdit(tool)}
+                        disabled={editingId === tool.toolId}
+                      >
+                        ویرایش متن
+                      </Button>
+                    </Td>
+                  )}
+                </tr>
+                {canManage && editingId === tool.toolId && draft && (
+                  <tr>
+                    <td colSpan={7} className="px-4 pb-4 pt-0">
+                      <Card className="p-4">
+                        <div className="grid grid-cols-1 gap-3 tablet:grid-cols-3">
+                          <Field label="برچسب نمایشی">
+                            <TextInput
+                              value={draft.labelFa}
+                              onChange={(e) => setDraft((d) => (d ? { ...d, labelFa: e.target.value } : d))}
+                            />
+                          </Field>
+                          <Field label="ترتیب">
+                            <TextInput
+                              type="number"
+                              value={draft.order}
+                              onChange={(e) =>
+                                setDraft((d) => (d ? { ...d, order: Number(e.target.value) } : d))
+                              }
+                            />
+                          </Field>
+                          <Field label="توضیح کوتاه (اثر انتخاب)">
+                            <TextInput
+                              value={draft.effectNoteFa}
+                              onChange={(e) =>
+                                setDraft((d) => (d ? { ...d, effectNoteFa: e.target.value } : d))
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <div className="mt-3">
+                          <Field label="توضیح کامل (پاپ‌اور)">
+                            <TextInput
+                              value={draft.descriptionFa}
+                              onChange={(e) =>
+                                setDraft((d) => (d ? { ...d, descriptionFa: e.target.value } : d))
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <fieldset className="mt-3">
+                          <legend className="mb-1 text-caption text-muted">
+                            سرویس‌های مجاز — بدون انتخاب یعنی همه سرویس‌ها
+                          </legend>
+                          <div className="flex flex-wrap gap-2">
+                            {serviceOptions.map((svc) => {
+                              const checked = draft.allowedServiceTypes.includes(svc.serviceType);
+                              return (
+                                <label
+                                  key={svc.serviceType}
+                                  className="flex min-h-9 items-center gap-2 rounded-full border border-divider px-3 text-caption"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) =>
+                                      setDraft((d) => {
+                                        if (!d) return d;
+                                        const next = e.target.checked
+                                          ? [...d.allowedServiceTypes, svc.serviceType]
+                                          : d.allowedServiceTypes.filter((s) => s !== svc.serviceType);
+                                        return { ...d, allowedServiceTypes: next };
+                                      })
+                                    }
+                                  />
+                                  {svc.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={update.isPending}
+                            onClick={() =>
+                              void apply(tool.toolId, {
+                                labelFa: draft.labelFa,
+                                descriptionFa: draft.descriptionFa,
+                                effectNoteFa: draft.effectNoteFa,
+                                order: draft.order,
+                                allowedServiceTypes: draft.allowedServiceTypes,
+                              }).then(() => setEditingId(null))
+                            }
+                          >
+                            ذخیره
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setEditingId(null)}
+                            disabled={update.isPending}
+                          >
+                            انصراف
+                          </Button>
+                        </div>
+                      </Card>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </DataTable>
+        )}
+      </StateView>
+    </Section>
+  );
+}
+
 export default function AdminAiPage() {
   const { can } = useAdminMe();
   const canManage = can("admin:ai:manage");
@@ -603,6 +866,7 @@ export default function AdminAiPage() {
         <ProvidersTable canManage={canManage} />
       </Section>
 
+      <ChatTools />
       <Prompts />
       <Metrics />
     </div>

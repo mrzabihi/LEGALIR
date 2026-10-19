@@ -33,6 +33,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
 }));
 
+// The pasted-contract path opens a real conversation before navigating.
+const createConversationMock = vi.fn(async () => ({ id: "conv-pasted-1" }));
+vi.mock("@/hooks/useConversations", () => ({
+  useCreateConversation: () => ({
+    mutateAsync: createConversationMock,
+    isPending: false,
+  }),
+}));
+
 // --- Harness ----------------------------------------------------------------
 
 let queryClient: QueryClient;
@@ -61,6 +70,8 @@ function chooseUploadAndAdvance() {
 
 beforeEach(() => {
   pushSpy.mockClear();
+  createConversationMock.mockClear();
+  window.sessionStorage.clear();
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
   });
@@ -71,11 +82,40 @@ beforeEach(() => {
 // ------------------------------------------------------------
 
 describe("review flow — step 1 (document)", () => {
-  it("offers the three document sources", () => {
+  it("offers the supported document sources, including pasted text", () => {
     renderPage();
     expect(screen.getByText("بارگذاری سند جدید")).toBeInTheDocument();
+    expect(screen.getByText("جای‌گذاری متن قرارداد")).toBeInTheDocument();
     expect(screen.getByText("از پیش‌نویس‌های من")).toBeInTheDocument();
     expect(screen.getByText("از اسناد لیگالیر")).toBeInTheDocument();
+  });
+
+  it("keeps «مرحله بعد» disabled until the pasted text is long enough", () => {
+    renderPage();
+    fireEvent.click(screen.getByText("جای‌گذاری متن قرارداد"));
+    const next = screen.getByRole("button", { name: "مرحله بعد" });
+    expect(next).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("متن قرارداد"), {
+      target: { value: "قرارداد اجاره" },
+    });
+    expect(next).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("متن قرارداد"), {
+      target: {
+        value:
+          "قرارداد اجاره مسکونی بین موجر و مستاجر؛ مدت اجاره دو سال و مبلغ ودیعه پنجاه میلیون تومان است.",
+      },
+    });
+    expect(next).toBeEnabled();
+  });
+
+  it("never uploads pasted text as a text/plain document", () => {
+    renderPage();
+    fireEvent.click(screen.getByText("جای‌گذاری متن قرارداد"));
+    // The paste step offers a textarea, not a file input.
+    expect(screen.queryByRole("button", { name: /انتخاب فایل/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("متن قرارداد").tagName).toBe("TEXTAREA");
   });
 
   it("keeps «مرحله بعد» disabled until a document is chosen", () => {
@@ -177,5 +217,54 @@ describe("review flow — step 3 (confirm)", () => {
     const target = pushSpy.mock.calls[0]![0] as string;
     expect(target).toContain("/documents/upload");
     expect(target).toContain("returnTo=%2Fcontracts%2Freview");
+  });
+});
+
+// ------------------------------------------------------------
+// Pasted contract — the non-upload intake (§4)
+// ------------------------------------------------------------
+
+describe("review flow — pasted contract", () => {
+  const PASTED =
+    "قرارداد اجاره مسکونی بین موجر و مستاجر؛ مدت اجاره دو سال و مبلغ ودیعه پنجاه میلیون تومان است.";
+
+  function reachConfirmWithPaste() {
+    renderPage();
+    fireEvent.click(screen.getByText("جای‌گذاری متن قرارداد"));
+    fireEvent.change(screen.getByLabelText("متن قرارداد"), {
+      target: { value: PASTED },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "مرحله بعد" }));
+    fireEvent.click(screen.getByText("بررسی پیش از امضا"));
+    fireEvent.click(screen.getByRole("button", { name: "مرحله بعد" }));
+  }
+
+  it("shows the pasted source on the confirm step", () => {
+    reachConfirmWithPaste();
+    expect(screen.getByText("متن جای‌گذاری‌شده")).toBeInTheDocument();
+  });
+
+  it("opens a contract-review conversation and hands the text over once", async () => {
+    reachConfirmWithPaste();
+    fireEvent.click(screen.getByRole("button", { name: /شروع بررسی/ }));
+
+    await waitFor(() => expect(createConversationMock).toHaveBeenCalledTimes(1));
+    expect(createConversationMock).toHaveBeenCalledWith({
+      title: "بررسی قرارداد جای‌گذاری‌شده",
+      category: "contract",
+    });
+
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledTimes(1));
+    const target = new URL(pushSpy.mock.calls[0]![0] as string, "http://localhost");
+    expect(target.pathname).toBe("/chat/conv-pasted-1");
+    expect(target.searchParams.get("service")).toBe("contract_review");
+
+    // The text travels through sessionStorage under a one-shot token —
+    // never through the URL, and never as a document upload.
+    const token = target.searchParams.get("reviewPasted");
+    expect(token).toBeTruthy();
+    const stored = window.sessionStorage.getItem(`legalir:review-pasted:${token}`);
+    expect(stored).toContain(PASTED);
+    expect(stored).toContain("این قرارداد را بررسی کن.");
   });
 });

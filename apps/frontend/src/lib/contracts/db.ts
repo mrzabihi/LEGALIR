@@ -251,6 +251,34 @@ export function updateContractForUser(
   return next;
 }
 
+/**
+ * Patch a contract by id, NOT scoped to an owner.
+ *
+ * Only for server-side lifecycle acts where the actor is already
+ * authorised independently — e.g. a Super-Admin stamping the final
+ * version. Owner-facing routes must keep using
+ * `updateContractForUser`, which returns null for a contract that
+ * belongs to someone else.
+ */
+export function updateContractById(
+  contractId: string,
+  patch: Partial<PropertyContract>
+): PropertyContract | null {
+  const rows = readTable<PropertyContract>(T_CONTRACTS);
+  const idx = rows.findIndex((c) => c.id === contractId);
+  if (idx === -1) return null;
+  const next: PropertyContract = {
+    ...rows[idx]!,
+    ...patch,
+    id: rows[idx]!.id,
+    userId: rows[idx]!.userId,
+    updatedAt: new Date().toISOString(),
+  };
+  rows[idx] = next;
+  writeTable(T_CONTRACTS, rows);
+  return next;
+}
+
 /** Merge a partial domain-data patch into the contract's `data` column. */
 export function mergeContractData(
   userId: string,
@@ -590,6 +618,19 @@ export function updatePayment(
 // ------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------
+
+/**
+ * Pure deep-merge of a domain-data patch. Exposed so a route can build the
+ * WHOLE next row in memory and write it once, instead of a read-modify-write
+ * per field — three sequential writes let a concurrent request land between
+ * them and lose an edit.
+ */
+export function mergeDomainData(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  return deepMerge(base, patch);
+}
 
 /** Deep-merge a partial patch into a nested object (arrays replace). */
 function deepMerge(

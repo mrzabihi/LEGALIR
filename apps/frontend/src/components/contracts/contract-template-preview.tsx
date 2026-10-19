@@ -21,6 +21,7 @@
 import { Dialog, Button } from "@legalir/ui";
 import {
   partyRoleLabelFa,
+  TERMINAL_WIZARD_STEP_IDS,
   type ContractDefinition,
 } from "@/lib/contracts/registry";
 import { toPersianNumber } from "@/lib/persian-utils";
@@ -73,9 +74,9 @@ export function ContractTemplatePreview({
 }: ContractTemplatePreviewProps) {
   if (!definition) return null;
 
-  // The trailing «بازبینی و پیش‌نمایش» step is not a data-entry topic, so
-  // it is not counted as a section the user fills in.
-  const steps = definition.wizardSteps.filter((s) => s.id !== "review");
+  // The terminal stages (review, signature, final) own no fields, so they
+  // are not listed as sections the user fills in.
+  const steps = definition.wizardSteps.filter((s) => !TERMINAL_WIZARD_STEP_IDS.includes(s.id));
   const requiredDocs = definition.requiredDocuments.filter((d) => d.required);
   const optionalDocs = definition.requiredDocuments.filter((d) => !d.required);
   const roles = definition.roles.map(partyRoleLabelFa);

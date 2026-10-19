@@ -16,7 +16,9 @@
 // ============================================================
 
 import crypto from "node:crypto";
+import { SIGNATURE_PARTICIPANT_STATUS_FA } from "@legalir/types";
 import type {
+  SignatureAttestation,
   SignatureEvent,
   SignatureInvitation,
   SignatureParticipant,
@@ -29,6 +31,7 @@ const T_REQUESTS = "contract-signature-requests";
 const T_PARTICIPANTS = "contract-signature-participants";
 const T_EVENTS = "contract-signature-events";
 const T_INVITATIONS = "contract-signature-invitations";
+const T_ATTESTATIONS = "contract-signature-attestations";
 
 // ------------------------------------------------------------
 // Requests
@@ -222,6 +225,26 @@ export function appendSignatureEvent(
 }
 
 // ------------------------------------------------------------
+// Admin attestations
+// ------------------------------------------------------------
+// Evidence ABOUT a signature the party gave — never a signature. Read
+// by the admin drawer and the final-approval gate; never written by
+// the signing route.
+
+export function listAttestations(contractId: string): SignatureAttestation[] {
+  return readTable<SignatureAttestation>(T_ATTESTATIONS)
+    .filter((a) => a.contractId === contractId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function insertAttestation(attestation: SignatureAttestation): SignatureAttestation {
+  const rows = readTable<SignatureAttestation>(T_ATTESTATIONS);
+  rows.push(attestation);
+  writeTable(T_ATTESTATIONS, rows);
+  return attestation;
+}
+
+// ------------------------------------------------------------
 // Invitations
 // ------------------------------------------------------------
 
@@ -284,4 +307,29 @@ export function activeSignatureRequestDetail(contractId: string): SignatureReque
 export function latestSignatureRequestDetail(contractId: string): SignatureRequestDetail | null {
   const request = latestSignatureRequest(contractId);
   return request ? toRequestDetail(request) : null;
+}
+
+/**
+ * The REAL signature state per rendered role label, for ONE frozen version.
+ *
+ * A signature binds to the version it was applied to and never travels: if
+ * the newest request belongs to a different version, nothing is returned
+ * and the document's table reads «در انتظار امضا» for every role. The
+ * document renderers only ever print what this returns, so an unconfirmed
+ * or other-version signature can never be presented as real.
+ */
+export function signatureMarksForVersion(
+  contractId: string,
+  versionId: string
+): Record<string, { signedAt: string | null; statusFa: string }> {
+  const request = latestSignatureRequestDetail(contractId);
+  if (!request || request.contractVersionId !== versionId) return {};
+  const marks: Record<string, { signedAt: string | null; statusFa: string }> = {};
+  for (const participant of request.participants) {
+    marks[participant.roleFa] = {
+      signedAt: participant.signedAt,
+      statusFa: SIGNATURE_PARTICIPANT_STATUS_FA[participant.status],
+    };
+  }
+  return marks;
 }

@@ -16,7 +16,7 @@ import type {
   V1Reference,
 } from "@legalir/types";
 import { getDemoDocument } from "@/lib/demo-seed";
-import { retrieveHybrid } from "@/lib/knowledge/retriever";
+import { retrieveHybrid, retrievePrecedentSources } from "@/lib/knowledge/retriever";
 import { buildAnswerContract } from "@/lib/knowledge/answer-contract";
 
 export interface GroundedSource {
@@ -49,11 +49,34 @@ export interface GroundingResult {
 // Retrieval — delegated to the hybrid knowledge engine
 // ============================================================
 
+export interface GroundingOptions {
+  /**
+   * Also run the precedent-scoped pass (the «آراء قضایی» tool). Hits are
+   * merged and de-duplicated by source id, then re-ranked by the contract.
+   */
+  includePrecedentPass?: boolean;
+  /** How many precedent hits the extra pass may contribute. */
+  maxPrecedentSources?: number;
+}
+
 export function retrieveGroundedSources(
   query: string,
-  maxSources = 3
+  maxSources = 3,
+  options: GroundingOptions = {}
 ): GroundingResult {
-  const { hits } = retrieveHybrid(query, maxSources);
+  const { hits: baseHits } = retrieveHybrid(query, maxSources);
+
+  let merged: RetrievalHit[] = baseHits;
+  if (options.includePrecedentPass) {
+    const { hits: precedentHits } = retrievePrecedentSources(
+      query,
+      options.maxPrecedentSources ?? 3
+    );
+    const seen = new Set(baseHits.map((h) => h.id));
+    merged = [...baseHits, ...precedentHits.filter((h) => !seen.has(h.id))];
+  }
+
+  const hits = merged;
   const contract = buildAnswerContract(hits);
 
   const sources: GroundedSource[] = hits.map((h: RetrievalHit) => ({

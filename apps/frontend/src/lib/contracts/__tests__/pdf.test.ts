@@ -15,7 +15,11 @@ import type {
   PropertyContract,
   PropertyContractVersion,
 } from "@legalir/types";
-import { renderContractPdf } from "../pdf";
+import {
+  CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
+  CONTRACT_REVIEW_STAMP_TEXT,
+} from "@legalir/types";
+import { FOOTER_BAND, renderContractPdf } from "../pdf";
 import { getContractDefinition } from "../registry";
 
 function rentData() {
@@ -166,11 +170,13 @@ describe("renderContractPdf — letterhead, running head and page numbers", () =
     const pages = await extractPageTexts(bytes);
     const norm = (s: string) => s.replace(/\u200c/g, " ").replace(/\s+/g, " ");
 
-    // Page 1: type, reference code, issue date and version label — the
-    // identification group the brief requires at the top-left.
+    // Page 1: type, reference code, contract date and version label — the
+    // identification group the brief requires in the header.
     expect(norm(pages[0]!)).toContain(norm("اجاره‌نامه"));
     expect(pages[0]).toContain("RENT-1405-0001");
-    expect(norm(pages[0]!)).toContain(norm("تاریخ صدور"));
+    expect(norm(pages[0]!)).toContain(norm("تاریخ قرارداد"));
+    // The status is part of the same right-aligned identity group.
+    expect(norm(pages[0]!)).toContain(norm("وضعیت:"));
     // The version line reads across a bidi boundary (Persian label, Latin
     // template version, Persian digits), so assert its parts, not a phrase.
     expect(norm(pages[0]!)).toContain(norm("نسخه قالب"));
@@ -386,7 +392,7 @@ describe("renderContractPdf — the official PNG stamp", () => {
 describe("renderContractPdf — party columns and signature geometry", () => {
   const PAGE_HEIGHT = 841.89;
   /** The reserved footer band: content must stop above MARGIN + FOOTER_BAND. */
-  const CONTENT_BOTTOM = 48 + 104;
+  const CONTENT_BOTTOM = 48 + FOOTER_BAND;
 
   async function rendered() {
     return renderContractPdf({
@@ -468,3 +474,116 @@ describe("renderContractPdf — party columns and signature geometry", () => {
     }
   });
 });
+
+// ============================================================
+// The review mark on EVERY page, and the signature TABLE (§3 / §6)
+// ============================================================
+// The blue mark used to be printed once, under the letterhead. The brief
+// moves it into the footer band of every page, carrying the contract's REAL
+// review fields — and turns the floating signer boxes into one RTL table
+// whose state cell shows only a recorded signature.
+
+describe("renderContractPdf — review mark and the signature table", () => {
+  const STAMP = {
+    applied: true as const,
+    reviewId: "arev-42",
+    reviewedAt: "2026-08-09T10:00:00Z",
+    reviewingOfficeFa: "واحد بررسی حقوقی لیگالیر",
+    reviewerInitials: "م.م",
+  };
+
+  it("prints the review mark, its real fields and the disclaimer on EVERY page", async () => {
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      stamp: STAMP,
+    });
+    const pages = await extractPageRuns(bytes);
+    expect(pages.length).toBeGreaterThan(1);
+
+    for (const [index, page] of pages.entries()) {
+      const text = page.map((r) => r.str).join(" ");
+      expect(text, `page ${index + 1}: stamp title`).toContain(CONTRACT_REVIEW_STAMP_TEXT);
+      // The REAL per-contract values, not a sample.
+      expect(text, `page ${index + 1}: review id`).toContain("arev-42");
+      expect(text, `page ${index + 1}: reviewer`).toContain("م.م");
+      expect(text, `page ${index + 1}: review date`).toContain("تاریخ بررسی");
+      // The mandatory disclaimer is present, exactly once, per page.
+      const notes = page.filter((r) => CONTRACT_REVIEW_STAMP_DISCLAIMER_FA.includes(r.str));
+      expect(notes.length, `page ${index + 1}: disclaimer`).toBeGreaterThan(0);
+      // And it lives INSIDE the reserved band, never over the contract text.
+      for (const run of page.filter((r) => r.str.includes("arev-42"))) {
+        expect(run.y).toBeLessThan(CONTENT_BOTTOM_PDF);
+      }
+    }
+  });
+
+  it("says «ثبت نشده» rather than dropping a missing review field", async () => {
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      // An approval whose review metadata was never recorded.
+      stamp: { applied: true },
+    });
+    const pages = await extractPageTexts(bytes);
+    for (const text of pages) {
+      expect(text).toContain(CONTRACT_REVIEW_STAMP_TEXT);
+      expect(text).toContain("ثبت نشده");
+    }
+  });
+
+  it("renders the signature TABLE with its four RTL headers and a ≥14px name", async () => {
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+    });
+    const final = (await extractPageRuns(bytes)).at(-1)!;
+
+    const headers = ["نقش", "نام کامل", "محل امضا", "وضعیت امضا"];
+    for (const header of headers) {
+      expect(
+        final.some((r) => r.str.includes(header)),
+        `header «${header}»`
+      ).toBe(true);
+    }
+
+    // RTL: the role column is the RIGHTMOST, so its x is the largest.
+    const role = final.find((r) => r.str.includes("نقش") && r.y > CONTENT_BOTTOM_PDF)!;
+    const name = final.find((r) => r.str.includes("نام کامل") && r.y > CONTENT_BOTTOM_PDF)!;
+    expect(role.x).toBeGreaterThan(name.x);
+
+    // The party names are on the sheet, and the state cell is honest:
+    // with no signature marks supplied, every role is pending.
+    expect(final.some((r) => r.str.includes("مریم"))).toBe(true);
+    expect(final.some((r) => r.str.includes("رضا"))).toBe(true);
+    const pending = final.filter((r) => r.str.includes("در انتظار امضا"));
+    expect(pending.length).toBeGreaterThanOrEqual(2);
+    // Never a fabricated signature or date.
+    expect(final.some((r) => r.str.includes("امضا شده"))).toBe(false);
+  });
+
+  it("shows a party's REAL signature only when a mark is supplied for that role", async () => {
+    const bytes = await renderContractPdf({
+      contract: contract(),
+      version: version(),
+      baseUrl: "https://legalir.example",
+      signatureMarks: {
+        "موجر": { signedAt: "2026-08-09T12:00:00Z", statusFa: "امضا شده" },
+      },
+    });
+    const final = (await extractPageRuns(bytes)).at(-1)!;
+    const text = final.map((r) => r.str).join(" ");
+
+    // Exactly one signed row, with its real signing date…
+    expect(text).toContain("امضا شده");
+    expect(text).toContain("تاریخ امضا");
+    // …and the other role still pending — never both signed by default.
+    expect(text).toContain("در انتظار امضا");
+  });
+});
+
+/** The footer band's top edge in PDF points (MARGIN + FOOTER_BAND). */
+const CONTENT_BOTTOM_PDF = 48 + FOOTER_BAND;

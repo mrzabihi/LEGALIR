@@ -33,6 +33,7 @@ import type {
   PropertyContractDetail,
   PropertyContractState,
 } from "@legalir/types";
+import { ApiClientError, type ErrorCategory } from "@/lib/api/errors";
 import { savePayments, updatePropertyContract } from "@/lib/api/property-contracts";
 import { propertyContractKeys } from "@/hooks/usePropertyContracts";
 import { computeCompleteness } from "@/lib/contracts/completeness";
@@ -40,6 +41,22 @@ import { getContractDefinition, nextWizardStepId, prevWizardStepId } from "@/lib
 import { isEditable as stateIsEditable } from "@/lib/contracts/state-machine";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+/**
+ * The REAL reason the last write failed. The header and the step bodies
+ * show this instead of a generic «ذخیره نشد»: a 409 NOT_EDITABLE, a 400
+ * INVALID_STEP and a dropped connection need different actions from the
+ * user, and retrying a non-transient failure forever is exactly the
+ * defect this carries the fix for.
+ */
+export interface SaveErrorInfo {
+  messageFa: string;
+  code: string;
+  category: ErrorCategory;
+  retryable: boolean;
+  correlationId: string;
+  at: string;
+}
 
 export type DomainData = ContractDomainData;
 
@@ -49,6 +66,13 @@ interface WizardContextValue {
   data: DomainData;
   /** Patch the domain data. Deep-merges one level of nesting. */
   patchData: (patch: Partial<DomainData>) => void;
+  /**
+   * Patch AND persist in one step, resolving `true` only once the server
+   * has accepted the exact merged data. Used by confirmation buttons: a
+   * «تأیید شد» badge must never be shown for a change that did not reach
+   * the store, otherwise a reload would contradict the screen.
+   */
+  patchDataNow: (patch: Partial<DomainData>) => Promise<boolean>;
   /** Replace the whole domain data (used by resets). */
   setData: (next: DomainData) => void;
 
@@ -71,8 +95,17 @@ interface WizardContextValue {
   canGoPrev: boolean;
 
   saveStatus: SaveStatus;
+  /** Why the last write failed — `null` once a save succeeds. */
+  saveError: SaveErrorInfo | null;
+  /**
+   * Synchronous read of the last failure. `saveError` is React state, so a
+   * caller that has just awaited a failed `patchDataNow()` would still see
+   * the PREVIOUS render's value; this reads the ref the setter wrote.
+   */
+  getSaveError: () => SaveErrorInfo | null;
   lastSavedAt: string | null;
-  saveNow: () => Promise<void>;
+  /** Resolves `true` when the store accepted the data. */
+  saveNow: () => Promise<boolean>;
   /** True when the contract is still editable. */
   editable: boolean;
 
@@ -120,6 +153,30 @@ function mergeData(base: DomainData, patch: Partial<DomainData>): DomainData {
 const AUTOSAVE_DEBOUNCE_MS = 700;
 const MAX_RETRIES = 3;
 
+/** Turn any thrown value into a message the user can act on. */
+function describeSaveError(err: unknown): SaveErrorInfo {
+  if (err instanceof ApiClientError) {
+    return {
+      messageFa: err.userMessage,
+      code: err.code,
+      category: err.category,
+      // `retryable` is the server's own verdict for 4xx codes; a validation
+      // or state-conflict error is never worth retrying automatically.
+      retryable: err.shouldAutoRetry,
+      correlationId: err.correlationId,
+      at: new Date().toISOString(),
+    };
+  }
+  return {
+    messageFa: "خطا در ارتباط با سرور. اتصال اینترنت را بررسی کنید.",
+    code: "NETWORK_ERROR",
+    category: "network",
+    retryable: true,
+    correlationId: "unknown",
+    at: new Date().toISOString(),
+  };
+}
+
 export function WizardProvider({
   contract,
   completeness,
@@ -136,6 +193,12 @@ export function WizardProvider({
   const [payments, setPaymentsState] = useState<ContractPayment[]>(contract.payments);
   const [stepId, setStepId] = useState<string>(contract.currentStep || def.wizardSteps[0]!.id);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveErrorState] = useState<SaveErrorInfo | null>(null);
+  const saveErrorRef = useRef<SaveErrorInfo | null>(null);
+  const setSaveError = useCallback((next: SaveErrorInfo | null) => {
+    saveErrorRef.current = next;
+    setSaveErrorState(next);
+  }, []);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [serverProgress, setServerProgress] = useState(contract.progress);
   const [serverState, setServerState] = useState(contract.state);
@@ -152,7 +215,14 @@ export function WizardProvider({
   stepRef.current = stepId;
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inFlightRef = useRef(false);
+  // Writes are SERIALIZED through this tail. Two overlapping PATCHes can
+  // land out of order on a file-backed store, and a retry fired next to a
+  // fresh save used to double-write the same data. Chaining them means
+  // exactly one request is in flight at any moment and every request
+  // carries the newest full payload.
+  const tailRef = useRef<Promise<boolean>>(Promise.resolve(true));
+  const pendingSavesRef = useRef(0);
+  const lastResultRef = useRef<"ok" | "error" | null>(null);
   const dirtyRef = useRef(false);
   const retryRef = useRef(0);
   // True while a backoff retry is queued on `timerRef`. It stops the
@@ -173,68 +243,129 @@ export function WizardProvider({
   // duplicated list here previously omitted REJECTED and could disagree
   // with the API about whether a contract is editable.
   const editable = useMemo(() => stateIsEditable(serverState), [serverState]);
+  // `flush` is a stable callback, so it reads editability from a ref rather
+  // than closing over a value that would go stale between renders.
+  const editableRef = useRef(editable);
+  editableRef.current = editable;
 
-  /** Push the current local state to the server. */
-  const flush = useCallback(async (): Promise<void> => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    const sentRevision = revisionRef.current;
-    const payload = {
-      currentStep: stepRef.current,
-      data: dataRef.current as unknown as Record<string, unknown>,
-    };
-    setSaveStatus("saving");
-
-    try {
-      const detail = await updatePropertyContract(contract.id, payload);
-      if (!mountedRef.current) return;
-
-      // Server-derived fields always refresh; local data is only
-      // adopted when nothing changed while the request was in flight.
-      setServerProgress(detail.progress);
-      setServerState(detail.state);
-      setServerCompleteness(detail.completeness);
-      queryClient.setQueryData(propertyContractKeys.detail(contract.id), detail);
-
-      if (revisionRef.current === sentRevision) {
-        dirtyRef.current = false;
-        setSaveStatus("saved");
-        setLastSavedAt(new Date().toISOString());
-      } else {
-        // A newer edit landed mid-flight — save again immediately.
-        setSaveStatus("idle");
+  /**
+   * Push the current local state to the server.
+   *
+   * Resolves `true` only when a write carrying at least this call's
+   * revision reached the store. A confirmation button uses that boolean to
+   * decide whether «تأیید شد» may be shown at all — a badge that outlives
+   * a failed save would be contradicted by the next reload.
+   *
+   * Writes are QUEUED, never dropped: the previous implementation returned
+   * `false` the moment a debounced autosave happened to be in flight, so a
+   * confirmation button reported «ذخیره نشد» for a save it had never sent.
+   * That was the root cause of the recurring retry message.
+   */
+  const flush = useCallback(
+    (dataOverride?: DomainData): Promise<boolean> => {
+      // Handing over data explicitly is a content write. A frozen contract
+      // rejects those with 409 NOT_EDITABLE on every attempt, so report the
+      // real reason instead of looping the user through a retry that can
+      // never succeed.
+      if (dataOverride !== undefined && !editableRef.current) {
+        const info: SaveErrorInfo = {
+          messageFa: "این قرارداد در وضعیت فعلی قابل ویرایش نیست؛ تغییر ذخیره نشد.",
+          code: "NOT_EDITABLE",
+          category: "conflict",
+          retryable: false,
+          correlationId: "client",
+          at: new Date().toISOString(),
+        };
+        lastResultRef.current = "error";
+        setSaveError(info);
+        setSaveStatus("error");
+        return Promise.resolve(false);
       }
-      retryRef.current = 0;
-    } catch {
-      if (!mountedRef.current) return;
-      setSaveStatus("error");
-      if (retryRef.current < MAX_RETRIES) {
-        retryRef.current += 1;
-        const backoff = 1000 * 2 ** (retryRef.current - 1);
-        retryPendingRef.current = true;
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          retryPendingRef.current = false;
-          if (mountedRef.current) void flush();
-        }, backoff);
-      }
-    } finally {
-      inFlightRef.current = false;
-      // If edits arrived during the request, schedule another pass —
-      // unless a retry is already queued, which would double-fire.
-      if (dirtyRef.current && mountedRef.current && !retryPendingRef.current) {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => void flush(), AUTOSAVE_DEBOUNCE_MS);
-      }
-    }
-  }, [contract.id, queryClient]);
+
+      const payloadData = dataOverride ?? dataRef.current;
+      const sentRevision = revisionRef.current;
+      // A frozen contract still accepts a step change, but not content.
+      const sendsContent = editableRef.current;
+      pendingSavesRef.current += 1;
+      setSaveStatus("saving");
+
+      const run = tailRef.current.then(async (): Promise<boolean> => {
+        const payload = {
+          currentStep: stepRef.current,
+          ...(sendsContent
+            ? { data: payloadData as unknown as Record<string, unknown> }
+            : {}),
+        };
+        try {
+          const detail = await updatePropertyContract(contract.id, payload);
+          if (!mountedRef.current) return false;
+
+          // Server-derived fields always refresh; local data is only
+          // adopted when nothing changed while the request was in flight.
+          setServerProgress(detail.progress);
+          setServerState(detail.state);
+          setServerCompleteness(detail.completeness);
+          queryClient.setQueryData(propertyContractKeys.detail(contract.id), detail);
+
+          retryRef.current = 0;
+          lastResultRef.current = "ok";
+          setSaveError(null);
+          const current = revisionRef.current === sentRevision;
+          if (current) {
+            dirtyRef.current = false;
+            setLastSavedAt(new Date().toISOString());
+          }
+          return current;
+        } catch (err) {
+          if (!mountedRef.current) return false;
+          lastResultRef.current = "error";
+          const info = describeSaveError(err);
+          setSaveError(info);
+          // Retry only transient failures, with backoff. A validation,
+          // permission or state-conflict answer is identical on every
+          // attempt — retrying it forever is the defect being fixed.
+          if (info.retryable && retryRef.current < MAX_RETRIES) {
+            retryRef.current += 1;
+            const backoff = 1000 * 2 ** (retryRef.current - 1);
+            retryPendingRef.current = true;
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => {
+              retryPendingRef.current = false;
+              if (mountedRef.current && dirtyRef.current) void flush();
+            }, backoff);
+          }
+          return false;
+        } finally {
+          pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
+          if (mountedRef.current) {
+            setSaveStatus(
+              pendingSavesRef.current > 0
+                ? "saving"
+                : lastResultRef.current === "error"
+                  ? "error"
+                  : dirtyRef.current
+                    ? "idle"
+                    : "saved"
+            );
+          }
+        }
+      });
+
+      tailRef.current = run;
+      return run;
+    },
+    [contract.id, queryClient, setSaveError]
+  );
 
   const scheduleSave = useCallback(() => {
     dirtyRef.current = true;
     // A fresh edit supersedes any queued retry — the debounce below
-    // will carry the newest data, so drop the retry flag with it.
+    // will carry the newest data, so drop the retry flag with it. It also
+    // renews the retry budget: a user edit is a new attempt, not a replay
+    // of the one that already exhausted its backoff.
     if (timerRef.current) clearTimeout(timerRef.current);
     retryPendingRef.current = false;
+    retryRef.current = 0;
     timerRef.current = setTimeout(() => void flush(), AUTOSAVE_DEBOUNCE_MS);
   }, [flush]);
 
@@ -245,6 +376,27 @@ export function WizardProvider({
       scheduleSave();
     },
     [scheduleSave]
+  );
+
+  /**
+   * Patch and persist in one shot. The merged value is computed here and
+   * handed to `flush` directly, because React state updates are async: a
+   * plain `patchData()` followed by `saveNow()` would send the PREVIOUS
+   * data and the confirmation timestamp would be lost.
+   */
+  const patchDataNow = useCallback(
+    async (patch: Partial<DomainData>): Promise<boolean> => {
+      revisionRef.current += 1;
+      const merged = mergeData(dataRef.current, patch);
+      dataRef.current = merged;
+      setDataState(merged);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      retryPendingRef.current = false;
+      retryRef.current = 0;
+      dirtyRef.current = true;
+      return flush(merged);
+    },
+    [flush]
   );
 
   const setData = useCallback(
@@ -361,6 +513,7 @@ export function WizardProvider({
     contract,
     data,
     patchData,
+    patchDataNow,
     setData,
     parties: contract.parties,
     payments,
@@ -377,8 +530,10 @@ export function WizardProvider({
     canGoNext: stepIndex < def.wizardSteps.length - 1,
     canGoPrev: stepIndex > 0,
     saveStatus,
+    saveError,
+    getSaveError: () => saveErrorRef.current,
     lastSavedAt,
-    saveNow: flush,
+    saveNow: () => flush(),
     editable,
     stepMissing,
     advanceBlockedReason,

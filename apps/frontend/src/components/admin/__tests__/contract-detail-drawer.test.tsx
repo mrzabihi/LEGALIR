@@ -51,6 +51,17 @@ vi.mock("@/hooks/useAdmin", () => ({
     }),
     isPending: false,
   }),
+  // Attestations are evidence ABOUT a signature; these tests cover the
+  // review decision, so the mutation is inert here.
+  useAdminContractAttestation: () => ({
+    mutateAsync: vi.fn(async () => ({})),
+    isPending: false,
+  }),
+  // Per-party resend (§5) — inert here; these tests cover the decision surface.
+  useAdminResendInvitations: () => ({
+    mutateAsync: vi.fn(async () => ({ invitations: [], revokedInvitationIds: [] })),
+    isPending: false,
+  }),
 }));
 
 import { ContractDetailDrawer } from "@/components/admin/contract-detail-drawer";
@@ -90,6 +101,18 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
       uncitedClauseCount: 0,
       sections: [],
       hasPendingCitations: false,
+      flaggedClauses: [],
+    },
+    // §7 — the type's legal-review report, rendered as its own section.
+    legalReview: {
+      typeId: "property_rent",
+      clauses: [],
+      knownClauses: [],
+      tips: [],
+      reviewedClauseCount: 0,
+      pendingClauseCount: 0,
+      needsRevisionCount: 0,
+      unflaggedCount: 0,
     },
     comments: [],
     adminReview: {
@@ -112,11 +135,19 @@ function detail(overrides: Partial<AdminContractDetail> = {}): AdminContractDeta
     },
     approved: false,
     stamp: { applied: false, text: "لیـــــــگالیر - بررسی شد", disclaimerFa: "..." },
-    supplementary: { notes: "", noteConfirmedAt: null, confirmedAt: null },
+    supplementary: {
+      notes: "",
+      noteConfirmedAt: null,
+      attachments: [],
+      attachmentsConfirmedAt: null,
+      confirmedAt: null,
+    },
     customClauses: [],
     approvals: [],
     signatureRequest: null,
     signatureRequests: [],
+    attestations: [],
+    finalDocument: null,
     ...overrides,
   };
 }
@@ -204,6 +235,8 @@ describe("ContractDetailDrawer — the admin decision surface (§6/§10)", () =>
       supplementary: {
         notes: NOTE,
         noteConfirmedAt: "2026-01-02T09:00:00.000Z",
+        attachments: [],
+        attachmentsConfirmedAt: null,
         confirmedAt: "2026-01-02T09:05:00.000Z",
       },
     });
@@ -437,5 +470,81 @@ describe("ContractDetailDrawer — the admin decision surface (§6/§10)", () =>
 
     await screen.findByText(/آخرین تصمیم/);
     expect(screen.queryByRole("button", { name: "تأیید برای صدور نهایی" })).toBeNull();
+  });
+
+  // ----------------------------------------------------------
+  // §4/§7 — the operator must SEE the stamped artifact
+  // ----------------------------------------------------------
+
+  it("says the stamped artifact does not exist yet — never implies a sealed copy", async () => {
+    renderDrawer(true);
+
+    expect(await screen.findByText(/سند نهایی و مهر رسمی/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/سند نهایی هنوز تولید نشده است/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle(/سند نهایی/)).toBeNull();
+  });
+
+  it("opens the stored final PDF the moment it exists, and reports the seal binding", async () => {
+    state.detail = detail({
+      finalDocument: {
+        documentId: "doc-final-1",
+        fileName: "LGL-RENT-1405-000001-final.pdf",
+        sizeBytes: 4_349_543,
+        hash: "c".repeat(64),
+        uploadedAt: "2026-01-05T11:00:00.000Z",
+        sealed: true,
+        sealAssetVersion: "seal-2026-01",
+        sealedAt: "2026-01-05T10:57:29.000Z",
+        url: "/api/v1/admin/contracts/ctr-1/final-document",
+        downloadUrl: "/api/v1/admin/contracts/ctr-1/final-document?download=1",
+      },
+    });
+    renderDrawer(true);
+
+    // The document is shown inline from the ADMIN route — the owner-facing
+    // route is owner-scoped, so an operator could not open it.
+    const frame = await screen.findByTitle(/سند نهایی LGL-RENT-1405-000001-final\.pdf/);
+    expect(frame.getAttribute("src")).toBe(
+      "/api/v1/admin/contracts/ctr-1/final-document",
+    );
+
+    // The seal + hologram claim is the reason this section exists.
+    expect(
+      screen.getByText("مهر رسمی + هولوگرام روی همهٔ صفحات"),
+    ).toBeInTheDocument();
+
+    // Evidence is downloadable, and the hash is printed verbatim so the
+    // operator can match the bytes against the finalization record.
+    const download = screen.getByRole("link", { name: /دانلود نسخهٔ مهرشده/ });
+    expect(download.getAttribute("href")).toBe(
+      "/api/v1/admin/contracts/ctr-1/final-document?download=1",
+    );
+    expect(screen.getByText("c".repeat(64))).toBeInTheDocument();
+    expect(screen.getByText("seal-2026-01")).toBeInTheDocument();
+  });
+
+  it("flags a stored artifact whose stamp is no longer bound to the final hash", async () => {
+    state.detail = detail({
+      finalDocument: {
+        documentId: "doc-final-1",
+        fileName: "final.pdf",
+        sizeBytes: 1024,
+        hash: "d".repeat(64),
+        uploadedAt: "2026-01-05T11:00:00.000Z",
+        sealed: false,
+        sealAssetVersion: null,
+        sealedAt: null,
+        url: "/api/v1/admin/contracts/ctr-1/final-document",
+        downloadUrl: "/api/v1/admin/contracts/ctr-1/final-document?download=1",
+      },
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByText("بدون مهر معتبر")).toBeInTheDocument();
+    expect(
+      screen.getByText(/مهر رسمی آن دیگر به محتوای فعلی گره نخورده/),
+    ).toBeInTheDocument();
   });
 });

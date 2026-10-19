@@ -58,14 +58,16 @@ import {
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { computeCompleteness } from "@/lib/contracts/completeness";
+import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { listReviewComments } from "@/lib/contracts/review-db";
 import {
   latestSignatureRequestDetail,
+  listAttestations,
   listInvitations,
   listSignatureRequests,
 } from "@/lib/contracts/signature/db";
 import { renderContract } from "@/lib/contracts/template";
-import { buildLegalBasisReport } from "@/lib/contracts/legal-basis";
+import { legalBasisReportFor, legalReviewTypeSummary } from "@/lib/contracts/legal-review-db";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import {
   assertTransition,
@@ -147,6 +149,32 @@ export async function GET(request: NextRequest, { params }: Params) {
   const rendered = renderContract(contract, parties, payments);
   const owner = findUserById(contract.userId);
 
+  // The FINAL artifact is the printable evidence. The owner-facing routes
+  // are owner-scoped, so the admin needs its own: the stored `final_pdf`
+  // row (seal + hologram drawn on every page) plus whether the stamp that
+  // produced it is still validly bound to the final version's hash.
+  const finalDoc = documents.find((d) => d.category === "final_pdf") ?? null;
+  const finalVersion = contract.finalVersionId
+    ? getVersion(contract.id, contract.finalVersionId)
+    : null;
+  const finalSeal = finalVersion
+    ? currentVersionStamp(contract, finalVersion.documentHash)
+    : null;
+  const finalDocument = finalDoc
+    ? {
+        documentId: finalDoc.id,
+        fileName: finalDoc.fileName,
+        sizeBytes: finalDoc.sizeBytes,
+        hash: finalDoc.hash,
+        uploadedAt: finalDoc.uploadedAt,
+        sealed: finalSeal !== null,
+        sealAssetVersion: finalSeal?.stampAssetVersion ?? null,
+        sealedAt: finalSeal?.appliedAt ?? null,
+        url: `/api/v1/admin/contracts/${contract.id}/final-document`,
+        downloadUrl: `/api/v1/admin/contracts/${contract.id}/final-document?download=1`,
+      }
+    : null;
+
   // §2.4 — the reviewer records the whole lifecycle, not just the rendered
   // text: what the owner asked to change, the note they confirmed, every
   // version that ever existed, the party approvals and the signature
@@ -213,6 +241,10 @@ export async function GET(request: NextRequest, { params }: Params) {
       supplementary: {
         notes: contract.data.supplementary?.notes ?? "",
         noteConfirmedAt: contract.data.supplementary?.noteConfirmedAt ?? null,
+        // §2.5 — files the owner registered as part of the agreement. The
+        // operator must see them next to the note, never merged into it.
+        attachments: contract.data.supplementary?.attachments ?? [],
+        attachmentsConfirmedAt: contract.data.supplementary?.attachmentsConfirmedAt ?? null,
         confirmedAt: contract.data.supplementary?.confirmedAt ?? null,
       },
       // §2.1 — clauses the owner added, and the changes they asked for.
@@ -270,6 +302,12 @@ export async function GET(request: NextRequest, { params }: Params) {
             })),
           }
         : null,
+      // Admin attestations: evidence ABOUT a signature the party gave
+      // (how it was verified), never a signature itself. Kept separate
+      // from `signatureRequest` so the two origins — the party's own
+      // confirmation via its link vs. an admin's verification — can
+      // never be confused.
+      attestations: listAttestations(contract.id),
       // Every request ever issued for this contract, so a superseded one
       // is still on record.
       signatureRequests: listSignatureRequests(contract.id).map((r) => ({
@@ -286,9 +324,14 @@ export async function GET(request: NextRequest, { params }: Params) {
         clauses: rendered.clauses,
         footerFa: rendered.footerFa,
       },
-      // §2 — the non-binding legal-basis annex, so the operator judges the
-      // contract with its cited provisions in view. Informational only.
-      legalBasis: buildLegalBasisReport(contract, rendered),
+      // §2/§7 — the non-binding legal-basis annex, read from the merged
+      // catalog so a reviewer's stored correction is what the operator
+      // judges against. Uncited clauses are flagged, never omitted silently.
+      legalBasis: legalBasisReportFor(contract, rendered),
+      // §7 — the retained legal-review report for this contract TYPE: every
+      // clause with its source, content version and review state, so the
+      // operator can see which parts still need legal revision.
+      legalReview: legalReviewTypeSummary(contract.type),
       // The review thread, in full. An operator holds `admin:contracts:read`
       // and must see `internal` notes too — those are exactly the notes a
       // party never receives, and the decision depends on them. Comments are
@@ -308,6 +351,9 @@ export async function GET(request: NextRequest, { params }: Params) {
         text: CONTRACT_REVIEW_STAMP_TEXT,
         disclaimerFa: CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
       },
+      // The stored final PDF (seal + hologram on every page) — opened
+      // inline by the drawer, downloadable as evidence.
+      finalDocument,
     },
   });
 }

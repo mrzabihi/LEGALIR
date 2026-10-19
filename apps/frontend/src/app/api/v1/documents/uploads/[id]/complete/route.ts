@@ -11,6 +11,7 @@ import { updateDemoDocumentStatus, getDemoDocument, setDemoDocumentStorageKey } 
 import type { listDemoDocuments } from "@/lib/demo-seed";
 import { saveDocumentFile } from "@/lib/document-storage";
 import { recordActivity } from "@/lib/db";
+import { completeUsageByKey, releaseReservedByKey } from "@/lib/usage/engine";
 import { MAX_DOCUMENT_SIZE_BYTES } from "@legalir/types";
 import type { RiskLevel, V1DocumentListItem } from "@legalir/types";
 
@@ -63,15 +64,21 @@ export async function POST(
   // Persist the uploaded bytes so the preview/file/download routes can
   // serve them. Without this the row keeps `storageKey: null` and every
   // preview reports "file unavailable".
+  // The reservation was taken at upload start; this key identifies it.
+  const usageKey = `document:${id}`;
+
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) {
+    // The upload cannot finish — release the reservation so nothing is burned.
+    releaseReservedByKey(usageKey);
     return NextResponse.json(
       { code: "INVALID_BODY", message: "فایل ارسال نشده است" },
       { status: 400 }
     );
   }
   if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+    releaseReservedByKey(usageKey);
     return NextResponse.json(
       { code: "FILE_TOO_LARGE", message: "حجم فایل بیش از حد مجاز است", retryable: false },
       { status: 400 }
@@ -85,11 +92,20 @@ export async function POST(
   // Mark the pending document as ready (analysis simulated client-side).
   const doc = updateDemoDocumentStatus(userId, id, "ready");
   if (!doc) {
+    releaseReservedByKey(usageKey);
     return NextResponse.json(
       { code: "NOT_FOUND", message: "سند یافت نشد" },
       { status: 404 }
     );
   }
+
+  // The operation succeeded — settle the reservation. Document analysis is a
+  // non-model action: no tokens were consumed, and the ledger says so instead
+  // of recording a fabricated 0 as "actual".
+  completeUsageByKey(usageKey, {
+    tokenUsageStatus: "UNAVAILABLE",
+    tokenUsageNoteFa: "تحلیل ساختاری سند بدون فراخوانی مدل زبانی انجام شد؛ توکنی مصرف نشده است.",
+  });
 
   const findingCount = doc.report?.findings.length ?? 0;
   recordActivity({

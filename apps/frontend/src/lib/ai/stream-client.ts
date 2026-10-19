@@ -8,6 +8,9 @@
 
 import { env } from "@legalir/config";
 import type {
+  ChatToolId,
+  FollowUpAnswer,
+  FollowUpQuestion,
   StructuredResponseSection,
   V1Reference,
   ProcessingStage,
@@ -28,6 +31,10 @@ export interface StreamRequest {
   context?: StreamRequestContext;
   /** Documents attached to this message (references to owned documents). */
   attachmentDocumentIds?: string[];
+  /** The contextual tools selected for this turn (validated server-side). */
+  toolIds?: string[];
+  /** Structured answers to the previous turn's follow-up questions. */
+  followUpAnswers?: FollowUpAnswer[];
 }
 
 export interface StreamChunk {
@@ -45,6 +52,11 @@ export interface StreamDone {
   userMessageId?: string;
   /** The user message's persisted attachment refs. */
   userAttachments?: ChatAttachmentRef[];
+  /** The validated service context and tool selection the run executed. */
+  serviceType?: string | null;
+  toolIds?: ChatToolId[];
+  /** The follow-ups still open after this turn. */
+  pendingFollowUps?: FollowUpQuestion[];
 }
 
 export type StreamStatus =
@@ -61,7 +73,17 @@ export interface WorkflowEvent {
   intent: string | null;
   phaseChanged: boolean;
   pendingQuestions: string[];
+  /** The structured projection of `pendingQuestions`, with ids and options. */
+  pendingFollowUps: FollowUpQuestion[];
   suggestCaseCreation: boolean;
+}
+
+/** What the server accepted after validating the turn's context (§3, §7). */
+export interface ContextValidatedEvent {
+  serviceType: string;
+  serviceRejected: boolean;
+  toolIds: ChatToolId[];
+  rejectedTools: { id: string; reasonFa: string }[];
 }
 
 /**
@@ -103,6 +125,8 @@ export interface StreamCallbacks {
   onWorkflow?: (event: WorkflowEvent) => void;
   /** Fired for every pipeline progress event. */
   onPipeline?: (progress: PipelineProgress) => void;
+  /** Fired when the server rejected part of the context or tool selection. */
+  onContextValidated?: (event: ContextValidatedEvent) => void;
 }
 
 interface SseEvent {
@@ -121,7 +145,12 @@ interface SseEvent {
   intent?: string | null;
   phaseChanged?: boolean;
   pendingQuestions?: string[];
+  pendingFollowUps?: FollowUpQuestion[];
   suggestCaseCreation?: boolean;
+  serviceType?: string | null;
+  serviceRejected?: boolean;
+  toolIds?: ChatToolId[];
+  rejectedTools?: { id: string; reasonFa: string }[];
   requestId?: string;
   stage?: ProcessingStage;
   stageNumber?: number;
@@ -315,6 +344,9 @@ export function streamChat(
                 requestId: event.requestId,
                 userMessageId: event.userMessageId,
                 userAttachments: event.userAttachments,
+                serviceType: event.serviceType ?? null,
+                toolIds: event.toolIds ?? [],
+                pendingFollowUps: event.pendingFollowUps ?? [],
               });
               break;
             case "error":
@@ -331,7 +363,16 @@ export function streamChat(
                 intent: event.intent ?? null,
                 phaseChanged: event.phaseChanged ?? false,
                 pendingQuestions: event.pendingQuestions ?? [],
+                pendingFollowUps: event.pendingFollowUps ?? [],
                 suggestCaseCreation: event.suggestCaseCreation ?? false,
+              });
+              break;
+            case "context.validated":
+              callbacks.onContextValidated?.({
+                serviceType: event.serviceType ?? "legal_consultation",
+                serviceRejected: event.serviceRejected ?? false,
+                toolIds: event.toolIds ?? [],
+                rejectedTools: event.rejectedTools ?? [],
               });
               break;
           }

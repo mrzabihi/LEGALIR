@@ -48,6 +48,9 @@ export const routes: RouteDef[] = [
   { path: "/lawyers", titleFa: "وکلا", access: "user", icon: "Balance" },
   { path: "/lawyer", titleFa: "میزکار وکیل", access: "user", icon: "Balance", hidden: true },
   { path: "/cases", titleFa: "پرونده‌ها", access: "user", icon: "Balance" },
+  // Judicial drafting launcher. Hidden from the nav on purpose: it is reached
+  // from the /cases card and the discovery surfaces, never from a rail.
+  { path: "/judicial", titleFa: "تنظیم دادخواست و شکواییه", access: "user", icon: "Balance", hidden: true },
   { path: "/consultations", titleFa: "مشاوره‌های من", access: "user", icon: "Balance" },
   { path: "/requests", titleFa: "درخواست‌ها", access: "user", icon: "Article", hidden: true },
   { path: "/intake", titleFa: "پرسش‌نامه حقوقی", access: "user", icon: "Category", hidden: true },

@@ -29,6 +29,7 @@
 
 import Image from "next/image";
 import type { ContractDefinition } from "@/lib/contracts/registry";
+import { TERMINAL_WIZARD_STEP_IDS } from "@/lib/contracts/registry";
 import { ContractVisual } from "@/lib/contracts/visuals";
 import { contractArtwork } from "@/lib/contracts/artwork";
 import { toPersianNumber } from "@/lib/persian-utils";
@@ -55,9 +56,11 @@ export function ContractTemplateCard({
   disabled = false,
 }: ContractTemplateCardProps) {
   const artwork = contractArtwork(definition.id);
-  // The trailing «بازبینی و پیش‌نمایش» step is not a data-entry topic, so
-  // it is not counted — the number reads as "how much will I fill in".
-  const stepCount = definition.wizardSteps.filter((s) => s.id !== "review").length;
+  // The terminal stages (review, signature, final) own no fields, so they
+  // are not counted — the number reads as "how much will I fill in".
+  const stepCount = definition.wizardSteps.filter(
+    (s) => !TERMINAL_WIZARD_STEP_IDS.includes(s.id)
+  ).length;
   const requiredDocCount = definition.requiredDocuments.filter((d) => d.required).length;
 
   return (

@@ -16,6 +16,11 @@ import type {
 // capability interfaces that reference it.
 import type { FeatureFlagStatus } from "./admin";
 
+// Contextual chat tools' structured follow-up shape is re-exported below via
+// `export * from "./chat-tools"`; importing it here brings the name into
+// local scope for the pipeline-run interfaces that reference it.
+import type { ChatToolId, FollowUpQuestion, WorkflowView } from "./chat-tools";
+
 // --- API Envelope ---
 
 export interface ApiSuccess<T> {
@@ -395,6 +400,15 @@ export interface ChatProcessingRun {
    * a refresh can restore the "waiting for you" state.
    */
   pendingQuestions: string[];
+  /**
+   * The service context and tool selection this run was executed with. The
+   * gateway validates both server-side before execution, so these fields are
+   * the authoritative record of what really ran (§3, §7, §11).
+   */
+  serviceType?: string | null;
+  toolIds?: string[];
+  /** The structured follow-ups this run is waiting on, when it is waiting. */
+  pendingFollowUps?: FollowUpQuestion[];
   error: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -435,6 +449,15 @@ export interface ProcessingRunView {
   steps: ProcessingStageView[];
   /** Questions awaiting the user, when status is `waiting`. */
   pendingQuestions: string[];
+  /**
+   * The structured projection of `pendingQuestions` — stable ids, reasons and
+   * quick options — so the UI can render answerable follow-ups after a
+   * refresh instead of plain text.
+   */
+  pendingFollowUps?: FollowUpQuestion[];
+  /** The validated service context and tool selection this run executed. */
+  serviceType?: string | null;
+  toolIds?: string[];
   sourcesUsed: number;
   requiresLawyerReview: boolean;
   /** A user-safe error message (never a stack trace or internal code). */
@@ -1060,7 +1083,14 @@ export interface V1HistoryListParams {
   category?: HistoryCategory | "all";
   search?: string;
   sort?: "newest" | "oldest" | "title";
-  type?: "all" | "conversation" | "document" | "contract" | "subscription" | "case";
+  type?:
+    | "all"
+    | "conversation"
+    | "document"
+    | "contract"
+    | "subscription"
+    | "case"
+    | "judicial";
   /** When true, return the archive view instead of the active history. */
   archived?: boolean;
 }
@@ -1068,7 +1098,13 @@ export interface V1HistoryListParams {
 export interface V1HistoryItem {
   id: string;
   userId: string;
-  type: "conversation" | "document" | "contract" | "subscription" | "case";
+  type:
+    | "conversation"
+    | "document"
+    | "contract"
+    | "subscription"
+    | "case"
+    | "judicial";
   title: string;
   category: HistoryCategory | null;
   categoryFa: string | null;
@@ -1780,7 +1816,7 @@ export type UserRole = "user" | "admin";
 export interface ActiveRequestItem {
   id: string;
   title: string;
-  type: "conversation" | "document" | "contract";
+  type: "conversation" | "document" | "contract" | "judicial";
   typeFa: string;
   date: string;
   progress: number;
@@ -2000,6 +2036,19 @@ export interface V1ConversationDetail extends Conversation {
    * (including a WAITING_FOR_USER state) instead of losing it (§37, §43).
    */
   processingRun?: ProcessingRunView | null;
+  /**
+   * The conversation's persisted service type and tool selection. Optional
+   * and additive: a legacy conversation resolves its service from the entry
+   * URL exactly as before, and has no tool selection.
+   */
+  serviceType?: string | null;
+  toolIds?: ChatToolId[];
+  /**
+   * The persisted workflow projection: phase, domain and the structured
+   * follow-ups still awaiting an answer. Lets a refresh restore the
+   * clarification panel instead of losing it.
+   */
+  workflow?: WorkflowView | null;
 }
 
 export interface StructuredResponseSection {
@@ -2550,7 +2599,8 @@ export type ActivityType =
   | "LEGAL_CALCULATION"
   | "CASE_ANALYSIS"
   | "LAWYER_AI_PREPARATION"
-  | "REGENERATE_AI_RESPONSE";
+  | "REGENERATE_AI_RESPONSE"
+  | "JUDICIAL_DRAFT";
 
 /** Period-scoped service quotas (do NOT reset daily). */
 export type ServiceQuotaType =
@@ -2744,6 +2794,29 @@ export interface UsageTransaction {
   ragCalls?: number;
   /** Energy contributed by matched pricing rules + auxiliary units. */
   additionalCost?: number;
+  // --- Settlement + traceability (additive; absent on legacy rows) ----------
+  /**
+   * The energy actually debited. Equal to `pointsCost` once COMPLETED, or a
+   * corrected amount when the final settlement re-priced the operation (e.g.
+   * real token usage differed from the reservation).
+   */
+  energyFinal?: number;
+  /** Energy returned to the user (reversals and post-settlement credits). */
+  energyRefunded?: number;
+  /** How the recorded token figure was obtained. */
+  tokenUsageStatus?: "ACTUAL" | "ESTIMATED" | "UNAVAILABLE";
+  /** Persian explanation when the token figure is estimated / unavailable. */
+  tokenUsageNoteFa?: string | null;
+  /** The model provider (e.g. "openai-compatible", "mock"). */
+  provider?: string | null;
+  /** A user-facing tracking id ("UT-…") for support and traceability. */
+  trackingId?: string;
+  /** 1-based message index within the conversation, when the action is a chat. */
+  messageIndex?: number | null;
+  /** The tariff profile version in force at reserve time. */
+  tariffVersion?: number | null;
+  /** The full pricing facts frozen at reserve time. */
+  tariffSnapshot?: import("./energy").UsageTariffSnapshot | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2982,3 +3055,13 @@ export * from "./lawyer-taxonomy";
 // Checkout, pricing & coupons (quote → validate → order purchase flow)
 // ---------------------------------------------------------------------------
 export * from "./checkout";
+
+// ---------------------------------------------------------------------------
+// Judicial documents family (statement, brief, criminal record, credit check)
+// ---------------------------------------------------------------------------
+export * from "./judicial";
+
+// ---------------------------------------------------------------------------
+// Contextual chat tools, structured follow-ups, workflow projection
+// ---------------------------------------------------------------------------
+export * from "./chat-tools";

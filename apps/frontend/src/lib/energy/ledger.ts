@@ -95,7 +95,14 @@ function subscriptionGrants(userId: string): Draft[] {
 
 function rewardMovements(userId: string): Draft[] {
   return readTable<RewardLedgerRow>(REWARD_TABLE)
-    .filter((e) => e.user_id === userId && e.event_type !== "REQUEST_CONSUMED")
+    // Engine-owned rows (spends AND their refunds) are projected from
+    // `usage_transactions` below — including them here would double-count.
+    .filter(
+      (e) =>
+        e.user_id === userId &&
+        e.event_type !== "REQUEST_CONSUMED" &&
+        e.event_type !== "REFUND"
+    )
     .map((e) => ({
       id: e.id,
       userId,

@@ -25,10 +25,18 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, SelectableCard, SelectableOption, Textarea, snackbar } from "@legalir/ui";
+import {
+  Button,
+  SelectableCard,
+  SelectableOption,
+  Skeleton,
+  Textarea,
+  snackbar,
+} from "@legalir/ui";
 import { useDocuments } from "@/hooks/useDocuments";
 import { usePropertyContracts } from "@/hooks/usePropertyContracts";
 import { useCreateAiReview } from "@/hooks/useContractLifecycle";
+import { useCreateConversation } from "@/hooks/useConversations";
 import { toUnifiedPropertyContract } from "@/lib/contracts/unified";
 import {
   REVIEW_STEPS,
@@ -39,15 +47,19 @@ import {
   REVIEW_CONCERNS,
   REVIEW_JURISDICTIONS,
   EMPTY_REVIEW_CONTEXT,
+  PASTED_CONTRACT_MIN_CHARS,
+  PASTED_CONTRACT_MAX_CHARS,
   reviewStepIndex,
   isReviewContextComplete,
   reviewScopeSummary,
   buildReviewQuestion,
+  buildPastedReviewMessage,
   type ReviewStepId,
   type ReviewDocumentSource,
   type ReviewContext,
   type ReviewOption,
 } from "@/lib/contracts/review-flow";
+import { newPastedReviewToken, stashPastedReview } from "@/lib/contracts/pasted-review";
 import {
   IconArrowBack,
   IconChevronRight,
@@ -55,6 +67,7 @@ import {
   IconFilePen,
   IconFileSearch,
   IconFiles,
+  IconFileText,
   IconUpload,
 } from "@/lib/icons";
 
@@ -64,6 +77,7 @@ import {
 
 const SOURCE_ICON: Record<ReviewDocumentSource, React.ReactNode> = {
   upload: <IconUpload size={20} />,
+  paste: <IconFileText size={20} />,
   drafts: <IconFilePen size={20} />,
   documents: <IconFiles size={20} />,
 };
@@ -88,13 +102,22 @@ function ContractReviewFlow() {
   const [source, setSource] = React.useState<ReviewDocumentSource | null>(null);
   const [documentId, setDocumentId] = React.useState<string | null>(null);
   const [contractId, setContractId] = React.useState<string | null>(null);
+  const [pastedText, setPastedText] = React.useState("");
   const [context, setContext] = React.useState<ReviewContext>(EMPTY_REVIEW_CONTEXT);
 
   // --- Data ----------------------------------------------------------
-  const { data: documentsData, isLoading: documentsLoading } = useDocuments({});
-  const { data: contractsData, isLoading: contractsLoading } = usePropertyContracts({
-    pageSize: 50,
-  });
+  const {
+    data: documentsData,
+    isLoading: documentsLoading,
+    isError: documentsError,
+    refetch: refetchDocuments,
+  } = useDocuments({});
+  const {
+    data: contractsData,
+    isLoading: contractsLoading,
+    isError: contractsError,
+    refetch: refetchContracts,
+  } = usePropertyContracts({ pageSize: 50 });
 
   const documents = documentsData?.items ?? [];
   const contracts = React.useMemo(
@@ -128,8 +151,11 @@ function ContractReviewFlow() {
   };
 
   // --- Step gating ---------------------------------------------------
+  const pastedLength = pastedText.trim().length;
+  const pastedReady = pastedLength >= PASTED_CONTRACT_MIN_CHARS;
   const documentChosen =
     (source === "upload") ||
+    (source === "paste" && pastedReady) ||
     (source === "drafts" && !!contractId) ||
     (source === "documents" && !!documentId);
 
@@ -150,9 +176,37 @@ function ContractReviewFlow() {
 
   // --- Run the review ------------------------------------------------
   const createAiReview = useCreateAiReview();
+  const createConversation = useCreateConversation();
 
   const handleRun = async () => {
     const question = buildReviewQuestion(context);
+
+    if (source === "paste" && pastedReady) {
+      // Pasted text is NOT uploaded as a document (the pipeline accepts
+      // PDF/DOCX/images only). It goes to the chat as the message itself,
+      // which is also the surface that renders the analysis and answers
+      // follow-ups about it.
+      const message = buildPastedReviewMessage(pastedText, context);
+      const token = newPastedReviewToken();
+      stashPastedReview(token, message);
+      try {
+        const conversation = await createConversation.mutateAsync({
+          title: "بررسی قرارداد جای‌گذاری‌شده",
+          category: "contract",
+        });
+        const params = new URLSearchParams({
+          service: "contract_review",
+          reviewPasted: token,
+        });
+        router.push(`/chat/${conversation.id}?${params.toString()}`);
+      } catch (e) {
+        snackbar.show({
+          message: e instanceof Error ? e.message : "شروع بررسی ناموفق بود.",
+          variant: "error",
+        });
+      }
+      return;
+    }
 
     if (source === "drafts" && contractId) {
       try {
@@ -171,7 +225,10 @@ function ContractReviewFlow() {
     }
 
     if (source === "documents" && documentId) {
-      router.push(`/documents/${documentId}`);
+      // The scope the user just confirmed travels with them, so the analysis
+      // is asked exactly what they chose instead of silently ignoring it.
+      const params = new URLSearchParams({ ask: question });
+      router.push(`/documents/${documentId}?${params.toString()}`);
       return;
     }
 
@@ -244,10 +301,16 @@ function ContractReviewFlow() {
             }}
             documents={documents}
             documentsLoading={documentsLoading}
+            documentsError={documentsError}
+            onRetryDocuments={() => void refetchDocuments()}
             contracts={contracts}
             contractsLoading={contractsLoading}
+            contractsError={contractsError}
+            onRetryContracts={() => void refetchContracts()}
             documentId={documentId}
             contractId={contractId}
+            pastedText={pastedText}
+            onPastedText={setPastedText}
             onPickDocument={setDocumentId}
             onPickContract={setContractId}
           />
@@ -270,7 +333,9 @@ function ContractReviewFlow() {
                 ? documents.find((d) => d.id === documentId)?.name
                 : source === "drafts"
                   ? contracts.find((c) => c.id === contractId)?.title
-                  : undefined
+                  : source === "paste"
+                    ? "متن جای‌گذاری‌شده"
+                    : undefined
             }
             scopeLines={scopeLines}
           />
@@ -299,8 +364,8 @@ function ContractReviewFlow() {
             size="large"
             startIcon={<IconFileSearch size={20} />}
             onClick={handleRun}
-            loading={createAiReview.isPending}
-            disabled={createAiReview.isPending}
+            loading={createAiReview.isPending || createConversation.isPending}
+            disabled={createAiReview.isPending || createConversation.isPending}
           >
             شروع بررسی
           </Button>
@@ -366,10 +431,16 @@ interface StepDocumentProps {
   onSource: (s: ReviewDocumentSource) => void;
   documents: { id: string; name: string; status: string }[];
   documentsLoading: boolean;
+  documentsError: boolean;
+  onRetryDocuments: () => void;
   contracts: { id: string; title: string; typeFa: string }[];
   contractsLoading: boolean;
+  contractsError: boolean;
+  onRetryContracts: () => void;
   documentId: string | null;
   contractId: string | null;
+  pastedText: string;
+  onPastedText: (value: string) => void;
   onPickDocument: (id: string) => void;
   onPickContract: (id: string) => void;
 }
@@ -379,10 +450,16 @@ function StepDocument({
   onSource,
   documents,
   documentsLoading,
+  documentsError,
+  onRetryDocuments,
   contracts,
   contractsLoading,
+  contractsError,
+  onRetryContracts,
   documentId,
   contractId,
+  pastedText,
+  onPastedText,
   onPickDocument,
   onPickContract,
 }: StepDocumentProps) {
@@ -391,12 +468,12 @@ function StepDocument({
       <div>
         <h2 className="text-titleMedium text-on-surface">سند مورد بررسی را انتخاب کنید</h2>
         <p className="mt-1 text-bodySmall text-muted">
-          می‌توانید فایل تازه‌ای بارگذاری کنید، یکی از پیش‌نویس‌های خود را انتخاب کنید یا از اسناد
-          قبلی لیگالیر استفاده کنید.
+          می‌توانید فایل تازه‌ای بارگذاری کنید، متن قرارداد را جای‌گذاری کنید، یکی از پیش‌نویس‌های
+          خود را انتخاب کنید یا از اسناد قبلی لیگالیر استفاده کنید.
         </p>
       </div>
 
-      <div className="grid gap-3 tablet:grid-cols-3">
+      <div className="grid gap-3 tablet:grid-cols-2">
         {REVIEW_SOURCES.map((s) => (
           <SelectableCard
             key={s.id}
@@ -413,7 +490,16 @@ function StepDocument({
         <div className="space-y-2">
           <p className="text-labelMedium text-on-surface">پیش‌نویس‌های من</p>
           {contractsLoading ? (
-            <p className="text-bodySmall text-muted">در حال بارگذاری…</p>
+            <ListSkeleton label="در حال بارگذاری پیش‌نویس‌ها" />
+          ) : contractsError ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-bodySmall text-error">
+                فهرست پیش‌نویس‌ها بارگذاری نشد.
+              </p>
+              <Button type="button" variant="text" size="small" onClick={onRetryContracts}>
+                تلاش مجدد
+              </Button>
+            </div>
           ) : contracts.length === 0 ? (
             <p className="text-bodySmall text-muted">
               هنوز قراردادی نساخته‌اید. می‌توانید یک سند بارگذاری کنید.
@@ -440,7 +526,16 @@ function StepDocument({
         <div className="space-y-2">
           <p className="text-labelMedium text-on-surface">اسناد لیگالیر</p>
           {documentsLoading ? (
-            <p className="text-bodySmall text-muted">در حال بارگذاری…</p>
+            <ListSkeleton label="در حال بارگذاری اسناد" />
+          ) : documentsError ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-bodySmall text-error">
+                فهرست اسناد بارگذاری نشد.
+              </p>
+              <Button type="button" variant="text" size="small" onClick={onRetryDocuments}>
+                تلاش مجدد
+              </Button>
+            </div>
           ) : documents.length === 0 ? (
             <p className="text-bodySmall text-muted">
               سندی در بخش اسناد ندارید. می‌توانید یک فایل تازه بارگذاری کنید.
@@ -462,12 +557,49 @@ function StepDocument({
         </div>
       )}
 
+      {source === "paste" && (
+        <div className="space-y-2">
+          <Textarea
+            label="متن قرارداد"
+            value={pastedText}
+            onChange={(event) => onPastedText(event.target.value)}
+            rows={8}
+            maxLength={PASTED_CONTRACT_MAX_CHARS}
+            showCharCount
+            fullWidth
+            helperText={
+              pastedText.trim().length > 0 &&
+              pastedText.trim().length < PASTED_CONTRACT_MIN_CHARS
+                ? "برای تحلیل، متن بیشتری لازم است؛ حداقل چند بند از قرارداد را جای‌گذاری کنید."
+                : "متن جای‌گذاری‌شده فقط برای همین بررسی در گفتگو فرستاده می‌شود و به‌عنوان فایل در حساب شما ذخیره نمی‌شود."
+            }
+          />
+        </div>
+      )}
+
       {source === "upload" && (
         <p className="rounded-medium bg-surface-container-low p-3 text-bodySmall text-muted">
           در مرحله بعد به صفحه بارگذاری می‌روید؛ پس از بارگذاری، همین بررسی با سند جدید ادامه پیدا
           می‌کند.
         </p>
       )}
+    </div>
+  );
+}
+
+/** Placeholder rows while a real list is loading — announced once, not per row. */
+function ListSkeleton({ label }: { label: string }) {
+  return (
+    <div role="status" aria-label={label} className="space-y-2">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3 rounded-medium border border-divider p-3">
+          <Skeleton variant="circular" width="36px" height="36px" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton variant="text" width="55%" />
+            <Skeleton variant="text" width="30%" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -40,6 +40,10 @@ export default function DocumentUploadPage() {
   // return and hand the new document back pre-selected (never auto-sent).
   const returnTo = searchParams.get("returnTo");
   const fromChat = searchParams.get("source") === "chat";
+  // The review scope confirmed on /contracts/review. It is carried through a
+  // file upload and handed to the document page, which seeds — never
+  // auto-sends — the chat with it.
+  const reviewQuestion = searchParams.get("question");
 
   // --- Wizard state ---
   const [step, setStep] = React.useState<WizardStep>("choose");
@@ -203,7 +207,14 @@ export default function DocumentUploadPage() {
       {/* Step: done */}
       {step === "done" && (
         <DoneStep
-          onView={() => createdId && router.push(`/documents/${createdId}`)}
+          onView={() =>
+            createdId &&
+            router.push(
+              reviewQuestion
+                ? `/documents/${createdId}?${new URLSearchParams({ ask: reviewQuestion }).toString()}`
+                : `/documents/${createdId}`
+            )
+          }
           onBack={() => router.push(returnTo ?? "/documents")}
           fromChat={fromChat}
           onReturnToChat={

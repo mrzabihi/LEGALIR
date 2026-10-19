@@ -30,10 +30,12 @@ import { createPortal } from "react-dom";
 import type {
   ContractParty,
   ContractPayment,
+  ContractPreSignTip,
   PropertyContract,
 } from "@legalir/types";
 import {
   CONTRACT_DRAFT_WATERMARK_FA,
+  CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA,
   CONTRACT_REVIEW_STAMP_DISCLAIMER_FA,
   CONTRACT_REVIEW_STAMP_TEXT,
 } from "@legalir/types";
@@ -43,7 +45,11 @@ import {
   type RenderedContract,
   type RenderedTable,
 } from "@/lib/contracts/template";
-import { buildLegalBasisReport } from "@/lib/contracts/legal-basis";
+import {
+  LEGAL_BASIS_SEED,
+  buildLegalBasisReport,
+  seedPreSignTips,
+} from "@/lib/contracts/legal-basis";
 import { formatIsoJalali } from "@/lib/contracts/dates";
 
 /** Per-party signature state, keyed by the rendered role label. */
@@ -118,6 +124,11 @@ export interface A4DocumentProps {
   signatureMarks?: Record<string, A4SignatureMark>;
   /** Show the legal-basis annex (default true). */
   includeLegalBasis?: boolean;
+  /**
+   * §7 — the type's non-compulsory «قبل از امضا بدانید» tips, printed as a
+   * SEPARATE annex. Omit to fall back to the reviewed seed for the type.
+   */
+  preSignTips?: ContractPreSignTip[];
   /** PDF / print actions. */
   pdfHref?: string;
   showActions?: boolean;
@@ -306,6 +317,7 @@ export function A4Document({
   reviewStamp,
   signatureMarks,
   includeLegalBasis = true,
+  preSignTips: preSignTipsProp,
   pdfHref,
   showActions = false,
   className = "",
@@ -320,8 +332,19 @@ export function A4Document({
   // available where that row exists (never for the public signer view,
   // which receives rendered text only).
   const legalBasis = useMemo(
-    () => (includeLegalBasis && contract && rendered ? buildLegalBasisReport(contract, rendered) : null),
+    () =>
+      includeLegalBasis && contract && rendered
+        ? buildLegalBasisReport(contract, rendered, LEGAL_BASIS_SEED)
+        : null,
     [contract, rendered, includeLegalBasis]
+  );
+
+  // §7 — the pre-sign tips. A caller that already read the merged (stored)
+  // rows passes them in; otherwise the reviewed seed for the type is used,
+  // so the annex is never empty for a seeded type.
+  const tips = useMemo<ContractPreSignTip[]>(
+    () => preSignTipsProp ?? (contract ? seedPreSignTips(contract.type) : []),
+    [preSignTipsProp, contract]
   );
 
   // The contract date: the property-rent wizard stores its own date; every
@@ -339,6 +362,26 @@ export function A4Document({
   const referenceCode = meta?.referenceCode ?? contract?.referenceCode ?? "";
   const templateVersion = meta?.templateVersion ?? contract?.templateVersion ?? "";
 
+  /**
+   * ONE guard for everything the official mark brings with it — the seal
+   * images in every footer, the disclaimer and the letterhead line. The
+   * seal asset is what proves the mark; without it none of the rest may be
+   * claimed, or a contract would print a seal disclaimer with no seal.
+   */
+  // Narrowed to the stamp itself (not a boolean) so every consumer reads
+  // `officialStamp.sealHref` without a non-null assertion.
+  const officialStamp =
+    reviewStamp?.applied && reviewStamp.official && reviewStamp.sealHref
+      ? reviewStamp
+      : null;
+
+  /**
+   * The unreviewed-document mark. Derived from the SAME rule the PDF and
+   * DOCX renderers apply — the watermark and the review stamp are mutually
+   * exclusive — so a page can never show both, and never shows neither.
+   */
+  const showWatermark = draft && !reviewStamp?.applied;
+
   // ----------------------------------------------------------
   // Blocks
   // ----------------------------------------------------------
@@ -353,84 +396,49 @@ export function A4Document({
       id: "letterhead",
       node: (
         <header className="a4-letterhead">
-          {/* Logo and the identification block both sit at the TOP LEFT; the
-              title is centred on its own line beneath them, so neither the
-              logo nor the metadata can ever overlap the title. */}
+          {/* The LEGALIR mark keeps the physical TOP-LEFT corner; the
+              identification block is RIGHT-ALIGNED on the opposite side,
+              where a Persian reader looks for the document identity. The
+              title is a separate, centred line beneath, so neither the
+              logo nor the metadata can ever overlap it. */}
           <div className="a4-letterhead-top">
-            <div className="a4-letterhead-ident">
-              {/* The public LEGALIR mark is used on documents; the
-                  dashboard chrome mark is reserved for the app. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/legalir-logo.png" alt="LEGALIR" className="a4-letterhead-logo" />
-              <div className="a4-letterhead-meta">
-                <p className="a4-doc-type">{typeFa}</p>
-                <p className="a4-doc-ref">
-                  شناسه قرارداد: <span dir="ltr">{referenceCode}</span>
+            {/* The public LEGALIR mark is used on documents; the
+                dashboard chrome mark is reserved for the app. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/legalir-logo.png" alt="LEGALIR" className="a4-letterhead-logo" />
+            <div className="a4-letterhead-meta">
+              <p className="a4-doc-type">{typeFa}</p>
+              <p className="a4-doc-ref">
+                شناسه قرارداد: <span dir="ltr">{referenceCode}</span>
+              </p>
+              <p className="a4-doc-ref">تاریخ قرارداد: {contractDate}</p>
+              <p className="a4-doc-ref">
+                نسخه:{" "}
+                {versionNumber && versionNumber > 0 ? faNum(versionNumber) : "پیش‌نویس (ثبت‌نشده)"}
+                {" — "}نسخه قالب: {templateVersion}
+              </p>
+              {stateFa && <p className="a4-doc-state">وضعیت: {stateFa}</p>}
+              {documentHash && (
+                <p className="a4-doc-hash" dir="ltr">
+                  SHA-256: {documentHash}
                 </p>
-                <p className="a4-doc-ref">تاریخ قرارداد: {contractDate}</p>
-                <p className="a4-doc-ref">
-                  نسخه:{" "}
-                  {versionNumber && versionNumber > 0
-                    ? faNum(versionNumber)
-                    : "پیش‌نویس (ثبت‌نشده)"}
-                  {" — "}نسخه قالب: {templateVersion}
-                </p>
-                {stateFa && <p className="a4-doc-state">وضعیت: {stateFa}</p>}
-                {documentHash && (
-                  <p className="a4-doc-hash" dir="ltr">
-                    SHA-256: {documentHash}
-                  </p>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
-          {reviewStamp?.applied && reviewStamp.official && reviewStamp.sealHref ? (
-            /* The OFFICIAL mark: the real seal + the print-only hologram.
-               These are drawn only for a version a Super Admin stamped, and
-               they sit beside (never instead of) the party signatures. */
-            <div className="a4-official-mark">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={reviewStamp.sealHref} alt="مهر رسمی لیگالیر" className="a4-seal" />
-              <div className="a4-hologram-wrap">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={reviewStamp.hologramHref}
-                  alt="هولوگرام لیگالیر"
-                  className="a4-hologram"
-                />
-                {/* Screen: hidden. Print/PDF: visible. Never a UI toggle. */}
-                <span className="a4-hologram-ink a4-hologram-ink-brand">
-                  {HOLOGRAM_INK.brand}
-                </span>
-                <span className="a4-hologram-ink a4-hologram-ink-serial">
-                  {HOLOGRAM_INK.serial}
-                </span>
-              </div>
-              <span className="a4-official-meta">
-                {reviewStamp.approvedByLabelFa
-                  ? `تأیید مدیر ارشد: ${reviewStamp.approvedByLabelFa}`
-                  : "تأیید مدیر ارشد"}
-                {reviewStamp.approvedAt
-                  ? ` — ${formatIsoJalali(reviewStamp.approvedAt.slice(0, 10))}`
-                  : ""}
-              </span>
-              <span className="a4-review-stamp-note">{CONTRACT_REVIEW_STAMP_DISCLAIMER_FA}</span>
-            </div>
-          ) : reviewStamp?.applied ? (
-            <div className="a4-review-stamp">
-              <span className="a4-review-stamp-title">{CONTRACT_REVIEW_STAMP_TEXT}</span>
-              <span className="a4-review-stamp-meta">
-                {reviewStamp.reviewedAt
-                  ? `تاریخ بررسی: ${formatIsoJalali(reviewStamp.reviewedAt.slice(0, 10))}`
-                  : ""}
-                {reviewStamp.reviewerInitials
-                  ? ` — بررسی‌کننده: ${reviewStamp.reviewerInitials}`
-                  : ""}
-                {reviewStamp.reviewId ? ` — شناسه: ${reviewStamp.reviewId}` : ""}
-              </span>
-              <span className="a4-review-stamp-note">{CONTRACT_REVIEW_STAMP_DISCLAIMER_FA}</span>
-            </div>
+          {officialStamp ? (
+            /* The OFFICIAL approval is recorded here as TEXT only. The seal
+               and hologram themselves belong to the per-page footer (see
+               `footerNode`), because the server PDF draws them at the bottom
+               of EVERY page — the screen must not show a different layout. */
+            <span className="a4-official-meta a4-official-letterhead">
+              {officialStamp.approvedByLabelFa
+                ? `مهر رسمی لیگالیر — تأیید مدیر ارشد: ${officialStamp.approvedByLabelFa}`
+                : "مهر رسمی لیگالیر — تأیید مدیر ارشد"}
+              {officialStamp.approvedAt
+                ? ` — ${formatIsoJalali(officialStamp.approvedAt.slice(0, 10))}`
+                : ""}
+            </span>
           ) : null}
 
           <h1 className="a4-doc-title">{rendered.titleFa}</h1>
@@ -525,6 +533,40 @@ export function A4Document({
       }
     }
 
+    // §7 — the pre-sign tips annex: a SEPARATE, non-compulsory block that
+    // belongs to the contract TYPE, not to its text. It is never presented
+    // as a term and requires no acknowledgement.
+    if (tips.length > 0) {
+      list.push({
+        id: "tips-heading",
+        node: clauseHeading("پیوست — نکات پیش از امضا (غیرالزام‌آور)"),
+        keepWithNext: true,
+        breakBefore: true,
+        estimate: 34,
+      });
+      list.push({
+        id: "tips-disclaimer",
+        node: <p className="a4-annex-disclaimer">{CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA}</p>,
+        estimate: estimate(CONTRACT_PRE_SIGN_TIPS_DISCLAIMER_FA),
+      });
+      tips.forEach((tip, index) => {
+        list.push({
+          id: `tips-${index}-heading`,
+          node: <p className="a4-annex-heading">{tip.titleFa}</p>,
+          keepWithNext: true,
+          estimate: 24,
+        });
+        const body = `${tip.bodyFa} (منبع: ${tip.sourceNameFa} — نسخهٔ محتوا ${tip.contentVersion})${
+          tip.status === "pending" ? " — در انتظار بررسی حقوقی" : ""
+        }`;
+        list.push({
+          id: `tips-${index}-body`,
+          node: <p className="a4-annex-item">{body}</p>,
+          estimate: estimate(body, 22),
+        });
+      });
+    }
+
     // §2.2 — the closing note, immediately before the signatures: it is the
     // last thing a reader sees before signing, exactly as the wizard promised.
     if (closingNote) {
@@ -539,35 +581,65 @@ export function A4Document({
       node: (
         <div className="a4-signatures">
           <h3 className="a4-clause-heading">امضای طرفین</h3>
-          <div className="a4-signature-grid">
-            {rendered.signatureLines.map((line) => {
-              const mark = signatureMarks?.[line.roleFa];
-              return (
-                <div key={line.roleFa} className="a4-signature-box">
-                  <p className="a4-signature-role">{line.roleFa}</p>
-                  <p className="a4-signature-name">{line.nameFa}</p>
-                  {line.nationalId !== "……………" && (
-                    <p className="a4-signature-id">کد ملی / شناسه: {line.nationalId}</p>
-                  )}
-                  {/* A ruled signing area — the physical space a wet
-                      signature/paraphe goes in, separate from the typed
-                      name so the two can never be confused. */}
-                  <div className="a4-signature-rule" aria-hidden="true" />
-                  <p className="a4-signature-date">
-                    تاریخ امضا:{" "}
-                    {mark?.signedAt
-                      ? formatIsoJalali(mark.signedAt.slice(0, 10))
-                      : "……………………"}
-                  </p>
-                  {mark?.statusFa && <p className="a4-signature-state">{mark.statusFa}</p>}
-                </div>
-              );
-            })}
-          </div>
+          {/* A real RTL table: role / full name / signing place / state.
+              A table (not floating boxes) keeps the two parties aligned and
+              makes «who signs where» unambiguous on paper. The whole block
+              is one unbreakable unit, so the table is moved to a fresh page
+              rather than split across sheets. */}
+          <table className="a4-signature-table">
+            <thead>
+              <tr>
+                <th scope="col">نقش</th>
+                <th scope="col">نام کامل</th>
+                <th scope="col">محل امضا</th>
+                <th scope="col">وضعیت امضا</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rendered.signatureLines.map((line) => {
+                const mark = signatureMarks?.[line.roleFa];
+                return (
+                  <tr key={line.roleFa}>
+                    <th scope="row" className="a4-signature-role">
+                      {line.roleFa}
+                    </th>
+                    <td>
+                      <span className="a4-signature-name">{line.nameFa}</span>
+                      {line.nationalId !== "……………" && (
+                        <span className="a4-signature-id">
+                          کد ملی / شناسه: {line.nationalId}
+                        </span>
+                      )}
+                    </td>
+                    {/* The physical signing area — real ruled space, kept
+                        apart from the typed name so the two can never be
+                        confused with an electronic signature. */}
+                    <td className="a4-signature-place">
+                      <div className="a4-signature-rule" aria-hidden="true" />
+                    </td>
+                    <td className="a4-signature-state">
+                      {mark?.statusFa ? (
+                        <>
+                          <span className="a4-signature-state-label">{mark.statusFa}</span>
+                          {mark.signedAt && (
+                            <span className="a4-signature-date">
+                              {formatIsoJalali(mark.signedAt.slice(0, 10))}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="a4-signature-pending">در انتظار امضا</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
           <p className="a4-footer-note">{rendered.footerFa}</p>
         </div>
       ),
-      estimate: 210 + rendered.signatureLines.length * 12,
+      estimate: 190 + rendered.signatureLines.length * 62,
     });
 
     return list;
@@ -576,11 +648,12 @@ export function A4Document({
     documentHash,
     legalBasis,
     referenceCode,
+    officialStamp,
     rendered,
-    reviewStamp,
     signatureMarks,
     stateFa,
     templateVersion,
+    tips,
     typeFa,
     versionNumber,
   ]);
@@ -698,6 +771,13 @@ export function A4Document({
             })
         )
       );
+      // `complete` means "fetched", not "decoded". The seal and hologram are
+      // multi-megabyte PNGs mounted into a freshly created portal, so wait
+      // for the decoder too — otherwise the print dialog can capture the
+      // boxes before the pixels exist and emit blank marks.
+      await Promise.all(
+        images.map((img) => img.decode?.().catch(() => undefined) ?? Promise.resolve())
+      );
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
       );
@@ -732,7 +812,43 @@ export function A4Document({
    * `pageNumber` differs only between the measurer (a dummy "۱ از ۱") and
    * the real sheet, so both boxes measure identically.
    */
-  const footerNode = (pageNumber: string, withProbe = false) => (
+  /**
+   * `labelled` is true only on the first sheet: the seal is the same mark
+   * on every page, and announcing it N times is noise for a screen reader.
+   * Later pages still paint it — accessibility does not remove evidence.
+   */
+  /**
+   * The review mark that appears on EVERY page. It is rendered only when the
+   * server says the version was approved AND at least one real piece of
+   * review data exists — a blank stamp would read as a confirmation the
+   * record does not support. Each line is a real field; an absent field says
+   * «ثبت نشده» instead of being silently dropped.
+   */
+  const stampConfirmed =
+    reviewStamp?.applied === true &&
+    Boolean(reviewStamp.reviewedAt || reviewStamp.reviewId);
+
+  const reviewMarkNode = (
+    <div className="a4-review-stamp a4-review-stamp-page">
+      <span className="a4-review-stamp-title">{CONTRACT_REVIEW_STAMP_TEXT}</span>
+      <span className="a4-review-stamp-meta">
+        تاریخ بررسی:{" "}
+        {reviewStamp?.reviewedAt
+          ? formatIsoJalali(reviewStamp.reviewedAt.slice(0, 10))
+          : "ثبت نشده"}
+      </span>
+      <span className="a4-review-stamp-meta">
+        بررسی‌کننده:{" "}
+        {reviewStamp?.reviewerInitials || reviewStamp?.reviewingOfficeFa || "ثبت نشده"}
+      </span>
+      <span className="a4-review-stamp-meta">
+        شناسه بررسی: {reviewStamp?.reviewId || "ثبت نشده"}
+      </span>
+      <span className="a4-review-stamp-note">{CONTRACT_REVIEW_STAMP_DISCLAIMER_FA}</span>
+    </div>
+  );
+
+  const footerNode = (pageNumber: string, labelled: boolean, withProbe = false) => (
     <footer className="a4-page-footer" ref={withProbe ? footerProbeRef : undefined}>
       <div className="a4-paraphe" aria-hidden="true">
         <span className="a4-paraphe-caption">پاراف صفحه</span>
@@ -743,6 +859,60 @@ export function A4Document({
           </span>
         ))}
       </div>
+
+      {/* The review mark and the official seal share ONE row on EVERY page:
+          the review block sits at the reading edge (right), the seal +
+          hologram group at the physical BOTTOM-LEFT. Both live inside the
+          measured footer band, so neither can ever overlap body text,
+          tables, signatures or the page number. */}
+      {(stampConfirmed || officialStamp) && (
+        <div className="a4-page-marks">
+          {/* Rendered FIRST so `space-between` anchors it to the physical
+              left; the review block then lands on the right. */}
+          {officialStamp && (
+            <div className="a4-page-official" data-a4-page-official="true">
+              {/* §4 — the hologram is the LEFTMOST item, so the pair reads
+                  «holo · seal» from the physical bottom-left corner. It is
+                  optional in the PDF too (`officialMarkPages` accepts null),
+                  so a seal-only stamp renders the seal alone rather than an
+                  empty image box. */}
+              {officialStamp.hologramHref && (
+                <div className="a4-hologram-wrap">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={officialStamp.hologramHref}
+                    alt={labelled ? "هولوگرام لیگالیر" : ""}
+                    className="a4-hologram"
+                  />
+                  {/* Screen: hidden. Print/PDF: visible. Never a UI toggle. */}
+                  <span className="a4-hologram-ink a4-hologram-ink-brand">
+                    {HOLOGRAM_INK.brand}
+                  </span>
+                  <span className="a4-hologram-ink a4-hologram-ink-serial">
+                    {HOLOGRAM_INK.serial}
+                  </span>
+                </div>
+              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={officialStamp.sealHref}
+                alt={labelled ? "مهر رسمی لیگالیر" : ""}
+                className="a4-seal"
+              />
+            </div>
+          )}
+          {stampConfirmed && reviewMarkNode}
+        </div>
+      )}
+      {/* One disclaimer per page. The review block already ends with it, so
+          the standalone line is only needed when the OFFICIAL seal is the
+          only mark on the page. */}
+      {officialStamp && !stampConfirmed && (
+        <span className="a4-review-stamp-note a4-page-official-note">
+          {CONTRACT_REVIEW_STAMP_DISCLAIMER_FA}
+        </span>
+      )}
+
       <div className="a4-page-footer-line">
         <span>{rendered?.footerFa ?? ""}</span>
         <span className="a4-page-number">{pageNumber}</span>
@@ -758,7 +928,14 @@ export function A4Document({
           className="a4-page"
           aria-label={`صفحه ${faNum(pageIndex + 1)} از ${faNum(pageCount)}`}
         >
-          {draft && (
+          {/* The watermark is the UNREVIEWED-document mark, and it is
+              mutually exclusive with the review stamp — exactly as in the
+              PDF and DOCX renderers (`if (stamp.applied) stampBlock() else
+              draftWatermark()`). A state-based `draft` alone is too coarse:
+              an approved-but-unsigned contract is not final, but it already
+              carries LEGALIR's review mark, and printing both would show a
+              layout the signed PDF never has. */}
+          {showWatermark && (
             <div className="a4-watermark" aria-hidden="true">
               <span>{CONTRACT_DRAFT_WATERMARK_FA}</span>
             </div>
@@ -788,7 +965,7 @@ export function A4Document({
             </div>
           </div>
 
-          {footerNode(`صفحه ${faNum(pageIndex + 1)} از ${faNum(pageCount)}`)}
+          {footerNode(`صفحه ${faNum(pageIndex + 1)} از ${faNum(pageCount)}`, pageIndex === 0)}
         </section>
       ))}
     </div>
@@ -832,7 +1009,7 @@ export function A4Document({
           {/* The SAME footer (paraphe strip + note + page number) inside the
               measurer, so its real height is part of the page budget rather
               than guessed. */}
-          {footerNode("صفحه ۱ از ۱", true)}
+          {footerNode("صفحه ۱ از ۱", true, true)}
         </div>
       </div>
 

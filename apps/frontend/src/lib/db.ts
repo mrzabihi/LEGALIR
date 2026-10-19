@@ -154,7 +154,13 @@ export interface DbSession {
 export interface ActivityRow {
   id: string;
   user_id: string;
-  type: "conversation" | "document" | "contract" | "subscription" | "case";
+  type:
+    | "conversation"
+    | "document"
+    | "contract"
+    | "subscription"
+    | "case"
+    | "judicial";
   title: string;
   status: string;
   status_fa: string;
@@ -1151,6 +1157,19 @@ export interface StoredConversation {
   retentionStartedAt?: string;
   /** Source history item id when this conversation was created by "edit". */
   sourceItemId?: string | null;
+  /**
+   * The persisted service context of the conversation (`?service=` at entry).
+   * Absent on legacy rows — those resolve their service from the URL exactly
+   * as before.
+   */
+  serviceType?: string | null;
+  /** The tools attached to the conversation's next turn (admin-validated). */
+  toolIds?: string[];
+  /**
+   * The workflow projection (phase, facts and open follow-ups) so a refresh
+   * restores the same state instead of starting over (§8, §11).
+   */
+  workflow?: unknown;
 }
 
 export function readConversations(): StoredConversation[] {
@@ -1645,6 +1664,7 @@ const ACTIVITY_HREF: Record<ActivityRow["type"], string> = {
   contract: "/contracts",
   subscription: "/subscription",
   case: "/cases",
+  judicial: "/judicial",
 };
 
 function readNotificationReads(userId: string): NotificationReadRow[] {

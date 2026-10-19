@@ -20,6 +20,8 @@ import {
 import {
   deleteContractDocument,
   getContractDocument,
+  getContractForUser,
+  mergeContractData,
 } from "@/lib/contracts/db";
 import { deleteContractFile, resolveContractFile } from "@/lib/contracts/storage";
 import { isEditable } from "@/lib/contracts/state-machine";
@@ -70,14 +72,39 @@ export async function DELETE(request: Request, { params }: Params) {
 
   deleteContractFile(doc.storageKey);
   deleteContractDocument(contract.id, documentId);
+
+  // An annex is one half of a pair: the stored bytes and the printable
+  // entry in `data.supplementary.attachments`. Removing the file must
+  // remove the printed line too, or the contract would promise an annex
+  // whose file no longer exists.
+  if (doc.category === "contract_annex") {
+    const current = getContractForUser(userId, contract.id);
+    const supplementary = current?.data.supplementary;
+    if (current && supplementary) {
+      mergeContractData(userId, contract.id, {
+        supplementary: {
+          ...supplementary,
+          attachments: (supplementary.attachments ?? []).filter(
+            (a) => a.documentId !== documentId
+          ),
+          attachmentsConfirmedAt: null,
+          confirmedAt: null,
+        },
+      } as never);
+    }
+  }
+
   refreshProgress(userId, contract.id);
 
   audit({
     contractId: contract.id,
     actorId: userId,
     actorLabel: "کاربر",
-    action: "document.deleted",
-    descriptionFa: `سند «${doc.fileName}» حذف شد.`,
+    action: doc.category === "contract_annex" ? "document.annex.deleted" : "document.deleted",
+    descriptionFa:
+      doc.category === "contract_annex"
+        ? `پیوست قرارداد «${doc.fileName}» حذف شد.`
+        : `سند «${doc.fileName}» حذف شد.`,
     metadata: { category: doc.category, documentId },
   });
 

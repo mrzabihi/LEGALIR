@@ -44,6 +44,7 @@ import {
   requestChanges,
   requestSignOtp,
   saveParty,
+  submitForAdminReview,
   savePayments,
   submitForReview,
   updatePropertyContract,
@@ -255,13 +256,15 @@ export function useUploadContractDocument() {
       category,
       description,
       photoCategory,
+      titleFa,
     }: {
       id: string;
       file: File;
       category: ContractDocumentCategory;
       description?: string;
       photoCategory?: string;
-    }) => uploadContractDocument(id, { file, category, description, photoCategory }),
+      titleFa?: string;
+    }) => uploadContractDocument(id, { file, category, description, photoCategory, titleFa }),
     onSuccess: (_doc, variables) => {
       invalidateContract(queryClient, variables.id);
     },
@@ -316,6 +319,21 @@ export function useSubmitForReview() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => submitForReview(id),
+    onSuccess: (_res, id) => {
+      invalidateContract(queryClient, id);
+    },
+  });
+}
+
+/**
+ * §4 — send the frozen content into the LEGALIR admin review queue.
+ * This is the step that gates signing: a contract cannot be signed until
+ * an admin has approved the exact version hash.
+ */
+export function useSubmitForAdminReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => submitForAdminReview(id),
     onSuccess: (_res, id) => {
       invalidateContract(queryClient, id);
     },

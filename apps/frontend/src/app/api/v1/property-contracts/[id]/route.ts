@@ -39,7 +39,7 @@ import {
   listParties,
   listPayments,
   listVersions,
-  mergeContractData,
+  mergeDomainData,
   updateContractForUser,
 } from "@/lib/contracts/db";
 import { deleteContractFile } from "@/lib/contracts/storage";
@@ -120,36 +120,55 @@ export async function PATCH(request: Request, { params }: Params) {
     return badRequest("مرحله انتخاب‌شده معتبر نیست", "INVALID_STEP");
   }
 
-  let updated = contract;
-  if (body.data) {
-    const merged = mergeContractData(
-      userId,
-      contract.id,
-      body.data as Partial<PropertyRentData> | Partial<PropertySaleData>
-    );
-    if (!merged) return notFound();
-    updated = merged;
-  }
+  // Build the ENTIRE next row in memory, then write it ONCE. The previous
+  // implementation performed up to three sequential read-modify-write
+  // cycles on the JSON table; another request landing between them could
+  // be overwritten by a stale read (a lost edit that looked saved). One
+  // write also means a retry can never produce a duplicate record.
+  const nextData = body.data
+    ? mergeDomainData(
+        contract.data as unknown as Record<string, unknown>,
+        body.data as Record<string, unknown>
+      )
+    : null;
 
-  const patch: Parameters<typeof updateContractForUser>[2] = {};
-  if (body.title !== undefined) patch.title = body.title.trim() || contract.title;
-  if (body.currentStep !== undefined) patch.currentStep = body.currentStep;
-  if (body.state !== undefined) patch.state = body.state;
+  const candidate: PropertyContract = {
+    ...contract,
+    ...(nextData
+      ? { data: nextData as unknown as PropertyRentData | PropertySaleData }
+      : {}),
+    ...(body.title !== undefined ? { title: body.title.trim() || contract.title } : {}),
+    ...(body.currentStep !== undefined ? { currentStep: body.currentStep } : {}),
+    ...(body.state !== undefined ? { state: body.state } : {}),
+  };
 
-  if (Object.keys(patch).length > 0) {
-    const next = updateContractForUser(userId, contract.id, patch);
-    if (!next) return notFound();
-    updated = next;
-  }
-
-  // Recompute progress from the real required fields after any edit.
+  // Progress is derived from the row the request is about to persist.
   const parties = listParties(contract.id);
   const documents = listContractDocuments(contract.id);
-  const completeness = computeCompleteness(updated, parties, documents);
-  const withProgress = updateContractForUser(userId, contract.id, {
-    progress: completeness.overall,
-  });
-  if (withProgress) updated = withProgress;
+  const completeness = computeCompleteness(candidate, parties, documents);
+
+  let updated: PropertyContract | null;
+  try {
+    updated = updateContractForUser(userId, contract.id, {
+      ...(nextData ? { data: candidate.data } : {}),
+      ...(body.title !== undefined ? { title: candidate.title } : {}),
+      ...(body.currentStep !== undefined ? { currentStep: candidate.currentStep } : {}),
+      ...(body.state !== undefined ? { state: candidate.state } : {}),
+      progress: completeness.overall,
+    });
+  } catch (err) {
+    // Traced with the request correlation id so a support ticket can be
+    // matched to the exact write that failed.
+    console.error(
+      `[property-contracts] PATCH write failed id=${contract.id} user=${userId} correlation=${request.headers.get("x-correlation-id") ?? "none"}`,
+      err
+    );
+    return NextResponse.json(
+      { code: "SAVE_FAILED", message: "ذخیرهٔ تغییرات انجام نشد. دوباره تلاش کنید.", retryable: true },
+      { status: 500 }
+    );
+  }
+  if (!updated) return notFound();
 
   if (body.state && body.state !== contract.state) {
     audit({

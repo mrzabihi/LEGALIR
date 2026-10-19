@@ -203,6 +203,108 @@ describe("autosave — race safety", () => {
   });
 });
 
+describe("autosave — queued confirmation (the «ذخیره نشد» root cause)", () => {
+  it("does not report failure when a confirmation lands behind an in-flight save", async () => {
+    // Request #1 (the debounced autosave) stays pending while the user
+    // presses a confirmation button. The button's own write must be QUEUED
+    // and must resolve `true` — the previous implementation returned `false`
+    // without ever sending it, which is what surfaced «ذخیره انجام نشد».
+    const first = deferred<PropertyContractDetailWithCompleteness>();
+    updatePropertyContract.mockReturnValueOnce(first.promise);
+    updatePropertyContract.mockResolvedValue({
+      ...makeContract(),
+      progress: 30,
+      completeness: COMPLETENESS,
+    });
+
+    renderWizard();
+
+    act(() => {
+      wizard!.patchData({ property: { address: "اول" } } as never);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(updatePropertyContract).toHaveBeenCalledTimes(1);
+
+    let confirmed: boolean | null = null;
+    await act(async () => {
+      const pending = wizard!.patchDataNow({
+        supplementary: { confirmedAt: "2026-10-18T09:00:00.000Z" },
+      } as never);
+      // The confirmation is queued, not dropped, and not sent concurrently.
+      expect(updatePropertyContract).toHaveBeenCalledTimes(1);
+      first.resolve({ ...makeContract(), progress: 20, completeness: COMPLETENESS });
+      confirmed = await pending;
+    });
+
+    expect(confirmed).toBe(true);
+    expect(updatePropertyContract).toHaveBeenCalledTimes(2);
+    const second = updatePropertyContract.mock.calls[1]![1] as {
+      data: { supplementary: { confirmedAt: string } };
+    };
+    expect(second.data.supplementary.confirmedAt).toBe("2026-10-18T09:00:00.000Z");
+    expect(wizard!.saveStatus).toBe("saved");
+  });
+});
+
+describe("autosave — honest failure", () => {
+  it("does not retry a non-transient error and reports its real cause", async () => {
+    const { ApiClientError } = await import("@/lib/api/errors");
+    updatePropertyContract.mockRejectedValue(
+      new ApiClientError(409, {
+        code: "NOT_EDITABLE",
+        message: "این قرارداد در وضعیت فعلی قابل ویرایش نیست.",
+        retryable: false,
+      })
+    );
+
+    renderWizard();
+
+    act(() => {
+      wizard!.patchData({ property: { address: "الف" } } as never);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(updatePropertyContract).toHaveBeenCalledTimes(1);
+    expect(wizard!.saveStatus).toBe("error");
+    expect(wizard!.saveError?.code).toBe("NOT_EDITABLE");
+    expect(wizard!.saveError?.retryable).toBe(false);
+
+    // No backoff retry may be scheduled for a deterministic rejection.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(updatePropertyContract).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a content write on a frozen contract without calling the API", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WizardProvider
+          contract={{ ...makeContract(), state: "PENDING_ADMIN_REVIEW" } as never}
+          completeness={COMPLETENESS}
+        >
+          <Probe />
+        </WizardProvider>
+      </QueryClientProvider>
+    );
+
+    let result: boolean | null = null;
+    await act(async () => {
+      result = await wizard!.patchDataNow({ property: { address: "الف" } } as never);
+    });
+
+    expect(result).toBe(false);
+    expect(updatePropertyContract).not.toHaveBeenCalled();
+    expect(wizard!.saveError?.code).toBe("NOT_EDITABLE");
+  });
+});
+
 describe("autosave — retry", () => {
   it("retries a failed save with backoff and eventually succeeds", async () => {
     updatePropertyContract

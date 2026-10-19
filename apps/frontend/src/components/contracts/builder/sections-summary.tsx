@@ -11,8 +11,9 @@
 //   complete     every section the step owns is at 100%
 //   in-progress  some data is entered, but required items remain
 //   incomplete   nothing is filled yet
-//   review       the final step — ready only when NO section blocks
-//   stage        the signature stage — follows the confirmed supplement
+// The final stages are NOT listed here: they own no fields and are drawn
+// by the lifecycle rail inside their own steps. A stage that appeared in
+// both places read as two different steps with two different statuses.
 //
 // Each card jumps to the step that owns the section, so the summary is
 // navigation as well as status (Spec A §6).
@@ -23,21 +24,18 @@
 import React from "react";
 import type { ContractCompletenessSection, WizardStepDescriptor } from "@legalir/types";
 import { IconCheckCircle, IconClock, IconWarning } from "@/lib/icons";
+// `IconClock` still labels the in-progress tone; the retired review/stage
+// tones used it too and were removed with the duplicated final cards.
 import { toPersianDigits } from "@/lib/persian-utils";
 
-export type SectionSummaryState =
-  | "complete"
-  | "in-progress"
-  | "incomplete"
-  | "review"
-  | "stage";
+export type SectionSummaryState = "complete" | "in-progress" | "incomplete";
 
 export interface SectionSummaryItem {
   stepId: string;
   titleFa: string;
   state: SectionSummaryState;
-  /** Mean of the sections this step owns; null for the review step. */
-  percent: number | null;
+  /** Mean of the sections this step owns. */
+  percent: number;
   /** A short, user-facing reason — the missing item labels. */
   reasonFa: string | null;
 }
@@ -59,43 +57,32 @@ export function buildSectionSummary(
   steps: WizardStepDescriptor[],
   sections: ContractCompletenessSection[]
 ): SectionSummaryItem[] {
-  const blockingSections = sections.filter((s) => s.percent < 100);
+  // Only steps that OWN data belong in this row. The four final stages
+  // (supplementary → review → signature → final) are drawn by their own
+  // status rail; listing them here as well made the same stage appear
+  // twice — once as a "section" and once as a step — which is exactly the
+  // duplicated-stage confusion this row must never create.
+  return steps
+    .filter((step) => step.sections.length > 0)
+    .map((step) => {
+      const owned = step.sections
+        .map((key) => sections.find((s) => s.key === key))
+        .filter((s): s is ContractCompletenessSection => Boolean(s));
 
-  return steps.map((step) => {
-    // The review and signature steps own no data sections: their status
-    // is derived from every other section. The signature stage is told
-    // apart so its card can say what it is actually waiting for.
-    if (step.sections.length === 0) {
+      const percent =
+        owned.length === 0
+          ? 100
+          : Math.round(owned.reduce((sum, s) => sum + s.percent, 0) / owned.length);
+      const missing = owned.flatMap((s) => s.missing);
+
       return {
         stepId: step.id,
         titleFa: step.titleFa,
-        state: step.id === "signature" ? "stage" : "review",
-        percent: null,
-        reasonFa:
-          blockingSections.length > 0
-            ? `${toPersianDigits(blockingSections.length)} بخش هنوز تکمیل نشده است`
-            : null,
+        state: percent === 100 ? "complete" : percent === 0 ? "incomplete" : "in-progress",
+        percent,
+        reasonFa: missingReasonFa(missing),
       };
-    }
-
-    const owned = step.sections
-      .map((key) => sections.find((s) => s.key === key))
-      .filter((s): s is ContractCompletenessSection => Boolean(s));
-
-    const percent =
-      owned.length === 0
-        ? 100
-        : Math.round(owned.reduce((sum, s) => sum + s.percent, 0) / owned.length);
-    const missing = owned.flatMap((s) => s.missing);
-
-    return {
-      stepId: step.id,
-      titleFa: step.titleFa,
-      state: percent === 100 ? "complete" : percent === 0 ? "incomplete" : "in-progress",
-      percent,
-      reasonFa: missingReasonFa(missing),
-    };
-  });
+    });
 }
 
 function statusLabelFa(item: SectionSummaryItem): string {
@@ -103,13 +90,9 @@ function statusLabelFa(item: SectionSummaryItem): string {
     case "complete":
       return "تکمیل شده";
     case "in-progress":
-      return `${toPersianDigits(item.percent ?? 0)}٪ تکمیل`;
+      return `${toPersianDigits(item.percent)}٪ تکمیل`;
     case "incomplete":
       return "تکمیل نشده";
-    case "review":
-      return item.reasonFa ? "در انتظار تکمیل بخش‌ها" : "آمادهٔ بازبینی";
-    case "stage":
-      return item.reasonFa ? "در انتظار تکمیل بخش‌ها" : "پس از تأیید اطلاعات تکمیلی";
   }
 }
 
@@ -129,16 +112,6 @@ const STATE_STYLES: Record<
   },
   incomplete: {
     icon: IconWarning,
-    iconClass: "text-muted",
-    card: "border-divider bg-surface",
-  },
-  review: {
-    icon: IconClock,
-    iconClass: "text-muted",
-    card: "border-divider bg-surface",
-  },
-  stage: {
-    icon: IconClock,
     iconClass: "text-muted",
     card: "border-divider bg-surface",
   },

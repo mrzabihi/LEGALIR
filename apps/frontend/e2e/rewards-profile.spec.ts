@@ -9,7 +9,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 
 const DEMO_MOBILE = "09120000003";
-const OTP_CODE = "405405";
+const DEMO_PASSWORD = "123456";
 const SESSION_COOKIE = "legalir-session";
 
 // ---------------------------------------------------------------------------
@@ -17,34 +17,25 @@ const SESSION_COOKIE = "legalir-session";
 // ---------------------------------------------------------------------------
 
 /**
- * Create a real session through the OTP API. The result is cached per worker
- * so the rate-limited `/api/auth/otp/request` endpoint is only hit once.
+ * Create a real session for the seeded demo user. The result is cached per
+ * worker.
+ *
+ * Password login, not OTP: `/api/auth/otp/request` is rate-limited to
+ * 3 requests / 5 min per mobile, so once any sibling spec spent the demo
+ * number's budget this spec failed at session creation.
  */
 let cachedSessionId: string | null = null;
 
 async function getOrCreateSession(request: APIRequestContext): Promise<string> {
   if (cachedSessionId) return cachedSessionId;
 
-  const reqRes = await request.post("/api/auth/otp/request", {
-    data: { mobile: DEMO_MOBILE },
+  const res = await request.post("/api/auth/login", {
+    data: { mobile: DEMO_MOBILE, password: DEMO_PASSWORD },
   });
-  const reqBody = (await reqRes.json()) as {
-    data?: { challengeId?: string };
-  };
-  const challengeId = reqBody.data?.challengeId;
-  if (!challengeId) {
-    throw new Error("Failed to request OTP challenge");
-  }
-
-  const verifyRes = await request.post("/api/auth/otp/verify", {
-    data: { challengeId, code: OTP_CODE },
-  });
-  const verifyBody = (await verifyRes.json()) as {
-    data?: { sessionId?: string };
-  };
-  const sessionId = verifyBody.data?.sessionId;
+  const sessionId = ((await res.json()) as { data?: { sessionId?: string } }).data
+    ?.sessionId;
   if (!sessionId) {
-    throw new Error("Failed to verify OTP and create a session");
+    throw new Error("Failed to create a demo session");
   }
 
   cachedSessionId = sessionId;

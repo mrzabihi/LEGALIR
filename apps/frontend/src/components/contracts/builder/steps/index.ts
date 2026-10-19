@@ -24,6 +24,7 @@ import { DocumentsStep } from "./documents";
 import { SupplementaryStep } from "./supplementary";
 import { SignatureStep } from "./signature";
 import { ReviewStep } from "./review";
+import { FinalStep } from "./final";
 import { SchemaStep } from "./schema-step";
 import { useWizard } from "../wizard-context";
 import { getContractDefinition } from "@/lib/contracts/registry";
@@ -48,6 +49,7 @@ export const STEP_COMPONENTS: Record<string, ComponentType> = {
   supplementary: SupplementaryStep,
   signature: SignatureStep,
   review: ReviewStep,
+  final: FinalStep,
 };
 
 /**
@@ -62,6 +64,7 @@ const SHARED_STEPS: Record<string, ComponentType> = {
   supplementary: SupplementaryStep,
   signature: SignatureStep,
   review: ReviewStep,
+  final: FinalStep,
 };
 
 /**

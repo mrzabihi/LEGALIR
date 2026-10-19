@@ -1,23 +1,37 @@
 "use client";
 
 // ============================================================
-// LEGALIR — /cases (client list)
+// LEGALIR — /cases «پرونده‌ها و دادخواست‌ها»
 // ============================================================
-// A compact, single-column MD3 scan-list of the user's cases: one low
-// header, one search toolbar, a status chip row, a results line, then
-// flat rows. Each row shows the identity (category-tinted tile, title,
-// status + priority), one low-emphasis meta line, and exactly ONE
-// primary action («مشاهده پرونده») plus a ⋮ menu carrying the real,
-// owner-only supplementary operations (copy reference · archive).
+// The page's structure follows the brief, top to bottom:
 //
-// All data logic is unchanged: the same `/api/v1/cases` query, the same
+//   1. one low header — «پرونده‌ها و دادخواست‌ها»;
+//   2. the service section: TWO cards, «ساخت پرونده جدید» and «تنظیم
+//      دادخواست و شکواییه تخصصی» (same visual language as /contracts);
+//   3. two history tabs — پرونده‌ها (this file) and دادخواست‌ها و
+//      شکواییه‌ها (`JudicialHistory`).
+//
+// The case tab is the compact MD3 scan-list it has always been: one search
+// toolbar, a status chip row, a results line, then flat rows with exactly
+// ONE primary action plus a ⋮ menu for owner-only supplementary operations.
+//
+// All case data logic is unchanged: the same `/api/v1/cases` query, the same
 // `?create=true` deep link, the same create modal and idempotency key.
 // ============================================================
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { TextField, Textarea, Select, Dialog, Button, snackbar } from "@legalir/ui";
+import {
+  TextField,
+  Textarea,
+  Select,
+  Dialog,
+  Button,
+  SegmentedControl,
+  snackbar,
+  buttonClasses,
+} from "@legalir/ui";
 import { CASE_STATUS_FA, CASE_CATEGORY_FA, CASE_PRIORITY_FA } from "@legalir/types";
 import type { CaseStatus, CaseCategory, CasePriority, CaseListItem } from "@legalir/types";
 import { toPersianDate } from "@/lib/persian-utils";
@@ -42,6 +56,9 @@ import {
   type ActiveFilter,
 } from "@/components/shared";
 import type { StatusTone } from "@/components/shared";
+import { CasesServiceCards } from "@/components/judicial/cases-service-cards";
+import { JudicialHistory } from "@/components/judicial/judicial-history";
+import { useJudicialRequests } from "@/hooks/useJudicial";
 
 // ============================================================
 // Status → shared tone + priority → shared tone
@@ -62,6 +79,24 @@ const PRIORITY_TONE: Record<CasePriority, StatusTone> = {
   medium: "info",
   high: "warning",
   urgent: "error",
+};
+
+/**
+ * The leading tile's fill, derived from the SAME status the badge names —
+ * so a row's state is legible from the edge of the list before any word is
+ * read. The badge always repeats it in text, so colour is never the only
+ * carrier of meaning.
+ */
+const CASE_TILE_TONE: Record<CaseStatus, string> = {
+  DRAFT: "bg-surface-container text-on-surface-variant",
+  ACTIVE: "bg-info-container text-info",
+  UNDER_REVIEW: "bg-warning-container text-warning",
+  WAITING_DOCUMENTS: "bg-warning-container text-warning",
+  // `selected-text` is the readable-on-tint tone; `selected` itself is the
+  // 3:1 fill and would not pass as text on its own pale background.
+  LAWYER_ASSIGNED: "bg-control-selected-surface text-control-selected-text",
+  CLOSED: "bg-success-container text-success",
+  ARCHIVED: "bg-surface-container text-on-surface-variant",
 };
 
 // ============================================================
@@ -224,9 +259,35 @@ function ArchiveCaseDialog({
 // Main Page
 // ============================================================
 
+type HistoryTab = "cases" | "judicial";
+const TAB_ID_BASE = "cases-history";
+
 export default function CasesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // The tab is URL state so a deep link can open either history and the
+  // browser Back button returns to the one the user came from. Default is
+  // the case list, exactly as before this page gained a second tab.
+  const tab: HistoryTab =
+    searchParams.get("tab") === "judicial" ? "judicial" : "cases";
+  const setTab = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "judicial") params.set("tab", "judicial");
+      else params.delete("tab");
+      // The create deep link belongs to the case tab only.
+      if (next === "judicial") params.delete("create");
+      const qs = params.toString();
+      router.replace(qs ? `/cases?${qs}` : "/cases", { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  // The judicial list is read here only for its tab count; `JudicialHistory`
+  // reads the SAME cache key, so switching tabs never refetches twice.
+  const judicialRequests = useJudicialRequests();
+
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -281,6 +342,12 @@ export default function CasesPage() {
     router.push(`/cases/${id}`);
   };
 
+  /** Open the create modal on the case tab, wherever the user currently is. */
+  const openCreate = useCallback(() => {
+    if (tab !== "cases") setTab("cases");
+    setShowCreate(true);
+  }, [tab, setTab]);
+
   const clearAllFilters = useCallback(() => {
     setSearch("");
     setStatusFilter("all");
@@ -334,14 +401,17 @@ export default function CasesPage() {
   return (
     <PageContainer dir="rtl">
       <CompactPageHeader
-        title="پرونده‌های من"
-        description="مدیریت و پیگیری پرونده‌های حقوقی"
+        title="پرونده‌ها و دادخواست‌ها"
+        description="پرونده‌های حقوقی و اوراق قضایی خود را در یک جا شروع، تکمیل و پیگیری کنید"
         actions={
-          // The page's one primary action renders through the shared
-          // primitive, so its hover/focus/press/touch states match every
-          // other primary CTA instead of a hand-rolled copy.
+          // Internal case creation is kept exactly as it was — same modal,
+          // same endpoint, same idempotency key — but demoted to the page's
+          // secondary action: the service card below carries the primary CTA,
+          // and a hidden/unavailable card leaves this one fully working rather
+          // than removing the capability.
           <Button
-            onClick={() => setShowCreate(true)}
+            variant="outlined"
+            onClick={openCreate}
             startIcon={<IconAdd size={20} />}
             className="w-full tablet:w-auto"
           >
@@ -350,6 +420,59 @@ export default function CasesPage() {
         }
       />
 
+      {/* The page's TWO starting points, in the /contracts card language.
+          Both cards read their state from the server; neither can invent a
+          service that is switched off. */}
+      <CasesServiceCards
+        caseCount={loading ? null : cases.length}
+        onCreateCase={openCreate}
+      />
+
+      {/* Two histories, one panel at a time. The switcher is a real MD3
+          tablist and the panels are labelled by it, so the page keeps a
+          single H1 while exposing both lists to assistive tech. */}
+      <div className="mt-6 flex justify-start">
+        <SegmentedControl
+          ariaLabel="تاریخچهٔ پرونده‌ها و دادخواست‌ها"
+          idBase={TAB_ID_BASE}
+          value={tab}
+          onChange={setTab}
+          glow
+          className="w-full tablet:w-auto"
+          segments={[
+            {
+              value: "cases",
+              label: "پرونده‌ها",
+              badge: loading ? undefined : cases.length,
+            },
+            {
+              value: "judicial",
+              label: "دادخواست‌ها و شکواییه‌ها",
+              badge: judicialRequests.data?.items.length,
+            },
+          ]}
+        />
+      </div>
+
+      <section
+        id={`${TAB_ID_BASE}-panel-judicial`}
+        role="tabpanel"
+        aria-labelledby={`${TAB_ID_BASE}-tab-judicial`}
+        tabIndex={0}
+        hidden={tab !== "judicial"}
+        className="focus-visible:outline-none"
+      >
+        <JudicialHistory />
+      </section>
+
+      <section
+        id={`${TAB_ID_BASE}-panel-cases`}
+        role="tabpanel"
+        aria-labelledby={`${TAB_ID_BASE}-tab-cases`}
+        tabIndex={0}
+        hidden={tab !== "cases"}
+        className="focus-visible:outline-none"
+      >
       {/* Toolbar — search owns the space; status chips scroll in their own row. */}
       <div className="mt-4 flex flex-col gap-3">
         <SearchField
@@ -446,30 +569,27 @@ export default function CasesPage() {
 
           <div className="space-y-2.5">
             {cases.map((c) => (
+              // Three zones, identical at every width — identity, status,
+              // action — so the eye can run down one column instead of
+              // re-reading each card. On phones identity takes the first
+              // line and status + action share the second.
               <article
                 key={c.id}
-                className="flex flex-col gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:grid-cols-[minmax(0,1fr)_9.5rem_auto] tablet:gap-x-5 tablet:p-4"
               >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
+                {/* --- Identity --- */}
+                <div className="col-span-2 flex min-w-0 items-center gap-3 tablet:col-span-1">
                   <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary-on-container"
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${CASE_TILE_TONE[c.status]}`}
                     aria-hidden="true"
                   >
                     <IconBalance size={20} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
-                        {c.title}
-                      </h3>
-                      <StatusBadge label={CASE_STATUS_FA[c.status]} tone={CASE_STATUS_TONE[c.status]} />
-                      <StatusBadge
-                        label={CASE_PRIORITY_FA[c.priority]}
-                        tone={PRIORITY_TONE[c.priority]}
-                        dot={false}
-                      />
-                    </div>
+                    <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface">
+                      {c.title}
+                    </h3>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
                       <span className="font-medium text-on-surface-variant">{CASE_CATEGORY_FA[c.category]}</span>
@@ -497,10 +617,21 @@ export default function CasesPage() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
+                {/* --- Status (its own column, aligned across rows) --- */}
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 tablet:flex-col tablet:items-start tablet:gap-1">
+                  <StatusBadge label={CASE_STATUS_FA[c.status]} tone={CASE_STATUS_TONE[c.status]} />
+                  <StatusBadge
+                    label={CASE_PRIORITY_FA[c.priority]}
+                    tone={PRIORITY_TONE[c.priority]}
+                    dot={false}
+                  />
+                </div>
+
+                {/* --- Action --- */}
+                <div className="flex shrink-0 items-center justify-end gap-1.5 tablet:border-s tablet:border-divider tablet:ps-5">
                   <Link
                     href={`/cases/${c.id}`}
-                    className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-labelLarge font-medium text-primary-on transition-colors duration-short3 hover:bg-primary-700 hover:text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 tablet:h-9 tablet:flex-none tablet:text-labelSmall"
+                    className={buttonClasses()}
                   >
                     مشاهده پرونده
                   </Link>
@@ -535,6 +666,7 @@ export default function CasesPage() {
           </div>
         </div>
       )}
+      </section>
 
       {showCreate && (
         <CreateCaseModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />

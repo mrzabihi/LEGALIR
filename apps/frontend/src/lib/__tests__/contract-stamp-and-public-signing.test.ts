@@ -85,6 +85,7 @@ let adminPost: RouteHandler;
 let signPost: RouteHandler;
 let invitationsRoute: { POST: RouteHandler; GET: RouteHandler; DELETE: RouteHandler };
 let invitationTokenRoute: { GET: RouteHandler; POST: RouteHandler };
+let invitationStampAssetRoute: RouteHandler;
 let stampGet: RouteHandler;
 let stampPost: RouteHandler;
 let evidenceGet: RouteHandler;
@@ -317,6 +318,9 @@ beforeAll(async () => {
     GET: RouteHandler;
     POST: RouteHandler;
   };
+  invitationStampAssetRoute = (
+    await import("@/app/api/v1/contract-invitations/[token]/stamp-asset/[kind]/route")
+  ).GET as unknown as RouteHandler;
   const stampRoute = (await import("@/app/api/v1/admin/contracts/[id]/stamp/route")) as unknown as {
     GET: RouteHandler;
     POST: RouteHandler;
@@ -973,5 +977,319 @@ describe("admin wet-ink evidence — proof only, never a signature", () => {
     expect(listed.status).toBe(200);
     const list = (await json<{ data: { evidence: { id: string }[] } }>(listed)).data;
     expect(list.evidence.some((e) => e.id === data.evidence.id)).toBe(true);
+  });
+});
+
+// ============================================================
+// §4 — the final LEGALIR approval freezes the final version
+// ============================================================
+// Applying the official seal IS the final approval, so the same act must
+// freeze the signed snapshot as the FINAL version: the final document is
+// the exact version the parties signed, the earlier reviewed version is
+// retained, and the freeze is recorded in the contract's own audit trail.
+
+describe("official stamp apply — final approval freezes the final version", () => {
+  const ID = "ctr-final-approval";
+
+  beforeAll(async () => {
+    await seedApprovedContract(ID);
+    await completeSignatures(ID);
+  });
+
+  it("reports signature readiness from the real request bound to the version", async () => {
+    const res = await stampGet(getReq(`${ADMIN_BASE}/${ID}/stamp`, adminSession), params(ID));
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: { signatures: { ready: boolean; reasonFa: string | null } };
+    }>(res);
+    expect(data.signatures.ready).toBe(true);
+    expect(data.signatures.reasonFa).toBeNull();
+  });
+
+  it("locks the signed version as the final one and keeps the reviewed version", async () => {
+    const before = contractDb.getContractById(ID)!;
+    const reviewedVersionId = before.currentVersionId!;
+    const reviewedHash = currentHash(ID);
+    const versionsBefore = contractDb.listVersions(ID).length;
+
+    expect(
+      (
+        await stampPost(
+          req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, {
+            action: "request",
+            reason: "همهٔ طرفین امضا کرده‌اند",
+          }),
+          params(ID)
+        )
+      ).status
+    ).toBe(200);
+
+    const applied = await stampPost(
+      req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, {
+        action: "apply",
+        reason: "تأیید نهایی لیگالیر",
+      }),
+      params(ID)
+    );
+    expect(applied.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        applied: boolean;
+        finalization: {
+          ok: true;
+          finalVersionId: string;
+          documentHash: string;
+          state: string;
+          finalizedAt: string;
+          artifactStored: boolean;
+        } | null;
+      };
+    }>(applied);
+
+    expect(data.applied).toBe(true);
+    expect(data.finalization).not.toBeNull();
+    const finalization = data.finalization!;
+    // The final version IS the version the parties signed — same row, same
+    // hash — so the signatures the parties gave stay bound to the final doc.
+    expect(finalization.finalVersionId).toBe(reviewedVersionId);
+    expect(finalization.documentHash).toBe(reviewedHash);
+    expect(finalization.state).toBe("FINALIZED");
+    expect(new Date(finalization.finalizedAt).toISOString()).toBe(finalization.finalizedAt);
+
+    // The stored contract agrees, and no version was lost: the freeze
+    // reused the signed snapshot rather than minting a parallel copy.
+    const after = contractDb.getContractById(ID)!;
+    expect(after.state).toBe("FINALIZED");
+    expect(after.finalVersionId).toBe(reviewedVersionId);
+    expect(after.finalizedAt).toBe(finalization.finalizedAt);
+    expect(contractDb.listVersions(ID)).toHaveLength(versionsBefore);
+    expect(contractDb.listVersions(ID).some((v) => v.id === reviewedVersionId)).toBe(true);
+
+    // The approval records the official seal, bound to the same hash.
+    const audit = contractDb.listAudit(ID).find((a) => a.action === "contract.finalized");
+    expect(audit).toBeDefined();
+    expect(audit!.metadata["finalVersionId"]).toBe(reviewedVersionId);
+    expect(audit!.metadata["documentHash"]).toBe(reviewedHash);
+    const stampMeta = audit!.metadata["stamp"] as { officialStamp: { sha256: string } | null };
+    expect(stampMeta.officialStamp?.sha256).toBe(REAL_STAMP_SHA256);
+  });
+
+  it("refuses the final approval while a party has not signed", async () => {
+    const unsignedId = "ctr-final-approval-unsigned";
+    await seedApprovedContract(unsignedId);
+
+    const ctx = await stampGet(
+      getReq(`${ADMIN_BASE}/${unsignedId}/stamp`, adminSession),
+      params(unsignedId)
+    );
+    const { data } = await json<{
+      data: { signatures: { ready: boolean; reasonFa: string | null } };
+    }>(ctx);
+    expect(data.signatures.ready).toBe(false);
+    expect(data.signatures.reasonFa).toBeTruthy();
+
+    await stampPost(
+      req(`${ADMIN_BASE}/${unsignedId}/stamp`, adminSession, {
+        action: "request",
+        reason: "درخواست مهر پیش از امضای طرفین",
+      }),
+      params(unsignedId)
+    );
+
+    const res = await stampPost(
+      req(`${ADMIN_BASE}/${unsignedId}/stamp`, adminSession, {
+        action: "apply",
+        reason: "تلاش تأیید نهایی",
+      }),
+      params(unsignedId)
+    );
+    expect(res.status).toBe(409);
+    expect((await json<{ code: string }>(res)).code).toBe("SIGNATURES_REQUIRED");
+    // Nothing was frozen.
+    expect(contractDb.getContractById(unsignedId)!.finalVersionId).toBeNull();
+  });
+});
+
+// ============================================================
+// The signer's own sheet carries the OFFICIAL mark its PDF carries
+// ============================================================
+// A signing party often has no account, so the owner-scoped stamp route
+// is closed to them — yet the PDF their token downloads already has the
+// seal and hologram drawn on every page. This proves the token-scoped
+// sheet agrees with that file: the invitation payload names the bound
+// mark, the sibling asset route serves the very same PNG bytes, and a
+// stale/unknown token gets nothing.
+
+describe("public invitation — the official mark on the signer's sheet", () => {
+  const ID = "ctr-signer-mark";
+  let rawToken: string;
+
+  function assetParams(kind: string) {
+    return { params: Promise.resolve({ token: rawToken, kind }) };
+  }
+
+  beforeAll(async () => {
+    await seedApprovedContract(ID);
+
+    // Freeze the version the parties will sign, then issue the link —
+    // BEFORE the signatures, so the invitation stays ACTIVE and unused.
+    const created = await signPost(
+      req(`${BASE}/${ID}/sign`, ownerSession, { action: "create_request" }),
+      params(ID)
+    );
+    expect(created.status).toBe(200);
+    const { data } = await json<{
+      data: { request: { participants: { id: string; roleFa: string }[] } };
+    }>(created);
+    const participants = data.request.participants;
+
+    const issued = await invitationsRoute.POST(
+      req(`${BASE}/${ID}/invitations`, ownerSession, {
+        participantIds: [participants.find((p) => p.roleFa === "مستأجر")!.id],
+      }),
+      params(ID)
+    );
+    expect(issued.status).toBe(200);
+    rawToken = (
+      await json<{ data: { invitations: { token: string }[] } }>(issued)
+    ).data.invitations[0]!.token;
+
+    // Both parties sign, then LEGALIR applies the official seal — the
+    // final approval that turns this version into the stamped document.
+    for (const participant of participants) {
+      expect(
+        (
+          await signPost(
+            req(`${BASE}/${ID}/sign`, ownerSession, {
+              action: "request_otp",
+              participantId: participant.id,
+            }),
+            params(ID)
+          )
+        ).status
+      ).toBe(200);
+      expect(
+        (
+          await signPost(
+            req(`${BASE}/${ID}/sign`, ownerSession, {
+              action: "verify_otp",
+              participantId: participant.id,
+              code: "405405",
+              consentGiven: true,
+            }),
+            params(ID)
+          )
+        ).status
+      ).toBe(200);
+    }
+
+    expect(
+      (
+        await stampPost(
+          req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, {
+            action: "request",
+            reason: "همهٔ طرفین امضا کرده‌اند",
+          }),
+          params(ID)
+        )
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await stampPost(
+          req(`${ADMIN_BASE}/${ID}/stamp`, adminSession, {
+            action: "apply",
+            reason: "تأیید نهایی لیگالیر",
+          }),
+          params(ID)
+        )
+      ).status
+    ).toBe(200);
+  });
+
+  it("names the bound mark and points at the token-scoped assets", async () => {
+    const res = await invitationTokenRoute.GET(
+      getReq(`${INVITATIONS_BASE}/${rawToken}`, null),
+      tokenParams(rawToken)
+    );
+    expect(res.status).toBe(200);
+    const { data } = await json<{
+      data: {
+        stamp: {
+          applied: boolean;
+          official: boolean;
+          sealHref?: string;
+          hologramHref?: string;
+          reviewId: string;
+          approvedByLabelFa: string | null;
+        };
+      };
+    }>(res);
+
+    expect(data.stamp.applied).toBe(true);
+    expect(data.stamp.official).toBe(true);
+    // The signer has no session: the hrefs must stay under THIS token,
+    // never the session-scoped owner route. They are same-origin paths,
+    // which is what the page renders into an <img src>.
+    expect(data.stamp.sealHref).toBe(
+      `/api/v1/contract-invitations/${rawToken}/stamp-asset/seal`
+    );
+    expect(data.stamp.hologramHref).toBe(
+      `/api/v1/contract-invitations/${rawToken}/stamp-asset/hologram`
+    );
+    expect(data.stamp.reviewId).toBeTruthy();
+    expect(data.stamp.approvedByLabelFa).toBeTruthy();
+  });
+
+  it("serves the real seal and hologram PNGs under the signer's token", async () => {
+    for (const [kind, loader] of [
+      ["seal", () => stampAsset.loadReviewStamp()],
+      ["hologram", () => stampAsset.loadHologram()],
+    ] as const) {
+      const res = await invitationStampAssetRoute(
+        getReq(`${INVITATIONS_BASE}/${rawToken}/stamp-asset/${kind}`, null),
+        assetParams(kind)
+      );
+      expect(res.status, `the ${kind} asset must be served`).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/png");
+      expect(res.headers.get("cache-control")).toBe("private, max-age=300");
+      const master = loader();
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      expect(bytes.byteLength).toBe(master!.sizeBytes);
+      // Byte-for-byte the same master the PDF embeds.
+      expect(crypto.createHash("sha256").update(bytes).digest("hex")).toBe(master!.sha256);
+    }
+  });
+
+  it("serves nothing for an unknown token or an unknown asset kind", async () => {
+    const unknown = await invitationStampAssetRoute(
+      getReq(`${INVITATIONS_BASE}/not-a-real-token/stamp-asset/seal`, null),
+      { params: Promise.resolve({ token: "not-a-real-token", kind: "seal" }) }
+    );
+    expect(unknown.status).toBe(404);
+    expect((await json<{ code: string }>(unknown)).code).toBe("NOT_FOUND");
+
+    const bogus = await invitationStampAssetRoute(
+      getReq(`${INVITATIONS_BASE}/${rawToken}/stamp-asset/logo`, null),
+      assetParams("logo")
+    );
+    expect(bogus.status).toBe(404);
+  });
+
+  it("loses the mark the moment the invitation is revoked", async () => {
+    const invitation = signatureDb.findInvitationByTokenHash(
+      crypto.createHash("sha256").update(rawToken).digest("hex")
+    )!;
+    signatureDb.updateInvitation(invitation.id, { status: "REVOKED" });
+
+    const res = await invitationStampAssetRoute(
+      getReq(`${INVITATIONS_BASE}/${rawToken}/stamp-asset/seal`, null),
+      assetParams("seal")
+    );
+    expect(res.status).toBe(410);
+    expect((await json<{ code: string }>(res)).code).toBe("REVOKED");
+
+    // Restore for any later assertions in this file.
+    signatureDb.updateInvitation(invitation.id, { status: "ACTIVE" });
   });
 });

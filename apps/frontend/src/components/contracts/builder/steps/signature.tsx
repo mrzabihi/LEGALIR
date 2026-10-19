@@ -20,29 +20,38 @@
 
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { Button, Dialog } from "@legalir/ui";
+import React, { useMemo, useRef, useState } from "react";
+import { Button, Checkbox, Dialog, OTPInput } from "@legalir/ui";
 import {
   IconArrowBack,
+  IconArrowForward,
   IconCheck,
   IconCopy,
   IconFileText,
   IconRefresh,
   IconSend,
   IconShield,
+  IconWarning,
 } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice } from "../primitives";
+import { ActionButton, SectionCard, Notice } from "../primitives";
 import { getContractDefinition, partyRoleLabelFa } from "@/lib/contracts/registry";
 import { formatIsoJalali, formatIsoJalaliDateTime } from "@/lib/contracts/dates";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   useContractLifecycle,
   useCreateSignatureRequest,
+  useDeclineSignature,
   useIssueInvitations,
+  useRecordPhysicalSignature,
+  useRequestSignatureOtp,
   useRevokeInvitation,
+  useVerifySignatureOtp,
 } from "@/hooks/useContractLifecycle";
 import type { SignatureInvitation, SignatureParticipant } from "@legalir/types";
+
+/** The version of the consent text the signer agrees to. */
+const CONSENT_VERSION = "v1";
 
 type PartyTone = "ready" | "pending" | "ok" | "warn" | "error";
 
@@ -91,11 +100,27 @@ export function SignatureStep() {
   const prepare = useCreateSignatureRequest();
   const issueInvitations = useIssueInvitations();
   const revokeInvitation = useRevokeInvitation();
+  const requestOtp = useRequestSignatureOtp();
+  const verifyOtp = useVerifySignatureOtp();
+  const recordPhysical = useRecordPhysicalSignature();
+  const decline = useDeclineSignature();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [issuedTokens, setIssuedTokens] = useState<Record<string, string>>({});
   const [copiedParticipantId, setCopiedParticipantId] = useState<string | null>(null);
+
+  // OTP signing — the same real flow the review workspace offers, kept on
+  // the signature stage so the parties' signing is not split across two
+  // pages with two different buttons.
+  const [signTarget, setSignTarget] = useState<SignatureParticipant | null>(null);
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [mobileMasked, setMobileMasked] = useState<string | null>(null);
+  const [otpChannel, setOtpChannel] = useState<"sms" | "dev-console">("dev-console");
+  const [consent, setConsent] = useState(false);
+  const [physicalTarget, setPhysicalTarget] = useState<SignatureParticipant | null>(null);
+  const physicalInputRef = useRef<HTMLInputElement>(null);
 
   const request = view?.signatureRequest ?? null;
   const currentVersion = contract.versions.find((v) => v.id === contract.currentVersionId);
@@ -138,12 +163,18 @@ export function SignatureStep() {
     [contract.parties, def.roles]
   );
 
-  async function run(fn: () => Promise<unknown>) {
+  /**
+   * Runs a write and reports whether it actually persisted, so the button
+   * that triggered it can only claim success for a real write.
+   */
+  async function runResult(fn: () => Promise<unknown>): Promise<boolean> {
     setActionError(null);
     try {
       await fn();
+      return true;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "عملیات ناموفق بود");
+      return false;
     }
   }
 
@@ -152,8 +183,8 @@ export function SignatureStep() {
    * this is the first send) and then issues the invitations for every
    * participant. Both steps are server-authorised; a refusal is shown.
    */
-  async function sendForSignature() {
-    await run(async () => {
+  async function sendForSignature(): Promise<boolean> {
+    return runResult(async () => {
       if (!request) {
         await prepare.mutateAsync({ id: contract.id });
       }
@@ -167,14 +198,18 @@ export function SignatureStep() {
     });
   }
 
+  /** Resolves `true` only after the replacement link was issued. */
   async function resend(
     participant: SignatureParticipant,
     invitation: SignatureInvitation | undefined
-  ) {
-    await run(async () => {
-      if (invitation && invitation.status === "ACTIVE") {
-        await revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id });
-      }
+  ): Promise<boolean> {
+    if (invitation && invitation.status === "ACTIVE") {
+      const revoked = await runResult(() =>
+        revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id })
+      );
+      if (!revoked) return false;
+    }
+    return runResult(async () => {
       const res = await issueInvitations.mutateAsync({
         id: contract.id,
         participantIds: [participant.id],
@@ -183,6 +218,70 @@ export function SignatureStep() {
       for (const item of res.invitations) tokens[item.participantId] = item.token;
       setIssuedTokens((prev) => ({ ...prev, ...tokens }));
     });
+  }
+
+  /**
+   * Request a real OTP for this participant. The server reports the actual
+   * delivery outcome, so the dialog is opened only after a code really left
+   * the server; a failure is named instead of pretending a message arrived.
+   */
+  async function openSign(participant: SignatureParticipant) {
+    setOtp("");
+    setOtpError(null);
+    setConsent(false);
+    setMobileMasked(null);
+    await runResult(async () => {
+      const res = await requestOtp.mutateAsync({
+        id: contract.id,
+        participantId: participant.id,
+      });
+      if (!res.sent) {
+        throw new Error(
+          `ارسال کد تأیید به ${res.mobileMasked} ناموفق بود. دوباره تلاش کنید یا روش «امضای دستی» را انتخاب کنید.`
+        );
+      }
+      setMobileMasked(res.mobileMasked);
+      setOtpChannel(res.channel ?? "dev-console");
+      setSignTarget(participant);
+    });
+  }
+
+  /** Trigger the hidden file picker for a participant's wet-ink scan. */
+  function beginPhysical(participant: SignatureParticipant) {
+    setPhysicalTarget(participant);
+    setActionError(null);
+    if (physicalInputRef.current) physicalInputRef.current.value = "";
+    physicalInputRef.current?.click();
+  }
+
+  async function uploadPhysical(file: File) {
+    if (!physicalTarget) return;
+    const target = physicalTarget;
+    setPhysicalTarget(null);
+    await runResult(async () => {
+      await recordPhysical.mutateAsync({
+        id: contract.id,
+        participantId: target.id,
+        file,
+      });
+    });
+  }
+
+  async function confirmSign() {
+    if (!signTarget) return;
+    setOtpError(null);
+    try {
+      await verifyOtp.mutateAsync({
+        id: contract.id,
+        participantId: signTarget.id,
+        code: otp,
+        consentGiven: consent,
+        consentVersion: CONSENT_VERSION,
+      });
+      setSignTarget(null);
+    } catch (e) {
+      setOtpError(e instanceof Error ? e.message : "کد وارد‌شده صحیح نیست");
+    }
   }
 
   async function copyLink(participantId: string, token: string) {
@@ -344,16 +443,54 @@ export function SignatureStep() {
                     </div>
                   )}
 
-                  {(invitation || token) && participant.status !== "SIGNED" && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<IconRefresh className="w-3.5 h-3.5" />}
-                      onClick={() => void resend(participant, invitation)}
-                      disabled={issueInvitations.isPending || revokeInvitation.isPending}
-                    >
-                      ارسال مجدد لینک
-                    </Button>
+                  {participant.status !== "SIGNED" && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="small"
+                        variant="tonal"
+                        onClick={() => void openSign(participant)}
+                        disabled={!view?.canSign || requestOtp.isPending}
+                      >
+                        ارسال کد و امضا
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<IconFileText className="w-3.5 h-3.5" />}
+                        onClick={() => beginPhysical(participant)}
+                        disabled={!view?.canSign || recordPhysical.isPending}
+                      >
+                        امضای دستی (بارگذاری اسکن)
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() =>
+                          void runResult(() =>
+                            decline.mutateAsync({
+                              id: contract.id,
+                              participantId: participant.id,
+                            })
+                          )
+                        }
+                        disabled={!view?.canSign}
+                      >
+                        خودداری
+                      </Button>
+                      {(invitation || token) && (
+                        <ActionButton
+                          size="small"
+                          variant="outlined"
+                          idleLabel="ارسال مجدد لینک"
+                          busyLabel="در حال ارسال…"
+                          successLabel="لینک تازه صادر شد"
+                          errorLabel="ارسال نشد — تلاش مجدد"
+                          startIcon={<IconRefresh className="w-3.5 h-3.5" />}
+                          disabled={issueInvitations.isPending || revokeInvitation.isPending}
+                          onAction={() => resend(participant, invitation)}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -404,7 +541,6 @@ export function SignatureStep() {
             startIcon={<IconSend className="w-4 h-4" />}
             onClick={() => setConfirmOpen(true)}
             disabled={sendDisabled || !canSendAgain}
-            loading={prepare.isPending || issueInvitations.isPending}
           >
             ارسال برای طرفین جهت امضا
           </Button>
@@ -422,12 +558,13 @@ export function SignatureStep() {
             <Button variant="text" onClick={() => setConfirmOpen(false)}>
               انصراف
             </Button>
-            <Button
-              onClick={() => void sendForSignature()}
-              loading={prepare.isPending || issueInvitations.isPending}
-            >
-              ارسال به همهٔ طرفین
-            </Button>
+            <ActionButton
+              idleLabel="ارسال به همهٔ طرفین"
+              busyLabel="در حال ارسال…"
+              successLabel="لینک‌ها صادر شدند"
+              errorLabel="ارسال نشد — تلاش مجدد"
+              onAction={sendForSignature}
+            />
           </>
         }
       >
@@ -468,6 +605,61 @@ export function SignatureStep() {
         </p>
       </Dialog>
 
+      {/* Hidden picker for the wet-ink scan — one file, opened per participant */}
+      <input
+        ref={physicalInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void uploadPhysical(file);
+          setPhysicalTarget(null);
+        }}
+      />
+
+      {/* OTP dialog — consent is explicit, never prechecked */}
+      <Dialog
+        open={signTarget !== null}
+        onClose={() => setSignTarget(null)}
+        title="تأیید و امضای الکترونیکی"
+        description={
+          otpChannel === "sms"
+            ? `کد تأیید به شماره ${mobileMasked ?? ""} پیامک شد.`
+            : "کد تأیید در محیط توسعه در کنسول سرور ثبت شد (پیامک واقعی ارسال نشده است)."
+        }
+        actions={
+          <>
+            <Button variant="text" onClick={() => setSignTarget(null)}>
+              انصراف
+            </Button>
+            <Button
+              onClick={() => void confirmSign()}
+              disabled={otp.length !== 6 || !consent}
+              loading={verifyOtp.isPending}
+            >
+              تأیید و امضا
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <OTPInput value={otp} onChange={setOtp} numeric autoFocus hasError={!!otpError} />
+          {otpError && <p className="text-caption text-error">{otpError}</p>}
+          <Checkbox
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            label="متن قرارداد را خوانده‌ام و با تأیید و امضای الکترونیکی آن موافقم."
+          />
+          <p className="text-caption text-muted inline-flex items-start gap-1">
+            <IconWarning className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            کد یک‌بارمصرف پس از پنج دقیقه منقضی می‌شود و امضا به نسخه جاری و هش آن گره می‌خورد.
+          </p>
+        </div>
+      </Dialog>
+
       {/* The final version + note are what the parties sign — repeat the
           checkpoint after the send action so it is never out of sight. */}
       <p className="flex flex-wrap items-center gap-1.5 text-caption text-muted">
@@ -481,6 +673,37 @@ export function SignatureStep() {
           </span>
         )}
       </p>
+
+      {/* What happens next — the only forward action on this stage. It is
+          shown as a state, not a second set of signing buttons: the parties
+          have already signed, so the remaining work belongs to the archive. */}
+      <SectionCard
+        title="مرحلهٔ بعد — نسخهٔ نهایی"
+        description="پس از امضای همهٔ طرفین، نسخهٔ امضاشده در مرحلهٔ بعد قفل و بایگانی می‌شود"
+      >
+        {request && totalParties > 0 && signedCount === totalParties ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-body-2 text-success">
+              همهٔ طرفین امضا کرده‌اند؛ نسخهٔ نهایی آمادهٔ بایگانی است.
+            </p>
+            <Button
+              type="button"
+              endIcon={<IconArrowForward className="w-4 h-4" />}
+              onClick={() => goToStep("final")}
+            >
+              رفتن به نسخهٔ نهایی
+            </Button>
+          </div>
+        ) : (
+          <p className="text-body-2 text-muted">
+            {request
+              ? `${toPersianNumber(signedCount)} از ${toPersianNumber(
+                  totalParties
+                )} طرف امضا کرده‌اند؛ پس از تکمیل امضاها این مرحله باز می‌شود.`
+              : "پس از ارسال درخواست امضا و امضای همهٔ طرفین، این مرحله فعال می‌شود."}
+          </p>
+        )}
+      </SectionCard>
     </div>
   );
 }

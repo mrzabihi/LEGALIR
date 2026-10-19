@@ -36,7 +36,9 @@ import {
   useEntitlements,
   usePlansV1,
   useSubscriptionUsage,
+  useSubscriptionUsageCards,
 } from "@/hooks/useSubscription";
+import { SubscriptionUsageBanners } from "@/components/subscription/subscription-usage-banner";
 import { useSubscriptionHistory } from "@/hooks/usePhase11";
 import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { PLAN_ORDER, planDiscountPercent } from "@/lib/subscription/plan-visuals";
@@ -526,6 +528,7 @@ export default function SubscriptionPage() {
   const entQuery = useEntitlements();
   const plansQuery = usePlansV1();
   const usageQuery = useSubscriptionUsage();
+  const usageCardsQuery = useSubscriptionUsageCards();
   const historyQuery = useSubscriptionHistory(1, 20);
 
   // Hydration guard. `useCurrentSubscription` (`["v1","subscriptions",
@@ -612,6 +615,18 @@ export default function SubscriptionPage() {
         ) : usageQuery.isError ? (
           <ErrorCard message="خطا در دریافت اطلاعات انرژی و مصرف" onRetry={() => usageQuery.refetch()} />
         ) : null}
+
+        {/* Per-subscription real consumption (same ledger as /settings/usage).
+            Only ACTIVE, unexpired subscriptions come back; the component owns
+            the loading / error / no-active-subscription states. */}
+        <Panel title="مصرف هر اشتراک">
+          <SubscriptionUsageBanners
+            cards={usageCardsQuery.data}
+            isLoading={usageCardsQuery.isLoading}
+            error={usageCardsQuery.error as Error | null}
+            onRetry={() => usageCardsQuery.refetch()}
+          />
+        </Panel>
 
         {/* The subscription itself */}
         <Panel

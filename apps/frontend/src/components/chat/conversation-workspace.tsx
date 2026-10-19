@@ -9,10 +9,16 @@ import type {
   AiRunStatus,
   V1DocumentListItem,
   ProcessingRunView,
+  ChatToolId,
+  ChatToolView,
+  FollowUpAnswer,
+  FollowUpQuestion,
 } from "@legalir/types";
 import { IconArrowBack, IconEdit, IconMenu, IconClose, IconStar, IconChevronDown } from "@/lib/icons";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
+import { ChatToolsBar } from "./chat-tools-bar";
+import { FollowUpPanel } from "./follow-up-panel";
 import { DisclaimerBanner } from "./disclaimer-banner";
 import { EscalationCta } from "./escalation-cta";
 import { LegalRequestProgress } from "./legal-request-progress";
@@ -69,6 +75,25 @@ interface ConversationWorkspaceProps {
   returnTo?: string;
   /** One-shot composer prefill (e.g. a question about a specific finding). */
   composerInitialValue?: string;
+  /**
+   * The contextual tools the server projected for this service/conversation.
+   * Availability and rejection reasons come from the backend — the composer
+   * never decides on its own that a tool is usable.
+   */
+  tools?: ChatToolView[];
+  selectedToolIds?: ChatToolId[];
+  onToolSelectionChange?: (toolIds: ChatToolId[]) => void;
+  /** A tool the server rejected on the last turn (shown, never swallowed). */
+  toolRejection?: { id: string; reasonFa: string } | null;
+  /**
+   * Questions the backend's workflow engine is genuinely waiting on. Rendered
+   * with the composer; answers travel as structured `followUpAnswers`.
+   */
+  followUps?: FollowUpQuestion[];
+  onFollowUpSubmit?: (
+    content: string,
+    answers: FollowUpAnswer[]
+  ) => void | Promise<void>;
 }
 
 export function ConversationWorkspace({
@@ -97,6 +122,12 @@ export function ConversationWorkspace({
   onAttachmentClick,
   returnTo,
   composerInitialValue,
+  tools = [],
+  selectedToolIds = [],
+  onToolSelectionChange,
+  toolRejection = null,
+  followUps = [],
+  onFollowUpSubmit,
 }: ConversationWorkspaceProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conversation.title);
@@ -348,6 +379,33 @@ export function ConversationWorkspace({
             رفتن به پاسخ جدید
           </Button>
         </div>
+      )}
+
+      {/* Structured follow-ups the backend is waiting on. Placed above the
+          tools bar so the questions stay visible where the user answers. */}
+      {followUps.length > 0 && onFollowUpSubmit && (
+        <FollowUpPanel
+          questions={followUps}
+          onSubmit={onFollowUpSubmit}
+          busy={isStreaming}
+          disabled={conversation.status === "archived"}
+        />
+      )}
+
+      {/* Contextual tools — rendered with the composer, never over it. */}
+      {tools.length > 0 && (
+        <ChatToolsBar
+          tools={tools}
+          selected={selectedToolIds}
+          onChange={
+            onToolSelectionChange ??
+            (() => {
+              /* Selection is owned by the page; renders without it are read-only. */
+            })
+          }
+          disabled={isStreaming || conversation.status === "archived"}
+          rejection={toolRejection}
+        />
       )}
 
       {/* Input */}

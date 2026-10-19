@@ -48,7 +48,10 @@ import {
   updateParticipant,
 } from "@/lib/contracts/signature/db";
 import { getContractById, getVersion } from "@/lib/contracts/db";
+import { currentVersionApproval } from "@/lib/contracts/admin-review";
+import { currentVersionStamp } from "@/lib/contracts/stamp-review";
 import { signingPolicyFor } from "@/lib/contracts/registry";
+import { stateLabelFa } from "@/lib/contracts/state-machine";
 import { renderContract } from "@/lib/contracts/template";
 import {
   activeLawyerReview,
@@ -171,6 +174,32 @@ export async function GET(request: Request, { params }: Params) {
   // draft: the watermark is derived from stored state, never from the UI.
   const draft = contract.state !== "FINALIZED" && contract.state !== "ARCHIVED";
 
+  // The review mark this version may show — read from the SAME gates the
+  // PDF route uses, so the sheet the party reads and the file they sign
+  // can never disagree. The seal/hologram images are served by the
+  // sibling `stamp-asset` route under this same token, because a signer
+  // may have no session at all and the owner route is session-scoped.
+  const approval = version ? currentVersionApproval(contract, version.documentHash) : null;
+  const official = version ? currentVersionStamp(contract, version.documentHash) : null;
+  const stamp = approval
+    ? {
+        applied: true as const,
+        reviewedAt: approval.decidedAt ?? null,
+        reviewingOfficeFa: approval.reviewingOfficeFa,
+        reviewerInitials: approval.reviewerInitials,
+        reviewId: approval.id,
+        official: official !== null,
+        sealHref: official
+          ? `/api/v1/contract-invitations/${encodeURIComponent(token)}/stamp-asset/seal`
+          : undefined,
+        hologramHref: official
+          ? `/api/v1/contract-invitations/${encodeURIComponent(token)}/stamp-asset/hologram`
+          : undefined,
+        approvedByLabelFa: official?.approvedByLabelFa ?? null,
+        approvedAt: official?.appliedAt ?? null,
+      }
+    : { applied: false as const };
+
   return NextResponse.json({
     data: {
       referenceCode: contract.referenceCode,
@@ -200,7 +229,9 @@ export async function GET(request: Request, { params }: Params) {
               versionNumber: version.versionNumber,
               documentHash: version.documentHash,
               draft,
-              stateFa: contract.state,
+              // The public sheet prints a human state («در انتظار امضا»),
+              // never a raw enum key such as «SIGNED».
+              stateFa: stateLabelFa(contract.state),
               // Only the recipient's own signature state is disclosed; the
               // other party's actions are never exposed on this link.
               signatureMarks: participant
@@ -218,6 +249,9 @@ export async function GET(request: Request, { params }: Params) {
                 : {},
             }
           : null,
+      // The same review/official mark the PDF draws, so the on-screen
+      // A4 sheet is not a different document from the file being signed.
+      stamp,
       pdfHref: `/api/v1/contract-invitations/${encodeURIComponent(token)}/pdf`,
     },
   });

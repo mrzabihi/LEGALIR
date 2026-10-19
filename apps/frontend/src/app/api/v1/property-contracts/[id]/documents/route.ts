@@ -10,7 +10,12 @@
 // declares, so the checklist cannot be polluted with stray rows.
 // ============================================================
 
-import type { ContractDocument, ContractDocumentCategory } from "@legalir/types";
+import type {
+  ContractDocument,
+  ContractDocumentCategory,
+  ContractSupplementary,
+  ContractSupplementaryAttachment,
+} from "@legalir/types";
 import { SUPPORTED_DOCUMENT_MIMES, MAX_DOCUMENT_SIZE_BYTES } from "@legalir/types";
 import {
   audit,
@@ -20,7 +25,12 @@ import {
   refreshProgress,
   requireContract,
 } from "@/lib/contracts/api-helpers";
-import { insertContractDocument, listContractDocuments } from "@/lib/contracts/db";
+import {
+  getContractForUser,
+  insertContractDocument,
+  listContractDocuments,
+  mergeContractData,
+} from "@/lib/contracts/db";
 import { getContractDefinition } from "@/lib/contracts/registry";
 import { writeContractFile } from "@/lib/contracts/storage";
 import { isEditable } from "@/lib/contracts/state-machine";
@@ -63,7 +73,14 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const def = getContractDefinition(contract.type);
-  const allowed = def.requiredDocuments.map((d) => d.category);
+  // The type's own checklist, plus the user's annex slot. `contract_annex`
+  // is deliberately available for EVERY type: a «پیوست قرارداد» is a file
+  // the user chooses to make part of their agreement, not a checklist item
+  // the type declares.
+  const allowed: ContractDocumentCategory[] = [
+    ...def.requiredDocuments.map((d) => d.category),
+    "contract_annex",
+  ];
   if (!allowed.includes(category as ContractDocumentCategory)) {
     return badRequest("دسته‌بندی سند برای این قرارداد معتبر نیست", "INVALID_CATEGORY");
   }
@@ -107,16 +124,73 @@ export async function POST(request: Request, { params }: Params) {
   };
 
   insertContractDocument(doc);
+
+  // A «پیوست قرارداد» is part of the agreement, so the printable annex list
+  // is written into the contract's own domain data at the same moment the
+  // bytes are stored. The version snapshot therefore carries BOTH the file
+  // hash (documents manifest) and the label the contract prints — the two
+  // can never drift apart.
+  if (doc.category === "contract_annex") {
+    registerAnnex(userId, contract.id, doc, String(form.get("titleFa") ?? ""));
+  }
+
   refreshProgress(userId, contract.id);
 
   audit({
     contractId: contract.id,
     actorId: userId,
     actorLabel: "کاربر",
-    action: "document.uploaded",
-    descriptionFa: `سند «${file.name}» بارگذاری شد.`,
+    action: doc.category === "contract_annex" ? "document.annex.uploaded" : "document.uploaded",
+    descriptionFa:
+      doc.category === "contract_annex"
+        ? `پیوست قرارداد «${file.name}» ثبت شد.`
+        : `سند «${file.name}» بارگذاری شد.`,
     metadata: { category, documentId, hash: stored.hash },
   });
 
-  return ok(doc, 201);
+  return ok(
+    doc.category === "contract_annex"
+      ? { ...doc, annexTitleFa: annexTitleOf(doc, String(form.get("titleFa") ?? "")) }
+      : doc,
+    201
+  );
+}
+
+/** The printed label of an annex: the user's title, else the file name. */
+function annexTitleOf(doc: ContractDocument, titleFa: string): string {
+  const title = titleFa.trim();
+  return title.length > 0 ? title : doc.fileName;
+}
+
+/**
+ * Append the annex entry to `data.supplementary`. Any edit to the list
+ * invalidates the earlier «تأیید پیوست‌ها» confirmation, so a confirmation
+ * always refers to exactly the annexes now on screen.
+ */
+function registerAnnex(
+  userId: string,
+  contractId: string,
+  doc: ContractDocument,
+  titleFa: string
+): void {
+  const current = getContractForUser(userId, contractId);
+  if (!current) return;
+  const supplementary: ContractSupplementary = current.data.supplementary ?? { notes: "" };
+  const entry: ContractSupplementaryAttachment = {
+    documentId: doc.id,
+    titleFa: annexTitleOf(doc, titleFa),
+    fileName: doc.fileName,
+    mime: doc.mime,
+    sizeBytes: doc.sizeBytes,
+    hash: doc.hash,
+    addedAt: doc.uploadedAt,
+  };
+  mergeContractData(userId, contractId, {
+    supplementary: {
+      ...supplementary,
+      attachments: [...(supplementary.attachments ?? []), entry],
+      attachmentsConfirmedAt: null,
+      confirmedAt: null,
+    },
+  } as never);
 }

@@ -97,6 +97,17 @@ export const ACTIVITY_REGISTRY: readonly ActivityDefinition[] = [
     quotaType: "AI_MESSAGES",
     enabled: true,
   },
+  {
+    // One charge per GENERATED draft version. Collecting the narrative,
+    // answering the questionnaire and attaching documents are free — a user
+    // must never pay for being asked a question.
+    code: "JUDICIAL_DRAFT",
+    displayNameFa: "تنظیم پیش‌نویس دادخواست / شکواییه",
+    pointCost: BASE_ACTIVITY_COST,
+    countsAsDailyRequest: true,
+    quotaType: null,
+    enabled: true,
+  },
 ];
 
 const BY_CODE = new Map<ActivityType, ActivityDefinition>(

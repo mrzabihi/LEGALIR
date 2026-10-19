@@ -24,9 +24,15 @@ import type {
 // The wizard autosaves through this module; the step under test only
 // needs it to exist and resolve.
 const updatePropertyContract = vi.fn();
+const uploadContractDocument = vi.fn();
+const deleteContractDocument = vi.fn();
 vi.mock("@/lib/api/property-contracts", () => ({
   updatePropertyContract: (...args: unknown[]) => updatePropertyContract(...args),
   savePayments: vi.fn().mockResolvedValue([]),
+  uploadContractDocument: (...args: unknown[]) => uploadContractDocument(...args),
+  deleteContractDocument: (...args: unknown[]) => deleteContractDocument(...args),
+  contractDocumentUrl: (id: string, documentId: string) =>
+    `/api/v1/property-contracts/${id}/documents/${documentId}`,
 }));
 
 import { WizardProvider } from "../../wizard-context";
@@ -36,15 +42,17 @@ import { implementedContractDefinitions, getContractDefinition } from "@/lib/con
 // --- Registry invariants ----------------------------------------------------
 
 describe("supplementary step — registry", () => {
-  it("leads straight to signature, with review right after it", () => {
+  it("leads into the four-stage final flow: review → signature → final", () => {
     for (const def of implementedContractDefinitions()) {
       const ids = def.wizardSteps.map((s) => s.id);
       const i = ids.indexOf("supplementary");
       expect(i, `${def.id} has no supplementary step`).toBeGreaterThanOrEqual(0);
-      // «تأیید و ادامه به امضا» — the signature stage follows the
-      // confirmed supplementary material directly.
-      expect(ids[i + 1], `${def.id} puts signature right after supplementary`).toBe("signature");
-      expect(ids[i + 2], `${def.id} puts review right after signature`).toBe("review");
+      // The supplementary material is confirmed, THEN previewed/reviewed,
+      // and only then signed — the review must never come after the
+      // signature, or the parties would sign content nobody reviewed.
+      expect(ids[i + 1], `${def.id} puts review right after supplementary`).toBe("review");
+      expect(ids[i + 2], `${def.id} puts signature right after review`).toBe("signature");
+      expect(ids[i + 3], `${def.id} puts final right after signature`).toBe("final");
     }
   });
 
@@ -100,6 +108,40 @@ function renderStep() {
 function card(title: string): HTMLElement {
   const heading = screen.getByRole("heading", { name: title });
   return heading.closest("section") as HTMLElement;
+}
+
+/** Render the step with already-registered contract annexes. */
+function renderAnnexStep(
+  attachments: NonNullable<
+    NonNullable<PropertyContractDetail["data"]["supplementary"]>["attachments"]
+  >,
+  options: { confirmedAttachments?: boolean } = {}
+) {
+  const base = makeContract();
+  const contract = {
+    ...base,
+    data: {
+      ...(base.data as unknown as Record<string, unknown>),
+      supplementary: {
+        notes: "",
+        attachments,
+        attachmentsConfirmedAt:
+          options.confirmedAttachments === false
+            ? null
+            : "2026-10-18T09:20:00.000Z",
+      },
+    },
+  } as unknown as PropertyContractDetail;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <WizardProvider contract={contract} completeness={COMPLETENESS}>
+        <SupplementaryStep />
+      </WizardProvider>
+    </QueryClientProvider>
+  );
 }
 
 beforeAll(() => {
@@ -248,7 +290,7 @@ describe("supplementary step — UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "افزودن توافق" }));
     fireEvent.change(screen.getByLabelText("عنوان"), { target: { value: "شرط نیمه‌کاره" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
 
     expect(
       screen.getByText("پیش از ادامه، متن ۱ مورد نیمه‌کاره را کامل کنید.")
@@ -261,7 +303,7 @@ describe("supplementary step — UI", () => {
       target: { value: "یادداشت تأییدنشده" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
 
     expect(
       screen.getByText(
@@ -270,7 +312,7 @@ describe("supplementary step — UI", () => {
     ).toBeInTheDocument();
   });
 
-  it("records the step confirmation when the user advances to signature", async () => {
+  it("records the step confirmation when the user advances to review", async () => {
     updatePropertyContract.mockResolvedValue({
       ...makeContract(),
       progress: 60,
@@ -278,7 +320,7 @@ describe("supplementary step — UI", () => {
     });
     renderStep();
 
-    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به امضا" }));
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
 
     // The advance schedules the normal autosave with the new step id.
     await act(async () => {
@@ -290,10 +332,86 @@ describe("supplementary step — UI", () => {
       currentStep?: string;
       data?: { supplementary?: { confirmedAt?: string | null } };
     };
-    expect(last.currentStep).toBe("signature");
+    expect(last.currentStep).toBe("review");
     // The approved state is persisted with the navigation — a confirmed
     // step is never "navigated to" without a matching saved timestamp.
     expect(last.data?.supplementary?.confirmedAt).toBeTruthy();
+  });
+
+  // --- Task 2 (cont.): contract annexes, kept apart from the note ---------
+
+  it("renders the annex card separately from the note, with its own confirm", () => {
+    renderStep();
+    const annexCard = card("پیوست قرارداد");
+    expect(within(annexCard).getByLabelText("عنوان پیوست")).toBeInTheDocument();
+    // Its own confirmation verb — never the note's.
+    expect(within(annexCard).getByRole("button", { name: "تأیید پیوست‌ها" })).toBeDisabled();
+    expect(
+      within(annexCard).getByText(/یادداشت تکمیلی فقط\s+توضیحی دربارهٔ کل قرارداد است/)
+    ).toBeInTheDocument();
+  });
+
+  it("shows a saved annex with its label and confirm time, and lists it in the review article", () => {
+    renderAnnexStep([
+      {
+        documentId: "doc-annex-1",
+        titleFa: "فهرست تجهیزات",
+        fileName: "equipment.png",
+        mime: "image/png",
+        sizeBytes: 120,
+        hash: "a".repeat(64),
+        addedAt: "2026-10-18T09:12:33.000Z",
+      },
+    ]);
+
+    const annexCard = card("پیوست قرارداد");
+    expect(within(annexCard).getByText("فهرست تجهیزات")).toBeInTheDocument();
+    expect(within(annexCard).getByText("پیوست‌ها تأیید و ذخیره شد.")).toBeInTheDocument();
+
+    // The preview names it under its own operative heading — not as a note.
+    const preview = card("مادهٔ بازبینی");
+    expect(within(preview).getByText("پیوست‌های قرارداد (مادهٔ تعهدآور)")).toBeInTheDocument();
+    expect(within(preview).getByText("فهرست تجهیزات:")).toBeInTheDocument();
+  });
+
+  it("blocks advancing while annexes are registered but unconfirmed", () => {
+    renderAnnexStep([
+      {
+        documentId: "doc-annex-2",
+        titleFa: "پیوست تأییدنشده",
+        fileName: "x.png",
+        mime: "image/png",
+        sizeBytes: 90,
+        hash: "b".repeat(64),
+        addedAt: "2026-10-18T09:12:33.000Z",
+      },
+    ], { confirmedAttachments: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "تأیید و ادامه به بازبینی" }));
+    expect(
+      screen.getByText(
+        "پیوست‌های قرارداد ثبت شده‌اند اما هنوز تأیید نشده‌اند. ابتدا دکمهٔ «تأیید پیوست‌ها» را بزنید."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("does not show «تأیید شد» when the confirmation could not be persisted", async () => {
+    updatePropertyContract.mockRejectedValueOnce(new Error("offline"));
+    renderStep();
+    fireEvent.change(screen.getByLabelText("یادداشت"), {
+      target: { value: "یادداشت مهم" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "تأیید یادداشت و ادامه" }));
+      await Promise.resolve();
+    });
+
+    // A failed save must never masquerade as a confirmation.
+    expect(
+      screen.getByRole("button", { name: "تلاش مجدد برای تأیید" })
+    ).toBeInTheDocument();
+    expect(screen.queryByText("یادداشت تأیید و ذخیره شد.")).toBeNull();
   });
 
   it("writes only `customClauses` and `supplementary` — never another step's data", async () => {

@@ -5,12 +5,15 @@
 //
 //   اطلاعات ✓ → پیش‌نمایش ✓ → بررسی ● → امضا ○ → تکمیل ○
 //
+// This stage is ONLY preview + review. The signing act lives in the
+// signature step and the archive lives in the final step, so the user
+// never sees two copies of the same button on two different stages.
+//
 // The step is DOMAIN-AGNOSTIC. It never mentions موجر/مستأجر or any
 // contract-specific role: every label comes from the registry and
-// every permission comes from the server's lifecycle view. The three
-// primary choices under Preview are always the same three:
-//
-//   پرسش از دستیار هوشمند | بررسی توسط وکیل | آماده‌سازی برای امضا
+// every permission comes from the server's lifecycle view. Two OPTIONAL
+// support paths are offered — پرسش از دستیار هوشمند | بررسی توسط وکیل —
+// and exactly ONE primary action moves the contract forward.
 //
 // The component only decides what to *offer*; the server decides what
 // is *allowed*. A signature is bound to an immutable version, and the
@@ -20,32 +23,24 @@
 
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Checkbox, Chip, Dialog, OTPInput, ProgressLinear } from "@legalir/ui";
-import {
-  IconCheck,
-  IconChat,
-  IconCopy,
-  IconDownload,
-  IconFileText,
-  IconLawBook,
-  IconRefresh,
-  IconSend,
-  IconShield,
-  IconWarning,
-} from "@/lib/icons";
+import { Button, Chip, ProgressLinear } from "@legalir/ui";
+import { IconChat, IconLawBook, IconSend } from "@/lib/icons";
 import { useWizard } from "../wizard-context";
-import { SectionCard, Notice } from "../primitives";
+import { ActionButton, SectionCard, Notice } from "../primitives";
 import { LivePreview } from "../live-preview";
 import { ContractCommentComposer } from "../contract-comments";
-import type { A4SignatureMark } from "../../document/a4-document";
+import type { A4ReviewStamp, A4SignatureMark } from "../../document/a4-document";
 import { LifecycleStepper } from "../lifecycle-stepper";
 import { getContractDefinition } from "@/lib/contracts/registry";
 import { renderContract } from "@/lib/contracts/template";
 import { stateLabelFa } from "@/lib/contracts/state-machine";
 import { formatIsoJalali, formatIsoJalaliDateTime } from "@/lib/contracts/dates";
-import { useFinalizeContract, useSubmitForReview } from "@/hooks/usePropertyContracts";
+import {
+  useSubmitForAdminReview,
+  useSubmitForReview,
+} from "@/hooks/usePropertyContracts";
 import {
   useAcceptLawyerReview,
   useCancelLawyerReview,
@@ -53,26 +48,14 @@ import {
   useContractLifecycle,
   useCreateAiReview,
   useCreateLawyerReview,
-  useCreateSignatureRequest,
   useDecideLawyerFinding,
-  useDeclineSignature,
-  useIssueInvitations,
-  useRecordPhysicalSignature,
-  useRequestSignatureOtp,
-  useRevokeInvitation,
-  useVerifySignatureOtp,
 } from "@/hooks/useContractLifecycle";
-import { contractPdfUrl, contractDocxUrl } from "@/lib/api/property-contracts";
+import { contractPdfUrl } from "@/lib/api/property-contracts";
 import {
   CONTRACT_ADMIN_REVIEW_STATUS_FA,
   SIGNATURE_PARTICIPANT_STATUS_FA,
   type LawyerReviewFindingSeverity,
-  type SignatureInvitation,
-  type SignatureParticipant,
 } from "@legalir/types";
-
-/** The version of the consent text the signer agrees to. */
-const CONSENT_VERSION = "v1";
 
 const SEVERITY_LABELS_FA: Record<LawyerReviewFindingSeverity, string> = {
   info: "اطلاع",
@@ -82,54 +65,6 @@ const SEVERITY_LABELS_FA: Record<LawyerReviewFindingSeverity, string> = {
   critical: "بحرانی",
 };
 
-type InvitationTone = "ready" | "pending" | "ok" | "warn" | "error";
-
-/**
- * The per-recipient invitation state. Every fact is read from the server
- * (`deliveryStatus` / `deliveryChannel` / `status` on the invitation, plus
- * the participant's own signing state) — the UI never infers that a link
- * was delivered.
- */
-function invitationStatus(
-  participant: SignatureParticipant,
-  invitation: SignatureInvitation | undefined
-): { labelFa: string; tone: InvitationTone } {
-  if (!invitation) return { labelFa: "آمادهٔ ارسال", tone: "ready" };
-  if (participant.status === "SIGNED") return { labelFa: "امضا شد", tone: "ok" };
-  if (participant.status === "DECLINED") return { labelFa: "از امضا خودداری کرد", tone: "error" };
-  if (invitation.status === "REVOKED") {
-    return { labelFa: "لغو شد — نیازمند ارسال مجدد", tone: "warn" };
-  }
-  if (invitation.status === "EXPIRED") {
-    return { labelFa: "مهلت تمام شد — نیازمند ارسال مجدد", tone: "warn" };
-  }
-  if (invitation.deliveryStatus === "FAILED") {
-    return { labelFa: "ارسال ناموفق — نیازمند ارسال مجدد", tone: "error" };
-  }
-  if (participant.status === "VIEWED") return { labelFa: "مشاهده شد", tone: "ok" };
-  if (invitation.deliveryChannel === "dev-console") {
-    return {
-      labelFa: "در کنسول توسعه ثبت شد (پیامک واقعی ارسال نشده است)",
-      tone: "warn",
-    };
-  }
-  return { labelFa: "ارسال شد — در انتظار مشاهده", tone: "pending" };
-}
-
-const INVITATION_TONE_CLASS: Record<InvitationTone, string> = {
-  ready: "text-muted",
-  pending: "text-primary",
-  ok: "text-success",
-  warn: "text-warning",
-  error: "text-error",
-};
-
-/** True while the request can still receive links (not terminal). */
-function requestAcceptsInvitations(status: string): boolean {
-  return status !== "COMPLETED" && status !== "DECLINED" && status !== "EXPIRED" && status !== "CANCELLED";
-}
-
-
 export function ReviewStep() {
   const router = useRouter();
   const { contract, data, parties, payments, completeness, goToStep } = useWizard();
@@ -138,40 +73,16 @@ export function ReviewStep() {
   const lifecycle = useContractLifecycle(contract.id);
   const view = lifecycle.data;
 
-  const prepare = useCreateSignatureRequest();
-  const issueInvitations = useIssueInvitations();
-  const revokeInvitation = useRevokeInvitation();
-  const requestOtp = useRequestSignatureOtp();
-  const verifyOtp = useVerifySignatureOtp();
-  const decline = useDeclineSignature();
-  const recordPhysical = useRecordPhysicalSignature();
   const createLawyer = useCreateLawyerReview();
   const acceptLawyer = useAcceptLawyerReview();
   const completeLawyer = useCompleteLawyerReview();
   const decideFinding = useDecideLawyerFinding();
   const cancelLawyer = useCancelLawyerReview();
   const createAi = useCreateAiReview();
-  const finalize = useFinalizeContract();
   const submit = useSubmitForReview();
+  const submitAdmin = useSubmitForAdminReview();
 
   const [actionError, setActionError] = useState<string | null>(null);
-  const [signTarget, setSignTarget] = useState<SignatureParticipant | null>(null);
-  const [otp, setOtp] = useState("");
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [mobileMasked, setMobileMasked] = useState<string | null>(null);
-  const [otpChannel, setOtpChannel] = useState<"sms" | "dev-console">("dev-console");
-  const [consent, setConsent] = useState(false);
-  // The participant awaiting a wet-ink scan upload.
-  const [physicalTarget, setPhysicalTarget] = useState<SignatureParticipant | null>(null);
-  const physicalInputRef = useRef<HTMLInputElement>(null);
-
-  // Invitations. The RAW token is returned by the server exactly once, so
-  // it is kept in this state only for as long as the page lives: it is the
-  // manual fallback when SMS delivery failed. Nothing about the token is
-  // persisted client-side.
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [issuedTokens, setIssuedTokens] = useState<Record<string, string>>({});
-  const [copiedParticipantId, setCopiedParticipantId] = useState<string | null>(null);
 
   const currentVersion = contract.versions.find((v) => v.id === contract.currentVersionId);
   const request = view?.signatureRequest ?? null;
@@ -233,14 +144,6 @@ export function ReviewStep() {
   const commentClauseLabel = (ref: string | null | undefined): string | null =>
     ref ? commentClauses.find((c) => c.id === ref)?.headingFa ?? ref : null;
 
-  const signedParticipantIds = useMemo(
-    () =>
-      new Set(
-        (request?.participants ?? []).filter((p) => p.status === "SIGNED").map((p) => p.id)
-      ),
-    [request]
-  );
-
   /**
    * Real signature state per role, for the document's signature section.
    * The A4 sheet shows «امضا شده» + the signing date instead of a blank
@@ -256,15 +159,6 @@ export function ReviewStep() {
     }
     return marks;
   }, [request]);
-
-  /** Each participant's latest invitation, keyed by participant id. */
-  const invitationsByParticipant = useMemo(() => {
-    const map = new Map<string, SignatureInvitation>();
-    for (const invitation of view?.invitations ?? []) {
-      map.set(invitation.participantId, invitation);
-    }
-    return map;
-  }, [view?.invitations]);
 
   /**
    * Understandable, contract-level status history for the drafting page.
@@ -328,125 +222,24 @@ export function ReviewStep() {
     return items;
   }, [contract.finalizedAt, currentVersion, request, view?.adminReview]);
 
-  async function run(fn: () => Promise<unknown>) {
+  /**
+   * Runs a write and reports whether it actually persisted. `ActionButton`
+   * needs the boolean: a label may only say «انجام شد» after the server
+   * accepted the write.
+   */
+  async function runResult(fn: () => Promise<unknown>): Promise<boolean> {
     setActionError(null);
     try {
       await fn();
+      return true;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "عملیات ناموفق بود");
+      return false;
     }
   }
 
-  // ----------------------------------------------------------
-  // Invitations — send the draft to the parties
-  // ----------------------------------------------------------
-
-  async function sendInvitations(participantIds?: string[]) {
-    await run(async () => {
-      const res = await issueInvitations.mutateAsync({ id: contract.id, participantIds });
-      const tokens: Record<string, string> = {};
-      for (const invitation of res.invitations) {
-        tokens[invitation.participantId] = invitation.token;
-      }
-      setIssuedTokens((prev) => ({ ...prev, ...tokens }));
-      setInviteDialogOpen(false);
-    });
-  }
-
-  /** Replace an unusable invitation with a fresh link for one party. */
-  async function resendInvitation(
-    participant: SignatureParticipant,
-    invitation: SignatureInvitation | undefined
-  ) {
-    await run(async () => {
-      if (invitation && invitation.status === "ACTIVE") {
-        await revokeInvitation.mutateAsync({ id: contract.id, invitationId: invitation.id });
-      }
-      await sendInvitations([participant.id]);
-    });
-  }
-
-  async function copyInviteLink(participantId: string, token: string) {
-    try {
-      await navigator.clipboard.writeText(
-        `${window.location.origin}/contracts/sign/${token}`
-      );
-      setCopiedParticipantId(participantId);
-      window.setTimeout(() => setCopiedParticipantId(null), 2000);
-    } catch {
-      setActionError("کپی لینک در این مرورگر ممکن نبود؛ لینک را دستی انتخاب کنید.");
-    }
-  }
-
-  // ----------------------------------------------------------
-  // Signature
-  // ----------------------------------------------------------
-
-  async function openSign(participant: SignatureParticipant) {
-    setOtp("");
-    setOtpError(null);
-    setConsent(false);
-    setMobileMasked(null);
-    await run(async () => {
-      const res = await requestOtp.mutateAsync({
-        id: contract.id,
-        participantId: participant.id,
-      });
-      // The server reports the REAL delivery outcome — never claim a code
-      // was sent when it was not. A failed send is refused by the route
-      // (thrown here) or flagged by `sent: false`.
-      if (!res.sent) {
-        setActionError(
-          `ارسال کد تأیید به ${res.mobileMasked} ناموفق بود. دوباره تلاش کنید یا روش «امضای دستی» را انتخاب کنید.`
-        );
-        return;
-      }
-      setMobileMasked(res.mobileMasked);
-      // The «ارسال شد» wording is only used for a real SMS; the dev
-      // console transport is named explicitly so nobody believes a
-      // phone received a code that never left the server.
-      setOtpChannel(res.channel ?? "dev-console");
-      setSignTarget(participant);
-    });
-  }
-
-  /** Trigger the hidden file picker for a participant's wet-ink scan. */
-  function beginPhysical(participant: SignatureParticipant) {
-    setPhysicalTarget(participant);
-    setActionError(null);
-    // Reset so re-selecting the same file still fires onChange.
-    if (physicalInputRef.current) physicalInputRef.current.value = "";
-    physicalInputRef.current?.click();
-  }
-
-  async function uploadPhysical(file: File) {
-    if (!physicalTarget) return;
-    const target = physicalTarget;
-    setPhysicalTarget(null);
-    await run(async () => {
-      await recordPhysical.mutateAsync({
-        id: contract.id,
-        participantId: target.id,
-        file,
-      });
-    });
-  }
-
-  async function confirmSign() {
-    if (!signTarget) return;
-    setOtpError(null);
-    try {
-      await verifyOtp.mutateAsync({
-        id: contract.id,
-        participantId: signTarget.id,
-        code: otp,
-        consentGiven: consent,
-        consentVersion: CONSENT_VERSION,
-      });
-      setSignTarget(null);
-    } catch (e) {
-      setOtpError(e instanceof Error ? e.message : "کد وارد‌شده صحیح نیست");
-    }
+  async function run(fn: () => Promise<unknown>): Promise<void> {
+    await runResult(fn);
   }
 
   // ----------------------------------------------------------
@@ -459,6 +252,50 @@ export function ReviewStep() {
       router.push(`/chat/${res.conversationId}`);
     });
   }
+
+  // ----------------------------------------------------------
+  // The stamp object handed to the live A4 sheet. It MUST keep its
+  // identity between renders: A4Document re-paginates whenever the
+  // stamp changes, so an inline literal here re-measured the whole
+  // document on every keystroke (comment box, OTP fields, checkboxes).
+  // ----------------------------------------------------------
+  const previewStamp = useMemo<A4ReviewStamp>(
+    () =>
+      view?.adminApproved
+        ? {
+            applied: true,
+            reviewedAt: view.adminReview?.decidedAt ?? null,
+            reviewingOfficeFa: view.adminReview?.reviewingOfficeFa,
+            reviewerInitials: view.adminReview?.reviewerInitials,
+            reviewId: view.adminReview?.id,
+            // The OFFICIAL seal is drawn only for a version a Super Admin
+            // stamped; the assets are permission-gated routes, never public
+            // files.
+            official: view.stamped === true,
+            sealHref:
+              view.stamped === true
+                ? `/api/v1/property-contracts/${contract.id}/stamp-asset/seal`
+                : undefined,
+            hologramHref:
+              view.stamped === true
+                ? `/api/v1/property-contracts/${contract.id}/stamp-asset/hologram`
+                : undefined,
+            approvedByLabelFa: view.officialStamp?.approvedByLabelFa ?? null,
+            approvedAt: view.officialStamp?.approvedAt ?? null,
+          }
+        : { applied: false },
+    [
+      contract.id,
+      view?.adminApproved,
+      view?.adminReview?.decidedAt,
+      view?.adminReview?.id,
+      view?.adminReview?.reviewerInitials,
+      view?.adminReview?.reviewingOfficeFa,
+      view?.officialStamp?.approvedAt,
+      view?.officialStamp?.approvedByLabelFa,
+      view?.stamped,
+    ]
+  );
 
   // ----------------------------------------------------------
 
@@ -493,20 +330,21 @@ export function ReviewStep() {
           />
         </div>
 
-        {/* Freezing the content is the gate to every review path: the
-            three primary choices all need a current version. */}
+        {/* Freezing the content is the gate to every review path: nothing
+            above can run before a current version exists. */}
         {!contract.currentVersionId && (
           <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-caption text-muted">
               برای شروع بررسی، ابتدا محتوای قرارداد را تثبیت کنید.
             </p>
-            <Button
-              onClick={() => void run(() => submit.mutateAsync(contract.id))}
+            <ActionButton
+              idleLabel="تثبیت نسخه و ارسال برای بررسی"
+              busyLabel="در حال ارسال…"
+              successLabel="نسخه تثبیت و ارسال شد"
+              errorLabel="ارسال نشد — تلاش مجدد"
               disabled={completeness.blockers.length > 0}
-              loading={submit.isPending}
-            >
-              تثبیت نسخه و ارسال برای بررسی
-            </Button>
+              onAction={() => runResult(() => submit.mutateAsync(contract.id))}
+            />
           </div>
         )}
       </div>
@@ -520,13 +358,14 @@ export function ReviewStep() {
       )}
 
       {/* ------------------------------------------------------
-          The three primary choices under Preview
+          Optional support paths — secondary, never competing with the
+          single primary action at the bottom of the card.
           ------------------------------------------------------ */}
       <SectionCard
-        title="پیش‌نمایش قرارداد"
-        description="پس از تکمیل اطلاعات، یکی از این سه مسیر را انتخاب کنید"
+        title="بازبینی محتوا"
+        description="در صورت نیاز از این دو مسیر کمکی استفاده کنید؛ اجباری نیستند"
       >
-        <div className="grid grid-cols-1 tablet:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 tablet:grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => void askAssistant()}
@@ -561,272 +400,74 @@ export function ReviewStep() {
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => void run(() => prepare.mutateAsync({ id: contract.id }))}
-            disabled={prepare.isPending || !view?.canPrepareForSignature}
-            className="rounded-medium border border-divider p-3 text-right hover:state-hover disabled:opacity-50 transition-colors"
-          >
-            <span className="inline-flex items-center gap-2 text-labelLarge text-on-surface">
-              <IconShield className="w-4 h-4 text-primary" />
-              آماده‌سازی برای امضا
-            </span>
-            <span className="block mt-1 text-caption text-muted">
-              تثبیت نسخه و ارسال برای تأیید و امضای الکترونیکی.
-            </span>
-          </button>
         </div>
 
-        {/* The one committing signature action, reachable from the preview
-            itself — without leaving the page the parties are reviewed on. */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-divider pt-3">
-          <p className="text-caption text-muted">
-            ارسال لینک امضا به هر طرف، از شمارهٔ ثبت‌شدهٔ همان طرف — پس از تأیید اطلاعات تکمیلی.
-          </p>
-          <Button
-            startIcon={<IconSend className="w-4 h-4" />}
-            onClick={() => goToStep("signature")}
-          >
-            ارسال برای طرفین جهت امضا
-          </Button>
+        {/* ONE primary action per state. A missing admin approval is the
+            real blocker for signature, so it takes the slot; otherwise the
+            stage hands over to the signing step. Two competing primary
+            buttons were the source of the "which one do I press?" doubt. */}
+        <div className="mt-3 border-t border-divider pt-3">
+          {view?.canSubmitForAdminReview ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-caption text-muted">
+                نسخهٔ فعلی برای بررسی واحد حقوقی لیگالیر ارسال می‌شود؛ پس از تأیید ادمین،
+                امکان امضا فراهم می‌شود.
+              </p>
+              <ActionButton
+                idleLabel="ارسال به بررسی لیگالیر"
+                busyLabel="در حال ارسال…"
+                successLabel="برای بررسی ارسال شد"
+                errorLabel="ارسال نشد — تلاش مجدد"
+                onAction={() => runResult(() => submitAdmin.mutateAsync(contract.id))}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-caption text-muted">
+                اطلاعات تکمیلی تأیید شده است؛ در مرحلهٔ بعد لینک امضا برای هر طرف ارسال
+                می‌شود.
+              </p>
+              <Button
+                startIcon={<IconSend className="w-4 h-4" />}
+                onClick={() => goToStep("signature")}
+              >
+                ادامه به امضای طرفین
+              </Button>
+            </div>
+          )}
         </div>
       </SectionCard>
 
       {/* ------------------------------------------------------
-          Invitations — send the DRAFT to the parties
+          §7 — «قبل از امضا بدانید»
+          A section of its OWN, outside the contract text. It is
+          informational: no acknowledgement, no gate, and it never
+          changes what the contract says.
           ------------------------------------------------------ */}
-      {request && (
+      {(view?.preSignTips?.length ?? 0) > 0 && (
         <SectionCard
-          title="ارسال پیش‌نویس به طرفین"
-          description={`نسخه ${currentVersion?.versionNumber ?? "—"} — لینک اختصاصی هر طرف که فقط به همان قرارداد و همان نسخه گره خورده است`}
+          title="نکات پیش از امضا"
+          description="اطلاعات راهنما برای این نوع قرارداد — الزام‌آور نیست و نیازی به تأیید ندارد"
         >
-          <div className="space-y-2">
-            {request.participants.map((participant) => {
-              const invitation = invitationsByParticipant.get(participant.id);
-              const status = invitationStatus(participant, invitation);
-              const token = issuedTokens[participant.id];
-              const needsResend = status.tone === "warn" || status.tone === "error";
-              return (
-                <div
-                  key={participant.id}
-                  className="rounded-medium border border-divider px-3 py-2.5 space-y-2"
-                >
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="text-body-2 text-on-surface">
-                        {participant.roleFa}
-                        {participant.nameFa ? ` — ${participant.nameFa}` : ""}
-                      </p>
-                      <p className="text-caption text-muted" dir="ltr">
-                        {participant.mobile}
-                      </p>
-                    </div>
-                    <span className={`text-caption ${INVITATION_TONE_CLASS[status.tone]}`}>
-                      {status.labelFa}
-                    </span>
-                  </div>
-
-                  {/* The raw token is surfaced ONLY when delivery did not
-                      reach a phone, so the drafter can hand the link over
-                      themselves instead of believing a message arrived. */}
-                  {token && needsResend && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <code className="text-caption text-muted break-all" dir="ltr">
-                        /contracts/sign/{token}
-                      </code>
-                      <Button
-                        size="small"
-                        variant="text"
-                        startIcon={<IconCopy className="w-3.5 h-3.5" />}
-                        onClick={() => void copyInviteLink(participant.id, token)}
-                      >
-                        {copiedParticipantId === participant.id ? "کپی شد" : "کپی لینک"}
-                      </Button>
-                    </div>
-                  )}
-
-                  {(invitation || token) && (
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<IconRefresh className="w-3.5 h-3.5" />}
-                        onClick={() => void resendInvitation(participant, invitation)}
-                        disabled={
-                          issueInvitations.isPending ||
-                          revokeInvitation.isPending ||
-                          participant.status === "SIGNED"
-                        }
-                      >
-                        ارسال مجدد لینک
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-caption text-muted">
-              شمارهٔ موبایل هر طرف از اطلاعات ثبت‌شدهٔ همان طرف خوانده می‌شود؛ نیازی به
-              وارد کردن دوبارهٔ شماره نیست.
-            </p>
-            <Button
-              startIcon={<IconSend className="w-4 h-4" />}
-              onClick={() => setInviteDialogOpen(true)}
-              loading={issueInvitations.isPending}
-              disabled={!requestAcceptsInvitations(request.status)}
-            >
-              ارسال پیش‌نویس به طرفین
-            </Button>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Confirmation — the drafter sees each name and destination
-          number BEFORE anything is sent. */}
-      <Dialog
-        open={inviteDialogOpen}
-        onClose={() => setInviteDialogOpen(false)}
-        title="ارسال پیش‌نویس به طرفین"
-        description="لینک اختصاصی امضا برای هر طرف از طریق پیامک ارسال می‌شود."
-        actions={
-          <>
-            <Button variant="text" onClick={() => setInviteDialogOpen(false)}>
-              انصراف
-            </Button>
-            <Button
-              onClick={() => void sendInvitations()}
-              loading={issueInvitations.isPending}
-            >
-              ارسال به همهٔ طرفین
-            </Button>
-          </>
-        }
-      >
-        <ul className="space-y-2">
-          {(request?.participants ?? []).map((participant) => (
-            <li
-              key={participant.id}
-              className="rounded-medium border border-divider px-3 py-2 flex items-center justify-between gap-3 flex-wrap"
-            >
-              <span className="text-body-2 text-on-surface">
-                {participant.roleFa}
-                {participant.nameFa ? ` — ${participant.nameFa}` : ""}
-              </span>
-              <span className="text-body-2 text-on-surface font-mono" dir="ltr">
-                {participant.mobile}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-caption text-muted">
-          اگر ارسال پیامک ناموفق باشد، وضعیت همان طرف «ارسال ناموفق» نمایش داده می‌شود و لینک
-          را می‌توانید به‌صورت دستی برای او بفرستید.
-        </p>
-      </Dialog>
-
-      {/* ------------------------------------------------------
-          Signature panel
-          ------------------------------------------------------ */}
-      {request && (
-        <SectionCard
-          title="تأیید و امضای الکترونیکی"
-          description={`نسخه ${currentVersion?.versionNumber ?? "—"} — روش: کد یک‌بارمصرف پیامکی`}
-        >
-          <div className="space-y-2">
-            {request.participants.map((participant) => {
-              const signed = signedParticipantIds.has(participant.id);
-              return (
-                <div
-                  key={participant.id}
-                  className="rounded-medium border border-divider px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap"
-                >
-                  <div>
-                    <p className="text-body-2 text-on-surface">{participant.roleFa}</p>
-                    <p className="text-caption text-muted">{participant.mobileMasked}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {signed ? (
-                      <span className="text-caption text-success inline-flex items-center gap-1">
-                        <IconCheck className="w-3.5 h-3.5" />
-                        {participant.signedMethod === "PHYSICAL_WET_INK"
-                          ? "امضای دستی ثبت شد"
-                          : "امضا شده"}
-                      </span>
-                    ) : participant.status === "DECLINED" ? (
-                      <span className="text-caption text-error">خودداری کرده</span>
-                    ) : (
-                      <>
-                        <Button
-                          size="small"
-                          variant="tonal"
-                          onClick={() => void openSign(participant)}
-                          disabled={!view?.canSign || requestOtp.isPending}
-                        >
-                          ارسال کد و امضا
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<IconFileText className="w-3.5 h-3.5" />}
-                          onClick={() => beginPhysical(participant)}
-                          disabled={!view?.canSign || recordPhysical.isPending}
-                        >
-                          امضای دستی (بارگذاری اسکن)
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="text"
-                          onClick={() =>
-                            void run(() =>
-                              decline.mutateAsync({
-                                id: contract.id,
-                                participantId: participant.id,
-                              })
-                            )
-                          }
-                          disabled={!view?.canSign}
-                        >
-                          خودداری
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {lawyerReview?.blocksSigning && (
-            <Notice tone="warning" title="بررسی وکیل در جریان است">
-              تا تکمیل بررسی حقوقی، امضا امکان‌پذیر نیست.
-            </Notice>
-          )}
-
-          <p className="mt-3 text-caption text-muted">
-            این امضا «تأیید و امضای الکترونیکی» است و با «امضای الکترونیکی مطمئن» یا «امضای
-            دیجیتال رسمی» یکسان نیست. طرفی که روی نسخه چاپی امضا می‌کند، اسکن امضاشده را با
-            گزینهٔ «امضای دستی» بارگذاری می‌کند.
+          <ul className="space-y-3">
+            {view!.preSignTips.map((tip) => (
+              <li key={tip.id}>
+                <p className="text-labelLarge text-on-surface">{tip.titleFa}</p>
+                <p className="mt-1 text-caption leading-6 text-muted">{tip.bodyFa}</p>
+                <p className="mt-1 text-labelSmall text-muted">
+                  منبع: {tip.sourceNameFa} — نسخهٔ محتوا {tip.contentVersion}
+                  {tip.status === "pending" && " — در انتظار بازبینی حقوقی"}
+                  {tip.status === "needs_revision" && " — نیازمند اصلاح حقوقی"}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 border-t border-divider pt-2 text-labelSmall leading-5 text-muted">
+            این نکات بخشی از قرارداد نیستند، جایگزین مشاورهٔ حقوقی نمی‌شوند و امضای شما به معنای
+            پذیرش آن‌ها به‌عنوان شرط قرارداد نیست.
           </p>
         </SectionCard>
       )}
-
-      {/* Hidden picker for the wet-ink scan — one file, opened per participant */}
-      <input
-        ref={physicalInputRef}
-        type="file"
-        accept="application/pdf,image/*"
-        className="hidden"
-        aria-hidden="true"
-        tabIndex={-1}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void uploadPhysical(file);
-          setPhysicalTarget(null);
-        }}
-      />
 
       {/* ------------------------------------------------------
           Lawyer review panel
@@ -1086,57 +727,6 @@ export function ReviewStep() {
         )}
       </SectionCard>
 
-      {/* ------------------------------------------------------
-          Finalize + artifacts
-          ------------------------------------------------------ */}
-      <SectionCard title="تکمیل و بایگانی" description="نسخه غیرقابل‌تغییر قرارداد">
-        {view?.canFinalize ? (
-          <Button
-            onClick={() => void run(() => finalize.mutateAsync(contract.id))}
-            loading={finalize.isPending}
-          >
-            نهایی‌سازی قرارداد
-          </Button>
-        ) : (
-          <p className="text-body-2 text-muted">نهایی‌سازی پس از امضای همه طرفین فعال می‌شود.</p>
-        )}
-
-        {(contract.state === "FINALIZED" || contract.state === "ARCHIVED") && (
-          <div className="mt-3 space-y-2">
-            <p className="text-body-2 text-on-surface">
-              شناسه عمومی تأیید: <span className="font-mono">{contract.publicVerificationId}</span>
-            </p>
-            {contract.finalizedAt && (
-              <p className="text-caption text-muted">
-                تاریخ نهایی‌سازی: {formatIsoJalali(contract.finalizedAt.slice(0, 10))}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={contractPdfUrl(contract.id, contract.finalVersionId ?? undefined)}
-                className="inline-flex items-center gap-1.5 rounded-medium border border-outline px-4 h-10 text-labelLarge text-primary hover:state-hover"
-              >
-                <IconDownload className="w-4 h-4" />
-                دانلود PDF نهایی
-              </a>
-              <a
-                href={contractDocxUrl(contract.id, contract.finalVersionId ?? undefined)}
-                className="inline-flex items-center gap-1.5 rounded-medium border border-outline px-4 h-10 text-labelLarge text-primary hover:state-hover"
-              >
-                <IconFileText className="w-4 h-4" />
-                دانلود Word
-              </a>
-              <a
-                href={`/contracts/verify/${contract.publicVerificationId}`}
-                className="inline-flex items-center gap-1.5 rounded-medium border border-outline px-4 h-10 text-labelLarge text-primary hover:state-hover"
-              >
-                صفحه تأیید عمومی
-              </a>
-            </div>
-          </div>
-        )}
-      </SectionCard>
-
       {/* Registration policy — never hard-coded */}
       <Notice tone="info" title="ثبت رسمی">
         {def.registrationPolicy.explanationFa}
@@ -1162,71 +752,10 @@ export function ReviewStep() {
               ? contractPdfUrl(contract.id, contract.currentVersionId)
               : undefined
           }
-          stamp={
-            view?.adminApproved
-              ? {
-                  applied: true,
-                  reviewedAt: view.adminReview?.decidedAt ?? null,
-                  reviewingOfficeFa: view.adminReview?.reviewingOfficeFa,
-                  reviewerInitials: view.adminReview?.reviewerInitials,
-                  reviewId: view.adminReview?.id,
-                  // The OFFICIAL seal is drawn only for a version a Super
-                  // Admin stamped; the assets are permission-gated routes,
-                  // never public files.
-                  official: view.stamped === true,
-                  sealHref: view.stamped
-                    ? `/api/v1/property-contracts/${contract.id}/stamp-asset/seal`
-                    : undefined,
-                  hologramHref: view.stamped
-                    ? `/api/v1/property-contracts/${contract.id}/stamp-asset/hologram`
-                    : undefined,
-                  approvedByLabelFa: view.officialStamp?.approvedByLabelFa ?? null,
-                  approvedAt: view.officialStamp?.approvedAt ?? null,
-                }
-              : { applied: false }
-          }
+          stamp={previewStamp}
         />
       </div>
 
-      {/* OTP dialog — consent is explicit, never prechecked */}
-      <Dialog
-        open={signTarget !== null}
-        onClose={() => setSignTarget(null)}
-        title="تأیید و امضای الکترونیکی"
-        description={
-          otpChannel === "sms"
-            ? `کد تأیید به شماره ${mobileMasked ?? ""} پیامک شد.`
-            : "کد تأیید در محیط توسعه در کنسول سرور ثبت شد (پیامک واقعی ارسال نشده است)."
-        }
-        actions={
-          <>
-            <Button variant="text" onClick={() => setSignTarget(null)}>
-              انصراف
-            </Button>
-            <Button
-              onClick={() => void confirmSign()}
-              disabled={otp.length !== 6 || !consent}
-              loading={verifyOtp.isPending}
-            >
-              تأیید و امضا
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <OTPInput value={otp} onChange={setOtp} numeric autoFocus hasError={!!otpError} />
-          {otpError && <p className="text-caption text-error">{otpError}</p>}
-          <Checkbox
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-            label="متن قرارداد را خوانده‌ام و با تأیید و امضای الکترونیکی آن موافقم."
-          />
-          <p className="text-caption text-muted inline-flex items-start gap-1">
-            <IconWarning className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            کد یک‌بارمصرف پس از پنج دقیقه منقضی می‌شود و امضا به نسخه جاری و هش آن گره می‌خورد.
-          </p>
-        </div>
-      </Dialog>
     </div>
   );
 }

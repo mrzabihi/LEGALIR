@@ -7,6 +7,7 @@ export {
   createInitialWorkflowState,
   detectIntent,
   generateMissingInfoQuestions,
+  applyFollowUpAnswers,
   determineNextPhase,
   extractFacts,
   buildWorkflowSystemPrompt,
@@ -15,3 +16,12 @@ export {
   setWorkflowState,
   clearWorkflowState,
 } from "./engine";
+
+export {
+  type RequiredInfoDefinition,
+  REQUIRED_INFO,
+  MAX_QUESTIONS_PER_TURN,
+  UNKNOWN_ANSWER_FA,
+  generateStructuredQuestions,
+  structuredQuestionsToText,
+} from "./questions";

@@ -12,6 +12,11 @@
 // Below them: the period-scoped service quotas (reset only at period
 // end) and the usage-transaction ledger. Every number comes from
 // GET /api/v1/subscription/usage — nothing is computed on the client.
+//
+// The «مصرف انرژی و توکن» tab renders the detailed per-operation report from
+// GET /api/v1/usage/report. It shows ENERGY and TOKENS as two separate units
+// (never one summed number), with filters, per-service / per-action
+// breakdowns, and a traceable ledger row per operation.
 // ============================================================
 
 "use client";
@@ -26,7 +31,16 @@ import {
   EmptyState,
 } from "@/components/settings/settings-ui";
 import { useSubscriptionHistory } from "@/hooks/usePhase11";
-import { useSubscriptionUsage, useSubscriptionUsageHistory } from "@/hooks/useSubscription";
+import {
+  useSubscriptionUsage,
+  useSubscriptionUsageHistory,
+  useUsageReport,
+} from "@/hooks/useSubscription";
+import {
+  UsageReportPanel,
+  resolveRange,
+  type UsageReportFilters,
+} from "@/components/usage/usage-report-panel";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   IconHistory,
@@ -398,8 +412,36 @@ function HistoryTabContent({
   );
 }
 
+/** The detailed per-operation report — energy and tokens as separate units. */
+function ReportTabContent() {
+  const [query, setQuery] = useState<UsageReportFilters>(() => {
+    const range = resolveRange("30d");
+    return { from: range.from, to: range.to, page: 1, pageSize: 20 };
+  });
+  const reportQuery = useUsageReport(query);
+
+  return (
+    <UsageReportPanel
+      data={reportQuery.data}
+      isLoading={reportQuery.isLoading}
+      error={reportQuery.error as Error | null}
+      onRetry={() => reportQuery.refetch()}
+      query={query}
+      onQueryChange={setQuery}
+    />
+  );
+}
+
+const USAGE_TABS = [
+  { id: "usage", label: "مصرف" },
+  { id: "report", label: "انرژی و توکن" },
+  { id: "history", label: "تاریخچه" },
+] as const;
+
+type UsageTabId = (typeof USAGE_TABS)[number]["id"];
+
 export default function UsageSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"usage" | "history">("usage");
+  const [activeTab, setActiveTab] = useState<UsageTabId>("usage");
   const usageQuery = useSubscriptionUsage();
   const txQuery = useSubscriptionUsageHistory(1, 20);
   const historyQuery = useSubscriptionHistory(1, 20);
@@ -411,22 +453,17 @@ export default function UsageSettingsPage() {
     >
       <SettingsCard title="تاریخچه و مصرف" icon={<IconHistory size={22} />}>
         <div className="flex gap-1 rounded-full bg-surface-hover p-1 mb-5 w-fit" role="tablist" aria-label="برگه‌های تاریخچه و مصرف">
-          <button
-            role="tab"
-            aria-selected={activeTab === "usage"}
-            onClick={() => setActiveTab("usage")}
-            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "usage" ? "bg-control-selected text-control-selected-foreground shadow-elevation-1" : "text-muted hover:text-on-surface"}`}
-          >
-            مصرف
-          </button>
-          <button
-            role="tab"
-            aria-selected={activeTab === "history"}
-            onClick={() => setActiveTab("history")}
-            className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === "history" ? "bg-control-selected text-control-selected-foreground shadow-elevation-1" : "text-muted hover:text-on-surface"}`}
-          >
-            تاریخچه
-          </button>
+          {USAGE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-full px-4 py-2 text-body-2 font-medium transition-all ${activeTab === tab.id ? "bg-control-selected text-control-selected-foreground shadow-elevation-1" : "text-muted hover:text-on-surface"}`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {activeTab === "usage" ? (
@@ -437,6 +474,8 @@ export default function UsageSettingsPage() {
             error={usageQuery.error as Error | null}
             onRetry={() => usageQuery.refetch()}
           />
+        ) : activeTab === "report" ? (
+          <ReportTabContent />
         ) : (
           <HistoryTabContent
             history={historyQuery.data?.items}

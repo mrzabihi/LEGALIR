@@ -611,6 +611,45 @@ function supplementaryClause(
 }
 
 /**
+ * «پیوست‌های قرارداد» — files the user registered as part of the
+ * agreement.
+ *
+ * An annex is NOT a note and NOT a requested change: it is a document the
+ * parties attach to the contract, so it prints as its own operative annex
+ * listing the label, file name and SHA-256 of each file. The hash is what
+ * makes the printed line traceable to exactly one stored file, which is
+ * also what the version snapshot's documents manifest records.
+ *
+ * Returns null when there are no annexes, so a contract without them
+ * prints exactly as before.
+ */
+function contractAnnexClause(
+  data: PropertyRentData | PropertySaleData | GenericContractData
+): RenderedClause | null {
+  const attachments = (data.supplementary?.attachments ?? []).filter(
+    (a) => a.documentId && (a.titleFa.trim().length > 0 || a.fileName.trim().length > 0)
+  );
+  if (attachments.length === 0) return null;
+
+  const blocks: (RenderedBlock | null)[] = [
+    para(
+      "فایل‌های زیر به‌عنوان پیوست جزء لاینفک این قرارداد است و طرفین نسبت به محتوای آن‌ها توافق دارند:"
+    ),
+    tableBlock(
+      `فهرست پیوست‌ها (${toPersianDigits(attachments.length)} مورد)`,
+      ["ردیف", "عنوان پیوست", "نام فایل", "اثرانگشت SHA-256"],
+      attachments.map((a, i) => [
+        toPersianDigits(i + 1),
+        a.titleFa.trim() || a.fileName,
+        a.fileName,
+        a.hash,
+      ])
+    ),
+  ];
+  return clauseFrom("common.contract_annex", "ماده — پیوست‌های قرارداد", blocks, true);
+}
+
+/**
  * «یادداشت تکمیلی» — the user's note about the whole contract.
  *
  * Printed as the LAST section of the document, after every article and
@@ -1210,6 +1249,14 @@ export function renderContract(
       key
   );
   if (supplementary) clauses.push(supplementary);
+
+  // Annexes the user registered as part of the agreement print as their
+  // own operative clause, before the closing note — so the note stays the
+  // last thing on the sheet, while the annexes sit with the material.
+  const annexes = contractAnnexClause(
+    contract.data as PropertyRentData | PropertySaleData | GenericContractData
+  );
+  if (annexes) clauses.push(annexes);
 
   // The user's own note is the document's LAST section — it explains the
   // contract and prints under its own «یادداشت تکمیلی» heading, after all

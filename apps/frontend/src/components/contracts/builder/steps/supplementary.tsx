@@ -16,9 +16,9 @@
 //
 // «مادهٔ بازبینی» shows, before anything is confirmed, exactly what this
 // step will print — so the user is approving a visible text, not a
-// promise. The step ends with one explicit «تأیید و ادامه به امضا» that
-// saves and advances, and it refuses to advance while a row is
-// half-filled or a written note has not been confirmed yet.
+// promise. The step ends with one explicit «تأیید و ادامه به بازبینی» that
+// saves and advances to the review stage, and it refuses to advance while
+// a row is half-filled or a written note has not been confirmed yet.
 //
 // Every row lives in `data.customClauses`, the note in
 // `data.supplementary`; nothing here writes directly into another
@@ -27,7 +27,7 @@
 
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Button, Textarea } from "@legalir/ui";
 import { useWizard } from "../wizard-context";
 import {
@@ -38,13 +38,19 @@ import {
   AddRowButton,
   Notice,
 } from "../primitives";
-import { getContractDefinition } from "@/lib/contracts/registry";
+import { getContractDefinition, TERMINAL_WIZARD_STEP_IDS } from "@/lib/contracts/registry";
 import { formatIsoJalaliDateTime } from "@/lib/contracts/dates";
 import { toPersianNumber } from "@/lib/persian-utils";
-import { IconArrowForward } from "@/lib/icons";
+import { IconArrowForward, IconFile, IconUpload } from "@/lib/icons";
+import {
+  useDeleteContractDocument,
+  useUploadContractDocument,
+} from "@/hooks/usePropertyContracts";
+import { contractDocumentUrl } from "@/lib/api/property-contracts";
 import type {
   ContractDomainData,
   ContractSupplementary,
+  ContractSupplementaryAttachment,
   CustomClause,
   CustomClauseKind,
 } from "@legalir/types";
@@ -75,12 +81,34 @@ function isIncompleteClause(clause: CustomClause): boolean {
   return !isBlankClause(clause) && clause.body.trim() === "";
 }
 
+/** Per-action feedback for the confirmation buttons (§1). */
+type ActionState = "idle" | "saving" | "saved" | "error";
+
 export function SupplementaryStep() {
-  const { contract, data, patchData, saveStatus, lastSavedAt, saveNow, goToStep, editable } =
-    useWizard();
+  const {
+    contract,
+    data,
+    patchData,
+    patchDataNow,
+    saveStatus,
+    saveError,
+    getSaveError,
+    lastSavedAt,
+    saveNow,
+    goToStep,
+    editable,
+  } = useWizard();
   const def = getContractDefinition(contract.type);
+  const uploadAnnex = useUploadContractDocument();
+  const deleteAnnex = useDeleteContractDocument();
 
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+  const [noteAction, setNoteAction] = useState<ActionState>("idle");
+  const [annexAction, setAnnexAction] = useState<ActionState>("idle");
+  const [stepAction, setStepAction] = useState<ActionState>("idle");
+  const [annexTitle, setAnnexTitle] = useState("");
+  const [annexError, setAnnexError] = useState<string | null>(null);
+  const annexInputRef = useRef<HTMLInputElement>(null);
 
   const clauses = useMemo(
     () => ((data as { customClauses?: CustomClause[] }).customClauses ?? []) as CustomClause[],
@@ -96,16 +124,22 @@ export function SupplementaryStep() {
   );
   const notes = supplementary.notes ?? "";
   const noteConfirmedAt = supplementary.noteConfirmedAt ?? null;
+  const attachments = useMemo(
+    () => supplementary.attachments ?? [],
+    [supplementary.attachments]
+  );
+  const attachmentsConfirmedAt = supplementary.attachmentsConfirmedAt ?? null;
   const confirmedAt = supplementary.confirmedAt ?? null;
 
   // «کل قرارداد» is the empty value; every other option names the step
-  // the entry is about. The review and supplementary steps are excluded —
-  // a note about the note has no place in the document.
+  // the entry is about. The supplementary step itself and the terminal
+  // stages (review/signature/final) are excluded — they own no contract
+  // text, so nothing in the document can be "about" them.
   const sectionOptions = useMemo(
     () => [
       { value: "", label: "کل قرارداد" },
       ...def.wizardSteps
-        .filter((s) => s.id !== "review" && s.id !== "supplementary")
+        .filter((s) => s.id !== "supplementary" && !TERMINAL_WIZARD_STEP_IDS.includes(s.id))
         .map((s) => ({ value: s.id, label: s.titleFa })),
     ],
     [def.wizardSteps]
@@ -211,9 +245,24 @@ export function SupplementaryStep() {
   // --- Note confirmation ------------------------------------------------
 
   const noteDirty = noteWritten && noteConfirmedAt === null;
-  const confirmNote = () => {
+  // An ERROR always wins over a locally-present timestamp: the local data
+  // is optimistic, and only a persisted timestamp may render as confirmed.
+  const noteFeedback: ActionState =
+    noteAction === "error"
+      ? "error"
+      : noteConfirmedAt
+        ? "saved"
+        : noteAction === "saved"
+          ? "idle"
+          : noteAction;
+
+  const confirmNote = async () => {
     setBlockedMessage(null);
-    patchData({
+    setNoteAction("saving");
+    // Persist FIRST, show «تأیید شد» only when the store accepted the
+    // exact data. A confirmation badge over an unsaved timestamp would
+    // disappear on reload and the user would have confirmed twice.
+    const persisted = await patchDataNow({
       supplementary: {
         ...supplementary,
         notes,
@@ -222,17 +271,83 @@ export function SupplementaryStep() {
         confirmedAt: null,
       },
     } as Partial<ContractDomainData>);
+    setNoteAction(persisted ? "saved" : "error");
   };
 
   const editNote = () => {
+    setNoteAction("idle");
     patchData({
       supplementary: { ...supplementary, notes, noteConfirmedAt: null, confirmedAt: null },
     } as Partial<ContractDomainData>);
   };
 
+  // --- Contract annexes (پیوست قرارداد) --------------------------------
+
+  const annexDirty =
+    attachments.length > 0 && attachmentsConfirmedAt === null;
+  const annexFeedback: ActionState =
+    annexAction === "error"
+      ? "error"
+      : attachmentsConfirmedAt
+        ? "saved"
+        : annexAction === "saved"
+          ? "idle"
+          : annexAction;
+
+  async function onAnnexPicked(file: File) {
+    setAnnexError(null);
+    setAnnexAction("saving");
+    try {
+      // The API stores the bytes AND writes the printable annex entry, so
+      // the file and the line that prints are created together.
+      await uploadAnnex.mutateAsync({
+        id: contract.id,
+        file,
+        category: "contract_annex",
+        titleFa: annexTitle.trim(),
+      });
+      setAnnexTitle("");
+      setAnnexAction("idle");
+    } catch (e) {
+      setAnnexAction("error");
+      setAnnexError(e instanceof Error ? e.message : "بارگذاری پیوست ناموفق بود");
+    }
+  }
+
+  function removeAnnex(attachment: ContractSupplementaryAttachment) {
+    // Declared locally so this button reports its own failure instead of
+    // silently leaving a printed annex behind.
+    setAnnexError(null);
+    setAnnexAction("saving");
+    deleteAnnex.mutate(
+      { id: contract.id, documentId: attachment.documentId },
+      {
+        onSuccess: () => setAnnexAction("idle"),
+        onError: (e) => {
+          setAnnexAction("error");
+          setAnnexError(e instanceof Error ? e.message : "حذف پیوست ناموفق بود");
+        },
+      }
+    );
+  }
+
+  const confirmAnnexes = async () => {
+    setBlockedMessage(null);
+    setAnnexAction("saving");
+    const persisted = await patchDataNow({
+      supplementary: {
+        ...supplementary,
+        attachments,
+        attachmentsConfirmedAt: new Date().toISOString(),
+        confirmedAt: null,
+      },
+    } as Partial<ContractDomainData>);
+    setAnnexAction(persisted ? "saved" : "error");
+  };
+
   // --- Step confirmation ------------------------------------------------
 
-  const confirmToSignature = () => {
+  const confirmToSignature = async () => {
     // Blocking guidance — the user sees exactly which field is short and
     // nothing is saved as "approved" while the text is incomplete.
     if (incomplete.length > 0) {
@@ -247,19 +362,38 @@ export function SupplementaryStep() {
       );
       return;
     }
+    if (annexDirty) {
+      setBlockedMessage(
+        "پیوست‌های قرارداد ثبت شده‌اند اما هنوز تأیید نشده‌اند. ابتدا دکمهٔ «تأیید پیوست‌ها» را بزنید."
+      );
+      return;
+    }
     setBlockedMessage(null);
-    patchData({
+    setStepAction("saving");
+    // The step-level confirmation is also a persisted fact: the signature
+    // stage reads it, so it must exist in the store before we navigate.
+    const persisted = await patchDataNow({
       supplementary: {
         ...supplementary,
         notes,
         confirmedAt: new Date().toISOString(),
       },
     } as Partial<ContractDomainData>);
-    // Advancing schedules the autosave with the new step id, so the
-    // confirmed state and the navigation are persisted together. The
-    // confirmed supplementary step leads straight to the signature
-    // stage — review stays reachable from there for the final preview.
-    goToStep("signature");
+    if (!persisted) {
+      setStepAction("error");
+      // Name the REAL failure the API reported; a generic «اتصال» message
+      // sent users into a retry loop for conflicts and validation errors
+      // that no amount of retrying could resolve.
+      const cause = getSaveError();
+      setBlockedMessage(
+        cause ? `تأیید ذخیره نشد — ${cause.messageFa}` : "تأیید ذخیره نشد. دوباره تلاش کنید."
+      );
+      return;
+    }
+    setStepAction("saved");
+    // Confirmed material goes to the review stage next: the parties must
+    // see exactly what will be signed BEFORE the signing links are sent.
+    goToStep("review");
   };
 
   const saveLine =
@@ -270,7 +404,9 @@ export function SupplementaryStep() {
           ? `ذخیره شد — ${formatIsoJalaliDateTime(lastSavedAt)}`
           : "ذخیره شد."
         : saveStatus === "error"
-          ? "ذخیره نشد. اتصال را بررسی کنید و دوباره تلاش کنید."
+          ? saveError
+            ? `ذخیره نشد — ${saveError.messageFa}`
+            : "ذخیره نشد. دوباره تلاش کنید."
           : "تغییری در انتظار ذخیره نیست.";
 
   return (
@@ -326,6 +462,24 @@ export function SupplementaryStep() {
           </div>
 
           <div>
+            <p className="text-labelMedium text-on-surface-variant">
+              پیوست‌های قرارداد (مادهٔ تعهدآور)
+            </p>
+            {attachments.length === 0 ? (
+              <p className="mt-1 text-body-2 text-muted">پیوستی ثبت نشده است.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-body-2 text-on-surface">
+                {attachments.map((a) => (
+                  <li key={a.documentId} className="flex flex-wrap items-baseline gap-1">
+                    <span className="font-medium">{a.titleFa}:</span>
+                    <span className="text-muted">{a.fileName}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
             <p className="text-labelMedium text-on-surface-variant">یادداشت تکمیلی</p>
             {noteWritten ? (
               <p className="mt-1 whitespace-pre-wrap text-body-2 text-on-surface">{notes}</p>
@@ -338,7 +492,7 @@ export function SupplementaryStep() {
 
       {/* یادداشت تکمیلی — its own confirm button, saved on confirm. */}
       <SectionCard title="یادداشت تکمیلی" description={SUPPLEMENTARY_NOTE_GUIDANCE}>
-        {noteConfirmedAt ? (
+        {noteConfirmedAt && noteAction !== "error" ? (
           <div className="space-y-2">
             <div className="rounded-medium border border-success bg-success-container px-3 py-2.5">
               <p className="text-body-2 font-medium">یادداشت تأیید و ذخیره شد.</p>
@@ -369,13 +523,158 @@ export function SupplementaryStep() {
               placeholder="هر توضیح یا نکته‌ای که باید کنار قرارداد ثبت شود…"
               supportingText="این متن در متن تعهدآور قرارداد ادغام نمی‌شود."
             />
-            <div className="flex justify-end">
-              <Button type="button" size="small" onClick={confirmNote} disabled={!noteWritten}>
-                تأیید یادداشت و ادامه
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {noteFeedback === "error" && (
+                <span role="alert" className="text-caption text-error">
+                  تأیید ذخیره نشد. دوباره تلاش کنید.
+                </span>
+              )}
+              <Button
+                type="button"
+                size="small"
+                onClick={() => void confirmNote()}
+                disabled={!noteWritten || noteAction === "saving" || noteFeedback === "saved"}
+                loading={noteAction === "saving"}
+                aria-live="polite"
+              >
+                {noteAction === "saving"
+                  ? "در حال ذخیره…"
+                  : noteFeedback === "saved"
+                    ? "تأیید شد"
+                    : noteAction === "error"
+                      ? "تلاش مجدد برای تأیید"
+                      : "تأیید یادداشت و ادامه"}
               </Button>
             </div>
           </div>
         )}
+      </SectionCard>
+
+      {/* پیوست قرارداد — a file the user makes part of the agreement, kept
+          strictly apart from the note above. */}
+      <SectionCard
+        title="پیوست قرارداد"
+        description="فایلی که بخشی از قرارداد می‌شود (مثلاً فهرست تجهیزات یا توافق جداگانه). پیوست‌ها به‌صورت یک مادهٔ مستقل با نام و اثرانگشت فایل در سند چاپ می‌شوند."
+      >
+        <div className="space-y-3">
+          <Notice tone="info" title="پیوست با یادداشت تکمیلی فرق دارد">
+            آنچه باید بخشی از تعهدات قرارداد شود را به‌عنوان پیوست ثبت کنید؛ یادداشت تکمیلی فقط
+            توضیحی دربارهٔ کل قرارداد است و مادهٔ قرارداد نمی‌شود.
+          </Notice>
+
+          <div className="grid gap-2 tablet:grid-cols-[1fr_auto]">
+            <Field
+              label="عنوان پیوست"
+              value={annexTitle}
+              onChange={setAnnexTitle}
+              placeholder="مثلاً فهرست تجهیزات تحویلی"
+              helperText="اگر خالی بماند، نام فایل به‌عنوان عنوان چاپ می‌شود."
+              disabled={!editable}
+            />
+            <div className="flex items-end">
+              <Button
+                variant="outlined"
+                size="small"
+                type="button"
+                startIcon={<IconUpload className="h-4 w-4" />}
+                loading={annexAction === "saving" && uploadAnnex.isPending}
+                disabled={!editable}
+                onClick={() => annexInputRef.current?.click()}
+              >
+                افزودن پیوست
+              </Button>
+            </div>
+          </div>
+
+          <input
+            ref={annexInputRef}
+            type="file"
+            className="hidden"
+            accept="application/pdf,image/png,image/jpeg,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void onAnnexPicked(file);
+            }}
+          />
+
+          {annexError && (
+            <p role="alert" className="text-caption text-error">
+              {annexError}
+            </p>
+          )}
+
+          {attachments.length === 0 ? (
+            <p className="text-body-2 text-muted">پیوستی ثبت نشده است.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {attachments.map((a) => (
+                <li
+                  key={a.documentId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-medium border border-divider bg-surface-container-low px-2.5 py-2"
+                >
+                  <a
+                    href={contractDocumentUrl(contract.id, a.documentId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 items-center gap-2 hover:underline"
+                  >
+                    <IconFile className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-body-2 text-on-surface">{a.titleFa}</span>
+                      <span className="block truncate text-caption text-muted">
+                        {a.fileName} — {formatIsoJalaliDateTime(a.addedAt)}
+                      </span>
+                    </span>
+                  </a>
+                  {editable && (
+                    <Button
+                      variant="text"
+                      size="small"
+                      type="button"
+                      onClick={() => removeAnnex(a)}
+                      disabled={annexAction === "saving"}
+                    >
+                      حذف
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {attachmentsConfirmedAt && annexAction !== "error" ? (
+            <div className="rounded-medium border border-success bg-success-container px-3 py-2.5">
+              <p className="text-body-2 font-medium">پیوست‌ها تأیید و ذخیره شد.</p>
+              <p className="text-caption">
+                زمان تأیید: {formatIsoJalaliDateTime(attachmentsConfirmedAt)}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {annexFeedback === "error" && (
+                <span role="alert" className="text-caption text-error">
+                  تأیید پیوست‌ها ذخیره نشد. دوباره تلاش کنید.
+                </span>
+              )}
+              <Button
+                type="button"
+                size="small"
+                onClick={() => void confirmAnnexes()}
+                disabled={
+                  attachments.length === 0 ||
+                  annexAction === "saving" ||
+                  uploadAnnex.isPending ||
+                  deleteAnnex.isPending
+                }
+                loading={annexAction === "saving"}
+                aria-live="polite"
+              >
+                {annexAction === "saving" ? "در حال ذخیره…" : "تأیید پیوست‌ها"}
+              </Button>
+            </div>
+          )}
+        </div>
       </SectionCard>
 
       <SectionCard
@@ -417,6 +716,19 @@ export function SupplementaryStep() {
         description="پیش از ادامه، خلاصهٔ آنچه در سند چاپ می‌شود را بررسی کنید."
       >
         <div className="space-y-3">
+          {/* Confirmed state — the whole card goes green and names the exact
+              time, because that timestamp is what the signature stage and
+              every later reader rely on. */}
+          {confirmedAt && (
+            <div className="rounded-medium border border-success bg-success-container px-3 py-2.5">
+              <p className="text-body-2 font-medium">این مرحله تأیید شد.</p>
+              <p className="text-caption">
+                زمان تأیید: {formatIsoJalaliDateTime(confirmedAt)} — با ویرایش هر مورد، تأیید
+                باطل می‌شود.
+              </p>
+            </div>
+          )}
+
           <ul className="space-y-1 text-body-2 text-on-surface">
             <li>
               توافقات خاص:{" "}
@@ -435,6 +747,16 @@ export function SupplementaryStep() {
               </span>
             </li>
             <li>
+              پیوست قرارداد:{" "}
+              <span className="font-medium">
+                {attachments.length === 0
+                  ? "ثبت نشده"
+                  : attachmentsConfirmedAt
+                    ? `${toPersianNumber(attachments.length)} مورد — تأیید شده`
+                    : `${toPersianNumber(attachments.length)} مورد — در انتظار تأیید`}
+              </span>
+            </li>
+            <li>
               یادداشت تکمیلی:{" "}
               <span className="font-medium">
                 {!noteWritten ? "نوشته نشده" : noteConfirmedAt ? "تأیید شده" : "در انتظار تأیید"}
@@ -442,17 +764,25 @@ export function SupplementaryStep() {
             </li>
           </ul>
 
-          <p
-            className={`text-caption ${saveStatus === "error" ? "text-error" : "text-muted"}`}
+          <div
+            className={`flex flex-wrap items-center gap-x-2 text-caption ${
+              saveStatus === "error" ? "text-error" : "text-muted"
+            }`}
             role={saveStatus === "error" ? "alert" : undefined}
           >
-            {saveLine}
-            {saveStatus === "error" && (
-              <button type="button" onClick={() => void saveNow()} className="ms-2 underline">
+            <span>{saveLine}</span>
+            {saveStatus === "error" && (!saveError || saveError.retryable) && (
+              <Button
+                type="button"
+                variant="text"
+                size="small"
+                onClick={() => void saveNow()}
+                className="!h-auto !px-1 text-caption max-desktop:!min-h-0"
+              >
                 تلاش مجدد
-              </button>
+              </Button>
             )}
-          </p>
+          </div>
 
           {blockedMessage && (
             <div
@@ -467,16 +797,34 @@ export function SupplementaryStep() {
             <p className="text-caption text-muted">
               {confirmedAt
                 ? `این مرحله در ${formatIsoJalaliDateTime(confirmedAt)} تأیید شده است.`
-                : "با تأیید، خلاصهٔ بالا ذخیره و مرحلهٔ امضا باز می‌شود."}
+                : "با تأیید، خلاصهٔ بالا ذخیره و مرحلهٔ بازبینی باز می‌شود."}
             </p>
-            <Button
-              type="button"
-              onClick={confirmToSignature}
-              disabled={!editable}
-              endIcon={<IconArrowForward className="h-4 w-4" />}
-            >
-              تأیید و ادامه به امضا
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {confirmedAt && (
+                <span className="rounded-small bg-success-container px-2 py-0.5 text-caption font-medium text-on-surface">
+                  تأیید شد
+                </span>
+              )}
+              <Button
+                type="button"
+                onClick={() => void confirmToSignature()}
+                disabled={!editable || stepAction === "saving"}
+                loading={stepAction === "saving"}
+                endIcon={
+                  stepAction === "saving" ? undefined : (
+                    <IconArrowForward className="h-4 w-4" />
+                  )
+                }
+              >
+                {stepAction === "saving"
+                  ? "در حال تأیید…"
+                  : confirmedAt
+                    ? "ادامه به بازبینی و پیش‌نمایش"
+                    : stepAction === "error"
+                      ? "تلاش مجدد برای تأیید"
+                      : "تأیید و ادامه به بازبینی"}
+              </Button>
+            </div>
           </div>
         </div>
       </SectionCard>

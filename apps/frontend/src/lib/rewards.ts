@@ -19,7 +19,10 @@ export type RewardEventType =
   // Admin ledger events (grant / adjust). Written only by an audited,
   // permission-gated admin action; also NOT part of REWARD_RULES.
   | "ADMIN_GRANT"
-  | "ADMIN_ADJUSTMENT";
+  | "ADMIN_ADJUSTMENT"
+  // Refund of a reward-funded charge (cancelled / failed / re-priced request).
+  // Positive delta; never part of REWARD_RULES.
+  | "REFUND";
 
 export type RewardFrequency = "once_per_account" | "once_per_day" | "once_per_purchase";
 

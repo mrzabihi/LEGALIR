@@ -88,6 +88,8 @@ vi.mock("@/hooks/useSubscription", () => ({
   useSubscriptionUsage: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
   useEntitlements: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
   usePlansV1: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
+  // Page-owned too: the banner's own skeleton renders identically on both sides.
+  useSubscriptionUsageCards: () => ({ isLoading: true, isError: false, data: undefined, refetch: () => undefined }),
 }));
 
 vi.mock("@/hooks/usePhase11", () => ({

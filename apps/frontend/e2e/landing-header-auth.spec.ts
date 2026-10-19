@@ -148,7 +148,9 @@ test.describe("Landing header — guest", () => {
   test("«مشاهده اشتراک‌ها» goes straight to pricing", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "شروع کنید" }).click();
-    await page.getByRole("link", { name: "مشاهده اشتراک‌ها" }).click();
+    // Exact: the landing pricing card's accessible name also *contains*
+    // «مشاهده …», so a substring match is ambiguous (strict mode).
+    await page.getByRole("link", { name: "مشاهده اشتراک‌ها", exact: true }).click();
     await expect(page).toHaveURL(/\/pricing$/, { timeout: APP_READY_TIMEOUT });
   });
 });
@@ -192,7 +194,9 @@ test.describe("Landing header — authenticated", () => {
     });
 
     await page.getByRole("button", { name: "شروع کنید" }).click();
-    await page.getByRole("link", { name: "مشاهده اشتراک‌ها" }).click();
+    // Exact: the landing pricing card's accessible name also *contains*
+    // «مشاهده …», so a substring match is ambiguous (strict mode).
+    await page.getByRole("link", { name: "مشاهده اشتراک‌ها", exact: true }).click();
     await expect(page).toHaveURL(/\/pricing$/, { timeout: APP_READY_TIMEOUT });
   });
 });

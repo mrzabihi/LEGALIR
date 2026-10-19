@@ -25,3 +25,6 @@ export { ProcessingPipeline } from "./processing-pipeline";
 export type { PipelineStage } from "./processing-pipeline";
 export { DocumentChatPanel } from "./document-chat-panel";
 export { ReviewResult } from "./review-result";
+export { ReviewDigest } from "./review-digest";
+export { ReviewClarifications } from "./review-clarifications";
+export { ReviewNextSteps } from "./review-next-steps";

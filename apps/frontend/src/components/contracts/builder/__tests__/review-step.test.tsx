@@ -6,11 +6,9 @@
 // them at the component level:
 //
 //   • the five-stage stepper is drawn from the server's view
-//   • under Preview there are EXACTLY three primary choices
-//   • the signature is labelled «تأیید و امضای الکترونیکی» and is
-//     explicitly disclaimed as NOT «مطمئن» / «رسمی»
-//   • a COMPLETED request stays visible (the audit record, not a
-//     transient in-flight state) and finalization is offered
+//   • the stage owns preview + review ONLY: two OPTIONAL support paths and
+//     exactly ONE primary action. The signing act belongs to the next step
+//     and the archive to the one after it, so no stage is drawn twice.
 //   • the AI review is labelled as AI analysis, never a lawyer's opinion
 //   • the registration policy comes from the registry, not hard-coded
 //   • the freeze action is offered while no version exists
@@ -130,6 +128,8 @@ function lifecycleView(
     stamped: false,
     officialStamp: null,
     comments: [],
+    // §7 — informational only; no test here asserts on the tips itself.
+    preSignTips: [],
     canPrepareForSignature: false,
     canSign: false,
     canFinalize: false,
@@ -224,10 +224,10 @@ function renderStep(
   );
 }
 
-/** The section that holds the three primary choices. */
-async function primaryChoicesSection(): Promise<HTMLElement> {
+/** The one card this stage owns: optional support paths + ONE action. */
+async function reviewSection(): Promise<HTMLElement> {
   const description = await screen.findByText(
-    "پس از تکمیل اطلاعات، یکی از این سه مسیر را انتخاب کنید"
+    "در صورت نیاز از این دو مسیر کمکی استفاده کنید؛ اجباری نیستند"
   );
   return description.closest("section")!;
 }
@@ -249,42 +249,48 @@ describe("ReviewStep — lifecycle workspace (§127/§128)", () => {
     expect(labels).toEqual(["اطلاعات", "پیش‌نمایش", "بررسی", "امضا", "تکمیل"]);
   });
 
-  it("offers the three primary choices plus the signature action under Preview", async () => {
+  it("offers two OPTIONAL support paths and exactly ONE primary action", async () => {
     renderStep(contract(), lifecycleView());
 
-    const section = await primaryChoicesSection();
+    const section = await reviewSection();
     const buttons = within(section).getAllByRole("button");
-    // The three analysis paths keep their order; the signature action is
-    // the one committing button reachable from the preview itself.
-    expect(buttons.map((b) => b.textContent)).toEqual([
-      expect.stringContaining("پرسش از دستیار هوشمند"),
-      expect.stringContaining("بررسی توسط وکیل"),
-      expect.stringContaining("آماده‌سازی برای امضا"),
-      expect.stringContaining("ارسال برای طرفین جهت امضا"),
-    ]);
+
+    // Exactly three: the two optional support paths, then the one
+    // committing action. A fourth button would mean two competing primaries
+    // — the confusion this stage was simplified to remove.
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0]!.textContent).toContain("پرسش از دستیار هوشمند");
+    expect(buttons[1]!.textContent).toContain("بررسی توسط وکیل");
+    // The support paths are also explicitly marked optional in the copy.
+    expect(within(section).getByText(/اجباری نیستند/)).toBeInTheDocument();
   });
 
-  it("labels the signature «تأیید و امضای الکترونیکی» and disclaims secure/official equivalence", async () => {
-    renderStep(
-      contract({ state: "READY_TO_SIGN" }),
-      lifecycleView({
-        stage: "SIGNATURE",
-        steps: buildLifecycleSteps("SIGNATURE"),
-        signatureRequest: completedRequest(),
-        canSign: true,
-      })
-    );
+  it("hands over to the signing step when the version is already approved", async () => {
+    renderStep(contract(), lifecycleView({ canSubmitForAdminReview: false }));
 
-    const heading = await screen.findByText("تأیید و امضای الکترونیکی");
-    const panel = heading.closest("section")!;
-
-    // The assurance wording is the OTP one, and the panel states in
-    // plain words that it is NOT the same as a secure/official signature.
-    expect(within(panel).getByText(/یکسان نیست/)).toBeInTheDocument();
-    expect(within(panel).getByText(/امضای الکترونیکی مطمئن/)).toBeInTheDocument();
+    const section = await reviewSection();
+    // One action, and it is the hand-over — never a second «submit» beside
+    // it, and never the signing act itself (that step owns it).
+    expect(within(section).getAllByRole("button")).toHaveLength(3);
+    expect(within(section).getByText("ادامه به امضای طرفین")).toBeInTheDocument();
+    expect(within(section).queryByText("ارسال به بررسی لیگالیر")).toBeNull();
   });
 
-  it("keeps the signature panel and the finalize action visible after the request is COMPLETED", async () => {
+  it("offers the admin-review submit while the version is still unapproved", async () => {
+    renderStep(contract(), lifecycleView({ canSubmitForAdminReview: true }));
+
+    const section = await reviewSection();
+    // The card's copy is static, so it renders before the lifecycle query
+    // resolves. Wait for the view-driven label before asserting on the
+    // action slot, or the pre-load branch is what gets measured.
+    expect(await within(section).findByText("ارسال به بررسی لیگالیر")).toBeInTheDocument();
+    expect(within(section).getAllByRole("button")).toHaveLength(3);
+    // The hand-over is NOT offered at the same time. After approval the
+    // action flips to it — one primary, one state.
+    expect(within(section).queryByText("ادامه به امضای طرفین")).toBeNull();
+  });
+
+  it("never draws the signing panel or the finalize action in this stage", async () => {
     renderStep(
       contract({ state: "SIGNED" }),
       lifecycleView({
@@ -295,14 +301,11 @@ describe("ReviewStep — lifecycle workspace (§127/§128)", () => {
       })
     );
 
-    // The participant list is the record of what happened — it must not
-    // vanish once the request reaches a terminal status.
-    const heading = await screen.findByText("تأیید و امضای الکترونیکی");
-    const panel = heading.closest("section")!;
-    expect(within(panel).getByText("موجر")).toBeInTheDocument();
-    expect(within(panel).getByText("امضا شده")).toBeInTheDocument();
-
-    expect(screen.getByText("نهایی‌سازی قرارداد")).toBeInTheDocument();
+    await reviewSection();
+    // Signing belongs to the «امضای طرفین» step and archiving to
+    // «نسخه نهایی»; duplicating them here is the duplicated-stage defect.
+    expect(screen.queryByText("تأیید و امضای الکترونیکی")).toBeNull();
+    expect(screen.queryByText("نهایی‌سازی قرارداد")).toBeNull();
   });
 
   it("labels the AI review as AI analysis, never a lawyer's opinion", async () => {

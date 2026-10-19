@@ -35,6 +35,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type {
   ContractStampAction,
+  ContractStampFinalization,
   ContractStampRequest,
   PropertyContract,
 } from "@legalir/types";
@@ -45,6 +46,7 @@ import { recordAudit } from "@/lib/admin/audit";
 import { adminError, mapDataError, readJson, requestMeta } from "@/lib/admin/http";
 import { getContractById, getVersion } from "@/lib/contracts/db";
 import { currentVersionApproval } from "@/lib/contracts/admin-review";
+import { finalizeSignedContract } from "@/lib/contracts/finalization";
 import { isContractFeatureEnabled } from "@/lib/contracts/feature-flags";
 import { reviewStampInfo } from "@/lib/contracts/stamp-asset";
 import { latestSignatureRequest, listParticipants } from "@/lib/contracts/signature/db";
@@ -191,6 +193,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     : null;
   const approval = currentVersionApproval(contract, currentVersion?.documentHash ?? null);
   const applied = currentVersionStamp(contract, currentVersion?.documentHash ?? null);
+  // §4 — the final approval is offered only when the parties bound to THIS
+  // version have all signed. Read from the real request, never inferred
+  // from the contract state.
+  const signatures = currentVersionSignatures(contract.id, currentVersion?.documentHash ?? null);
 
   const requests = listStampRequests(contract.id);
 
@@ -213,6 +219,10 @@ export async function GET(request: NextRequest, { params }: Params) {
       // applied request was bound to; `reviewStampInfo` never exposes bytes.
       stampAsset: reviewStampInfo(),
       reviewed: approval !== null,
+      signatures: {
+        ready: signatures.ok,
+        reasonFa: signatures.ok ? null : signatures.detailFa,
+      },
       featureEnabled: isContractFeatureEnabled("CONTRACT_STAMP_ENABLED"),
       applied: applied !== null,
       appliedRequest: applied ? toDetail(applied) : null,
@@ -418,6 +428,34 @@ async function handleDecision(
   });
   if (!updated) return mapDataError("NOT_FOUND");
 
+  // §4 — a contract is not final until LEGALIR approves it. Applying the
+  // seal IS that approval, so the SAME act freezes the signed content as
+  // the final version: the final row is the exact snapshot the parties
+  // signed (same id, same hash), the draft watermark disappears because
+  // the renderer draws the seal instead, and prior versions stay intact.
+  // When the owner already finalized, the idempotent path only re-renders
+  // the stored artifact so it carries the newly applied seal.
+  let finalization: ContractStampFinalization | null = null;
+  if (status === "APPLIED") {
+    const outcome = await finalizeSignedContract({
+      contract: getContractById(contract.id) ?? contract,
+      actorId: auth.ctx.userId,
+      actorLabel: actorName,
+      baseUrl: new URL(request.url).origin,
+      refreshArtifact: true,
+    });
+    finalization = outcome.ok
+      ? {
+          ok: true,
+          finalVersionId: outcome.version.id,
+          documentHash: outcome.version.documentHash,
+          state: outcome.contract.state,
+          finalizedAt: outcome.finalizedAt,
+          artifactStored: outcome.artifact !== null,
+        }
+      : { ok: false, code: outcome.code, messageFa: outcome.messageFa };
+  }
+
   // Notify every signer that the final sealed version exists. The stamp
   // is already recorded — a delivery failure is reported, never a reason
   // to pretend the SMS went out or to roll the decision back.
@@ -475,6 +513,7 @@ async function handleDecision(
       stampRequest: toDetail(updated),
       applied: status === "APPLIED",
       notifications,
+      finalization,
     },
   });
 }

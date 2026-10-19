@@ -141,10 +141,16 @@ test.describe("Contract review workspace — responsive (§10)", () => {
         .evaluateAll((els) => els.map((el) => (el.textContent ?? "").trim().replace(/^\d+/, "")));
       expect(labels).toEqual(["اطلاعات", "پیش‌نمایش", "بررسی", "امضا", "تکمیل"]);
 
-      // The three primary choices (§128) are present under the review step.
-      await expect(
-        page.getByText("پس از تکمیل اطلاعات، یکی از این سه مسیر را انتخاب کنید"),
-      ).toBeVisible();
+      // The review stage owns ONE card: two OPTIONAL support paths and
+      // exactly one committing action (§128). Two competing primary
+      // buttons were the "which one do I press?" doubt this stage removed.
+      const reviewCard = page
+        .getByText("در صورت نیاز از این دو مسیر کمکی استفاده کنید؛ اجباری نیستند")
+        .locator("xpath=ancestor::section[1]");
+      await expect(reviewCard).toBeVisible();
+      await expect(reviewCard.getByRole("button")).toHaveCount(3);
+      await expect(reviewCard.getByText("پرسش از دستیار هوشمند")).toBeVisible();
+      await expect(reviewCard.getByText("بررسی توسط وکیل")).toBeVisible();
 
       // Never a sideways scroll on a phone or a desktop.
       const overflow = await page.evaluate(() => {

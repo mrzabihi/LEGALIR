@@ -66,11 +66,67 @@ export const SERVICE_CONTEXTS: Record<ServiceType, ServiceContext> = {
   },
 };
 
+export function isServiceType(type: unknown): type is ServiceType {
+  return typeof type === "string" && type in SERVICE_CONTEXTS;
+}
+
 export function getServiceContext(type: string | undefined | null): ServiceContext {
-  if (type && type in SERVICE_CONTEXTS) {
-    return SERVICE_CONTEXTS[type as ServiceType];
+  if (isServiceType(type)) {
+    return SERVICE_CONTEXTS[type];
   }
   return SERVICE_CONTEXTS.legal_consultation;
+}
+
+/**
+ * Server-side validation of the client's `context.serviceType`. Returns the
+ * accepted service and flags an unknown value, so the gateway can degrade to
+ * the default with an honest note rather than silently ignoring it (§3).
+ */
+export function resolveServiceType(raw: unknown): {
+  serviceType: ServiceType;
+  wasRejected: boolean;
+  rawValue: string | null;
+} {
+  if (raw === undefined || raw === null || raw === "") {
+    return { serviceType: "legal_consultation", wasRejected: false, rawValue: null };
+  }
+  if (isServiceType(raw)) {
+    return { serviceType: raw, wasRejected: false, rawValue: raw };
+  }
+  return {
+    serviceType: "legal_consultation",
+    wasRejected: true,
+    rawValue: typeof raw === "string" ? raw.slice(0, 64) : null,
+  };
+}
+
+/**
+ * The service overlay appended to the system prompt. Choosing a service must
+ * really change what the model is asked to do — not only the title or icon.
+ * Each entry is a short, honest statement of the deliverable for that entry
+ * point; it never claims a capability the pipeline does not have.
+ */
+const SERVICE_PROMPT_OVERLAY: Record<ServiceType, string> = {
+  legal_consultation:
+    "این گفتگو در خدمت «مشاوره حقوقی» است: پرسش کاربر را تحلیل کن، فرضیات را صریح بگو و پاسخ را به منابع معتبر ارجاع بده.",
+  contract_review:
+    "این گفتگو در خدمت «بررسی قرارداد» است: شروط، ریسک‌ها و نکات نامتعارف قرارداد را با ارجاع به متن و منابع بررسی کن. اگر متن قرارداد در اختیار نیست، صریح بخواه.",
+  contract_drafting:
+    "این گفتگو در خدمت «تنظیم قرارداد» است: پیش‌نویس ساختاریافته با بندهای روشن ارائه کن و موارد نیازمند تصمیم کاربر را مشخص کن. پیش‌نویس، جایگزین بررسی وکیل نیست.",
+  legal_notice:
+    "این گفتگو در خدمت «تولید اظهارنامه» است: متن اظهارنامه با ذکر مستندات قانونی تهیه کن و اطلاعات ناقص را مشخص کن.",
+  document_analysis:
+    "این گفتگو در خدمت «تحلیل اسناد» است: فقط بر اساس محتوای اسناد در دسترس پاسخ بده و چیزی را که در سند نیست به سند نسبت نده.",
+  legal_calculation:
+    "این گفتگو در خدمت «محاسبات حقوقی» است: فرمول و ارقام مورد استفاده را شفاف بیان کن و اگر رقم یا قاعده لازم نیست، آن را نساز.",
+  law_search:
+    "این گفتگو در خدمت «جستجوی قوانین» است: ماده و منبع را دقیق بیاور و اگر متن قانونی پیدا نشد، صریح بگو.",
+  case_analysis:
+    "این گفتگو در خدمت «تحلیل پرونده» است: وضعیت فعلی، گزینه‌ها و اقدام بعدی را بر اساس اطلاعات واقعی پرونده تحلیل کن.",
+};
+
+export function servicePromptOverlay(type: ServiceType): string {
+  return SERVICE_PROMPT_OVERLAY[type];
 }
 
 /**

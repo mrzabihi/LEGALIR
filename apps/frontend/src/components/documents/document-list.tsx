@@ -4,12 +4,14 @@
 // A single-column list that shares the exact toolbar / row / overflow
 // language of /history, /cases and /contracts: one search bar, a status
 // chip row, a sort control, a results line, then flat rows. Each row
-// carries its document identity, its REAL processing status, and ONE
-// action chosen by that status —
+// carries its document identity (name · real MIME-derived type · size ·
+// age), its REAL processing status, and ONE action chosen by that status —
 //   • آماده        → «مشاهده سند»
 //   • در حال پردازش → «مشاهده بررسی»
 //   • خطا/مسدود     → «تلاش مجدد»
-// — with download/delete moved into the ⋮ menu.
+// — with download/delete moved into the ⋮ menu. The leading icon tile takes
+// the status's tone, so state is visible before the name is read; the words
+// beside it always repeat it, so colour is never the only cue.
 // ============================================================
 
 "use client";
@@ -69,6 +71,31 @@ function documentIcon(mime: string) {
   return mime === "application/pdf" ? IconDocument : IconFile;
 }
 
+/**
+ * A short, factual type label for the row. Derived from the MIME the
+ * server already returns, so it can never disagree with the icon; an
+ * unknown type says «فایل» rather than guessing.
+ */
+function documentKind(mime: string): string {
+  if (mime === "application/pdf") return "PDF";
+  if (mime.startsWith("image/")) return "تصویر";
+  if (mime.includes("word") || mime.includes("officedocument")) return "Word";
+  if (mime.startsWith("text/")) return "متن";
+  return "فایل";
+}
+
+/**
+ * The icon tile takes the status's tone, so a row's state reads from the
+ * glyph before any text is parsed. Colour is never the ONLY signal — the
+ * status badge beside the name always carries the word.
+ */
+function statusTileTone(status: string): string {
+  if (status === "ready") return "bg-success-container text-success";
+  if (isFailed(status)) return "bg-error-container text-error";
+  if (isProcessing(status)) return "bg-info-container text-info";
+  return "bg-primary-container text-primary-on-container";
+}
+
 function isProcessing(status: string): boolean {
   return ["processing", "extracting", "analyzing"].includes(status);
 }
@@ -119,6 +146,7 @@ function DocumentRow({
 }) {
   const { id, name, mime, sizeBytes, status, createdAt, riskLevel, findingCount } = doc;
   const DocIcon = documentIcon(mime);
+  const kind = documentKind(mime);
   const retry = useRetryDocument();
   const processing = isProcessing(status);
   const failed = isFailed(status);
@@ -167,31 +195,32 @@ function DocumentRow({
   ];
 
   return (
-    <article className="flex flex-col gap-3 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:flex-row tablet:items-center tablet:gap-4 tablet:p-4">
-      <div className="flex min-w-0 flex-1 items-start gap-3">
+    // Three zones, and the SAME three at every width: identity (what this
+    // file is), status (where it stands) and action (what you can do now).
+    // On phones the identity takes the whole first line and status + action
+    // share the second, so a row never grows beyond two lines; from `tablet`
+    // they become real columns, so statuses line up down the list and the
+    // rows can be scanned vertically instead of read one by one.
+    <article className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-medium border border-[color:var(--color-outline-variant)] bg-surface p-3 transition-colors duration-short3 hover:border-[color:var(--color-outline)] tablet:grid-cols-[minmax(0,1fr)_9.5rem_auto] tablet:gap-x-5 tablet:p-4">
+      {/* --- Identity --- */}
+      <div className="col-span-2 flex min-w-0 items-center gap-3 tablet:col-span-1">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-primary-container text-primary-on-container"
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-medium ${statusTileTone(status)}`}
           aria-hidden="true"
         >
           <DocIcon size={20} />
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface" title={name}>
-              {name}
-            </h3>
-            <StatusBadge status={status} />
-            {riskLevel && status === "ready" && (
-              <span
-                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-caption font-medium ${RISK_TONE[riskLevel] ?? ""}`}
-              >
-                {RISK_LABELS[riskLevel] ?? riskLevel}
-              </span>
-            )}
-          </div>
+          <h3 className="min-w-0 truncate text-titleSmall font-semibold text-on-surface" title={name}>
+            {name}
+          </h3>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-caption text-on-surface-variant">
+            {/* Type before size: it is the attribute a user scans for. */}
+            <span className="rounded-sm bg-surface-container px-1.5 py-0.5 text-labelSmall text-on-surface-variant">
+              {kind}
+            </span>
             <span>{formatFileSize(sizeBytes)}</span>
             <span aria-hidden="true" className="text-divider">·</span>
             <span>{getRelativeTime(createdAt)}</span>
@@ -205,24 +234,33 @@ function DocumentRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 tablet:justify-end">
+      {/* --- Status (its own column, so it aligns across rows) --- */}
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 tablet:flex-col tablet:items-start tablet:gap-1">
+        <StatusBadge status={status} />
+        {riskLevel && status === "ready" && (
+          <span
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-caption font-medium ${RISK_TONE[riskLevel] ?? ""}`}
+          >
+            {RISK_LABELS[riskLevel] ?? riskLevel}
+          </span>
+        )}
+      </div>
+
+      {/* --- Action --- */}
+      <div className="flex shrink-0 items-center justify-end gap-1.5 tablet:border-s tablet:border-divider tablet:ps-5">
         {failed ? (
           <Button
             type="button"
             onClick={handleRetry}
             loading={retry.isPending}
             startIcon={<IconRetry size={16} />}
-            className="flex-1 tablet:flex-none"
           >
             تلاش مجدد
           </Button>
         ) : (
           // A navigation target keeps its link semantics and borrows the
           // button's class list — never a <button> inside an <a>.
-          <Link
-            href={`/documents/${id}`}
-            className={buttonClasses({ className: "flex-1 tablet:flex-none" })}
-          >
+          <Link href={`/documents/${id}`} className={buttonClasses()}>
             <span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center">
               {processing ? <IconOpenInNew size={16} /> : <IconDocument size={16} />}
             </span>
@@ -304,14 +342,18 @@ export function DocumentList({
             onChange={onSearchChange}
           />
         </div>
-        <Select
-          label="مرتب‌سازی"
-          value={sort}
-          onChange={(e) => onSortChange(e.target.value)}
-          selectSize="small"
-          className="tablet:w-[160px]"
-          options={SORT_OPTIONS}
-        />
+        {/* `fullWidth` so the control fills its cell instead of keeping the
+            primitive's default `w-64` wrapper and leaving dead space. */}
+        <div className="min-w-0 tablet:w-[160px]">
+          <Select
+            label="مرتب‌سازی"
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value)}
+            selectSize="small"
+            fullWidth
+            options={SORT_OPTIONS}
+          />
+        </div>
       </div>
 
       <FilterChips

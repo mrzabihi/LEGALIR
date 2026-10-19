@@ -108,7 +108,19 @@ import type {
   OrganizationAuthorizedSignatory,
   LawyerOnboardingState,
   LawyerOnboardingInput,
+  ChatToolsResponse,
+  ChatToolId,
+  UsageReportQuery,
+  UsageReportResponse,
+  SubscriptionUsageCard,
 } from "@legalir/types";
+
+/** The usage report plus its real filter menus (derived from the user's rows). */
+export interface UsageReportApiResponse {
+  report: UsageReportResponse;
+  services: { serviceKey: string; serviceNameFa: string }[];
+  actions: { activityType: NonNullable<UsageReportQuery["activityType"]>; actionNameFa: string }[];
+}
 
 // ============================================================
 // Helper: build query string with URLSearchParams
@@ -219,6 +231,31 @@ export function fetchSubscriptionUsageHistory(
   );
 }
 
+/** One real consumption card per ACTIVE subscription (same ledger as below). */
+export function fetchSubscriptionUsageCards(): Promise<SubscriptionUsageCard[]> {
+  return apiClient.get<{ items: SubscriptionUsageCard[] }>(
+    "/api/v1/subscription/usage/cards"
+  ).then((r) => r.items);
+}
+
+/**
+ * The signed-in user's own energy + token report. Energy and tokens arrive in
+ * separate fields — the caller must never add them together.
+ */
+export function fetchUsageReport(
+  query: UsageReportQuery = {}
+): Promise<UsageReportApiResponse> {
+  const p = new URLSearchParams();
+  if (query.from) p.set("from", query.from);
+  if (query.to) p.set("to", query.to);
+  if (query.serviceKey) p.set("serviceKey", query.serviceKey);
+  if (query.activityType) p.set("activityType", query.activityType);
+  if (query.status) p.set("status", query.status);
+  if (query.page) p.set("page", String(query.page));
+  if (query.pageSize) p.set("pageSize", String(query.pageSize));
+  return apiClient.get<UsageReportApiResponse>(`/api/v1/usage/report${qs(p)}`);
+}
+
 // ============================================================
 // Admin — Legal Knowledge inventory (Phase 6)
 // ============================================================
@@ -281,9 +318,24 @@ export function fetchConversation(id: string): Promise<V1ConversationDetail> {
   return apiClient.get<V1ConversationDetail>(`/api/v1/conversations/${id}`);
 }
 
+/**
+ * The contextual tools the server projects for this service/conversation.
+ * Availability, the persisted selection and the rejection reasons all come
+ * from the backend — the client never decides whether a tool is usable.
+ */
+export function fetchChatTools(params: {
+  serviceType?: string | null;
+  conversationId?: string | null;
+}): Promise<ChatToolsResponse> {
+  const p = new URLSearchParams();
+  if (params.serviceType) p.set("service", params.serviceType);
+  if (params.conversationId) p.set("conversationId", params.conversationId);
+  return apiClient.get<ChatToolsResponse>(`/api/v1/chat/tools${qs(p)}`);
+}
+
 export function updateConversation(
   id: string,
-  data: { title?: string; status?: ConversationStatus }
+  data: { title?: string; status?: ConversationStatus; toolIds?: ChatToolId[] }
 ): Promise<Conversation> {
   return apiClient.patch<Conversation>(`/api/v1/conversations/${id}`, data);
 }

@@ -189,6 +189,11 @@ export type Permission =
   | "admin:lawyer:avatar:manage"
   | "admin:services:read"
   | "admin:services:manage"
+  // Judicial drafting review — separate from service settings: an operator
+  // who publishes a service need not be the one who approves legal text,
+  // and issuing the final artifact is a review decision.
+  | "admin:judicial:read"
+  | "admin:judicial:review"
   | "admin:flags:manage"
   | "admin:plans:read"
   | "admin:plans:manage"
@@ -349,6 +354,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:requests:manage",
     "admin:services:read",
     "admin:services:manage",
+    // Operations can read the judicial review queue but cannot decide it:
+    // approving legal text is reserved to the legal-review roles.
+    "admin:judicial:read",
     "admin:flags:manage",
     "admin:plans:read",
     "admin:lawyer:read",
@@ -363,6 +371,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:requests:read",
     "admin:contracts:read",
     "admin:contracts:review",
+    // Legal review of judicial documents is this team's core duty.
+    "admin:judicial:read",
+    "admin:judicial:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -435,6 +446,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     "admin:requests:manage",
     "admin:contracts:read",
     "admin:contracts:review",
+    "admin:judicial:read",
+    "admin:judicial:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",
@@ -495,6 +508,8 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
     // The official stamp is Super-Admin-only; no other role lists these.
     "admin:contracts:stamp:read",
     "admin:contracts:stamp:manage",
+    "admin:judicial:read",
+    "admin:judicial:review",
     "admin:lawyer:read",
     "admin:lawyer:verify",
     "admin:lawyer:create",

@@ -268,8 +268,10 @@ export function Header() {
             aria-modal="true"
             aria-label="منوی موبایل"
           >
+            {/* Same `bg-scrim` token every other drawer, sheet and popover
+                uses — one backdrop colour app-wide, theme-aware. */}
             <div
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              className="absolute inset-0 bg-scrim backdrop-blur-sm"
               onClick={() => setMobileOpen(false)}
               aria-hidden="true"
             />

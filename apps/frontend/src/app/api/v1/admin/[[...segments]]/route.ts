@@ -30,6 +30,9 @@ import {
   type LegalRequestState,
   type LegalRequestDiscovery,
   type AnnouncementAudience,
+  type JudicialDocumentType,
+  type JudicialOrderStatus,
+  type JudicialReviewStatus,
 } from "@legalir/types";
 
 import { adminError, mapDataError, readJson, requestMeta, intParam } from "@/lib/admin/http";
@@ -74,6 +77,8 @@ import {
   getAiUsageMetrics,
   isSecretStorageReady,
 } from "@/lib/admin/ai-providers";
+import { listToolsForAdmin, updateToolSetting } from "@/lib/ai/chat-tools";
+import { SERVICE_CONTEXTS } from "@/lib/ai/service-context";
 import {
   listRagSources,
   ragReviewCounts,
@@ -101,6 +106,33 @@ import {
   setLegalSourceStatus,
   deleteLegalSource,
 } from "@/lib/admin/legal-library";
+import {
+  listJudicialServices,
+  listJudicialServiceViews,
+  updateJudicialService,
+  type JudicialServiceUpdate,
+} from "@/lib/judicial/service-config";
+import {
+  createQuestionnaireVersion,
+  listQuestionnaireVersions,
+  listQuestionnaires,
+  publishQuestionnaire,
+} from "@/lib/judicial/questionnaires";
+import {
+  getReviewDetail,
+  listOrderQueue,
+  listReviewQueue,
+  orderQueueRow,
+  type JudicialOrderQueueFilters,
+  type JudicialReviewQueueFilters,
+} from "@/lib/judicial/admin-review";
+import {
+  applyAdminReviewAction,
+  getOrderById,
+  getReviewById,
+  updateOrderByAdmin,
+} from "@/lib/judicial/review-db";
+import { issueFinalDocument } from "@/lib/judicial/finalize";
 import { buildCalculatorsInventory } from "@/lib/admin/calculators";
 import {
   listCalculatorSettings,
@@ -127,7 +159,15 @@ import {
   deleteCostRule,
   readLedger,
   getLedgerSummary,
+  listTariffHistory,
 } from "@/lib/usage/energy";
+import { buildUsageReport, listUserServiceOptions } from "@/lib/usage/report";
+import { ACTIVITY_REGISTRY } from "@/lib/usage/activities";
+import type { ActivityType, UsageTransactionStatus } from "@legalir/types";
+
+/** Real activity codes / transaction statuses (never trust raw query strings). */
+const ACTIVITY_CODES = new Set<string>(ACTIVITY_REGISTRY.map((a) => a.code));
+const USAGE_STATUSES: UsageTransactionStatus[] = ["RESERVED", "COMPLETED", "REVERSED", "FAILED"];
 import { buildAdminExport, isAdminExportKind, type AdminExportKind } from "@/lib/admin/export";
 import {
   listAnnouncements,
@@ -166,7 +206,12 @@ import type { PlanStatus } from "@legalir/types";
 import { listOrganizations } from "@/lib/org-db";
 import { readBlog } from "@/lib/legal-library-db";
 import { listLawyerProfiles } from "@/lib/lawyer-db";
-import { getRequestById, listRequestEvents, assignRequestLawyer, transitionRequest } from "@/lib/legal-request-db";
+import {
+  getRequestById,
+  listRequestEvents,
+  assignRequestLawyer,
+  transitionRequest,
+} from "@/lib/legal-request-db";
 import type {
   AiProviderKind,
   AdjustmentKind,
@@ -282,7 +327,9 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
     const pageSize = resolvePageSize(url.searchParams.get("pageSize"));
     const search = url.searchParams.get("search") ?? "";
     const role = url.searchParams.get("role") ?? "";
-    const subs = readTable<{ user_id: string; status_fa?: string; status?: string }>("subscriptions");
+    const subs = readTable<{ user_id: string; status_fa?: string; status?: string }>(
+      "subscriptions"
+    );
     const activeIds = new Set(
       subs.filter((s) => s.status_fa === "فعال" || s.status === "active").map((s) => s.user_id)
     );
@@ -357,9 +404,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         };
       })
       .filter((r) =>
-        search.trim()
-          ? matchesRow(search, { texts: [r.title, r.id, r.userDisplayName] })
-          : true
+        search.trim() ? matchesRow(search, { texts: [r.title, r.id, r.userDisplayName] }) : true
       );
     const p = paginate(mapped, page, pageSize);
     return ok({
@@ -447,7 +492,8 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       })
     ),
 
-  refunds: ({ url }) => ok({ items: listAdjustments(url.searchParams.get("orderId") ?? undefined) }),
+  refunds: ({ url }) =>
+    ok({ items: listAdjustments(url.searchParams.get("orderId") ?? undefined) }),
 
   // Coupon catalog. Read is a billing-read capability (it feeds sales
   // reporting); creating/editing a coupon is a billing-manage mutation.
@@ -466,6 +512,18 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
   // §5 — inventory (read-only datasets) PLUS the operational settings rows the
   // /admin/calculators page edits (enabled / accessTier / energyCost).
   calculators: () => ok({ ...buildCalculatorsInventory(), settings: listCalculatorSettings() }),
+
+  // Judicial services. `views` carries the EFFECTIVE availability (config AND
+  // flag AND provider requirement) beside the raw config, so the operator sees
+  // when their own flag toggle — not their label — is what keeps a service off.
+  judicial: () =>
+    ok({
+      services: listJudicialServiceViews(),
+      configs: listJudicialServices(),
+      questionnaires: listQuestionnaires().sort(
+        (a, b) => a.documentType.localeCompare(b.documentType) || b.version - a.version
+      ),
+    }),
 
   support: ({ url }) =>
     ok({
@@ -526,7 +584,8 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         actorUserId: url.searchParams.get("actorUserId") ?? undefined,
         action: url.searchParams.get("action") ?? undefined,
         resourceType: url.searchParams.get("resourceType") ?? undefined,
-        result: (url.searchParams.get("result") as "success" | "failure" | "denied" | null) ?? undefined,
+        result:
+          (url.searchParams.get("result") as "success" | "failure" | "denied" | null) ?? undefined,
         search: url.searchParams.get("search") ?? undefined,
         page: intParam(url, "page", 1),
         pageSize: intParam(url, "pageSize", 25),
@@ -549,9 +608,26 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         isDefault: p.isDefault,
       })),
       integrations: [
-        { key: "payments", labelFa: "درگاه پرداخت", configured: false, noteFa: "این محیط از پرداخت شبیه‌سازی‌شده استفاده می‌کند؛ درگاه واقعی متصل نیست." },
-        { key: "sms", labelFa: "پیامک (OTP)", configured: Boolean(process.env["LEGALIR_OTP_PROVIDER"] && process.env["LEGALIR_OTP_PROVIDER"] !== "mock"), noteFa: "در صورت نبود ارائه‌دهنده، کد به‌صورت توسعه‌ای نمایش داده می‌شود." },
-        { key: "video", labelFa: "مشاوره تصویری", configured: false, noteFa: "ارائه‌دهنده ویدیو متصل نشده است." },
+        {
+          key: "payments",
+          labelFa: "درگاه پرداخت",
+          configured: false,
+          noteFa: "این محیط از پرداخت شبیه‌سازی‌شده استفاده می‌کند؛ درگاه واقعی متصل نیست.",
+        },
+        {
+          key: "sms",
+          labelFa: "پیامک (OTP)",
+          configured: Boolean(
+            process.env["LEGALIR_OTP_PROVIDER"] && process.env["LEGALIR_OTP_PROVIDER"] !== "mock"
+          ),
+          noteFa: "در صورت نبود ارائه‌دهنده، کد به‌صورت توسعه‌ای نمایش داده می‌شود.",
+        },
+        {
+          key: "video",
+          labelFa: "مشاوره تصویری",
+          configured: false,
+          noteFa: "ارائه‌دهنده ویدیو متصل نشده است.",
+        },
       ],
       organizations: { total: orgs.length },
       lawyers: { total: listLawyerProfiles().filter((l) => !l.isDemo).length },
@@ -622,6 +698,35 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       // counters behind the subscription). Read-only; mutations are POST-only.
       if (d === "energy") {
         return ok(getAdminUserUsage(b!));
+      }
+      // `users/:id/usage` is the SAME projection the user's own
+      // «تاریخچه و مصرف» page reads (`buildUsageReport`), so the operator and
+      // the user can never see two different totals. Gated by
+      // `admin:energy:read` in permissionFor — hiding a tab in the UI is not
+      // authorization.
+      if (d === "usage") {
+        const statusRaw = c.url.searchParams.get("status");
+        const activityRaw = c.url.searchParams.get("activityType");
+        return ok({
+          report: buildUsageReport(b!, {
+            from: c.url.searchParams.get("from") ?? undefined,
+            to: c.url.searchParams.get("to") ?? undefined,
+            serviceKey: c.url.searchParams.get("serviceKey") ?? undefined,
+            activityType:
+              activityRaw && ACTIVITY_CODES.has(activityRaw)
+                ? (activityRaw as ActivityType)
+                : undefined,
+            status:
+              statusRaw && USAGE_STATUSES.includes(statusRaw as UsageTransactionStatus)
+                ? (statusRaw as UsageTransactionStatus)
+                : undefined,
+            page: intParam(c.url, "page", 1),
+            pageSize: intParam(c.url, "pageSize", 20),
+          }),
+          // Filter menus come from the user's own real rows, so the operator
+          // is never offered a service that has no records.
+          services: listUserServiceOptions(b!),
+        });
       }
       return ok({
         id: user.id,
@@ -735,9 +840,16 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       return ok({ ticket: t, overdue: isOverdue(t) });
     }
     case "ai": {
-      if (b === "providers") return ok({ items: listAiProviders(), secretStorageConfigured: isSecretStorageReady() });
-      if (b === "prompts") return ok({ items: listPromptVersions(c.url.searchParams.get("key") ?? undefined) });
+      if (b === "providers")
+        return ok({ items: listAiProviders(), secretStorageConfigured: isSecretStorageReady() });
+      if (b === "prompts")
+        return ok({ items: listPromptVersions(c.url.searchParams.get("key") ?? undefined) });
       if (b === "metrics") return ok(getAiUsageMetrics(intParam(c.url, "rangeDays", 30)));
+      // §7/§12 — the contextual chat tools. `available` is the REAL capability
+      // verdict (does this server hold the source?), never the toggle alone.
+      if (b === "tools") {
+        return ok({ items: listToolsForAdmin(), serviceTypes: Object.keys(SERVICE_CONTEXTS) });
+      }
       return adminError(400, "BAD_PATH", "درخواست نامعتبر");
     }
     case "rag": {
@@ -751,7 +863,8 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
         }
         return ok({
           items: listRagSources({
-            reviewState: (c.url.searchParams.get("reviewState") as RagReviewState | null) ?? undefined,
+            reviewState:
+              (c.url.searchParams.get("reviewState") as RagReviewState | null) ?? undefined,
             search: c.url.searchParams.get("search") ?? undefined,
           }),
           counts: ragReviewCounts(),
@@ -783,6 +896,14 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       if (b === "summary") {
         return ok(getLedgerSummary(intParam(c.url, "rangeDays", 30)));
       }
+      // §3 — the append-only tariff change log. Every profile/rule write appends
+      // a version row carrying WHO changed it and WHEN, so an operator can prove
+      // why a past operation was priced the way it was.
+      if (b === "history") {
+        return ok({
+          items: listTariffHistory(c.url.searchParams.get("entityId") ?? undefined),
+        });
+      }
       return adminError(400, "BAD_PATH", "درخواست نامعتبر");
     }
     case "exports": {
@@ -810,14 +931,62 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       return new NextResponse(new Uint8Array(result.bytes), {
         status: 200,
         headers: {
-          "Content-Type":
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Length": String(result.bytes.length),
           "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`,
           "Cache-Control": "private, no-store, max-age=0",
           "X-Content-Type-Options": "nosniff",
         },
       });
+    }
+    case "judicial": {
+      // `judicial/questionnaires/:documentType` — every version of one family,
+      // newest first. The list is what the publish dropdown reads; nothing is
+      // editable here, editing is a new DRAFT version, never an in-place patch.
+      if (b === "questionnaires" && d) {
+        return ok({ items: listQuestionnaireVersions(d as JudicialDocumentType) });
+      }
+      // §7 — the review queue. Filters are read from the query string so the
+      // tab state survives a refresh; counts are always computed over the
+      // UNFILTERED set so the tabs themselves stay stable.
+      if (b === "reviews" && !d) {
+        const filters: JudicialReviewQueueFilters = {
+          status:
+            (c.url.searchParams.get("status") as
+              JudicialReviewStatus | "open" | "closed" | "all" | null) ?? "open",
+          kind: (c.url.searchParams.get("kind") as "legalir" | "lawyer" | "all" | null) ?? "all",
+          assigned: c.url.searchParams.get("assigned") ?? undefined,
+          q: c.url.searchParams.get("q") ?? undefined,
+        };
+        return ok(listReviewQueue(filters));
+      }
+      // The operator workspace: submitted text, answers, drafts, attachments
+      // and the COMPLETE timeline (internal notes included).
+      if (b === "reviews" && d) {
+        const detail = getReviewDetail(d);
+        if (!detail) return adminError(404, "NOT_FOUND", "درخواست بررسی یافت نشد");
+        return ok(detail);
+      }
+      // §7 — the tracked orders of the two provider services. These carry no
+      // draft: an operator moves them by hand and records what really happened.
+      if (b === "orders" && !d) {
+        const filters: JudicialOrderQueueFilters = {
+          status:
+            (c.url.searchParams.get("status") as JudicialOrderStatus | "open" | "all" | null) ??
+            "open",
+          serviceId:
+            (c.url.searchParams.get("serviceId") as
+              "judicial_criminal_record" | "judicial_credit_check" | null) ?? undefined,
+          q: c.url.searchParams.get("q") ?? undefined,
+        };
+        return ok(listOrderQueue(filters));
+      }
+      if (b === "orders" && d) {
+        const order = getOrderById(d);
+        if (!order) return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+        return ok({ order: orderQueueRow(order) });
+      }
+      return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
     }
     default:
       return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
@@ -865,7 +1034,8 @@ function parseCalculatorSetting(body: Body): {
   if ("accessTier" in body) out.accessTier = body["accessTier"] as CalculatorAccessTier;
   if ("energyCost" in body) out.energyCost = num(body["energyCost"]);
   if (Array.isArray(body["allowedPlans"])) out.allowedPlans = body["allowedPlans"] as string[];
-  if (Array.isArray(body["allowedUserIds"])) out.allowedUserIds = body["allowedUserIds"] as string[];
+  if (Array.isArray(body["allowedUserIds"]))
+    out.allowedUserIds = body["allowedUserIds"] as string[];
   return out;
 }
 
@@ -880,15 +1050,106 @@ function parseSaveRuleDraft(body: Body): SaveRuleDraftInput {
   if (body["rates"] !== undefined && typeof body["rates"] === "object" && body["rates"] !== null) {
     out.rates = body["rates"] as Record<string, unknown>;
   }
-  if (body["source"] !== undefined && typeof body["source"] === "object" && body["source"] !== null) {
+  if (
+    body["source"] !== undefined &&
+    typeof body["source"] === "object" &&
+    body["source"] !== null
+  ) {
     out.source = body["source"] as CalculatorRuleSourceOverride;
   }
   if (typeof body["changeNoteFa"] === "string") out.changeNoteFa = body["changeNoteFa"] as string;
-  if (typeof body["effectiveFrom"] === "string") out.effectiveFrom = body["effectiveFrom"] as string;
+  if (typeof body["effectiveFrom"] === "string")
+    out.effectiveFrom = body["effectiveFrom"] as string;
   if (body["verificationStatus"] === "verified" || body["verificationStatus"] === "pending") {
     out.verificationStatus = body["verificationStatus"] as "verified" | "pending";
   }
   return out;
+}
+
+const JUDICIAL_STATUSES = new Set(["available", "soon", "unavailable"]);
+const JUDICIAL_SURFACE_KEYS = ["home", "services", "new", "cases"] as const;
+
+/**
+ * §6 — narrow an admin body to the judicial service fields that are actually
+ * honoured. Identity (`id` / `family` / `documentType`) is never mutable, and
+ * `requirement` stays server-owned: an operator's label change must never make
+ * an unconnected external provider look live, so `configured` flips only when
+ * the integration itself ships — never through this endpoint.
+ *
+ * Returns `null` when the body carries nothing to apply and `"invalid"` when a
+ * present field is malformed, so the caller can answer with a precise error.
+ */
+function parseJudicialServiceUpdate(body: Body): JudicialServiceUpdate | null | "invalid" {
+  const updates: JudicialServiceUpdate = {};
+  const texts = ["titleFa", "shortTitleFa", "descriptionFa", "ctaFa"] as const;
+  const maxLen: Record<(typeof texts)[number], number> = {
+    titleFa: 200,
+    shortTitleFa: 80,
+    descriptionFa: 800,
+    ctaFa: 80,
+  };
+  for (const key of texts) {
+    const value = body[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string") return "invalid";
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > maxLen[key]) return "invalid";
+    updates[key] = trimmed;
+  }
+
+  if (body["status"] !== undefined) {
+    if (typeof body["status"] !== "string" || !JUDICIAL_STATUSES.has(body["status"])) {
+      return "invalid";
+    }
+    updates.status = body["status"] as JudicialServiceUpdate["status"];
+  }
+
+  if (body["statusNoteFa"] !== undefined) {
+    const note = body["statusNoteFa"];
+    if (note === null) updates.statusNoteFa = null;
+    else if (typeof note !== "string" || note.length > 800) return "invalid";
+    else updates.statusNoteFa = note.trim() || null;
+  }
+
+  if (body["order"] !== undefined) {
+    const value = num(body["order"], Number.NaN);
+    if (!Number.isFinite(value) || value < 0 || value > 999) return "invalid";
+    updates.order = Math.round(value);
+  }
+
+  if (body["requiresAuth"] !== undefined) {
+    if (typeof body["requiresAuth"] !== "boolean") return "invalid";
+    updates.requiresAuth = body["requiresAuth"];
+  }
+
+  if (body["surfaces"] !== undefined) {
+    const raw = body["surfaces"];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "invalid";
+    const surfaces: Partial<Record<(typeof JUDICIAL_SURFACE_KEYS)[number], boolean>> = {};
+    for (const key of JUDICIAL_SURFACE_KEYS) {
+      const value = (raw as Record<string, unknown>)[key];
+      if (value === undefined) continue;
+      if (typeof value !== "boolean") return "invalid";
+      surfaces[key] = value;
+    }
+    updates.surfaces = surfaces;
+  }
+
+  // Only modes the engine actually enforces are accepted: `free` skips the
+  // charge, `energy` charges through the shared usage engine. A mode with no
+  // enforcement path is refused rather than shown as a working toggle.
+  if (body["access"] !== undefined) {
+    const raw = body["access"];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "invalid";
+    const mode = (raw as Record<string, unknown>)["mode"];
+    if (mode !== "free" && mode !== "energy") return "invalid";
+    updates.access = {
+      mode,
+      activity: mode === "energy" ? "JUDICIAL_DRAFT" : null,
+    };
+  }
+
+  return Object.keys(updates).length > 0 ? updates : null;
 }
 
 /** Narrow a raw create body to the typed plan fields (numbers stay raw for
@@ -920,7 +1181,11 @@ function parseCreatePlan(body: Body): CreatePlanInput {
   };
 }
 
-async function handlePost(request: NextRequest, segments: string[], actor: Actor): Promise<NextResponse> {
+async function handlePost(
+  request: NextRequest,
+  segments: string[],
+  actor: Actor
+): Promise<NextResponse> {
   const [a, b, c, d] = segments;
   const meta = requestMeta(request);
 
@@ -931,16 +1196,112 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
     const res = createPlan(parseCreatePlan(body));
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "plan.create", resourceType: "plan", resourceId: str(body["code"]), result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "plan.create",
+        resourceType: "plan",
+        resourceId: str(body["code"]),
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
     auditPlanCreated(res.plan, actor.userId);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "plan.create", resourceType: "plan", resourceId: res.plan.code, after: { code: res.plan.code, nameFa: res.plan.nameFa, status: res.plan.status, listPrice: res.plan.listPrice, salePrice: res.plan.salePrice }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "plan.create",
+      resourceType: "plan",
+      resourceId: res.plan.code,
+      after: {
+        code: res.plan.code,
+        nameFa: res.plan.nameFa,
+        status: res.plan.status,
+        listPrice: res.plan.listPrice,
+        salePrice: res.plan.salePrice,
+      },
+      ...meta,
+    });
     return NextResponse.json({ data: res.plan }, { status: 201 });
   }
 
   if (a === "plans" && b) {
     return adminError(405, "METHOD_NOT_ALLOWED", "برای ویرایش پلن از PATCH استفاده کنید");
+  }
+
+  // Judicial — a new questionnaire DRAFT version cloned from the newest one.
+  // Editing/publishing are separate steps so a live questionnaire is never
+  // mutated underneath requests that already answered it.
+  if (a === "judicial" && b === "questionnaires" && c && d === "publish") {
+    const before = listQuestionnaires().find((q) => q.id === c);
+    const res = publishQuestionnaire(c, actor.userId);
+    if (!res) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "judicial.questionnaire.publish",
+        resourceType: "judicial_questionnaire",
+        resourceId: c,
+        result: "denied",
+        reason: "NOT_FOUND_OR_RETIRED",
+        ...meta,
+      });
+      return adminError(404, "NOT_FOUND", "نسخهٔ پرسش‌نامه یافت نشد یا بازنشسته شده است");
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.questionnaire.publish",
+      resourceType: "judicial_questionnaire",
+      resourceId: c,
+      before: before ? { status: before.status } : null,
+      after: { documentType: res.documentType, version: res.version, status: res.status },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  if (a === "judicial" && b === "questionnaires" && !c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const documentType = body["documentType"];
+    if (
+      documentType !== "statement" &&
+      documentType !== "brief" &&
+      documentType !== "petition" &&
+      documentType !== "complaint"
+    ) {
+      return adminError(400, "INVALID_DOCUMENT_TYPE", "نوع سند پرسش‌نامه نامعتبر است");
+    }
+    const created = createQuestionnaireVersion({
+      documentType,
+      createdBy: actor.userId,
+      titleFa: typeof body["titleFa"] === "string" ? body["titleFa"] : undefined,
+      descriptionFa: typeof body["descriptionFa"] === "string" ? body["descriptionFa"] : undefined,
+      disclaimerFa: typeof body["disclaimerFa"] === "string" ? body["disclaimerFa"] : undefined,
+    });
+    if (!created) return adminError(404, "NOT_FOUND", "پرسش‌نامهٔ پایه یافت نشد");
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.questionnaire.create_version",
+      resourceType: "judicial_questionnaire",
+      resourceId: created.id,
+      after: {
+        documentType: created.documentType,
+        version: created.version,
+        status: created.status,
+      },
+      ...meta,
+    });
+    return NextResponse.json({ data: created }, { status: 201 });
   }
 
   // Coupons — CREATE (POST /admin/coupons). Edits + status changes go through
@@ -950,10 +1311,34 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
     const res = createCoupon(parseCouponDraft(body), actor.userId);
     if (!res.ok) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.create", resourceType: "coupon", resourceId: str(body["code"]), result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "coupon.create",
+        resourceType: "coupon",
+        resourceId: str(body["code"]),
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.create", resourceType: "coupon", resourceId: res.coupon.id, after: { code: res.coupon.code, kind: res.coupon.kind, value: res.coupon.value, status: res.coupon.status }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "coupon.create",
+      resourceType: "coupon",
+      resourceId: res.coupon.id,
+      after: {
+        code: res.coupon.code,
+        kind: res.coupon.kind,
+        value: res.coupon.value,
+        status: res.coupon.status,
+      },
+      ...meta,
+    });
     return NextResponse.json({ data: res.coupon }, { status: 201 });
   }
 
@@ -968,10 +1353,29 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     if (!d) {
       const res = saveRuleDraft(c, parseSaveRuleDraft(body), actor.userId);
       if ("error" in res) {
-        recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.draft.save", resourceType: "calculator_rule", resourceId: c, result: "denied", reason: res.error, ...meta });
+        recordAudit({
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          orgId: actor.orgId,
+          action: "calculator.rule.draft.save",
+          resourceType: "calculator_rule",
+          resourceId: c,
+          result: "denied",
+          reason: res.error,
+          ...meta,
+        });
         return mapDataError(res.error);
       }
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.draft.save", resourceType: "calculator_rule", resourceId: res.id, after: { datasetId: res.datasetId, version: res.version, keys: Object.keys(res.rates) }, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "calculator.rule.draft.save",
+        resourceType: "calculator_rule",
+        resourceId: res.id,
+        after: { datasetId: res.datasetId, version: res.version, keys: Object.keys(res.rates) },
+        ...meta,
+      });
       return ok(res);
     }
 
@@ -982,27 +1386,74 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     if (d === "publish") {
       const res = publishDraft(str(body["versionId"]), actor.userId);
       if ("error" in res) {
-        recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.publish", resourceType: "calculator_rule", resourceId: str(body["versionId"]), result: "denied", reason: res.error, ...meta });
+        recordAudit({
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          orgId: actor.orgId,
+          action: "calculator.rule.publish",
+          resourceType: "calculator_rule",
+          resourceId: str(body["versionId"]),
+          result: "denied",
+          reason: res.error,
+          ...meta,
+        });
         return mapDataError(res.error);
       }
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.publish", resourceType: "calculator_rule", resourceId: res.id, after: { datasetId: res.datasetId, version: res.version, effectiveFrom: res.effectiveFrom }, reason: res.changeNoteFa, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "calculator.rule.publish",
+        resourceType: "calculator_rule",
+        resourceId: res.id,
+        after: { datasetId: res.datasetId, version: res.version, effectiveFrom: res.effectiveFrom },
+        reason: res.changeNoteFa,
+        ...meta,
+      });
       return ok(res);
     }
 
     if (d === "rollback") {
       const res = rollbackToVersion(c, str(body["versionId"]), actor.userId);
       if ("error" in res) {
-        recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.rollback", resourceType: "calculator_rule", resourceId: str(body["versionId"]), result: "denied", reason: res.error, ...meta });
+        recordAudit({
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          orgId: actor.orgId,
+          action: "calculator.rule.rollback",
+          resourceType: "calculator_rule",
+          resourceId: str(body["versionId"]),
+          result: "denied",
+          reason: res.error,
+          ...meta,
+        });
         return mapDataError(res.error);
       }
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.rollback", resourceType: "calculator_rule", resourceId: res.id, after: { datasetId: res.datasetId, version: res.version }, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "calculator.rule.rollback",
+        resourceType: "calculator_rule",
+        resourceId: res.id,
+        after: { datasetId: res.datasetId, version: res.version },
+        ...meta,
+      });
       return ok(res);
     }
 
     if (d === "discard") {
       const res = deleteDraft(str(body["versionId"]));
       if ("error" in res) return mapDataError(res.error);
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.rule.draft.discard", resourceType: "calculator_rule", resourceId: str(body["versionId"]), ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "calculator.rule.draft.discard",
+        resourceType: "calculator_rule",
+        resourceId: str(body["versionId"]),
+        ...meta,
+      });
       return ok(res);
     }
 
@@ -1016,10 +1467,29 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
     const res = saveCalculatorSetting(b, parseCalculatorSetting(body), actor.userId);
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "calculator.settings.update",
+        resourceType: "calculator",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, after: { enabled: res.enabled, accessTier: res.accessTier, energyCost: res.energyCost }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "calculator.settings.update",
+      resourceType: "calculator",
+      resourceId: b,
+      after: { enabled: res.enabled, accessTier: res.accessTier, energyCost: res.energyCost },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1034,7 +1504,17 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       requestedBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "order.refund.create", resourceType: "order", resourceId: b, after: { amount: res.amount, kind: res.kind }, reason: res.reason, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "order.refund.create",
+      resourceType: "order",
+      resourceId: b,
+      after: { amount: res.amount, kind: res.kind },
+      reason: res.reason,
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
@@ -1044,10 +1524,29 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     const decision = body["decision"] === "approved" ? "approved" : "rejected";
     const res = decideAdjustment(b, decision, actor.userId);
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "refund.decide", resourceType: "adjustment", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "refund.decide",
+        resourceType: "adjustment",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "refund.decide", resourceType: "adjustment", resourceId: b, after: { status: res.status }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "refund.decide",
+      resourceType: "adjustment",
+      resourceId: b,
+      after: { status: res.status },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1058,11 +1557,26 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       serviceType: str(body["serviceType"], "consultation"),
       platformPercent: num(body["platformPercent"]),
       platformFixedToman: num(body["platformFixedToman"]),
-      allowedDeductions: Array.isArray(body["allowedDeductions"]) ? (body["allowedDeductions"] as string[]) : [],
+      allowedDeductions: Array.isArray(body["allowedDeductions"])
+        ? (body["allowedDeductions"] as string[])
+        : [],
       changedBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "commission.update", resourceType: "commission_rule", resourceId: res.id, after: { serviceType: res.serviceType, platformPercent: res.platformPercent, version: res.version }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "commission.update",
+      resourceType: "commission_rule",
+      resourceId: res.id,
+      after: {
+        serviceType: res.serviceType,
+        platformPercent: res.platformPercent,
+        version: res.version,
+      },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
@@ -1077,7 +1591,16 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       createdBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "settlement.create", resourceType: "settlement", resourceId: res.id, after: { lawyerId: res.lawyerId }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "settlement.create",
+      resourceType: "settlement",
+      resourceId: res.id,
+      after: { lawyerId: res.lawyerId },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
@@ -1093,14 +1616,24 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       serviceType: str(body["serviceType"], "consultation"),
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "settlement.line.add", resourceType: "settlement", resourceId: b, after: { grossAmount: gross }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "settlement.line.add",
+      resourceType: "settlement",
+      resourceId: b,
+      after: { grossAmount: gross },
+      ...meta,
+    });
     return ok(res);
   }
 
   if (a === "settlements" && b && c === "transition") {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
-    const rawDest = typeof body["payoutDestination"] === "string" ? (body["payoutDestination"] as string) : null;
+    const rawDest =
+      typeof body["payoutDestination"] === "string" ? (body["payoutDestination"] as string) : null;
     const reason = typeof body["reason"] === "string" ? (body["reason"] as string) : undefined;
     const res = transitionSettlement({
       settlementId: b,
@@ -1108,13 +1641,34 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       actorUserId: actor.userId,
       reason,
       payoutDestinationMasked: rawDest ? maskPayoutDestination(rawDest) : null,
-      payoutReference: typeof body["payoutReference"] === "string" ? (body["payoutReference"] as string) : null,
+      payoutReference:
+        typeof body["payoutReference"] === "string" ? (body["payoutReference"] as string) : null,
     });
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "settlement.transition", resourceType: "settlement", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "settlement.transition",
+        resourceType: "settlement",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "settlement.transition", resourceType: "settlement", resourceId: b, after: { status: res.status }, reason: reason ?? null, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "settlement.transition",
+      resourceType: "settlement",
+      resourceId: b,
+      after: { status: res.status },
+      reason: reason ?? null,
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1127,7 +1681,8 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       kind: (body["kind"] as AiProviderKind) ?? "custom",
       baseUrl: typeof body["baseUrl"] === "string" ? (body["baseUrl"] as string) : null,
       model: typeof body["model"] === "string" ? (body["model"] as string) : null,
-      embeddingModel: typeof body["embeddingModel"] === "string" ? (body["embeddingModel"] as string) : null,
+      embeddingModel:
+        typeof body["embeddingModel"] === "string" ? (body["embeddingModel"] as string) : null,
       timeoutMs: num(body["timeoutMs"], 30000),
       maxOutputTokens: num(body["maxOutputTokens"], 2048),
       isDefault: Boolean(body["isDefault"]),
@@ -1136,13 +1691,32 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       updatedBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "ai.provider.save", resourceType: "ai_provider", resourceId: res.id, after: { nameFa: res.nameFa, kind: res.kind, hasKey: res.hasKey, isDefault: res.isDefault }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "ai.provider.save",
+      resourceType: "ai_provider",
+      resourceId: res.id,
+      after: { nameFa: res.nameFa, kind: res.kind, hasKey: res.hasKey, isDefault: res.isDefault },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
   if (a === "ai" && b === "providers" && c && d === "test") {
     const res = await testAiProvider(c);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "ai.provider.test", resourceType: "ai_provider", resourceId: c, result: res.ok ? "success" : "failure", reason: res.messageFa, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "ai.provider.test",
+      resourceType: "ai_provider",
+      resourceId: c,
+      result: res.ok ? "success" : "failure",
+      reason: res.messageFa,
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1157,15 +1731,100 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       createdBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "ai.prompt.create", resourceType: "ai_prompt", resourceId: res.id, after: { key: res.key, version: res.version }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "ai.prompt.create",
+      resourceType: "ai_prompt",
+      resourceId: res.id,
+      after: { key: res.key, version: res.version },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
   if (a === "ai" && b === "prompts" && c && d === "activate") {
     const res = activatePromptVersion(c, actor.userId);
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "ai.prompt.activate", resourceType: "ai_prompt", resourceId: c, after: { key: res.key, version: res.version }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "ai.prompt.activate",
+      resourceType: "ai_prompt",
+      resourceId: c,
+      after: { key: res.key, version: res.version },
+      ...meta,
+    });
     return ok(res);
+  }
+
+  // §12 — edit one contextual tool. Every field is optional, so a body of
+  // `{ enabled }` is a pure capability toggle. The write is audited and the
+  // response carries the REAL verdict, so the panel can never imply that a
+  // toggle made an unavailable source exist.
+  if (a === "ai" && b === "tools" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    const allowed = body["allowedServiceTypes"];
+    const before = listToolsForAdmin().find((t) => t.toolId === c);
+    const after = updateToolSetting(
+      c,
+      {
+        enabled: typeof body["enabled"] === "boolean" ? (body["enabled"] as boolean) : undefined,
+        allowedServiceTypes: Array.isArray(allowed)
+          ? allowed.filter((s): s is string => typeof s === "string")
+          : undefined,
+        labelFa: typeof body["labelFa"] === "string" ? (body["labelFa"] as string) : undefined,
+        descriptionFa:
+          typeof body["descriptionFa"] === "string" ? (body["descriptionFa"] as string) : undefined,
+        effectNoteFa:
+          typeof body["effectNoteFa"] === "string" ? (body["effectNoteFa"] as string) : undefined,
+        order: typeof body["order"] === "number" ? (body["order"] as number) : undefined,
+      },
+      actor.userId
+    );
+    if (!after) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "ai.tool.update",
+        resourceType: "chat_tool",
+        resourceId: c,
+        result: "denied",
+        reason: "TOOL_NOT_FOUND",
+        ...meta,
+      });
+      return adminError(404, "TOOL_NOT_FOUND", "ابزار یافت نشد");
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "ai.tool.update",
+      resourceType: "chat_tool",
+      resourceId: c,
+      before: before
+        ? {
+            enabled: before.enabled,
+            allowedServiceTypes: before.allowedServiceTypes,
+            labelFa: before.labelFa,
+            order: before.order,
+          }
+        : null,
+      after: {
+        enabled: after.enabled,
+        allowedServiceTypes: after.allowedServiceTypes,
+        labelFa: after.labelFa,
+        order: after.order,
+      },
+      ...meta,
+    });
+    const view = listToolsForAdmin().find((t) => t.toolId === c) ?? null;
+    return ok(view);
   }
 
   if (a === "support" && !b) {
@@ -1175,14 +1834,24 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       subject: str(body["subject"]),
       category: str(body["category"], "general"),
       priority: (body["priority"] as SupportTicketPriority) ?? "normal",
-      requesterUserId: typeof body["requesterUserId"] === "string" ? (body["requesterUserId"] as string) : null,
+      requesterUserId:
+        typeof body["requesterUserId"] === "string" ? (body["requesterUserId"] as string) : null,
       requesterName: str(body["requesterName"], "کاربر"),
       body: str(body["body"]),
       authorUserId: actor.userId,
       authorName: "پشتیبانی",
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "support.create", resourceType: "support_ticket", resourceId: res.id, after: { subject: res.subject }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "support.create",
+      resourceType: "support_ticket",
+      resourceId: res.id,
+      after: { subject: res.subject },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
@@ -1193,9 +1862,22 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       id: typeof body["id"] === "string" ? (body["id"] as string) : undefined,
       serviceKey: str(body["serviceKey"]),
       nameFa: str(body["nameFa"]),
-      descriptionFa: typeof body["descriptionFa"] === "string" ? (body["descriptionFa"] as string) : undefined,
+      descriptionFa:
+        typeof body["descriptionFa"] === "string" ? (body["descriptionFa"] as string) : undefined,
       activity: body["activity"] as never,
       enabled: Boolean(body["enabled"]),
+      billingMode:
+        body["billingMode"] === "FREE"
+          ? "FREE"
+          : body["billingMode"] === "ENERGY"
+            ? "ENERGY"
+            : undefined,
+      chargeBasis:
+        body["chargeBasis"] === "PER_CONVERSATION"
+          ? "PER_CONVERSATION"
+          : body["chargeBasis"] === "PER_MESSAGE"
+            ? "PER_MESSAGE"
+            : undefined,
       baseRequestCost: num(body["baseRequestCost"]),
       inputTokenPer1k: num(body["inputTokenPer1k"]),
       outputTokenPer1k: num(body["outputTokenPer1k"]),
@@ -1205,7 +1887,22 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       updatedBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.profile.save", resourceType: "service_cost_profile", resourceId: res.id, after: { serviceKey: res.serviceKey, enabled: res.enabled, baseRequestCost: res.baseRequestCost }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "energy.profile.save",
+      resourceType: "service_cost_profile",
+      resourceId: res.id,
+      after: {
+        serviceKey: res.serviceKey,
+        enabled: res.enabled,
+        billingMode: res.billingMode,
+        chargeBasis: res.chargeBasis,
+        baseRequestCost: res.baseRequestCost,
+      },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
@@ -1224,17 +1921,40 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       max: body["max"] === null || body["max"] === undefined ? null : num(body["max"]),
       models: Array.isArray(body["models"]) ? (body["models"] as string[]) : [],
       addEnergy: num(body["addEnergy"]),
-      multiply: body["multiply"] === null || body["multiply"] === undefined ? null : num(body["multiply"]),
+      multiply:
+        body["multiply"] === null || body["multiply"] === undefined ? null : num(body["multiply"]),
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.rule.save", resourceType: "service_cost_rule", resourceId: res.id, after: { profileId: res.profileId, condition: res.condition, addEnergy: res.addEnergy, enabled: res.enabled }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "energy.rule.save",
+      resourceType: "service_cost_rule",
+      resourceId: res.id,
+      after: {
+        profileId: res.profileId,
+        condition: res.condition,
+        addEnergy: res.addEnergy,
+        enabled: res.enabled,
+      },
+      ...meta,
+    });
     return NextResponse.json({ data: res }, { status: 201 });
   }
 
   if (a === "energy" && b === "rules" && c && d === "delete") {
     const res = deleteCostRule(c);
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.rule.delete", resourceType: "service_cost_rule", resourceId: c, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "energy.rule.delete",
+      resourceType: "service_cost_rule",
+      resourceId: c,
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1249,7 +1969,16 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
       isInternal: Boolean(body["isInternal"]),
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "support.message", resourceType: "support_ticket", resourceId: b, after: { internal: Boolean(body["isInternal"]) }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "support.message",
+      resourceType: "support_ticket",
+      resourceId: b,
+      after: { internal: Boolean(body["isInternal"]) },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1467,10 +2196,36 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     };
     const res = applyAdminSubscriptionAction({ userId: b, input });
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "subscription.admin.action", resourceType: "user", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "subscription.admin.action",
+        resourceType: "user",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "subscription.admin.action", resourceType: "user", resourceId: b, after: { action: input.action, planCode: input.planCode ?? null, days: input.days ?? null, subscriptionId: res.result.subscriptionId, supersededIds: res.result.supersededIds }, reason: input.reason, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "subscription.admin.action",
+      resourceType: "user",
+      resourceId: b,
+      after: {
+        action: input.action,
+        planCode: input.planCode ?? null,
+        days: input.days ?? null,
+        subscriptionId: res.result.subscriptionId,
+        supersededIds: res.result.supersededIds,
+      },
+      reason: input.reason,
+      ...meta,
+    });
     return ok(res.result);
   }
 
@@ -1485,17 +2240,41 @@ async function handlePost(request: NextRequest, segments: string[], actor: Actor
     };
     const res = grantAdminEnergy(b, input, actor.userId);
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.admin.adjust", resourceType: "user", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "energy.admin.adjust",
+        resourceType: "user",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "energy.admin.adjust", resourceType: "user", resourceId: b, after: { action: input.action, delta: res.result.delta, balance: res.result.balance }, reason: input.reason, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "energy.admin.adjust",
+      resourceType: "user",
+      resourceId: b,
+      after: { action: input.action, delta: res.result.delta, balance: res.result.balance },
+      reason: input.reason,
+      ...meta,
+    });
     return ok(res.result);
   }
 
   return adminError(404, "NOT_FOUND", "مسیر یافت نشد");
 }
 
-async function handlePatch(request: NextRequest, segments: string[], actor: Actor): Promise<NextResponse> {
+async function handlePatch(
+  request: NextRequest,
+  segments: string[],
+  actor: Actor
+): Promise<NextResponse> {
   const [a, b, c] = segments;
   const meta = requestMeta(request);
 
@@ -1511,17 +2290,47 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
       const before = getAdminCoupon(b);
       const res = setCouponStatus(b, body["status"] as never, actor.userId);
       if (!res) return adminError(404, "COUPON_NOT_FOUND", "کد تخفیف یافت نشد");
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.status.change", resourceType: "coupon", resourceId: b, before: before ? { status: before.status } : null, after: { status: res.status }, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "coupon.status.change",
+        resourceType: "coupon",
+        resourceId: b,
+        before: before ? { status: before.status } : null,
+        after: { status: res.status },
+        ...meta,
+      });
       return ok(res);
     }
 
     const before = getAdminCoupon(b);
     const res = updateCoupon(b, parseCouponDraft(body), actor.userId);
     if (!res.ok) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.update", resourceType: "coupon", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "coupon.update",
+        resourceType: "coupon",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "coupon.update", resourceType: "coupon", resourceId: b, before: before ? { code: before.code, value: before.value, status: before.status } : null, after: { code: res.coupon.code, value: res.coupon.value, status: res.coupon.status }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "coupon.update",
+      resourceType: "coupon",
+      resourceId: b,
+      before: before ? { code: before.code, value: before.value, status: before.status } : null,
+      after: { code: res.coupon.code, value: res.coupon.value, status: res.coupon.status },
+      ...meta,
+    });
     return ok(res.coupon);
   }
 
@@ -1530,12 +2339,36 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
     // Snapshot the prior role so the trail records the full before → after diff.
     const priorStaff = getStaffMember(b);
-    const res = changeUserRole({ userId: b, role: body["role"] as PlatformRole, actorUserId: actor.userId });
+    const res = changeUserRole({
+      userId: b,
+      role: body["role"] as PlatformRole,
+      actorUserId: actor.userId,
+    });
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "user.role.change", resourceType: "user", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "user.role.change",
+        resourceType: "user",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "user.role.change", resourceType: "user", resourceId: b, before: priorStaff ? { role: priorStaff.role } : null, after: { role: res.role }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "user.role.change",
+      resourceType: "user",
+      resourceId: b,
+      before: priorStaff ? { role: priorStaff.role } : null,
+      after: { role: res.role },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1547,15 +2380,328 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
       b,
       {
         status: body["status"] as never,
-        rolloutPercent: body["rolloutPercent"] === undefined ? undefined : num(body["rolloutPercent"]),
-        allowedPlans: Array.isArray(body["allowedPlans"]) ? (body["allowedPlans"] as string[]) : undefined,
-        allowedOrgIds: Array.isArray(body["allowedOrgIds"]) ? (body["allowedOrgIds"] as string[]) : undefined,
+        rolloutPercent:
+          body["rolloutPercent"] === undefined ? undefined : num(body["rolloutPercent"]),
+        allowedPlans: Array.isArray(body["allowedPlans"])
+          ? (body["allowedPlans"] as string[])
+          : undefined,
+        allowedOrgIds: Array.isArray(body["allowedOrgIds"])
+          ? (body["allowedOrgIds"] as string[])
+          : undefined,
       },
       actor.userId
     );
     if (!res) return adminError(404, "NOT_FOUND", "ویژگی یافت نشد");
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "flag.update", resourceType: "feature_flag", resourceId: b, before: before ? { status: before.status, rolloutPercent: before.rolloutPercent } : null, after: { status: res.status, rolloutPercent: res.rolloutPercent }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "flag.update",
+      resourceType: "feature_flag",
+      resourceId: b,
+      before: before ? { status: before.status, rolloutPercent: before.rolloutPercent } : null,
+      after: { status: res.status, rolloutPercent: res.rolloutPercent },
+      ...meta,
+    });
     return ok(res);
+  }
+
+  if (a === "judicial" && b === "services" && c) {
+    // §6 — one service's release control. The module refuses to mark a
+    // provider-dependent service available while its provider is unconfigured,
+    // and every refusal is recorded as a denied audit entry.
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const before = listJudicialServices().find((s) => s.id === c);
+    if (!before) return adminError(404, "SERVICE_NOT_FOUND", "خدمت یافت نشد");
+
+    const updates = parseJudicialServiceUpdate(body);
+    if (updates === "invalid") {
+      return adminError(400, "INVALID_BODY", "مقدار یکی از فیلدها نامعتبر است");
+    }
+    if (updates === null) {
+      return adminError(400, "INVALID_BODY", "تغییری برای اعمال ارسال نشده است");
+    }
+
+    const res = updateJudicialService(c, updates, actor.userId);
+    if (!res) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "judicial.service.update",
+        resourceType: "judicial_service",
+        resourceId: c,
+        result: "denied",
+        reason: "UNCONFIGURED_PROVIDER",
+        ...meta,
+      });
+      return adminError(
+        409,
+        "PROVIDER_NOT_CONFIGURED",
+        "این خدمت به یک ارائه‌دهندهٔ بیرونی وابسته است و تا زمان اتصال واقعی نمی‌تواند «در دسترس» شود."
+      );
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.service.update",
+      resourceType: "judicial_service",
+      resourceId: c,
+      before: {
+        status: before.status,
+        order: before.order,
+        surfaces: before.surfaces,
+        configured: before.requirement.configured,
+        version: before.version,
+      },
+      after: {
+        status: res.status,
+        order: res.order,
+        surfaces: res.surfaces,
+        configured: res.requirement.configured,
+        version: res.version,
+      },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  // §7 — the review workspace. Every action appends to the review timeline
+  // (and the owner-visible status history) inside `review-db`; this handler
+  // only validates the request and audits the decision.
+  //
+  // `approve` is special: it changes the review to `approved`, and then the
+  // FINAL ARTIFACT is issued from the SAME handler, so the decision and the
+  // document can never diverge. A stale version is refused before anything is
+  // written — the browser cannot talk the server into printing text the
+  // reviewer never read.
+  if (a === "judicial" && b === "reviews" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    const before = getReviewById(c);
+    if (!before) return adminError(404, "NOT_FOUND", "درخواست بررسی یافت نشد");
+
+    const action = body["action"];
+    if (
+      action !== "assign" &&
+      action !== "note" &&
+      action !== "request_changes" &&
+      action !== "approve" &&
+      action !== "reject" &&
+      action !== "cancel"
+    ) {
+      return adminError(400, "INVALID_BODY", "عملیات درخواستی نامعتبر است");
+    }
+
+    // The actor's label is resolved HERE, never taken from the body.
+    const actorLabel = (() => {
+      const user = findUserById(actor.userId);
+      return user?.displayName?.trim() || "کارشناس لیگالیر";
+    })();
+
+    const res = applyAdminReviewAction({
+      reviewId: c,
+      actor: { userId: actor.userId, labelFa: actorLabel },
+      action,
+      noteFa: typeof body["noteFa"] === "string" ? body["noteFa"] : undefined,
+      assigneeUserId:
+        body["assigneeUserId"] === undefined
+          ? undefined
+          : (body["assigneeUserId"] as string | null),
+      versionId: typeof body["versionId"] === "string" ? body["versionId"] : undefined,
+      revisedText: typeof body["revisedText"] === "string" ? body["revisedText"] : undefined,
+      internalNote: body["internalNote"] === true,
+    });
+
+    if (!res.ok) {
+      const map: Record<typeof res.code, { status: number; code: string; message: string }> = {
+        NOT_FOUND: { status: 404, code: "NOT_FOUND", message: "درخواست بررسی یافت نشد" },
+        REVIEW_CLOSED: {
+          status: 409,
+          code: "REVIEW_CLOSED",
+          message: "این بررسی بسته شده است و تغییر آن ممکن نیست",
+        },
+        STALE_VERSION: {
+          status: 409,
+          code: "STALE_VERSION",
+          message: "نسخهٔ بررسی‌شده با متن فعلی یکسان نیست؛ صفحه را بازخوانی کنید",
+        },
+        NOTE_REQUIRED: {
+          status: 400,
+          code: "NOTE_REQUIRED",
+          message: "برای این عملیات، ثبت متن الزامی است",
+        },
+        VERSION_REQUIRED: {
+          status: 400,
+          code: "VERSION_REQUIRED",
+          message: "نسخهٔ تأییدشده مشخص نشده است",
+        },
+        OK: { status: 409, code: "REVIEW_ACTION_FAILED", message: "این عملیات انجام نشد" },
+      };
+      const mapped = map[res.code];
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: `judicial.review.${action}`,
+        resourceType: "judicial_review",
+        resourceId: c,
+        result: "denied",
+        reason: res.code,
+        ...meta,
+      });
+      return adminError(mapped.status, mapped.code, mapped.message);
+    }
+
+    // Issuance is part of the approval, not a second click. If it fails the
+    // approval still stands but the operator is told plainly — never a silent
+    // "approved" with no artifact.
+    let issued: { serialFa: string } | null = null;
+    if (action === "approve") {
+      const issue = await issueFinalDocument({
+        reviewId: c,
+        actorLabelFa: actorLabel,
+      });
+      if (!issue.ok) {
+        recordAudit({
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          orgId: actor.orgId,
+          action: "judicial.final.issue",
+          resourceType: "judicial_final_document",
+          resourceId: before.requestId,
+          result: "denied",
+          reason: issue.code,
+          ...meta,
+        });
+        return adminError(
+          502,
+          "FINAL_ISSUE_FAILED",
+          "بررسی تأیید شد اما صدور فایل نهایی ناموفق بود؛ دوباره تلاش کنید تا نسخهٔ نهایی صادر شود."
+        );
+      }
+      issued = { serialFa: issue.document.serialFa };
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "judicial.final.issue",
+        resourceType: "judicial_final_document",
+        resourceId: issue.document.id,
+        after: {
+          serialFa: issue.document.serialFa,
+          requestId: issue.document.requestId,
+          versionNumber: issue.document.versionNumber,
+        },
+        ...meta,
+      });
+    }
+
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: `judicial.review.${action}`,
+      resourceType: "judicial_review",
+      resourceId: c,
+      before: { status: before.status },
+      after: { status: res.review.status, ...(issued ? { serialFa: issued.serialFa } : {}) },
+      ...meta,
+    });
+
+    return ok({ review: res.review, finalDocument: issued });
+  }
+
+  // §7 — the tracked orders. An operator may move the status, assign a
+  // handler, and record an owner-visible note. `delivered` is refused by the
+  // module unless a real artifact is attached, so the status can never claim a
+  // document that does not exist.
+  if (a === "judicial" && b === "orders" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    const before = getOrderById(c);
+    if (!before) return adminError(404, "NOT_FOUND", "درخواست یافت نشد");
+
+    const status = body["status"];
+    const validStatuses = [
+      "draft",
+      "submitted",
+      "in_progress",
+      "waiting_user",
+      "ready",
+      "delivered",
+      "rejected",
+      "cancelled",
+    ];
+    if (status !== undefined && !validStatuses.includes(status as string)) {
+      return adminError(400, "INVALID_BODY", "وضعیت درخواستی نامعتبر است");
+    }
+
+    const actorLabel = (() => {
+      const user = findUserById(actor.userId);
+      return user?.displayName?.trim() || "کارشناس لیگالیر";
+    })();
+
+    const updated = updateOrderByAdmin(
+      c,
+      {
+        status: status === undefined ? undefined : (status as JudicialOrderStatus),
+        assignedToUserId:
+          body["assignedToUserId"] === undefined
+            ? undefined
+            : (body["assignedToUserId"] as string | null),
+        operatorNoteFa:
+          body["operatorNoteFa"] === undefined
+            ? undefined
+            : (body["operatorNoteFa"] as string | null),
+        deliveryDocumentId:
+          body["deliveryDocumentId"] === undefined
+            ? undefined
+            : (body["deliveryDocumentId"] as string | null),
+        deliveryNameFa:
+          body["deliveryNameFa"] === undefined
+            ? undefined
+            : (body["deliveryNameFa"] as string | null),
+      },
+      { userId: actor.userId, labelFa: actorLabel }
+    );
+
+    if (!updated) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "judicial.order.update",
+        resourceType: "judicial_order",
+        resourceId: c,
+        result: "denied",
+        reason: "DELIVERY_REQUIRES_DOCUMENT",
+        ...meta,
+      });
+      return adminError(
+        409,
+        "DELIVERY_REQUIRES_DOCUMENT",
+        "وضعیت «تحویل‌شده» فقط با پیوست فایل تحویل قابل ثبت است."
+      );
+    }
+
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "judicial.order.update",
+      resourceType: "judicial_order",
+      resourceId: c,
+      before: { status: before.status, assignedToUserId: before.assignedToUserId },
+      after: { status: updated.status, assignedToUserId: updated.assignedToUserId },
+      ...meta,
+    });
+
+    return ok({ order: orderQueueRow(updated) });
   }
 
   if (a === "support" && b) {
@@ -1565,10 +2711,22 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
       ticketId: b,
       status: body["status"] as SupportTicketStatus | undefined,
       priority: body["priority"] as SupportTicketPriority | undefined,
-      assigneeUserId: body["assigneeUserId"] === undefined ? undefined : (body["assigneeUserId"] as string | null),
+      assigneeUserId:
+        body["assigneeUserId"] === undefined
+          ? undefined
+          : (body["assigneeUserId"] as string | null),
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "support.update", resourceType: "support_ticket", resourceId: b, after: { status: res.status, priority: res.priority }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "support.update",
+      resourceType: "support_ticket",
+      resourceId: b,
+      after: { status: res.status, priority: res.priority },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1579,10 +2737,34 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
     const before = getCalculatorSetting(b);
     const res = saveCalculatorSetting(b, parseCalculatorSetting(body), actor.userId);
     if ("error" in res) {
-      recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, result: "denied", reason: res.error, ...meta });
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "calculator.settings.update",
+        resourceType: "calculator",
+        resourceId: b,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
       return mapDataError(res.error);
     }
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "calculator.settings.update", resourceType: "calculator", resourceId: b, before: { enabled: before.enabled, accessTier: before.accessTier, energyCost: before.energyCost }, after: { enabled: res.enabled, accessTier: res.accessTier, energyCost: res.energyCost }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "calculator.settings.update",
+      resourceType: "calculator",
+      resourceId: b,
+      before: {
+        enabled: before.enabled,
+        accessTier: before.accessTier,
+        energyCost: before.energyCost,
+      },
+      after: { enabled: res.enabled, accessTier: res.accessTier, energyCost: res.energyCost },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1626,11 +2808,14 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         tags: Array.isArray(body["tags"]) ? (body["tags"] as string[]) : before.tags,
         author: body["author"] === undefined ? before.author : str(body["author"]),
         coverImage: body["coverImage"] === undefined ? before.coverImage : str(body["coverImage"]),
-        readingTime: body["readingTime"] === undefined ? before.readingTime : num(body["readingTime"]),
+        readingTime:
+          body["readingTime"] === undefined ? before.readingTime : num(body["readingTime"]),
         featured: body["featured"] === undefined ? before.featured : Boolean(body["featured"]),
         seoTitle: body["seoTitle"] === undefined ? before.seoTitle : str(body["seoTitle"]),
         seoDescription:
-          body["seoDescription"] === undefined ? before.seoDescription : str(body["seoDescription"]),
+          body["seoDescription"] === undefined
+            ? before.seoDescription
+            : str(body["seoDescription"]),
         status: (body["status"] as AdminBlogStatus | undefined) ?? before.status,
       },
       actor.userId
@@ -1699,7 +2884,9 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         featured: body["featured"] === undefined ? before.featured : Boolean(body["featured"]),
         seoTitle: body["seoTitle"] === undefined ? before.seoTitle : str(body["seoTitle"]),
         seoDescription:
-          body["seoDescription"] === undefined ? before.seoDescription : str(body["seoDescription"]),
+          body["seoDescription"] === undefined
+            ? before.seoDescription
+            : str(body["seoDescription"]),
         canonicalUrl:
           body["canonicalUrl"] === undefined ? before.canonicalUrl : str(body["canonicalUrl"]),
         sourceUrl: body["sourceUrl"] === undefined ? before.sourceUrl : str(body["sourceUrl"]),
@@ -1738,7 +2925,11 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         const profile = listLawyerProfiles().find((l) => l.id === lawyerId);
         if (!profile) return adminError(404, "LAWYER_NOT_FOUND", "وکیل یافت نشد");
         if (lawyerDecisionBucket(profile.verificationStatus) !== "APPROVED") {
-          return adminError(409, "LAWYER_NOT_ELIGIBLE", "این وکیل برای تخصیص مجاز نیست (تأییدنشده).");
+          return adminError(
+            409,
+            "LAWYER_NOT_ELIGIBLE",
+            "این وکیل برای تخصیص مجاز نیست (تأییدنشده)."
+          );
         }
       }
       const before = getRequestById(b);
@@ -1779,7 +2970,8 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
         to,
         actorId: actor.userId,
         actorRole: actor.role,
-        note: typeof body["note"] === "string" ? (body["note"] as string) : "تغییر وضعیت توسط پشتیبانی",
+        note:
+          typeof body["note"] === "string" ? (body["note"] as string) : "تغییر وضعیت توسط پشتیبانی",
         // Admin-originated note: never surfaced in the client/lawyer timeline.
         noteVisibility: "internal",
       });
@@ -1823,10 +3015,17 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
     const status = body["status"];
-    if (typeof status !== "string" || !(ANNOUNCEMENT_STATUSES as readonly string[]).includes(status)) {
+    if (
+      typeof status !== "string" ||
+      !(ANNOUNCEMENT_STATUSES as readonly string[]).includes(status)
+    ) {
       return adminError(400, "INVALID_STATUS", "وضعیت نامعتبر است");
     }
-    const res = setAnnouncementStatus(b, status as (typeof ANNOUNCEMENT_STATUSES)[number], actor.userId);
+    const res = setAnnouncementStatus(
+      b,
+      status as (typeof ANNOUNCEMENT_STATUSES)[number],
+      actor.userId
+    );
     if ("error" in res) return mapDataError(res.error);
     recordAudit({
       actorUserId: actor.userId,
@@ -1848,12 +3047,25 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
       sourceId: c,
       reviewState: body["reviewState"] as RagReviewState,
       reviewerUserId: actor.userId,
-      publishedInLibrary: body["publishedInLibrary"] === undefined ? undefined : Boolean(body["publishedInLibrary"]),
+      publishedInLibrary:
+        body["publishedInLibrary"] === undefined ? undefined : Boolean(body["publishedInLibrary"]),
       notes: typeof body["notes"] === "string" ? (body["notes"] as string) : undefined,
-      evalScore: body["evalScore"] === undefined || body["evalScore"] === null ? undefined : num(body["evalScore"]),
+      evalScore:
+        body["evalScore"] === undefined || body["evalScore"] === null
+          ? undefined
+          : num(body["evalScore"]),
     });
     if ("error" in res) return mapDataError(res.error);
-    recordAudit({ actorUserId: actor.userId, actorRole: actor.role, orgId: actor.orgId, action: "rag.review.update", resourceType: "rag_source", resourceId: c, after: { reviewState: res.reviewState, publishedInLibrary: res.publishedInLibrary }, ...meta });
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "rag.review.update",
+      resourceType: "rag_source",
+      resourceId: c,
+      after: { reviewState: res.reviewState, publishedInLibrary: res.publishedInLibrary },
+      ...meta,
+    });
     return ok(res);
   }
 
@@ -1867,68 +3079,100 @@ async function handlePatch(request: NextRequest, segments: string[], actor: Acto
 function permissionFor(method: string, segments: string[]): Permission {
   const [a, b] = segments;
   switch (a) {
-    case "overview": return "admin:overview:read";
+    case "overview":
+      return "admin:overview:read";
     // The live snapshot is a projection of the overview, so it needs the same
     // read permission — a viewer who cannot read the overview cannot read it.
-    case "live": return "admin:overview:read";
-    case "reports": return method === "GET" ? "admin:reports:read" : "admin:reports:export";
+    case "live":
+      return "admin:overview:read";
+    case "reports":
+      return method === "GET" ? "admin:reports:read" : "admin:reports:export";
     case "exports":
       // §9 — exporting a surface requires the READ permission of that very
       // surface (audit export → admin:audit:read, …), never a generic one.
-      return b && isAdminExportKind(b)
-        ? ADMIN_EXPORT_PERMISSION[b]
-        : "admin:reports:export";
+      return b && isAdminExportKind(b) ? ADMIN_EXPORT_PERMISSION[b] : "admin:reports:export";
     case "users":
-      // `users/:id/energy` is an energy mutation → its own permission; the
+      // `users/:id/energy` is an energy mutation → its own permission;
+      // `users/:id/usage` reads the consumption ledger → energy read. The
       // subscription sub-route stays under users:manage.
-      if (segments[2] === "energy") {
+      if (segments[2] === "energy" || segments[2] === "usage" || segments[2] === "tariff-history") {
         return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
       }
       return method === "GET" ? "admin:users:read" : "admin:users:manage";
-    case "requests": return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
+    case "requests":
+      return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
     // The discovery analytics surface reads the same records the requests
     // section does, so it is gated by the same read permission.
-    case "discovery": return "admin:requests:read";
-    case "flags": return "admin:flags:manage";
+    case "discovery":
+      return "admin:requests:read";
+    case "flags":
+      return "admin:flags:manage";
     // Reading the catalog is a plans-read capability; CREATE/EDIT/PUBLISH a
     // plan is a system-level change, reserved to the super-admin (matches the
     // concrete /admin/plans/[code] route and the page's edit gate).
-    case "plans": return method === "GET" ? "admin:plans:read" : "admin:system:manage";
-    case "orders": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
+    case "plans":
+      return method === "GET" ? "admin:plans:read" : "admin:system:manage";
+    case "orders":
+      return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
     // Coupons are a sales/discount capability: reading the catalog aligns with
     // sales reporting (billing:read); creating/editing/archiving is a
     // billing:manage mutation.
-    case "coupons": return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
-    case "refunds": return "admin:refund:approve";
-    case "finance": return method === "GET" ? "admin:finance:read" : "admin:finance:manage";
-    case "settlements": return b && method === "GET" ? "admin:finance:read" : "admin:settlement:manage";
-    case "ai": return method === "GET" ? "admin:ai:read" : "admin:ai:manage";
-    case "rag": return method === "GET" ? "admin:rag:read" : "admin:rag:manage";
+    case "coupons":
+      return method === "GET" ? "admin:billing:read" : "admin:billing:manage";
+    case "refunds":
+      return "admin:refund:approve";
+    case "finance":
+      return method === "GET" ? "admin:finance:read" : "admin:finance:manage";
+    case "settlements":
+      return b && method === "GET" ? "admin:finance:read" : "admin:settlement:manage";
+    case "ai":
+      return method === "GET" ? "admin:ai:read" : "admin:ai:manage";
+    case "rag":
+      return method === "GET" ? "admin:rag:read" : "admin:rag:manage";
     case "calculators":
       // The RULE layer (`calculators/rules*`) is a system-level, publish-gated
       // surface gated by its OWN Super-Admin-only permissions; the calc's
       // operational policy (`calculators/:slug`) stays under the manager pair.
       if (b === "rules") {
-        return method === "GET"
-          ? "admin:calculators:rules:read"
-          : "admin:calculators:rules:manage";
+        return method === "GET" ? "admin:calculators:rules:read" : "admin:calculators:rules:manage";
       }
       return method === "GET" ? "admin:calculators:read" : "admin:calculators:manage";
-    case "energy": return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
-    case "support": return method === "GET" ? "admin:support:read" : "admin:support:manage";
-    case "content": return "admin:content:read";
-    case "blog": return method === "GET" ? "admin:content:read" : "admin:content:manage";
+    case "energy":
+      return method === "GET" ? "admin:energy:read" : "admin:energy:manage";
+    case "support":
+      return method === "GET" ? "admin:support:read" : "admin:support:manage";
+    case "content":
+      return "admin:content:read";
+    case "blog":
+      return method === "GET" ? "admin:content:read" : "admin:content:manage";
     // The legal library has its OWN permission pair — distinct from the blog's,
     // so the two content workflows can be delegated independently.
     case "legal-library":
       return method === "GET" ? "admin:library:read" : "admin:library:manage";
     case "announcements":
       return method === "GET" ? "admin:content:read" : "admin:content:manage";
-    case "staff": return method === "GET" ? "admin:staff:read" : "admin:staff:manage";
-    case "roles": return "admin:staff:read";
-    case "audit": return "admin:audit:read";
-    case "settings": return method === "GET" ? "admin:settings:read" : "admin:settings:manage";
-    default: return "admin:overview:read";
+    case "staff":
+      return method === "GET" ? "admin:staff:read" : "admin:staff:manage";
+    // Judicial has TWO capability pairs, deliberately separate:
+    //   • the service catalog + questionnaire versions are a services surface;
+    //   • the review/order queue and its decisions carry applicant data and
+    //     produce a legal artifact, so they need their OWN pair — an operator
+    //     who may reorder the catalog must not thereby read someone's
+    //     submitted draft or approve it.
+    case "judicial": {
+      if (b === "reviews" || b === "orders") {
+        return method === "GET" ? "admin:judicial:read" : "admin:judicial:review";
+      }
+      return method === "GET" ? "admin:services:read" : "admin:services:manage";
+    }
+    case "roles":
+      return "admin:staff:read";
+    case "audit":
+      return "admin:audit:read";
+    case "settings":
+      return method === "GET" ? "admin:settings:read" : "admin:settings:manage";
+    default:
+      return "admin:overview:read";
   }
 }
 
@@ -1936,7 +3180,11 @@ interface RouteParams {
   params: Promise<{ segments?: string[] }>;
 }
 
-async function dispatch(request: NextRequest, method: string, params: RouteParams["params"]): Promise<NextResponse> {
+async function dispatch(
+  request: NextRequest,
+  method: string,
+  params: RouteParams["params"]
+): Promise<NextResponse> {
   const { segments = [] } = await params;
   const url = new URL(request.url);
 

@@ -21,7 +21,7 @@
 
 import React, { useState } from "react";
 import { Button, Textarea } from "@legalir/ui";
-import { ChoiceField, Notice } from "./primitives";
+import { ActionButton, ChoiceField, Notice } from "./primitives";
 import { useAddReviewComment } from "@/hooks/useContractLifecycle";
 import type { ReviewCommentKind, ReviewCommentVisibility } from "@legalir/types";
 
@@ -68,9 +68,10 @@ export function ContractCommentComposer({
   const [clauseRef, setClauseRef] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
+  /** Resolves `true` only after the server stored the note. */
+  async function submit(): Promise<boolean> {
     const text = body.trim();
-    if (!text || !currentVersionId) return;
+    if (!text || !currentVersionId) return false;
     setError(null);
     try {
       await addComment.mutateAsync({
@@ -84,8 +85,10 @@ export function ContractCommentComposer({
       setBody("");
       setClauseRef("");
       if (replyTo) onCancelReply();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "ثبت نظر ناموفق بود");
+      return false;
     }
   }
 
@@ -148,14 +151,15 @@ export function ContractCommentComposer({
 
       {error && <Notice tone="error">{error}</Notice>}
 
-      <Button
+      <ActionButton
         size="small"
+        idleLabel={replyTo ? "ثبت پاسخ" : "ثبت نظر"}
+        busyLabel="در حال ثبت…"
+        successLabel="ثبت شد"
+        errorLabel="ثبت نشد — تلاش مجدد"
+        onAction={submit}
         disabled={!body.trim()}
-        loading={addComment.isPending}
-        onClick={() => void submit()}
-      >
-        {replyTo ? "ثبت پاسخ" : "ثبت نظر"}
-      </Button>
+      />
     </div>
   );
 }

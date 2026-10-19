@@ -75,9 +75,9 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
   const removeReason = removalReason(view.status);
 
   return (
-    <div
+    <article
       className={[
-        "group relative flex flex-col overflow-hidden rounded-large border p-5 shadow-elevation-1 transition-shadow duration-short3",
+        "group relative flex h-full flex-col overflow-hidden rounded-large border p-5 shadow-elevation-1 transition-shadow duration-short3",
         rejected
           ? "border-error-200 bg-error-50 hover:shadow-elevation-3"
           : "border-divider bg-surface hover:shadow-elevation-3",
@@ -219,6 +219,6 @@ export function LawyerCard({ lawyer }: LawyerCardProps) {
           </div>
         )}
       </div>
-    </div>
+    </article>
   );
 }

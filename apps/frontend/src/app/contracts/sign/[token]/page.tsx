@@ -31,6 +31,7 @@ import { IconCheck, IconContract, IconLawBook, IconChat, IconWarning } from "@/l
 import {
   A4Document,
   type A4DocumentMeta,
+  type A4ReviewStamp,
   type A4SignatureMark,
 } from "@/components/contracts/document/a4-document";
 import type { RenderedContract } from "@/lib/contracts/template";
@@ -62,6 +63,12 @@ interface InvitationInfo {
   onlineSigningAllowed: boolean;
   signingPolicyNoteFa: string;
   document: DocumentPayload | null;
+  /**
+   * The review/official mark bound to THIS frozen version, read by the
+   * server from the same gates the PDF uses. Without it the sheet on
+   * screen would omit the seal the file carries.
+   */
+  stamp: A4ReviewStamp;
   pdfHref: string | null;
 }
 
@@ -329,6 +336,10 @@ export default function SignInvitationPage({ params }: { params: Promise<{ token
                   versionNumber={doc.versionNumber}
                   documentHash={doc.documentHash}
                   signatureMarks={doc.signatureMarks}
+                  // The very mark the PDF carries (seal + hologram on every
+                  // page once a Super Admin stamped this version), so the
+                  // party signs what they actually see.
+                  reviewStamp={info.stamp}
                   includeLegalBasis={false}
                   pdfHref={info.pdfHref ?? undefined}
                   showActions

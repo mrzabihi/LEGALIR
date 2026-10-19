@@ -6,7 +6,13 @@
 // generates structured questions, and orchestrates the workflow pipeline.
 // ============================================================
 
-import type { CaseCategory } from "@legalir/types";
+import type { CaseCategory, FollowUpAnswer, FollowUpQuestion } from "@legalir/types";
+import { readConversations, writeConversations } from "@/lib/db";
+import {
+  UNKNOWN_ANSWER_FA,
+  generateStructuredQuestions,
+  structuredQuestionsToText,
+} from "./questions";
 
 // ============================================================
 // Workflow State Machine
@@ -25,6 +31,8 @@ export interface WorkflowState {
   intent: string | null;
   collectedFacts: Record<string, string>;
   pendingQuestions: string[];
+  /** The structured projection of `pendingQuestions` (ids, reasons, options). */
+  pendingFollowUps?: FollowUpQuestion[];
   answeredQuestions: string[];
   riskLevel: "low" | "medium" | "high" | "urgent" | null;
   findings: string[];
@@ -205,46 +213,17 @@ export function detectIntent(text: string): IntentResult | null {
 // Missing Information Detection
 // ============================================================
 
-interface RequiredInfo {
-  key: string;
-  question: string;
-  domains: CaseCategory[];
-}
-
-const REQUIRED_INFO_TEMPLATES: RequiredInfo[] = [
-  { key: "parties", question: "طرفین موضوع چه کسانی هستند؟ (نام، نقش و رابطه آنها)", domains: [] },
-  { key: "timeline", question: "این موضوع از چه زمانی شروع شده و چه وقایعی رخ داده است؟", domains: [] },
-  { key: "documents", question: "چه مدارک و مستنداتی در اختیار دارید؟", domains: [] },
-  { key: "location", question: "محل وقوع موضوع کجاست؟ (شهر، استان)", domains: [] },
-  { key: "amount", question: "مبلغ یا ارزش مالی مورد اختلاف چقدر است؟", domains: ["contract", "financial", "property", "employment"] },
-  { key: "contract_type", question: "نوع قرارداد چیست و مفاد کلیدی آن کدام است؟", domains: ["contract", "employment"] },
-  { key: "employer_details", question: "مشخصات کارفرما و شرایط استخدامی چیست؟", domains: ["employment"] },
-  { key: "property_details", question: "مشخصات ملک (آدرس، متراژ، نوع کاربری) چیست؟", domains: ["property"] },
-  { key: "marriage_date", question: "تاریخ ازدواج و نوع عقد (دائم/موقت) چیست؟", domains: ["family"] },
-  { key: "children", question: "آیا فرزندی وجود دارد؟ سن و شرایط حضانت آنها چیست؟", domains: ["family"] },
-  { key: "check_details", question: "مشخصات چک (مبلغ، تاریخ، بانک، صادرکننده) چیست؟", domains: ["criminal", "financial"] },
-  { key: "company_type", question: "نوع شرکت و ساختار مدیریتی آن چیست؟", domains: ["business"] },
-  { key: "tax_year", question: "برای کدام سال مالی و چه نوع مالیاتی سوال دارید؟", domains: ["tax"] },
-];
-
+/**
+ * The plain-text questions (kept for the system prompt and legacy callers).
+ * The structured projection — ids, reasons and quick options — comes from
+ * `generateStructuredQuestions`, which this delegates to so the two can never
+ * drift apart.
+ */
 export function generateMissingInfoQuestions(
   domain: CaseCategory | null,
   collectedFacts: Record<string, string>
 ): string[] {
-  const domainSpecific: string[] = [];
-  const generic: string[] = [];
-  for (const template of REQUIRED_INFO_TEMPLATES) {
-    if (collectedFacts[template.key]) continue;
-    if (template.domains.length > 0) {
-      if (domain && template.domains.includes(domain)) {
-        domainSpecific.push(template.question);
-      }
-    } else {
-      generic.push(template.question);
-    }
-  }
-  // Domain-specific first, then generic; max 4 total
-  return [...domainSpecific, ...generic].slice(0, 4);
+  return structuredQuestionsToText(generateStructuredQuestions(domain, collectedFacts));
 }
 
 // ============================================================
@@ -429,18 +408,25 @@ export interface WorkflowTurnResult {
 export function processWorkflowTurn(
   currentState: WorkflowState,
   userMessage: string,
-  groundingBlock: string
+  groundingBlock: string,
+  followUpAnswers: readonly FollowUpAnswer[] = []
 ): WorkflowTurnResult {
   const previousPhase = currentState.phase;
   const state: WorkflowState = {
     ...currentState,
     collectedFacts: { ...currentState.collectedFacts },
     pendingQuestions: [...currentState.pendingQuestions],
+    pendingFollowUps: [...(currentState.pendingFollowUps ?? [])],
     answeredQuestions: [...currentState.answeredQuestions],
     findings: [...currentState.findings],
     recommendations: [...currentState.recommendations],
     turnInPhase: currentState.turnInPhase + 1,
   };
+
+  // Structured answers carried with the message become collected facts, so
+  // the exact question is never asked again (§8). An honest «اطلاع ندارم» is
+  // recorded as a fact too — the engine must not re-ask it later.
+  applyFollowUpAnswers(state, followUpAnswers);
 
   let intent: IntentResult | null = null;
   if (state.phase === "DISCOVERY") {
@@ -457,7 +443,8 @@ export function processWorkflowTurn(
   }
 
   if (state.phase === "DATA_COLLECTION") {
-    state.pendingQuestions = generateMissingInfoQuestions(state.domain, state.collectedFacts);
+    state.pendingFollowUps = generateStructuredQuestions(state.domain, state.collectedFacts);
+    state.pendingQuestions = structuredQuestionsToText(state.pendingFollowUps);
   }
 
   const transition = determineNextPhase(state, userMessage, intent);
@@ -474,20 +461,79 @@ export function processWorkflowTurn(
   return { state, systemPrompt, phaseChanged, previousPhase, suggestCaseCreation };
 }
 
+/**
+ * Record structured answers as facts. An empty or unknown-id answer is
+ * ignored; an explicitly skipped answer is stored as «اطلاع ندارم» so the
+ * question is not asked again.
+ */
+export function applyFollowUpAnswers(
+  state: WorkflowState,
+  answers: readonly FollowUpAnswer[]
+): void {
+  for (const answer of answers) {
+    const id = typeof answer?.id === "string" ? answer.id.trim() : "";
+    if (!id) continue;
+    const raw = typeof answer.value === "string" ? answer.value.trim() : "";
+    const value = raw || UNKNOWN_ANSWER_FA;
+    if (!state.collectedFacts[id]) state.collectedFacts[id] = value;
+    if (!state.answeredQuestions.includes(id)) state.answeredQuestions.push(id);
+  }
+  if (answers.length > 0) {
+    const answeredIds = new Set(state.answeredQuestions);
+    const stillPending = (state.pendingFollowUps ?? []).filter((q) => !answeredIds.has(q.id));
+    state.pendingFollowUps = stillPending;
+    // The text projection follows the structured one so the prompt and the UI
+    // can never disagree about what is still open.
+    if (stillPending.length !== state.pendingQuestions.length) {
+      state.pendingQuestions = structuredQuestionsToText(stillPending);
+    }
+  }
+}
+
 // ============================================================
 // Workflow State Persistence
 // ============================================================
+// In-memory for the life of the process, and mirrored onto the conversation
+// row (`.data/conversations.json`) so a refresh, a new tab or a server
+// restart restores the same phase, facts and open questions (§11).
 
 const workflowStore = new Map<string, WorkflowState>();
 
 export function getWorkflowState(conversationId: string): WorkflowState {
-  return workflowStore.get(conversationId) ?? createInitialWorkflowState();
+  const cached = workflowStore.get(conversationId);
+  if (cached) return cached;
+  const stored = readPersistedWorkflow(conversationId);
+  if (stored) {
+    workflowStore.set(conversationId, stored);
+    return stored;
+  }
+  return createInitialWorkflowState();
 }
 
 export function setWorkflowState(conversationId: string, state: WorkflowState): void {
   workflowStore.set(conversationId, state);
+  writePersistedWorkflow(conversationId, state);
 }
 
 export function clearWorkflowState(conversationId: string): void {
   workflowStore.delete(conversationId);
+  writePersistedWorkflow(conversationId, null);
+}
+
+/**
+ * The persisted state is only written for a conversation row that exists, so
+ * a unit test's synthetic id never creates data. Reads are unchanged — a
+ * missing row is simply "no persisted state".
+ */
+function readPersistedWorkflow(conversationId: string): WorkflowState | null {
+  const row = readConversations().find((c) => c.id === conversationId);
+  return (row?.workflow as WorkflowState | undefined) ?? null;
+}
+
+function writePersistedWorkflow(conversationId: string, state: WorkflowState | null): void {
+  const rows = readConversations();
+  const row = rows.find((c) => c.id === conversationId);
+  if (!row) return;
+  row.workflow = state;
+  writeConversations(rows);
 }

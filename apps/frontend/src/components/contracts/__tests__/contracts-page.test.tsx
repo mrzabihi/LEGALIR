@@ -43,7 +43,11 @@ import { ContractTemplatePreview } from "../contract-template-preview";
 import { PaginationBar } from "../pagination-bar";
 import { CompactContractSections } from "../compact-contract-sections";
 import { ContractWorkspaceHeader } from "../builder/contract-workspace-header";
-import { getContractDefinition, implementedContractDefinitions } from "@/lib/contracts/registry";
+import {
+  getContractDefinition,
+  implementedContractDefinitions,
+  TERMINAL_WIZARD_STEP_IDS,
+} from "@/lib/contracts/registry";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
   CONTRACT_ARTWORK,
@@ -603,7 +607,10 @@ describe("template card actions", () => {
 
   it("renders the real step and mandatory-document counts", () => {
     const def = getContractDefinition("property_rent");
-    const expectedSteps = def.wizardSteps.filter((s) => s.id !== "review").length;
+    // The terminal stages own no fields, so the count is the fillable steps.
+    const expectedSteps = def.wizardSteps.filter(
+      (s) => !TERMINAL_WIZARD_STEP_IDS.includes(s.id)
+    ).length;
     const expectedDocs = def.requiredDocuments.filter((d) => d.required).length;
     render(<ContractTemplateCard definition={def} onStart={() => undefined} />);
     expect(screen.getByText(`${toPersianNumber(expectedSteps)} مرحله`)).toBeInTheDocument();
@@ -628,8 +635,11 @@ describe("ContractTemplatePreview", () => {
     // also a summary label).
     const structure = screen.getByText("ساختار قرارداد").closest("section");
     expect(structure).not.toBeNull();
-    // Every non-review wizard step is listed with its real title.
-    for (const step of def.wizardSteps.filter((s) => s.id !== "review")) {
+    // Every data-owning wizard step is listed with its real title; the
+    // terminal stages are not data-entry sections.
+    for (const step of def.wizardSteps.filter(
+      (s) => !TERMINAL_WIZARD_STEP_IDS.includes(s.id)
+    )) {
       expect(within(structure as HTMLElement).getByText(step.titleFa)).toBeInTheDocument();
     }
     // The parties and the document list come from the definition.
@@ -809,11 +819,44 @@ describe("ContractWorkspaceHeader", () => {
     expect(screen.getByText("در حال ذخیره...")).toBeInTheDocument();
   });
 
-  it("shows a retry affordance on save error", () => {
+  it("shows the real failure reason and a retry affordance on save error", () => {
     const onRetry = vi.fn();
-    renderHeader({ saveStatus: "error", onRetrySave: onRetry });
-    fireEvent.click(screen.getByText("ذخیره انجام نشد — تلاش مجدد"));
+    renderHeader({
+      saveStatus: "error",
+      saveError: {
+        messageFa: "ارتباط با سرور برقرار نشد.",
+        code: "NETWORK",
+        category: "network",
+        retryable: true,
+        correlationId: "req-1",
+        at: "2026-10-18T10:00:00.000Z",
+      },
+      onRetrySave: onRetry,
+    });
+    // The concrete cause is shown, not a generic "save failed".
+    expect(screen.getByText("ذخیره نشد — ارتباط با سرور برقرار نشد.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /تلاش مجدد/ }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer a retry that cannot succeed", () => {
+    const onRetry = vi.fn();
+    renderHeader({
+      saveStatus: "error",
+      saveError: {
+        messageFa: "این قرارداد قفل شده است.",
+        code: "CONTRACT_FROZEN",
+        category: "conflict",
+        retryable: false,
+        correlationId: "req-2",
+        at: "2026-10-18T10:00:00.000Z",
+      },
+      onRetrySave: onRetry,
+    });
+    // Resending a request the server already refused would only reproduce
+    // the same error, so no retry loop is offered.
+    expect(screen.getByText("ذخیره نشد — این قرارداد قفل شده است.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /تلاش مجدد/ })).toBeNull();
   });
 
   it("confirms a successful save", () => {

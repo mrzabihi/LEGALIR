@@ -132,6 +132,43 @@ const nextConfig: NextConfig = {
             ]),
       ],
     },
+    // Everything from here on is LAST so it wins over the blanket rule
+    // above (Next applies matching entries in order). These responses are
+    // DOCUMENTS the product previews in its own pages: the sealed final PDF
+    // in the admin drawer, a contract's uploaded attachments, and the demo
+    // PDFs. `frame-ancestors 'none'` is right for pages and wrong for them —
+    // the browser refuses the file and the user sees an empty box instead
+    // of the very document they are asked to read or verify.
+    //
+    // The relaxation is the narrowest one that works: same origin only
+    // (`'self'` / SAMEORIGIN), so no third-party site can frame any of it.
+    {
+      source: "/api/v1/admin/contracts/:id/final-document",
+      headers: [
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        // `sandbox` keeps the bytes opaque — no scripts, no same-origin
+        // privileges — even if a stored file were ever something other
+        // than the PDF this route declares.
+        { key: "Content-Security-Policy", value: "sandbox; frame-ancestors 'self'" },
+      ],
+    },
+    {
+      source: "/api/v1/property-contracts/:id/documents/:documentId",
+      headers: [
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        { key: "Content-Security-Policy", value: "sandbox; frame-ancestors 'self'" },
+      ],
+    },
+    {
+      source: "/demo-documents/:path*",
+      headers: [
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        // Browsers honour CSP over X-Frame-Options, so relaxing only the
+        // latter would still leave the blanket `frame-ancestors 'none'` in
+        // force and the preview broken.
+        { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+      ],
+    },
   ],
 };
 

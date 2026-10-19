@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
+  ChatToolId,
   ConversationStatus,
 } from "@legalir/types";
 import {
@@ -20,6 +21,7 @@ import {
   fetchSource,
   fetchSourceVersions,
   fetchDocumentCitations,
+  fetchChatTools,
 } from "@/lib/api/v1";
 
 // --- Conversation List ---
@@ -38,6 +40,21 @@ export function useConversation(id: string | undefined) {
     queryKey: ["conversation", id],
     queryFn: () => fetchConversation(id!),
     enabled: !!id,
+  });
+}
+
+// --- Contextual chat tools ---
+// The server owns availability and the persisted selection. This query is
+// refreshed after every turn because the selection is persisted with the
+// conversation and can be pruned server-side (a rejected tool disappears).
+
+export function useChatTools(
+  serviceType: string | null | undefined,
+  conversationId: string | undefined
+) {
+  return useQuery({
+    queryKey: ["chat-tools", serviceType ?? null, conversationId ?? null],
+    queryFn: () => fetchChatTools({ serviceType, conversationId }),
   });
 }
 
@@ -66,7 +83,7 @@ export function useUpdateConversation() {
       data,
     }: {
       id: string;
-      data: { title?: string; status?: ConversationStatus };
+      data: { title?: string; status?: ConversationStatus; toolIds?: ChatToolId[] };
     }) => updateConversation(id, data),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["conversations"] });

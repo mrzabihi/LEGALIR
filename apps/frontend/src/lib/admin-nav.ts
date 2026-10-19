@@ -1,7 +1,7 @@
 // ============================================================
 // LEGALIR — Admin panel navigation registry
 // ============================================================
-// The nineteen sections of the platform admin panel, in display order.
+// The sections of the platform admin panel, in display order.
 // This is the SINGLE source of truth for the admin menu: the shell renders
 // from it and each entry names the `Permission` that gates it. The
 // permission is a UX affordance only — every admin API re-checks the same
@@ -26,7 +26,7 @@ export interface AdminNavItem {
   permission: Permission;
 }
 
-/** The nineteen admin sections, in product order. */
+/** The admin sections, in product order. */
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     key: "overview",
@@ -85,12 +85,36 @@ export const ADMIN_NAV: AdminNavItem[] = [
     permission: "admin:contracts:review",
   },
   {
+    key: "legal-review",
+    path: "/admin/legal-review",
+    titleFa: "بازبینی حقوقی قالب‌ها",
+    hintFa: "مبنای حقوقی هر نوع قرارداد و نکات پیش از امضا",
+    icon: "LawBook",
+    // §7 — the revision path edits the versioned legal content the review
+    // queue judges against, so it is gated by the same permission as the
+    // queue itself (and audited on every write).
+    permission: "admin:contracts:review",
+  },
+  {
     key: "services",
     path: "/admin/services",
     titleFa: "خدمات و پرچم‌های ویژگی",
     hintFa: "خدمات فعال و کنترل انتشار",
     icon: "Services",
     permission: "admin:services:read",
+  },
+  {
+    key: "judicial",
+    path: "/admin/judicial",
+    titleFa: "اوراق قضایی",
+    hintFa: "صف بررسی، سفارش‌ها و انتشار خدمات",
+    icon: "Balance",
+    // The page carries three jobs with three permissions: the review queue
+    // and the tracked orders read `admin:judicial:read`, the service catalog
+    // reads `admin:services:read`. The legal-review roles hold the former but
+    // not the latter, so the link is gated by the queue permission and each
+    // tab is offered only to a caller who can actually open it.
+    permission: "admin:judicial:read",
   },
   {
     key: "energy",

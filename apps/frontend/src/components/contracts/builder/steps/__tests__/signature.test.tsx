@@ -238,6 +238,7 @@ function lifecycleView(
     stamped: false,
     officialStamp: null,
     comments: [],
+    preSignTips: [],
     canPrepareForSignature: true,
     canSign: false,
     canFinalize: false,

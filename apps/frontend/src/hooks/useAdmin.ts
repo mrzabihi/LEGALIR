@@ -20,6 +20,12 @@ import type {
   AdminLegalSource,
   UpsertLegalSourceInput,
   ContractStampActionRequest,
+  JudicialDocumentType,
+  JudicialReviewQueueFilters,
+  JudicialAdminReviewActionInput,
+  JudicialOrderQueueFilters,
+  JudicialAdminOrderUpdateInput,
+  UsageReportQuery,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -31,6 +37,8 @@ import {
   fetchAdminUsers,
   fetchAdminUser,
   fetchAdminUserSubscription,
+  fetchAdminUserUsageReport,
+  fetchAdminTariffHistory,
   adminSubscriptionAction,
   adminEnergyAction,
   fetchAdminRequests,
@@ -41,12 +49,33 @@ import {
   fetchAdminContracts,
   fetchAdminContract,
   reviewAdminContract,
+  fetchAdminLegalReview,
+  saveAdminLegalClause,
+  saveAdminPreSignTip,
+  deleteAdminLegalReviewItem,
+  type SaveAdminLegalClauseInput,
+  type SaveAdminPreSignTipInput,
   fetchAdminContractStamp,
   decideAdminContractStamp,
+  recordAdminAttestation,
+  type RecordAttestationInput,
+  resendAdminInvitations,
+  type ResendInvitationsInput,
   type AdminContractsQuery,
   fetchAdminFlags,
   updateAdminFlag,
   type UpdateFlagInput,
+  fetchAdminJudicial,
+  updateAdminJudicialService,
+  createAdminJudicialQuestionnaireVersion,
+  publishAdminJudicialQuestionnaire,
+  fetchAdminJudicialReviews,
+  fetchAdminJudicialReview,
+  actOnAdminJudicialReview,
+  fetchAdminJudicialOrders,
+  fetchAdminJudicialOrder,
+  updateAdminJudicialOrder,
+  type JudicialServiceUpdateInput,
   fetchAdminOrders,
   fetchAdminOrder,
   fetchAdminOrderReceipt,
@@ -73,6 +102,9 @@ import {
   type CreatePromptVersionInput,
   activateAiPromptVersion,
   fetchAiUsageMetrics,
+  fetchChatToolSettings,
+  updateChatToolSetting,
+  type UpdateChatToolSettingInput,
   fetchRagSources,
   updateRagReview,
   type UpdateRagReviewInput,
@@ -357,6 +389,33 @@ export function useAdminUserSubscription(userId: string | null) {
   });
 }
 
+/**
+ * One user's «مصرف انرژی و توکن» report. Reads the SAME projection as the
+ * user's own usage page — the operator can never see a different total.
+ */
+export function useAdminUserUsageReport(
+  userId: string | null,
+  query: UsageReportQuery = {}
+) {
+  return useQuery({
+    queryKey: ["admin", "users", "usage", userId, query],
+    queryFn: () => fetchAdminUserUsageReport(userId as string, query),
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/** The append-only tariff change log (who changed what, and when). */
+export function useAdminTariffHistory(entityId?: string) {
+  return useQuery({
+    queryKey: ["admin", "energy", "history", entityId ?? "all"],
+    queryFn: () => fetchAdminTariffHistory(entityId),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
 /** Apply an audited admin subscription action (activate/extend/deactivate/change_plan). */
 export function useAdminSubscriptionAction(userId: string) {
   const qc = useQueryClient();
@@ -550,6 +609,71 @@ export function useAdminContractReview() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Legal review (§7) — per-type clause sources and pre-sign tips
+// ---------------------------------------------------------------------------
+
+/**
+ * The legal-review report for every contract type. One query, because the
+ * page compares types side by side and a save must move the counts AND the
+ * rows together.
+ */
+export function useAdminLegalReview() {
+  return useQuery({
+    queryKey: ["admin", "legal-review"],
+    queryFn: () => fetchAdminLegalReview(),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Saving legal content changes what the printed annex says on every
+ * contract of that type, so invalidate the legal-review slice AND the
+ * contract slices (both admin and owner-facing) — a reviewer's correction
+ * must never be visible only after a manual refresh.
+ */
+function useInvalidateLegalReview() {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: ["admin", "legal-review"] });
+    qc.invalidateQueries({ queryKey: ["admin", "contracts"] });
+    qc.invalidateQueries({ queryKey: ["contracts"] });
+  };
+}
+
+export function useSaveAdminLegalClause() {
+  const invalidate = useInvalidateLegalReview();
+  return useMutation({
+    mutationFn: (input: SaveAdminLegalClauseInput) => saveAdminLegalClause(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSaveAdminPreSignTip() {
+  const invalidate = useInvalidateLegalReview();
+  return useMutation({
+    mutationFn: (input: SaveAdminPreSignTipInput) => saveAdminPreSignTip(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteAdminLegalReviewItem() {
+  const invalidate = useInvalidateLegalReview();
+  return useMutation({
+    mutationFn: ({
+      kind,
+      id,
+      reason,
+    }: {
+      kind: "clause" | "tip";
+      id: string;
+      reason?: string;
+    }) => deleteAdminLegalReviewItem(kind, id, reason),
+    onSuccess: invalidate,
+  });
+}
+
 /**
  * The stamp context for one contract (Super Admin). Keyed separately from
  * the review detail so the stamp panel refetches ONLY itself after a stamp
@@ -584,6 +708,39 @@ export function useAdminContractStampDecision() {
   });
 }
 
+/**
+ * Record an admin verification of a party's signature. Neither the party's
+ * status nor the contract state changes, so the queue slice is left alone;
+ * the detail is refreshed because the attestation list and the signature
+ * trail both gain a row.
+ */
+export function useAdminContractAttestation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RecordAttestationInput }) =>
+      recordAdminAttestation(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
+/**
+ * Send or resend signature links from the admin panel. The invitation and
+ * its per-recipient event trail both change, so the detail is refreshed; the
+ * queue slice is untouched because no contract state moves.
+ */
+export function useAdminResendInvitations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ResendInvitationsInput }) =>
+      resendAdminInvitations(id, input),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "contracts", "detail", id] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Feature flags
 // ---------------------------------------------------------------------------
@@ -606,6 +763,149 @@ export function useUpdateAdminFlag() {
       qc.setQueryData<{ items: FeatureFlag[] }>(["admin", "flags"], (old) =>
         old ? { items: old.items.map((f) => (f.key === updated.key ? updated : f)) } : old
       );
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Judicial services
+// ---------------------------------------------------------------------------
+
+export function useAdminJudicial() {
+  return useQuery({
+    queryKey: ["admin", "judicial"],
+    queryFn: fetchAdminJudicial,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateAdminJudicialService() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: JudicialServiceUpdateInput }) =>
+      updateAdminJudicialService(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial"] });
+    },
+  });
+}
+
+export function useCreateJudicialQuestionnaireVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      documentType: JudicialDocumentType;
+      titleFa?: string;
+      descriptionFa?: string;
+      disclaimerFa?: string;
+    }) => createAdminJudicialQuestionnaireVersion(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial"] });
+    },
+  });
+}
+
+export function usePublishJudicialQuestionnaire() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => publishAdminJudicialQuestionnaire(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Judicial review queue & tracked orders (§7)
+// ---------------------------------------------------------------------------
+// The queue is keyed by its filters so switching a tab reads that tab's slice
+// and the server-computed counts. The detail is keyed separately: an action on
+// one review refetches THAT review and the queue (its status moved), never
+// every open drawer.
+
+export function useAdminJudicialReviews(query: JudicialReviewQueueFilters = {}) {
+  return useQuery({
+    queryKey: ["admin", "judicial", "reviews", query],
+    queryFn: () => fetchAdminJudicialReviews(query),
+    staleTime: 15_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminJudicialReview(reviewId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "judicial", "reviews", "detail", reviewId],
+    queryFn: () => fetchAdminJudicialReview(reviewId as string),
+    enabled: Boolean(reviewId),
+    staleTime: 10_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Record ONE review action. An `approve` also issues the final artifact, so
+ * the queue, the detail AND the owner's own request view all change: the
+ * owner-facing slice is invalidated too, never left showing "pending".
+ */
+export function useAdminJudicialReviewAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      reviewId,
+      input,
+    }: {
+      reviewId: string;
+      input: JudicialAdminReviewActionInput;
+    }) => actOnAdminJudicialReview(reviewId, input),
+    onSuccess: (_res, { reviewId }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial", "reviews"] });
+      qc.invalidateQueries({
+        queryKey: ["admin", "judicial", "reviews", "detail", reviewId],
+      });
+      // The owner's request detail carries the review + the issued document.
+      qc.invalidateQueries({ queryKey: ["judicial"] });
+    },
+  });
+}
+
+export function useAdminJudicialOrders(query: JudicialOrderQueueFilters = {}) {
+  return useQuery({
+    queryKey: ["admin", "judicial", "orders", query],
+    queryFn: () => fetchAdminJudicialOrders(query),
+    staleTime: 15_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminJudicialOrder(orderId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "judicial", "orders", "detail", orderId],
+    queryFn: () => fetchAdminJudicialOrder(orderId as string),
+    enabled: Boolean(orderId),
+    staleTime: 10_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateAdminJudicialOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      input,
+    }: {
+      orderId: string;
+      input: JudicialAdminOrderUpdateInput;
+    }) => updateAdminJudicialOrder(orderId, input),
+    onSuccess: (_res, { orderId }) => {
+      qc.invalidateQueries({ queryKey: ["admin", "judicial", "orders"] });
+      qc.invalidateQueries({
+        queryKey: ["admin", "judicial", "orders", "detail", orderId],
+      });
+      qc.invalidateQueries({ queryKey: ["judicial"] });
     },
   });
 }
@@ -817,6 +1117,33 @@ export function useAiMetrics(rangeDays = 30) {
     queryFn: () => fetchAiUsageMetrics(rangeDays),
     staleTime: 60_000,
     retry: 1,
+  });
+}
+
+// --- Contextual chat tools ------------------------------------------------
+// `available` is the server's capability verdict and is NOT editable here;
+// the toggle only changes `enabled`, which the backend enforces.
+
+export function useChatToolSettings() {
+  return useQuery({
+    queryKey: ["admin", "ai", "tools"],
+    queryFn: fetchChatToolSettings,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useUpdateChatToolSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ toolId, input }: { toolId: string; input: UpdateChatToolSettingInput }) =>
+      updateChatToolSetting(toolId, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "ai", "tools"] });
+      // The chat surface reads its projection from this key — a settings
+      // change should be reflected there on the next visit.
+      qc.invalidateQueries({ queryKey: ["chat-tools"] });
+    },
   });
 }
 
