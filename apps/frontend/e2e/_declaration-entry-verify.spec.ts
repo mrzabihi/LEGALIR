@@ -201,6 +201,11 @@ test.describe("«تولید اظهارنامه» — one destination everywhere"
       "href",
       /^\/auth\/mobile\?intent=%2Fjudicial$/
     );
+
+    // The public zone carries the same identity stack as /cases: the family
+    // eyebrow and the shared family description, not a landing-specific blurb.
+    await expect(page.getByText(EYEBROW).first()).toBeVisible();
+    await expect(page.getByText(FAMILY_DESCRIPTION).first()).toBeVisible();
     await anon.close();
   });
 
