@@ -127,7 +127,7 @@ export default function ForgotPasswordPage() {
 
   // ---- Render ----
   return (
-    <div className="rounded-large bg-surface backdrop-blur-sm p-8 shadow-elevation-8 border border-divider">
+    <div className="rounded-large border border-divider bg-surface p-5 shadow-elevation-8 tablet:p-8">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-h2 text-neutral-900 mb-2">بازیابی رمز عبور</h1>
@@ -257,7 +257,7 @@ export default function ForgotPasswordPage() {
           <div className="text-center">
             <Link
               href="/auth/mobile"
-              className="text-caption text-neutral-400 underline underline-offset-2 hover:text-neutral-600 transition-colors"
+              className="inline-flex min-h-11 items-center rounded-small px-1 text-caption text-neutral-500 underline underline-offset-2 transition-colors hover:text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               بازگشت به صفحه ورود
             </Link>

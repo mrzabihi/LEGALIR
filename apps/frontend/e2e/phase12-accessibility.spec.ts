@@ -98,25 +98,33 @@ test.describe("Phase 12 — Accessibility & Responsive", () => {
       await page.goto("/");
       await page.waitForSelector("h1");
 
+      // The hero's <h1> carries the brief's own sentence as a single
+      // accessible name (see `HeroTitle`); the typewriter only changes
+      // glyph opacity, so the name is intact from the first frame.
       const heading = page.getByRole("heading", {
         name: /دستیار هوشمند حقوقی ایران/i,
       });
       await expect(heading).toBeVisible();
+      await expect(heading).toHaveCount(1);
 
-      // Also verify the three capability cards are present. The landing
-      // copy was rewritten (§capability cards), so this asserts the copy
-      // that actually ships rather than the retired headings. Each title
-      // renders twice (the responsive card rail and the stacked list), so
-      // `.first()` targets the visible instance.
-      await expect(
-        page.getByRole("heading", { name: /مشاوره حقوقی با هوش مصنوعی/i }).first(),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: /تحلیل هوشمند اسناد/i }).first(),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: /تولید پیش‌نویس قرارداد/i }).first(),
-      ).toBeVisible();
+      // The services section claims «۷ سرویس», so all seven real service
+      // names must be on the page. They come from the registry, not from
+      // hand-written copy, so this asserts the vocabulary the product
+      // actually ships. `.first()` guards against a title also appearing
+      // in a later cross-link section.
+      for (const title of [
+        "مشاوره حقوقی",
+        "بررسی قرارداد",
+        "تنظیم قرارداد",
+        "تولید اظهارنامه",
+        "تحلیل اسناد",
+        "محاسبات حقوقی",
+        "جستجوی قوانین",
+      ]) {
+        await expect(
+          page.getByRole("heading", { name: new RegExp(`^${title}$`) }).first(),
+        ).toBeVisible();
+      }
     });
   });
 

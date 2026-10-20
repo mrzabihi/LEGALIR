@@ -91,7 +91,9 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
               type="button"
               onClick={() => setVisible((p) => !p)}
               disabled={disabled}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-onSurfaceVariant transition-colors hover:text-onSurface focus-visible:outline-none"
+              // 44×44 (WCAG 2.2 target size) with a visible keyboard ring —
+              // the eye glyph stays 20px, only the hit area grew.
+              className="flex h-11 w-11 items-center justify-center rounded-full text-onSurfaceVariant transition-colors hover:text-onSurface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               aria-label={visible ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
               aria-pressed={visible}
             >
@@ -115,6 +117,9 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
               className={[
                 "peer w-full bg-transparent text-onSurface",
                 "border-none outline-none",
+                // Same 44px hit area as TextField — the shell paints the
+                // taller box, the <input> must fill it to be tappable.
+                "min-h-11",
                 inputSize === "small" ? "text-bodySmall py-1.5" : "text-bodyMedium py-1.5",
                 "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100",
                 "placeholder:text-muted transition-opacity duration-short3",

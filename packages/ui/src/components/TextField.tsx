@@ -154,6 +154,11 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
             className={[
               "peer w-full bg-transparent text-onSurface",
               "border-none outline-none",
+              // The shell paints the 48/56px box, but the real <input> is
+              // only as tall as its text. Stretch it to a 44px hit area
+              // (WCAG 2.2 target size) so a tap anywhere on the field
+              // focuses it — the shell's own geometry is unchanged.
+              "min-h-11",
               inputSize === "small" ? "text-bodySmall py-1.5" : "text-bodyMedium py-1.5",
               showPlaceholderOnFocusOnly
                 ? "placeholder:opacity-0 group-focus-within/field:placeholder:opacity-100 placeholder:text-muted"

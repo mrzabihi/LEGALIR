@@ -26,7 +26,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SelectableOption, Textarea, Button } from "@legalir/ui";
 import { UploadZone } from "@/components/documents/upload-zone";
@@ -53,6 +53,7 @@ import {
   writeSuggestLawDraft,
   type IntakeIntent,
 } from "@/lib/intake/start-request";
+import { consumeLandingStartDraft } from "@/lib/intake/landing-start-draft";
 
 interface AttachedDoc {
   id: string;
@@ -88,6 +89,15 @@ export function StartRequestPanel() {
   const { data: documents } = useDocuments({ pageSize: 20 });
   const initiate = useInitiateUpload();
   const complete = useCompleteUpload();
+
+  // A description handed over from the landing card («از کجا شروع کنم؟»).
+  // Consumed exactly once — the read also clears it, so reloading the panel
+  // never resurrects old text. On mount only: after this the box belongs to
+  // the user.
+  useEffect(() => {
+    const carried = consumeLandingStartDraft();
+    if (carried) setText(carried);
+  }, []);
 
   const hasText = text.trim().length > 0;
 

@@ -110,7 +110,7 @@ function OtpVerifyForm() {
   const isLocked = displayError?.includes("بیش از حد");
 
   return (
-    <div className="rounded-large bg-white p-8 md:p-10 shadow-2xl border border-neutral-100">
+    <div className="rounded-large border border-divider bg-surface p-5 shadow-elevation-8 tablet:p-8">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-h2 text-primary-900 mb-2">تأیید کد یکبار مصرف</h1>
@@ -231,7 +231,7 @@ function OtpVerifyForm() {
           <button
             type="button"
             onClick={handleEditMobile}
-            className="text-caption text-neutral-400 underline underline-offset-2 hover:text-neutral-600 transition-colors"
+            className="inline-flex min-h-11 items-center rounded-small px-2 text-caption text-neutral-500 underline underline-offset-2 transition-colors hover:text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             بازگشت به صفحه ورود
           </button>
@@ -250,7 +250,7 @@ export default function OtpVerifyPage() {
   return (
     <Suspense
       fallback={
-        <div className="rounded-large bg-neutral-0/95 backdrop-blur-sm p-8 shadow-elevation-8 border border-neutral-200/50 text-center">
+        <div className="rounded-large border border-divider bg-surface p-5 shadow-elevation-8 text-center tablet:p-8">
           <div className="flex items-center justify-center gap-2 text-body-2 text-neutral-500">
             <svg
               className="animate-spin h-4 w-4"

@@ -128,7 +128,12 @@ export function LandingMotion() {
         // ---- Reveals ------------------------------------------------
         const ctx = gsap.context(() => {
           for (const node of nodes) {
-            const delay = Number(node.dataset["lnReveal"] ?? 0) || 0;
+            // The attribute is an item index, and it is read in *seconds*.
+            // Uncapped, a four-item group (`data-ln-reveal="3"`) kept its last
+            // card invisible for three seconds after it entered the viewport —
+            // the stagger read as a slow, broken page. Cap it so ordering stays
+            // legible while content never waits.
+            const delay = Math.min(Number(node.dataset["lnReveal"] ?? 0) || 0, 0.36);
             gsap.set(node, { opacity: 0, y: 22 });
             gsap.to(node, {
               opacity: 1,
@@ -146,13 +151,19 @@ export function LandingMotion() {
           }
         });
 
-        // Anything already in view settles immediately — no fade-in on
-        // content the visitor can already read. Done before the hiding
-        // class is added, so the first screen never flashes.
+        // Anything already inside the first viewport settles immediately —
+        // no fade-in on content the visitor can already read. Done before
+        // the hiding class is added, so the first screen never flashes.
+        //
+        // The bound is the full viewport, not the trigger's 88% line: an
+        // element whose top sits between 88% and 100% of the viewport is
+        // *visible*, yet would still be hidden by `.ln-reveal-ready` until
+        // the first scroll — which turned the bottom of the phone hero into
+        // a blank band. Everything below the fold still reveals on scroll.
         const vh = window.innerHeight;
         for (const node of nodes) {
           const rect = node.getBoundingClientRect();
-          if (rect.top < vh * 0.9 && rect.bottom > 0) {
+          if (rect.top < vh && rect.bottom > 0) {
             node.classList.add("is-in");
             gsap.set(node, { opacity: 1, y: 0 });
           }

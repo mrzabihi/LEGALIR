@@ -55,6 +55,11 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       htmlFor={id}
       className={[
         "group/check inline-flex items-center gap-2 cursor-pointer select-none",
+        // Touch density: below desktop the whole label region is a 44px-tall
+        // tap target (WCAG 2.2 / the brief's 44×44 floor). The 20px box keeps
+        // its size — only the clickable row grows. Pointer users on desktop
+        // keep the compact row.
+        "max-desktop:min-h-11",
         disabled ? "opacity-[0.38] pointer-events-none" : "",
         className,
       ]

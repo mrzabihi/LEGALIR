@@ -230,8 +230,10 @@ test.describe("Return to the chosen service", () => {
 
     // Detour through the signup flow — the intent must survive it.
     await page.goto("/auth/register");
-    // The track cards carry an explicit role="listitem" (not "button").
-    await page.getByRole("listitem", { name: /ایجاد حساب شخصی/ }).click();
+    // The track cards are a real <ul>/<li> list whose <button> carries the
+    // accessible name (the old markup put role="listitem" *on* the button,
+    // which replaced the button role and made the card non-activatable).
+    await page.getByRole("button", { name: /ایجاد حساب شخصی/ }).click();
     await expect(page).toHaveURL(/\/auth\/register\/account\?type=PERSONAL/, {
       timeout: APP_READY_TIMEOUT,
     });

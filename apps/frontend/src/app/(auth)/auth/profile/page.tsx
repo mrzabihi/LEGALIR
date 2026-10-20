@@ -73,7 +73,7 @@ export default function ProfileCompletionPage() {
   }
 
   return (
-    <div className="rounded-large bg-surface backdrop-blur-sm p-8 shadow-elevation-8 border border-divider">
+    <div className="rounded-large border border-divider bg-surface p-5 shadow-elevation-8 tablet:p-8">
       {/* Header */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary-700/10 mb-4">

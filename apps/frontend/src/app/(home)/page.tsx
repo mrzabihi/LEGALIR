@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
 import { CTASection } from "@/components/public/CTASection";
+import { HeroAnalysisVisual } from "@/components/public/landing/hero-analysis-visual";
+import { LandingStartCard } from "@/components/public/landing/landing-start-card";
+import { HeroTitle } from "@/components/public/HeroTitle";
 import { LegalTopicsSection } from "@/components/public/LegalTopicsSection";
+import { LandingServices } from "@/components/public/landing/landing-services";
 import { JudicialServiceZone } from "@/components/judicial/judicial-service-zone";
 import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
 import { SITE_URL, absoluteUrl } from "@/lib/site";
@@ -15,8 +20,6 @@ import {
   IconChat,
   IconCheckCircle,
   IconChevronLeft,
-  IconContract,
-  IconDocument,
   IconHandshake,
   IconLawBook,
   IconMemory,
@@ -44,33 +47,6 @@ const statsItems = [
   { value: "۷+", label: "خدمات اصلی", icon: IconCheckCircle },
   { value: "۲۰+", label: "حوزه حقوقی", icon: IconBalance },
   { value: "۲۴/۷", label: "دسترسی آنلاین", icon: IconShield },
-];
-
-const highlights = [
-  {
-    icon: IconChat,
-    title: "مشاوره حقوقی با هوش مصنوعی",
-    description:
-      "پرسش حقوقی خود را به زبان ساده مطرح کنید و تحلیل دقیق با استناد به مواد قانونی و آرای وحدت رویه دریافت کنید",
-    href: "/auth/mobile?intent=chat",
-    badge: "اطلاعات AI",
-  },
-  {
-    icon: IconDocument,
-    title: "تحلیل هوشمند اسناد",
-    description:
-      "قراردادها و اسناد حقوقی خود را بارگذاری کنید و بندهای پرریسک با گزارش تحلیل دقیق و شناسایی ریسک دریافت کنید",
-    href: "/auth/mobile?intent=document",
-    badge: "کمک حقوقی",
-  },
-  {
-    icon: IconContract,
-    title: "تولید پیش‌نویس قرارداد",
-    description:
-      "با پاسخ به پرسش‌نامه گام‌به‌گام، پیش‌نویس قرارداد شخصی‌سازی‌شده مطابق با آخرین قوانین ایران دریافت کنید",
-    href: "/auth/mobile?intent=contract",
-    badge: "پیش‌نویس خودکار",
-  },
 ];
 
 const howItWorksSteps = [
@@ -333,54 +309,96 @@ export default function LandingPage() {
           }}
         />
 
-        <div className="landing-container relative pb-14 pt-14 tablet:pb-16 tablet:pt-20 laptop:pb-20 laptop:pt-24">
-          <div className="max-w-3xl">
-            {/* Eyebrow — the shipped compact disclaimer, not a new claim. */}
-            <p className="landing-rise inline-flex items-center gap-2 rounded-[var(--ln-r-md)] border border-white/20 bg-white/[0.07] px-3 py-1.5 text-[12.5px] leading-6 text-white/85">
-              <IconShield
-                size={14}
-                aria-hidden="true"
-                className="shrink-0 text-[color:var(--ln-gold)]"
+        {/* Phone padding is deliberately tighter than tablet+: with the two
+            CTAs stacked the hero must still leave part of the next band
+            visible on a 844px viewport, or the first screen reads as a
+            full-screen wall.
+
+            Two columns from `laptop` up: the copy keeps its readable measure
+            on the start side and the document visual takes the end side.
+            Below `laptop` the visual drops under the CTAs, where it cannot
+            push the primary action off the first screen. */}
+        <div className="landing-container relative pb-8 pt-8 tablet:pb-16 tablet:pt-20 laptop:pb-20 laptop:pt-20">
+          {/* The copy column takes a wider share than the visual: the <h1> is
+              a fixed 25-grapheme sentence, and at 1.06fr/0.94fr the 900–1100px
+              band had ~476px for it — enough to push «ایران» alone onto a
+              second line (measured: h1 height doubled to 119px). At
+              1.22fr/0.78fr the sentence fits on one line from 1024px up. */}
+          <div className="grid items-center gap-8 tablet:gap-10 desktop:grid-cols-[minmax(0,1.22fr)_minmax(0,0.78fr)] desktop:gap-12">
+            <div className="min-w-0 max-w-2xl">
+              {/* The <h1> is the product name and types itself out on every
+                  load (`HeroTitle`); the brief's two sentences follow verbatim
+                  in two separate blocks — what the product does, then what
+                  that produces.
+
+                  Nothing here can end up missing: the heading's accessible
+                  name is `sr-only` and complete on the first byte, and the
+                  supporting lines are painted before their aperture opens.
+                  The masks are staggered to land as the typing finishes
+                  (~25 graphemes × 72ms), so the three lines read as one
+                  sequence rather than three simultaneous animations. */}
+              {/* `text-wrap: balance` is only a safety net: if a narrow width
+                  must wrap the title, it splits it evenly instead of
+                  orphaning the last word on its own line. */}
+              <HeroTitle
+                text="دستیار هوشمند حقوقی ایران"
+                className="text-[clamp(1.875rem,1.2rem+2.6vw,3.25rem)] font-extrabold leading-[1.3] tracking-tight text-white [text-wrap:balance]"
               />
-              خدمات تخصصی حقوقی با پشتیبانی هوش مصنوعی و منابع حقوقی
-            </p>
-
-            <h1 className="landing-rise landing-rise-2 mt-5 text-[clamp(1.875rem,1.2rem+2.6vw,3.25rem)] font-extrabold leading-[1.3] tracking-tight text-white">
-              دستیار هوشمند حقوقی ایران
-            </h1>
-
-            <p className="landing-rise landing-rise-3 mt-4 max-w-2xl text-[15px] leading-8 text-white/80 tablet:text-[16.5px] tablet:leading-9">
-              خدمات تخصصی حقوقی با بهره‌گیری از هوش مصنوعی، منابع حقوقی و مدل زبانی
-              تخصصی لیگالیر — تحلیل ساختاریافته پرونده‌ها، قراردادها و مسائل حقوقی
-            </p>
-
-            {/* Two actions, one hierarchy: the emerald primary carries the
-                conversion, the outlined button is discovery. Both are 48px
-                tall at every width and full-width until 375px. */}
-            <div className="landing-rise landing-rise-4 mt-8 flex flex-col gap-3 mobile-l:flex-row mobile-l:items-center tablet:mt-10">
-              <Link
-                href="/auth/mobile?intent=chat"
-                className="landing-btn landing-btn--primary w-full mobile-l:w-auto"
+              <p
+                className="ln-mask-line mt-4 max-w-xl text-[clamp(0.95rem,0.86rem+0.5vw,1.1875rem)] font-medium leading-[1.95] text-white/[0.82] [text-wrap:pretty]"
+                style={{ "--ln-mask-delay": "1400ms" } as CSSProperties}
               >
-                شروع مشاوره حقوقی
-                <IconChevronLeft size={18} aria-hidden="true" />
-              </Link>
-              <Link
-                href="/features"
-                className="landing-btn landing-btn--onDark w-full mobile-l:w-auto"
+                خدمات تخصصی حقوقی با بهره‌گیری از هوش مصنوعی، منابع حقوقی و
+                مدل زبانی تخصصی لیگالیر
+              </p>
+              <p
+                className="ln-mask-line mt-2 max-w-xl text-[clamp(0.875rem,0.82rem+0.3vw,1rem)] leading-[1.9] text-white/[0.68] [text-wrap:pretty]"
+                style={{ "--ln-mask-delay": "1560ms" } as CSSProperties}
               >
-                مشاهده قابلیت‌ها
-              </Link>
+                تحلیل ساختاریافته پرونده‌ها، قراردادها و مسائل حقوقی
+              </p>
+
+              {/* Two actions, one hierarchy: the emerald primary carries the
+                  conversion, the outlined button is discovery. Both are 48px
+                  tall at every width.
+
+                  Phones stack them full-width. The row breakpoint is
+                  `tablet`, not `mobile-l`: the two labels need ~371px plus
+                  the 40px gutter, so at 375–430px a row pushed the second
+                  button off the start edge (clipped by the hero's
+                  `overflow-hidden`) — full-width stacking is both correct
+                  and a bigger tap target. */}
+              <div className="landing-rise landing-rise-2 mt-8 flex flex-col gap-3 tablet:mt-10 tablet:flex-row tablet:items-center">
+                <Link
+                  href="/auth/mobile?intent=chat"
+                  className="landing-btn landing-btn--primary w-full tablet:w-auto"
+                >
+                  شروع مشاوره حقوقی
+                  <IconChevronLeft size={18} aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/features"
+                  className="landing-btn landing-btn--onDark w-full tablet:w-auto"
+                >
+                  مشاهده قابلیت‌ها
+                </Link>
+              </div>
+
+              <p className="landing-rise landing-rise-3 mt-6 flex items-center gap-2 text-[12.5px] leading-6 text-white/60">
+                <IconArrowBack
+                  size={14}
+                  aria-hidden="true"
+                  className="shrink-0 text-[color:var(--ln-gold)]"
+                />
+                دانش حقوقی، تحلیل هوشمند و منابع مستند؛ یکپارچه در لیگالیر
+              </p>
             </div>
 
-            <p className="landing-rise landing-rise-4 mt-6 flex items-center gap-2 text-[12.5px] leading-6 text-white/60">
-              <IconArrowBack
-                size={14}
-                aria-hidden="true"
-                className="shrink-0 text-[color:var(--ln-gold)]"
-              />
-              دانش حقوقی، تحلیل هوشمند و منابع مستند؛ یکپارچه در لیگالیر
-            </p>
+            {/* The hero's visual: a legal document whose clauses are being
+                segmented and anchored to sources — the product's own claim,
+                drawn in code rather than a stock photo. Decorative, so it
+                is `aria-hidden` and costs nothing to assistive tech. */}
+            <HeroAnalysisVisual className="landing-rise landing-rise-3 mx-auto w-full max-w-md desktop:mx-0 desktop:max-w-none" />
           </div>
         </div>
 
@@ -412,8 +430,22 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          SERVICES — three capabilities in a bento with one lead cell
-          ============================================================ */}
+          START CARD — «نمی‌دانید از کجا شروع کنید؟»
+          ============================================================
+          Sits between the hero and the services catalog: a visitor who
+          already has a problem in mind but does not know which service
+          it belongs to gets one box and one button. It hands the text to
+          the REAL start flow (/new → /Suggest_law); nothing is analysed
+          or promised here. A guest is routed through the shipped login
+          route first, with the same text waiting in the same tab. */}
+      <LandingStartCard />
+
+      {/* ============================================================
+          SERVICES — the seven real services, one featured lead cell
+          ============================================================
+          The grid is rendered by `LandingServices`, which reads the
+          service registry so the count, the names and the destinations
+          always match what the product actually ships. */}
       <section className="landing-section" aria-labelledby="services-title">
         <div className="landing-container">
           <header className="max-w-2xl" data-ln-reveal="0">
@@ -421,68 +453,12 @@ export default function LandingPage() {
             <h2 id="services-title" className="landing-title mt-3">
               خدمات هوشمند لیگالیر
             </h2>
-            <p className="landing-lead mt-3 max-w-xl">
-              سه سرویس تخصصی مبتنی بر هوش مصنوعی حقوقی — آموزش‌دیده بر نظام حقوقی ایران
+            <p className="landing-lead mt-3 max-w-2xl">
+              ۷ سرویس تخصصی مبتنی بر هوش مصنوعی حقوقی؛ آموزش‌دیده بر نظام حقوقی ایران
             </p>
           </header>
 
-          <div className="mt-10 grid gap-4 tablet:mt-12 tablet:grid-cols-2 laptop:grid-cols-12">
-            {highlights.map((item, index) => {
-              // Bento hierarchy: the consultation service is the primary
-              // path, so it takes the tall cell; the other two split the
-              // remaining width. Tablet keeps a simple 2-up; phones stack.
-              const span =
-                index === 0
-                  ? "tablet:col-span-2 laptop:col-span-5 laptop:row-span-2"
-                  : "laptop:col-span-7";
-
-              return (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  data-ln-reveal={String(index % 2)}
-                  className={`landing-card group p-6 ${span} ${
-                    index === 0 ? "laptop:justify-between" : ""
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <span
-                        className={`landing-chip ${
-                          index === 0 ? "!h-12 !w-12 !rounded-[var(--ln-r-lg)]" : ""
-                        }`}
-                      >
-                        <item.icon size={index === 0 ? 26 : 22} aria-hidden="true" />
-                      </span>
-                      <span className="rounded-[var(--ln-r-sm)] bg-[color:var(--ln-canvas)] px-2.5 py-1 text-[11.5px] leading-5 text-[color:var(--ln-ink-soft)]">
-                        {item.badge}
-                      </span>
-                    </div>
-
-                    <h3
-                      className={`mt-5 font-semibold leading-8 text-[color:var(--ln-navy)] ${
-                        index === 0 ? "text-[19px] tablet:text-[21px]" : "text-[16.5px]"
-                      }`}
-                    >
-                      {item.title}
-                    </h3>
-                    <p className="mt-2 max-w-xl text-[13.5px] leading-7 text-[color:var(--ln-muted)]">
-                      {item.description}
-                    </p>
-                  </div>
-
-                  <span className="mt-6 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--ln-green)]">
-                    شروع کنید
-                    <IconChevronLeft
-                      size={16}
-                      aria-hidden="true"
-                      className="transition-transform duration-300 group-hover:-translate-x-0.5 motion-reduce:transition-none"
-                    />
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+          <LandingServices />
         </div>
       </section>
 
@@ -497,6 +473,7 @@ export default function LandingPage() {
         <JudicialServiceZone
           surface="home"
           mode="public"
+          appearance="marketing"
           footer={
             <p className="mt-4 text-[12.5px] leading-7 text-[color:var(--ln-muted)]">
               پیش‌نویس‌ها برای بازبینی خودتان و وکیل است؛ لیگالیر هیچ سندی را در مرجع
