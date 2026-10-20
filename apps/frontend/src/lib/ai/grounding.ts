@@ -57,6 +57,16 @@ export interface GroundingOptions {
   includePrecedentPass?: boolean;
   /** How many precedent hits the extra pass may contribute. */
   maxPrecedentSources?: number;
+  /**
+   * The capability's knowledge scope, from its admin binding.
+   *   • `undefined` / `null` → no restriction (the pre-binding behaviour);
+   *   • `[]`                 → retrieval is off for this capability;
+   *   • `[id, …]`            → only those sources may be cited.
+   * Enforced HERE, at the single retrieval entry point, so a scoped capability
+   * cannot cite a source it was not granted. A filter — never a re-rank — so
+   * the scope narrows knowledge without silently rewording relevance.
+   */
+  allowedSourceIds?: string[] | null;
 }
 
 export function retrieveGroundedSources(
@@ -64,6 +74,15 @@ export function retrieveGroundedSources(
   maxSources = 3,
   options: GroundingOptions = {}
 ): GroundingResult {
+  // An explicit empty scope means "answer without retrieval"; an empty result
+  // is the honest outcome, not a silent fall-through to every published source.
+  if (options.allowedSourceIds !== undefined && options.allowedSourceIds !== null) {
+    if (options.allowedSourceIds.length === 0) {
+      const empty = buildAnswerContract([]);
+      return { sources: [], contextBlock: empty.contextBlock, references: [], contract: empty };
+    }
+  }
+
   const { hits: baseHits } = retrieveHybrid(query, maxSources);
 
   let merged: RetrievalHit[] = baseHits;
@@ -74,6 +93,14 @@ export function retrieveGroundedSources(
     );
     const seen = new Set(baseHits.map((h) => h.id));
     merged = [...baseHits, ...precedentHits.filter((h) => !seen.has(h.id))];
+  }
+
+  // Apply the capability's scope AFTER merging passes, so a precedent hit
+  // cannot slip past a restriction that only covered the primary pass.
+  const allowed = options.allowedSourceIds;
+  if (allowed) {
+    const permit = new Set(allowed);
+    merged = merged.filter((h) => permit.has(h.id));
   }
 
   const hits = merged;

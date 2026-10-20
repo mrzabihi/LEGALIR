@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import Link from "next/link";
 import {
@@ -35,10 +35,23 @@ import {
   useReingestRagCorpus,
   useAiProviders,
   useAdminMe,
+  useUploadRagFile,
+  useRetryRagIngestion,
+  useRetryRagSource,
 } from "@/hooks/useAdmin";
-import { toPersianNumber, toPersianDate, toRelativeTime } from "@/lib/persian-utils";
+import {
+  toPersianNumber,
+  toPersianDate,
+  toRelativeTime,
+  formatFileSize,
+} from "@/lib/persian-utils";
 import { RAG_REVIEW_STATE_FA, AI_PROVIDER_STATUS_FA } from "@legalir/types";
-import type { RagReviewState, RagSource, RagRetrievalHit } from "@legalir/types";
+import type {
+  RagReviewState,
+  RagSource,
+  RagRetrievalHit,
+  RagPipelineStatus,
+} from "@legalir/types";
 import {
   PageHeader,
   Card,
@@ -71,6 +84,9 @@ import {
   IconLinkSource,
   IconCheckCircle,
   IconFileText,
+  IconUpload,
+  IconWarning,
+  IconRetry,
 } from "@/lib/icons";
 
 const STATE_TONES: Record<
@@ -104,6 +120,22 @@ function errMessage(err: unknown, fallback: string): string {
   return err && typeof err === "object" && "message" in err
     ? String((err as { message: unknown }).message)
     : fallback;
+}
+
+const ACCEPTED_UPLOAD_EXTENSIONS = [".pdf", ".docx", ".txt"] as const;
+
+/** Read a picked file as raw base64 (the data-URL prefix stripped). */
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("خواندن فایل ناموفق بود"));
+    reader.readAsDataURL(file);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -217,10 +249,14 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
                   )}
                 </Card>
               </div>
+
+              <IngestFailures status={data.status} canManage={canManage} />
             </>
           )}
         </StateView>
       </Section>
+
+      <UploadSection canManage={canManage} />
 
       <Section
         title="پیکربندی مدل و ارائه‌دهنده"
@@ -273,6 +309,177 @@ function PipelineSection({ canManage }: { canManage: boolean }) {
         </StateView>
       </Section>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ingest failures — files that were discovered but could not be read
+// ---------------------------------------------------------------------------
+// Distinct from «unindexed»: those are valid files awaiting an ingest; these
+// failed the ingest and would otherwise vanish silently. The real error is
+// shown verbatim, and retrying reports honestly whether it changed anything.
+
+function IngestFailures({
+  status,
+  canManage,
+}: {
+  status: RagPipelineStatus;
+  canManage: boolean;
+}) {
+  const retry = useRetryRagIngestion();
+  if (status.ingestFailures.length === 0) return null;
+
+  async function onRetryAll() {
+    try {
+      const res = await retry.mutateAsync();
+      snackbar.show({
+        message:
+          res.stillFailing.length === 0
+            ? "همهٔ فایل‌های ناموفق با موفقیت خوانده شدند."
+            : `${toPersianNumber(res.stillFailing.length)} فایل هنوز خوانده نمی‌شود.`,
+        variant: res.stillFailing.length === 0 ? "success" : "error",
+      });
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "تلاش مجدد ناموفق بود"), variant: "error" });
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-body-2 font-bold text-danger-700 dark:text-danger-300">
+            <IconWarning size={16} />
+            فایل‌های ناموفق در خواندن ({toPersianNumber(status.ingestFailures.length)})
+          </p>
+          {canManage && (
+            <Button
+              variant="secondary"
+              size="sm"
+              startIcon={<IconRetry size={15} />}
+              loading={retry.isPending}
+              onClick={onRetryAll}
+            >
+              تلاش مجدد همه
+            </Button>
+          )}
+        </div>
+        <ul className="mt-2 space-y-1.5">
+          {status.ingestFailures.slice(0, 10).map((f) => (
+            <li key={`${f.fileName}-${f.at}`} className="text-caption">
+              <span className="block min-w-0 truncate text-on-surface" title={f.fileName} dir="ltr">
+                {f.fileName}
+              </span>
+              <span className="block text-danger-700 dark:text-danger-300" dir="ltr">
+                {f.message}
+              </span>
+            </li>
+          ))}
+          {status.ingestFailures.length > 10 && (
+            <li className="text-caption text-muted">
+              و {toPersianNumber(status.ingestFailures.length - 10)} فایل دیگر…
+            </li>
+          )}
+        </ul>
+        <p className="mt-2 text-caption text-muted">
+          این فایل‌ها از پوشهٔ منابع حذف نشده‌اند؛ فقط خوانده نشدند. پس از رفع مشکل (دسترسی، قفل فایل)،
+          «تلاش مجدد» را اجرا کنید.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Upload — the ONE write path for adding a law file to the pipeline
+// ---------------------------------------------------------------------------
+
+function UploadSection({ canManage }: { canManage: boolean }) {
+  const upload = useUploadRagFile();
+  const pipeline = useRagPipeline();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [picked, setPicked] = useState<File | null>(null);
+
+  const maxBytes = pipeline.data?.status.maxUploadBytes ?? 50 * 1024 * 1024;
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (file && file.size > maxBytes) {
+      snackbar.show({
+        message: `حجم فایل بیش از حد مجاز است (حداکثر ${formatFileSize(maxBytes)}).`,
+        variant: "error",
+      });
+      setPicked(null);
+      e.target.value = "";
+      return;
+    }
+    setPicked(file);
+  }
+
+  async function onUpload() {
+    if (!picked) return;
+    try {
+      const base64 = await readFileAsBase64(picked);
+      const res = await upload.mutateAsync({ fileName: picked.name, base64 });
+      snackbar.show({
+        message:
+          res.ingest.failed.length > 0
+            ? `فایل ذخیره شد اما خواندن آن ناموفق بود: ${res.ingest.failed[0]!.message}`
+            : `فایل «${res.fileName}» بارگذاری و نمایه شد؛ ${toPersianNumber(res.ingest.sources)} منبع در خط لوله.`,
+        variant: res.ingest.failed.length > 0 ? "error" : "success",
+      });
+      setPicked(null);
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "بارگذاری فایل ناموفق بود"), variant: "error" });
+    }
+  }
+
+  return (
+    <Section
+      title="افزودن منبع قانونی"
+      subtitle="فایل جدید در همان پوشهٔ خط لوله ذخیره و بلافاصله نمایه می‌شود؛ همان نمایه‌ای که موتور پاسخ می‌خواند."
+    >
+      {!canManage ? (
+        <InfoBanner tone="warning">
+          برای بارگذاری منبع، مجوز مدیریت منابع RAG لازم است.
+        </InfoBanner>
+      ) : (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[260px] flex-1">
+              <label
+                htmlFor="rag-upload-file"
+                className="mb-1 block text-caption font-medium text-on-surface-variant"
+              >
+                فایل قانون (PDF، DOCX یا TXT)
+              </label>
+              <input
+                id="rag-upload-file"
+                ref={inputRef}
+                type="file"
+                accept={ACCEPTED_UPLOAD_EXTENSIONS.join(",")}
+                onChange={onPick}
+                className="block w-full rounded-medium border border-divider bg-surface px-3 py-2 text-caption text-on-surface file:me-3 file:rounded-medium file:border-0 file:bg-surface-container file:px-3 file:py-1 file:text-caption file:text-on-surface"
+              />
+            </div>
+            <Button
+              variant="primary"
+              startIcon={<IconUpload size={15} />}
+              loading={upload.isPending}
+              disabled={!picked}
+              onClick={onUpload}
+            >
+              بارگذاری و نمایه‌سازی
+            </Button>
+          </div>
+          <p className="mt-2 text-caption text-muted">
+            حداکثر حجم هر فایل: {formatFileSize(maxBytes)}. فایل‌های هم‌محتوا در خط لوله بر اساس
+            هش SHA-256 یک‌بار شمرده می‌شوند.
+          </p>
+        </Card>
+      )}
+    </Section>
   );
 }
 
@@ -488,6 +695,45 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
   const [search, setSearch] = useState("");
   const [reviewTarget, setReviewTarget] = useState<RagSource | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const update = useUpdateRagReview();
+  const retrySource = useRetryRagSource();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Exactly one write at a time: toggling enable or retrying is a real ingest
+  // / overlay write, and a double-click must not race two of them.
+  async function onToggleEnabled(source: RagSource, enabled: boolean) {
+    setBusyId(source.id);
+    try {
+      await update.mutateAsync({
+        id: source.id,
+        input: {
+          reviewState: source.reviewState,
+          enabled,
+        },
+      });
+      snackbar.show({
+        message: enabled ? "منبع به بازیابی بازگردانده شد." : "منبع از بازیابی خارج شد.",
+        variant: "success",
+      });
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "تغییر وضعیت منبع ناموفق بود"), variant: "error" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onRetry(source: RagSource) {
+    setBusyId(source.id);
+    try {
+      await retrySource.mutateAsync(source.id);
+      snackbar.show({ message: "تلاش مجدد انجام شد؛ منبع اکنون خوانده شده است.", variant: "success" });
+    } catch (err) {
+      // A still-failing file is reported with the server's real reason.
+      snackbar.show({ message: errMessage(err, "تلاش مجدد ناموفق بود"), variant: "error" });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   // Debounce the search box so the source list re-queries on a pause.
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
@@ -563,6 +809,7 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
                 <Th>مرجع</Th>
                 <Th>وضعیت بازبینی</Th>
                 <Th>بازیابی</Th>
+                <Th>کلید منبع</Th>
                 <Th>انتشار عمومی</Th>
                 <Th>عملیات</Th>
               </tr>
@@ -586,11 +833,29 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
                   </Badge>
                 </Td>
                 <Td>
-                  {s.activeInRetrieval ? (
-                    <Badge tone="success">فعال</Badge>
-                  ) : (
-                    <Badge tone="neutral">غیرفعال</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {s.activeInRetrieval ? (
+                      <Badge tone="success">فعال</Badge>
+                    ) : (
+                      <Badge tone="neutral">غیرفعال</Badge>
+                    )}
+                    {/* The override is only interesting when it disagrees with
+                        the review state — say WHY a reviewed source is off. */}
+                    {!s.enabled && s.reviewState !== "failed" && (
+                      <span className="text-caption text-warning-700 dark:text-warning-300">
+                        خارج‌شده
+                      </span>
+                    )}
+                  </div>
+                </Td>
+                <Td>
+                  <Switch
+                    checked={s.enabled}
+                    disabled={!canManage || busyId === s.id}
+                    onChange={(e) => void onToggleEnabled(s, e.target.checked)}
+                    label={`فعال‌سازی ${s.title}`}
+                    tone="selection"
+                  />
                 </Td>
                 <Td>
                   {s.publishedInLibrary ? (
@@ -604,6 +869,17 @@ function SourcesSection({ canManage }: { canManage: boolean }) {
                     <Button size="sm" variant="ghost" onClick={() => setDetailId(s.id)}>
                       جزئیات
                     </Button>
+                    {canManage && s.reviewState === "failed" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        startIcon={<IconRetry size={14} />}
+                        loading={busyId === s.id && retrySource.isPending}
+                        onClick={() => void onRetry(s)}
+                      >
+                        تلاش مجدد
+                      </Button>
+                    )}
                     {canManage && (
                       <Button size="sm" variant="secondary" onClick={() => setReviewTarget(s)}>
                         بازبینی
@@ -648,6 +924,7 @@ function ReviewForm({ source, onDone }: { source: RagSource; onDone: () => void 
   const update = useUpdateRagReview();
   const [state, setState] = useState<RagReviewState>(source.reviewState);
   const [publishToLibrary, setPublishToLibrary] = useState(source.publishedInLibrary);
+  const [retrievalEnabled, setRetrievalEnabled] = useState(source.enabled);
   const [notes, setNotes] = useState(source.notes ?? "");
   const [evalScore, setEvalScore] = useState<string>(
     source.evalScore === null ? "" : String(source.evalScore)
@@ -660,6 +937,7 @@ function ReviewForm({ source, onDone }: { source: RagSource; onDone: () => void 
         input: {
           reviewState: state,
           publishedInLibrary: publishToLibrary,
+          enabled: retrievalEnabled,
           notes,
           evalScore: evalScore === "" ? null : Number(evalScore),
         },
@@ -716,7 +994,17 @@ function ReviewForm({ source, onDone }: { source: RagSource; onDone: () => void 
         </label>
       </div>
 
-      <div className="rounded-medium border border-divider px-3 py-1.5">
+      <div className="space-y-1 rounded-medium border border-divider px-3 py-1.5">
+        <Switch
+          checked={retrievalEnabled}
+          onChange={(e) => setRetrievalEnabled(e.target.checked)}
+          label="فعال در بازیابی"
+          tone="selection"
+        />
+        <p className="pb-1 text-caption text-muted">
+          با خاموش‌کردن این کلید، منبع حتی در صورت «تأیید/انتشار» از بازیابی خارج می‌شود؛ وضعیت بازبینی
+          حفظ می‌ماند.
+        </p>
         <Switch
           checked={publishToLibrary}
           onChange={(e) => setPublishToLibrary(e.target.checked)}

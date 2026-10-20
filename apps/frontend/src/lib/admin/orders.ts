@@ -87,6 +87,9 @@ function toOrder(sub: StoredSubscription): AdminOrder {
     trackingId: sub.tracking_id ?? null,
     purchasedAt: sub.purchased_at,
     createdAt: sub.purchased_at,
+    // A legacy subscription row never recorded the components, so there is no
+    // itemized snapshot to show. The invoice prints only what it can prove.
+    invoice: null,
   };
 }
 
@@ -148,6 +151,21 @@ function toOrderFromCheckout(order: StoredOrder): AdminOrder {
     trackingId: order.trackingId,
     purchasedAt: order.paidAt || order.createdAt,
     createdAt: order.createdAt,
+    // The checkout ledger recorded every component at order time. These are
+    // snapshot values, not a recomputation from today's catalog.
+    invoice: {
+      basePrice: order.basePrice,
+      listPrice: order.listPrice,
+      couponCode: order.couponCode,
+      discountAmount: order.discountAmount,
+      discountPercent: order.discountPercent,
+      taxAmount: order.taxAmount,
+      taxRatePercent: order.taxRatePercent,
+      otherAmount: order.otherAmount,
+      finalAmount: order.finalAmount,
+      collectedAmount: order.collectedAmount,
+      durationDays: order.durationDays,
+    },
   };
 }
 
@@ -249,6 +267,13 @@ export function buildOrderReceipt(order: AdminOrder): AdminOrderReceipt {
     serviceFa: order.planNameFa,
     payerMobileMasked: order.userMobileMasked,
     payerDisplayName: order.userDisplayName,
+    // The invoice lines, taken from the order's OWN snapshot. A legacy
+    // subscription has no itemization, so `invoice` stays null and the
+    // receipt prints only the totals it really has.
+    listPrice: order.listPrice,
+    discountAmount: order.discountAmount,
+    refundedAmount: order.refundedAmount,
+    invoice: order.invoice,
     generatedAt: new Date().toISOString(),
   } satisfies Partial<AdminOrderReceipt>;
 

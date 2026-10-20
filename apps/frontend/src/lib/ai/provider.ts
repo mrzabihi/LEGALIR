@@ -24,6 +24,13 @@ export interface AiProviderConfig {
   model: string;
   apiKey: string | null;
   baseUrl: string;
+  // --- Per-binding limits (optional; the provider's own defaults otherwise) --
+  /** Sampling temperature sent with the request. */
+  temperature?: number | null;
+  /** Upper bound on generated tokens (`max_tokens`). */
+  maxOutputTokens?: number | null;
+  /** Abort the request after this many milliseconds. */
+  timeoutMs?: number | null;
 }
 
 /** Actual token usage reported by the provider for one completion. */
@@ -198,12 +205,19 @@ export class OpenAiCompatibleProvider implements AiProvider {
   readonly configured: boolean;
   private readonly apiKey: string | null;
   private readonly baseUrl: string;
+  /** Per-capability overrides resolved from the operator's binding. */
+  private readonly temperature: number | null;
+  private readonly maxOutputTokens: number | null;
+  private readonly timeoutMs: number | null;
 
   constructor(config: AiProviderConfig) {
     this.model = config.model;
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.configured = Boolean(this.apiKey);
+    this.temperature = config.temperature ?? null;
+    this.maxOutputTokens = config.maxOutputTokens ?? null;
+    this.timeoutMs = config.timeoutMs ?? null;
   }
 
   async *stream(params: AiStreamParams): AsyncIterable<string> {
@@ -211,36 +225,59 @@ export class OpenAiCompatibleProvider implements AiProvider {
       throw new Error("AI provider is not configured (missing API key)");
     }
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        stream: true,
-        temperature: 0.3,
-        // Ask OpenAI-compatible providers to include a final usage chunk.
-        stream_options: { include_usage: true },
-        messages: [
-          { role: "system", content: params.system },
-          ...params.messages,
-        ],
-      }),
-      signal: params.signal,
-    });
+    // A binding may cap the request duration. The caller's own signal still
+    // wins, so a client abort is never masked by the timeout.
+    const controller = new AbortController();
+    const timer =
+      this.timeoutMs !== null
+        ? setTimeout(() => controller.abort(), this.timeoutMs)
+        : null;
+    const forwardAbort = () => controller.abort();
+    params.signal?.addEventListener("abort", forwardAbort, { once: true });
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new Error(`AI provider error ${response.status}: ${detail.slice(0, 200)}`);
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          stream: true,
+          temperature: this.temperature ?? 0.3,
+          ...(this.maxOutputTokens !== null ? { max_tokens: this.maxOutputTokens } : {}),
+          // Ask OpenAI-compatible providers to include a final usage chunk.
+          stream_options: { include_usage: true },
+          messages: [
+            { role: "system", content: params.system },
+            ...params.messages,
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(`AI provider error ${response.status}: ${detail.slice(0, 200)}`);
+      }
+
+      if (!response.body) {
+        throw new Error("AI provider returned an empty response body");
+      }
+
+      yield* this.readStream(response.body, params);
+    } finally {
+      if (timer) clearTimeout(timer);
+      params.signal?.removeEventListener("abort", forwardAbort);
     }
+  }
 
-    if (!response.body) {
-      throw new Error("AI provider returned an empty response body");
-    }
-
-    const reader = response.body.getReader();
+  private async *readStream(
+    body: ReadableStream<Uint8Array>,
+    params: AiStreamParams
+  ): AsyncIterable<string> {
+    const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let usageReported = false;

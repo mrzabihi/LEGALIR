@@ -11,7 +11,7 @@
 // ============================================================
 
 import type { PlatformRole, Permission, LegalRequestState } from "./platform";
-import type { LegalContentType, LegalReviewStatus, VerificationStatus } from "./index";
+import type { CaseCategory, LegalContentType, LegalReviewStatus, VerificationStatus } from "./index";
 
 // ---------------------------------------------------------------------------
 // Audit log (append-only)
@@ -99,6 +99,34 @@ export type OrderStatus =
   | "PARTIALLY_REFUNDED"
   | "DISPUTED";
 
+/**
+ * The itemized snapshot of a purchase, as the checkout ledger recorded it at
+ * order time. Every figure is frozen then, so a later plan or coupon edit
+ * never rewrites a historical invoice.
+ *
+ * A LEGACY subscription row has no such snapshot — its `AdminOrder.invoice`
+ * is `null`, never a zero-filled imitation. The invoice then prints the
+ * figures it does have and omits the ones it cannot prove.
+ */
+export interface AdminOrderInvoice {
+  /** Pre-discount catalog price at order time. */
+  basePrice: number;
+  /** The catalog list price at order time. */
+  listPrice: number;
+  couponCode: string | null;
+  discountAmount: number;
+  discountPercent: number;
+  taxAmount: number;
+  taxRatePercent: number;
+  otherAmount: number;
+  /** Owed by the customer: base − discount + tax + other. */
+  finalAmount: number;
+  /** Money actually collected by the gateway (0 for a payment-free order). */
+  collectedAmount: number;
+  /** The plan term in days. */
+  durationDays: number;
+}
+
 /** A sales order. Derived from a subscription purchase, with adjustments. */
 export interface AdminOrder {
   id: string;
@@ -124,6 +152,12 @@ export interface AdminOrder {
   trackingId: string | null;
   purchasedAt: string;
   createdAt: string;
+  /**
+   * The itemized purchase snapshot. Present only when the order came from the
+   * checkout ledger (which records every component); a legacy subscription
+   * row is `null` and the invoice says so rather than inventing parts.
+   */
+  invoice: AdminOrderInvoice | null;
 }
 
 export const ORDER_STATUS_FA: Record<OrderStatus, string> = {
@@ -206,6 +240,14 @@ export interface AdminOrderReceipt {
   statusFa: string;
   /** The service/plan the payment was for. */
   serviceFa: string | null;
+  /** Catalog price before discount — the invoice's «مبلغ فهرست» line. */
+  listPrice: number;
+  /** Discount applied at purchase. */
+  discountAmount: number;
+  /** Net refunded across completed adjustments. */
+  refundedAmount: number;
+  /** The itemized snapshot, or null when the order predates it. */
+  invoice: AdminOrderInvoice | null;
   /** Masked payer mobile — never the full number. */
   payerMobileMasked: string;
   payerDisplayName: string | null;
@@ -346,6 +388,35 @@ export interface LawyerSettlement {
   lines: SettlementLine[];
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A lawyer's settlement ledger rolled up. Every figure is summed from the REAL
+ * settlement rows — nothing is estimated. `hasData` is false when no settlement
+ * has ever been opened for this lawyer, which is a real state (this environment
+ * has no paid-consultation feed yet) and the panel says so instead of showing
+ * a zero that looks like an income figure.
+ */
+export interface LawyerIncomeSummary {
+  /** Gross across every settlement line. */
+  grossEarned: number;
+  /** Platform commission withheld. */
+  platformFee: number;
+  /** Deductions recorded on the settlements. */
+  deductions: number;
+  /** Net owed to the lawyer (gross − fee − deductions). */
+  netEarned: number;
+  /** Net on settlements already PAID. */
+  paidOut: number;
+  /** Net on settlements that are neither PAID nor FAILED — still owed. */
+  outstanding: number;
+  /** Net on settlements that ended FAILED; excluded from `outstanding`. */
+  failedAmount: number;
+  currency: string;
+  settlementCount: number;
+  lineCount: number;
+  /** False when no settlement exists for this lawyer at all. */
+  hasData: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -838,6 +909,189 @@ export interface AiUsageMetrics {
 }
 
 // ---------------------------------------------------------------------------
+// Per-capability model bindings
+// ---------------------------------------------------------------------------
+// A binding answers «for THIS capability, which provider and model run?».
+// It is additive: a capability without a binding keeps the default provider,
+// exactly as before, so an old data directory behaves unchanged.
+
+export type AiBindingStatus = "active" | "inactive";
+
+export const AI_BINDING_STATUS_FA: Record<AiBindingStatus, string> = {
+  active: "فعال",
+  inactive: "غیرفعال",
+};
+
+export interface AiServiceBinding {
+  /** Stable id — `svc:<serviceType>`. */
+  id: string;
+  /** A chat capability key, or `support_chat` for the support assistant. */
+  serviceType: string;
+  /** The provider that runs this capability; null = the default provider. */
+  providerId: string | null;
+  /** The model override; null = the provider's own default model. */
+  model: string | null;
+  temperature: number | null;
+  maxOutputTokens: number | null;
+  timeoutMs: number | null;
+  /** Used only when the primary provider is disabled/unusable. */
+  fallbackProviderId: string | null;
+  /**
+   * The knowledge sources this capability may retrieve from.
+   * null = every published source (the pre-binding behaviour).
+   */
+  knowledgeSourceIds: string[] | null;
+  status: AiBindingStatus;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+/** One row of the usage split — provider, model or capability. */
+export interface AiUsageSplitRow {
+  /** The raw key (provider id, model id or service type). */
+  key: string;
+  /** A Persian label for display; falls back to the raw key. */
+  labelFa: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Requests that settled with an error, from the processing runs. */
+  errors: number;
+}
+
+export interface AiUsageDayRow {
+  /** ISO date (YYYY-MM-DD) taken from the ledger row's timestamp. */
+  date: string;
+  requests: number;
+  totalTokens: number;
+}
+
+export interface AiUsageBreakdown {
+  rangeDays: number;
+  totalRequests: number;
+  totalTokens: number;
+  /**
+   * False when no settled ledger row carries a provider/model — the split
+   * then reports the unattributed total instead of inventing buckets.
+   */
+  attributionAvailable: boolean;
+  byProvider: AiUsageSplitRow[];
+  byModel: AiUsageSplitRow[];
+  byService: AiUsageSplitRow[];
+  byDay: AiUsageDayRow[];
+  /** Requests whose provider/model could not be attributed. */
+  unattributedRequests: number;
+  /** Requests that could not be tied to a capability. */
+  unattributedServiceRequests: number;
+}
+
+/**
+ * What a model change actually affects. Computed from real runs and the
+ * current binding, shown to the operator BEFORE the save is committed.
+ */
+export interface AiBindingImpact {
+  serviceType: string;
+  labelFa: string;
+  /** Runs this capability executed in the window. */
+  requests: number;
+  errors: number;
+  lastUsedAt: string | null;
+  currentProviderId: string | null;
+  currentProviderNameFa: string | null;
+  currentModel: string | null;
+  /** `unbound` = the capability currently follows the default provider. */
+  currentStatus: AiBindingStatus | "unbound";
+  nextProviderId: string | null;
+  nextProviderNameFa: string | null;
+  nextModel: string | null;
+  /** True when the next provider is the development mock (no live model). */
+  nextIsMock: boolean;
+  /** True when a provider that would run the request is disabled. */
+  nextProviderDisabled: boolean;
+  /** Persian, human-readable consequences — one line each. */
+  impactFa: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Support-chat routing rules
+// ---------------------------------------------------------------------------
+// The support assistant evaluates these in priority order (lowest number
+// first). The first ACTIVE rule whose category/keywords match decides the
+// action; when none matches, the capability answers from knowledge as usual.
+
+export type SupportRoutingAction =
+  | "answer_from_knowledge"
+  | "handoff_lawyer"
+  | "open_ticket"
+  | "redirect";
+
+export const SUPPORT_ROUTING_ACTION_FA: Record<SupportRoutingAction, string> = {
+  answer_from_knowledge: "پاسخ از دانش",
+  handoff_lawyer: "ارجاع به وکیل",
+  open_ticket: "ثبت تیکت پشتیبانی",
+  redirect: "هدایت به صفحهٔ دیگر",
+};
+
+export type SupportRoutingRuleStatus = "active" | "inactive";
+
+export const SUPPORT_ROUTING_STATUS_FA: Record<SupportRoutingRuleStatus, string> = {
+  active: "فعال",
+  inactive: "غیرفعال",
+};
+
+/** Why a rule matched (or did not) — shown in the execution-order preview. */
+export interface SupportRoutingTraceRow {
+  ruleId: string;
+  nameFa: string;
+  priority: number;
+  status: SupportRoutingRuleStatus;
+  matched: boolean;
+  reasonFa: string;
+}
+
+export interface SupportRoutingRule {
+  id: string;
+  nameFa: string;
+  /** A `CaseCategory` (from the classifier vocabulary) or null = any. */
+  category: CaseCategory | null;
+  /** Lower-cased substrings matched against the message; empty = any. */
+  keywords: string[];
+  action: SupportRoutingAction;
+  /** The guidance shown to the user when this rule wins. */
+  guideTextFa: string;
+  /** Required for `redirect`; validated as an in-app path. */
+  destinationPath: string | null;
+  /** Lower runs first. Ties fall back to creation order. */
+  priority: number;
+  status: SupportRoutingRuleStatus;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export interface SupportRoutingMatch {
+  /** The rule that decided the action, or null when none matched. */
+  ruleId: string | null;
+  action: SupportRoutingAction;
+  guideTextFa: string;
+  destinationPath: string | null;
+  /** Every rule in evaluation order, with the reason it matched or not. */
+  trace: SupportRoutingTraceRow[];
+}
+
+/** The configuration the support assistant actually runs with. */
+export interface SupportChatConfig {
+  binding: AiServiceBinding;
+  providerNameFa: string | null;
+  model: string | null;
+  /** True when no live provider/key backs the capability (mock fallback). */
+  mock: boolean;
+  /** The sources retrieval is restricted to; null = all published. */
+  knowledgeSourceIds: string[] | null;
+  knowledgeTitlesFa: string[];
+}
+
+// ---------------------------------------------------------------------------
 // RAG source review & publication
 // ---------------------------------------------------------------------------
 
@@ -878,6 +1132,11 @@ export interface RagSource {
   retrievedFrom: string | null;
   reviewState: RagReviewState;
   reviewerUserId: string | null;
+  /**
+   * The operator's explicit switch. False keeps the source out of retrieval
+   * regardless of its review state, and survives later review edits.
+   */
+  enabled: boolean;
   /** True when the source is reachable by the retrieval engine. */
   activeInRetrieval: boolean;
   /** True when it is separately published in the public library. */
@@ -912,6 +1171,18 @@ export interface RagPipelineStatus {
   lastIngestedAt: string | null;
   /** Files present in the folder that the corpus has not yet ingested. */
   unindexedFiles: string[];
+  /** Files discovered but unreadable by the last ingest, with the real reason. */
+  ingestFailures: RagIngestFailure[];
+  /** Transfer cap for one uploaded law file, in bytes. */
+  maxUploadBytes: number;
+}
+
+/** A discovered law file the ingest could not read. */
+export interface RagIngestFailure {
+  fileName: string;
+  message: string;
+  /** ISO-8601 instant of the failed attempt. */
+  at: string;
 }
 
 /** A single retrieval hit from a live pipeline test. */
@@ -940,6 +1211,23 @@ export interface RagIngestReport {
   chunks: number;
   tokens: number;
   corpusDir: string;
+  /** Files discovered but unreadable — reported, never silently dropped. */
+  failed: RagIngestFailure[];
+}
+
+/** The result of uploading one law file into the pipeline. */
+export interface RagUploadResult {
+  fileName: string;
+  bytes: number;
+  /** The ingest that ran right after the write, with its real effect. */
+  ingest: RagIngestReport;
+}
+
+/** The outcome of retrying a previously failed ingest. */
+export interface RagRetryResult {
+  report: RagIngestReport;
+  /** File names still unreadable after the retry — the retry claims nothing. */
+  stillFailing: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,12 +1430,66 @@ export interface SupportTicket {
   requesterName: string;
   requesterMobileMasked: string | null;
   assigneeUserId: string | null;
+  /** Resolved from `assigneeUserId` on read — never persisted on the ticket. */
+  assigneeName: string | null;
   /** Response SLA target in hours. */
   slaHours: number;
   dueAt: string | null;
   messages: SupportTicketMessage[];
   createdAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Support ticket history
+// ---------------------------------------------------------------------------
+// An append-only trail of the operator actions taken on a ticket. The message
+// thread is NOT duplicated here: a message event records only that a message
+// was added, while status/priority/assignment events carry the from→to change
+// so the drawer can show exactly who changed what and when.
+
+export type SupportTicketEventKind =
+  | "created"
+  | "status"
+  | "priority"
+  | "assignment"
+  | "message"
+  | "internal_note";
+
+export const SUPPORT_TICKET_EVENT_FA: Record<SupportTicketEventKind, string> = {
+  created: "ایجاد تیکت",
+  status: "تغییر وضعیت",
+  priority: "تغییر اولویت",
+  assignment: "واگذاری / ارجاع",
+  message: "پاسخ عمومی",
+  internal_note: "یادداشت داخلی",
+};
+
+export interface SupportTicketEvent {
+  id: string;
+  ticketId: string;
+  kind: SupportTicketEventKind;
+  /** ISO-8601 instant. */
+  at: string;
+  actorUserId: string;
+  actorName: string;
+  /**
+   * Previous value. Status/priority events hold the enum code; assignment
+   * events hold the assignee's display name (null = unassigned).
+   */
+  from: string | null;
+  /** New value, in the same representation as `from`. */
+  to: string | null;
+  /** Referral note attached to an assignment, when the operator wrote one. */
+  note: string | null;
+}
+
+/** A staff member who can be assigned a ticket (`admin:support:manage`). */
+export interface SupportAgent {
+  id: string;
+  displayName: string;
+  role: string;
+  roleFa: string;
 }
 
 // ---------------------------------------------------------------------------

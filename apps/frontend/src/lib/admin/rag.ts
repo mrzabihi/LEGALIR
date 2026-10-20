@@ -13,10 +13,13 @@
 
 import { readTable, writeTable } from "@/lib/db";
 import {
+  MAX_LAW_FILE_BYTES,
   defaultCorpusDir,
   ingestCorpus,
   readCorpus,
   retrieveCorpus,
+  storeLawFile,
+  type CorpusFailure,
   type CorpusSource,
 } from "@/lib/legal-corpus";
 import type {
@@ -37,6 +40,12 @@ interface ReviewOverlay {
   reviewState: RagReviewState;
   reviewerUserId: string | null;
   publishedInLibrary: boolean;
+  /**
+   * An operator's explicit "take this out of retrieval" switch — independent
+   * of the review state, so disabling a published source does not throw away
+   * the fact that it was reviewed and approved.
+   */
+  enabled: boolean;
   notes: string | null;
   evalScore: number | null;
   updatedAt: string;
@@ -63,7 +72,12 @@ function initialStateFor(source: CorpusSource): RagReviewState {
 function toRagSource(source: CorpusSource): RagSource {
   const overlay = overlayFor(source.id);
   const reviewState = overlay?.reviewState ?? initialStateFor(source);
-  const activeInRetrieval = reviewState === "approved" || reviewState === "published";
+  // Enabled defaults to TRUE: only an explicit disable removes a source.
+  const enabled = overlay?.enabled !== false;
+  // Both gates are required: the review state must admit retrieval AND the
+  // operator must not have switched the source off.
+  const activeInRetrieval =
+    enabled && (reviewState === "approved" || reviewState === "published");
   const ts = source.ingestedAt;
   return {
     id: source.lawId ?? source.id,
@@ -81,6 +95,7 @@ function toRagSource(source: CorpusSource): RagSource {
     retrievedFrom: source.fileName,
     reviewState,
     reviewerUserId: overlay?.reviewerUserId ?? null,
+    enabled,
     activeInRetrieval,
     publishedInLibrary: overlay?.publishedInLibrary ?? false,
     pageCount: null,
@@ -130,6 +145,7 @@ export interface UpdateRagReviewInput {
   reviewState: RagReviewState;
   reviewerUserId: string;
   publishedInLibrary?: boolean;
+  enabled?: boolean;
   notes?: string | null;
   evalScore?: number | null;
 }
@@ -151,6 +167,9 @@ export function updateRagReview(input: UpdateRagReviewInput): RagSource | { erro
     reviewState: input.reviewState,
     reviewerUserId: input.reviewerUserId,
     publishedInLibrary: input.publishedInLibrary ?? prev?.publishedInLibrary ?? false,
+    // An absent flag keeps the stored switch: a review edit must never
+    // silently re-enable a source an operator deliberately switched off.
+    enabled: input.enabled ?? prev?.enabled ?? true,
     notes: input.notes ?? prev?.notes ?? null,
     evalScore: input.evalScore ?? prev?.evalScore ?? null,
     updatedAt: new Date().toISOString(),
@@ -204,6 +223,10 @@ export function getRagPipelineStatus(): RagPipelineStatus {
     lastIngestedAt,
     // Files discovered on disk that ingest skipped (not yet part of the corpus).
     unindexedFiles: unindexed,
+    // Files the last ingest could NOT read. Distinct from `unindexedFiles`:
+    // those are fine files awaiting an ingest, these are files that failed it.
+    ingestFailures: [...(index.failures ?? [])].sort((a, b) => b.at.localeCompare(a.at)),
+    maxUploadBytes: MAX_LAW_FILE_BYTES,
   };
 }
 
@@ -268,8 +291,105 @@ export function reingestRagCorpus(): RagIngestReport {
     chunks: report.chunks,
     tokens: report.tokens,
     corpusDir: report.corpusDir,
+    failed: report.failed,
   };
 }
+
+// ---------------------------------------------------------------------------
+// §2 — Ingestion operations: upload a law file, retry a failed ingest
+// ---------------------------------------------------------------------------
+
+export interface UploadRagFileResult {
+  fileName: string;
+  bytes: number;
+  /** The ingest that followed the write, so the caller sees its real effect. */
+  ingest: RagIngestReport;
+}
+
+/**
+ * Write one uploaded law file into the pipeline's source folder and ingest it.
+ *
+ * The upload feeds the SAME one pipeline chat retrieval reads — there is no
+ * separate admin corpus. The write is rejected outright when the bytes are
+ * not a permitted type or exceed the transfer cap, so nothing partial or
+ * unsupported ever lands in the folder.
+ */
+export function uploadRagFile(
+  fileName: string,
+  bytes: Buffer
+): UploadRagFileResult | { error: string } {
+  const stored = storeLawFile(fileName, bytes);
+  if ("error" in stored) return { error: stored.error };
+  const report = reingestRagCorpus();
+  return { fileName: stored.fileName, bytes: stored.bytes, ingest: report };
+}
+
+/**
+ * Retry a source whose ingest previously failed.
+ *
+ * "Retry" is honest about what it can do: ingestion is deterministic over the
+ * files on disk, so re-running it either now reads the file (and the source
+ * leaves the failed state) or fails again with the SAME reason. This function
+ * re-ingests and reports which of those happened; it never pretends success.
+ */
+export function retryRagIngestion(): {
+  report: RagIngestReport;
+  /** File names still unreadable after the retry. */
+  stillFailing: string[];
+} {
+  const report = reingestRagCorpus();
+  return { report, stillFailing: report.failed.map((f) => f.fileName) };
+}
+
+/** Unreadable files from the last ingest, for the pipeline header. */
+export function ragIngestFailures(): CorpusFailure[] {
+  const failures = readCorpus().failures ?? [];
+  return [...failures].sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/**
+ * Retry ONE source that an operator had marked «ناموفق».
+ *
+ * The retry re-runs the real ingest and then inspects its outcome:
+ *   • the file is readable again  → the source leaves `failed` (back to `indexed`);
+ *   • it is still unreadable      → the state STAYS failed and the real reason
+ *                                   is returned, never a pretend success;
+ *   • the file is gone            → NOT_FOUND, because there is nothing to retry.
+ */
+export function retryRagSource(
+  sourceId: string,
+  reviewerUserId: string
+): RagSource | { error: string; message?: string } {
+  const before = getRagSource(sourceId);
+  if (!before) return { error: "NOT_FOUND" };
+
+  const report = reingestRagCorpus();
+  const correlation = before.retrievedFrom;
+  const stillFailing = correlation
+    ? report.failed.find((f) => normalizePersian(f.fileName) === normalizePersian(correlation))
+    : undefined;
+
+  const after = getRagSource(sourceId);
+  if (!after) {
+    // The source vanished from the corpus — the file is no longer on disk.
+    return { error: "NOT_FOUND", message: "فایل منبع دیگر در پوشهٔ منابع وجود ندارد" };
+  }
+  if (stillFailing) {
+    return { error: "STILL_FAILING", message: stillFailing.message };
+  }
+  if (after.reviewState !== "failed") return after;
+
+  return (
+    updateRagReview({
+      sourceId,
+      reviewState: "indexed",
+      reviewerUserId,
+      enabled: before.enabled,
+    }) as RagSource
+  );
+}
+
+export const RAG_UPLOAD_MAX_BYTES = MAX_LAW_FILE_BYTES;
 
 /** How many curated law-catalog files matched a file on disk (indexable coverage). */
 export function lawCatalogCoverage(): { curated: number; ingested: number } {

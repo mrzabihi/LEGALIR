@@ -132,7 +132,7 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
   const pdfUrl = adminOrderReceiptPdfUrl(orderId);
 
   return (
-    <Drawer open onClose={onClose} position="end" width={460} title="رسید پرداخت">
+    <Drawer open onClose={onClose} position="end" width={460} title="صورتحساب و رسید پرداخت">
       {receipt.isLoading ? (
         <LoadingBlock rows={5} />
       ) : receipt.isError || !receipt.data ? (
@@ -165,12 +165,31 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
                     {r.transactionId ?? r.referenceId}
                   </span>
                 </ReceiptRow>
-                <ReceiptRow label="مبلغ">
+                {r.invoice && r.invoice.discountAmount > 0 && (
+                  <ReceiptRow label="مبلغ فهرست">
+                    <span className="tabular-nums">{toPersianCurrency(r.listPrice)}</span>
+                  </ReceiptRow>
+                )}
+                {r.invoice && r.invoice.discountAmount > 0 && (
+                  <ReceiptRow
+                    label={r.invoice.couponCode ? `تخفیف (${r.invoice.couponCode})` : "تخفیف"}
+                  >
+                    <span className="tabular-nums">
+                      − {toPersianCurrency(r.invoice.discountAmount)}
+                    </span>
+                  </ReceiptRow>
+                )}
+                <ReceiptRow label={r.invoice ? "مبلغ قابل پرداخت" : "مبلغ"}>
                   <span className="tabular-nums">
                     {toPersianCurrency(r.amount)}
                     {r.currency && r.currency !== "IRT" ? ` ${r.currency}` : ""}
                   </span>
                 </ReceiptRow>
+                {r.refundedAmount > 0 && (
+                  <ReceiptRow label="بازگشتی">
+                    <span className="tabular-nums">− {toPersianCurrency(r.refundedAmount)}</span>
+                  </ReceiptRow>
+                )}
                 <ReceiptRow label="تاریخ پرداخت">
                   {r.paidAt ? toPersianDate(r.paidAt) : "ثبت نشده"}
                 </ReceiptRow>
@@ -198,7 +217,8 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
                   <div className="flex items-start gap-2 rounded-large border border-success-200 bg-success-soft p-3 text-body-2 text-success-700">
                     <IconCheckCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
                     <span>
-                      رسید سامانه بر پایهٔ اطلاعات ثبت‌شدهٔ همین سفارش تولید می‌شود.
+                      صورتحساب سامانه با مهر رسمی و هولوگرام چاپی، بر پایهٔ اطلاعات ثبت‌شدهٔ همین
+                      سفارش تولید می‌شود.
                       {r.gatewaySimulated
                         ? " در این محیط درگاه شبیه‌سازی‌شده است و تراکنش بانکی واقعی انجام نشده است."
                         : ""}
@@ -213,11 +233,11 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
                       className="inline-flex items-center gap-1.5 rounded-medium border border-transparent bg-primary px-4 py-2 text-body-2 font-medium text-on-primary transition-colors hover:opacity-90"
                     >
                       <IconOpenInNew size={16} />
-                      نمایش PDF در تب جدید
+                      نمایش صورتحساب PDF
                     </a>
                     <a
                       href={pdfUrl}
-                      download={`receipt-${r.referenceId}.pdf`}
+                      download={`invoice-${r.referenceId}.pdf`}
                       className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-4 py-2 text-body-2 font-medium text-on-surface-variant transition-colors hover:bg-surface-hover"
                     >
                       <IconDownload size={16} />
@@ -243,6 +263,62 @@ function ReceiptViewer({ orderId, onClose }: { orderId: string; onClose: () => v
         })()
       )}
     </Drawer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sectioned invoice
+// ---------------------------------------------------------------------------
+// The on-screen invoice mirrors the PDF one-to-one: the same four sections, in
+// the same order, from the same row. A legacy subscription has no itemization
+// snapshot, so its «اقلام و مبالغ» section says that outright instead of
+// printing zero-valued discount/tax lines it cannot prove.
+
+function InvoiceSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-large border border-divider">
+      <h4 className="border-b border-divider bg-surface-container px-3 py-2 text-body-2 font-semibold text-onSurface">
+        {title}
+      </h4>
+      <div className="px-3 py-2.5">{children}</div>
+    </section>
+  );
+}
+
+function InvoiceField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-divider py-1.5 last:border-0">
+      <span className="shrink-0 text-caption text-muted">{label}</span>
+      <span className="min-w-0 text-end text-body-2 text-onSurface">{children}</span>
+    </div>
+  );
+}
+
+/** One amount line: the description on the right, the figure beside it. */
+function AmountLine({
+  label,
+  value,
+  strong = false,
+}: {
+  label: ReactNode;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 border-b border-divider py-1.5 last:border-0 ${
+        strong ? "-mx-3 bg-surface-container px-3 font-semibold" : ""
+      }`}
+    >
+      <span className={`min-w-0 ${strong ? "text-onSurface" : "text-muted"}`}>{label}</span>
+      <span className="shrink-0 tabular-nums text-onSurface">{value}</span>
+    </div>
   );
 }
 
@@ -304,9 +380,13 @@ function OrderDetail({ id }: { id: string }) {
     }
   }
 
+  const inv = order.invoice;
+  const hasReceipt = RECEIPT_ELIGIBLE_STATUSES.includes(order.status);
+  const pdfUrl = adminOrderReceiptPdfUrl(order.id);
+
   return (
     <Card className="p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-h3 font-bold text-onSurface">
             <span dir="ltr">{order.referenceId}</span>
@@ -316,36 +396,147 @@ function OrderDetail({ id }: { id: string }) {
             {order.planNameFa} · {order.userDisplayName ?? "بدون نام"} · {order.userMobileMasked}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {hasReceipt ? (
+            <>
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-medium border border-transparent bg-primary px-4 py-2 text-body-2 font-medium text-on-primary transition-colors hover:opacity-90"
+              >
+                <IconOpenInNew size={16} />
+                نمایش صورتحساب PDF
+              </a>
+              <a
+                href={pdfUrl}
+                download={`invoice-${order.referenceId}.pdf`}
+                className="inline-flex items-center gap-1.5 rounded-medium border border-divider bg-surface px-4 py-2 text-body-2 font-medium text-on-surface-variant transition-colors hover:bg-surface-hover"
+              >
+                <IconDownload size={16} />
+                دانلود
+              </a>
+            </>
+          ) : (
+            <span
+              className="text-caption text-muted"
+              title="این سفارش به سرانجام نرسیده است، بنابراین صورتحسابی صادر نمی‌شود."
+            >
+              صورتحساب برای تراکنش ناتمام صادر نمی‌شود.
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 tablet:grid-cols-5">
-        <div className="rounded-medium border border-divider p-3">
-          <p className="text-caption text-muted">قیمت فهرست</p>
-          <p className="tabular-nums">{toPersianCurrency(order.listPrice)}</p>
-        </div>
-        <div className="rounded-medium border border-divider p-3">
-          <p className="text-caption text-muted">تخفیف</p>
-          <p className="tabular-nums">{toPersianCurrency(order.discountAmount)}</p>
-        </div>
-        <div className="rounded-medium border border-divider p-3">
-          <p className="text-caption text-muted">مبلغ فروش</p>
-          <p className="tabular-nums">{toPersianCurrency(order.salePrice)}</p>
-        </div>
-        <div className="rounded-medium border border-divider p-3">
-          <p className="text-caption text-muted">مبلغ بازگشتی</p>
-          <p className="tabular-nums">{toPersianCurrency(order.refundedAmount)}</p>
-        </div>
-        <div className="rounded-medium border border-divider p-3">
-          <p className="text-caption text-muted">خالص</p>
-          <p className="tabular-nums font-semibold">{toPersianCurrency(order.netAmount)}</p>
-        </div>
+      <div className="mb-4 grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-4">
+        <InvoiceSection title="مشخصات سفارش">
+          <InvoiceField label="شناسهٔ سفارش">
+            <span dir="ltr" className="font-mono text-caption">
+              {order.referenceId}
+            </span>
+          </InvoiceField>
+          <InvoiceField label="خدمت / پلن">{order.planNameFa}</InvoiceField>
+          {inv && <InvoiceField label="مدت">{toPersianNumber(inv.durationDays)} روز</InvoiceField>}
+          <InvoiceField label="تاریخ خرید">{toPersianDate(order.purchasedAt)}</InvoiceField>
+        </InvoiceSection>
+
+        <InvoiceSection title="مشخصات خریدار">
+          <InvoiceField label="خریدار">{order.userDisplayName ?? "بدون نام"}</InvoiceField>
+          <InvoiceField label="موبایل (پوشیده)">
+            <span className="tabular-nums">{order.userMobileMasked}</span>
+          </InvoiceField>
+          {order.orgId && (
+            <InvoiceField label="سازمان">
+              <IdChip id={order.orgId} />
+            </InvoiceField>
+          )}
+        </InvoiceSection>
+
+        <InvoiceSection title="اطلاعات پرداخت">
+          <InvoiceField label="شناسهٔ تراکنش">
+            <span dir="ltr" className="font-mono text-caption">
+              {order.referenceId}
+            </span>
+          </InvoiceField>
+          <InvoiceField label="وضعیت">
+            <Badge tone={ORDER_STATUS_TONES[order.status]}>{ORDER_STATUS_FA[order.status]}</Badge>
+          </InvoiceField>
+          <InvoiceField label="درگاه پرداخت">
+            {order.gateway} (شبیه‌سازی‌شده در این محیط)
+          </InvoiceField>
+          <InvoiceField label="کد پیگیری">
+            {order.trackingId ? (
+              <span dir="ltr" className="font-mono text-caption">
+                {order.trackingId}
+              </span>
+            ) : (
+              "ثبت نشده"
+            )}
+          </InvoiceField>
+        </InvoiceSection>
+
+        <InvoiceSection title="اقلام و مبالغ">
+          {inv ? (
+            <>
+              <AmountLine label="مبلغ فهرست" value={toPersianCurrency(inv.listPrice)} />
+              {inv.discountAmount > 0 && (
+                <AmountLine
+                  label={
+                    inv.couponCode
+                      ? `تخفیف (کد ${inv.couponCode}${
+                          inv.discountPercent > 0
+                            ? ` — ${toPersianNumber(inv.discountPercent)}٪`
+                            : ""
+                        })`
+                      : "تخفیف"
+                  }
+                  value={`− ${toPersianCurrency(inv.discountAmount)}`}
+                />
+              )}
+              {inv.taxAmount > 0 && (
+                <AmountLine
+                  label={`مالیات بر ارزش افزوده (${toPersianNumber(inv.taxRatePercent)}٪)`}
+                  value={toPersianCurrency(inv.taxAmount)}
+                />
+              )}
+              {inv.otherAmount !== 0 && (
+                <AmountLine label="سایر اقلام" value={toPersianCurrency(inv.otherAmount)} />
+              )}
+              <AmountLine
+                label="مبلغ قابل پرداخت"
+                value={toPersianCurrency(inv.finalAmount)}
+                strong
+              />
+              {inv.collectedAmount !== inv.finalAmount && (
+                <AmountLine label="مبلغ وصول‌شده" value={toPersianCurrency(inv.collectedAmount)} />
+              )}
+            </>
+          ) : (
+            <>
+              <AmountLine label="مبلغ فروش" value={toPersianCurrency(order.salePrice)} strong />
+              <p className="pt-2 text-caption text-muted">
+                این سفارش از سابقهٔ اشتراک قدیمی صادر شده است و ریز اقلام در آن ثبت نشده است.
+              </p>
+            </>
+          )}
+          {order.refundedAmount > 0 && (
+            <AmountLine label="بازگشتی" value={`− ${toPersianCurrency(order.refundedAmount)}`} />
+          )}
+          <AmountLine label="خالص پرداختی" value={toPersianCurrency(order.netAmount)} strong />
+          <AmountLine
+            label="واحد پول"
+            value={order.currency === "IRT" ? "تومان" : order.currency}
+          />
+        </InvoiceSection>
       </div>
 
-      <p className="mb-4 text-caption text-muted">
-        درگاه: {order.gateway} (شبیه‌سازی‌شده در این محیط) · تاریخ خرید:{" "}
-        {toPersianDate(order.purchasedAt)}
-        {order.trackingId ? ` · کد پیگیری: ${order.trackingId}` : ""}
-      </p>
+      <div className="mb-4 flex items-start gap-2 rounded-large border border-info-200 bg-info-soft p-3 text-body-2 text-info-800">
+        <IconFileText size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+        <span>
+          صورتحساب PDF با مهر رسمی سامانه و هولوگرام چاپی از همین ریز اقلام تولید می‌شود؛
+          مبلغ‌ها از لحظهٔ ثبت سفارش قفل شده‌اند و با تغییر بعدی کاتالوگ عوض نمی‌شوند.
+        </span>
+      </div>
 
       {feedback && <InlineNotice tone={feedback.tone}>{feedback.text}</InlineNotice>}
 

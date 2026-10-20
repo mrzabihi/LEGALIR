@@ -111,6 +111,13 @@ import {
   saveAiProvider,
   type SaveAiProviderInput,
   testAiProvider,
+  setAiProviderEnabled,
+  fetchAiBindings,
+  saveAiBinding,
+  clearAiBinding,
+  fetchAiBindingImpact,
+  fetchAiUsageBreakdown,
+  type SaveAiBindingInput,
   fetchAiPrompts,
   createAiPromptVersion,
   type CreatePromptVersionInput,
@@ -126,6 +133,9 @@ import {
   fetchRagSourceDetail,
   testRagRetrieval,
   reingestRagCorpus,
+  uploadRagFile,
+  retryRagIngestion,
+  retryRagSource,
   fetchAdminBlog,
   createBlogPost,
   updateBlogPost,
@@ -151,6 +161,8 @@ import {
   deleteCalculatorRuleDraft,
   fetchSupportTickets,
   fetchSupportTicket,
+  fetchSupportTicketHistory,
+  type SupportTicketQuery,
   createSupportTicket,
   type CreateTicketInput,
   addSupportMessage,
@@ -164,6 +176,8 @@ import {
   fetchAdminAudit,
   type AdminAuditQuery,
   fetchAdminSettings,
+  updateAdminDisplaySettings,
+  type AdminDisplaySettingsUpdateResult,
   fetchAdminLawyers,
   fetchAdminLawyer,
   decideLawyerVerification,
@@ -362,6 +376,18 @@ export function useAdminSettings() {
     queryFn: fetchAdminSettings,
     staleTime: 60_000,
     retry: 1,
+  });
+}
+
+/** Save the panel's display timezone (audited server-side). */
+export function useUpdateAdminDisplaySettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { displayTimezone: string }): Promise<AdminDisplaySettingsUpdateResult> =>
+      updateAdminDisplaySettings(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "settings"] });
+    },
   });
 }
 
@@ -622,10 +648,10 @@ export function useReassignRequest() {
 // §5 — SLA configuration
 // ---------------------------------------------------------------------------
 
-export function useAdminSla() {
+export function useAdminSla(includeArchived = false) {
   return useQuery({
-    queryKey: ["admin", "sla"],
-    queryFn: fetchAdminSla,
+    queryKey: ["admin", "sla", includeArchived ? "all" : "active"],
+    queryFn: () => fetchAdminSla(includeArchived),
     staleTime: 60_000,
     retry: 1,
   });
@@ -637,6 +663,7 @@ export function useSaveAdminSlaPolicy() {
     mutationFn: ({ serviceKey, input }: { serviceKey: string; input: AdminSlaPolicyInput }) =>
       saveAdminSlaPolicy(serviceKey, input),
     onSuccess: () => {
+      // Both list variants (with and without archived rows) share this prefix.
       void qc.invalidateQueries({ queryKey: ["admin", "sla"] });
     },
   });
@@ -1257,6 +1284,103 @@ export function useTestAiProvider() {
   });
 }
 
+/**
+ * Enable/disable a provider. The response is written into the cached list in
+ * the same frame so the switch never bounces back while the refetch lands —
+ * and bindings are invalidated because a disabled provider degrades them.
+ */
+export function useSetAiProviderEnabled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      setAiProviderEnabled(id, enabled),
+    onSuccess: (saved: AiProviderConfig) => {
+      qc.setQueryData<{ items: AiProviderConfig[]; secretStorageConfigured: boolean }>(
+        ["admin", "ai", "providers"],
+        (old) =>
+          old
+            ? { ...old, items: old.items.map((p) => (p.id === saved.id ? saved : p)) }
+            : old
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "ai", "bindings"] });
+    },
+  });
+}
+
+// --- Per-capability model bindings ---------------------------------------
+// A capability with no row follows the default provider (`configured:false`),
+// so the panel can distinguish «explicitly set» from «inherited» honestly.
+
+export function useAiBindings() {
+  return useQuery({
+    queryKey: ["admin", "ai", "bindings"],
+    queryFn: fetchAiBindings,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** The pre-save impact preview for one capability/provider/model combination. */
+export function useAiBindingImpact(
+  params: {
+    serviceType: string;
+    providerId?: string | null;
+    model?: string | null;
+    status?: "active" | "inactive";
+    rangeDays?: number;
+  } | null
+) {
+  return useQuery({
+    queryKey: [
+      "admin",
+      "ai",
+      "bindings",
+      "impact",
+      params?.serviceType ?? null,
+      params?.providerId ?? null,
+      params?.model ?? null,
+      params?.status ?? null,
+      params?.rangeDays ?? 30,
+    ],
+    queryFn: () => fetchAiBindingImpact(params!),
+    enabled: params !== null,
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+export function useSaveAiBinding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serviceType, input }: { serviceType: string; input: SaveAiBindingInput }) =>
+      saveAiBinding(serviceType, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "ai", "bindings"] });
+      qc.invalidateQueries({ queryKey: ["admin", "ai", "usage"] });
+    },
+  });
+}
+
+export function useClearAiBinding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (serviceType: string) => clearAiBinding(serviceType),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "ai", "bindings"] });
+      qc.invalidateQueries({ queryKey: ["admin", "ai", "usage"] });
+    },
+  });
+}
+
+export function useAiUsageBreakdown(rangeDays = 30) {
+  return useQuery({
+    queryKey: ["admin", "ai", "usage", rangeDays],
+    queryFn: () => fetchAiUsageBreakdown(rangeDays),
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
 export function useAiPrompts(key?: string) {
   return useQuery({
     queryKey: ["admin", "ai", "prompts", key ?? null],
@@ -1378,6 +1502,43 @@ export function useReingestRagCorpus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: reingestRagCorpus,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "rag"] });
+    },
+  });
+}
+
+/**
+ * §2 — upload one law file into the pipeline's source folder. The server
+ * ingests immediately, so the mutation's own result carries the real effect.
+ */
+export function useUploadRagFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileName, base64 }: { fileName: string; base64: string }) =>
+      uploadRagFile(fileName, base64),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "rag"] });
+    },
+  });
+}
+
+/** §2 — retry the files the last ingest could not read. */
+export function useRetryRagIngestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: retryRagIngestion,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "rag"] });
+    },
+  });
+}
+
+/** §2 — retry ONE source marked «ناموفق»; re-runs the real ingest. */
+export function useRetryRagSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => retryRagSource(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "rag"] });
     },
@@ -1650,12 +1811,9 @@ export function useDeleteCalculatorRuleDraft() {
 // Support
 // ---------------------------------------------------------------------------
 
-export function useSupportTickets(filter: {
-  status?: SupportTicketStatus;
-  priority?: SupportTicketPriority;
-} = {}) {
+export function useSupportTickets(filter: SupportTicketQuery = {}) {
   return useQuery({
-    queryKey: ["admin", "support", filter],
+    queryKey: ["admin", "support", "list", filter],
     queryFn: () => fetchSupportTickets(filter),
     staleTime: 20_000,
     retry: 1,
@@ -1666,6 +1824,16 @@ export function useSupportTicket(id: string | null) {
   return useQuery({
     queryKey: ["admin", "support", "detail", id],
     queryFn: () => fetchSupportTicket(id as string),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+export function useSupportTicketHistory(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "support", "history", id],
+    queryFn: () => fetchSupportTicketHistory(id as string),
     enabled: Boolean(id),
     staleTime: 15_000,
     retry: 1,
@@ -1689,6 +1857,7 @@ export function useAddSupportMessage() {
       qc.setQueryData(["admin", "support", "detail", updated.id], (old: unknown) =>
         old && typeof old === "object" ? { ...(old as object), ticket: updated } : old
       );
+      // A reply is also a history entry — refetch the trail it just appended.
       qc.invalidateQueries({ queryKey: ["admin", "support"] });
     },
   });

@@ -86,9 +86,11 @@ import {
   type AdminLawyerStatus,
   LAWYER_BANK_STATUS_FA,
   LAWYER_RATE_UNIT_FA,
+  SETTLEMENT_STATUS_FA,
   type LawyerBankStatus,
+  type SettlementStatus,
 } from "@legalir/types";
-import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
+import { toPersianCurrency, toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
 import { demoAvatarDataUri } from "@/lib/lawyers/demo-generator";
 import { IconUpload } from "@/lib/icons";
@@ -291,6 +293,130 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
       <h3 className="mb-2 text-titleSmall font-medium text-on-surface">{title}</h3>
       {children}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// §8 — income roll-up (read-only)
+// ---------------------------------------------------------------------------
+// Everything here is a SUM of real settlement rows returned by the dossier
+// endpoint. When no settlement has ever been opened the panel says exactly
+// that — it never prints a zero that could be mistaken for a measured income.
+// Settlement lifecycle is run on the finance surface, so this tab is read-only
+// by design and links there instead of duplicating the workflow.
+
+function MoneyRow({
+  label,
+  value,
+  tone = "default",
+  hint,
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "strong" | "muted";
+  hint?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <span className="text-body-2 text-on-surface-variant">
+        {label}
+        {hint && <span className="block text-caption text-muted">{hint}</span>}
+      </span>
+      <span
+        className={`whitespace-nowrap tabular-nums ${
+          tone === "strong"
+            ? "text-body-1 font-semibold text-on-surface"
+            : tone === "muted"
+              ? "text-caption text-muted"
+              : "text-body-2 text-on-surface"
+        }`}
+      >
+        {toPersianCurrency(value)}
+      </span>
+    </div>
+  );
+}
+
+function IncomePanel({ detail }: { detail: AdminLawyerDetail }) {
+  const { income, settlements } = detail;
+
+  return (
+    <div className="space-y-3">
+      <InfoBanner tone="info">
+        ارقام این بخش از ردیف‌های واقعی تسویه جمع شده‌اند؛ هیچ مبلغی تخمین زده یا بازسازی
+        نمی‌شود. چرخهٔ تسویه (ایجاد، افزودن ردیف، تأیید دو‌مرحله‌ای و پرداخت) در بخش «مالی»
+        انجام می‌شود.
+      </InfoBanner>
+
+      {!income.hasData ? (
+        <Block title="درآمد و تسویه">
+          <p className="text-body-2 text-on-surface-variant">
+            برای این وکیل هنوز هیچ تسویه‌ای ثبت نشده است؛ بنابراین درآمدی قابل گزارش نیست.
+          </p>
+          <p className="mt-1 text-caption text-muted">
+            درآمد فقط از ردیف‌های تسویهٔ واقعی محاسبه می‌شود و تا زمانی که صورت‌حساب خدمت
+            پرداخت‌شده‌ای ثبت نشود، عددی ساخته نمی‌شود.
+          </p>
+        </Block>
+      ) : (
+        <>
+          <Block title="جمع درآمد">
+            <div className="divide-y divide-divider">
+              <MoneyRow
+                label="مبلغ ناخالص"
+                value={income.grossEarned}
+                hint="مجموع مبالغ پیش از کسر سهم سکو"
+              />
+              <MoneyRow label="سهم سکو" value={income.platformFee} tone="muted" />
+              <MoneyRow label="کسرها" value={income.deductions} tone="muted" />
+              <MoneyRow label="خالص درآمد" value={income.netEarned} tone="strong" />
+              <MoneyRow label="پرداخت‌شده" value={income.paidOut} hint="تسویه‌های نهایی‌شده" />
+              <MoneyRow
+                label="مانده قابل پرداخت"
+                value={income.outstanding}
+                hint="تسویه‌های باز تا پیش از پرداخت"
+              />
+              {income.failedAmount > 0 && (
+                <MoneyRow
+                  label="تسویهٔ ناموفق"
+                  value={income.failedAmount}
+                  tone="muted"
+                  hint="نه پرداخت‌شده و نه در مانده"
+                />
+              )}
+            </div>
+            <p className="mt-2 text-caption text-muted">
+              {toPersianNumber(income.settlementCount)} تسویه ·{" "}
+              {toPersianNumber(income.lineCount)} ردیف
+            </p>
+          </Block>
+
+          <Block title="آخرین تسویه‌ها">
+            <ul className="divide-y divide-divider">
+              {settlements.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                  <div className="min-w-0">
+                    <p className="text-body-2 text-on-surface">
+                      دورهٔ {toPersianDate(s.periodStart)} تا {toPersianDate(s.periodEnd)}
+                    </p>
+                    <p className="text-caption text-muted">
+                      {toPersianNumber(s.lines.length)} ردیف
+                      {s.paidAt ? ` · پرداخت ${toPersianDate(s.paidAt)}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={SETTLEMENT_TONES[s.status]}>{SETTLEMENT_STATUS_FA[s.status]}</Badge>
+                    <span className="whitespace-nowrap tabular-nums text-body-2 font-medium text-on-surface">
+                      {toPersianCurrency(s.netAmount)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Block>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1505,6 +1631,21 @@ const BANK_STATUS_TONES: Record<
   NEEDS_CORRECTION: "danger",
 };
 
+/** Settlement lifecycle → badge tone, matching the finance surface. */
+const SETTLEMENT_TONES: Record<
+  SettlementStatus,
+  "neutral" | "success" | "warning" | "danger" | "info" | "brand"
+> = {
+  OPEN: "neutral",
+  INVOICED: "info",
+  REQUESTED: "warning",
+  UNDER_REVIEW: "warning",
+  APPROVED: "info",
+  PAID: "success",
+  FAILED: "danger",
+  NEEDS_REVIEW: "danger",
+};
+
 function RatesPanel({ detail }: { detail: AdminLawyerDetail }) {
   const [showHistory, setShowHistory] = useState(false);
 
@@ -1922,6 +2063,7 @@ type DrawerTab =
   | "edit"
   | "rates"
   | "bank"
+  | "income"
   | "avatar"
   | "rating"
   | "reviews"
@@ -2013,6 +2155,15 @@ export function LawyerDetailDrawer({
                 label: "حساب تسویه",
                 badge: detail.bank.status === "PENDING_REVIEW" ? "!" : undefined,
               },
+              {
+                value: "income",
+                label: "درآمد",
+                // The badge is a real count, not a boolean — a lawyer with no
+                // settlement shows no number rather than a misleading «۰».
+                badge: detail.income.hasData
+                  ? toPersianNumber(detail.income.settlementCount)
+                  : undefined,
+              },
               { value: "avatar", label: "آواتار" },
               { value: "rating", label: "امتیاز" },
               { value: "reviews", label: "نظرات", badge: detail.stats.reviews },
@@ -2024,6 +2175,7 @@ export function LawyerDetailDrawer({
           {tab === "edit" && <ProfileEditForm detail={detail} canEdit={canEdit} />}
           {tab === "rates" && <RatesPanel detail={detail} />}
           {tab === "bank" && <BankPanel detail={detail} canManage={canBank} />}
+          {tab === "income" && <IncomePanel detail={detail} />}
           {tab === "avatar" && <AvatarPanel detail={detail} canManage={canAvatar} />}
           {tab === "rating" && <RatingPanel detail={detail} canManage={canRating} />}
           {tab === "reviews" && <ReviewsPanel detail={detail} canManage={canReviewManage} />}

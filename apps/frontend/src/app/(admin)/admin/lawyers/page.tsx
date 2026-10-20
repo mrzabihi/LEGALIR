@@ -23,8 +23,8 @@ import {
   useAdminMe,
   useSetAdminLawyerFeatured,
 } from "@/hooks/useAdmin";
-import { IconSearch } from "@/lib/icons";
-import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
+import { IconSearch, IconStar } from "@/lib/icons";
+import { toPersianCurrency, toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
   LAWYER_DECISION_BUCKET_FA,
   ADMIN_LAWYER_STATUS_FA,
@@ -39,7 +39,6 @@ import {
   Badge,
   StateView,
   Button,
-  IdChip,
   MaskedMobile,
   FilterPills,
   InfoBanner,
@@ -201,20 +200,25 @@ export default function AdminLawyersPage() {
       >
         {(data) => (
           <>
+            {/*
+              EIGHT columns, not twelve. The four ways an operator scans this
+              list — who, what they practise, how they are rated, whether they
+              are live — each get ONE cell, with the related secondary value
+              stacked beneath the primary instead of taking a column of its
+              own. Nothing is dropped: mobile, licence number, extra
+              specialities, experience and the featured flag are all still on
+              screen, just not each in a lane of their own.
+            */}
             <DataTable
               head={
                 <tr>
                   <Th>وکیل</Th>
-                  <Th>موبایل</Th>
-                  <Th>پایه / سازمان</Th>
-                  <Th>تخصص اصلی</Th>
-                  <Th>شهر</Th>
-                  <Th>سابقه</Th>
+                  <Th>تخصص و پایه</Th>
+                  <Th>شهر / سابقه</Th>
                   <Th>امتیاز</Th>
-                  <Th>تأیید</Th>
-                  <Th>وضعیت</Th>
-                  <Th>برجسته</Th>
-                  <Th>آخرین بروزرسانی</Th>
+                  <Th>درآمد</Th>
+                  <Th>تأیید / وضعیت</Th>
+                  <Th>بروزرسانی</Th>
                   <Th>عملیات</Th>
                 </tr>
               }
@@ -224,82 +228,103 @@ export default function AdminLawyersPage() {
                 return (
                   <tr key={l.id} className="hover:bg-surface-hover">
                     <Td>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5">
                         <LawyerAvatar
                           name={l.fullName}
                           avatarUrl={l.avatarUrl}
                           avatarType={l.avatarType}
-                          size={40}
+                          size={36}
                         />
-                        <div className="flex min-w-0 flex-col">
-                          <span className="flex items-center gap-2 font-medium text-on-surface">
-                            {l.fullName}
+                        <div className="flex min-w-0 max-w-40 flex-col">
+                          <span className="flex items-center gap-1.5 font-medium text-on-surface">
+                            <span className="truncate">{l.fullName}</span>
                             {l.isDemo && (
                               <Badge tone="neutral" title="پروفایل نمونه / داده توسعه">
                                 نمونه
                               </Badge>
                             )}
                           </span>
-                          <IdChip id={l.id} />
+                          {/* The row id is not repeated here: it is already on
+                              the drawer header and in the URL, and the chip was
+                              the single widest thing in the table. */}
+                          <MaskedMobile value={l.mobile} className="text-caption" />
                         </div>
                       </div>
                     </Td>
-                    <Td className="whitespace-nowrap">
-                      <MaskedMobile value={l.mobile} className="text-caption" />
+                    <Td>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-caption text-on-surface-variant">
+                          {l.primarySpecialtyId ? specialtyLabel(l.primarySpecialtyId) : "—"}
+                          {otherCount > 0 ? (
+                            <span className="text-muted"> +{toPersianNumber(otherCount)}</span>
+                          ) : null}
+                        </span>
+                        <span className="text-caption text-muted">
+                          {l.professionalRank
+                            ? LAWYER_PROFESSIONAL_RANK_SHORT_FA[l.professionalRank]
+                            : "—"}
+                          {l.licenseNumber ? (
+                            <span dir="ltr" className="ms-1 tabular-nums">
+                              · {l.licenseNumber}
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
                     </Td>
                     <Td className="whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-caption text-on-surface-variant">
-                          {l.professionalRank
-                            ? LAWYER_PROFESSIONAL_RANK_SHORT_FA[l.professionalRank]
-                            : "—"}
+                          {l.cities || "—"}
                         </span>
-                        <span dir="ltr" className="text-caption text-muted tabular-nums">
-                          {l.licenseNumber ?? "—"}
+                        <span className="text-caption text-muted">
+                          {l.yearsExperience != null
+                            ? `${toPersianNumber(l.yearsExperience)} سال سابقه`
+                            : "سابقه ثبت نشده"}
                         </span>
                       </div>
-                    </Td>
-                    <Td>
-                      <span className="text-caption text-on-surface-variant">
-                        {l.primarySpecialtyId ? specialtyLabel(l.primarySpecialtyId) : "—"}
-                        {otherCount > 0 ? (
-                          <span className="text-muted"> +{toPersianNumber(otherCount)}</span>
-                        ) : null}
-                      </span>
-                    </Td>
-                    <Td className="whitespace-nowrap text-caption text-on-surface-variant">
-                      {l.cities || "—"}
-                    </Td>
-                    <Td className="whitespace-nowrap text-caption">
-                      {l.yearsExperience != null ? `${toPersianNumber(l.yearsExperience)} سال` : "—"}
                     </Td>
                     <Td className="whitespace-nowrap">
                       {l.displayRating != null && l.displayReviewCount > 0 ? (
                         <span className="tabular-nums text-on-surface">
                           {toPersianNumber(Number(l.displayRating.toFixed(1)))}
                           <span className="text-muted"> از ۵</span>
-                          <span className="ms-1 text-caption text-muted">
-                            ({toPersianNumber(l.displayReviewCount)} رأی)
+                          <span className="block text-caption text-muted">
+                            {toPersianNumber(l.displayReviewCount)} رأی
                           </span>
                         </span>
                       ) : (
                         <span className="text-caption text-muted">بدون امتیاز</span>
                       )}
                     </Td>
-                    <Td>
-                      <Badge tone={BUCKET_TONES[l.bucket]}>{LAWYER_DECISION_BUCKET_FA[l.bucket]}</Badge>
-                    </Td>
-                    <Td>
-                      <Badge tone={LIFECYCLE_TONES[l.lifecycle]} dot>
-                        {ADMIN_LAWYER_STATUS_FA[l.lifecycle]}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      {l.featured ? (
-                        <Badge tone="brand">برجسته</Badge>
+                    <Td className="whitespace-nowrap">
+                      {l.income.hasData ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="tabular-nums text-body-2 text-on-surface">
+                            {toPersianCurrency(l.income.netEarned)}
+                          </span>
+                          <span className="text-caption text-muted">
+                            {l.income.outstanding > 0
+                              ? `${toPersianCurrency(l.income.outstanding)} مانده`
+                              : "تسویه‌شده"}
+                          </span>
+                        </div>
                       ) : (
-                        <span className="text-caption text-muted">—</span>
+                        <span className="text-caption text-muted">بدون تسویه</span>
                       )}
+                    </Td>
+                    <Td>
+                      {/* The review decision and the operator lifecycle both
+                          answer "is this lawyer live" — one cell, the decision
+                          on top. */}
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge tone={BUCKET_TONES[l.bucket]}>
+                          {LAWYER_DECISION_BUCKET_FA[l.bucket]}
+                        </Badge>
+                        <Badge tone={LIFECYCLE_TONES[l.lifecycle]} dot>
+                          {ADMIN_LAWYER_STATUS_FA[l.lifecycle]}
+                        </Badge>
+                        {l.featured && <Badge tone="brand">برجسته</Badge>}
+                      </div>
                     </Td>
                     <Td className="whitespace-nowrap text-caption text-muted">
                       {toPersianDate(l.updatedAt)}
@@ -310,15 +335,18 @@ export default function AdminLawyersPage() {
                           مدیریت
                         </Button>
                         {canFeature && (
+                          // Icon-only so the actions fit on one 1280px screen.
+                          // The label lives in aria-label/title for AT and hover.
                           <Button
                             size="sm"
                             variant={l.featured ? "tonal" : "ghost"}
+                            ariaLabel={l.featured ? "لغو برجسته‌سازی" : "برجسته‌سازی"}
                             title={l.featured ? "لغو برجسته‌سازی" : "برجسته‌سازی"}
                             disabled={feature.isPending}
+                            className="px-2"
+                            startIcon={<IconStar size={16} aria-hidden="true" />}
                             onClick={() => toggleFeatured(l.id, !l.featured)}
-                          >
-                            {l.featured ? "لغو" : "برجسته"}
-                          </Button>
+                          />
                         )}
                       </div>
                     </Td>

@@ -698,6 +698,12 @@ export interface CompleteUsageOptions {
   model?: string | null;
   provider?: string | null;
   /**
+   * The configured provider ROW that ran the request. `provider` above names
+   * the wire protocol ("openai-compatible"/"mock"); this is the operator's
+   * provider id, which is what the admin usage split groups by.
+   */
+  providerId?: string | null;
+  /**
    * Runtime facts only known AFTER the operation ran (retrieval passes, tool
    * calls). They are written to the row before the frozen tariff re-prices, so
    * the final energy reflects what actually executed.
@@ -770,6 +776,7 @@ export function completeUsage(
   if (opts.contextTokens !== undefined) tx.contextTokens = opts.contextTokens;
   if (opts.model !== undefined) tx.model = opts.model;
   if (opts.provider !== undefined) tx.provider = opts.provider;
+  if (opts.providerId !== undefined) tx.providerId = opts.providerId;
   if (opts.ragCalls !== undefined) tx.ragCalls = Math.max(0, Math.round(opts.ragCalls));
   if (opts.toolCalls !== undefined) tx.toolCalls = Math.max(0, Math.round(opts.toolCalls));
   tx.tokenUsageStatus = figure.status;

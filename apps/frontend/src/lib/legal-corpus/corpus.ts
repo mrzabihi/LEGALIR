@@ -15,6 +15,12 @@
 // locator, verbatim-ish excerpt, summary, keywords), which is then chunked
 // and indexed. This keeps the pipeline honest (real files are discovered,
 // hashed, deduped and indexed) without inventing extracted text.
+//
+// `.txt` files are the exception: they need no extractor, so their real
+// content is indexed and they are genuinely searchable.
+//
+// A file that cannot be READ is reported in `failures[]` (persisted with the
+// index) rather than aborting the ingest or vanishing silently.
 // ============================================================
 
 import crypto from "node:crypto";
@@ -65,12 +71,25 @@ export interface CorpusSource {
   ingestedAt: string;
 }
 
+/** A discovered file that could not be read into the corpus. */
+export interface CorpusFailure {
+  fileName: string;
+  message: string;
+  /** ISO-8601 instant of the failed ingest attempt. */
+  at: string;
+}
+
 export interface CorpusIndex {
   version: string;
   sources: CorpusSource[];
   chunks: CorpusChunk[];
   /** token → chunkIds (inverted index for retrieval). */
   inverted: Record<string, string[]>;
+  /**
+   * Files the last ingest could not read. Persisted so the admin surface
+   * reports a real failure rather than silently dropping the file.
+   */
+  failures?: CorpusFailure[];
 }
 
 // ============================================================
@@ -78,7 +97,12 @@ export interface CorpusIndex {
 // ============================================================
 
 function dataDir(): string {
-  const dir = path.resolve(process.cwd(), ".data");
+  // The persisted index lives beside the other DB tables by default. The
+  // override exists so an isolated caller (a test, a staging tool) can point
+  // the pipeline at a throwaway directory instead of the live `.data`, which
+  // it would otherwise rewrite with its own synthetic corpus.
+  const dir =
+    process.env["LEGALIR_CORPUS_DATA_DIR"] || path.resolve(process.cwd(), ".data");
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -107,24 +131,88 @@ interface DiscoveredFile {
   sizeBytes: number;
 }
 
-function discover(corpusDir: string): DiscoveredFile[] {
-  if (!fs.existsSync(corpusDir)) return [];
-  return fs
+/**
+ * Read the source folder. A file that cannot be read (permissions, a
+ * directory with a supported extension, a vanished file) is REPORTED as a
+ * failure instead of aborting the whole ingest — one bad file must not take
+ * every other law out of the corpus.
+ */
+function discover(corpusDir: string): {
+  files: DiscoveredFile[];
+  failures: CorpusFailure[];
+} {
+  if (!fs.existsSync(corpusDir)) return { files: [], failures: [] };
+  const at = new Date().toISOString();
+  const files: DiscoveredFile[] = [];
+  const failures: CorpusFailure[] = [];
+
+  for (const f of fs
     .readdirSync(corpusDir)
-    .filter((f) => SUPPORTED_EXTENSIONS.has(path.extname(f).toLowerCase()))
-    .map((f) => {
-      const absPath = path.join(corpusDir, f);
+    .filter((name) => SUPPORTED_EXTENSIONS.has(path.extname(name).toLowerCase()))
+    .sort((a, b) => a.localeCompare(b, "fa"))) {
+    const absPath = path.join(corpusDir, f);
+    try {
       const bytes = fs.readFileSync(absPath);
-      return {
+      files.push({
         absPath,
         fileName: f,
         ext: path.extname(f).toLowerCase(),
         bytes,
         hash: sha256(bytes),
         sizeBytes: bytes.length,
-      };
-    })
-    .sort((a, b) => a.fileName.localeCompare(b.fileName, "fa"));
+      });
+    } catch (err) {
+      failures.push({
+        fileName: f,
+        message: err instanceof Error ? err.message : String(err),
+        at,
+      });
+    }
+  }
+  return { files, failures };
+}
+
+// ============================================================
+// Upload — the only write path into the source folder
+// ============================================================
+
+/** Upload cap. The corpus only fingerprints bytes, so this is a transfer limit. */
+export const MAX_LAW_FILE_BYTES = 50 * 1024 * 1024;
+
+export interface StoredLawFile {
+  fileName: string;
+  bytes: number;
+}
+
+/**
+ * Validate and write one uploaded law file into the pipeline's source folder,
+ * then let the caller re-ingest so it enters the ONE corpus.
+ *
+ * The name is reduced to a bare basename: an uploaded name must never be able
+ * to select a directory (`../x.pdf`, `C:\…`) that would let an admin upload
+ * write outside the corpus folder.
+ */
+export function storeLawFile(
+  rawFileName: string,
+  bytes: Buffer,
+  corpusDir: string = defaultCorpusDir()
+): StoredLawFile | { error: "INVALID_NAME" | "UNSUPPORTED_TYPE" | "EMPTY_FILE" | "TOO_LARGE" | "STORE_FAILED" } {
+  const fileName = path.basename(String(rawFileName ?? "").replace(/\\/g, "/")).trim();
+  if (!fileName || fileName === "." || fileName === ".." || fileName.includes("/")) {
+    return { error: "INVALID_NAME" };
+  }
+  const ext = path.extname(fileName).toLowerCase();
+  if (!SUPPORTED_EXTENSIONS.has(ext)) return { error: "UNSUPPORTED_TYPE" };
+  if (bytes.length === 0) return { error: "EMPTY_FILE" };
+  if (bytes.length > MAX_LAW_FILE_BYTES) return { error: "TOO_LARGE" };
+
+  try {
+    fs.mkdirSync(corpusDir, { recursive: true });
+    fs.writeFileSync(path.join(corpusDir, fileName), bytes);
+  } catch {
+    return { error: "STORE_FAILED" };
+  }
+  return { fileName, bytes: bytes.length };
 }
 
 // ============================================================
@@ -179,10 +267,12 @@ export interface IngestReport {
   chunks: number;
   tokens: number;
   output: string;
+  /** Files discovered but unreadable — reported, never silently dropped. */
+  failed: CorpusFailure[];
 }
 
 export function ingestCorpus(corpusDir: string = defaultCorpusDir()): IngestReport {
-  const files = discover(corpusDir);
+  const { files, failures } = discover(corpusDir);
   const ingestedAt = new Date().toISOString();
   const sources: CorpusSource[] = [];
   const chunks: CorpusChunk[] = [];
@@ -213,8 +303,16 @@ export function ingestCorpus(corpusDir: string = defaultCorpusDir()): IngestRepo
       ? "VERIFIED_OFFICIAL"
       : "DEMO_VERIFIED";
 
-    // Searchable text: the curated structured fields.
-    const searchable = [title, articleSection, excerpt, summary, keywords.join(" ")]
+    // Searchable text.
+    //
+    // A `.txt` law needs no extractor — it IS text — so its real content is
+    // indexed and the file becomes genuinely retrievable. PDF/DOCX binaries
+    // cannot be parsed with the dependency set, so for those the searchable
+    // text stays the curated catalog fields (and never invented content).
+    // A curated file keeps its curated fields even when it is a .txt, so the
+    // hand-reviewed excerpt is not diluted by a raw dump.
+    const plainText = !curated && file.ext === ".txt" ? file.bytes.toString("utf-8").trim() : "";
+    const searchable = [title, articleSection, excerpt, summary, keywords.join(" "), plainText]
       .join(" ")
       .trim();
 
@@ -251,19 +349,20 @@ export function ingestCorpus(corpusDir: string = defaultCorpusDir()): IngestRepo
   }
 
   const inverted = buildInvertedIndex(chunks);
-  const index: CorpusIndex = { version: CORPUS_VERSION, sources, chunks, inverted };
+  const index: CorpusIndex = { version: CORPUS_VERSION, sources, chunks, inverted, failures };
 
   const output = path.join(dataDir(), CORPUS_FILE);
   fs.writeFileSync(output, JSON.stringify(index, null, 2), "utf-8");
 
   return {
     corpusDir,
-    discovered: files.length,
+    discovered: files.length + failures.length,
     duplicatesSkipped: files.length - sources.length,
     sources: sources.length,
     chunks: chunks.length,
     tokens: Object.keys(inverted).length,
     output,
+    failed: failures,
   };
 }
 

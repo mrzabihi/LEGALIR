@@ -30,7 +30,7 @@ vi.mock("@/lib/db", () => ({
 
 import { buildOrderReceipt, getOrder, maskMobile } from "@/lib/admin/orders";
 import { renderOrderReceiptPdf } from "@/lib/admin/receipt-pdf";
-import type { AdminOrder, OrderStatus } from "@legalir/types";
+import type { AdminOrder, OrderStatus, StoredOrder as CheckoutOrder } from "@legalir/types";
 
 const PAID_ORDER: AdminOrder = {
   id: "sub-1",
@@ -52,6 +52,19 @@ const PAID_ORDER: AdminOrder = {
   trackingId: null,
   purchasedAt: "2026-03-10T09:30:00.000Z",
   createdAt: "2026-03-10T09:30:00.000Z",
+  invoice: {
+    basePrice: 500_000,
+    listPrice: 500_000,
+    couponCode: "NOWRUZ",
+    discountAmount: 50_000,
+    discountPercent: 10,
+    taxAmount: 0,
+    taxRatePercent: 0,
+    otherAmount: 0,
+    finalAmount: 450_000,
+    collectedAmount: 450_000,
+    durationDays: 30,
+  },
 };
 
 function withStatus(status: OrderStatus): AdminOrder {
@@ -172,6 +185,129 @@ describe("getOrder — tracking_id is read from the real subscription row", () =
   });
 });
 
+/**
+ * A checkout order is the authoritative purchase record: it snapshotted every
+ * monetary component at order time, so the invoice CAN be itemized. This is the
+ * distinction the receipt has to preserve — a checkout order shows the split, a
+ * legacy subscription row must not invent one.
+ */
+function checkoutOrder(over: Partial<CheckoutOrder> = {}): CheckoutOrder {
+  return {
+    id: "ord-9",
+    referenceId: "ORD-9",
+    userId: "u1",
+    planCode: "gold",
+    planNameFa: "اشتراک طلایی",
+    durationDays: 90,
+    currency: "IRT",
+    basePrice: 1_100_000,
+    listPrice: 1_200_000,
+    couponId: "cpn-1",
+    couponCode: "NOWRUZ",
+    couponKind: "percent",
+    couponValue: 10,
+    discountAmount: 120_000,
+    discountPercent: 10,
+    taxAmount: 33_000,
+    taxRatePercent: 3,
+    otherAmount: 0,
+    finalAmount: 1_013_000,
+    collectedAmount: 1_013_000,
+    status: "paid",
+    paymentId: "pay-1",
+    subscriptionId: "sub-9",
+    gateway: "simulated",
+    trackingId: "GW-9F2A11",
+    idempotencyKey: "idem-9",
+    createdAt: "2026-03-10T09:25:00.000Z",
+    updatedAt: "2026-03-10T09:30:00.000Z",
+    paidAt: "2026-03-10T09:30:00.000Z",
+    ...over,
+  };
+}
+
+describe("getOrder — the checkout ledger is the itemized source", () => {
+  beforeEach(() => {
+    h.tables.clear();
+    h.users.clear();
+    h.users.set("u1", {
+      id: "u1",
+      mobile: "09120000003",
+      displayName: "زهرا محمدی",
+      orgId: null,
+    });
+  });
+
+  it("carries the full invoice snapshot from the checkout row", () => {
+    h.tables.set("orders", [checkoutOrder()]);
+    const order = getOrder("sub-9")!;
+    expect(order).toBeDefined();
+    expect(order.invoice).toEqual({
+      basePrice: 1_100_000,
+      listPrice: 1_200_000,
+      couponCode: "NOWRUZ",
+      discountAmount: 120_000,
+      discountPercent: 10,
+      taxAmount: 33_000,
+      taxRatePercent: 3,
+      otherAmount: 0,
+      finalAmount: 1_013_000,
+      collectedAmount: 1_013_000,
+      durationDays: 90,
+    });
+    expect(order.salePrice).toBe(1_013_000); // the amount actually owed
+    expect(order.listPrice).toBe(1_200_000); // the pre-discount figure
+    expect(order.status).toBe("SUCCESS");
+    expect(order.trackingId).toBe("GW-9F2A11");
+  });
+
+  it("hands the same snapshot to the receipt descriptor", () => {
+    h.tables.set("orders", [checkoutOrder()]);
+    const receipt = buildOrderReceipt(getOrder("sub-9")!);
+    expect(receipt.available).toBe(true);
+    expect(receipt.invoice).toEqual(getOrder("sub-9")!.invoice);
+    expect(receipt.listPrice).toBe(1_200_000);
+    expect(receipt.discountAmount).toBe(120_000);
+    expect(receipt.refundedAmount).toBe(0);
+  });
+
+  it("still reports the real snapshot for an order that has not been paid", () => {
+    h.tables.set("orders", [
+      checkoutOrder({ status: "awaiting_payment", paidAt: null, collectedAmount: 0 }),
+    ]);
+    const order = getOrder("sub-9")!;
+    expect(order.invoice).not.toBeNull(); // the ledger recorded it
+    const receipt = buildOrderReceipt(order);
+    expect(receipt.available).toBe(false); // but no receipt is issued
+    expect(receipt.reason).toBe("not_paid");
+    expect(receipt.invoice!.finalAmount).toBe(1_013_000);
+  });
+
+  it("scopes a legacy subscription row to no itemization at all", () => {
+    h.tables.set("subscriptions", [
+      {
+        id: "sub-legacy",
+        user_id: "u1",
+        plan_code: "gold",
+        plan_name_fa: "اشتراک طلایی",
+        amount: 450_000,
+        currency: "IRT",
+        status: "active",
+        status_fa: "فعال",
+        start_at: "2026-03-10T09:30:00.000Z",
+        end_at: "2026-04-10T09:30:00.000Z",
+        purchased_at: "2026-03-10T09:30:00.000Z",
+        auto_renew: 0,
+        tracking_id: null,
+      },
+    ]);
+    const order = getOrder("sub-legacy")!;
+    expect(order.invoice).toBeNull();
+    expect(order.listPrice).toBe(order.salePrice); // one settled figure only
+    expect(buildOrderReceipt(order).invoice).toBeNull();
+  });
+});
+
 /** Extract the text layer of a rendered PDF (logical order, as pdfjs reads it). */
 async function extractText(bytes: Uint8Array): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -208,7 +344,7 @@ describe("renderOrderReceiptPdf", () => {
     const text = await extractText(bytes);
     expect(text).not.toContain("\u2014"); // em-dash = the "no date" fallback
     expect(text).toMatch(/[\u06F0-\u06F9]{4}/); // a 4-digit Persian year is present
-    expect(text).toContain("تاریخ پرداخت"); // the payment-date label
+    expect(text).toContain("تاریخ خرید"); // the purchase-date label
   });
 
   it("renders without a tracking id or service name (nulls are omitted, not thrown on)", async () => {
@@ -218,5 +354,61 @@ describe("renderOrderReceiptPdf", () => {
       trackingId: null,
     });
     expect(bytes.byteLength).toBeGreaterThan(1_000);
+  });
+
+  // NOTE: pdfjs extracts shaped glyphs, so a lam-alef ligature comes back as
+  // «ال» and a hamza as a separate mark. Assertions therefore use substrings
+  // that survive shaping — never a word containing لا or a diacritic.
+  it("prints the four invoice sections", async () => {
+    const bytes = await renderOrderReceiptPdf(buildOrderReceipt(PAID_ORDER));
+    const text = await extractText(bytes);
+    for (const section of ["مشخصات سفارش", "مشخصات خریدار", "مبالغ", "اطالعات پرداخت"]) {
+      expect(text).toContain(section);
+    }
+  });
+
+  it("itemizes discount, tax and the payable total from the snapshot", async () => {
+    const order: AdminOrder = {
+      ...PAID_ORDER,
+      invoice: {
+        ...PAID_ORDER.invoice!,
+        taxAmount: 45_000,
+        taxRatePercent: 10,
+        finalAmount: 495_000,
+        collectedAmount: 495_000,
+      },
+      salePrice: 495_000,
+      netAmount: 495_000,
+    };
+    const bytes = await renderOrderReceiptPdf(buildOrderReceipt(order));
+    const text = await extractText(bytes);
+
+    expect(text).toContain("مبلغ فهرست");
+    expect(text).toContain("NOWRUZ"); // the coupon code is printed, not hidden
+    expect(text).toContain("مالیات بر ارزش افزوده");
+    expect(text).toContain("مبلغ قابل پرداخت");
+  });
+
+  it("omits the itemization for a legacy order instead of inventing zeros", async () => {
+    const legacy: AdminOrder = { ...PAID_ORDER, invoice: null };
+    const bytes = await renderOrderReceiptPdf(buildOrderReceipt(legacy));
+    const text = await extractText(bytes);
+
+    // The honest statement replaces the itemized block.
+    expect(text).toContain("قدیمی");
+    expect(text).toContain("مبلغ فروش");
+    expect(text).not.toContain("NOWRUZ");
+    expect(text).not.toContain("مبلغ فهرست");
+  });
+
+  it("draws the official seal and its honest caption", async () => {
+    const bytes = await renderOrderReceiptPdf(buildOrderReceipt(PAID_ORDER));
+    const text = await extractText(bytes);
+    // The caption states what the mark certifies, so a printed invoice is
+    // never mistaken for a legally reviewed document.
+    expect(text).toContain("مهر رسمی");
+    expect(text).toContain("بررسی حقوقی");
+    // The print-only hologram ink is part of the PDF, never of the screen view.
+    expect(text).toContain("Powered By SOYE");
   });
 });

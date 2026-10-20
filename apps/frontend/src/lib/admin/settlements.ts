@@ -21,6 +21,7 @@ import { readTable, writeTable, findUserById } from "@/lib/db";
 import { SETTLEMENT_TRANSITIONS } from "@legalir/types";
 import type {
   CommissionRule,
+  LawyerIncomeSummary,
   LawyerSettlement,
   SettlementLine,
   SettlementStatus,
@@ -153,6 +154,60 @@ export function listSettlements(filter: { lawyerId?: string; status?: Settlement
 
 export function getSettlement(id: string): LawyerSettlement | undefined {
   return readSettlements().find((s) => s.id === id);
+}
+
+/**
+ * Roll a lawyer's settlements up into one income figure. Every number is a sum
+ * of real settlement rows — nothing is projected or estimated.
+ *
+ * `PAID` money is settled and gone; `FAILED` money is neither paid nor still
+ * owed, so it is reported separately rather than silently folded into
+ * `outstanding`. Everything else (OPEN … APPROVED) is still owed.
+ */
+export function summarizeLawyerIncome(lawyerId: string): LawyerIncomeSummary {
+  return summarizeLawyerIncomes([lawyerId]).get(lawyerId)!;
+}
+
+/** The most recent settlements for one lawyer, newest first (ledger rows). */
+export function listLawyerSettlements(lawyerId: string, limit = 10): LawyerSettlement[] {
+  return listSettlements({ lawyerId }).slice(0, limit);
+}
+
+/**
+ * Roll-up for MANY lawyers at once, reading the ledger table a single time.
+ * The list endpoint needs one figure per row; calling `summarizeLawyerIncome`
+ * per row would re-read the whole table N times.
+ */
+export function summarizeLawyerIncomes(lawyerIds: string[]): Map<string, LawyerIncomeSummary> {
+  const wanted = new Set(lawyerIds);
+  const grouped = new Map<string, LawyerSettlement[]>();
+  for (const row of readSettlements()) {
+    if (!wanted.has(row.lawyerId)) continue;
+    const bucket = grouped.get(row.lawyerId);
+    if (bucket) bucket.push(row);
+    else grouped.set(row.lawyerId, [row]);
+  }
+
+  const out = new Map<string, LawyerIncomeSummary>();
+  for (const id of lawyerIds) {
+    const rows = grouped.get(id) ?? [];
+    const sum = (pick: (s: LawyerSettlement) => number) => rows.reduce((n, s) => n + pick(s), 0);
+    const isSettled = (s: LawyerSettlement) => s.status === "PAID" || s.status === "FAILED";
+    out.set(id, {
+      grossEarned: sum((s) => s.grossAmount),
+      platformFee: sum((s) => s.platformFee),
+      deductions: sum((s) => s.deductions),
+      netEarned: sum((s) => s.netAmount),
+      paidOut: sum((s) => (s.status === "PAID" ? s.netAmount : 0)),
+      failedAmount: sum((s) => (s.status === "FAILED" ? s.netAmount : 0)),
+      outstanding: sum((s) => (isSettled(s) ? 0 : s.netAmount)),
+      currency: rows[0]?.currency ?? "IRT",
+      settlementCount: rows.length,
+      lineCount: rows.reduce((n, s) => n + s.lines.length, 0),
+      hasData: rows.length > 0,
+    });
+  }
+  return out;
 }
 
 export interface CreateSettlementInput {

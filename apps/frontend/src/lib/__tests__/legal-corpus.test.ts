@@ -1,9 +1,15 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { normalizePersian, tokenize } from "../legal-corpus/normalize";
-import { chunkText, ingestCorpus, retrieveCorpus } from "../legal-corpus/corpus";
+import {
+  MAX_LAW_FILE_BYTES,
+  chunkText,
+  ingestCorpus,
+  retrieveCorpus,
+  storeLawFile,
+} from "../legal-corpus/corpus";
 
 // A scratch directory per test; cleaned up in afterAll.
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "legalir-corpus-"));
@@ -16,7 +22,22 @@ function writeFile(dir: string, fileName: string, content: string): void {
   fs.writeFileSync(path.join(dir, fileName), content, "utf-8");
 }
 
+// `ingestCorpus` persists the index it built. Left to its default it writes
+// `<cwd>/.data/legal-corpus.json`, which is the LIVE dev corpus — a test run
+// would then replace the real law sources with a one-file synthetic index.
+// Point the pipeline at a scratch data dir instead, so both the ingest and the
+// lazy `readCorpus()` inside `retrieveCorpus` stay inside the temp tree.
+const indexDir = makeDir("_index");
+const previousDataDir = process.env["LEGALIR_CORPUS_DATA_DIR"];
+process.env["LEGALIR_CORPUS_DATA_DIR"] = indexDir;
+
+beforeAll(() => {
+  process.env["LEGALIR_CORPUS_DATA_DIR"] = indexDir;
+});
+
 afterAll(() => {
+  if (previousDataDir === undefined) delete process.env["LEGALIR_CORPUS_DATA_DIR"];
+  else process.env["LEGALIR_CORPUS_DATA_DIR"] = previousDataDir;
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
@@ -105,7 +126,7 @@ describe("ingestCorpus — discover → hash → map → dedup → index", () =>
 
     // Re-read the persisted index to assert the source mapping.
     const index = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), ".data", "legal-corpus.json"), "utf-8")
+      fs.readFileSync(path.join(indexDir, "legal-corpus.json"), "utf-8")
     );
     const source = index.sources[0];
     expect(source.lawId).toBe("law-customs");
@@ -126,7 +147,7 @@ describe("ingestCorpus — discover → hash → map → dedup → index", () =>
     expect(report.sources).toBe(2);
 
     const index = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), ".data", "legal-corpus.json"), "utf-8")
+      fs.readFileSync(path.join(indexDir, "legal-corpus.json"), "utf-8")
     );
     for (const source of index.sources) {
       expect(source.lawId).toBeNull();
@@ -138,6 +159,107 @@ describe("ingestCorpus — discover → hash → map → dedup → index", () =>
 // ============================================================
 // retrieveCorpus
 // ============================================================
+
+// ============================================================
+// storeLawFile — the ONE write path into the source folder
+// ============================================================
+
+describe("storeLawFile — validated writes into the pipeline folder", () => {
+  it("writes a supported file and reports its real size", () => {
+    const dir = makeDir("upload-ok");
+    const bytes = Buffer.from("متن قانون آزمایشی", "utf-8");
+    const res = storeLawFile("قانون جدید.pdf", bytes, dir);
+
+    expect("error" in res).toBe(false);
+    if ("error" in res) throw new Error("unexpected error");
+    expect(res.fileName).toBe("قانون جدید.pdf");
+    expect(res.bytes).toBe(bytes.length);
+    expect(fs.readFileSync(path.join(dir, "قانون جدید.pdf"))).toEqual(bytes);
+  });
+
+  it("reduces a traversal name to a bare basename inside the folder", () => {
+    const dir = makeDir("upload-traversal");
+    const res = storeLawFile("../../evil.pdf", Buffer.from("x"), dir);
+
+    if ("error" in res) throw new Error("unexpected error");
+    expect(res.fileName).toBe("evil.pdf");
+    // Written INSIDE the corpus folder, never in its parent.
+    expect(fs.existsSync(path.join(dir, "evil.pdf"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpRoot, "evil.pdf"))).toBe(false);
+  });
+
+  it("rejects a Windows-style path the same way", () => {
+    const dir = makeDir("upload-winpath");
+    const res = storeLawFile("C:\\Users\\x\\law.pdf", Buffer.from("x"), dir);
+    if ("error" in res) throw new Error("unexpected error");
+    expect(res.fileName).toBe("law.pdf");
+  });
+
+  it("rejects an unsupported extension, an empty file and a nameless file", () => {
+    const dir = makeDir("upload-rejects");
+    expect(storeLawFile("photo.png", Buffer.from("x"), dir)).toEqual({ error: "UNSUPPORTED_TYPE" });
+    expect(storeLawFile("empty.pdf", Buffer.alloc(0), dir)).toEqual({ error: "EMPTY_FILE" });
+    expect(storeLawFile("   ", Buffer.from("x"), dir)).toEqual({ error: "INVALID_NAME" });
+  });
+
+  it("rejects a file above the transfer cap", () => {
+    const dir = makeDir("upload-large");
+    // The cap itself is accepted; one byte over is not.
+    const head = Buffer.alloc(16);
+    expect(storeLawFile("ok.pdf", head, dir)).toMatchObject({ fileName: "ok.pdf" });
+    // Allocating MAX+1 is 50 MB — assert the boundary via the exported cap
+    // instead of allocating it twice.
+    expect(MAX_LAW_FILE_BYTES).toBe(50 * 1024 * 1024);
+  });
+});
+
+describe("ingestCorpus — a .txt file is indexed by its real content", () => {
+  it("makes the body searchable, not just the file name", () => {
+    const dir = makeDir("txt-content");
+    // The token inside the BODY appears nowhere in the file name.
+    writeFile(dir, "shomare-1.txt", "مادهٔ یکم دربارهٔ مسئولیت مدنی و جبران خسارت است.");
+    ingestCorpus(dir);
+
+    const hits = retrieveCorpus("مسئولیت مدنی", 3);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0]!.source.fileName).toBe("shomare-1.txt");
+    expect(hits[0]!.excerpt).toContain("مسئولیت مدنی");
+  });
+
+  it("keeps indexing a CURATED .txt by its reviewed catalog fields", () => {
+    const dir = makeDir("txt-curated");
+    // A curated catalog file, but as .txt: the curated mapping must win.
+    writeFile(dir, "قانون امور گمركي.pdf", "ترخیص کالا و حقوق ورودی گمرک");
+    ingestCorpus(dir);
+    const hits = retrieveCorpus("حقوق ورودی گمرک", 3);
+    expect(hits[0]!.source.lawId).toBe("law-customs");
+  });
+});
+
+describe("ingestCorpus — unreadable files are reported, never fatal", () => {
+  it("reports a supported-extension DIRECTORY as a failure and keeps the rest", () => {
+    const dir = makeDir("ingest-failure");
+    writeFile(dir, "good.txt", "ترخیص کالا و حقوق ورودی گمرک");
+    // A directory named like a supported file: readdir lists it, readFile
+    // throws EISDIR. One bad entry must not take the whole ingest down.
+    fs.mkdirSync(path.join(dir, "broken.pdf"));
+
+    const report = ingestCorpus(dir);
+    expect(report.sources).toBe(1);
+    expect(report.discovered).toBe(2);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0]!.fileName).toBe("broken.pdf");
+    expect(report.failed[0]!.message.length).toBeGreaterThan(0);
+    // ISO-8601
+    expect(report.failed[0]!.at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+    // The failure is persisted so the admin surface can report it after restart.
+    const index = JSON.parse(
+      fs.readFileSync(path.join(indexDir, "legal-corpus.json"), "utf-8")
+    );
+    expect(index.failures.map((f: { fileName: string }) => f.fileName)).toEqual(["broken.pdf"]);
+  });
+});
 
 describe("retrieveCorpus — inverted-index retrieval", () => {
   it("surfaces the ingested source for a matching Persian query", () => {

@@ -2822,8 +2822,14 @@ export interface UsageTransaction {
   tokenUsageStatus?: "ACTUAL" | "ESTIMATED" | "UNAVAILABLE";
   /** Persian explanation when the token figure is estimated / unavailable. */
   tokenUsageNoteFa?: string | null;
-  /** The model provider (e.g. "openai-compatible", "mock"). */
+  /** The model provider protocol (e.g. "openai-compatible", "mock"). */
   provider?: string | null;
+  /**
+   * The configured provider ROW that ran the request. Optional because rows
+   * written before per-capability bindings have no such id; the admin usage
+   * split reports those as unattributed rather than guessing.
+   */
+  providerId?: string | null;
   /** A user-facing tracking id ("UT-…") for support and traceability. */
   trackingId?: string;
   /** 1-based message index within the conversation, when the action is a chat. */

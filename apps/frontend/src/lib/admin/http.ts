@@ -78,6 +78,10 @@ const ERROR_MAP: Record<string, { status: number; message: string }> = {
   PLAN_REQUIRED: { status: 400, message: "انتخاب پلن الزامی است" },
   NO_ACTIVE_SUBSCRIPTION: { status: 409, message: "کاربر اشتراک فعالی ندارد" },
   INVALID_DAYS: { status: 400, message: "تعداد روز نامعتبر است" },
+  INVALID_ASSIGNEE: {
+    status: 400,
+    message: "کارشناس انتخاب‌شده مجوز مدیریت تیکت‌ها را ندارد",
+  },
   INSUFFICIENT_BALANCE: { status: 409, message: "موجودی انرژی برای این کاهش کافی نیست" },
   UNKNOWN_ACTION: { status: 400, message: "عملیات ناشناخته است" },
   SECRET_STORAGE_UNCONFIGURED: {

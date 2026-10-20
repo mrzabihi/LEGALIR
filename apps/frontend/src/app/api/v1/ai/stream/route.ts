@@ -29,8 +29,14 @@ import {
 import {
   createAiProvider,
   readAiProviderConfig,
+  MockAiProvider,
+  OpenAiCompatibleProvider,
   type AiProvider,
 } from "@/lib/ai/provider";
+import {
+  resolveEffectiveProvider,
+  type EffectiveProvider,
+} from "@/lib/admin/ai-bindings";
 import { retrieveGroundedSources, retrieveDocumentContext } from "@/lib/ai/grounding";
 import { buildAnswerContract } from "@/lib/knowledge/answer-contract";
 import { appendMessage, getMessages } from "@/lib/ai/store";
@@ -211,7 +217,9 @@ async function streamAssistant(
   usageTransactionId: string,
   turnContext: TurnContext,
   /** The provider resolved before pricing, so the ledger names the real model. */
-  provider: AiProvider
+  provider: AiProvider,
+  /** The binding/default resolution behind `provider`, recorded in the ledger. */
+  effective: EffectiveProvider
 ): Promise<void> {
   // Persist the user message first (§22 — no message loss).
   appendMessage(body.conversationId, {
@@ -376,6 +384,9 @@ async function streamAssistant(
       grounding = retrieveGroundedSources(body.content, toolPlan.maxSources, {
         includePrecedentPass: toolPlan.includePrecedentPass,
         maxPrecedentSources: 3,
+        // The capability's binding decides what it may retrieve from. `null`
+        // (unset) leaves the pre-binding behaviour untouched.
+        allowedSourceIds: effective.binding?.knowledgeSourceIds ?? null,
       });
       completeStage(requestId, "RESEARCH", { sourcesUsed: grounding.references.length });
       emit({
@@ -527,7 +538,10 @@ async function streamAssistant(
     inputTokens: providerUsage.inputTokens,
     outputTokens: providerUsage.outputTokens,
     model: provider.model,
+    // `provider` is the wire protocol; `providerId` is the configured row the
+    // operator bound — the only key the admin usage split can group by.
     provider: provider.name,
+    providerId: effective.providerId,
     tokenUsageStatus: providerUsage.totalTokens > 0
       ? providerUsage.estimated
         ? "ESTIMATED"
@@ -571,6 +585,25 @@ async function streamAssistant(
     serviceType: turnContext.serviceType,
     toolIds: turnContext.toolIds,
     pendingFollowUps,
+  });
+}
+
+/**
+ * Build the concrete provider for the RESOLVED config, keeping the mock path
+ * identical to `createAiProvider()` (the deterministic development mock).
+ * Anything with a live key goes through the OpenAI-compatible client with the
+ * binding's temperature/max-token/timeout overrides applied.
+ */
+function providerFromEffective(effective: EffectiveProvider): AiProvider {
+  if (!effective.apiKey) return new MockAiProvider(effective.model || "legalir-mock-v1");
+  return new OpenAiCompatibleProvider({
+    provider: "openai-compatible",
+    model: effective.model,
+    apiKey: effective.apiKey,
+    baseUrl: effective.baseUrl,
+    temperature: effective.temperature,
+    maxOutputTokens: effective.maxOutputTokens,
+    timeoutMs: effective.timeoutMs,
   });
 }
 
@@ -645,8 +678,15 @@ export async function POST(request: Request) {
   // never double-charge. On an internal failure the reservation is reversed.
   const userMessageId = crypto.randomUUID();
   // The provider is resolved BEFORE pricing so the tariff can price the real
-  // model (and the ledger records which model actually ran).
-  const provider = createAiProvider();
+  // model (and the ledger records which model actually ran). A capability
+  // binding wins over the default provider; when a binding exists but cannot
+  // be honoured, `effective.degradedReasonFa` says why — the answer is never
+  // silently claimed to come from the configured binding.
+  const effective = resolveEffectiveProvider(
+    turnContext.serviceType,
+    readAiProviderConfig()
+  );
+  const provider = providerFromEffective(effective);
   // The admin-configured chat tariff distinguishes the first message from the
   // rest (PER_CONVERSATION basis) and can adjust by message position, so the
   // real position is computed from the persisted conversation — never guessed.
@@ -728,7 +768,8 @@ export async function POST(request: Request) {
           userMessageId,
           usageTransactionId,
           turnContext,
-          provider
+          provider,
+          effective
         );
 
         emit({ type: "status", status: "validating" });

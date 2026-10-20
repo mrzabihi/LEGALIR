@@ -37,6 +37,7 @@ import {
 import { resolvePage, resolvePageSize, paginate } from "@/lib/admin/pagination";
 import { matchesRow } from "@/lib/search/normalize";
 import { maskMobileMiddle } from "@/lib/admin/mobile";
+import { summarizeLawyerIncomes } from "@/lib/admin/settlements";
 
 const BUCKETS: LawyerDecisionBucket[] = ["REVIEW", "APPROVED", "REJECTED", "SUSPENDED"];
 const LIFECYCLES: AdminLawyerStatus[] = ["ACTIVE", "INACTIVE", "SUSPENDED", "DELETED"];
@@ -110,8 +111,15 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
+  // One ledger read for the whole page, not one per row. The figure attached
+  // to each lawyer is a real sum of their settlement rows; a lawyer with no
+  // settlement gets `hasData: false` and the table says «بدون تسویه» rather
+  // than printing a zero that reads like a measured income.
   const p = paginate(mapped, page, pageSize);
+  const income = summarizeLawyerIncomes(p.items.map((l) => l.id));
+  const items = p.items.map((l) => ({ ...l, income: income.get(l.id)! }));
+
   return NextResponse.json({
-    data: { items: p.items, total: p.total, page: p.page, pageSize: p.pageSize, totalPages: p.totalPages },
+    data: { items, total: p.total, page: p.page, pageSize: p.pageSize, totalPages: p.totalPages },
   });
 }

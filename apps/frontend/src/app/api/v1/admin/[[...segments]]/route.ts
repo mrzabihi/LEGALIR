@@ -22,6 +22,8 @@ import { readTable, findUserById } from "@/lib/db";
 import { toE164Display } from "@legalir/validation";
 import {
   ADMIN_EXPORT_PERMISSION,
+  DEFAULT_SLA_SERVICE_KEY,
+  LAWYER_SERVICES,
   lawyerDecisionBucket,
   LEGAL_REQUEST_TRANSITIONS,
   ANNOUNCEMENT_STATUSES,
@@ -71,6 +73,7 @@ import {
 import {
   listAiProviders,
   saveAiProvider,
+  setAiProviderEnabled,
   testAiProvider,
   listPromptVersions,
   createPromptVersion,
@@ -78,6 +81,24 @@ import {
   getAiUsageMetrics,
   isSecretStorageReady,
 } from "@/lib/admin/ai-providers";
+import {
+  bindingImpact,
+  clearServiceBinding,
+  getAiUsageBreakdown,
+  getServiceBinding,
+  isCapability,
+  listCapabilities,
+  listServiceBindings,
+  saveServiceBinding,
+  type AuditMeta,
+} from "@/lib/admin/ai-bindings";
+import {
+  getDisplaySettings,
+  saveDisplaySettings,
+  serverTimeZone,
+  timeZoneOptions,
+  TIMESTAMP_STORAGE_FORMAT,
+} from "@/lib/admin/platform-settings";
 import { listToolsForAdmin, updateToolSetting } from "@/lib/ai/chat-tools";
 import { SERVICE_CONTEXTS } from "@/lib/ai/service-context";
 import {
@@ -89,6 +110,12 @@ import {
   testRagRetrieval,
   reingestRagCorpus,
   lawCatalogCoverage,
+  uploadRagFile,
+  retryRagIngestion,
+  retryRagSource,
+  ragIngestFailures,
+  getRagSource,
+  RAG_UPLOAD_MAX_BYTES,
 } from "@/lib/admin/rag";
 import {
   listAdminBlogPosts,
@@ -181,6 +208,8 @@ import {
   createTicket,
   addMessage,
   updateTicket,
+  listTicketEvents,
+  listAssignableAgents,
   supportCounts,
   isOverdue,
 } from "@/lib/admin/support";
@@ -591,14 +620,32 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
       ),
     }),
 
-  support: ({ url }) =>
-    ok({
+  support: ({ url }) => {
+    // `unassigned`/`overdue` are tri-state: an absent param filters nothing,
+    // so the plain listing stays the full queue.
+    const boolParam = (key: string): boolean | undefined => {
+      const raw = url.searchParams.get(key);
+      return raw === "true" ? true : raw === "false" ? false : undefined;
+    };
+    const sortRaw = url.searchParams.get("sort");
+    const sort =
+      sortRaw === "priority-desc" || sortRaw === "due" || sortRaw === "updated"
+        ? sortRaw
+        : undefined;
+    return ok({
       items: listTickets({
         status: (url.searchParams.get("status") as SupportTicketStatus | null) ?? undefined,
         priority: (url.searchParams.get("priority") as SupportTicketPriority | null) ?? undefined,
+        assigneeUserId: url.searchParams.get("assigneeUserId") ?? undefined,
+        unassigned: boolParam("unassigned"),
+        overdue: boolParam("overdue"),
+        search: url.searchParams.get("search") ?? undefined,
+        sort,
       }),
       counts: supportCounts(),
-    }),
+      agents: listAssignableAgents(),
+    });
+  },
 
   content: () => {
     // §2 — the admin blog surface reports the real publish state from the ONE
@@ -662,19 +709,46 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
   // platform working calendar. Both come straight from the store the lawyer
   // portal reads when it starts a clock, so what the operator configures here
   // is exactly what governs a live referral.
-  sla: () =>
-    ok({
-      policies: listSlaPolicies(),
+  sla: ({ url }) => {
+    // Archived rows are hidden by default: an operator scanning "what governs
+    // a referral today" should not have to skip past retired services. The
+    // `includeArchived=1` view exists for review and un-archiving.
+    const includeArchived = url.searchParams.get("includeArchived") === "1";
+    // The catalogue is joined only so the "add a policy for a service that has
+    // none" picker can offer real service names instead of raw ids.
+    const configured = new Set(listSlaPolicies(true).map((p) => p.serviceKey));
+    return ok({
+      policies: listSlaPolicies(includeArchived),
       calendar: getWorkCalendar(),
-    }),
+      services: LAWYER_SERVICES.map((s) => ({
+        id: s.id,
+        nameFa: s.nameFa,
+        hasPolicy: configured.has(s.id),
+      })),
+      defaultServiceKey: DEFAULT_SLA_SERVICE_KEY,
+    });
+  },
 
   settings: () => {
     const orgs = listOrganizations();
     const providers = listAiProviders();
+    // TWO zones, reported side by side and never conflated:
+    //   • `serverTimezone` is where the process runs — discovered, not set.
+    //   • `displayTimezone` is the panel preference an operator may save.
+    // Stored instants stay UTC; the display zone only changes how they are
+    // RENDERED, so nothing in the store is ever rewritten by this setting.
+    const server = serverTimeZone();
+    const display = getDisplaySettings();
     return ok({
       environment: process.env["NODE_ENV"] ?? "development",
-      timezone: "Asia/Tehran",
       currency: "IRT",
+      serverTimezone: server.timeZone,
+      serverTimezoneSource: server.source,
+      displayTimezone: display.displayTimezone,
+      displayTimezoneUpdatedAt: display.updatedAt || null,
+      nowUtc: new Date().toISOString(),
+      storageFormat: TIMESTAMP_STORAGE_FORMAT,
+      timezoneOptions: timeZoneOptions([display.displayTimezone, server.timeZone]),
       secretStorageConfigured: isSecretStorageReady(),
       aiProviders: providers.map((p) => ({
         id: p.id,
@@ -976,6 +1050,15 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       return ok(s);
     }
     case "support": {
+      // Checked BEFORE the `support/:id` branch, which would otherwise read
+      // "agents" as a ticket id and answer with a misleading 404.
+      if (b === "agents") return ok({ items: listAssignableAgents() });
+      // The append-only history of one ticket.
+      if (b && d === "history") {
+        const ticket = getTicket(b);
+        if (!ticket) return adminError(404, "NOT_FOUND", "تیکت یافت نشد");
+        return ok({ items: listTicketEvents(b) });
+      }
       const t = b ? getTicket(b) : undefined;
       if (!t) return adminError(404, "NOT_FOUND", "تیکت یافت نشد");
       return ok({ ticket: t, overdue: isOverdue(t) });
@@ -986,6 +1069,47 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       if (b === "prompts")
         return ok({ items: listPromptVersions(c.url.searchParams.get("key") ?? undefined) });
       if (b === "metrics") return ok(getAiUsageMetrics(intParam(c.url, "rangeDays", 30)));
+      // The pre-save preview: exactly the facts the save would freeze into the
+      // audit trail, computed from the runs that actually executed. A GET, so
+      // opening the editor never mutates anything. Checked BEFORE the plain
+      // `bindings` list, because that branch would otherwise shadow it.
+      if (b === "bindings" && d === "impact") {
+        const serviceType = c.url.searchParams.get("serviceType") ?? "";
+        if (!isCapability(serviceType)) {
+          return adminError(400, "INVALID_CAPABILITY", "قابلیت انتخاب‌شده شناخته نمی‌شود.");
+        }
+        const providerIdRaw = c.url.searchParams.get("providerId");
+        const modelRaw = c.url.searchParams.get("model");
+        const statusRaw = c.url.searchParams.get("status");
+        return ok(
+          bindingImpact({
+            serviceType,
+            providerId: providerIdRaw ? providerIdRaw : null,
+            model: modelRaw ? modelRaw : null,
+            rangeDays: intParam(c.url, "rangeDays", 30),
+            status: statusRaw === "inactive" ? "inactive" : "active",
+          })
+        );
+      }
+      // Per-capability bindings: every capability is listed, with `configured`
+      // telling the panel whether it was set explicitly or follows the default.
+      if (b === "bindings") {
+        return ok({
+          items: listServiceBindings(),
+          capabilities: listCapabilities(),
+          providers: listAiProviders().map((p) => ({
+            id: p.id,
+            nameFa: p.nameFa,
+            status: p.status,
+            enabled: p.enabled !== false,
+            hasKey: p.hasKey,
+            defaultModel: p.defaultModel ?? p.model ?? null,
+            availableModels: p.availableModels ?? [],
+          })),
+        });
+      }
+      // The REAL split, computed from recorded runs + the settled ledger.
+      if (b === "usage") return ok(getAiUsageBreakdown(intParam(c.url, "rangeDays", 30)));
       // §7/§12 — the contextual chat tools. `available` is the REAL capability
       // verdict (does this server hold the source?), never the toggle alone.
       if (b === "tools") {
@@ -1014,6 +1138,8 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       if (b === "pipeline") {
         return ok({ status: getRagPipelineStatus(), coverage: lawCatalogCoverage() });
       }
+      // The unreadable files from the last ingest, with their real errors.
+      if (b === "failures") return ok({ items: ragIngestFailures() });
       return adminError(400, "BAD_PATH", "درخواست نامعتبر");
     }
     case "energy": {
@@ -1143,6 +1269,30 @@ interface Actor {
   role: PlatformRole;
   orgId: string | null;
 }
+
+/**
+ * The operator's display name for a history/audit entry. Falls back to the
+ * role label (never the raw user id) when the account has no name set.
+ */
+function actorName(actor: Actor): string {
+  return findUserById(actor.userId)?.displayName ?? String(actor.role);
+}
+
+// Closed vocabularies for the support write path. A string cast is not
+// validation: these sets are what actually decides whether a value is written.
+const KNOWN_TICKET_STATUS = new Set<SupportTicketStatus>([
+  "open",
+  "in_progress",
+  "waiting",
+  "resolved",
+  "closed",
+]);
+const KNOWN_TICKET_PRIORITY = new Set<SupportTicketPriority>([
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
 
 function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
@@ -1829,6 +1979,23 @@ async function handlePost(
       isDefault: Boolean(body["isDefault"]),
       apiKey: typeof body["apiKey"] === "string" ? (body["apiKey"] as string) : undefined,
       clearKey: Boolean(body["clearKey"]),
+      // Lifecycle + catalogue. Each is only forwarded when actually supplied,
+      // so an older client that omits them cannot silently re-enable a
+      // provider the operator paused.
+      ...(typeof body["enabled"] === "boolean" ? { enabled: body["enabled"] as boolean } : {}),
+      ...(Array.isArray(body["availableModels"])
+        ? {
+            availableModels: (body["availableModels"] as unknown[]).filter(
+              (m): m is string => typeof m === "string"
+            ),
+          }
+        : {}),
+      ...(body["defaultModel"] === null || typeof body["defaultModel"] === "string"
+        ? { defaultModel: body["defaultModel"] as string | null }
+        : {}),
+      ...(body["configuration"] && typeof body["configuration"] === "object"
+        ? { configuration: body["configuration"] as Record<string, string> }
+        : {}),
       updatedBy: actor.userId,
     });
     if ("error" in res) return mapDataError(res.error);
@@ -1839,7 +2006,15 @@ async function handlePost(
       action: "ai.provider.save",
       resourceType: "ai_provider",
       resourceId: res.id,
-      after: { nameFa: res.nameFa, kind: res.kind, hasKey: res.hasKey, isDefault: res.isDefault },
+      after: {
+        nameFa: res.nameFa,
+        kind: res.kind,
+        hasKey: res.hasKey,
+        isDefault: res.isDefault,
+        enabled: res.enabled !== false,
+        models: res.availableModels?.length ?? null,
+        defaultModel: res.defaultModel ?? null,
+      },
       ...meta,
     });
     return NextResponse.json({ data: res }, { status: 201 });
@@ -1980,7 +2155,7 @@ async function handlePost(
       requesterName: str(body["requesterName"], "کاربر"),
       body: str(body["body"]),
       authorUserId: actor.userId,
-      authorName: "پشتیبانی",
+      authorName: actorName(actor),
     });
     if ("error" in res) return mapDataError(res.error);
     recordAudit({
@@ -2105,7 +2280,7 @@ async function handlePost(
     const res = addMessage({
       ticketId: b,
       authorUserId: actor.userId,
-      authorName: "پشتیبانی",
+      authorName: actorName(actor),
       body: str(body["body"]),
       isInternal: Boolean(body["isInternal"]),
     });
@@ -2181,6 +2356,95 @@ async function handlePost(
       ...meta,
     });
     return ok(report);
+  }
+
+  if (a === "rag" && b === "retry") {
+    // §2 — retry the files the last ingest could not read. Deterministic and
+    // honest: files that are still unreadable are reported back as such.
+    const res = retryRagIngestion();
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "rag.corpus.retry",
+      resourceType: "rag_corpus",
+      resourceId: res.report.corpusDir,
+      after: {
+        sources: res.report.sources,
+        chunks: res.report.chunks,
+        stillFailing: res.stillFailing,
+      },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  if (a === "rag" && b === "upload") {
+    // §2 — the ONE write path into the source folder. The uploaded bytes land
+    // in the pipeline's own folder and are ingested immediately, so an
+    // operator adding a law sees the real effect (sources/chunks/failures)
+    // rather than a queued job that may never run.
+    //
+    // Refuse an oversized body BEFORE parsing: base64 inflates by ~4/3, and
+    // a multi-hundred-MB JSON body must not reach the JSON parser.
+    const declared = Number(request.headers.get("content-length") ?? "0");
+    const bodyCap = Math.ceil((RAG_UPLOAD_MAX_BYTES * 4) / 3) + 64 * 1024;
+    if (Number.isFinite(declared) && declared > bodyCap) {
+      return adminError(413, "TOO_LARGE", "حجم فایل بیش از حد مجاز است (حداکثر ۵۰ مگابایت)");
+    }
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    const fileName = str(body["fileName"]);
+    const data = str(body["data"]);
+    if (!fileName || !data) {
+      return adminError(400, "INVALID_BODY", "نام فایل و محتوای آن الزامی است");
+    }
+    const bytes = Buffer.from(data, "base64");
+    const res = uploadRagFile(fileName, bytes);
+    if ("error" in res) {
+      const messageFa =
+        res.error === "UNSUPPORTED_TYPE"
+          ? "فقط فایل‌های PDF، DOCX و TXT پذیرفته می‌شوند"
+          : res.error === "EMPTY_FILE"
+            ? "فایل خالی است"
+            : res.error === "TOO_LARGE"
+              ? "حجم فایل بیش از حد مجاز است (حداکثر ۵۰ مگابایت)"
+              : res.error === "INVALID_NAME"
+                ? "نام فایل نامعتبر است"
+                : "ذخیرهٔ فایل ناموفق بود";
+      const status = res.error === "TOO_LARGE" ? 413 : res.error === "STORE_FAILED" ? 500 : 400;
+      // A rejected upload is a DENIED action, and is recorded as one.
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "rag.source.upload",
+        resourceType: "rag_source",
+        resourceId: fileName || "(unnamed)",
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
+      return adminError(status, res.error, messageFa);
+    }
+
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "rag.source.upload",
+      resourceType: "rag_source",
+      resourceId: res.fileName,
+      after: {
+        bytes: res.bytes,
+        sources: res.ingest.sources,
+        chunks: res.ingest.chunks,
+        discovered: res.ingest.discovered,
+      },
+      ...meta,
+    });
+    return NextResponse.json({ data: res }, { status: 201 });
   }
 
   if (a === "blog") {
@@ -2418,6 +2682,164 @@ async function handlePatch(
 ): Promise<NextResponse> {
   const [a, b, c] = segments;
   const meta = requestMeta(request);
+
+  // --- AI · provider lifecycle -------------------------------------------
+  // Enable/disable is a PATCH of ONE field, so a click can never reset the
+  // model, limits or key. Disabling the default provider clears the default
+  // flag: the router then falls back to the environment, which is the honest
+  // state rather than a default that silently refuses to serve.
+  if (a === "ai" && b === "providers" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    if (typeof body["enabled"] !== "boolean") {
+      return adminError(400, "INVALID_BODY", "وضعیت فعال/غیرفعال لازم است");
+    }
+    const before = listAiProviders().find((p) => p.id === c);
+    if (!before) return adminError(404, "NOT_FOUND", "ارائه‌دهنده یافت نشد");
+    const res = setAiProviderEnabled(c, body["enabled"] as boolean, actor.userId);
+    if ("error" in res) return mapDataError(res.error);
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: res.enabled === false ? "ai.provider.disable" : "ai.provider.enable",
+      resourceType: "ai_provider",
+      resourceId: c,
+      before: { enabled: before.enabled !== false, isDefault: before.isDefault },
+      after: { enabled: res.enabled !== false, isDefault: res.isDefault },
+      ...meta,
+    });
+    return ok(res);
+  }
+
+  // --- AI · per-capability binding ---------------------------------------
+  // The body may also be `{ clear: true }` — the capability returns to the
+  // default provider. Both paths are audited with the impact facts the
+  // operator was shown, so a later reader can reconstruct the decision.
+  if (a === "ai" && b === "bindings" && c) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    if (!isCapability(c)) {
+      return adminError(400, "INVALID_CAPABILITY", "قابلیت انتخاب‌شده شناخته نمی‌شود.");
+    }
+
+    const auditMeta: AuditMeta = {
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      ip: meta.ip ?? null,
+      requestId: meta.requestId ?? null,
+    };
+
+    if (body["clear"] === true) {
+      const removed = clearServiceBinding(c, actor.userId, auditMeta);
+      if (!removed) {
+        return adminError(404, "NOT_FOUND", "اتصال اختصاصی برای این قابلیت ثبت نشده است");
+      }
+      return ok({ binding: null, cleared: true });
+    }
+
+    // Three distinct states, never conflated:
+    //   • key ABSENT  → keep what is stored (a partial save cannot widen scope);
+    //   • explicit [] → answer WITHOUT retrieval;
+    //   • explicit null → every published source (the unrestricted default).
+    // Anything else is malformed and rejected rather than guessed at.
+    const knowledgeRaw = body["knowledgeSourceIds"];
+    let knowledgeSourceIds: string[] | null;
+    if (!("knowledgeSourceIds" in body)) {
+      knowledgeSourceIds = getServiceBinding(c)?.knowledgeSourceIds ?? null;
+    } else if (knowledgeRaw === null) {
+      knowledgeSourceIds = null;
+    } else if (Array.isArray(knowledgeRaw)) {
+      knowledgeSourceIds = (knowledgeRaw as unknown[]).filter(
+        (id): id is string => typeof id === "string"
+      );
+    } else {
+      return adminError(400, "INVALID_BODY", "دامنهٔ منابع دانش نامعتبر است");
+    }
+
+    const result = saveServiceBinding(
+      {
+        serviceType: c,
+        providerId: typeof body["providerId"] === "string" ? (body["providerId"] as string) : null,
+        model: typeof body["model"] === "string" ? (body["model"] as string) : null,
+        temperature:
+          body["temperature"] === null
+            ? null
+            : body["temperature"] === undefined
+              ? null
+              : num(body["temperature"], Number.NaN),
+        maxOutputTokens:
+          body["maxOutputTokens"] === null || body["maxOutputTokens"] === undefined
+            ? null
+            : num(body["maxOutputTokens"], Number.NaN),
+        timeoutMs:
+          body["timeoutMs"] === null || body["timeoutMs"] === undefined
+            ? null
+            : num(body["timeoutMs"], Number.NaN),
+        fallbackProviderId:
+          typeof body["fallbackProviderId"] === "string"
+            ? (body["fallbackProviderId"] as string)
+            : null,
+        knowledgeSourceIds,
+        status: body["status"] === "inactive" ? "inactive" : "active",
+        updatedBy: actor.userId,
+      },
+      auditMeta
+    );
+    if (!result.ok) return adminError(400, result.error, result.messageFa);
+    return ok(result);
+  }
+
+  // Platform settings — the ONLY editable row today is the panel's DISPLAY
+  // timezone. It changes how stored instants are rendered, never the instants
+  // themselves and never the server's own zone; the audit entry carries both
+  // sides so a zone change is attributable.
+  if (a === "settings" && !b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    if (typeof body["displayTimezone"] !== "string") {
+      return adminError(400, "INVALID_BODY", "منطقهٔ زمانی نمایش لازم است");
+    }
+    const res = saveDisplaySettings(
+      { displayTimezone: body["displayTimezone"] as string },
+      actor.userId
+    );
+    if ("error" in res) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "settings.display_timezone.update",
+        resourceType: "platform_settings",
+        resourceId: "display",
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
+      return adminError(400, "INVALID_TIMEZONE", "منطقهٔ زمانی انتخاب‌شده معتبر نیست.");
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "settings.display_timezone.update",
+      resourceType: "platform_settings",
+      resourceId: "display",
+      before: { displayTimezone: res.before.displayTimezone },
+      after: { displayTimezone: res.after.displayTimezone },
+      ...meta,
+    });
+    return ok({
+      displayTimezone: res.after.displayTimezone,
+      displayTimezoneUpdatedAt: res.after.updatedAt,
+      // Re-read the live server zone so the confirmation panel can restate it.
+      serverTimezone: serverTimeZone().timeZone,
+      timezoneOptions: timeZoneOptions([
+        res.after.displayTimezone,
+        serverTimeZone().timeZone,
+      ]),
+    });
+  }
 
   // Coupons — a `{ status }`-only body is a lifecycle change (enable/disable/
   // archive); anything else is a full edit. Both are audited distinctly.
@@ -2848,14 +3270,38 @@ async function handlePatch(
   if (a === "support" && b) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    // A closed-vocabulary check: an unknown status must be refused rather than
+    // written into the ticket (the type assertion below is not validation).
+    // An absent field means "leave it", so only a PRESENT value is validated.
+    const statusRaw = body["status"];
+    if (statusRaw !== undefined && !KNOWN_TICKET_STATUS.has(statusRaw as SupportTicketStatus)) {
+      return adminError(400, "INVALID_STATUS", "وضعیت تیکت نامعتبر است");
+    }
+    const priorityRaw = body["priority"];
+    if (
+      priorityRaw !== undefined &&
+      !KNOWN_TICKET_PRIORITY.has(priorityRaw as SupportTicketPriority)
+    ) {
+      return adminError(400, "INVALID_STATUS", "اولویت تیکت نامعتبر است");
+    }
+    if (body["assigneeUserId"] !== undefined && body["assigneeUserId"] !== null) {
+      if (typeof body["assigneeUserId"] !== "string") {
+        return adminError(400, "INVALID_BODY", "شناسهٔ کارشناس نامعتبر است");
+      }
+    }
+
+    const before = getTicket(b);
     const res = updateTicket({
       ticketId: b,
-      status: body["status"] as SupportTicketStatus | undefined,
-      priority: body["priority"] as SupportTicketPriority | undefined,
+      status: statusRaw as SupportTicketStatus | undefined,
+      priority: priorityRaw as SupportTicketPriority | undefined,
       assigneeUserId:
         body["assigneeUserId"] === undefined
           ? undefined
           : (body["assigneeUserId"] as string | null),
+      referralNote:
+        typeof body["referralNote"] === "string" ? (body["referralNote"] as string) : null,
+      actor: { userId: actor.userId, name: actorName(actor) },
     });
     if ("error" in res) return mapDataError(res.error);
     recordAudit({
@@ -2865,7 +3311,18 @@ async function handlePatch(
       action: "support.update",
       resourceType: "support_ticket",
       resourceId: b,
-      after: { status: res.status, priority: res.priority },
+      before: before
+        ? {
+            status: before.status,
+            priority: before.priority,
+            assigneeUserId: before.assigneeUserId,
+          }
+        : null,
+      after: {
+        status: res.status,
+        priority: res.priority,
+        assigneeUserId: res.assigneeUserId,
+      },
       ...meta,
     });
     return ok(res);
@@ -3245,15 +3702,28 @@ async function handlePatch(
   if (a === "sla" && b === "policies" && c) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    // `audience` / `priority` / `status` are validated by the store: passing an
+    // unrecognised value straight through is what lets it say WHY it refused
+    // rather than silently coercing to a default the operator never picked.
+    // `status` is only forwarded when supplied, so an older client that still
+    // sends `enabled` keeps working untouched.
     const input: SlaPolicyInput = {
       serviceKey: c,
       labelFa: str(body["labelFa"]),
+      audience: body["audience"] as SlaPolicyInput["audience"],
+      priority: body["priority"] as SlaPolicyInput["priority"],
       responseHours: num(body["responseHours"]),
       completionHours: num(body["completionHours"]),
       clock: body["clock"] === "BUSINESS_HOURS" ? "BUSINESS_HOURS" : "CALENDAR",
       pauseBehavior: body["pauseBehavior"] === "CONTINUE" ? "CONTINUE" : "PAUSE",
       warnBeforeHours: num(body["warnBeforeHours"]),
-      enabled: body["enabled"] !== false,
+      // Only forward a lifecycle field that was actually sent: a partial PATCH
+      // must never re-activate a policy the operator paused on purpose.
+      ...(typeof body["status"] === "string"
+        ? { status: body["status"] as SlaPolicyInput["status"] }
+        : typeof body["enabled"] === "boolean"
+          ? { enabled: body["enabled"] }
+          : {}),
     };
     const res = saveSlaPolicy(input, actor);
     if (!res.ok) {
@@ -3316,15 +3786,76 @@ async function handlePatch(
     return ok(res.calendar);
   }
 
+  // Per-source retry: re-run the real ingest for a source marked «ناموفق».
+  // Checked BEFORE the plain `sources/:id` review branch, which would
+  // otherwise shadow this deeper path.
+  if (a === "rag" && b === "sources" && c && segments[3] === "retry") {
+    const res = retryRagSource(c, actor.userId);
+    if ("error" in res) {
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "rag.source.retry",
+        resourceType: "rag_source",
+        resourceId: c,
+        result: "denied",
+        reason: res.error,
+        ...meta,
+      });
+      if (res.error === "NOT_FOUND") return adminError(404, "NOT_FOUND", res.message ?? "منبع یافت نشد");
+      if (res.error === "STILL_FAILING") {
+        return adminError(409, "STILL_FAILING", res.message ?? "فایل منبع هنوز خوانده نمی‌شود");
+      }
+      return mapDataError(res.error);
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "rag.source.retry",
+      resourceType: "rag_source",
+      resourceId: c,
+      after: { reviewState: res.reviewState, activeInRetrieval: res.activeInRetrieval },
+      ...meta,
+    });
+    return ok(res);
+  }
+
   if (a === "rag" && b === "sources" && c) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+
+    const before = getRagSource(c);
+    if (!before) return adminError(404, "NOT_FOUND", "منبع یافت نشد");
+
+    // The review state is a closed vocabulary. An unknown string would persist
+    // as a state the UI cannot render and retrieval cannot reason about.
+    const KNOWN_STATES: RagReviewState[] = [
+      "ingested",
+      "extracted",
+      "indexed",
+      "under_review",
+      "approved",
+      "published",
+      "retired",
+      "failed",
+    ];
+    const rawState = body["reviewState"];
+    if (typeof rawState !== "string" || !KNOWN_STATES.includes(rawState as RagReviewState)) {
+      return adminError(400, "INVALID_STATUS", "وضعیت بازبینی نامعتبر است");
+    }
+    if (body["enabled"] !== undefined && typeof body["enabled"] !== "boolean") {
+      return adminError(400, "INVALID_BODY", "وضعیت فعال/غیرفعال نامعتبر است");
+    }
+
     const res = updateRagReview({
       sourceId: c,
-      reviewState: body["reviewState"] as RagReviewState,
+      reviewState: rawState as RagReviewState,
       reviewerUserId: actor.userId,
       publishedInLibrary:
         body["publishedInLibrary"] === undefined ? undefined : Boolean(body["publishedInLibrary"]),
+      enabled: typeof body["enabled"] === "boolean" ? (body["enabled"] as boolean) : undefined,
       notes: typeof body["notes"] === "string" ? (body["notes"] as string) : undefined,
       evalScore:
         body["evalScore"] === undefined || body["evalScore"] === null
@@ -3339,7 +3870,17 @@ async function handlePatch(
       action: "rag.review.update",
       resourceType: "rag_source",
       resourceId: c,
-      after: { reviewState: res.reviewState, publishedInLibrary: res.publishedInLibrary },
+      before: {
+        reviewState: before.reviewState,
+        enabled: before.enabled,
+        activeInRetrieval: before.activeInRetrieval,
+      },
+      after: {
+        reviewState: res.reviewState,
+        enabled: res.enabled,
+        publishedInLibrary: res.publishedInLibrary,
+        activeInRetrieval: res.activeInRetrieval,
+      },
       ...meta,
     });
     return ok(res);

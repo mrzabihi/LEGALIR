@@ -39,6 +39,10 @@ import {
 import { maskMobileMiddle } from "@/lib/admin/mobile";
 import { recordAudit } from "@/lib/admin/audit";
 import { requestMeta, readJson } from "@/lib/admin/http";
+// The ledger roll-up: gross / fee / net / paid / outstanding for THIS lawyer,
+// summed from the real settlement rows. Read-only — settlements are opened and
+// moved on the finance surface, never from the lawyer dossier.
+import { listLawyerSettlements, summarizeLawyerIncome } from "@/lib/admin/settlements";
 // §6/§7 — the per-service prices and the settlement account are the SAME
 // records the lawyer portal writes. The dossier reads them through the store
 // so the operator never sees a parallel copy, and the bank account is rendered
@@ -142,6 +146,11 @@ export async function GET(
         };
       })(),
       bankEvents: listBankEvents(id).slice(0, 30),
+      // The money side, read-only: the settled/owed split plus the ledger rows
+      // behind it. When no settlement was ever opened the summary says so
+      // (`hasData: false`) rather than reporting a zero that looks like income.
+      income: summarizeLawyerIncome(id),
+      settlements: listLawyerSettlements(id, 10),
     },
   });
 }

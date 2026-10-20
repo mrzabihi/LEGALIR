@@ -13,6 +13,10 @@
 import { apiClient } from "./client";
 import type { RenderedBlock } from "@/lib/contracts/template";
 import type {
+  AiServiceBinding,
+  AiBindingImpact,
+  AiBindingStatus,
+  AiUsageBreakdown,
   AdminOverview,
   AdminLiveReport,
   AdminSalesSplit,
@@ -28,6 +32,7 @@ import type {
   FeatureFlag,
   FeatureFlagStatus,
   CommissionRule,
+  LawyerIncomeSummary,
   LawyerSettlement,
   SettlementStatus,
   AdjustmentKind,
@@ -43,6 +48,8 @@ import type {
   RagPipelineStatus,
   RagRetrievalTestResult,
   RagIngestReport,
+  RagUploadResult,
+  RagRetryResult,
   AdminBlogPost,
   AdminBlogCategory,
   UpsertBlogPostInput,
@@ -52,6 +59,8 @@ import type {
   AdminLegalTopic,
   UpsertLegalSourceInput,
   SupportTicket,
+  SupportTicketEvent,
+  SupportAgent,
   SupportTicketStatus,
   SupportTicketPriority,
   AdminKpi,
@@ -291,8 +300,21 @@ export interface AdminReportsResponse {
 
 export interface AdminSettingsResponse {
   environment: string;
-  timezone: string;
   currency: string;
+  /** The zone the Node process runs in — discovered, never configured. */
+  serverTimezone: string;
+  /** How `serverTimezone` was found (`TZ` env var vs. the runtime default). */
+  serverTimezoneSource: "TZ" | "runtime";
+  /** The panel's saved preference for RENDERING timestamps. */
+  displayTimezone: string;
+  /** When the display preference was last saved; `null` before first save. */
+  displayTimezoneUpdatedAt: string | null;
+  /** The server's clock at response time (ISO-8601 UTC). */
+  nowUtc: string;
+  /** How every stored instant is represented — reported, not editable. */
+  storageFormat: string;
+  /** Selectable display zones, with their offset at response time. */
+  timezoneOptions: { value: string; labelFa: string; offsetFa: string }[];
   secretStorageConfigured: boolean;
   aiProviders: {
     id: string;
@@ -369,15 +391,26 @@ export interface AdminCalculatorsInventory {
 
 export interface AdminSupportResponse {
   items: SupportTicket[];
-  counts: { byStatus: Record<string, number>; overdue: number };
+  counts: {
+    byStatus: Record<string, number>;
+    byPriority: Record<string, number>;
+    /** Active tickets past their SLA. */
+    overdue: number;
+    /** Active tickets nobody owns yet — the real unassigned queue. */
+    unassigned: number;
+  };
+  /** Staff eligible for assignment, resolved from the role→permission matrix. */
+  agents: SupportAgent[];
 }
 
 /**
  * The admin lawyer table row. This is the canonical `AdminLawyerListItem`
  * from @legalir/types (the exact shape the API route emits) — the alias is
- * kept so existing page imports keep working.
+ * kept so existing page imports keep working. The route additionally attaches
+ * the per-lawyer settlement roll-up, so the table can show income without a
+ * second request per row.
  */
-export type AdminLawyerRow = AdminLawyerListItem;
+export type AdminLawyerRow = AdminLawyerListItem & { income: LawyerIncomeSummary };
 
 export interface AdminLawyersResponse {
   items: AdminLawyerRow[];
@@ -455,6 +488,10 @@ export interface AdminLawyerDetail {
   bank: LawyerBankRecord;
   /** The bank review trail, newest first (capped at 30). */
   bankEvents: LawyerBankEvent[];
+  /** The money roll-up, summed from real settlement rows (never estimated). */
+  income: LawyerIncomeSummary;
+  /** The most recent settlement rows behind `income`, newest first. */
+  settlements: LawyerSettlement[];
 }
 
 // ---------------------------------------------------------------------------
@@ -811,13 +848,25 @@ export function reassignRequest(
 // §5 — SLA configuration (policies + working calendar)
 // ---------------------------------------------------------------------------
 
+export interface AdminSlaServiceOption {
+  id: string;
+  nameFa: string;
+  /** True when this service already has a policy row of its own. */
+  hasPolicy: boolean;
+}
+
 export interface AdminSlaResponse {
   policies: ServiceSlaPolicy[];
   calendar: PlatformWorkCalendar;
+  /** The service catalogue, for the "add a policy" picker. */
+  services: AdminSlaServiceOption[];
+  defaultServiceKey: string;
 }
 
-export function fetchAdminSla(): Promise<AdminSlaResponse> {
-  return apiClient.get<AdminSlaResponse>(`${A}/sla`);
+export function fetchAdminSla(includeArchived = false): Promise<AdminSlaResponse> {
+  return apiClient.get<AdminSlaResponse>(
+    `${A}/sla${includeArchived ? "?includeArchived=1" : ""}`
+  );
 }
 
 export type AdminSlaPolicyInput = Omit<ServiceSlaPolicy, "id" | "updatedAt" | "updatedBy">;
@@ -895,6 +944,14 @@ export function changeRequestState(
 // enforced server-side against the review's bound version hash — the client
 // carries no approval logic.
 
+/** The ordering the queue accepts (mirrors the server's `SORT_KEYS`). */
+export type AdminContractsSort =
+  | "updated_desc"
+  | "updated_asc"
+  | "created_desc"
+  | "created_asc"
+  | "reference_asc";
+
 export interface AdminContractsQuery {
   page?: number;
   pageSize?: number;
@@ -903,6 +960,11 @@ export interface AdminContractsQuery {
   status?: ContractAdminReviewStatus;
   /** The contract type filter. */
   type?: ContractTypeId;
+  /** Inclusive `YYYY-MM-DD` bounds over «آخرین تغییر». */
+  from?: string;
+  to?: string;
+  /** Row ordering; the server defaults to newest-first by `updatedAt`. */
+  sort?: AdminContractsSort;
 }
 
 export function fetchAdminContracts(
@@ -915,6 +977,9 @@ export function fetchAdminContracts(
       search: query.search,
       status: query.status,
       type: query.type,
+      from: query.from,
+      to: query.to,
+      sort: query.sort,
     })}`
   );
 }
@@ -1898,10 +1963,114 @@ export interface SaveAiProviderInput {
   isDefault?: boolean;
   apiKey?: string;
   clearKey?: boolean;
+  /** Lifecycle flag. Omit to keep the stored state (never silently re-enable). */
+  enabled?: boolean;
+  /** The operator's declared model catalogue for this provider. */
+  availableModels?: string[];
+  defaultModel?: string | null;
+  /** Free-form, non-secret settings. Credential-looking keys are dropped. */
+  configuration?: Record<string, string>;
 }
 
 export function saveAiProvider(input: SaveAiProviderInput): Promise<AiProviderConfig> {
   return apiClient.post<AiProviderConfig>(`${A}/ai/providers`, input);
+}
+
+/**
+ * Enable/disable ONE provider. Separate from `saveAiProvider` so a click can
+ * never reset its model, limits or key — and so the audit records a distinct
+ * `ai.provider.enable` / `ai.provider.disable` event.
+ */
+export function setAiProviderEnabled(id: string, enabled: boolean): Promise<AiProviderConfig> {
+  return apiClient.patch<AiProviderConfig>(`${A}/ai/providers/${encodeURIComponent(id)}`, {
+    enabled,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Per-capability model bindings
+// ---------------------------------------------------------------------------
+// A binding answers «for THIS capability, which provider and model run?».
+// It stores no key: the secret stays on the provider row.
+
+/** The provider summary a binding editor needs (never includes a key). */
+export interface AiBindingProviderOption {
+  id: string;
+  nameFa: string;
+  status: AiProviderConfig["status"];
+  enabled: boolean;
+  hasKey: boolean;
+  defaultModel: string | null;
+  availableModels: string[];
+}
+
+export interface AiBindingsResponse {
+  items: (AiServiceBinding & { configured: boolean })[];
+  capabilities: { serviceType: string; labelFa: string }[];
+  providers: AiBindingProviderOption[];
+}
+
+export function fetchAiBindings(): Promise<AiBindingsResponse> {
+  return apiClient.get<AiBindingsResponse>(`${A}/ai/bindings`);
+}
+
+export interface SaveAiBindingInput {
+  providerId: string | null;
+  model: string | null;
+  temperature?: number | null;
+  maxOutputTokens?: number | null;
+  timeoutMs?: number | null;
+  fallbackProviderId?: string | null;
+  knowledgeSourceIds?: string[] | null;
+  status?: AiBindingStatus;
+}
+
+export interface SaveAiBindingResult {
+  ok: true;
+  binding: AiServiceBinding;
+  impact: AiBindingImpact;
+}
+
+export function saveAiBinding(
+  serviceType: string,
+  input: SaveAiBindingInput
+): Promise<SaveAiBindingResult> {
+  return apiClient.patch<SaveAiBindingResult>(
+    `${A}/ai/bindings/${encodeURIComponent(serviceType)}`,
+    input
+  );
+}
+
+/** Remove the binding — the capability returns to the default provider. */
+export function clearAiBinding(serviceType: string): Promise<{ binding: null; cleared: true }> {
+  return apiClient.patch<{ binding: null; cleared: true }>(
+    `${A}/ai/bindings/${encodeURIComponent(serviceType)}`,
+    { clear: true }
+  );
+}
+
+/** The pre-save impact preview — reads only, mutates nothing. */
+export function fetchAiBindingImpact(params: {
+  serviceType: string;
+  providerId?: string | null;
+  model?: string | null;
+  status?: AiBindingStatus;
+  rangeDays?: number;
+}): Promise<AiBindingImpact> {
+  return apiClient.get<AiBindingImpact>(
+    `${A}/ai/bindings/impact${qs({
+      serviceType: params.serviceType,
+      providerId: params.providerId ?? undefined,
+      model: params.model ?? undefined,
+      status: params.status,
+      ...(params.rangeDays !== undefined ? { rangeDays: params.rangeDays } : {}),
+    })}`
+  );
+}
+
+/** The REAL usage split by provider / model / capability / day. */
+export function fetchAiUsageBreakdown(rangeDays = 30): Promise<AiUsageBreakdown> {
+  return apiClient.get<AiUsageBreakdown>(`${A}/ai/usage${qs({ rangeDays })}`);
 }
 
 export function testAiProvider(id: string): Promise<AiTestResult> {
@@ -1977,12 +2146,29 @@ export function fetchRagSources(
 export interface UpdateRagReviewInput {
   reviewState: RagReviewState;
   publishedInLibrary?: boolean;
+  /** The operator's explicit retrieval switch. Absent keeps the stored value. */
+  enabled?: boolean;
   notes?: string;
   evalScore?: number | null;
 }
 
 export function updateRagReview(id: string, input: UpdateRagReviewInput): Promise<RagSource> {
   return apiClient.patch<RagSource>(`${A}/rag/sources/${encodeURIComponent(id)}`, input);
+}
+
+/** §2 — retry one source that was marked «ناموفق» (re-runs the real ingest). */
+export function retryRagSource(id: string): Promise<RagSource> {
+  return apiClient.patch<RagSource>(`${A}/rag/sources/${encodeURIComponent(id)}/retry`, {});
+}
+
+/** §2 — retry the files the last ingest could not read. */
+export function retryRagIngestion(): Promise<RagRetryResult> {
+  return apiClient.post<RagRetryResult>(`${A}/rag/retry`, {});
+}
+
+/** §2 — upload one law file into the pipeline's source folder and ingest it. */
+export function uploadRagFile(fileName: string, base64: string): Promise<RagUploadResult> {
+  return apiClient.post<RagUploadResult>(`${A}/rag/upload`, { fileName, data: base64 });
 }
 
 /** §1 — the ONE knowledge pipeline's real status (corpus + catalog coverage). */
@@ -2377,14 +2563,31 @@ export function setAdminCouponStatus(id: string, status: CouponStatus): Promise<
 // Support tickets
 // ---------------------------------------------------------------------------
 
+export interface SupportTicketQuery {
+  status?: SupportTicketStatus;
+  priority?: SupportTicketPriority;
+  assigneeUserId?: string;
+  /** true → only unassigned; false → only assigned. Absent → either. */
+  unassigned?: boolean;
+  /** true → only active tickets past their SLA. */
+  overdue?: boolean;
+  search?: string;
+  sort?: "updated" | "priority-desc" | "due";
+}
+
 export function fetchSupportTickets(
-  filter: {
-    status?: SupportTicketStatus;
-    priority?: SupportTicketPriority;
-  } = {}
+  filter: SupportTicketQuery = {}
 ): Promise<AdminSupportResponse> {
   return apiClient.get<AdminSupportResponse>(
-    `${A}/support${qs({ status: filter.status, priority: filter.priority })}`
+    `${A}/support${qs({
+      status: filter.status,
+      priority: filter.priority,
+      assigneeUserId: filter.assigneeUserId,
+      unassigned: filter.unassigned === undefined ? undefined : String(filter.unassigned),
+      overdue: filter.overdue === true ? "true" : undefined,
+      search: filter.search,
+      sort: filter.sort,
+    })}`
   );
 }
 
@@ -2393,6 +2596,13 @@ export function fetchSupportTicket(
 ): Promise<{ ticket: SupportTicket; overdue: boolean }> {
   return apiClient.get<{ ticket: SupportTicket; overdue: boolean }>(
     `${A}/support/${encodeURIComponent(id)}`
+  );
+}
+
+/** One ticket's append-only operator history, newest first. */
+export function fetchSupportTicketHistory(id: string): Promise<{ items: SupportTicketEvent[] }> {
+  return apiClient.get<{ items: SupportTicketEvent[] }>(
+    `${A}/support/${encodeURIComponent(id)}/history`
   );
 }
 
@@ -2424,6 +2634,8 @@ export interface UpdateTicketInput {
   status?: SupportTicketStatus;
   priority?: SupportTicketPriority;
   assigneeUserId?: string | null;
+  /** Why the ticket was handed to that person — stored on the history event. */
+  referralNote?: string | null;
 }
 
 export function updateSupportTicket(id: string, input: UpdateTicketInput): Promise<SupportTicket> {
@@ -2493,6 +2705,23 @@ export function fetchAdminAudit(query: AdminAuditQuery = {}): Promise<AuditLogLi
 
 export function fetchAdminSettings(): Promise<AdminSettingsResponse> {
   return apiClient.get<AdminSettingsResponse>(`${A}/settings`);
+}
+
+export interface AdminDisplaySettingsUpdateResult {
+  displayTimezone: string;
+  displayTimezoneUpdatedAt: string;
+  serverTimezone: string;
+  timezoneOptions: { value: string; labelFa: string; offsetFa: string }[];
+}
+
+/**
+ * Save the panel's display timezone. This is a presentation preference only —
+ * stored instants stay UTC and the server's own zone is not affected.
+ */
+export function updateAdminDisplaySettings(input: {
+  displayTimezone: string;
+}): Promise<AdminDisplaySettingsUpdateResult> {
+  return apiClient.patch<AdminDisplaySettingsUpdateResult>(`${A}/settings`, input);
 }
 
 // ---------------------------------------------------------------------------
@@ -2736,6 +2965,8 @@ export type {
   RagPipelineStatus,
   RagRetrievalTestResult,
   RagIngestReport,
+  RagUploadResult,
+  RagRetryResult,
   AdminBlogPost,
   AdminBlogCategory,
   UpsertBlogPostInput,
@@ -2745,6 +2976,8 @@ export type {
   AdminLegalTopic,
   UpsertLegalSourceInput,
   SupportTicket,
+  SupportTicketEvent,
+  SupportAgent,
   SupportTicketStatus,
   SupportTicketPriority,
   StaffMember,

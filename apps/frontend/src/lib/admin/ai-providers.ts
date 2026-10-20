@@ -49,12 +49,26 @@ function statusOf(row: StoredProvider): AiProviderStatus {
   return row.secret ? "configured" : "unconfigured";
 }
 
+/**
+ * The effective status. `disabled` wins over everything: an operator turned
+ * this provider off, so it must never serve traffic even with a valid key.
+ */
+function effectiveStatus(row: StoredProvider): AiProviderStatus {
+  if (row.enabled === false) return "disabled";
+  return statusOf(row);
+}
+
 /** Project a stored row for API/UI — strips the ciphertext, keeps a hint. */
 function toPublic(row: StoredProvider): AiProviderConfig {
   const { secret, ...rest } = row;
   return {
     ...rest,
-    status: statusOf(row),
+    // Additive fields are defaulted on READ so a legacy row needs no rewrite.
+    enabled: row.enabled !== false,
+    availableModels: row.availableModels ?? (row.model ? [row.model] : []),
+    defaultModel: row.defaultModel ?? row.model ?? null,
+    configuration: row.configuration ?? {},
+    status: effectiveStatus(row),
     hasKey: secret !== null,
     keyHint: secret ? secret.hint : null,
   };
@@ -90,6 +104,10 @@ function seedFromEnv(): StoredProvider[] {
     maxOutputTokens: 2048,
     isDefault: true,
     isTestOverride: false,
+    enabled: !isMock,
+    defaultModel: model,
+    availableModels: model ? [model] : [],
+    configuration: {},
     lastTestAt: null,
     lastTestOk: null,
     lastTestLatencyMs: null,
@@ -118,8 +136,10 @@ function envHasKey(): boolean {
 export function listAiProviders(): AiProviderConfig[] {
   return readProviders().map((row) => {
     const pub = toPublic(row);
-    // Reflect the env key for the seeded row without ever importing it.
-    if (row.id === "ai-env-default" && envHasKey()) {
+    // Reflect the env key for the seeded row without ever importing it. A
+    // provider the operator disabled stays `disabled` — an env key does not
+    // overrule an explicit decision.
+    if (row.id === "ai-env-default" && envHasKey() && row.enabled !== false) {
       return {
         ...pub,
         status: "configured" as AiProviderStatus,
@@ -154,6 +174,38 @@ export interface SaveProviderInput {
   /** Explicitly clear the stored key. */
   clearKey?: boolean;
   updatedBy: string;
+  /** When false the provider is kept but never serves traffic. */
+  enabled?: boolean;
+  /** The operator's declared model catalogue for this provider. */
+  availableModels?: string[];
+  defaultModel?: string | null;
+  /** Free-form, non-secret settings. Known secret-looking keys are dropped. */
+  configuration?: Record<string, string>;
+}
+
+/** Keys that look like a credential are rejected from `configuration`. */
+const SECRETISH_CONFIG_KEYS = [
+  "key",
+  "apikey",
+  "api_key",
+  "secret",
+  "token",
+  "password",
+  "authorization",
+];
+
+function cleanConfiguration(
+  input: Record<string, string> | undefined
+): Record<string, string> {
+  if (!input) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (typeof v !== "string") continue;
+    if (SECRETISH_CONFIG_KEYS.includes(k.toLowerCase())) continue;
+    // A single non-blank line — settings are small labels, not documents.
+    out[k.trim()] = v.trim().slice(0, 200);
+  }
+  return out;
 }
 
 /**
@@ -175,7 +227,12 @@ export function saveAiProvider(input: SaveProviderInput): AiProviderConfig | { e
   const now = new Date().toISOString();
   const idx = input.id ? rows.findIndex((r) => r.id === input.id) : -1;
 
-  if (input.isDefault) {
+  // A provider cannot be disabled AND be the default router — that would
+  // leave production with no explicit provider while pretending it has one.
+  const enabled = input.enabled !== false;
+  const isDefault = input.isDefault && enabled;
+
+  if (isDefault) {
     for (const r of rows) r.isDefault = false;
   }
 
@@ -189,17 +246,34 @@ export function saveAiProvider(input: SaveProviderInput): AiProviderConfig | { e
     secret = idx >= 0 ? rows[idx]!.secret : null;
   }
 
+  const model = input.model?.trim() || null;
+  const defaultModel = input.defaultModel?.trim() || model;
+  const catalogue = (input.availableModels ?? [])
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0 && m.length <= 120);
+  // The model in use must exist in the declared catalogue; the save adds it
+  // rather than rejecting, because «model» is the field the form sets first.
+  const availableModels = Array.from(
+    new Set([...(defaultModel ? [defaultModel] : []), ...(model ? [model] : []), ...catalogue])
+  );
+
   const base: StoredProvider = {
     id: input.id ?? `ai-${crypto.randomUUID()}`,
     nameFa: input.nameFa.trim(),
     kind: input.kind,
     baseUrl: input.baseUrl?.trim() || null,
-    model: input.model?.trim() || null,
+    model,
     embeddingModel: input.embeddingModel?.trim() || null,
     timeoutMs: Math.round(input.timeoutMs),
     maxOutputTokens: Math.round(input.maxOutputTokens),
-    isDefault: input.isDefault,
+    isDefault,
     isTestOverride: false,
+    // Additive lifecycle + catalogue. A legacy save that omits `enabled`
+    // keeps the current state instead of silently re-enabling the provider.
+    enabled: input.enabled === undefined ? (idx >= 0 ? rows[idx]!.enabled !== false : true) : enabled,
+    defaultModel,
+    availableModels,
+    configuration: cleanConfiguration(input.configuration),
     lastTestAt: idx >= 0 ? rows[idx]!.lastTestAt : null,
     lastTestOk: idx >= 0 ? rows[idx]!.lastTestOk : null,
     lastTestLatencyMs: idx >= 0 ? rows[idx]!.lastTestLatencyMs : null,
@@ -213,6 +287,68 @@ export function saveAiProvider(input: SaveProviderInput): AiProviderConfig | { e
   else rows.push(base);
   writeTable(PROVIDERS_TABLE, rows);
   return toPublic(base);
+}
+
+/**
+ * Toggle only the lifecycle flag. Kept separate from `saveAiProvider` so an
+ * enable/disable click cannot accidentally reset the model, limits or key —
+ * and so the audit trail records a distinct event.
+ */
+export function setAiProviderEnabled(
+  id: string,
+  enabled: boolean,
+  updatedBy: string
+): AiProviderConfig | { error: string } {
+  const rows = readProviders();
+  const idx = rows.findIndex((r) => r.id === id);
+  if (idx < 0) return { error: "NOT_FOUND" };
+  const row = rows[idx]!;
+  row.enabled = enabled;
+  // Disabling the default leaves no default; the router then falls back to
+  // the environment, which is the honest state.
+  if (!enabled) row.isDefault = false;
+  row.updatedBy = updatedBy;
+  row.updatedAt = new Date().toISOString();
+  writeTable(PROVIDERS_TABLE, rows);
+  return toPublic(row);
+}
+
+/**
+ * The credentials for one provider, ready to build a live client — or null
+ * when it cannot serve (disabled, missing key, missing URL/model).
+ * The key is decrypted here and only here; the caller never persists it.
+ */
+export function resolveProviderCredentials(providerId: string | null): {
+  id: string;
+  nameFa: string;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  timeoutMs: number;
+  maxOutputTokens: number;
+} | null {
+  if (!providerId) return null;
+  const row = readProviders().find((r) => r.id === providerId);
+  if (!row || row.enabled === false) return null;
+  if (!row.baseUrl || !row.model) return null;
+
+  let key: string | null = null;
+  if (row.secret) key = decryptSecret(row.secret);
+  // The seeded environment row reports its key without importing it.
+  if (!key && row.id === "ai-env-default") {
+    key = process.env["LEGALIR_AI_API_KEY"] ?? process.env["AI_PROVIDER_API_KEY"] ?? null;
+  }
+  if (!key) return null;
+
+  return {
+    id: row.id,
+    nameFa: row.nameFa,
+    model: row.model,
+    apiKey: key,
+    baseUrl: row.baseUrl,
+    timeoutMs: row.timeoutMs,
+    maxOutputTokens: row.maxOutputTokens,
+  };
 }
 
 /**
@@ -308,11 +444,15 @@ function applyTestResult(rows: StoredProvider[], id: string, result: AiTestResul
  */
 export function resolveRuntimeAiConfig(): {
   provider: "openai-compatible";
+  providerId: string;
+  nameFa: string;
   model: string;
   apiKey: string;
   baseUrl: string;
+  timeoutMs: number;
+  maxOutputTokens: number;
 } | null {
-  const rows = readProviders();
+  const rows = readProviders().filter((r) => r.enabled !== false);
   const candidates = rows.filter((r) => r.secret && r.baseUrl && r.model);
   const chosen = candidates.find((r) => r.isDefault) ?? candidates[0];
   if (!chosen || !chosen.secret || !chosen.baseUrl || !chosen.model) return null;
@@ -320,9 +460,13 @@ export function resolveRuntimeAiConfig(): {
   if (!key) return null;
   return {
     provider: "openai-compatible",
-    model: chosen.model,
+    providerId: chosen.id,
+    nameFa: chosen.nameFa,
+    model: chosen.defaultModel ?? chosen.model,
     apiKey: key,
     baseUrl: chosen.baseUrl,
+    timeoutMs: chosen.timeoutMs,
+    maxOutputTokens: chosen.maxOutputTokens,
   };
 }
 
