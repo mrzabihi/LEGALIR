@@ -28,8 +28,11 @@ export async function GET(_request: Request, { params }: Params) {
   const contract = getContractByPublicId(publicVerificationId);
   if (!contract) return notFound("سندی با این شناسه یافت نشد");
 
-  // Only a finalized contract has a verifiable document.
-  const versionId = contract.finalVersionId ?? contract.currentVersionId;
+  // Only a FINALIZED contract has a verifiable document. `currentVersionId`
+  // holds a draft snapshot from the first save onward, so falling back to it
+  // would publish the fingerprint of a document nobody has approved, signed
+  // or registered — on the one endpoint that needs no session at all.
+  const versionId = contract.finalVersionId;
   if (!versionId) return notFound("این قرارداد هنوز نهایی نشده است");
   const version = getVersion(contract.id, versionId);
   if (!version) return notFound("نسخه سند یافت نشد");

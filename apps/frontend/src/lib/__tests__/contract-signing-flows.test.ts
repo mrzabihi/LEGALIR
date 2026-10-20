@@ -1339,6 +1339,29 @@ describe("§2 — the public verification endpoint behind the QR code", () => {
     expect(res.status).toBe(404);
   });
 
+  it("404s for a DRAFT that has a saved version but no final one", async () => {
+    // The trap this pins: `currentVersionId` exists from the first save
+    // onward, so an endpoint that falls back to it publishes the hash of a
+    // document nobody approved, signed or registered. A saved draft has a
+    // real hash — and must still answer 404, because it is not a finished
+    // sheet. The public page's own promise is «سند هنوز نهایی نشده است».
+    const draftId = "ctr-public-verify-versioned-draft";
+    contractDb.insertContract(seedContract(draftId, rentData));
+    contractDb.upsertParty(party(draftId, "landlord", "09121110003", true));
+    snapshot.createVersion(contractDb.getContractById(draftId)!, ownerId);
+
+    const draft = contractDb.getContractById(draftId)!;
+    expect(draft.currentVersionId, "the draft must really carry a version").toBeTruthy();
+    expect(draft.finalVersionId).toBeNull();
+
+    const res = await verifyGet(
+      getReq(`${BASE}/verify/${draft.publicVerificationId}`, null),
+      verifyParams(draft.publicVerificationId)
+    );
+    expect(res.status).toBe(404);
+    expect((await json<{ code: string }>(res)).code).toBe("NOT_FOUND");
+  });
+
   it("answers WITHOUT a session and exposes only public-safe fields", async () => {
     const contract = contractDb.getContractById(ID)!;
     const res = await verifyGet(
