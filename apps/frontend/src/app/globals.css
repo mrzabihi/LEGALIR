@@ -2683,6 +2683,36 @@ html {
   border-top: 1px dotted rgba(28, 78, 156, 0.4);
 }
 
+/* --- Self-final notice (registered WITHOUT a LEGALIR review) ---
+   The same slot as the blue review mark, in amber, saying plainly that no
+   review happened. The blue mark is never drawn on this path, so the two
+   can never be confused or combined. */
+
+.a4-self-final-mark {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 96mm;
+  border: 2px dashed #b8860b;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #8a6508;
+}
+
+.a4-self-final-title {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.a4-self-final-meta {
+  font-size: 8px;
+  line-height: 1.65;
+  max-width: 92mm;
+}
+
 /* --- The per-page mark row: review block (reading edge) + official seal
    group (physical bottom-left) ---
    Both occupants live INSIDE the measured footer band, so neither can ever
@@ -3116,6 +3146,115 @@ html {
   height: 15mm;
   border-bottom: 1px solid #9fb0a9;
   margin: 2px 0;
+}
+
+/* §T2 — the uploaded signature scan inside its OWN party's cell. The box is
+   capped and `object-fit: contain` is non-negotiable: the source art is never
+   stretched, cropped or rotated to fill the slot. */
+.a4-signature-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 22mm;
+  max-height: 22mm;
+  margin: 0 auto 1mm;
+  object-fit: contain;
+  object-position: center;
+}
+
+.a4-signature-image-missing {
+  display: block;
+  margin: 0 0 1mm;
+  font-size: 8px;
+  line-height: 1.5;
+  color: #b3261e;
+}
+
+/* §6 — the admin's red message at the foot of the document's LAST page:
+   the authenticity certificate when one is rendered, otherwise the last
+   contract/annex page. Ink and tint are the PDF's own (#B91C1C on
+   #FFF6F6, dashed so it reads as a stamped/perforated strip). */
+.a4-admin-message {
+  margin-top: 10px;
+  border: 0.9px dashed #b91c1c;
+  border-radius: 2px;
+  padding: 6px 8px;
+  background: #fff6f6;
+  break-inside: avoid;
+}
+
+.a4-admin-message-label {
+  display: block;
+  font-size: 8px;
+  font-weight: 400;
+  color: #b91c1c;
+}
+
+.a4-admin-message-text {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+/* --- Annexed files (§T1) — each starts on its own sheet --- */
+
+.a4-annex-file {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.a4-annex-file-meta {
+  margin: 0;
+  font-size: 9px;
+  color: var(--a4-muted);
+  word-break: break-all;
+}
+
+.a4-annex-file-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 235mm;
+  object-fit: contain;
+  object-position: top center;
+  border: 1px solid #d8dfdb;
+  border-radius: 3px;
+}
+
+.a4-annex-file-missing {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 1.9;
+  color: #b3261e;
+}
+
+.a4-annex-file-link {
+  font-size: 9.5px;
+  color: #1c4e9c;
+  text-decoration: underline;
+}
+
+/* --- Authenticity certificate (§T7) — the LAST page --- */
+
+.a4-authenticity-table td,
+.a4-authenticity-table th {
+  font-size: 9px;
+}
+
+.a4-authenticity-subhead {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--a4-ink);
+}
+
+.a4-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  word-break: break-all;
 }
 
 /* --- Hidden measurer --- */
