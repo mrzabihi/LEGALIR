@@ -97,7 +97,9 @@ let originalCwd: string;
 
 type RouteHandler = (
   req: NextRequest,
-  ctx: { params: Promise<{ id?: string; token?: string }> }
+  ctx: {
+    params: Promise<{ id?: string; token?: string; publicVerificationId?: string }>;
+  }
 ) => Promise<Response>;
 
 let reviewPost: RouteHandler;
@@ -114,6 +116,7 @@ let invitationsRoute: {
   DELETE: RouteHandler;
 };
 let auditGet: RouteHandler;
+let verifyGet: RouteHandler;
 let invitationTokenRoute: { GET: RouteHandler; POST: RouteHandler };
 
 function params(id: string) {
@@ -121,6 +124,11 @@ function params(id: string) {
 }
 function tokenParams(token: string) {
   return { params: Promise.resolve({ token }) };
+}
+
+/** A GET whose handler resolves the `[publicVerificationId]` segment. */
+function verifyParams(publicVerificationId: string) {
+  return { params: Promise.resolve({ publicVerificationId }) };
 }
 
 /** A JSON POST carrying a session cookie. */
@@ -319,6 +327,8 @@ beforeAll(async () => {
   contactPost = (await import("@/app/api/v1/admin/contracts/[id]/contact/route"))
     .POST as unknown as RouteHandler;
   auditGet = (await import("@/app/api/v1/property-contracts/[id]/audit/route"))
+    .GET as unknown as RouteHandler;
+  verifyGet = (await import("@/app/api/v1/property-contracts/verify/[publicVerificationId]/route"))
     .GET as unknown as RouteHandler;
   invitationsRoute = (await import("@/app/api/v1/property-contracts/[id]/invitations/route")) as unknown as {
     POST: RouteHandler;
@@ -1260,6 +1270,163 @@ describe("admin message — capped at 100 code points, cleared to nothing", () =
 
     const got = await messageGet(getReq(`${ADMIN_BASE}/${ID}/message`, adminSession), params(ID));
     expect((await json<{ data: { message: null } }>(got)).data.message).toBeNull();
+  });
+});
+
+// ============================================================
+// §2 — the public verification endpoint the printed QR points at
+// ============================================================
+// The authenticity page prints `/contracts/verify/<publicVerificationId>`
+// and a QR encoding the same URL. That route is UNAUTHENTICATED on
+// purpose: anybody holding the printed sheet may check it. That also
+// makes it the widest privacy surface in the product, so the test proves
+// both halves of the promise — it answers for a real finalized contract,
+// and it exposes NOTHING beyond the public-safe field set.
+describe("§2 — the public verification endpoint behind the QR code", () => {
+  const ID = "ctr-public-verify";
+  const SELF_FINAL_ID = "ctr-public-verify-self";
+  let publicVerificationId: string;
+
+  /** The full public shape, so an unexpected extra key fails the test. */
+  const PUBLIC_KEYS = [
+    "referenceCode",
+    "typeFa",
+    "versionNumber",
+    "documentHash",
+    "finalizedAt",
+    "statusFa",
+    "partyNames",
+    "reviewed",
+    "stampLabelFa",
+    "reviewedAt",
+    "reviewingOfficeFa",
+    "reviewId",
+  ].sort();
+
+  beforeAll(() => {
+    // A REAL finalized sheet: two identified parties, a frozen version (so
+    // the route has an actual document hash), and that version marked as
+    // the final one. No admin approval — the public page must then report
+    // `reviewed: false`.
+    contractDb.insertContract(seedContract(ID, rentData));
+    contractDb.upsertParty(party(ID, "landlord", "09121110001", true));
+    contractDb.upsertParty(party(ID, "tenant", "09121110002"));
+    snapshot.createVersion(contractDb.getContractById(ID)!, ownerId);
+
+    const versioned = contractDb.getContractById(ID)!;
+    contractDb.updateContractForUser(ownerId, ID, {
+      state: "FINALIZED",
+      finalVersionId: versioned.currentVersionId,
+      finalizedAt: new Date().toISOString(),
+    });
+    publicVerificationId = versioned.publicVerificationId;
+  });
+
+  it("404s for an id that belongs to nothing", async () => {
+    const res = await verifyGet(getReq(`${BASE}/verify/do-not-exist`, null), verifyParams("do-not-exist"));
+    expect(res.status).toBe(404);
+  });
+
+  it("404s for a contract that was never finalized", async () => {
+    // `seedContract` starts with no version at all — there is nothing to
+    // attest to, and the route must not leak that the id exists.
+    contractDb.insertContract(seedContract("ctr-public-verify-draft", rentData));
+    const draft = contractDb.getContractById("ctr-public-verify-draft")!;
+    const res = await verifyGet(
+      getReq(`${BASE}/verify/${draft.publicVerificationId}`, null),
+      verifyParams(draft.publicVerificationId)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("answers WITHOUT a session and exposes only public-safe fields", async () => {
+    const contract = contractDb.getContractById(ID)!;
+    const res = await verifyGet(
+      getReq(`${BASE}/verify/${publicVerificationId}`, null),
+      verifyParams(publicVerificationId)
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: Record<string, unknown> & { partyNames: string[] };
+    };
+
+    // Exactly the declared public fields — no more.
+    expect(Object.keys(body.data).sort()).toEqual(
+      expect.arrayContaining(["referenceCode", "typeFa", "documentHash", "partyNames", "reviewed"])
+    );
+    for (const key of Object.keys(body.data)) {
+      expect(PUBLIC_KEYS, `unexpected public field: ${key}`).toContain(key);
+    }
+
+    // The values that let a holder confirm the sheet in their hand.
+    expect(body.data["referenceCode"]).toBe(contract.referenceCode);
+    expect(body.data["documentHash"]).toMatch(/^[a-f0-9]{64}$/);
+    // Display names only — never the identity fields behind them.
+    expect(Array.isArray(body.data.partyNames)).toBe(true);
+    expect(body.data.partyNames.length).toBeGreaterThan(0);
+    expect(body.data.partyNames[0]).toBe("مریم محمدی");
+  });
+
+  it("never leaks a national id, mobile, address or the contract body", async () => {
+    const res = await verifyGet(
+      getReq(`${BASE}/verify/${publicVerificationId}`, null),
+      verifyParams(publicVerificationId)
+    );
+    const raw = await res.text();
+
+    // Every sensitive value the parties carry. Note the JSON is serialised
+    // once, so a substring hit is a real leak, not a structural artifact.
+    for (const secret of [
+      "0012345678", // national id
+      "09121110001", // landlord mobile
+      "09121110002", // tenant mobile
+      "خیابان ولیعصر", // address
+      "1234567890", // postal code
+      "fatherName", // identity key names
+      "nationalId",
+      "banking",
+    ]) {
+      expect(raw.includes(secret), `the public payload leaks «${secret}»`).toBe(false);
+    }
+  });
+
+  it("a self-final registration is reported as NOT reviewed by LEGALIR", async () => {
+    // The registration record is the whole point: a contract registered
+    // this way must never read as reviewed or approved on the public page.
+    contractDb.insertContract(seedContract(SELF_FINAL_ID, rentData));
+    contractDb.upsertParty(party(SELF_FINAL_ID, "landlord", "09121110071", true));
+    contractDb.upsertParty(party(SELF_FINAL_ID, "tenant", "09121110072"));
+    snapshot.createVersion(contractDb.getContractById(SELF_FINAL_ID)!, ownerId);
+
+    const registered = await reviewPost(
+      req(`${BASE}/${SELF_FINAL_ID}/review`, ownerSession, {
+        action: "final_register",
+        acknowledgedUnreviewed: true,
+        comment: "ثبت بدون بررسی",
+      }),
+      params(SELF_FINAL_ID)
+    );
+    expect(registered.status).toBe(200);
+
+    // Freeze it as the final version the same way finalisation would.
+    const current = contractDb.getContractById(SELF_FINAL_ID)!;
+    contractDb.updateContractForUser(ownerId, SELF_FINAL_ID, {
+      state: "FINALIZED",
+      finalVersionId: current.currentVersionId,
+      finalizedAt: new Date().toISOString(),
+    });
+
+    const res = await verifyGet(
+      getReq(`${BASE}/verify/${current.publicVerificationId}`, null),
+      verifyParams(current.publicVerificationId)
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      data: { reviewed: boolean; stampLabelFa?: string; reviewId?: string };
+    };
+    expect(data.data.reviewed).toBe(false);
+    expect(data.data.stampLabelFa).toBeUndefined();
+    expect(data.data.reviewId).toBeUndefined();
   });
 });
 
