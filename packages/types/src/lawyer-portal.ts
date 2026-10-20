@@ -380,6 +380,32 @@ export interface LawyerProfileCompleteness {
 // Referral list + dashboard projections
 // ---------------------------------------------------------------------------
 
+/**
+ * How urgently a referral needs the lawyer.
+ *
+ * Derived — never stored — from the request's own state and live SLA clock:
+ * a breached deadline outranks an approaching one, and a request whose next
+ * move is the lawyer's outranks one blocked on the client. Two lawyers looking
+ * at the same referral always see the same priority, and no fabricated
+ * "medium" default is ever written to a row.
+ */
+export type LawyerReferralPriority = "URGENT" | "HIGH" | "NORMAL" | "LOW";
+
+/** Render order: most urgent first. */
+export const LAWYER_REFERRAL_PRIORITIES: readonly LawyerReferralPriority[] = [
+  "URGENT",
+  "HIGH",
+  "NORMAL",
+  "LOW",
+];
+
+export const LAWYER_REFERRAL_PRIORITY_FA: Record<LawyerReferralPriority, string> = {
+  URGENT: "فوری",
+  HIGH: "بالا",
+  NORMAL: "عادی",
+  LOW: "کم",
+};
+
 /** The queue the lawyer sees. */
 export interface LawyerReferralListItem {
   requestId: string;
@@ -403,6 +429,8 @@ export interface LawyerReferralListItem {
   lastActivityFa: string;
   sla: SlaSnapshot;
   perspective: "NEEDS_ACTION" | "WAITING_ON_CLIENT" | "ACTIVE" | "DONE";
+  /** Derived urgency — see `LawyerReferralPriority`. */
+  priority: LawyerReferralPriority;
 }
 
 /** The filter bag the list route accepts. */
@@ -411,6 +439,8 @@ export interface LawyerReferralFilters {
   state?: LegalRequestState | null;
   perspective?: LawyerReferralListItem["perspective"] | null;
   slaHealth?: SlaHealth | null;
+  /** Derived urgency, see `LawyerReferralPriority`. */
+  priority?: LawyerReferralPriority | null;
   /** ISO date (inclusive) on the referral instant. */
   fromIso?: string | null;
   /** ISO date (inclusive). */
@@ -436,6 +466,8 @@ export interface LawyerReferralListResponse {
     services: { value: string; labelFa: string; count: number }[];
     states: { value: LegalRequestState; labelFa: string; count: number }[];
     sla: Record<SlaHealth, number>;
+    /** Priorities present in the lawyer's queue, most urgent first. */
+    priorities: { value: LawyerReferralPriority; labelFa: string; count: number }[];
   };
 }
 

@@ -14,6 +14,8 @@
 
 import {
   DEFAULT_SLA_SERVICE_KEY,
+  LAWYER_REFERRAL_PRIORITIES,
+  LAWYER_REFERRAL_PRIORITY_FA,
   LEGAL_REQUEST_STATE_FA,
   REQUEST_ACTION_FA,
   type LegalRequest,
@@ -26,6 +28,7 @@ import {
   type LawyerReferralDetail,
   type LawyerReferralListItem,
   type LawyerReferralListResponse,
+  type LawyerReferralPriority,
   type LawyerReferralTrendPoint,
   type LawyerServiceRate,
   type PlatformRole,
@@ -163,6 +166,28 @@ function referralsFor(lawyerId: string, lawyerUserId: string): LegalRequest[] {
     .filter((r) => r.selectedLawyerId === lawyerId || actedRequestIds.has(r.id))
     .map((r) => observeSla(ensureRequestSla(r)))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/**
+ * Derived urgency (§3). The order of the checks IS the ranking:
+ *
+ *   BREACHED → URGENT   the deadline is gone; nothing outranks this
+ *   AT_RISK  → HIGH     still fixable, but the clock is nearly out
+ *   otherwise, still open → NORMAL
+ *   waiting on the client, or already done → LOW
+ *
+ * Derived on every read, never persisted: a stored priority would go stale
+ * the moment the clock moved, and two sources of truth could disagree.
+ */
+export function priorityOf(
+  sla: SlaSnapshot,
+  perspective: LawyerReferralListItem["perspective"]
+): LawyerReferralPriority {
+  if (perspective === "DONE") return "LOW";
+  if (sla.health === "BREACHED") return "URGENT";
+  if (sla.health === "AT_RISK") return "HIGH";
+  if (perspective === "WAITING_ON_CLIENT") return "LOW";
+  return "NORMAL";
 }
 
 function perspectiveOf(
@@ -550,6 +575,7 @@ export interface ReferralListQuery {
   state?: string | null;
   perspective?: LawyerReferralListItem["perspective"] | null;
   slaHealth?: SlaHealth | null;
+  priority?: LawyerReferralPriority | null;
   fromIso?: string | null;
   toIso?: string | null;
   search?: string | null;
@@ -592,6 +618,10 @@ export function buildReferralList(params: {
         ? LEGAL_REQUEST_STATE_FA[lastEvent.toState]
         : LEGAL_REQUEST_STATE_FA[request.state];
 
+    // Derived once so the row's chip, the priority filter and the facet count
+    // all read the same value.
+    const perspective = perspectiveOf(request, snapshot);
+
     return {
       requestId: request.id,
       title: request.title,
@@ -607,7 +637,8 @@ export function buildReferralList(params: {
       lastActivityAt,
       lastActivityFa,
       sla: snapshot,
-      perspective: perspectiveOf(request, snapshot),
+      perspective,
+      priority: priorityOf(snapshot, perspective),
     };
   });
 
@@ -624,6 +655,12 @@ export function buildReferralList(params: {
     MISSED: 0,
     NONE: 0,
   };
+  const priorityCounts: Record<LawyerReferralPriority, number> = {
+    URGENT: 0,
+    HIGH: 0,
+    NORMAL: 0,
+    LOW: 0,
+  };
   for (const item of items) {
     const key = item.serviceKey ?? DEFAULT_SLA_SERVICE_KEY;
     const entry = serviceCounts.get(key) ?? { labelFa: item.serviceLabelFa, count: 0 };
@@ -631,6 +668,7 @@ export function buildReferralList(params: {
     serviceCounts.set(key, entry);
     stateCounts.set(item.state, (stateCounts.get(item.state) ?? 0) + 1);
     slaCounts[item.sla.health] += 1;
+    priorityCounts[item.priority] += 1;
   }
 
   let filtered = items;
@@ -649,6 +687,7 @@ export function buildReferralList(params: {
   if (query.state) filtered = filtered.filter((i) => i.state === query.state);
   if (query.perspective) filtered = filtered.filter((i) => i.perspective === query.perspective);
   if (query.slaHealth) filtered = filtered.filter((i) => i.sla.health === query.slaHealth);
+  if (query.priority) filtered = filtered.filter((i) => i.priority === query.priority);
   if (query.fromIso) filtered = filtered.filter((i) => i.referredAt >= query.fromIso!);
   if (query.toIso) filtered = filtered.filter((i) => i.referredAt <= query.toIso!);
   if (query.search) {
@@ -697,6 +736,11 @@ export function buildReferralList(params: {
         }))
         .sort((a, b) => b.count - a.count),
       sla: slaCounts,
+      priorities: LAWYER_REFERRAL_PRIORITIES.map((value) => ({
+        value,
+        labelFa: LAWYER_REFERRAL_PRIORITY_FA[value],
+        count: priorityCounts[value],
+      })),
     },
   };
 }

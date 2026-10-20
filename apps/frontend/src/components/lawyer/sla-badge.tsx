@@ -10,8 +10,10 @@
 "use client";
 
 import {
+  LAWYER_REFERRAL_PRIORITY_FA,
   LEGAL_REQUEST_STATE_FA,
   SLA_HEALTH_FA,
+  type LawyerReferralPriority,
   type LegalRequestState,
   type SlaHealth,
   type SlaSnapshot,
@@ -51,6 +53,25 @@ const SLA_TONES: Record<SlaHealth, Tone> = {
   MISSED: "warning",
   NONE: "neutral",
 };
+
+const PRIORITY_TONES: Record<LawyerReferralPriority, Tone> = {
+  URGENT: "danger",
+  HIGH: "warning",
+  NORMAL: "info",
+  LOW: "neutral",
+};
+
+/**
+ * The server-derived urgency — never a stored field, so it always agrees with
+ * the live SLA clock and with the priority filter that produced the row.
+ */
+export function PriorityBadge({ priority }: { priority: LawyerReferralPriority }) {
+  return (
+    <Badge tone={PRIORITY_TONES[priority] ?? "neutral"} dot>
+      {LAWYER_REFERRAL_PRIORITY_FA[priority] ?? priority}
+    </Badge>
+  );
+}
 
 export function StateBadge({ state }: { state: LegalRequestState }) {
   return (

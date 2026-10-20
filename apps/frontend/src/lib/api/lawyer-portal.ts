@@ -40,9 +40,12 @@ function referralQuery(filters: LawyerReferralFilters): string {
     ["state", filters.state],
     ["perspective", filters.perspective],
     ["slaHealth", filters.slaHealth],
-    ["from", filters.fromIso],
-    ["to", filters.toIso],
-    ["q", filters.search],
+    ["priority", filters.priority],
+    // These names must match what the route reads — a mismatched key silently
+    // drops the filter server-side.
+    ["fromIso", filters.fromIso],
+    ["toIso", filters.toIso],
+    ["search", filters.search],
     ["bucket", filters.bucket],
     ["page", filters.page],
     ["pageSize", filters.pageSize],

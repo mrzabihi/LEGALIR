@@ -2,9 +2,9 @@
 // LEGALIR — GET /api/v1/lawyer/referrals
 // ============================================================
 // The lawyer's referral queue with server-side filtering, search, sorting and
-// pagination. Filters: service, state, perspective, SLA health, referral date
-// range, free text. The response carries the facet counts the filter bar
-// renders, computed over the unfiltered set.
+// pagination. Filters: service, state, perspective, SLA health, derived
+// priority, referral date range, free text. The response carries the facet
+// counts the filter bar renders, computed over the unfiltered set.
 //
 // Scoping is implicit: the lawyer id comes from the session's own profile, so
 // there is no parameter that could point at somebody else's queue.
@@ -13,10 +13,12 @@
 import { NextResponse } from "next/server";
 import { requireLawyer } from "@/lib/lawyer-portal/http";
 import { buildReferralList, type ReferralListQuery } from "@/lib/lawyer-portal/projections";
-import type {
-  LawyerDashboardCounts,
-  LawyerReferralListItem,
-  SlaHealth,
+import {
+  LAWYER_REFERRAL_PRIORITIES,
+  type LawyerDashboardCounts,
+  type LawyerReferralListItem,
+  type LawyerReferralPriority,
+  type SlaHealth,
 } from "@legalir/types";
 
 const PERSPECTIVES: LawyerReferralListItem["perspective"][] = [
@@ -62,6 +64,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const perspectiveRaw = url.searchParams.get("perspective");
   const slaRaw = url.searchParams.get("slaHealth");
+  const priorityRaw = url.searchParams.get("priority");
   const sortRaw = url.searchParams.get("sort");
   const bucketRaw = url.searchParams.get("bucket");
 
@@ -75,6 +78,11 @@ export async function GET(request: Request) {
         : null,
     slaHealth:
       slaRaw && SLA_HEALTH.includes(slaRaw as SlaHealth) ? (slaRaw as SlaHealth) : null,
+    priority:
+      priorityRaw &&
+      (LAWYER_REFERRAL_PRIORITIES as readonly string[]).includes(priorityRaw)
+        ? (priorityRaw as LawyerReferralPriority)
+        : null,
     fromIso: url.searchParams.get("fromIso"),
     toIso: url.searchParams.get("toIso"),
     search: url.searchParams.get("search"),

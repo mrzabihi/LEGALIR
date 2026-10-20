@@ -34,6 +34,7 @@ import type * as LegalRequestDbModule from "../legal-request-db";
 import type * as LawyerDbModule from "../lawyer-db";
 import type * as StoreModule from "../lawyer-portal/store";
 import type * as ThreadsModule from "../consultation-message-db";
+import type * as ProjectionsModule from "../lawyer-portal/projections";
 
 type Db = typeof DbModule;
 type LegalRequestDb = typeof LegalRequestDbModule;
@@ -46,6 +47,7 @@ let legalRequestDb: LegalRequestDb;
 let lawyerDb: LawyerDb;
 let store: Store;
 let threads: Threads;
+let projections: typeof ProjectionsModule;
 
 let lawyerA: { id: string; userId: string; session: string };
 let lawyerB: { id: string; userId: string; session: string };
@@ -182,6 +184,7 @@ beforeAll(async () => {
   lawyerDb = await import("../lawyer-db");
   store = await import("../lawyer-portal/store");
   threads = await import("../consultation-message-db");
+  projections = await import("../lawyer-portal/projections");
 
   referralsList = (await import("@/app/api/v1/lawyer/referrals/route"))
     .GET as typeof referralsList;
@@ -293,6 +296,129 @@ describe("ownership — a bare request id is not authorization", () => {
       idCtx(requestId)
     );
     expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2b. Derived priority (§3) — never stored, always agrees with the clock
+// ---------------------------------------------------------------------------
+
+describe("derived priority", () => {
+  const snap = (health: string) => ({ health }) as never;
+
+  it("ranks a breached deadline above everything still open", () => {
+    expect(projections.priorityOf(snap("BREACHED"), "NEEDS_ACTION")).toBe("URGENT");
+    expect(projections.priorityOf(snap("BREACHED"), "WAITING_ON_CLIENT")).toBe("URGENT");
+    expect(projections.priorityOf(snap("AT_RISK"), "NEEDS_ACTION")).toBe("HIGH");
+    expect(projections.priorityOf(snap("ON_TRACK"), "ACTIVE")).toBe("NORMAL");
+    expect(projections.priorityOf(snap("ON_TRACK"), "WAITING_ON_CLIENT")).toBe("LOW");
+    expect(projections.priorityOf(snap("ON_TRACK"), "DONE")).toBe("LOW");
+  });
+
+  it("puts a priority on every row and offers one facet per priority", async () => {
+    const res = await referralsList(
+      req(lawyerA.session, "http://localhost/api/v1/lawyer/referrals")
+    );
+    const body = (await res.json()) as {
+      data: {
+        items: { requestId: string; priority: string }[];
+        facets: { priorities: { value: string; count: number }[] };
+      };
+    };
+    const row = body.data.items.find((i) => i.requestId === requestId);
+    expect(row?.priority).toBe("NORMAL");
+    expect(body.data.facets.priorities.map((f) => f.value)).toEqual([
+      "URGENT",
+      "HIGH",
+      "NORMAL",
+      "LOW",
+    ]);
+    const total = body.data.facets.priorities.reduce((sum, f) => sum + f.count, 0);
+    expect(total).toBe(body.data.items.length);
+  });
+
+  it("filters by priority without touching another lawyer's queue", async () => {
+    const normal = await referralsList(
+      req(lawyerA.session, "http://localhost/api/v1/lawyer/referrals?priority=NORMAL")
+    );
+    const normalBody = (await normal.json()) as {
+      data: { items: { requestId: string }[]; total: number };
+    };
+    expect(normalBody.data.items.map((i) => i.requestId)).toContain(requestId);
+
+    const urgent = await referralsList(
+      req(lawyerA.session, "http://localhost/api/v1/lawyer/referrals?priority=URGENT")
+    );
+    const urgentBody = (await urgent.json()) as { data: { items: { requestId: string }[] } };
+    expect(urgentBody.data.items.map((i) => i.requestId)).not.toContain(requestId);
+  });
+
+  it("ignores an unknown priority instead of returning an empty page", async () => {
+    const res = await referralsList(
+      req(lawyerA.session, "http://localhost/api/v1/lawyer/referrals?priority=BOGUS")
+    );
+    const body = (await res.json()) as { data: { items: { requestId: string }[] } };
+    expect(body.data.items.map((i) => i.requestId)).toContain(requestId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2c. Filter wire contract — the client's names must match the route's
+// ---------------------------------------------------------------------------
+// A filter whose query key differs from what the handler reads is silently
+// dropped: the UI shows an active filter and the server returns everything.
+// This pins the serialized names against the handler's own param names.
+
+describe("filter wire contract", () => {
+  it("serializes every filter under the name the route reads", async () => {
+    const { fetchLawyerReferrals } = await import("@/lib/api/lawyer-portal");
+    const seen: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return new Response(JSON.stringify({ data: {} }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+    try {
+      await fetchLawyerReferrals({
+        serviceKey: "family-consultation",
+        state: "ACCEPTED",
+        perspective: "ACTIVE",
+        slaHealth: "AT_RISK",
+        priority: "HIGH",
+        fromIso: "2026-01-01T00:00:00.000Z",
+        toIso: "2026-02-01T00:00:00.000Z",
+        search: "ارث",
+        bucket: "inProgress",
+        page: 2,
+        pageSize: 25,
+        sort: "due",
+      });
+    } finally {
+      globalThis.fetch = original;
+    }
+
+    expect(seen).toHaveLength(1);
+    const url = new URL(seen[0]!);
+    const expected: Record<string, string> = {
+      serviceKey: "family-consultation",
+      state: "ACCEPTED",
+      perspective: "ACTIVE",
+      slaHealth: "AT_RISK",
+      priority: "HIGH",
+      fromIso: "2026-01-01T00:00:00.000Z",
+      toIso: "2026-02-01T00:00:00.000Z",
+      search: "ارث",
+      bucket: "inProgress",
+      page: "2",
+      pageSize: "25",
+      sort: "due",
+    };
+    for (const [key, value] of Object.entries(expected)) {
+      expect(url.searchParams.get(key), `?${key}=`).toBe(value);
+    }
   });
 });
 
