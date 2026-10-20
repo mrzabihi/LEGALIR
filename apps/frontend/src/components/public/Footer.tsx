@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { TextField, Button } from "@legalir/ui";
 
 const footerLinks = {
   services: {
@@ -67,12 +66,14 @@ export function Footer() {
                 <h3 className="text-button font-semibold text-on-surface mb-4 pb-2 border-b border-neutral-200">
                   {section.title}
                 </h3>
-                <ul className="space-y-2.5">
+                <ul className="space-y-0.5">
                   {section.items.map((item) => (
                     <li key={item.href}>
+                      {/* `min-h-11` keeps every footer link at the 44px touch
+                          minimum on phones, matching the landing footer. */}
                       <Link
                         href={item.href}
-                        className="text-body-2 text-neutral-600 hover:text-primary transition-colors duration-200"
+                        className="inline-flex min-h-11 items-center text-body-2 text-neutral-600 hover:text-primary transition-colors duration-200"
                       >
                         {item.label}
                       </Link>
@@ -83,33 +84,37 @@ export function Footer() {
             ))}
           </div>
 
-          {/* Newsletter Signup Placeholder */}
+          {/* Newsletter slot — the old block was an email input and a «ثبت»
+              button with no submit handler and no backend behind it. Rather
+              than ship a dead control on every public page, this slot offers
+              the two destinations it was standing in for: the legal blog and
+              the contact channel. Same change as the landing footer
+              (`landing/landing-footer.tsx`), kept consistent across both. */}
           <div className="border-t border-neutral-200 pt-10 mb-10">
             <div className="bg-white rounded-medium p-6 shadow-sm border border-neutral-200 max-w-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex-1">
                   <h3 className="text-button font-semibold text-on-surface mb-1">
-                    خبرنامه لیگالیر
+                    مطالب و اخبار حقوقی
                   </h3>
                   <p className="text-body-2 text-neutral-600">
-                    برای اطلاع از به‌روزرسانی‌ها، امکانات جدید و آخرین اخبار
-                    حقوقی ایمیل خود را وارد کنید.
+                    تازه‌ترین مقالات و راهنماهای حقوقی را در وبلاگ لیگالیر بخوانید،
+                    یا برای هر پرسش با تیم ما در تماس باشید.
                   </p>
                 </div>
-                <div className="flex items-end gap-2 flex-1">
-                  <div className="flex-1">
-                    <TextField
-                      label="ایمیل"
-                      type="email"
-                      placeholder="ایمیل خود را وارد کنید"
-                      inputDir="ltr"
-                      inputSize="small"
-                      fullWidth
-                    />
-                  </div>
-                  <Button type="button" size="large" className="whitespace-nowrap">
-                    ثبت
-                  </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/blog"
+                    className="inline-flex min-h-11 items-center justify-center rounded-medium border border-neutral-300 px-4 text-button font-medium text-on-surface transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    مشاهده وبلاگ
+                  </Link>
+                  <Link
+                    href="/contact"
+                    className="inline-flex min-h-11 items-center justify-center rounded-medium bg-primary px-4 text-button font-medium text-on-primary transition-colors hover:bg-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    تماس با ما
+                  </Link>
                 </div>
               </div>
             </div>
