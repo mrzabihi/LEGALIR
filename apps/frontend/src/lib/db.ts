@@ -75,6 +75,51 @@ function ensureDir() {
 // a write can never leave a stale parse behind.
 const tableCache = new Map<string, { mtimeMs: number; size: number; data: unknown[] }>();
 
+/**
+ * Corrupt tables already preserved during this process lifetime, keyed by
+ * `name:mtime:size`. Reads are hot, so without this guard one broken file
+ * would be copied again on every read and fill the data directory.
+ */
+const quarantined = new Set<string>();
+
+/** Never keep more than this many preserved copies of one corrupt table. */
+const MAX_CORRUPT_COPIES = 3;
+
+/**
+ * Preserve a table whose bytes failed to parse instead of silently returning
+ * `[]`. Returning an empty array made a corrupt file indistinguishable from a
+ * brand-new one, and the next `writeTable` would overwrite the original rows
+ * with only the new ones — silent data loss. The bytes are copied aside as
+ * `<name>.corrupt-<timestamp>.json` so they can be recovered by hand.
+ *
+ * Best-effort by design: this runs on a read path, so a filesystem error here
+ * must never turn a read into a crash. The caller still gets `[]`.
+ */
+function preserveCorruptTable(name: string, file: string, stat: fs.Stats): void {
+  const key = `${name}:${stat.mtimeMs}:${stat.size}`;
+  if (quarantined.has(key)) return;
+  quarantined.add(key);
+
+  try {
+    const existing = fs
+      .readdirSync(DB_DIR)
+      .filter((f) => f.startsWith(`${name}.corrupt-`) && f.endsWith(".json"))
+      .sort();
+    // Drop the oldest beyond the cap, then drop this new one. Keeps a short
+    // history of distinct corrupt states without unbounded growth.
+    while (existing.length >= MAX_CORRUPT_COPIES) {
+      const oldest = existing.shift();
+      if (oldest) fs.rmSync(path.join(DB_DIR, oldest), { force: true });
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    fs.copyFileSync(file, path.join(DB_DIR, `${name}.corrupt-${stamp}.json`));
+    // eslint-disable-next-line no-console
+    console.error(`[db] table "${name}" is not valid JSON; a copy was preserved for recovery`);
+  } catch {
+    // Read paths never fail because of this side effect.
+  }
+}
+
 export function readTable<T>(name: string): T[] {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
@@ -94,6 +139,7 @@ export function readTable<T>(name: string): T[] {
     tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
     return data;
   } catch {
+    preserveCorruptTable(name, file, stat);
     return [];
   }
 }
@@ -101,7 +147,14 @@ export function readTable<T>(name: string): T[] {
 export function writeTable<T>(name: string, data: T[]): void {
   ensureDir();
   const file = path.join(DB_DIR, `${name}.json`);
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+  // Write to a sibling temp file and rename it into place. `rename` is atomic
+  // on one filesystem, so a process killed mid-write (deploy restart, OOM)
+  // can never leave a half-written table that the parser would read as empty
+  // and the next write would overwrite. The suffix is outside the `*.json`
+  // table namespace so a stray temp file is never parsed as a table.
+  const tmp = path.join(DB_DIR, `${name}.json.tmp-${process.pid}`);
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, file);
   try {
     const stat = fs.statSync(file);
     tableCache.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, data });
