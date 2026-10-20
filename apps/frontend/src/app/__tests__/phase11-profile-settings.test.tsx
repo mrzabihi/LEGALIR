@@ -336,8 +336,10 @@ describe("Phase 11 — Responsive", () => {
     render(<ProfilePage />, { wrapper: TestWrapper });
 
     await waitFor(() => {
-      // The Account Hub outer container is max-w-3xl (replaces max-w-2xl)
-      const container = document.querySelector(".max-w-3xl");
+      // The Account Hub renders inside the shared page column. The width
+      // itself lives in `PageContainer` (pinned by its own test) — asserting
+      // it here again would just break every time that column is retuned.
+      const container = document.querySelector(".mx-auto.w-full");
       expect(container).toBeTruthy();
     });
   });
