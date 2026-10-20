@@ -104,4 +104,33 @@ describe("Public Footer", () => {
       screen.getByText(/خدمات تخصصی حقوقی/)
     ).toBeInTheDocument();
   });
+
+  // The footer used to carry an email field and a «ثبت» button with no submit
+  // handler and no backend. Nothing here may reintroduce a control that does
+  // nothing: every destination must be a real link.
+  it("offers no dead controls", () => {
+    const { container } = render(wrapInRtl(<Footer />));
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("routes the newsletter slot to the blog and the contact channel", () => {
+    render(wrapInRtl(<Footer />));
+    expect(screen.getByRole("link", { name: "مشاهده وبلاگ" })).toHaveAttribute("href", "/blog");
+    expect(screen.getAllByRole("link", { name: "تماس با ما" })[0]).toHaveAttribute(
+      "href",
+      "/contact"
+    );
+  });
+
+  // 44px is the touch minimum on phones; `min-h-11` is what carries it.
+  it("gives every link the 44px touch minimum", () => {
+    const { container } = render(wrapInRtl(<Footer />));
+    const links = Array.from(container.querySelectorAll("a"));
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link.className).toContain("min-h-11");
+    }
+  });
 });
