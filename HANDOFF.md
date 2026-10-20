@@ -158,7 +158,7 @@ why the release branch is opened as a PR.
 | `npm run check:assets` | ✅ OK |
 | `npm run typecheck` (`tsc --noEmit`) | ✅ clean |
 | `npm run lint` | ✅ 0 errors (warnings only) |
-| Unit + integration tests (Vitest) | ✅ **218 files / 3208 tests passed** |
+| Unit + integration tests (Vitest) | ✅ **219 files / 3218 tests passed** |
 | `npm run build` | not run locally (dev server was live) — CI `build` job covers it |
 
 ## 9. What's in this release
