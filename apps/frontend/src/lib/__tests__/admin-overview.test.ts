@@ -25,6 +25,9 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/legal-corpus", () => ({
   readCorpus: () => ({ sources: [] }),
+  // `@/lib/admin/rag` re-exports this at module scope, so the mock must
+  // define it or importing `metrics` throws before any test runs.
+  MAX_LAW_FILE_BYTES: 50 * 1024 * 1024,
 }));
 
 import { buildOverview, planDailyMix } from "@/lib/admin/metrics";
