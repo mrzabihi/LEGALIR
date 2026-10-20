@@ -49,6 +49,10 @@ apps/frontend/.lint.json
 
 # Database
 .data/
+# A repair backup belongs inside .data/ (see docs/LOCAL_DATA_STORE_RECOVERY.md).
+# This also catches one left at the repo root by mistake — users.json and
+# sessions.json must never be committable.
+.data-backup-*/
 
 # Misc
 *.pem
