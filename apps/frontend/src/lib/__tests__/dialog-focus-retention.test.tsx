@@ -13,7 +13,7 @@
 // fresh `onClose` every render. With the fix, neither re-render touches focus.
 // ============================================================
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useState } from "react";
 import { Dialog, Drawer, Button, IconButton } from "@legalir/ui";
@@ -263,5 +263,142 @@ describe("Drawer — the focus trap pulls focus in from outside the panel", () =
 
     // The drawer must not steal focus out of the modal sitting on top of it.
     expect(document.activeElement).toBe(stackedButton);
+  });
+});
+
+// ============================================================
+// Stacked overlays — only the TOP layer answers Escape / holds the lock
+// ============================================================
+// A confirm Dialog is routinely opened from inside a Drawer («حذف» a row),
+// and a Dialog over a Dialog is just as common. Each overlay used to register
+// its own document keydown listener and its own unconditional
+// `body.style.overflow` reset, which produced three live defects:
+//   • one Escape ran BOTH `onClose`s — cancelling a confirm also tore down the
+//     drawer (and the half-filled form) underneath it;
+//   • closing the top layer released the scroll lock while the layer below was
+//     still open, so the page behind the scrim became scrollable;
+//   • the lower layer's Tab trap pulled focus out of the top layer before the
+//     top layer could handle the key (a focus flash, and in a real browser a
+//     scroll of the layer underneath).
+
+function StackedDrawerDialog({
+  drawerOpen = true,
+  dialogOpen = true,
+  persistent = false,
+  onDrawerClose = () => undefined,
+  onDialogClose = () => undefined,
+}: {
+  drawerOpen?: boolean;
+  dialogOpen?: boolean;
+  persistent?: boolean;
+  onDrawerClose?: () => void;
+  onDialogClose?: () => void;
+}) {
+  return (
+    <>
+      <Drawer open={drawerOpen} onClose={onDrawerClose} title="ویرایش قرارداد">
+        <button type="button">ذخیره</button>
+      </Drawer>
+      <Dialog
+        open={dialogOpen}
+        onClose={onDialogClose}
+        title="تأیید حذف"
+        persistent={persistent}
+      >
+        <button type="button">تأیید حذف</button>
+      </Dialog>
+    </>
+  );
+}
+
+describe("Stacked overlays — Escape reaches only the top layer", () => {
+  it("closes the top layer and leaves the drawer underneath open", async () => {
+    const onDrawerClose = vi.fn();
+    const onDialogClose = vi.fn();
+    render(<StackedDrawerDialog onDrawerClose={onDrawerClose} onDialogClose={onDialogClose} />);
+    await settle();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onDialogClose).toHaveBeenCalledTimes(1);
+    expect(onDrawerClose).not.toHaveBeenCalled();
+  });
+
+  it("closes neither layer when the top layer is persistent", async () => {
+    const onDrawerClose = vi.fn();
+    const onDialogClose = vi.fn();
+    render(
+      <StackedDrawerDialog
+        persistent
+        onDrawerClose={onDrawerClose}
+        onDialogClose={onDialogClose}
+      />,
+    );
+    await settle();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    // The drawer must not "helpfully" dismiss itself from under a modal that
+    // is explicitly refusing to close.
+    expect(onDialogClose).not.toHaveBeenCalled();
+    expect(onDrawerClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("Stacked overlays — the scroll lock is held by the stack", () => {
+  afterEach(() => {
+    document.body.style.overflow = "";
+  });
+
+  it("stays locked while a lower layer is still open", async () => {
+    const { rerender } = render(<StackedDrawerDialog />);
+    await settle();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // Close only the top layer; the drawer is still open behind it.
+    rerender(<StackedDrawerDialog dialogOpen={false} />);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // Last layer out restores the page.
+    rerender(<StackedDrawerDialog drawerOpen={false} dialogOpen={false} />);
+    expect(document.body.style.overflow).toBe("");
+  });
+});
+
+describe("Stacked overlays — the lower layer never steals focus", () => {
+  function StackedDialogs() {
+    return (
+      <>
+        <Dialog open onClose={() => undefined} title="فرم قرارداد">
+          <button type="button">فیلد فرم</button>
+        </Dialog>
+        <Dialog open onClose={() => undefined} title="تأیید">
+          <button type="button">تأیید حذف</button>
+          <button type="button">انصراف</button>
+        </Dialog>
+      </>
+    );
+  }
+
+  it("lets the top layer pass Tab through instead of re-handling it", async () => {
+    render(<StackedDialogs />);
+    await settle();
+
+    const topFirst = screen.getByRole("button", { name: "تأیید حذف" });
+    const below = screen.getByRole("button", { name: "فیلد فرم" });
+    // The innermost dialog owns focus after mount.
+    expect(document.activeElement).toBe(topFirst);
+
+    const focused: Element[] = [];
+    const spy = (e: FocusEvent) => focused.push(e.target as Element);
+    document.addEventListener("focusin", spy);
+    // `fireEvent` reports whether the key's default (native Tab movement) was
+    // left intact. Mid-cycle Tab inside the top dialog must not be cancelled.
+    const notPrevented = fireEvent.keyDown(document, { key: "Tab" });
+    document.removeEventListener("focusin", spy);
+
+    expect(focused).not.toContain(below);
+    expect(notPrevented).toBe(true);
+    expect(document.activeElement).toBe(topFirst);
   });
 });
