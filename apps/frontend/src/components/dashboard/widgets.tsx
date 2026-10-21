@@ -36,7 +36,7 @@ import {
   IconLibrary,
 } from "@/lib/icons";
 import { PointsSummaryCard } from "./points-summary-card";
-import { HeroStatCard } from "./hero-stat-card";
+import { HeroStatCard, HeroStatCardSkeleton } from "./hero-stat-card";
 import { TextField, Button } from "@legalir/ui";
 
 // ============================================================
@@ -372,15 +372,33 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
   const dailyUsedPct = dailyTotal > 0 ? (dailyUsed / dailyTotal) * 100 : 0;
 
   if (isLoading) {
+    // The skeleton mirrors the live hero slot for slot: same container
+    // padding, same greeting boxes, and — critically — the same stat row,
+    // built from `HeroStatCardSkeleton` so it carries the real cards' height.
+    // A short placeholder here moved every widget below it when the data
+    // landed (measured CLS 0.42, vs. the 0.25 "poor" boundary).
     return (
-      <div className="relative rounded-large overflow-hidden mb-6 animate-pulse" data-hero>
+      <div className="relative rounded-large overflow-hidden mb-6" data-hero aria-busy="true">
         <HeroBackdrop />
-        <div className="relative p-6 tablet:p-8 laptop:p-10">
-          <div className="h-9 w-56 rounded-medium bg-white/15 mb-3" />
-          <div className="h-5 w-40 rounded-medium bg-white/15 mb-8" />
-          <div className="grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3">
+        <div className="relative p-5 tablet:p-8 laptop:p-10">
+          {/* Greeting placeholder. It carries the REAL type classes on the
+              same elements as the loaded hero (h1 `text-h2 tablet:text-h1`,
+              p `text-body-1 mt-1`) and hides bars inside them, so both the
+              line boxes and the responsive step are identical — a hand-sized
+              bar was 16 px short at `tablet` and up. */}
+          <div className="max-w-2xl animate-pulse">
+            <h1 className="text-h2 tablet:text-h1 font-bold">
+              <span className="inline-block h-[0.7em] w-56 rounded-medium bg-white/15 align-baseline" />
+            </h1>
+            <p className="text-body-1 mt-1">
+              <span className="inline-block h-[0.7em] w-40 rounded-medium bg-white/15 align-baseline" />
+            </p>
+          </div>
+          <div className="relative mt-6 grid grid-cols-2 gap-3 tablet:mt-8 tablet:grid-cols-3 laptop:grid-cols-5">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-20 rounded-large bg-white/10" />
+              <div key={i} className={i === 1 ? "col-span-2 tablet:col-span-1" : undefined}>
+                <HeroStatCardSkeleton />
+              </div>
             ))}
           </div>
         </div>
@@ -666,10 +684,38 @@ interface ProfileCompletionCardProps {
 
 export function ProfileCompletionCard({ profile, isLoading }: ProfileCompletionCardProps) {
   if (isLoading) {
+    // Same three-row anatomy as the loaded card — icon+title row, progress
+    // bar, supporting line, CTA — because a two-row placeholder measured
+    // 104 px against the real card's 112 px, and every widget below it moved
+    // when `me` resolved.
     return (
-      <div className="rounded-large bg-surface-container-low border border-[color-mix(in_srgb,var(--color-warning)_30%,transparent)] p-5 mb-6 animate-pulse">
-        <div className="h-5 w-40 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_15%,transparent)]" />
-        <div className="mt-2 h-2 w-48 rounded-full bg-[color-mix(in_srgb,var(--color-muted)_10%,transparent)]" />
+      <div
+        className="rounded-large bg-surface-container-low border border-[color-mix(in_srgb,var(--color-warning)_30%,transparent)] p-5 mb-6 animate-pulse"
+        aria-busy="true"
+      >
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            {/* Title row. The bar is 28px (`text-body-1`'s line box, the same
+                line the loaded title occupies) — in a flex row the type class
+                does not set a child's height, so the height must be explicit. */}
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-5 w-5 shrink-0 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_15%,transparent)]" />
+              <div className="h-7 w-40 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_15%,transparent)]" />
+            </div>
+            <div className="w-full max-w-xs h-2 rounded-full bg-[color-mix(in_srgb,var(--color-muted)_10%,transparent)]" />
+            {/* `text-caption` wrapper, not a fixed height: the loaded card's
+                supporting line is a caption line box, and hard-coding a size
+                is what left this skeleton 12 px short. */}
+            <p className="mt-1.5 text-caption text-on-surface-variant">
+              <span className="inline-block h-[0.9em] w-64 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_10%,transparent)] align-middle" />
+            </p>
+          </div>
+          {/* CTA placeholder — the real link's padding (py-2.5) plus its
+              28px `text-button` line, so the 48px pill is reserved exactly. */}
+          <div className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--color-muted)_12%,transparent)] px-5 py-2.5">
+            <span className="block h-7 w-16 rounded-small bg-[color-mix(in_srgb,var(--color-muted)_14%,transparent)]" />
+          </div>
+        </div>
       </div>
     );
   }

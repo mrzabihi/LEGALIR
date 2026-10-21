@@ -45,6 +45,58 @@ const TONE: Record<HeroStatTone, { shell: string; tile: string; glow: string }> 
   },
 };
 
+/**
+ * The loading twin of {@link HeroStatCard}.
+ *
+ * It exists so the hero's stat row has ONE height in every state. A generic
+ * `h-20` placeholder block used to stand in here, while the real cards are
+ * ~180–210 px tall (they grow with the width of the five-column row), so the
+ * whole dashboard below the hero jumped ~115 px the moment data arrived —
+ * measured as CLS 0.42 on a 1440×900 viewport, well past the 0.25 "poor"
+ * boundary. Reusing the same shell and the same four slot heights reserves
+ * the row's final geometry at every breakpoint, so the swap to real content
+ * shifts nothing.
+ */
+export function HeroStatCardSkeleton() {
+  // Every slot below copies the real card's MARKUP — same wrapper, same type
+  // class, same spacing — and swaps the text for a bar. Where a bar replaces
+  // text that sets a line box (`text-h3` digits, the caption note), the bar is
+  // placed INSIDE that type class so the box is identical; hand-sizing a flex
+  // child instead left the row 8 px short and the note row 9 px short.
+  return (
+    <div className={`${SHELL} ${TONE.default.shell} animate-pulse`} aria-hidden="true">
+      {/* 1 — icon + title */}
+      <div className="relative flex items-center gap-2">
+        <span className="h-9 w-9 shrink-0 rounded-medium bg-white/15" />
+        <span className="min-w-0 text-caption font-medium text-white/80">
+          <span className="inline-block h-[1em] w-16 rounded-small bg-white/15 align-middle" />
+        </span>
+      </div>
+
+      {/* 2 — the value (+ unit). NOT a flex row: inside a flex container the
+          line-height of `text-h3` does not set the item's height, so the bar
+          measured 9 px shorter than the real digits. As inline content in a
+          block, the type class establishes the identical line box. */}
+      <p className="relative mt-2 overflow-hidden whitespace-nowrap text-h3 font-bold tabular-nums">
+        <span className="inline-block h-[0.72em] w-16 rounded-small bg-white/15 align-baseline" />
+        <span className="ms-1.5 align-baseline text-caption font-normal text-white/75">
+          <span className="inline-block h-[0.8em] w-6 rounded-small bg-white/10 align-baseline" />
+        </span>
+      </p>
+
+      {/* 3 — the decorative slot, reserved exactly as the real card does */}
+      <div className="relative mt-2 min-h-9" />
+
+      {/* 4 — the pinned note, same min-height + hairline as the real card */}
+      <div className="relative mt-auto flex min-h-5 items-center gap-2 overflow-hidden border-t border-white/10 pt-2 text-caption text-white/75">
+        {/* `h-5` = the caption line box (20px), so this row is 20 + pt-2 + the
+            hairline — exactly the real note row's height. */}
+        <span className="inline-block h-5 w-24 rounded-small bg-white/10" />
+      </div>
+    </div>
+  );
+}
+
 export interface HeroStatCardProps {
   /** Card name, e.g. «درخواست امروز». */
   title: string;
