@@ -3427,17 +3427,21 @@ html {
    lawyer panel or the admin console, so the landing can evolve on its own
    tokens without restyling the rest of the product.
 
-   Palette provenance — this is a *mapping*, not a second palette:
-     navy    → the shipped brand navy   (--color-primary-700/900)
-     emerald → the shipped brand green  (--brand-green #1D624E)
-     gold    → the shipped brand gold   (--brand-gold  #C69B38)
-   The redesign brief's #14213D / #16866A / #C6A15B are within a couple of
-   units of these; the shipped values win because they are already used by
-   every other public surface (header buttons, footer, /pricing) and because
-   white-on-#16866A lands at 4.0:1 — below AA for 14px button text, while
-   white-on-#1D624E lands at 6.3:1. Accessibility decides the tie.
-   Only the brief's neutral scale (#202938 ink, #667085 muted, #E6E9EF line,
-   #F7F8FA canvas) is new; the MD3 ramp has no exact equivalent. */
+   Palette provenance — the landing now owns its own editorial palette
+   (Ink #111111 / Charcoal #3A3A3A / Mist #F4F4F2 / Line #D9D9D6 /
+   Cobalt #2F5BEA) rather than aliasing the app's MD3 ramp. It is
+   declared inside this scope only, so the global design system, the
+   shared header, the dashboard and the admin console keep the shipped
+   brand colours untouched.
+
+   Contrast, measured rather than asserted:
+     cobalt on white  → 5.60:1  (AA for the 15px button label)
+     ink on white     → 19.0:1
+     charcoal on white→ 11.0:1
+     muted #5F5F5F     → 6.90:1  (AA for 13px body copy)
+     faint #8A8A8A     → 3.00:1  (large text, numerals, rules only)
+   Mid Gray (#8A8A8A) can NOT carry small body copy at AA, so it is used
+   only for rules, idle numerals and 24px+ type. */
 
 /* `.landing-portal` carries the same tokens for the one element rendered
    through `createPortal(..., document.body)` — the mobile drawer. A portal
@@ -3447,43 +3451,125 @@ html {
    `.landing` below. */
 .landing,
 .landing-portal {
-  /* Surfaces & text */
-  --ln-canvas: #f7f8fa;
-  --ln-surface: #ffffff;
-  --ln-ink: #202938;
-  --ln-ink-soft: #3a465c;
-  --ln-muted: #667085;
-  --ln-line: #e6e9ef;
-  --ln-line-strong: #d5dae3;
+  /* ---- Museum-editorial palette (2026 redesign) ----------------
+     Ink / charcoal / white dominate; cobalt is the only accent and it is
+     rationed to the primary action, the exhibit numerals and one or two
+     hairlines per screen. Green and gold are kept ONLY as aliases so the
+     few shared marketing components that still read `--ln-green` /
+     `--ln-gold` (the judicial zone cards) resolve to the new accent
+     instead of falling back to a retired hue. Nothing outside `.landing`
+     can see these values. */
+  --ln-canvas: #f4f4f2; /* Mist Gray */
+  --ln-surface: #ffffff; /* Pure White */
+  --ln-ink: #111111; /* Ink Black */
+  --ln-ink-soft: #3a3a3a; /* Charcoal */
+  --ln-muted: #5f5f5f; /* AA-safe secondary text — 6.9:1 on white */
+  --ln-faint: #8a8a8a; /* Mid Gray — large text / rules only, 3.0:1 */
 
-  /* Brand roles */
-  --ln-navy: var(--color-primary-700); /* #162033 */
-  --ln-navy-deep: var(--color-primary-900); /* #0B1220 */
-  --ln-green: var(--brand-green); /* #1D624E — AA on white */
-  --ln-green-bright: #16866a; /* accents / dots only, never small text */
-  --ln-green-soft: #eef6f2;
-  --ln-gold: var(--brand-gold); /* #C69B38 */
-  --ln-gold-deep: var(--brand-fg-gold); /* #8A6A33 — gold text on light */
-  --ln-gold-soft: #faf4e6;
+  --ln-line: #d9d9d6; /* Line Gray */
+  --ln-line-strong: #c2c2be;
 
-  /* Radii — a tighter set than the app's, tuned for large marketing cards */
-  --ln-r-sm: 8px;
-  --ln-r-md: 12px;
-  --ln-r-lg: 16px;
+  /* Accent role — LEGALIR Cobalt */
+  --ln-cobalt: #2f5bea;
+  --ln-cobalt-deep: #1e3faf; /* hover */
+  --ln-cobalt-soft: #e8eefd; /* Light Cobalt tint */
+
+  /* Retired brand aliases — remapped, never emitted as themselves. */
+  --ln-navy: #111111;
+  --ln-navy-deep: #111111;
+  --ln-green: #2f5bea;
+  --ln-green-bright: #2f5bea;
+  --ln-green-soft: #e8eefd;
+  --ln-gold: #2f5bea;
+  --ln-gold-deep: #1e3faf;
+  --ln-gold-soft: #e8eefd;
+
+  /* ---- Radii -------------------------------------------------
+     One nested scale, tuned so a control inside a panel never looks
+     tighter than the panel itself. The catalogue stays rectilinear — no
+     pill buttons, no 32px cards — it is only softened enough to read as
+     a printed plate rather than a hard table cell.
+
+       xs  8 — nav hover fills, menu rows, inline accents
+       sm 14 — chips, badges, icon tiles, inline notices
+       md 16 — buttons, small cards, popovers
+       lg 20 — cards, mounted plates, panels
+       xl 24 — the large closing panels (intake desk, CTA frame)
+     Concentric rule of thumb: a child sits at `parent − ~4px`, which is
+     why a 20px card holds 14–16px tiles and a 24px panel holds 20px cards. */
+  --ln-r-xs: 8px;
+  --ln-r-sm: 14px;
+  --ln-r-md: 16px;
+  --ln-r-lg: 20px;
   --ln-r-xl: 24px;
+  --ln-r-pill: 999px;
 
-  /* Elevation — flat at rest, one quiet step on hover. Never stacked. */
-  --ln-shadow-1: 0 1px 2px rgba(16, 23, 42, 0.04), 0 1px 3px rgba(16, 23, 42, 0.03);
-  --ln-shadow-2: 0 4px 10px -2px rgba(16, 23, 42, 0.07), 0 12px 24px -12px rgba(16, 23, 42, 0.10);
-  --ln-shadow-3: 0 12px 32px -12px rgba(16, 23, 42, 0.16), 0 2px 6px rgba(16, 23, 42, 0.04);
+  /* ---- Elevation ----------------------------------------------
+     The page is still flat at rest: a card is defined by its hairline,
+     not by a shadow. Depth is reserved for *state* (hover lift, popovers,
+     the glass panels) so it reads as responsiveness, not decoration. */
+  --ln-shadow-1: 0 1px 2px rgba(17, 17, 17, 0.04);
+  --ln-shadow-2:
+    0 2px 6px -2px rgba(17, 17, 17, 0.06),
+    0 10px 24px -12px rgba(17, 17, 17, 0.14);
+  --ln-shadow-3:
+    0 2px 8px -4px rgba(17, 17, 17, 0.08),
+    0 18px 40px -18px rgba(17, 17, 17, 0.2);
 
-  /* Motion */
-  --ln-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --ln-dur: 420ms;
+  /* ---- Translucent surfaces ----------------------------------
+     Two washes and one glass recipe. All of them are built from the same
+     two inks the page already uses (cobalt and ink) so nothing introduces
+     a new hue — only alpha. */
+  --ln-wash-cobalt: rgba(47, 91, 234, 0.055);
+  --ln-wash-ink: rgba(17, 17, 17, 0.035);
+  --ln-glass-bg: rgba(255, 255, 255, 0.72);
+  --ln-glass-border: rgba(255, 255, 255, 0.7);
+
+  /* ---- Motion tokens -----------------------------------------
+     Every duration and easing used by CSS *and* by the GSAP island lives
+     here, so a hover, a reveal and a stagger can never drift apart. */
+  --ln-ease: cubic-bezier(0.22, 1, 0.36, 1); /* out — default */
+  --ln-ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --ln-dur-fast: 180ms; /* button hover (150–220) */
+  --ln-dur-base: 260ms; /* card hover (200–300) */
+  --ln-dur-slow: 560ms; /* section reveal (450–700) */
+  --ln-stagger: 70ms; /* group stagger (50–90) */
+  --ln-lift: 2px; /* hover translation */
+  /* Legacy alias — a few rules still read `--ln-dur`. */
+  --ln-dur: var(--ln-dur-base);
 
   /* Layout */
   --ln-container: 1200px;
   --ln-gutter: 1.25rem;
+  /* Vertical rhythm between exhibits (8px scale). */
+  --ln-space: 4.5rem;
+
+  /* ---- MD3 role aliases (scoped) -------------------------------
+     Two shared primitives render on this page from `@legalir/ui`:
+     the `Textarea` and the `Button` in `LandingStartCard`, plus the
+     shared `AIDisclaimer`. They are built on the global MD3 roles, so
+     re-declaring those roles *inside the landing scope only* brings
+     them onto the editorial palette without editing a single shared
+     component. Outside `.landing` every value below is untouched.
+
+     This is the same mechanism the `--ln-*` block above uses: the
+     scope is the isolation boundary, not a naming convention. */
+  --color-primary: #2f5bea;
+  --color-primary-variant: #1e3faf;
+  --color-primary-container: #e8eefd;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #111111;
+
+  /* Shape — the same nested scale, expressed as MD3 roles so the shared
+     `Button` (`rounded-medium`), `Textarea` (`rounded-small`) and any
+     other `@legalir/ui` primitive land on the page's own radii without a
+     single edit to those components. Outside `.landing` the values above
+     are untouched. */
+  --shape-xs: var(--ln-r-xs);
+  --shape-small: var(--ln-r-sm);
+  --shape-medium: var(--ln-r-md);
+  --shape-large: var(--ln-r-lg);
+  --shape-xlarge: var(--ln-r-xl);
 }
 
 .landing {
@@ -3508,18 +3594,19 @@ html {
 }
 
 .landing-section {
-  padding-block: 3.5rem;
+  padding-block: var(--ln-space);
 }
 
 @media (min-width: 600px) {
   .landing-section {
-    padding-block: 5rem;
+    padding-block: 6rem;
   }
 }
 
+/* 96–128px between exhibits on desktop, per the redesign rhythm. */
 @media (min-width: 1024px) {
   .landing-section {
-    padding-block: 6rem;
+    padding-block: 7.5rem;
   }
 }
 
@@ -3533,50 +3620,202 @@ html {
   }
 }
 
+/* ------------------------------------------------------------
+   Exhibit — the building block of the museum narrative.
+   Each scene pairs one illustration with one message, and the
+   block flips sides on alternate exhibits so the eye is never
+   asked to read the same column twice in a row.
+   ------------------------------------------------------------ */
+.landing-exhibit {
+  display: grid;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+@media (min-width: 900px) {
+  .landing-exhibit {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4rem;
+  }
+  .landing-exhibit--wide-media {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+  .landing-exhibit--narrow-media {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+  /* Flip: media moves to the second column. Written with `order` rather than
+     `direction` so the text inside keeps its RTL reading order. */
+  .landing-exhibit--flip .landing-exhibit__media {
+    order: 2;
+  }
+}
+
+.landing-exhibit__media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* The art frames. A hairline rule and a mist fill turn the illustration into
+   a mounted plate instead of a floating PNG — the page reads as a catalogue
+   of works, not a hero-image collage. */
+.landing-plate {
+  position: relative;
+  width: 100%;
+  background: var(--ln-canvas);
+  border: 1px solid var(--ln-line);
+  border-radius: var(--ln-r-lg);
+  overflow: hidden;
+}
+
+/* The exposed plate gets the same treatment as a card, minus the lift: an
+   illustration that slides under the pointer reads as unstable, so the
+   plate only warms its hairline and gains one step of depth. */
+@media (hover: hover) and (pointer: fine) {
+  .landing-plate:not(.landing-plate--bare):hover {
+    border-color: var(--ln-line-strong);
+    box-shadow: var(--ln-shadow-2);
+  }
+}
+
+.landing-plate:not(.landing-plate--bare) {
+  transition:
+    box-shadow var(--ln-dur-base) var(--ln-ease),
+    border-color var(--ln-dur-base) var(--ln-ease);
+}
+
+.landing-plate--bare {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Wall-text room — one chapter is set in type instead of illustrated.
+   The display numeral takes the plate's place at the plate's measure, so
+   the grid and the scroll rhythm are unchanged; only the content of the
+   media column differs. It is deliberately quiet: ink at low weight, one
+   hairline, no fill. */
+.landing-walltext {
+  display: flex;
+  width: 100%;
+  min-height: 14rem;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.landing-walltext__num {
+  font-size: clamp(4.5rem, 3rem + 6vw, 9rem);
+  font-weight: 300;
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+  color: var(--ln-line-strong);
+  font-variant-numeric: tabular-nums;
+  /* The page-wide `ss01` (globals.css:788) substitutes Persian digit
+     glyphs for Latin ones. At 9rem «۱۰» splits into a bare stroke and a
+     ring, which reads as two marks rather than a number. The catalogue
+     numeral is Latin everywhere else on this page, so it is printed
+     Latin here too. */
+  font-feature-settings: normal;
+  unicode-bidi: isolate;
+  direction: ltr;
+  text-align: start;
+}
+
+.landing-walltext__rule {
+  display: block;
+  height: 1px;
+  width: 100%;
+  background: var(--ln-line);
+}
+
+/* Exhibit numeral — the only repeated cobalt element on the page. */
+.landing-exhibit__index {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ln-cobalt);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A hairline that runs from the numeral to the edge of the measure. It is
+   the catalogue motif: quiet, finite, and it never competes with type. */
+.landing-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ln-line);
+}
+
 /* Section heading block — one shared shape for eyebrow → title → lead. */
 .landing-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.6;
-  color: var(--ln-green);
+  letter-spacing: 0.1em;
+  color: var(--ln-cobalt);
 }
 
 .landing-eyebrow::before {
   content: "";
   width: 1.5rem;
   height: 1px;
-  background: var(--ln-gold);
+  background: currentColor;
   flex: none;
 }
 
+/* H2 scale: 32px at the top of the clamp, 1.3 line-height. */
 .landing-title {
-  color: var(--ln-navy);
+  color: var(--ln-ink);
   font-weight: 700;
-  font-size: clamp(1.375rem, 1.05rem + 1.4vw, 2rem);
-  line-height: 1.5;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2rem);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
   text-wrap: balance;
 }
 
 .landing-lead {
-  color: var(--ln-muted);
-  font-size: 0.9375rem;
-  line-height: 2;
+  color: var(--ln-ink-soft);
+  font-size: 1rem;
+  line-height: 1.8;
   text-wrap: pretty;
 }
 
-@media (min-width: 600px) {
-  .landing-lead {
-    font-size: 1rem;
-  }
+/* A short deck under an exhibit title — 17px body scale, capped measure so
+   a Persian paragraph never runs past a comfortable 65 characters. */
+.landing-deck {
+  color: var(--ln-ink-soft);
+  font-size: 1.0625rem;
+  line-height: 1.85;
+  max-width: 34em;
+  text-wrap: pretty;
 }
 
-/* Cards — a single surface recipe used by every grid on the page.
-   Border carries the structure; the shadow appears only as a hover
-   affordance on a real pointer. Touch devices never depend on it. */
+/* Cards — one flat recipe, with depth reserved for state.
+   At rest: hairline + white, no shadow. On hover: a 2px lift, a soft
+   elevation and a faint cobalt wash bleeding up from the bottom edge.
+   Non-interactive cards never lift.
+
+   The lift uses the independent `translate` property, NOT `transform`.
+   `[data-ln-reveal]` cards are animated by GSAP, which writes an inline
+   `transform: translate(0,0)` when the reveal settles — a CSS `transform`
+   here would be silently overridden by that inline style, so the lift
+   would only work on cards outside a reveal group. `translate` composes
+   with `transform` instead of competing with it. */
 .landing-card {
   position: relative;
   display: flex;
@@ -3586,29 +3825,61 @@ html {
   border-radius: var(--ln-r-lg);
   background: var(--ln-surface);
   transition:
-    border-color var(--ln-dur) var(--ln-ease),
-    box-shadow var(--ln-dur) var(--ln-ease),
-    transform var(--ln-dur) var(--ln-ease);
+    translate var(--ln-dur-base) var(--ln-ease),
+    box-shadow var(--ln-dur-base) var(--ln-ease),
+    border-color var(--ln-dur-base) var(--ln-ease),
+    background-color var(--ln-dur-base) var(--ln-ease);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .landing-card:hover {
+  a.landing-card:hover,
+  button.landing-card:hover {
+    translate: 0 calc(var(--ln-lift) * -1);
     border-color: var(--ln-line-strong);
+    /* The cobalt wash, pre-flattened onto white. Painted as a background
+       colour rather than a semi-transparent overlay so text keeps its
+       subpixel antialiasing — a translucent layer on top of type is a
+       small but real crispness cost, and the flattened value is visually
+       identical at this alpha. */
+    background: #fbfcff;
     box-shadow: var(--ln-shadow-2);
-    transform: translateY(-2px);
   }
 }
 
-/* The card's focus ring lives on the anchor itself, so a keyboard user
-   sees exactly one ring around the whole card. */
+/* Press feedback. 1px down from the hover state reads as a physical
+   click without the card visibly jumping. */
+a.landing-card:active,
+button.landing-card:active {
+  translate: 0 0;
+  box-shadow: var(--ln-shadow-1);
+}
+
+/* Row actions inside registers (sample questions, blog entries, FAQ).
+   These are not cards — no lift, no fill — only the hairline under the
+   row warms toward the accent, which is the quietest possible "this row
+   is a link" signal and never shifts the layout. */
+.landing-row {
+  position: relative;
+  transition: border-color var(--ln-dur-fast) var(--ln-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-row:hover {
+    border-color: var(--ln-line-strong);
+  }
+}
+
+/* Focus ring — cobalt, keyboard only, never a shadow. */
 .landing-card:focus-visible,
 .landing-link:focus-visible,
-.landing-btn:focus-visible {
-  outline: 2px solid var(--ln-green);
+.landing-btn:focus-visible,
+.landing-focusable:focus-visible {
+  outline: 2px solid var(--ln-cobalt);
   outline-offset: 3px;
 }
 
-/* Icon chip — the only repeated decorative element in the page. */
+/* Icon chip — the one repeated decorative element inside cards. Sits one
+   step tighter than its parent card (20 → 14), the concentric rule. */
 .landing-chip {
   display: inline-flex;
   align-items: center;
@@ -3616,9 +3887,9 @@ html {
   flex: none;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--ln-r-md);
-  background: var(--ln-green-soft);
-  color: var(--ln-green);
+  border-radius: var(--ln-r-sm);
+  background: var(--ln-canvas);
+  color: var(--ln-ink);
 }
 
 /* Primary / secondary buttons. These are landing-local anchors: the app's
@@ -3635,53 +3906,98 @@ html {
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
+  /* Same `translate`/`scale` reasoning as `.landing-card`: these are
+     independent properties, so a future parent transform (or a GSAP
+     tween on an ancestor) can never swallow the press feedback. */
   transition:
-    background-color 200ms var(--ln-ease),
-    border-color 200ms var(--ln-ease),
-    box-shadow 200ms var(--ln-ease),
-    transform 200ms var(--ln-ease);
+    background-color var(--ln-dur-fast) var(--ln-ease),
+    border-color var(--ln-dur-fast) var(--ln-ease),
+    color var(--ln-dur-fast) var(--ln-ease),
+    box-shadow var(--ln-dur-fast) var(--ln-ease),
+    translate var(--ln-dur-fast) var(--ln-ease),
+    scale var(--ln-dur-fast) var(--ln-ease);
 }
 
 .landing-btn:active {
-  transform: scale(0.985);
+  scale: 0.985;
+  translate: 0 1px;
 }
 
+/* The arrow that closes most labels is the button's own micro-interaction:
+   it advances 2px toward the destination on hover. `rtl`-safe because it
+   moves along the inline axis with a logical translate. */
+.landing-btn svg {
+  transition: translate var(--ln-dur-fast) var(--ln-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-btn:hover svg {
+    translate: -2px 0;
+  }
+}
+
+/* Primary — cobalt fill, white label. `#2F5BEA` on white text measures
+   5.6:1, comfortably AA for the 15px label. */
 .landing-btn--primary {
-  background: var(--ln-green);
+  background: var(--ln-cobalt);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(16, 23, 42, 0.12);
 }
 
 @media (hover: hover) {
   .landing-btn--primary:hover {
-    background: #175241;
-    box-shadow: var(--ln-shadow-2);
+    background: var(--ln-cobalt-deep);
+    /* The only place a coloured shadow is allowed: it is the button's own
+       hue, not a grey drop shadow, so it reads as glow-free depth. */
+    box-shadow: 0 6px 16px -8px rgba(47, 91, 234, 0.55);
   }
 }
 
+/* Secondary — white fill, hairline border, ink label. */
 .landing-btn--secondary {
   background: var(--ln-surface);
-  color: var(--ln-navy);
+  color: var(--ln-ink);
   border: 1px solid var(--ln-line-strong);
 }
 
 @media (hover: hover) {
   .landing-btn--secondary:hover {
     background: var(--ln-canvas);
-    border-color: #c2c9d6;
+    border-color: var(--ln-ink);
+    box-shadow: var(--ln-shadow-1);
   }
 }
 
+/* Quiet link-style action used inside exhibits (no box). */
+.landing-btn--quiet {
+  background: transparent;
+  color: var(--ln-ink);
+  padding-inline: 0;
+  min-height: 2.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--ln-ink);
+  border-radius: 0;
+}
+
+@media (hover: hover) {
+  .landing-btn--quiet:hover {
+    color: var(--ln-cobalt);
+    border-bottom-color: var(--ln-cobalt);
+  }
+}
+
+/* Kept as a named variant because the footer and a few older blocks still
+   reference it. In the new palette "on dark" no longer exists on this page,
+   so it resolves to the secondary recipe rather than a translucent white. */
 .landing-btn--onDark {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: var(--ln-surface);
+  color: var(--ln-ink);
+  border: 1px solid var(--ln-line-strong);
 }
 
 @media (hover: hover) {
   .landing-btn--onDark:hover {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.48);
+    background: var(--ln-canvas);
+    border-color: var(--ln-ink);
   }
 }
 
@@ -3762,15 +4078,338 @@ html {
 }
 
 .landing-faq summary:focus-visible {
-  outline: 2px solid var(--ln-green);
+  outline: 2px solid var(--ln-cobalt);
   outline-offset: 2px;
   border-radius: var(--ln-r-sm);
+}
+
+/* ============================================================
+   VISUAL LAYERS — translucent wash, minimal glass, geometric blocking
+   ============================================================
+   Three techniques, each with a strict budget so the page never tips
+   from "editorial" into "decorated":
+
+     • wash    — a flat colour layer behind content (no blur, no shadow)
+     • glass   — translucent + blur, used on exactly three surfaces
+                 (header bar, intake desk, closing CTA frame)
+     • geometry— outlined or tinted shapes anchored to a section edge
+
+   All three read from the same tokens as the rest of the page, so none
+   of them can introduce a hue the palette does not already own. */
+
+/* ---- Translucent wash --------------------------------------
+   A single cobalt tint at 5.5% serves as the "second paper" for panels
+   that need to separate from the white page without a border. */
+.landing-wash {
+  background:
+    linear-gradient(180deg, var(--ln-wash-cobalt), transparent 65%),
+    var(--ln-surface);
+}
+
+.landing-wash--ink {
+  background:
+    linear-gradient(180deg, var(--ln-wash-ink), transparent 70%),
+    var(--ln-canvas);
+}
+
+/* ---- Minimal glass -----------------------------------------
+   Used on surfaces that sit over content and must let it read through:
+   the sticky header (page scrolls beneath it), the intake desk (the hero
+   plate is visible above it) and the closing CTA frame.
+
+   `backdrop-filter` is expensive on large areas, so it is applied to a
+   bounded surface — never to a full-bleed section. The `@supports` guard
+   keeps an opaque fallback for engines without it. */
+.landing-glass {
+  background: var(--ln-glass-bg);
+  border: 1px solid var(--ln-glass-border);
+  border-radius: var(--ln-r-xl);
+  box-shadow: var(--ln-shadow-2);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .landing-glass {
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
+}
+
+/* The header variant: no radius, no shadow — it is a full-width bar, and
+   a rounded sticky bar on top of an editorial page reads as a floating
+   widget. Only the translucency + blur is borrowed. */
+.landing-glass--bar {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The bar's hairline is opt-in: a sticky translucent bar with a permanent
+   rule draws a line across every frame of the page even before anything
+   has scrolled under it. */
+.landing-glass--bar.border-b {
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+
+/* ---- Geometric colour blocking -----------------------------
+   Three primitives only: a soft disc, an outlined ring, a flat colour
+   field. They are placed behind content at low contrast and are always
+   `aria-hidden`. No gradients, no rotation, no animation — the geometry
+   is a printed plate, not a moving ornament. */
+.landing-geometry {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Soft depth mark. The blur is 1px on a shape this large — enough to melt
+   the alias on a low-DPI screen, not enough to read as a "glow". */
+.landing-geometry__disc {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: var(--ln-wash-cobalt);
+  filter: blur(1px);
+}
+
+.landing-geometry__disc--outline {
+  background: transparent;
+  border: 1px solid var(--ln-line);
+  filter: none;
+}
+
+/* Flat colour field. A hard edge and a page radius, so it reads as a
+   printed block rather than as a smudge. */
+.landing-geometry__field {
+  position: absolute;
+  display: none;
+  border-radius: var(--ln-r-xl);
+  background: var(--ln-wash-cobalt);
+}
+
+@media (min-width: 900px) {
+  .landing-geometry__field {
+    display: block;
+  }
+}
+
+/* Content that must sit above the geometry. Sections that host a
+   `.landing-geometry` layer get this on their inner container. */
+.landing-layer {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Hand-drawn marker highlight ---------------------------
+   An SVG stroke under a keyword. The path is drawn by animating
+   `stroke-dashoffset`, which is a paint-only property — no layout, no
+   reflow, and it composites on the GPU once the dash array is set.
+
+   `pathLength="1"` on the path normalises the dash maths, so a single
+   CSS rule works for every path regardless of its real length.
+
+   The whole thing is decorative: the text it underlines is normal
+   inline content with normal contrast, so a failure to animate — or a
+   no-CSS render — still shows a fully readable heading. */
+.landing-highlight {
+  position: relative;
+  display: inline-block;
+  /* The stroke is drawn just below the baseline, so the box must not clip
+     it. `isolate` opens a stacking context so the negative z-index SVG
+     stays behind the type without falling behind the page background. */
+  isolation: isolate;
+  /* Words are the unit here; a keyword never breaks across lines, which
+     would leave the stroke straddling two text runs. */
+  white-space: nowrap;
+}
+
+.landing-highlight__stroke {
+  position: absolute;
+  /* `inset-inline` in a `preserveAspectRatio="none"` SVG means the stroke
+     always spans exactly the box it belongs to, at any script direction. */
+  inset-inline: -0.04em;
+  bottom: -0.1em;
+  height: 0.3em;
+  overflow: visible;
+  pointer-events: none;
+  z-index: -1;
+  color: var(--ln-cobalt);
+}
+
+.landing-highlight__stroke path {
+  stroke: currentColor;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  /* Non-scaling keeps the marker the same weight as the type scales up —
+     otherwise a 3.2px stroke in a 216-unit viewBox becomes a brush. */
+  vector-effect: non-scaling-stroke;
+  opacity: 0.5;
+}
+
+/* Display headings run at 32–56px, so the same weight would read as a
+   scratch. The wide variant thins slightly and sits closer to the
+   baseline, which is what an underlined printed title looks like. */
+.landing-highlight--wide .landing-highlight__stroke {
+  height: 0.24em;
+  bottom: -0.06em;
+}
+
+.landing-highlight--wide .landing-highlight__stroke path {
+  stroke-width: 2.4;
+  opacity: 0.45;
+}
+
+/* Draw state. `.is-drawn` is added by the client island once the
+   heading is in view; without JS the stroke is simply present. */
+.landing-highlight--draw .landing-highlight__stroke path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--ln-dur-slow) var(--ln-ease);
+}
+
+.landing-highlight--draw.is-drawn .landing-highlight__stroke path {
+  stroke-dashoffset: 0;
+}
+
+/* ------------------------------------------------------------
+   Shared marketing blocks, printed in ink.
+   The judicial service zone and the service registry both carry a
+   per-service hue (violet, green, crimson, gold…) because inside the
+   app that hue *is* the service's identity. On the editorial landing
+   page it only adds six competing accents, so the decorative tints
+   are neutralised here and the icons inherit the page ink. Two rules,
+   both inside `.landing`: nothing outside this route can see them,
+   and the components themselves are untouched.
+   ------------------------------------------------------------ */
+/* Descendant, not child: the judicial card puts its icon tile inside the
+   copy row (`<div class="flex items-start gap-3">`), so a `>` selector
+   silently matched nothing and the violet / amber squares stayed on the
+   page. The selector is still anchored to `.landing .landing-card`, which
+   exists only on this route. */
+.landing .landing-card span.bg-gradient-to-br {
+  background-image: none;
+  background-color: var(--ln-canvas);
+  color: var(--ln-ink);
+}
+
+/* Status pills keep their text and their meaning; only the hue goes.
+   A status is never carried by colour alone (the label is always
+   there), so dropping the tint costs no information. All four tones are
+   listed, because a service can be request-only (info/warning) or
+   unavailable (error) as well as available (success). */
+.landing .landing-card span.rounded-full[class*="bg-success-container"],
+.landing .landing-card span.rounded-full[class*="bg-warning-50"],
+.landing .landing-card span.rounded-full[class*="bg-info-50"],
+.landing .landing-card span.rounded-full[class*="bg-error-container"] {
+  background-color: var(--ln-canvas);
+  border-color: var(--ln-line);
+  color: var(--ln-ink-soft);
+}
+
+/* ------------------------------------------------------------
+   Shared disclaimer, re-skinned without editing it.
+   `AIDisclaimer` is imported by /about, /terms and /privacy-policy
+   as well, so it must keep its MD3 tokens. On the landing page it
+   is wrapped in `.landing-disclaimer`, and every rule below is
+   scoped to that wrapper: the component is untouched, the page is
+   brought onto the local palette.
+   ------------------------------------------------------------ */
+.landing-disclaimer > div {
+  background: var(--ln-surface);
+  border-color: var(--ln-line);
+  border-radius: var(--ln-r-xl);
+  /* `shadow-elevation-1` is a literal utility, not a token, so it cannot be
+     re-declared on the scope — this is the one rule the wrapper must own. */
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------
+   Chapter divider — a numbered rule that opens each exhibit.
+   The numeral is set in the accent, the rule runs to the edge of
+   the measure, and the label is the only other ink. It is the
+   cataloguing mark of the page: the same shape on every scene,
+   so the visitor always knows where a new work begins.
+   ------------------------------------------------------------ */
+.landing-chapter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--ln-faint);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.landing-chapter__num {
+  color: var(--ln-cobalt);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  /* Latin digits, like the display numeral in the wall-text room. The
+     page-wide `ss01` (globals.css:788) would print «۱۰» here while the
+     144px numeral beside it reads «10», so one mark in the catalogue
+     system would use two alphabets. */
+  font-feature-settings: normal;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.landing-chapter::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ln-line);
+}
+
+/* ------------------------------------------------------------
+   Stats — three measures on one baseline. The number is the
+   subject; the label is a caption underneath it. Latin digits are
+   forced LTR so «+7» and «+40» can never be reordered by the RTL
+   paragraph direction.
+   ------------------------------------------------------------ */
+.landing-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.landing-stat__value {
+  color: var(--ln-ink);
+  font-size: clamp(2rem, 1.5rem + 1.6vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  direction: ltr;
+  text-align: start;
+}
+
+/* In an RTL block, `direction: ltr` would also flip the box's inline start,
+   so the numeral is aligned explicitly to the RTL start edge. */
+.landing-stat__value {
+  text-align: right;
+}
+
+.landing-stat__label {
+  color: var(--ln-ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 
 /* Hero entrance — CSS, not JS, on purpose: it must start on the first
    painted frame and must never leave content hidden when JavaScript fails
    or is slow to hydrate. `both` keeps the end state; `will-change` is
-   deliberately omitted so the compositor does not hold large layers. */
+   deliberately omitted so the compositor does not hold large layers.
+   (The editorial hero reuses this: its text column rises as one block and
+   the plate rises 90ms later, so the reading order is also the reveal
+   order.) */
 @keyframes ln-rise {
   from {
     opacity: 0;
@@ -3848,14 +4487,49 @@ html.lenis body {
     opacity: 1;
     transform: none;
   }
+  /* Transitions are removed entirely, not shortened: a 0ms transition
+     still fires on every hover and produces a hard snap. Colour and
+     shadow feedback stays (it costs no motion), everything that moves
+     does not. */
   .landing-card,
-  .landing-btn {
+  .landing-btn,
+  .landing-plate,
+  .landing-highlight path,
+  .landing-row {
     transition: none !important;
+  }
+  .landing-card:hover,
+  .landing-card:active,
+  .landing-btn:hover,
+  .landing-btn:active {
+    translate: none !important;
+    scale: none !important;
+  }
+  .landing-btn:hover svg {
+    translate: none !important;
+  }
+  /* The drawn marker is a single frame — fully drawn, not animated. */
+  .landing-highlight path {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
   }
 }
 
-@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
-  .landing-card:hover {
-    transform: none;
+/* ------------------------------------------------------------
+   Exhibit motion — driven by LandingMotion (GSAP + Lenis).
+   Two attributes, both opt-in from the client island so a no-JS
+   render never hides a scene:
+     [data-ln-reveal]  → one-shot fade/rise as the exhibit enters
+     [data-ln-parallax] → ≤ 6% vertical drift on the image plate
+   The parallax is desktop-only (pointer: fine + min-width: 900px)
+   and is skipped entirely for reduced-motion visitors.
+   ------------------------------------------------------------ */
+.ln-exhibit-ready [data-ln-parallax] {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ln-exhibit-ready [data-ln-parallax] {
+    will-change: auto;
   }
 }

@@ -85,6 +85,19 @@ const ACTION_LABEL: Record<string, string> = {
 /** Real product surface for the calculator service. */
 const CALCULATOR_HREF = "/calculators";
 
+/**
+ * The registry carries one accent hue per service (green, crimson, gold…),
+ * which is right inside the app where a service's colour is its identity.
+ * On the landing page it is not: the editorial direction allows exactly one
+ * accent — cobalt — and no red / gold / green in marketing surfaces. So the
+ * grid is printed in ink: icons, tiles and watermarks all derive from
+ * `#111111`, and the only coloured thing in a card is its action label.
+ *
+ * Nothing about the registry itself changes; only the accent this page
+ * draws from it.
+ */
+const LANDING_ACCENT = "#111111";
+
 /** The seventh `ServiceType`; its real surface is the library's search. */
 const LAW_SEARCH_CONTEXT = SERVICE_CONTEXTS["law_search"];
 
@@ -93,9 +106,9 @@ const LAW_SEARCH: LandingService = {
   title: LAW_SEARCH_CONTEXT.label,
   description: LAW_SEARCH_CONTEXT.description,
   href: "/legal-library",
-  // Matches the library's own accent in `@/lib/services/catalog`
-  // (the deep gold), so the card reads as the library entry point.
-  accent: "#8A6A33",
+  // Printed in the same ink as the other six: one accent per page, not one
+  // per card. The in-app library keeps its own gold.
+  accent: LANDING_ACCENT,
   icon: IconLawBook,
   action: ACTION_LABEL["law_search"] ?? "جستجو در قوانین",
 };
@@ -109,7 +122,7 @@ const REGISTRY_SERVICES: LandingService[] = SERVICE_ORDER.map((id) =>
     title: service.title,
     description: service.description,
     href: service.id === "legal_calculation" ? CALCULATOR_HREF : service.href,
-    accent: service.accent,
+    accent: LANDING_ACCENT,
     icon: service.icon,
     action: ACTION_LABEL[service.id] ?? "شروع کنید",
   }));
@@ -152,7 +165,7 @@ function FeaturedServiceCard({ service }: { service: LandingService }) {
         <div className="flex items-center gap-3 tablet:block">
           <span
             aria-hidden="true"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--ln-r-md)]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--ln-r-sm)]"
             style={{ background: "var(--ls-tile-strong)", color: "var(--ls-ink)" }}
           >
             <Icon size={22} />
@@ -181,7 +194,7 @@ function FeaturedServiceCard({ service }: { service: LandingService }) {
           side of the featured card instead of leaving it empty. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none relative hidden h-[7rem] w-[10rem] shrink-0 items-center justify-center rounded-[var(--ln-r-lg)] tablet:flex laptop:h-[8.5rem] laptop:w-[12rem]"
+        className="pointer-events-none relative hidden h-[7rem] w-[10rem] shrink-0 items-center justify-center rounded-[var(--ln-r-md)] tablet:flex laptop:h-[8.5rem] laptop:w-[12rem]"
         style={{ background: "var(--ls-tile)", color: "var(--ls-ink)" }}
       >
         {Art && <Art className="h-full w-full" />}

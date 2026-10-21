@@ -32,10 +32,7 @@ import { IconArrowBack, IconWarning } from "@/lib/icons";
 import { useSessionStatus } from "@/lib/auth/use-auth";
 import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { useAuthStore } from "@/stores/auth-store";
-import {
-  LANDING_START_MAX_LENGTH,
-  writeLandingStartDraft,
-} from "@/lib/intake/landing-start-draft";
+import { LANDING_START_MAX_LENGTH, writeLandingStartDraft } from "@/lib/intake/landing-start-draft";
 
 /** The real start flow the card hands off to. */
 const START_PATH = "/new";
@@ -95,101 +92,89 @@ export function LandingStartCard() {
       setIntendedRoute(START_PATH);
       router.push(LOGIN_HREF);
     },
-    [
-      sessionResolved,
-      trimmed,
-      submitting,
-      isAuthenticated,
-      router,
-      setIntendedRoute,
-    ]
+    [sessionResolved, trimmed, submitting, isAuthenticated, router, setIntendedRoute]
   );
 
   return (
     <section
-      className="landing-container pb-2"
+      className="landing-container relative pb-2 pt-8 tablet:pt-10"
       aria-labelledby="landing-start-title"
     >
+      {/* The intake desk. Translucent, softly elevated, and the largest
+          radius on the page (24px) — it is the counter at the entrance, not
+          one more marketing card, and its weight should say so. The page
+          puts 64–112px of air above this section, which is what keeps it
+          from looking welded to the hero. */}
       <div
         data-ln-reveal="0"
-        className="relative overflow-hidden rounded-[var(--ln-r-xl)] border border-[color:var(--ln-line)] bg-[color:var(--ln-surface)] p-5 shadow-[var(--ln-shadow-2)] tablet:p-7 laptop:p-8"
+        className="landing-glass landing-layer p-5 tablet:p-8 laptop:grid laptop:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] laptop:items-start laptop:gap-12 laptop:p-10"
       >
-        {/* One accent: the gold hairline is the same motif the section
-            eyebrows use, so the card reads as part of the page. */}
-        <span
-          aria-hidden="true"
-          className="absolute inset-y-0 start-0 w-1 bg-[color:var(--ln-gold)]"
-        />
-
-        <div className="grid gap-5 laptop:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] laptop:items-start laptop:gap-8">
-          {/* Copy — what the box is for, in two lines. */}
-          <div className="min-w-0">
-            <h2
-              id="landing-start-title"
-              className="text-[1.0625rem] font-bold leading-8 text-[color:var(--ln-navy)] tablet:text-[1.1875rem]"
-            >
-              نمی‌دانید از کجا شروع کنید؟
-            </h2>
-            <p className="mt-1.5 text-[13px] leading-7 text-[color:var(--ln-muted)] tablet:text-[13.5px]">
-              موضوع حقوقی‌تان را کوتاه بنویسید تا مسیر مناسب را بررسی کنیم.
-            </p>
-            <p className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-6 text-[color:var(--ln-muted)]">
-              <IconArrowBack
-                size={13}
-                aria-hidden="true"
-                className="mt-1.5 shrink-0 text-[color:var(--ln-gold)]"
-              />
-              متن شما فقط در همین تب و تا رسیدن به مرحلهٔ بعد نگه داشته
-              می‌شود.
-            </p>
-          </div>
-
-          {/* The one input + the one action. */}
-          <form onSubmit={handleSubmit} noValidate className="min-w-0">
-            <Textarea
-              id="landing-start-input"
-              label="موضوع حقوقی"
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                if (error) setError(null);
-              }}
-              rows={3}
-              maxLength={LANDING_START_MAX_LENGTH}
-              showCharCount
-              fullWidth
-              disabled={submitting}
-              placeholder="مثلاً: برای بررسی قرارداد اجاره‌ام از کجا شروع کنم؟"
+        {/* Copy — what the box is for, in two lines. */}
+        <div className="min-w-0">
+          <h2
+            id="landing-start-title"
+            className="text-[1.125rem] font-bold leading-8 tracking-[-0.01em] text-[color:var(--ln-ink)] tablet:text-[1.375rem]"
+          >
+            نمی‌دانید از کجا شروع کنید؟
+          </h2>
+          <p className="mt-2 text-[13.5px] leading-7 text-[color:var(--ln-ink-soft)] tablet:text-[14px]">
+            موضوع حقوقی‌تان را کوتاه بنویسید تا مسیر مناسب را بررسی کنیم.
+          </p>
+          <p className="mt-3 flex items-start gap-1.5 text-[11.5px] leading-6 text-[color:var(--ln-muted)]">
+            <IconArrowBack
+              size={13}
+              aria-hidden="true"
+              className="mt-1.5 shrink-0 text-[color:var(--ln-faint)]"
             />
-
-            {error && (
-              <div
-                role="alert"
-                className="mt-3 flex items-start gap-2 rounded-[var(--ln-r-sm)] border border-[color:var(--ln-line-strong)] bg-[color:var(--ln-canvas)] px-3 py-2 text-[12px] leading-6 text-[color:var(--ln-ink-soft)]"
-              >
-                <IconWarning
-                  size={15}
-                  aria-hidden="true"
-                  className="mt-1 shrink-0 text-[color:var(--ln-gold-deep)]"
-                />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="mt-4">
-              <Button
-                type="submit"
-                variant="filled"
-                size="large"
-                fullWidth
-                disabled={disabled}
-                loading={submitting}
-              >
-                تأیید و بررسی مسیر
-              </Button>
-            </div>
-          </form>
+            متن شما فقط در همین تب و تا رسیدن به مرحلهٔ بعد نگه داشته می‌شود.
+          </p>
         </div>
+
+        {/* The one input + the one action. */}
+        <form onSubmit={handleSubmit} noValidate className="min-w-0">
+          <Textarea
+            id="landing-start-input"
+            label="موضوع حقوقی"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (error) setError(null);
+            }}
+            rows={3}
+            maxLength={LANDING_START_MAX_LENGTH}
+            showCharCount
+            fullWidth
+            disabled={submitting}
+            placeholder="مثلاً: برای بررسی قرارداد اجاره‌ام از کجا شروع کنم؟"
+          />
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-3 flex items-start gap-2 rounded-[var(--ln-r-sm)] border border-[color:var(--ln-line-strong)] bg-[color:var(--ln-canvas)] px-3 py-2 text-[12px] leading-6 text-[color:var(--ln-ink-soft)]"
+            >
+              <IconWarning
+                size={15}
+                aria-hidden="true"
+                className="mt-1 shrink-0 text-[color:var(--ln-gold-deep)]"
+              />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="mt-4">
+            <Button
+              type="submit"
+              variant="filled"
+              size="large"
+              fullWidth
+              disabled={disabled}
+              loading={submitting}
+            >
+              تأیید و بررسی مسیر
+            </Button>
+          </div>
+        </form>
       </div>
     </section>
   );

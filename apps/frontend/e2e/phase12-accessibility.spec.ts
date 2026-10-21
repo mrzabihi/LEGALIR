@@ -410,14 +410,22 @@ test.describe("Phase 12 — Accessibility & Responsive", () => {
       await page.goto("/");
       await page.waitForSelector("body");
 
-      // The primary CTA link with text "شروع مشاوره حقوقی"
-      const ctaLink = page.getByRole("link", { name: /شروع مشاوره حقوقی/i });
-      await expect(ctaLink).toBeVisible();
+      // Primary CTA links with text "شروع مشاوره حقوقی". The landing page
+      // repeats this label on purpose (hero, the consultation exhibit and the
+      // closing CTA), so every instance is measured rather than just the first.
+      const ctaLinks = page.getByRole("link", { name: /شروع مشاوره حقوقی/i });
+      const count = await ctaLinks.count();
+      expect(count).toBeGreaterThanOrEqual(1);
 
-      const box = await ctaLink.boundingBox();
-      expect(box).not.toBeNull();
-      // The link should be at least 44px in height (touch-friendly)
-      expect(box!.height).toBeGreaterThanOrEqual(44);
+      for (let i = 0; i < count; i += 1) {
+        const ctaLink = ctaLinks.nth(i);
+        await expect(ctaLink).toBeVisible();
+
+        const box = await ctaLink.boundingBox();
+        expect(box).not.toBeNull();
+        // The link should be at least 44px in height (touch-friendly)
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
     });
   });
 

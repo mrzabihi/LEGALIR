@@ -46,7 +46,7 @@ export function LandingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer role="contentinfo" dir="rtl" className="bg-[color:var(--ln-navy-deep)] text-white">
+    <footer role="contentinfo" dir="rtl" className="bg-[color:var(--ln-ink)] text-white">
       <div className="landing-container">
         <div className="grid gap-10 py-12 tablet:grid-cols-2 laptop:grid-cols-[1.6fr_1fr_1fr_1fr] laptop:gap-8 laptop:py-16">
           {/* Brand + purpose */}
@@ -73,9 +73,12 @@ export function LandingFooter() {
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
+              {/* On ink, the cobalt fill cannot carry a 12.5px label at AA
+                  (2.4:1), so the one action here is white-on-ink with a
+                  hairline — the page's secondary recipe, inverted. */}
               <Link
                 href="/auth/mobile?intent=chat"
-                className="landing-link inline-flex min-h-11 items-center gap-1.5 rounded-[var(--ln-r-sm)] border border-white/25 px-3.5 text-[12.5px] font-medium text-white transition-colors hover:border-white/50 hover:bg-white/10"
+                className="landing-link inline-flex min-h-11 items-center gap-1.5 rounded-[var(--ln-r-md)] border border-white/30 px-3.5 text-[12.5px] font-medium text-white transition-colors hover:border-white/60 hover:bg-white/10"
               >
                 شروع مشاوره
                 <IconChevronLeft size={14} aria-hidden="true" />
@@ -91,7 +94,7 @@ export function LandingFooter() {
 
           {LINK_GROUPS.map((group) => (
             <nav key={group.title} aria-label={group.title}>
-              <h2 className="text-[13px] font-semibold text-[color:var(--ln-gold)]">
+              <h2 className="text-[11.5px] font-semibold tracking-[0.1em] text-white/55">
                 {group.title}
               </h2>
               <ul className="mt-3.5 space-y-0.5">

@@ -177,18 +177,28 @@ export function LandingHeader() {
   return (
     <header
       role="banner"
-      className={`sticky top-0 z-40 border-b bg-white/92 backdrop-blur-md transition-[border-color,box-shadow] duration-300 ${
+      /* The third and last glass surface: the page scrolls beneath this
+         bar, so the translucency has a subject. `.landing-glass--bar` drops
+         the radius and shadow the panel recipe carries — only the blur and
+         the alpha are borrowed. The hairline appears on scroll, which is the
+         bar's own micro-interaction. */
+      className={`landing-glass landing-glass--bar sticky top-0 z-40 transition-[border-color,background-color] duration-300 ease-[var(--ln-ease)] ${
         scrolled
-          ? "border-[color:var(--ln-line)] shadow-[0_1px_12px_rgba(16,23,42,0.05)]"
-          : "border-transparent"
+          ? "border-b-[color:var(--ln-line)] bg-[rgba(255,255,255,0.86)]"
+          : "bg-[rgba(255,255,255,0.7)]"
       }`}
     >
       <div className="landing-container flex h-16 items-center gap-6 laptop:h-[72px]">
-        {/* Brand — start edge in RTL */}
+        {/* Brand — start edge in RTL.
+            The landing header shows the crest ALONE: the Persian wordmark
+            beside it was removed by the brief. The link keeps an explicit
+            accessible name, so the destination is still announced. Every
+            other header in the product (`components/public/Header`, the app
+            shells) is untouched and still renders the full lockup. */}
         <Link
           href="/"
           aria-label="لیگالیر — صفحه اصلی"
-          className="landing-link flex min-h-11 shrink-0 items-center gap-2.5 rounded-sm"
+          className="landing-link flex min-h-11 shrink-0 items-center rounded-sm"
         >
           {/* Static brand mark, fixed height, `w-auto` — the repo's logo
               convention across every shell (see components/public/Header).
@@ -201,9 +211,6 @@ export function LandingHeader() {
             height={351}
             className="h-9 w-auto laptop:h-10"
           />
-          <span className="text-[15px] font-extrabold tracking-tight text-[color:var(--ln-navy)]">
-            لیگالیر
-          </span>
         </Link>
 
         {/* Desktop navigation */}
@@ -353,14 +360,11 @@ export function LandingHeader() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/legalir-logo.png"
-                    alt="LEGALIR"
+                    alt="لیگالیر"
                     width={472}
                     height={351}
                     className="h-8 w-auto"
                   />
-                  <span className="text-[14px] font-extrabold text-[color:var(--ln-navy)]">
-                    لیگالیر
-                  </span>
                 </div>
                 <button
                   ref={closeBtnRef}

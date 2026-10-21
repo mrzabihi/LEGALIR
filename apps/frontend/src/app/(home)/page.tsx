@@ -1,31 +1,39 @@
 import type { Metadata } from "next";
-import type { CSSProperties } from "react";
+import type { ComponentType } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { AIDisclaimer } from "@/components/public/AIDisclaimer";
 import { CTASection } from "@/components/public/CTASection";
-import { HeroAnalysisVisual } from "@/components/public/landing/hero-analysis-visual";
 import { LandingStartCard } from "@/components/public/landing/landing-start-card";
-import { HeroTitle } from "@/components/public/HeroTitle";
-import { LegalTopicsSection } from "@/components/public/LegalTopicsSection";
 import { LandingServices } from "@/components/public/landing/landing-services";
+import { LandingExhibit } from "@/components/public/landing/landing-exhibit";
+import { LandingGeometry } from "@/components/public/landing/landing-geometry";
+import {
+  LandingHighlight,
+  LandingHighlightWide,
+} from "@/components/public/landing/landing-highlight";
+import { EXHIBIT } from "@/components/public/landing/exhibits";
 import { JudicialServiceZone } from "@/components/judicial/judicial-service-zone";
 import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
 import { SITE_URL, absoluteUrl } from "@/lib/site";
 import { toPersianDate, toPersianDigits } from "@/lib/persian-utils";
 import {
   IconArrowBack,
-  IconBalance,
+  IconBusiness,
   IconCalendar,
   IconCategory,
-  IconChat,
   IconCheckCircle,
   IconChevronLeft,
-  IconHandshake,
+  IconChat,
+  IconCoin,
+  IconDocument,
+  IconFileSearch,
+  IconHome,
   IconLawBook,
   IconMemory,
   IconSearch,
   IconShield,
-  IconStar,
+  IconUsers,
 } from "@/lib/icons";
 
 export const metadata: Metadata = {
@@ -41,12 +49,25 @@ export const metadata: Metadata = {
 // Content — carried over from the previous landing page. The copy was
 // not rewritten, no claim was added, and every CTA points at the same
 // URL as before. Only the presentation around this data changed.
+//
+// The three measures are written with Latin digits and a leading sign on
+// purpose: `.landing-stat__value` isolates them with `unicode-bidi` and
+// forces `direction: ltr`, so «+7» can never be reordered into «7+» by
+// the RTL paragraph. The numbers themselves are the ones the product
+// already ships — nothing here was rounded up.
 // ================================================================
 
-const statsItems = [
-  { value: "۷+", label: "خدمات اصلی", icon: IconCheckCircle },
-  { value: "۲۰+", label: "حوزه حقوقی", icon: IconBalance },
-  { value: "۲۴/۷", label: "دسترسی آنلاین", icon: IconShield },
+interface StatItem {
+  /** Latin sign + digits, e.g. "+7". Rendered LTR inside an RTL block. */
+  value: string;
+  label: string;
+  icon: ComponentType<{ size?: number; className?: string }>;
+}
+
+const statsItems: StatItem[] = [
+  { value: "+7", label: "خدمات اصلی", icon: IconCheckCircle },
+  { value: "+20", label: "حوزه حقوقی", icon: IconCategory },
+  { value: "24/7", label: "دسترسی آنلاین", icon: IconShield },
 ];
 
 const howItWorksSteps = [
@@ -81,7 +102,7 @@ const distinctions = [
       "هسته هوشمند لیگالیر بر پایه منابع حقوقی ساختاریافته، قوانین و آرای قضایی آموزش دیده و تحلیل ساختاریافته ارائه می‌دهد.",
   },
   {
-    icon: IconBalance,
+    icon: IconFileSearch,
     title: "منابع معتبر حقوقی",
     description:
       "هر پاسخ با ارجاع دقیق به مواد قانونی، آرای وحدت رویه و بخشنامه‌ها همراه است. وضعیت اعتبار هر منبع (معتبر / اصلاح‌شده / منسوخ) به‌روشنی مشخص شده است.",
@@ -95,7 +116,10 @@ const distinctions = [
 ];
 
 interface LegalTopic {
-  icon: string;
+  /** A real component from `lib/icons` — the illustration line-art set.
+   *  The previous version used emoji, and one of them (⚖️) is exactly the
+   *  scales-of-justice cliché the art direction rules out. */
+  icon: ComponentType<{ size?: number; className?: string }>;
   title: string;
   description: string;
   keywords: string[];
@@ -103,37 +127,37 @@ interface LegalTopic {
 
 const legalTopics: LegalTopic[] = [
   {
-    icon: "🏠",
+    icon: IconHome,
     title: "مالک و مستأجر",
     description: "قوانین اجاره، تخلیه، تعدیل اجاره‌بها، ودیعه و تعهدات طرفین",
     keywords: ["اجاره", "تخلیه", "ودیعه", "سرقفلی"],
   },
   {
-    icon: "💰",
+    icon: IconCoin,
     title: "مطالبه وجه و خسارت",
     description: "چک برگشتی، سفته، خسارت تأخیر تأدیه، وجه‌الالتزام قراردادی",
     keywords: ["چک", "سفته", "خسارت", "تأخیر تأدیه"],
   },
   {
-    icon: "📝",
+    icon: IconDocument,
     title: "قراردادها و تعهدات",
     description: "تنظیم، بررسی و تفسیر قراردادهای ملکی، تجاری، پیمانکاری و استخدام",
     keywords: ["قرارداد", "تعهدات", "فسخ", "وجه‌الالتزام"],
   },
   {
-    icon: "👨‍👩‍👧",
+    icon: IconUsers,
     title: "حقوق خانواده",
     description: "ازدواج، طلاق، مهریه، نفقه، حضانت، ارث و وصیت",
     keywords: ["مهریه", "طلاق", "حضانت", "ارث"],
   },
   {
-    icon: "🏢",
+    icon: IconBusiness,
     title: "شرکت‌ها و تجارت",
     description: "ثبت شرکت، اساسنامه، سهام، قراردادهای تجاری، ورشکستگی",
     keywords: ["شرکت", "تجارت", "سهام", "ورشکستگی"],
   },
   {
-    icon: "⚖️",
+    icon: IconLawBook,
     title: "آیین دادرسی و دعاوی",
     description: "تنظیم دادخواست، اظهارنامه، لایحه دفاعیه و پیگیری پرونده",
     keywords: ["دادخواست", "اظهارنامه", "لایحه", "دادرسی"],
@@ -273,6 +297,12 @@ const structuredData = {
   ],
 };
 
+/** One band of the exhibition. Odd chapters sit on Mist, even ones on
+ *  white; the hairline is what separates them, never a shadow. */
+function bandClass(tinted: boolean, extra = "") {
+  return `landing-section ${tinted ? "border-y border-[color:var(--ln-line)] bg-[color:var(--ln-canvas)]" : ""} ${extra}`;
+}
+
 export default function LandingPage() {
   return (
     <>
@@ -284,91 +314,60 @@ export default function LandingPage() {
       />
 
       {/* ============================================================
-          HERO — one navy band: promise → action → proof
-          ============================================================ */}
-      <section className="relative isolate overflow-hidden bg-[color:var(--ln-navy-deep)] text-white">
-        {/* Static brand light. No parallax and no scroll listener: the two
-            pools are painted once and never animate, so the first screen
-            keeps a stable LCP and a phone's GPU stays idle. */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          aria-hidden="true"
-          style={{
-            backgroundImage:
-              "radial-gradient(48% 60% at 82% 8%, rgba(29,98,78,0.55), transparent 68%)," +
-              "radial-gradient(38% 48% at 12% 96%, rgba(198,155,56,0.14), transparent 72%)",
-          }}
-        />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.45]"
-          aria-hidden="true"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.10) 1px, transparent 0)",
-            backgroundSize: "44px 44px",
-          }}
-        />
+          SCENE 00 — the opening wall
+          ============================================================
+          Editorial hero: a catalogue mark, one editorial headline, one
+          deck, exactly two actions, and the illustration treated as the
+          subject rather than a background. The dark «سند حقوقی · در حال
+          بررسی» panel and every skeleton part of it are gone.
 
-        {/* Phone padding is deliberately tighter than tablet+: with the two
-            CTAs stacked the hero must still leave part of the next band
-            visible on a 844px viewport, or the first screen reads as a
-            full-screen wall.
-
-            Two columns from `laptop` up: the copy keeps its readable measure
-            on the start side and the document visual takes the end side.
-            Below `laptop` the visual drops under the CTAs, where it cannot
-            push the primary action off the first screen. */}
-        <div className="landing-container relative pb-8 pt-8 tablet:pb-16 tablet:pt-20 laptop:pb-20 laptop:pt-20">
-          {/* The copy column takes a wider share than the visual: the <h1> is
-              a fixed 25-grapheme sentence, and at 1.06fr/0.94fr the 900–1100px
-              band had ~476px for it — enough to push «ایران» alone onto a
-              second line (measured: h1 height doubled to 119px). At
-              1.22fr/0.78fr the sentence fits on one line from 1024px up. */}
-          <div className="grid items-center gap-8 tablet:gap-10 desktop:grid-cols-[minmax(0,1.22fr)_minmax(0,0.78fr)] desktop:gap-12">
-            <div className="min-w-0 max-w-2xl">
-              {/* The <h1> is the product name and types itself out on every
-                  load (`HeroTitle`); the brief's two sentences follow verbatim
-                  in two separate blocks — what the product does, then what
-                  that produces.
-
-                  Nothing here can end up missing: the heading's accessible
-                  name is `sr-only` and complete on the first byte, and the
-                  supporting lines are painted before their aperture opens.
-                  The masks are staggered to land as the typing finishes
-                  (~25 graphemes × 72ms), so the three lines read as one
-                  sequence rather than three simultaneous animations. */}
-              {/* `text-wrap: balance` is only a safety net: if a narrow width
-                  must wrap the title, it splits it evenly instead of
-                  orphaning the last word on its own line. */}
-              <HeroTitle
-                text="دستیار هوشمند حقوقی ایران"
-                className="text-[clamp(1.875rem,1.2rem+2.6vw,3.25rem)] font-extrabold leading-[1.3] tracking-tight text-white [text-wrap:balance]"
-              />
-              <p
-                className="ln-mask-line mt-4 max-w-xl text-[clamp(0.95rem,0.86rem+0.5vw,1.1875rem)] font-medium leading-[1.95] text-white/[0.82] [text-wrap:pretty]"
-                style={{ "--ln-mask-delay": "1400ms" } as CSSProperties}
-              >
-                خدمات تخصصی حقوقی با بهره‌گیری از هوش مصنوعی، منابع حقوقی و
-                مدل زبانی تخصصی لیگالیر
-              </p>
-              <p
-                className="ln-mask-line mt-2 max-w-xl text-[clamp(0.875rem,0.82rem+0.3vw,1rem)] leading-[1.9] text-white/[0.68] [text-wrap:pretty]"
-                style={{ "--ln-mask-delay": "1560ms" } as CSSProperties}
-              >
-                تحلیل ساختاریافته پرونده‌ها، قراردادها و مسائل حقوقی
+          The headline is new, so the shipped product sentence is carried
+          inside it as `sr-only` text: the accessible name still contains
+          «دستیار هوشمند حقوقی ایران», which is the contract the
+          accessibility spec asserts. */}
+      <section
+        className="relative overflow-hidden border-b border-[color:var(--ln-line)]"
+        aria-labelledby="hero-title"
+      >
+        {/* One tinted disc + one hairline square, well outside the text
+            column. They only exist from `tablet` up, where there is margin
+            to hold them without pushing the copy. */}
+        <LandingGeometry variant="hero" />
+        <div className="landing-container landing-layer pb-10 pt-10 tablet:pb-14 tablet:pt-16 laptop:min-h-[640px] laptop:pb-16 laptop:pt-20">
+          <div className="grid items-center gap-10 laptop:grid-cols-[minmax(0,1fr)_minmax(0,0.94fr)] laptop:gap-14">
+            <div className="min-w-0">
+              {/* Catalogue marks are Latin across the page («00»…«13»), the
+                  way a wall number is printed; only the copy is Persian. */}
+              <p className="landing-chapter landing-rise">
+                <span className="landing-chapter__num">00</span>
+                <span>آغاز</span>
               </p>
 
-              {/* Two actions, one hierarchy: the emerald primary carries the
-                  conversion, the outlined button is discovery. Both are 48px
-                  tall at every width.
+              <h1
+                id="hero-title"
+                className="landing-rise landing-rise-2 mt-6 text-[clamp(2rem,1.15rem+3.1vw,3.5rem)] font-bold leading-[1.25] tracking-[-0.02em] text-[color:var(--ln-ink)] [text-wrap:balance]"
+              >
+                {/* The marker under «دقیق‌تر» is the page's one drawn
+                    gesture, and it is the first thing it does: the stroke
+                    draws as the hero settles. The words themselves are
+                    unchanged — the stroke is a sibling SVG, so the
+                    accessible name still reads «حقوق را دقیق‌تر بفهمید.» */}
+                حقوق را <LandingHighlight draw>دقیق‌تر</LandingHighlight> بفهمید.
+                <span className="mt-1 block text-[color:var(--ln-ink-soft)]">
+                  مطمئن‌تر تصمیم بگیرید.
+                </span>
+                <span className="sr-only">دستیار هوشمند حقوقی ایران</span>
+              </h1>
 
-                  Phones stack them full-width. The row breakpoint is
-                  `tablet`, not `mobile-l`: the two labels need ~371px plus
-                  the 40px gutter, so at 375–430px a row pushed the second
-                  button off the start edge (clipped by the hero's
-                  `overflow-hidden`) — full-width stacking is both correct
-                  and a bigger tap target. */}
-              <div className="landing-rise landing-rise-2 mt-8 flex flex-col gap-3 tablet:mt-10 tablet:flex-row tablet:items-center">
+              <p className="landing-rise landing-rise-3 mt-6 max-w-xl text-[clamp(0.95rem,0.88rem+0.45vw,1.125rem)] leading-[1.9] text-[color:var(--ln-ink-soft)] [text-wrap:pretty]">
+                خدمات تخصصی حقوقی با بهره‌گیری از هوش مصنوعی، منابع حقوقی و مدل
+                زبانی تخصصی لیگالیر — تحلیل ساختاریافتهٔ پرونده‌ها، قراردادها و
+                مسائل حقوقی.
+              </p>
+
+              {/* Two actions, one hierarchy. Phones stack them full-width:
+                  at 375px a row would clip the second label. */}
+              <div className="landing-rise landing-rise-4 mt-8 flex flex-col gap-3 tablet:flex-row tablet:items-center">
                 <Link
                   href="/auth/mobile?intent=chat"
                   className="landing-btn landing-btn--primary w-full tablet:w-auto"
@@ -378,50 +377,280 @@ export default function LandingPage() {
                 </Link>
                 <Link
                   href="/features"
-                  className="landing-btn landing-btn--onDark w-full tablet:w-auto"
+                  className="landing-btn landing-btn--secondary w-full tablet:w-auto"
                 >
                   مشاهده قابلیت‌ها
                 </Link>
               </div>
 
-              <p className="landing-rise landing-rise-3 mt-6 flex items-center gap-2 text-[12.5px] leading-6 text-white/60">
+              <p className="landing-rise landing-rise-4 mt-6 flex items-center gap-2 text-[12.5px] leading-6 text-[color:var(--ln-muted)]">
                 <IconArrowBack
                   size={14}
                   aria-hidden="true"
-                  className="shrink-0 text-[color:var(--ln-gold)]"
+                  className="shrink-0 text-[color:var(--ln-cobalt)]"
                 />
                 دانش حقوقی، تحلیل هوشمند و منابع مستند؛ یکپارچه در لیگالیر
               </p>
             </div>
 
-            {/* The hero's visual: a legal document whose clauses are being
-                segmented and anchored to sources — the product's own claim,
-                drawn in code rather than a stock photo. Decorative, so it
-                is `aria-hidden` and costs nothing to assistive tech. */}
-            <HeroAnalysisVisual className="landing-rise landing-rise-3 mx-auto w-full max-w-md desktop:mx-0 desktop:max-w-none" />
-          </div>
-        </div>
-
-        {/* Trust ribbon — the three shipped stats, merged into the hero
-            instead of a separate band, so the first screen already answers
-            «چقدر؟» without a second scroll. */}
-        <div className="relative border-t border-white/[0.12]">
-          <dl className="landing-container grid grid-cols-3 divide-x divide-x-reverse divide-white/[0.12]">
-            {statsItems.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex flex-col items-center gap-1 px-2 py-5 text-center tablet:flex-row tablet:justify-center tablet:gap-3 tablet:py-6"
-              >
-                <stat.icon
-                  size={18}
-                  aria-hidden="true"
-                  className="hidden shrink-0 text-[color:var(--ln-gold)] tablet:block"
+            {/* The hero plate is the one eager image on the page: it is
+                above the fold, so it carries `priority` and an explicit
+                size. `bare` drops the frame — on white, the drawing is the
+                only mark, exactly like the opening wall of a show. */}
+            <figure className="landing-rise landing-rise-3 m-0 min-w-0">
+              <div data-ln-parallax="1">
+                <Image
+                  src={EXHIBIT.humanMeetsAi.src}
+                  alt={EXHIBIT.humanMeetsAi.alt}
+                  width={EXHIBIT.humanMeetsAi.width}
+                  height={EXHIBIT.humanMeetsAi.height}
+                  sizes="(min-width: 900px) 44vw, 92vw"
+                  className="h-auto w-full select-none"
+                  priority
+                  draggable={false}
                 />
-                <dt className="order-2 text-[11.5px] leading-5 text-white/60 tablet:order-none tablet:text-[13px]">
+              </div>
+              <figcaption className="mt-3 flex items-baseline gap-2 border-t border-[color:var(--ln-line)] pt-2.5">
+                <span className="shrink-0 text-[11px] font-semibold tracking-[0.12em] text-[color:var(--ln-faint)]">
+                  00
+                </span>
+                <span className="text-[12px] leading-6 text-[color:var(--ln-muted)]">
+                  {EXHIBIT.humanMeetsAi.caption.title} —{" "}
+                  {EXHIBIT.humanMeetsAi.caption.note}
+                </span>
+              </figcaption>
+            </figure>
+          </div>
+
+          {/* Trust row — the three shipped measures, on one baseline. The
+              numeral is isolated LTR so the sign never moves. */}
+          <dl className="mt-10 grid grid-cols-3 gap-4 border-t border-[color:var(--ln-line)] pt-6 tablet:mt-14 tablet:gap-8 tablet:pt-8">
+            {statsItems.map((stat) => (
+              <div key={stat.label} className="landing-stat">
+                <dt className="landing-stat__label order-2 flex items-center gap-1.5">
+                  <stat.icon
+                    size={14}
+                    aria-hidden="true"
+                    className="hidden shrink-0 text-[color:var(--ln-faint)] tablet:block"
+                  />
                   {stat.label}
                 </dt>
-                <dd className="order-1 text-[22px] font-bold leading-none tabular-nums tablet:order-none tablet:text-[26px]">
-                  {stat.value}
+                <dd className="landing-stat__value order-1">{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
+      {/* ============================================================
+          INTAKE DESK — «نمی‌دانید از کجا شروع کنید؟»
+          ============================================================
+          Deliberately given its own band: the hero ends on the trust row
+          and 80–112px of air separates it from the desk, so the form never
+          reads as welded to the first screen. Behaviour and API are
+          untouched (LandingStartCard owns the whole hand-off). */}
+      <div className="landing-container pt-16 tablet:pt-20 laptop:pt-28">
+        <div className="landing-rule" aria-hidden="true">
+          <span className="landing-exhibit__index">میز پذیرش</span>
+        </div>
+      </div>
+      <LandingStartCard />
+
+      {/* ============================================================
+          01 · مسئله
+          ============================================================ */}
+      <section className={bandClass(false)} aria-labelledby="ch-problem-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-problem"
+            index="01"
+            chapter="مسئله"
+            art={EXHIBIT.complexity}
+            scale="wide"
+            variant="bare"
+            title="سند حقوقی، وقتی فقط یک دسته کاغذ است."
+            body={
+              <p>
+                قراردادها و اسناد حقوقی از بندهایی ساخته می‌شوند که به هم ارجاع
+                می‌دهند: ضمیمه‌ها، تبصره‌ها، و آنچه در سند نوشته نشده است. خواندن
+                دقیق همین جزئیات است که تفاوت میان یک تصمیم مطمئن و یک اشتباه
+                پرهزینه را می‌سازد.
+              </p>
+            }
+            footnote="سؤال درست، پیش از پاسخ درست می‌آید."
+          />
+        </div>
+      </section>
+
+      {/* ============================================================
+          02 · ساختار — the three shipped steps
+          ============================================================ */}
+      <section className={bandClass(true)} aria-labelledby="ch-order-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-order"
+            index="02"
+            chapter="ساختار"
+            art={EXHIBIT.order}
+            flip
+            variant="mist"
+            title="همان مسئله، این بار مرتب‌شده."
+            body={
+              <>
+                <p>
+                  لیگالیر موضوع شما را گام‌به‌گام پیش می‌برد؛ از طرح پرسش تا
+                  تحلیلی که به منبع مشخص تکیه دارد.
+                </p>
+
+                <ol className="mt-6 border-t border-[color:var(--ln-line)]">
+                  {howItWorksSteps.map((step) => (
+                    <li
+                      key={step.number}
+                      className="flex gap-4 border-b border-[color:var(--ln-line)] py-4"
+                    >
+                      <span className="w-8 shrink-0 text-[12px] font-semibold leading-7 tabular-nums text-[color:var(--ln-cobalt)]">
+                        {step.number}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-[14.5px] font-semibold leading-7 text-[color:var(--ln-ink)]">
+                          <step.icon
+                            size={16}
+                            aria-hidden="true"
+                            className="shrink-0 text-[color:var(--ln-faint)]"
+                          />
+                          {step.title}
+                        </span>
+                        <span className="mt-1 block text-[13px] leading-7 text-[color:var(--ln-muted)]">
+                          {step.description}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            }
+          />
+        </div>
+      </section>
+
+      {/* ============================================================
+          03 · گفت‌وگو
+          ============================================================ */}
+      <section className={bandClass(false)} aria-labelledby="ch-dialogue-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-dialogue"
+            index="03"
+            chapter="گفت‌وگو"
+            art={EXHIBIT.consultation}
+            scale="narrow"
+            variant="bare"
+            title="پیش از هر سند، یک پرسش روشن."
+            body={
+              <p>
+                موضوع را به زبان ساده و محاوره‌ای توضیح دهید. دستیار لیگالیر
+                سؤال‌های تکمیلی می‌پرسد تا مسئله روشن شود و سپس تحلیل را با استناد
+                به قوانین، آرای وحدت رویه و بخشنامه‌های معتبر پیش می‌برد.
+              </p>
+            }
+            action={{ href: "/auth/mobile?intent=chat", label: "شروع مشاوره حقوقی" }}
+          />
+        </div>
+      </section>
+
+      {/* ============================================================
+          04 · دانش — the topic register
+          ============================================================ */}
+      <section className={bandClass(true)} aria-labelledby="ch-knowledge-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-knowledge"
+            index="04"
+            chapter="دانش"
+            art={EXHIBIT.knowledge}
+            flip
+            variant="mist"
+            title="قانون، رویه و تفسیر در یک تنه."
+            body={
+              <p>
+                لیگالیر بر پایه منابع ساختاریافته حقوقی ایران آموزش دیده است:
+                قانون اساسی، مدنی، کیفری، تجارت، خانواده، کار و مالیات — و
+                هزاران پرونده واقعی.
+              </p>
+            }
+          />
+
+          {/* A register, not a card grid: six rows on hairlines read as a
+              catalogue of subjects and keep the page from turning into a
+              wall of boxes. */}
+          <ul className="mt-12 grid gap-x-12 border-t border-[color:var(--ln-line)] tablet:grid-cols-2">
+            {legalTopics.map((topic, index) => (
+              <li
+                key={topic.title}
+                data-ln-reveal={String(index % 2)}
+                className="flex gap-3 border-b border-[color:var(--ln-line)] py-5"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0 text-[color:var(--ln-faint)]"
+                >
+                  <topic.icon size={18} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold leading-7 text-[color:var(--ln-ink)]">
+                    {topic.title}
+                  </h3>
+                  <p className="mt-1 text-[13px] leading-7 text-[color:var(--ln-muted)]">
+                    {topic.description}
+                  </p>
+                  <p className="mt-1.5 text-[11.5px] leading-6 text-[color:var(--ln-faint)]">
+                    {topic.keywords.join(" · ")}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* ============================================================
+          05 · ارجاع — the source register
+          ============================================================ */}
+      <section className={bandClass(false)} aria-labelledby="ch-sources-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-sources"
+            index="05"
+            chapter="ارجاع"
+            art={EXHIBIT.sources}
+            variant="bare"
+            title="هر بند، به منبع خودش."
+            body={
+              <p>
+                هر پاسخ با ارجاع دقیق به ماده قانونی، رأی وحدت رویه یا بخشنامه
+                همراه است و وضعیت اعتبار هر منبع — معتبر، اصلاح‌شده یا منسوخ —
+                به‌روشنی مشخص می‌شود.
+              </p>
+            }
+          />
+
+          <dl className="mt-12 border-t border-[color:var(--ln-line)]">
+            {keySources.map((source, index) => (
+              <div
+                key={source.title}
+                data-ln-reveal={String(index)}
+                className="grid gap-1 border-b border-[color:var(--ln-line)] py-5 tablet:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] tablet:items-baseline tablet:gap-6"
+              >
+                <dt className="text-[15px] font-semibold leading-7 text-[color:var(--ln-ink)]">
+                  {source.title}
+                </dt>
+                <dd className="text-[13px] leading-7 text-[color:var(--ln-muted)]">
+                  {source.description}
+                </dd>
+                <dd className="flex items-baseline gap-3 text-[11.5px] leading-6 text-[color:var(--ln-faint)] tablet:justify-end">
+                  <span className="tabular-nums">{source.articles}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>مصوب {source.year}</span>
                 </dd>
               </div>
             ))}
@@ -430,31 +659,151 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          START CARD — «نمی‌دانید از کجا شروع کنید؟»
-          ============================================================
-          Sits between the hero and the services catalog: a visitor who
-          already has a problem in mind but does not know which service
-          it belongs to gets one box and one button. It hands the text to
-          the REAL start flow (/new → /Suggest_law); nothing is analysed
-          or promised here. A guest is routed through the shipped login
-          route first, with the same text waiting in the same tab. */}
-      <LandingStartCard />
+          06 · تحلیل — two plates (the finding and its trace) plus the
+          sample-question register
+          ============================================================ */}
+      <section className={bandClass(true)} aria-labelledby="ch-analysis-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-analysis"
+            index="06"
+            chapter="تحلیل"
+            art={EXHIBIT.contractAnalysis}
+            secondaryArt={EXHIBIT.traceability}
+            flip
+            scale="wide"
+            variant="mist"
+            title="بندهای مهم، مشخص‌شده."
+            body={
+              <p>
+                سند یا قرارداد را بارگذاری کنید؛ بندهای پرریسک و تعهدات پنهان
+                شناسایی می‌شوند و هر یافته به متن سند و منبع قانونی آن وصل
+                می‌شود.
+              </p>
+            }
+            action={{ href: "/auth/mobile?intent=document", label: "تحلیل سند" }}
+          />
+
+          <div className="mt-14 border-t border-[color:var(--ln-line)] pt-8">
+            <h3 className="text-[13px] font-semibold tracking-[0.06em] text-[color:var(--ln-ink)]">
+              نمونه پرسش‌های واقعی
+            </h3>
+            <ul className="mt-4 grid gap-x-12 tablet:grid-cols-2">
+              {sampleQuestions.map((item, index) => (
+                <li key={item.question}>
+                  <Link
+                    href="/auth/mobile?intent=chat"
+                    data-ln-reveal={String(index % 2)}
+                    className="landing-row group flex items-start gap-3 border-b border-[color:var(--ln-line)] py-4"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 shrink-0 text-[color:var(--ln-faint)] transition-colors duration-[var(--ln-dur-fast)] group-hover:text-[color:var(--ln-cobalt)]"
+                    >
+                      <IconChat size={16} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13.5px] leading-7 text-[color:var(--ln-ink)] transition-colors duration-[var(--ln-dur-fast)] group-hover:text-[color:var(--ln-cobalt)]">
+                        {item.question}
+                      </span>
+                      <span className="mt-1 block text-[11.5px] leading-6 text-[color:var(--ln-faint)]">
+                        {item.category} — {item.sourceRef}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
 
       {/* ============================================================
-          SERVICES — the seven real services, one featured lead cell
-          ============================================================
-          The grid is rendered by `LandingServices`, which reads the
-          service registry so the count, the names and the destinations
-          always match what the product actually ships. */}
-      <section className="landing-section" aria-labelledby="services-title">
+          07 · پیش‌نویس — the drafting family, including the real
+          judicial wizard (unchanged behaviour and destinations)
+          ============================================================ */}
+      <section className={bandClass(false)} aria-labelledby="ch-drafting-title">
         <div className="landing-container">
+          <LandingExhibit
+            id="ch-drafting"
+            index="07"
+            chapter="پیش‌نویس"
+            art={EXHIBIT.drafting}
+            secondaryArt={EXHIBIT.contractDomains}
+            scale="wide"
+            variant="bare"
+            title="از پاسخ‌ها تا سند آمادهٔ بازبینی."
+            body={
+              <p>
+                با پاسخ به پرسش‌نامه گام‌به‌گام، پیش‌نویس قرارداد شخصی‌سازی‌شده
+                آماده می‌شود — املاک، خودرو، خانواده و کسب‌وکار. پیش‌نویس برای
+                بازبینی خودتان و وکیل است.
+              </p>
+            }
+            action={{ href: "/auth/mobile?intent=contract", label: "تولید پیش‌نویس قرارداد" }}
+          />
+
+          <div className="mt-12" data-ln-reveal="0">
+            <JudicialServiceZone
+              surface="home"
+              mode="public"
+              appearance="marketing"
+              footer={
+                <p className="mt-4 text-[12.5px] leading-7 text-[color:var(--ln-muted)]">
+                  پیش‌نویس‌ها برای بازبینی خودتان و وکیل است؛ لیگالیر هیچ سندی را
+                  در مرجع قضایی ثبت، ارسال یا ابلاغ نمی‌کند.
+                </p>
+              }
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================
+          08 · محاسبه
+          ============================================================ */}
+      <section className={bandClass(true)} aria-labelledby="ch-calc-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-calc"
+            index="08"
+            chapter="محاسبه"
+            art={EXHIBIT.calculator}
+            flip
+            variant="mist"
+            title="عدد دقیق، جای حدس."
+            body={
+              <p>
+                محاسبات حقوقی — خسارت تأخیر تأدیه، مهریه، نفقه، ارث و دیه — بر
+                پایه قواعد مصوب انجام می‌شود؛ هر عدد با قاعده و سال محاسبه‌اش
+                همراه است.
+              </p>
+            }
+            action={{ href: "/calculators", label: "محاسبه کنید" }}
+          />
+        </div>
+      </section>
+
+      {/* ============================================================
+          SERVICES — the seven real services, rendered from the registry
+          ============================================================ */}
+      <section
+        className={`${bandClass(false)} relative overflow-hidden`}
+        aria-labelledby="services-title"
+      >
+        <LandingGeometry variant="services" />
+        <div className="landing-container landing-layer">
           <header className="max-w-2xl" data-ln-reveal="0">
-            <p className="landing-eyebrow">خدمات هوشمند</p>
-            <h2 id="services-title" className="landing-title mt-3">
-              خدمات هوشمند لیگالیر
+            <p className="landing-chapter">
+              <span className="landing-chapter__num">08</span>
+              <span>کاتالوگ خدمات</span>
+            </p>
+            <h2 id="services-title" className="landing-title mt-4">
+              خدمات <LandingHighlightWide draw>هوشمند</LandingHighlightWide> لیگالیر
             </h2>
             <p className="landing-lead mt-3 max-w-2xl">
-              ۷ سرویس تخصصی مبتنی بر هوش مصنوعی حقوقی؛ آموزش‌دیده بر نظام حقوقی ایران
+              هفت سرویس تخصصی مبتنی بر هوش مصنوعی حقوقی؛ آموزش‌دیده بر نظام حقوقی
+              ایران
             </p>
           </header>
 
@@ -463,344 +812,200 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          JUDICIAL DOCUMENTS — «تنظیم دادخواست و شکواییه تخصصی»
-          ============================================================
-          The drafting family is not a marketing block: each card links into
-          the real, resumable wizard. Visibility, status and copy come from
-          the admin-managed service rows (surfaces.home), and anonymous
-          visitors are routed through login back to the same wizard URL. */}
-      <div className="landing-container pb-14 tablet:pb-16 laptop:pb-20" data-ln-reveal="0">
-        <JudicialServiceZone
-          surface="home"
-          mode="public"
-          appearance="marketing"
-          footer={
-            <p className="mt-4 text-[12.5px] leading-7 text-[color:var(--ln-muted)]">
-              پیش‌نویس‌ها برای بازبینی خودتان و وکیل است؛ لیگالیر هیچ سندی را در مرجع
-              قضایی ثبت، ارسال یا ابلاغ نمی‌کند.
-            </p>
-          }
-        />
-      </div>
-
-      {/* ============================================================
-          SAMPLE Q&A — proof of substance before the feature tour
+          09 · بازبینی
           ============================================================ */}
-      <section
-        className="border-y border-[color:var(--ln-line)] bg-[color:var(--ln-canvas)]"
-        aria-labelledby="qa-title"
-      >
-        <div className="landing-container landing-section">
-          <header className="mx-auto max-w-2xl text-center" data-ln-reveal="0">
-            <p className="landing-eyebrow justify-center">نمونه پرسش‌های واقعی</p>
-            <h2 id="qa-title" className="landing-title mt-3">
-              لیگالیر چه سوالاتی را پاسخ می‌دهد؟
-            </h2>
-            <p className="landing-lead mx-auto mt-3 max-w-xl">
-              اینها نمونه‌هایی از پرسش‌های واقعی حقوقی هستند که می‌توانید از لیگالیر
-              بپرسید. هر پاسخ همراه با استناد دقیق به مواد قانونی و آرای قضایی ارائه
-              می‌شود.
-            </p>
-          </header>
-
-          <ul className="mx-auto mt-10 grid max-w-5xl gap-3 tablet:grid-cols-2">
-            {sampleQuestions.map((item, index) => (
-              <li key={item.question}>
-                <Link
-                  href="/auth/mobile?intent=chat"
-                  data-ln-reveal={String(index % 2)}
-                  className="landing-card group gap-3 p-5"
-                >
-                  <span className="flex items-start gap-3">
-                    <span className="landing-chip" aria-hidden="true">
-                      <IconChat size={18} />
-                    </span>
-                    <span className="min-w-0 flex-1 text-[14px] leading-7 text-[color:var(--ln-ink)]">
-                      {item.question}
-                    </span>
-                  </span>
-
-                  <span className="flex flex-wrap items-center gap-2 ps-[3.25rem]">
-                    <span className="inline-flex items-center gap-1 rounded-[var(--ln-r-sm)] bg-[color:var(--ln-canvas)] px-2 py-0.5 text-[11.5px] leading-5 text-[color:var(--ln-muted)]">
-                      <IconStar size={12} aria-hidden="true" />
-                      {item.category}
-                    </span>
-                    <span className="text-[11.5px] font-medium leading-5 text-[color:var(--ln-gold-deep)]">
-                      {item.sourceRef}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-8 text-center" data-ln-reveal="0">
-            <Link href="/auth/mobile?intent=chat" className="landing-btn landing-btn--primary">
-              <IconChat size={18} aria-hidden="true" />
-              پرسش خود را مطرح کنید
-            </Link>
-          </div>
+      <section className={bandClass(true)} aria-labelledby="ch-review-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-review"
+            index="09"
+            chapter="بازبینی"
+            art={EXHIBIT.review}
+            scale="narrow"
+            variant="mist"
+            title="وقتی تصمیم به چشم متخصص نیاز دارد."
+            body={
+              <p>
+                در موضوعات حساس، لیگالیر مسیر ارتباط با وکلای متخصص و تأییدشده
+                را فراهم می‌کند — انتخاب وکیل بر اساس تخصص، شهر و بودجه، با
+                شفافیت کامل در هزینه و سابقه.
+              </p>
+            }
+            action={{ href: "/lawyers", label: "مشاهده وکلای تأییدشده" }}
+          />
         </div>
       </section>
 
       {/* ============================================================
-          LEGAL TOPICS — one calm grid: no glass, no tracking light
+          10 · دقت — the three shipped distinctions, as a register
           ============================================================ */}
-      <LegalTopicsSection topics={legalTopics} />
+      <section className={bandClass(false)} aria-labelledby="ch-precision-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-precision"
+            index="10"
+            chapter="دقت"
+            // No plate here on purpose. The one unused drawing in the set is
+            // a classical column, which the brief bans outright, so this
+            // room is set in type (see `LandingExhibit` without `art`).
+            flip
+            variant="bare"
+            title="اندازه‌گیری، نه تخمین."
+            body={
+              <p>
+                لیگالیر مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را
+                شفاف می‌کند؛ هر لایه مسئولیت خودش را دارد و هیچ‌کدام جای دیگری
+                را نمی‌گیرد.
+              </p>
+            }
+          />
 
-      {/* ============================================================
-          HOW IT WORKS — three numbered steps, connector on wide screens
-          ============================================================ */}
-      <section
-        className="border-y border-[color:var(--ln-line)] bg-[color:var(--ln-canvas)]"
-        aria-labelledby="how-title"
-      >
-        <div className="landing-container landing-section">
-          <header className="mx-auto max-w-xl text-center" data-ln-reveal="0">
-            <p className="landing-eyebrow justify-center">مسیر استفاده</p>
-            <h2 id="how-title" className="landing-title mt-3">
-              لیگالیر چطور کار می‌کند؟
-            </h2>
-            <p className="landing-lead mt-3">
-              سه گام ساده برای دریافت تحلیل حقوقی — از طرح موضوع تا دریافت راهنمایی
-              تخصصی
-            </p>
-          </header>
-
-          <ol className="relative mt-10 grid gap-6 tablet:mt-12 tablet:grid-cols-3 tablet:gap-5">
-            {/* Connector — decorative, sits behind the number badges. */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-[16%] top-6 hidden h-px bg-[color:var(--ln-line-strong)] tablet:block"
-            />
-
-            {howItWorksSteps.map((step, index) => (
+          <ul className="mt-12 border-t border-[color:var(--ln-line)]">
+            {distinctions.map((item, index) => (
               <li
-                key={step.number}
+                key={item.title}
                 data-ln-reveal={String(index)}
-                className="relative flex gap-4 tablet:flex-col tablet:items-center tablet:gap-4 tablet:text-center"
+                className="flex gap-4 border-b border-[color:var(--ln-line)] py-6"
               >
-                <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[color:var(--ln-line)] bg-[color:var(--ln-surface)] text-[15px] font-bold tabular-nums text-[color:var(--ln-green)]">
-                  {step.number}
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0 text-[color:var(--ln-ink)]"
+                >
+                  <item.icon size={20} />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="flex items-center gap-2 text-[15.5px] font-semibold leading-8 text-[color:var(--ln-navy)] tablet:justify-center">
-                    <step.icon
-                      size={18}
-                      aria-hidden="true"
-                      className="shrink-0 text-[color:var(--ln-gold-deep)]"
-                    />
-                    {step.title}
+                  <h3 className="text-[15px] font-semibold leading-7 text-[color:var(--ln-ink)]">
+                    {item.title}
                   </h3>
-                  <p className="mt-1 text-[13px] leading-7 text-[color:var(--ln-muted)] tablet:mt-2">
-                    {step.description}
+                  <p className="mt-1 max-w-3xl text-[13px] leading-7 text-[color:var(--ln-muted)]">
+                    {item.description}
                   </p>
                 </div>
               </li>
             ))}
-          </ol>
-        </div>
-      </section>
-
-      {/* ============================================================
-          HUMAN LAWYER — the natural next step after «ارجاع به وکیل»
-          ============================================================ */}
-      <section className="landing-container py-14 tablet:py-16 laptop:py-20">
-        <div
-          data-ln-reveal="0"
-          className="relative isolate overflow-hidden rounded-[var(--ln-r-xl)] bg-[color:var(--ln-navy)] px-6 py-10 text-white tablet:px-10 tablet:py-12 laptop:px-14"
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(60% 90% at 88% 0%, rgba(198,155,56,0.18), transparent 70%)",
-            }}
-          />
-          <div className="relative flex flex-col gap-6 laptop:flex-row laptop:items-center laptop:justify-between">
-            <div className="max-w-2xl">
-              <p className="inline-flex items-center gap-2 text-[12.5px] font-semibold leading-6 text-[color:var(--ln-gold)]">
-                <IconHandshake size={16} aria-hidden="true" />
-                وکیل انسانی
-              </p>
-              <h2 className="mt-3 text-[clamp(1.25rem,1rem+0.9vw,1.75rem)] font-bold leading-9 text-white">
-                وقتی موضوع به بررسی تخصصی نیاز دارد
-              </h2>
-              <p className="mt-3 text-[13.5px] leading-7 text-white/75 tablet:text-[14.5px] tablet:leading-8">
-                لیگالیر مسیر ارتباط با وکلای متخصص و تأییدشده را فراهم می‌کند — انتخاب
-                وکیل بر اساس تخصص، شهر و بودجه، با شفافیت کامل در هزینه و سابقه.
-              </p>
-            </div>
-            <Link
-              href="/lawyers"
-              className="landing-btn landing-btn--onDark w-full shrink-0 laptop:w-auto"
-            >
-              مشاهده وکلای تأییدشده
-              <IconChevronLeft size={18} aria-hidden="true" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================
-          LEGAL SOURCES — a snap rail on phones, the same cards as a
-          4-up grid from laptop up
-          ============================================================ */}
-      <section className="landing-section" aria-labelledby="sources-title">
-        <div className="landing-container">
-          <header className="mx-auto max-w-2xl text-center" data-ln-reveal="0">
-            <p className="landing-eyebrow justify-center">
-              <IconLawBook size={14} aria-hidden="true" />
-              منابع معتبر حقوقی
-            </p>
-            <h2 id="sources-title" className="landing-title mt-3">
-              منابع حقوقی تحت پوشش
-            </h2>
-            <p className="landing-lead mx-auto mt-3 max-w-xl">
-              لیگالیر بر پایه قوانین، مقررات و آرای معتبر نظام حقوقی ایران آموزش دیده
-              است. هر پاسخ با ارجاع دقیق به منبع اصلی همراه می‌باشد.
-            </p>
-          </header>
-        </div>
-
-        {/* Phones: four short cards read better as one snap rail than as a
-            four-screen stack. From 900px up the same markup is a grid. */}
-        <div className="mt-9 tablet:mt-11 laptop:landing-container">
-          <ul
-            className="landing-rail"
-            data-lenis-prevent
-            aria-label="منابع حقوقی تحت پوشش"
-          >
-            {keySources.map((source, index) => (
-              <li key={source.title} className="h-full">
-                <article data-ln-reveal={String(index)} className="landing-card p-5">
-                  <h3 className="text-[15.5px] font-semibold leading-8 text-[color:var(--ln-navy)]">
-                    {source.title}
-                  </h3>
-                  <p className="mt-1.5 flex-1 text-[13px] leading-7 text-[color:var(--ln-muted)]">
-                    {source.description}
-                  </p>
-                  <div className="mt-5 flex items-center justify-between gap-3 border-t border-[color:var(--ln-line)] pt-3">
-                    <span className="rounded-[var(--ln-r-sm)] bg-[color:var(--ln-gold-soft)] px-2.5 py-1 text-[11.5px] font-medium leading-5 text-[color:var(--ln-gold-deep)]">
-                      {source.articles}
-                    </span>
-                    <span className="text-[11.5px] leading-5 text-[color:var(--ln-muted)]">
-                      مصوب {source.year}
-                    </span>
-                  </div>
-                </article>
-              </li>
-            ))}
           </ul>
         </div>
       </section>
 
       {/* ============================================================
-          BLOG PREVIEW
+          11 · همراهی
+          ============================================================ */}
+      <section className={bandClass(true)} aria-labelledby="ch-company-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-company"
+            index="11"
+            chapter="همراهی"
+            art={EXHIBIT.helpingHand}
+            secondaryArt={EXHIBIT.guidance}
+            scale="narrow"
+            variant="mist"
+            title="قدم‌به‌قدم، تا رسیدن به تصمیم."
+            body={
+              <>
+                <p>
+                  موضوع شما دست‌نخورده و روشن می‌ماند. متنی که در میز پذیرش
+                  می‌نویسید فقط در همین تب و تا رسیدن به مرحلهٔ بعد نگه داشته
+                  می‌شود؛ نه در نشانی صفحه و نه در گزارش‌ها.
+                </p>
+                <p className="mt-3">
+                  هیچ تحلیلی پیش از رسیدن شما به مرحلهٔ بعد ساخته نمی‌شود.
+                </p>
+              </>
+            }
+          />
+        </div>
+      </section>
+
+      {/* ============================================================
+          12 · اعتماد
+          ============================================================ */}
+      <section className={bandClass(false)} aria-labelledby="ch-trust-title">
+        <div className="landing-container">
+          <LandingExhibit
+            id="ch-trust"
+            index="12"
+            chapter="اعتماد"
+            art={EXHIBIT.judgment}
+            flip
+            scale="narrow"
+            variant="bare"
+            title="مسیر تخصصی، وقتی کار به وکیل می‌رسد."
+            body={
+              <p>
+                لیگالیر جای وکیل را نمی‌گیرد. تحلیل و پیش‌نویس مسیر را روشن
+                می‌کند؛ تصمیم نهایی و اقدام قضایی، کار وکیل و مرجع صالح است.
+              </p>
+            }
+          />
+        </div>
+      </section>
+
+      {/* ============================================================
+          BLOG — a register of the three published posts
           ============================================================ */}
       <section
         className="border-y border-[color:var(--ln-line)] bg-[color:var(--ln-canvas)]"
         aria-labelledby="blog-title"
       >
         <div className="landing-container landing-section">
-          <header className="mx-auto max-w-2xl text-center" data-ln-reveal="0">
-            <p className="landing-eyebrow justify-center">
+          <header className="max-w-2xl" data-ln-reveal="0">
+            <p className="landing-eyebrow">
               <IconLawBook size={14} aria-hidden="true" />
               مجله و آموزش حقوقی لیگالیر
             </p>
             <h2 id="blog-title" className="landing-title mt-3">
               مجله و آموزش حقوقی لیگالیر
             </h2>
-            <p className="landing-lead mx-auto mt-3 max-w-xl">
-              راهنماهای کاربردی، قوانین، آرای مهم و تحلیل موضوعات حقوقی — بر پایه منابع
-              ساختاریافته حقوقی
+            <p className="landing-lead mt-3">
+              راهنماهای کاربردی، قوانین، آرای مهم و تحلیل موضوعات حقوقی — بر پایه
+              منابع ساختاریافته حقوقی
             </p>
           </header>
 
-          <ul className="mt-10 grid gap-4 tablet:grid-cols-3">
+          <ol className="mt-10 border-t border-[color:var(--ln-line)]">
             {blogPreviewPosts.map((post, index) => (
               <li key={post.id}>
                 <Link
                   href={`/blog/${post.slug}`}
                   data-ln-reveal={String(index)}
-                  className="landing-card group overflow-hidden"
+                  className="landing-row group grid gap-2 border-b border-[color:var(--ln-line)] py-6 tablet:grid-cols-[3.5rem_minmax(0,1fr)_auto] tablet:items-baseline tablet:gap-6"
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-[color:var(--ln-line)] px-5 py-3.5">
-                    <span className="inline-flex items-center gap-1 rounded-[var(--ln-r-sm)] bg-[color:var(--ln-green-soft)] px-2 py-0.5 text-[11.5px] leading-5 text-[color:var(--ln-green)]">
+                  <span className="text-[11.5px] font-semibold tracking-[0.12em] tabular-nums text-[color:var(--ln-faint)]">
+                    {toPersianDigits(index + 1)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[15.5px] font-semibold leading-8 text-[color:var(--ln-ink)] transition-colors duration-[var(--ln-dur-fast)] group-hover:text-[color:var(--ln-cobalt)]">
+                      {post.titleFa}
+                    </span>
+                    <span className="mt-1 block line-clamp-2 text-[13px] leading-7 text-[color:var(--ln-muted)]">
+                      {post.excerpt}
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] leading-6 text-[color:var(--ln-muted)] tablet:justify-end">
+                    <span className="inline-flex items-center gap-1">
                       <IconCategory size={12} aria-hidden="true" />
                       {post.category}
                     </span>
-                    <span className="shrink-0 text-[11.5px] tabular-nums leading-5 text-[color:var(--ln-muted)]">
-                      {toPersianDigits(post.readingTime)} دقیقه مطالعه
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      {toPersianDigits(post.readingTime)} دقیقه
                     </span>
-                  </div>
-
-                  <div className="flex flex-1 flex-col p-5">
-                    <h3 className="line-clamp-2 text-[15px] font-semibold leading-8 text-[color:var(--ln-navy)]">
-                      {post.titleFa}
-                    </h3>
-                    <p className="mb-4 mt-1.5 line-clamp-3 flex-1 text-[13px] leading-7 text-[color:var(--ln-muted)]">
-                      {post.excerpt}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-[11.5px] leading-5 text-[color:var(--ln-muted)]">
-                      <IconCalendar size={13} aria-hidden="true" />
-                      <span>{toPersianDate(post.publishedAt)}</span>
-                      <span className="ms-auto inline-flex items-center gap-1 font-semibold text-[color:var(--ln-green)]">
-                        مطالعه مقاله
-                        <IconChevronLeft
-                          size={14}
-                          aria-hidden="true"
-                          className="transition-transform duration-300 group-hover:-translate-x-0.5 motion-reduce:transition-none"
-                        />
-                      </span>
-                    </div>
-                  </div>
+                    <span className="inline-flex items-center gap-1">
+                      <IconCalendar size={12} aria-hidden="true" />
+                      {toPersianDate(post.publishedAt)}
+                    </span>
+                  </span>
                 </Link>
               </li>
             ))}
-          </ul>
+          </ol>
 
-          <div className="mt-8 text-center">
-            <Link href="/blog" className="landing-btn landing-btn--secondary">
+          <div className="mt-8">
+            <Link href="/blog" className="landing-btn landing-btn--quiet">
               مشاهده همه مطالب وبلاگ
+              <IconChevronLeft size={16} aria-hidden="true" />
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* ============================================================
-          TRANSPARENCY — how the three layers relate
-          ============================================================ */}
-      <section className="landing-section" aria-labelledby="transparency-title">
-        <div className="landing-container">
-          <header className="mx-auto max-w-xl text-center" data-ln-reveal="0">
-            <p className="landing-eyebrow justify-center">شفافیت</p>
-            <h2 id="transparency-title" className="landing-title mt-3">
-              شفافیت در خدمات
-            </h2>
-            <p className="landing-lead mt-3">
-              لیگالیر مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را شفاف می‌کند
-            </p>
-          </header>
-
-          <ul className="mt-10 grid gap-4 tablet:grid-cols-3">
-            {distinctions.map((item, index) => (
-              <li key={item.title}>
-                <article data-ln-reveal={String(index)} className="landing-card p-6">
-                  <span className="landing-chip">
-                    <item.icon size={20} aria-hidden="true" />
-                  </span>
-                  <h3 className="mt-4 text-[15.5px] font-semibold leading-8 text-[color:var(--ln-navy)]">
-                    {item.title}
-                  </h3>
-                  <p className="mt-1.5 text-[13px] leading-7 text-[color:var(--ln-muted)]">
-                    {item.description}
-                  </p>
-                </article>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
 
@@ -809,25 +1014,29 @@ export default function LandingPage() {
           by screen readers, and open/close without JavaScript.
           ============================================================ */}
       <section
-        className="border-y border-[color:var(--ln-line)] bg-[color:var(--ln-canvas)]"
+        className="border-b border-[color:var(--ln-line)] bg-[color:var(--ln-surface)]"
         aria-labelledby="faq-title"
       >
         <div className="landing-container landing-section">
-          <div className="mx-auto max-w-3xl">
-            <header className="text-center" data-ln-reveal="0">
-              <p className="landing-eyebrow justify-center">پرسش‌های متداول</p>
+          <div className="grid gap-8 laptop:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] laptop:gap-16">
+            <header className="self-start laptop:sticky laptop:top-28" data-ln-reveal="0">
+              <p className="landing-eyebrow">پرسش‌های متداول</p>
               <h2 id="faq-title" className="landing-title mt-3">
-                پرسش‌های متداول
+                چیزهایی که پیش از شروع باید بدانید
               </h2>
+              <p className="landing-lead mt-3">
+                پاسخ‌ها همان چیزی است که در همین صفحه و در سند شفافیت لیگالیر
+                آمده است.
+              </p>
             </header>
 
-            <div className="landing-faq mt-8 divide-y divide-[color:var(--ln-line)] rounded-[var(--ln-r-lg)] border border-[color:var(--ln-line)] bg-[color:var(--ln-surface)]">
+            <div className="landing-faq divide-y divide-[color:var(--ln-line)] border-t border-[color:var(--ln-line)]">
               {faqItems.map((item) => (
-                <details key={item.question} className="px-5">
-                  <summary className="flex items-center gap-3 py-4 text-[14px] font-medium leading-7 text-[color:var(--ln-ink)]">
+                <details key={item.question}>
+                  <summary className="flex items-center gap-3 py-5 text-[14.5px] font-medium leading-7 text-[color:var(--ln-ink)]">
                     {item.question}
                   </summary>
-                  <p className="pb-4 pe-1 text-[13px] leading-7 text-[color:var(--ln-muted)]">
+                  <p className="pb-5 pe-1 text-[13.5px] leading-7 text-[color:var(--ln-muted)]">
                     {item.answer}
                   </p>
                 </details>
@@ -838,20 +1047,80 @@ export default function LandingPage() {
       </section>
 
       {/* ============================================================
-          WHAT LEGALIR DOES — the full disclaimer block (unchanged copy
-          lives in the shared component, so legal text has one owner)
+          FINALE — the closed book, one action, and the shared
+          disclaimer (its copy still lives in one component)
           ============================================================ */}
-      <section className="landing-section--tight landing-container">
-        <div data-ln-reveal="0">
-          <AIDisclaimer />
+      <section className={bandClass(false)} aria-labelledby="finale-title">
+        <div className="landing-container">
+          <div className="grid items-center gap-10 laptop:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] laptop:gap-16">
+            <figure className="m-0 min-w-0" data-ln-reveal="0">
+              <div data-ln-parallax="1">
+                <Image
+                  src={EXHIBIT.lawPrinciples.src}
+                  alt={EXHIBIT.lawPrinciples.alt}
+                  width={EXHIBIT.lawPrinciples.width}
+                  height={EXHIBIT.lawPrinciples.height}
+                  sizes="(min-width: 900px) 38vw, 92vw"
+                  className="h-auto w-full select-none"
+                  loading="lazy"
+                  draggable={false}
+                />
+              </div>
+              <figcaption className="mt-3 flex items-baseline gap-2 border-t border-[color:var(--ln-line)] pt-2.5">
+                <span className="shrink-0 text-[11px] font-semibold tracking-[0.12em] text-[color:var(--ln-faint)]">
+                  ۱۳
+                </span>
+                <span className="text-[12px] leading-6 text-[color:var(--ln-muted)]">
+                  {EXHIBIT.lawPrinciples.caption.title} —{" "}
+                  {EXHIBIT.lawPrinciples.caption.note}
+                </span>
+              </figcaption>
+            </figure>
+
+            <div className="min-w-0" data-ln-reveal="1">
+              <p className="landing-chapter">
+                <span className="landing-chapter__num">13</span>
+                <span>پایان نمایش</span>
+              </p>
+              <h2
+                id="finale-title"
+                className="landing-title mt-4 text-[clamp(1.5rem,1.1rem+1.6vw,2rem)]"
+              >
+                از یک <LandingHighlightWide draw>پرسش</LandingHighlightWide>{" "}
+                شروع کنید.
+              </h2>
+              <p className="landing-deck mt-4">
+                مسیر روشن است: موضوع را بنویسید، تحلیل مستند بگیرید و اگر تصمیم
+                به متخصص نیاز داشت، مسیر وکیل باز است.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 tablet:flex-row tablet:items-center">
+                <Link
+                  href="/auth/mobile?intent=chat"
+                  className="landing-btn landing-btn--primary w-full tablet:w-auto"
+                >
+                  شروع مشاوره حقوقی
+                  <IconChevronLeft size={18} aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="landing-btn landing-btn--secondary w-full tablet:w-auto"
+                >
+                  مشاهده تعرفه‌ها
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="landing-disclaimer mt-14" data-ln-reveal="0">
+            <AIDisclaimer />
+          </div>
         </div>
       </section>
 
       {/* ============================================================
-          FINAL CTA — the four shipped entry paths, one row on desktop.
-          Rendered by the shared component so the copy has one owner and
-          the unit test that covers it keeps exercising real production
-          markup.
+          CTA — the four shipped entry paths. Rendered by the shared
+          component so the copy has one owner and the unit test that
+          covers it keeps exercising real production markup.
           ============================================================ */}
       <CTASection />
     </>
