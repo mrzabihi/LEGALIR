@@ -6,8 +6,20 @@
 // issuing organisation, primary specialty, cities, years of experience,
 // displayed rating + review count, verification bucket, operator lifecycle
 // (فعال/غیرفعال/معلق/حذف‌شده), the featured flag and the last update time —
-// with search and a lifecycle filter, quick feature/moderate actions, and a
-// detail drawer for the full edit.
+// with search, a decision-bucket filter, a lifecycle filter, quick
+// feature/moderate actions, and a detail drawer for the full edit.
+//
+// TWO filter axes, because they answer different questions:
+//   • bucket   — the DECISION (REVIEW / APPROVED / REJECTED / SUSPENDED). This
+//                is the operator's work queue: `?bucket=REVIEW` is the review
+//                backlog, and the dashboard's lawyer KPIs and the «وکلای در
+//                انتظار تأیید» attention card link straight into it. The URL
+//                carries it so the queue is bookmarkable and shareable.
+//   • lifecycle— the VISIBILITY state (فعال/غیرفعال/معلق/حذف‌شده), which is
+//                independent: a VERIFIED lawyer can be HIDDEN and still be in
+//                the APPROVED bucket.
+// The server has always supported both (`GET /admin/lawyers`); the page used
+// to send only one, so the bucket the table renders was unfilterable.
 //
 // This table reads the SAME source of truth the public /lawyers marketplace
 // reads, so any change here (edit, status, avatar, rating, review, featured)
@@ -16,7 +28,8 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { snackbar } from "@legalir/ui";
 import {
   useAdminLawyers,
@@ -27,9 +40,11 @@ import { IconSearch, IconStar } from "@/lib/icons";
 import { toPersianCurrency, toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
   LAWYER_DECISION_BUCKET_FA,
+  LAWYER_DECISION_BUCKETS,
   ADMIN_LAWYER_STATUS_FA,
   LAWYER_PROFESSIONAL_RANK_SHORT_FA,
   type AdminLawyerStatus,
+  type LawyerDecisionBucket,
 } from "@legalir/types";
 import {
   PageHeader,
@@ -52,6 +67,7 @@ import { LawyerDetailDrawer, BUCKET_TONES } from "@/components/admin/lawyer-deta
 import { specialtyLabel } from "@/lib/lawyers/specialty";
 
 type LifecycleFilter = AdminLawyerStatus | "ALL";
+type BucketFilter = LawyerDecisionBucket | "ALL";
 
 const LIFECYCLE_TONES: Record<
   AdminLawyerStatus,
@@ -67,11 +83,36 @@ const LIFECYCLE_TONES: Record<
 // finish a word, short enough to feel eager. Enter / the button bypass it.
 const SEARCH_DEBOUNCE_MS = 600;
 
+/** `?bucket=…` is the entry point into a slice of the queue; anything else
+ *  (including a hand-typed typo) falls back to «همه» rather than an empty list
+ *  the operator cannot explain. */
+function readBucket(raw: string | null): BucketFilter {
+  return raw && (LAWYER_DECISION_BUCKETS as string[]).includes(raw)
+    ? (raw as LawyerDecisionBucket)
+    : "ALL";
+}
+
+// `useSearchParams` needs a Suspense boundary in a statically-rendered route.
 export default function AdminLawyersPage() {
+  return (
+    <Suspense fallback={null}>
+      <LawyersTable />
+    </Suspense>
+  );
+}
+
+function LawyersTable() {
   const { can } = useAdminMe();
   const canReview = can("admin:lawyer:verify");
   const canFeature = can("admin:lawyer:feature");
 
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const [bucket, setBucket] = useState<BucketFilter>(() => readBucket(params.get("bucket")));
+  // `?demo=false` comes from the dashboard drill links, whose KPI counted real
+  // profiles only. It is a landing scope, not a pill: the table still shows
+  // sample rows (with a «نمونه» badge) when the operator arrives normally.
+  const [realOnly, setRealOnly] = useState(() => params.get("demo") === "false");
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>("ALL");
   // `searchInput` is what the operator is typing; `appliedSearch` is the term
   // actually sent to the API. They are kept separate on purpose: typing only
@@ -91,12 +132,25 @@ export default function AdminLawyersPage() {
   pageRef.current = page;
   useEffect(() => {
     if (pageRef.current !== 1) setPage(1);
-  }, [appliedSearch, lifecycle, pageSize]);
+  }, [appliedSearch, bucket, realOnly, lifecycle, pageSize]);
+
+  // Mirror the bucket scope into the address WITHOUT navigating.
+  // `router.replace` here would be a full RSC round-trip per pill click — the
+  // same trap the audit trail hit — and would also re-run this page's hooks.
+  useEffect(() => {
+    const parts: string[] = [];
+    if (bucket !== "ALL") parts.push(`bucket=${bucket}`);
+    if (realOnly) parts.push("demo=false");
+    const qs = parts.length ? `?${parts.join("&")}` : "";
+    window.history.replaceState(null, "", qs ? `${pathname}${qs}` : pathname);
+  }, [bucket, realOnly, pathname]);
 
   // Each applied term gets its own cache key, so a late response for an old
   // term can never overwrite the results of the newer one.
   const query = useAdminLawyers({
+    bucket: bucket === "ALL" ? undefined : bucket,
     lifecycle: lifecycle === "ALL" ? undefined : lifecycle,
+    demo: realOnly ? false : undefined,
     search: appliedSearch || undefined,
     page,
     pageSize,
@@ -122,8 +176,13 @@ export default function AdminLawyersPage() {
     setAppliedSearch(term);
   }
 
-  const filters = [
-    { value: "ALL" as const, label: "همه" },
+  const bucketFilters: { value: BucketFilter; label: string }[] = [
+    { value: "ALL", label: "همه" },
+    ...LAWYER_DECISION_BUCKETS.map((b) => ({ value: b, label: LAWYER_DECISION_BUCKET_FA[b] })),
+  ];
+
+  const lifecycleFilters: { value: LifecycleFilter; label: string }[] = [
+    { value: "ALL", label: "همه" },
     ...(["ACTIVE", "INACTIVE", "SUSPENDED", "DELETED"] as AdminLawyerStatus[]).map((s) => ({
       value: s,
       label: ADMIN_LAWYER_STATUS_FA[s],
@@ -156,40 +215,72 @@ export default function AdminLawyersPage() {
         </InfoBanner>
       )}
 
-      <div className="mb-4 flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
-        <FilterPills options={filters} value={lifecycle} onChange={setLifecycle} />
-        <form
-          role="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            commitSearch();
-          }}
-          className="flex w-full items-center gap-2 tablet:w-80"
-        >
-          <div className="relative flex-1">
-            <IconSearch
-              size={16}
-              className="pointer-events-none absolute inset-y-0 start-3 my-auto text-outline"
-              aria-hidden="true"
-            />
-            <TextInput
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="جستجو: نام، پروانه، تخصص، شهر، موبایل…"
-              aria-label="جستجوی وکیل"
-              className="ps-9"
-            />
-          </div>
-          <Button
-            type="submit"
-            variant="secondary"
-            ariaLabel="اعمال جستجو"
-            title="اعمال جستجو"
-            className="px-2.5"
-            startIcon={<IconSearch size={16} aria-hidden="true" />}
-            loading={query.isFetching}
+      {realOnly && (
+        // Arrived from a dashboard KPI, which counts real profiles only. Say so
+        // — a silently narrowed list reads as missing data — and offer the way
+        // back to the full table.
+        <InfoBanner tone="info">
+          این فهرست فقط پروفایل‌های واقعی را نشان می‌دهد تا با عددی که از داشبورد آمده
+          بخواند؛ پروفایل‌های نمونه پنهان‌اند.{" "}
+          <button
+            type="button"
+            onClick={() => setRealOnly(false)}
+            className="font-medium text-primary underline underline-offset-2 hover:text-primary-600"
+          >
+            نمایش همهٔ پروفایل‌ها
+          </button>
+        </InfoBanner>
+      )}
+
+      <div className="mb-4 flex flex-col gap-3">
+        {/* The decision axis first: it is the work queue, and it is the one
+            axis the dashboard links into. */}
+        <FilterPills
+          options={bucketFilters}
+          value={bucket}
+          onChange={setBucket}
+          label="تصمیم بررسی"
+        />
+        <div className="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+          <FilterPills
+            options={lifecycleFilters}
+            value={lifecycle}
+            onChange={setLifecycle}
+            label="وضعیت نمایش"
           />
-        </form>
+          <form
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              commitSearch();
+            }}
+            className="flex w-full items-center gap-2 tablet:w-80"
+          >
+            <div className="relative flex-1">
+              <IconSearch
+                size={16}
+                className="pointer-events-none absolute inset-y-0 start-3 my-auto text-outline"
+                aria-hidden="true"
+              />
+              <TextInput
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="جستجو: نام، پروانه، تخصص، شهر، موبایل…"
+                aria-label="جستجوی وکیل"
+                className="ps-9"
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="secondary"
+              ariaLabel="اعمال جستجو"
+              title="اعمال جستجو"
+              className="px-2.5"
+              startIcon={<IconSearch size={16} aria-hidden="true" />}
+              loading={query.isFetching}
+            />
+          </form>
+        </div>
       </div>
 
       <StateView

@@ -2096,6 +2096,7 @@ export function useAdminLawyers(
     status?: LawyerVerificationStatus;
     lifecycle?: AdminLawyerStatus;
     featured?: boolean;
+    demo?: boolean;
     search?: string;
     page?: number;
     pageSize?: number;
@@ -2109,6 +2110,7 @@ export function useAdminLawyers(
       params.status ?? null,
       params.lifecycle ?? null,
       params.featured ?? null,
+      params.demo ?? null,
       params.search ?? null,
       params.page ?? null,
       params.pageSize ?? null,

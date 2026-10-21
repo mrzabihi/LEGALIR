@@ -83,11 +83,15 @@ describe("buildOverview — needs attention", () => {
   beforeEach(() => seed({}));
 
   it("lists only categories with a real count > 0", () => {
+    // Seeded with the STORED vocabulary (UPPERCASE) — the same values a real
+    // `lawyer_profiles` row holds. The earlier lowercase seeds passed only
+    // because the counting code also compared lowercase: the two errors agreed
+    // with each other while disagreeing with the database.
     seed({
       lawyer_profiles: [
-        { id: "l1", verificationStatus: "pending", isDemo: false, createdAt: daysAgo(3) },
-        { id: "l2", verificationStatus: "verified", isDemo: false, createdAt: daysAgo(3) },
-        { id: "l3", verificationStatus: "pending", isDemo: true, createdAt: daysAgo(3) }, // demo → ignored
+        { id: "l1", verificationStatus: "PROFILE_SUBMITTED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l2", verificationStatus: "VERIFIED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l3", verificationStatus: "UNDER_REVIEW", isDemo: true, createdAt: daysAgo(3) }, // demo → ignored
       ],
       financial_adjustments: [
         { id: "a1", amount: 10, status: "pending", createdAt: daysAgo(1) },
@@ -104,6 +108,61 @@ describe("buildOverview — needs attention", () => {
   it("returns [] when nothing needs attention", () => {
     seed({});
     expect(buildOverview(30).attention).toEqual([]);
+  });
+});
+
+describe("buildOverview — lawyer KPIs", () => {
+  beforeEach(() => seed({}));
+
+  it("counts the STORED (uppercase) statuses, not a parallel lowercase vocabulary", () => {
+    seed({
+      lawyer_profiles: [
+        { id: "l1", verificationStatus: "VERIFIED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l2", verificationStatus: "VERIFIED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l3", verificationStatus: "PROFILE_SUBMITTED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l4", verificationStatus: "DOCUMENTS_SUBMITTED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l5", verificationStatus: "UNDER_REVIEW", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l6", verificationStatus: "REJECTED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l7", verificationStatus: "SUSPENDED", isDemo: false, createdAt: daysAgo(3) },
+        { id: "l8", verificationStatus: "UNVERIFIED", isDemo: false, createdAt: daysAgo(3) },
+        // Demo profiles never contribute to any KPI.
+        { id: "d1", verificationStatus: "VERIFIED", isDemo: true, createdAt: daysAgo(3) },
+        { id: "d2", verificationStatus: "UNDER_REVIEW", isDemo: true, createdAt: daysAgo(3) },
+      ],
+    });
+    const ov = buildOverview(30);
+    const kpiValue = (key: string) => ov.kpis.find((k) => k.key === key)!.value;
+
+    expect(kpiValue("lawyers_total")).toBe(8);
+    expect(kpiValue("lawyers_verified")).toBe(2);
+    // PROFILE_SUBMITTED + DOCUMENTS_SUBMITTED + UNDER_REVIEW — the shared
+    // `isLawyerPendingVerification` definition, not one hand-maintained list.
+    expect(kpiValue("lawyers_pending")).toBe(3);
+    // An unverified profile is neither verified nor awaiting review.
+    expect(kpiValue("lawyers_verified") + kpiValue("lawyers_pending")).toBeLessThan(
+      kpiValue("lawyers_total")
+    );
+  });
+
+  it("links each lawyer KPI into the matching decision bucket", () => {
+    seed({
+      lawyer_profiles: [
+        { id: "l1", verificationStatus: "UNDER_REVIEW", isDemo: false, createdAt: daysAgo(3) },
+      ],
+    });
+    const ov = buildOverview(30);
+    const href = (key: string) => ov.kpis.find((k) => k.key === key)!.drillHref;
+    // A count the operator cannot act on is a dead end; each one opens the
+    // exact slice of /admin/lawyers it was measured from.
+    // `demo=false` is not decoration: these KPIs count real profiles only, and
+    // the destination must not show a different (larger) set than the number
+    // the operator just clicked.
+    expect(href("lawyers_total")).toBe("/admin/lawyers?demo=false");
+    expect(href("lawyers_verified")).toBe("/admin/lawyers?bucket=APPROVED&demo=false");
+    expect(href("lawyers_pending")).toBe("/admin/lawyers?bucket=REVIEW&demo=false");
+    expect(ov.attention.find((a) => a.key === "lawyers_pending")!.href).toBe(
+      "/admin/lawyers?bucket=REVIEW&demo=false"
+    );
   });
 });
 

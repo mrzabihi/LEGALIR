@@ -1204,13 +1204,20 @@ export function FilterPills<T extends string>({
   options,
   value,
   onChange,
+  label,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  /**
+   * Names the group. A page with two pill rows (e.g. /admin/lawyers: decision
+   * bucket + lifecycle) otherwise announces two anonymous "group"s, and the
+   * `aria-pressed` buttons give no hint which axis they belong to.
+   */
+  label?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group">
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
       {options.map((o) => (
         <button
           key={o.value}

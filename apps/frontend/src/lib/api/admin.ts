@@ -2857,6 +2857,8 @@ export function fetchAdminLawyers(
     status?: LawyerVerificationStatus;
     lifecycle?: AdminLawyerStatus;
     featured?: boolean;
+    /** `false` drops seeded sample profiles — matches how every KPI counts. */
+    demo?: boolean;
     search?: string;
     page?: number;
     pageSize?: number;
@@ -2868,6 +2870,7 @@ export function fetchAdminLawyers(
       status: params.status,
       lifecycle: params.lifecycle,
       featured: params.featured === undefined ? undefined : String(params.featured),
+      demo: params.demo === undefined ? undefined : String(params.demo),
       search: params.search,
       page: params.page,
       pageSize: params.pageSize,

@@ -27,6 +27,9 @@ const seen = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/lawyers",
+  // The page reads `?bucket=` / `?demo=` on mount, so the mock must answer.
+  // An empty map is the "arrived with no deep link" case these tests exercise.
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn(), replace: vi.fn() }),
 }));
 

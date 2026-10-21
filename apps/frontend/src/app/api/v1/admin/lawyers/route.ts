@@ -13,8 +13,14 @@
 // a change here is reflected there immediately (there is no second copy).
 //
 // Filters: `bucket` (REVIEW|APPROVED|REJECTED|SUSPENDED), exact `status`,
-// derived `lifecycle` (ACTIVE|INACTIVE|SUSPENDED|DELETED), `featured`, plus
-// free-text `search` over name, licence, specialty labels, city and mobile.
+// derived `lifecycle` (ACTIVE|INACTIVE|SUSPENDED|DELETED), `featured`, `demo`
+// (`false` excludes seeded sample profiles), plus free-text `search` over
+// name, licence, specialty labels, city and mobile.
+//
+// `demo=false` exists so a dashboard drill-down lands on exactly the rows its
+// KPI counted: every overview KPI is computed over real profiles only, and
+// without this the «وکلای در انتظار بررسی» card would open a list that also
+// mixes in sample rows.
 // ============================================================
 
 import { NextResponse } from "next/server";
@@ -53,6 +59,7 @@ export async function GET(request: NextRequest) {
   const statusParam = url.searchParams.get("status");
   const lifecycleParam = url.searchParams.get("lifecycle");
   const featuredParam = url.searchParams.get("featured");
+  const demoParam = url.searchParams.get("demo");
   const search = (url.searchParams.get("search") ?? "").trim();
 
   let rows = listLawyerProfiles();
@@ -67,6 +74,8 @@ export async function GET(request: NextRequest) {
   }
   if (featuredParam === "true") rows = rows.filter((l) => l.featured === true);
   if (featuredParam === "false") rows = rows.filter((l) => l.featured !== true);
+  if (demoParam === "true") rows = rows.filter((l) => l.isDemo === true);
+  if (demoParam === "false") rows = rows.filter((l) => l.isDemo !== true);
 
   if (search) {
     rows = rows.filter((l) => {

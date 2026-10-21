@@ -17,9 +17,11 @@ import {
   LEGAL_CATEGORY_FA,
   LEGAL_REQUEST_STATE_FA,
   ACTIVE_LEGAL_REQUEST_STATES,
+  isLawyerPendingVerification,
 } from "@legalir/types";
 import type {
   AdminKpi,
+  LawyerVerificationStatus,
   AdminOverview,
   AdminAttentionItem,
   AdminBreakdownItem,
@@ -39,7 +41,14 @@ const CURRENCY = "IRT";
 
 interface LawyerProfileRow {
   id: string;
-  verificationStatus: string;
+  /**
+   * The stored status is the UPPERCASE `LawyerVerificationStatus` union. It used
+   * to be declared as a bare `string`, which let the counting code below compare
+   * against lowercase literals that no row can hold — both lawyer KPIs were
+   * structurally zero and the «وکلای در انتظار تأیید» attention card never
+   * appeared. Typing the field makes that class of drift a compile error.
+   */
+  verificationStatus: LawyerVerificationStatus;
   isDemo?: boolean;
   createdAt: string;
 }
@@ -185,8 +194,9 @@ function buildAttention(
       key: "lawyers_pending",
       labelFa: "وکلای در انتظار تأیید",
       count: pendingLawyers,
-      hintFa: "پروفایل‌های واقعی که وضعیت آن‌ها «در انتظار بررسی» یا «در حال بررسی» است.",
-      href: "/admin/lawyers",
+      hintFa:
+        "پروفایل‌های واقعی که ارسال شده‌اند و هنوز تصمیم انسانی دربارهٔ آن‌ها ثبت نشده است.",
+      href: "/admin/lawyers?bucket=REVIEW&demo=false",
       severity: "warning",
     },
     {
@@ -379,9 +389,13 @@ export function buildOverview(
   const refundPending = adjustments.filter((a) => a.status === "pending").length;
 
   const realLawyers = lawyers.filter((l) => !l.isDemo);
-  const verifiedLawyers = realLawyers.filter((l) => l.verificationStatus === "verified").length;
-  const pendingLawyers = realLawyers.filter(
-    (l) => l.verificationStatus === "pending" || l.verificationStatus === "under_review"
+  // `isLawyerPendingVerification` is the shared definition of "submitted but no
+  // human decision yet" — PROFILE_SUBMITTED | DOCUMENTS_SUBMITTED | UNDER_REVIEW.
+  // The dashboard must not keep its own list: that is how it drifted out of
+  // sync with the stored vocabulary and reported a permanent zero.
+  const verifiedLawyers = realLawyers.filter((l) => l.verificationStatus === "VERIFIED").length;
+  const pendingLawyers = realLawyers.filter((l) =>
+    isLawyerPendingVerification(l.verificationStatus)
   ).length;
 
   const pointsIssued = sumSince(
@@ -463,9 +477,27 @@ export function buildOverview(
       { drillHref: "/admin/orders", unitFa: "تومان", trend: "inverse" }
     ),
     kpi("refund_pending", "بازگشت در انتظار تأیید", refundPending, "تعدیل‌های در وضعیت «در انتظار»", "/admin/orders"),
-    kpi("lawyers_total", "وکلای ثبت‌شده", realLawyers.length, "پروفایل‌های واقعی (بدون دمو)", "/admin/lawyers"),
-    kpi("lawyers_verified", "وکلای تأییدشده", verifiedLawyers, "پروفایل با وضعیت «تأییدشده»", "/admin/lawyers"),
-    kpi("lawyers_pending", "وکلای در انتظار بررسی", pendingLawyers, "پروفایل در انتظار/در حال بررسی", "/admin/lawyers"),
+    kpi(
+      "lawyers_total",
+      "وکلای ثبت‌شده",
+      realLawyers.length,
+      "پروفایل‌های واقعی (بدون دمو)",
+      "/admin/lawyers?demo=false"
+    ),
+    kpi(
+      "lawyers_verified",
+      "وکلای تأییدشده",
+      verifiedLawyers,
+      "پروفایل با تصمیم «تأیید شده»",
+      "/admin/lawyers?bucket=APPROVED&demo=false"
+    ),
+    kpi(
+      "lawyers_pending",
+      "وکلای در انتظار بررسی",
+      pendingLawyers,
+      "پروفایل ارسال‌شده بدون تصمیم ثبت‌شده",
+      "/admin/lawyers?bucket=REVIEW&demo=false"
+    ),
     kpi("requests_total", "کل درخواست‌ها", requests.length, "تعداد ردیف‌های درخواست حقوقی", "/admin/requests"),
     comparableKpi(
       "requests_in_range",
