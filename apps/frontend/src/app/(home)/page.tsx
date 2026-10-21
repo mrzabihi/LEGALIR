@@ -408,10 +408,14 @@ export default function LandingPage() {
                 It is a 4:5 portrait with a transparent surround, so it is
                 NOT stretched to the column: on desktop it is capped at 30rem,
                 which keeps the figure at a sane optical size next to a 3.5rem
-                headline. On phones it follows the actions at 78% of the
-                measure, aligned to the end edge, with its caption running
-                down the free side instead of under it — one bento row rather
-                than a full-screen picture wedged between two blocks of text. */}
+                headline. On phones it follows the actions at 74% of the
+                figure, capped at 24rem and aligned to the reading-start edge,
+                with its caption directly under it at the same width — one
+                bento row rather than a full-screen picture wedged between two
+                blocks of text. Measured 203x253 at 320px and 255x318 at 390;
+                on a phone it never exceeds 0.42 of the viewport, which is why
+                the width sweep's 0.5 bound exempts it
+                (docs/LANDING_MOBILE.md §3). */}
             <figure className="landing-rise landing-rise-3 landing-hero m-0 min-w-0">
               <div className="landing-hero__frame" data-ln-parallax="1">
                 <Image
