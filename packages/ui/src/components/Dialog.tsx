@@ -100,8 +100,9 @@ export function Dialog({
 
     // Focus trap: Tab/Shift+Tab cycle within dialog
     if (e.key === "Tab" && dialogRef.current) {
+      const container = dialogRef.current;
       const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
+        container.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         )
       ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
@@ -110,11 +111,21 @@ export function Dialog({
 
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
 
-      if (e.shiftKey && document.activeElement === first) {
+      // The surface itself is focusable (`tabIndex=-1`) and holds focus under
+      // `initialFocus="container"`. It sits before `first` in DOM order and is
+      // outside the Tab cycle, so a plain Shift+Tab from it escapes the dialog
+      // entirely instead of wrapping to the last control — it is a boundary,
+      // exactly like `first` is. `undefined`/outside activeElement is treated
+      // the same way: pull focus back in rather than let it walk the page
+      // behind the scrim.
+      const atBoundary = active === container || !active || !container.contains(active);
+
+      if (e.shiftKey && (atBoundary || active === first)) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
+      } else if (!e.shiftKey && (atBoundary || active === last)) {
         e.preventDefault();
         first.focus();
       }

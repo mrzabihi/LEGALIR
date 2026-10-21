@@ -13,10 +13,10 @@
 // fresh `onClose` every render. With the fix, neither re-render touches focus.
 // ============================================================
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useState } from "react";
-import { Dialog, Drawer } from "@legalir/ui";
+import { Dialog, Drawer, Button, IconButton } from "@legalir/ui";
 
 /** Per-keystroke typing: one change event per incremental value. */
 function typeInto(input: HTMLElement, text: string) {
@@ -123,5 +123,79 @@ describe("Drawer — focus is not stolen while typing", () => {
 
     expect(document.activeElement).toBe(input);
     expect(input.value).toBe("یادداشت دوم");
+  });
+});
+
+/**
+ * The short read-only prompt shape: the surface takes focus on open
+ * (`initialFocus="container"`) so no ring lands on the dismiss glyph.
+ *
+ * The surface is `tabIndex=-1`, i.e. outside the Tab cycle. Before the trap
+ * treated it as a boundary, Shift+Tab from it walked straight out of the
+ * dialog and into the page behind the scrim — observed live as
+ * NEXTJS-PORTAL → a nav link. This guard covers both directions.
+ */
+function PromptHarness() {
+  return (
+    <Dialog
+      open
+      onClose={() => undefined}
+      title="پروفایلت رو کامل کن"
+      initialFocus="container"
+      closeButton={
+        <IconButton variant="standard" size="medium" label="بستن" onClick={() => undefined}>
+          ×
+        </IconButton>
+      }
+      actions={<Button variant="filled">تکمیل پروفایل</Button>}
+    >
+      <button type="button">ردیف</button>
+    </Dialog>
+  );
+}
+
+describe("Dialog — the focus trap keeps a container-focused dialog closed", () => {
+  // The trap skips controls that are not laid out (`offsetParent === null`),
+  // and jsdom never lays anything out — so every control would be filtered out
+  // and the trap would no-op. Report a parent for any attached node.
+  beforeAll(() => {
+    Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+      configurable: true,
+      get() {
+        return this.parentNode;
+      },
+    });
+  });
+
+  it("focuses the surface on open, not a control", async () => {
+    render(<PromptHarness />);
+    await settle();
+
+    const dialog = screen.getByRole("dialog");
+    expect(document.activeElement).toBe(dialog);
+  });
+
+  it("wraps Shift+Tab from the surface to the last control inside the dialog", async () => {
+    render(<PromptHarness />);
+    await settle();
+
+    const dialog = screen.getByRole("dialog");
+    expect(document.activeElement).toBe(dialog);
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "تکمیل پروفایل" }));
+  });
+
+  it("wraps Tab from the surface to the first control inside the dialog", async () => {
+    render(<PromptHarness />);
+    await settle();
+
+    const dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "بستن" }));
   });
 });
