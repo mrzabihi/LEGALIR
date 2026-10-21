@@ -18,6 +18,12 @@
  * Comment lines are skipped so doc examples / URLs do not cause false hits;
  * dynamic refs built from template literals (e.g. `/x-${n}.webp`) are skipped
  * because they cannot be resolved statically.
+ *
+ * The absolute-path rule (1) is not applied to test files: a suite that feeds
+ * `C:\Users\…` or `file://…` to a sanitiser is asserting the attack is
+ * rejected, and a string in a test cannot break a clone or a deploy. Rules (2)
+ * and (3) still apply everywhere — a test naming a truly missing asset is a
+ * real defect.
  */
 
 import fs from "node:fs";
@@ -49,6 +55,13 @@ const ABS_PATTERNS = [
   { name: "file-url", re: /file:\/\/[^\s"'`,)]+/ },
   { name: "posix-home", re: /(?:^|[\s"'`(])\/(?:Users|home)\/[A-Za-z0-9._-]+/ },
 ];
+
+// Test suites deliberately feed hostile inputs to the sanitizers under test —
+// traversal names, Windows drive paths, `file://` URIs — and assert the code
+// rejects or strips them. Those literals are the ATTACK, not a shipped asset
+// reference, so the absolute-path rule stands down for test files. Missing /
+// mis-cased public assets are still real defects there and stay enforced.
+const TEST_PATH = /(?:^|\/)(?:__tests__|__mocks__)\/|\.(?:test|spec)\.[cm]?[jt]sx?$/;
 
 const offenders = { absolute: [], missing: [], casing: [] };
 
@@ -98,13 +111,16 @@ for (const dir of SCAN_DIRS) {
     if (!CODE_EXT.test(file)) return;
     const rel = path.relative(repo, file).split(path.sep).join("/");
     const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+    const isTest = TEST_PATH.test(rel);
 
     for (const raw of lines) {
       if (isCommentLine(raw)) continue;
 
-      for (const { name, re } of ABS_PATTERNS) {
-        const m = raw.match(re);
-        if (m) offenders.absolute.push({ file: rel, kind: name, sample: m[0].trim().slice(0, 80) });
+      if (!isTest) {
+        for (const { name, re } of ABS_PATTERNS) {
+          const m = raw.match(re);
+          if (m) offenders.absolute.push({ file: rel, kind: name, sample: m[0].trim().slice(0, 80) });
+        }
       }
 
       for (const m of raw.matchAll(ROOT_REF)) {

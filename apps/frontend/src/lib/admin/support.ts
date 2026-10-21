@@ -15,7 +15,6 @@ import type {
   SupportAgent,
   SupportTicket,
   SupportTicketEvent,
-  SupportTicketEventKind,
   SupportTicketMessage,
   SupportTicketPriority,
   SupportTicketStatus,

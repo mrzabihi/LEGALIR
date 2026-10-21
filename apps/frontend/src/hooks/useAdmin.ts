@@ -224,8 +224,6 @@ import {
 import type {
   PlanStatus,
   SettlementStatus,
-  SupportTicketStatus,
-  SupportTicketPriority,
   RagReviewState,
   LawyerDecisionBucket,
   LawyerVerificationStatus,
