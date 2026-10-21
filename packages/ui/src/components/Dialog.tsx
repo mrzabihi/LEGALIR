@@ -21,6 +21,29 @@ interface DialogProps {
   persistent?: boolean;
   /** Footer actions */
   actions?: React.ReactNode;
+  /**
+   * Optional dismiss control pinned to the dialog's top corner, on the same
+   * row as the title. Pass an `IconButton` with a real `label`.
+   *
+   * It is a header slot rather than a child on purpose: anything rendered as
+   * a child lives in the scrolling body, so on a short viewport the close
+   * control would scroll away and leave the dialog with no visible way out.
+   * A dedicated flex slot also guarantees it can never overlap the title
+   * or the body content.
+   */
+  closeButton?: React.ReactNode;
+  /**
+   * Where focus lands when the dialog opens.
+   *
+   *   "first"     (default) the first focusable control — a form dialog that
+   *               wants the caret in its first field.
+   *   "container" the dialog surface itself (`tabIndex=-1`). Use it for a
+   *               short, read-only prompt: focusing the surface still moves
+   *               assistive tech into the dialog and announces its title,
+   *               without painting a focus ring on the close button the
+   *               instant the dialog appears.
+   */
+  initialFocus?: "first" | "container";
 }
 
 const maxWidthClasses = {
@@ -45,6 +68,8 @@ export function Dialog({
   maxWidth = "sm",
   persistent = false,
   actions,
+  closeButton,
+  initialFocus = "first",
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -57,9 +82,13 @@ export function Dialog({
   // "typing jumps to another field" defect.
   const onCloseRef = useRef(onClose);
   const persistentRef = useRef(persistent);
+  // Same reason as above: `initialFocus` is read inside the open-only focus
+  // effect, so it must not become a dependency of it.
+  const initialFocusRef = useRef(initialFocus);
   useEffect(() => {
     onCloseRef.current = onClose;
     persistentRef.current = persistent;
+    initialFocusRef.current = initialFocus;
   });
 
   // Trap focus and handle escape. Identity is stable (empty deps) on purpose.
@@ -110,8 +139,12 @@ export function Dialog({
 
     previousFocus.current = document.activeElement as HTMLElement;
 
-    // Focus the first focusable element once, on open.
+    // Move focus into the dialog once, on open.
     const raf = requestAnimationFrame(() => {
+      if (initialFocusRef.current === "container") {
+        dialogRef.current?.focus();
+        return;
+      }
       const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
@@ -153,10 +186,16 @@ export function Dialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        // Focusable so `initialFocus="container"` can move focus to the
+        // surface itself. `-1` keeps it out of the Tab order.
+        tabIndex={-1}
         aria-labelledby={title ? "dialog-title" : undefined}
         aria-describedby={description ? "dialog-description" : undefined}
         className={[
           "relative flex w-full flex-col bg-surface rounded-large shadow-elevation-24 ring-1 ring-black/5",
+          // The surface can hold focus (`initialFocus="container"`), which
+          // must never paint a ring around the whole panel.
+          "focus:outline-none",
           maxWidthClasses[maxWidth],
           "animate-dialog-enter",
           "max-h-[85vh]",
@@ -167,27 +206,48 @@ export function Dialog({
         ].join(" ")}
       >
         {/* Header — pinned (shrink-0) so the title/close stay visible on scroll. */}
-        {(title || description) && (
-          <div className="shrink-0 px-6 pt-6 pb-2">
-            {title && (
-              <h2 id="dialog-title" className="text-headlineSmall font-medium text-on-surface">
-                {title}
-              </h2>
-            )}
-            {description && (
-              <p id="dialog-description" className="mt-1 text-bodyMedium text-on-surface-variant">
-                {description}
-              </p>
-            )}
+        {(title || description || closeButton) && (
+          <div
+            className={[
+              "shrink-0 px-6 pt-6 pb-2",
+              // With a dismiss control the header is a two-column row: the
+              // copy keeps the remaining width (and may wrap), the button
+              // keeps its own fixed slot, so the two can never overlap.
+              closeButton ? "flex items-start gap-2" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <div className={closeButton ? "min-w-0 flex-1" : undefined}>
+              {title && (
+                <h2 id="dialog-title" className="text-headlineSmall font-medium text-on-surface">
+                  {title}
+                </h2>
+              )}
+              {description && (
+                <p id="dialog-description" className="mt-1 text-bodyMedium text-on-surface-variant">
+                  {description}
+                </p>
+              )}
+            </div>
+            {/* The caller owns the button's own optical offset (a 48px MD3
+                icon target needs to be pulled into the corner), so this slot
+                only reserves the column. */}
+            {closeButton && <div className="shrink-0">{closeButton}</div>}
           </div>
         )}
 
         {/* Body — the only scroll region (min-h-0 lets a flex child shrink). */}
         {children && <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{children}</div>}
 
-        {/* Footer — pinned (shrink-0) so the primary actions stay reachable. */}
+        {/* Footer — pinned (shrink-0) so the primary actions stay reachable.
+            On the mobile bottom sheet the bottom padding adds the device
+            safe-area inset, so the actions never sit under the home
+            indicator in the installed PWA. One `padding-bottom` utility per
+            breakpoint range on purpose — the helper classes in globals.css
+            are plain CSS and would lose to (or fight with) `pb-6`. */}
         {actions && (
-          <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-6 pt-2">
+          <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-6 pt-2 max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
             {actions}
           </div>
         )}

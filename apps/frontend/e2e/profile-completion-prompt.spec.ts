@@ -149,10 +149,11 @@ test.describe("Profile Completion Prompt — behavior matrix", () => {
     await expect(dialog.getByText("پروفایلت رو کامل کن")).toBeVisible();
     // Real product-backed reward value (PROFILE_COMPLETED = 1000).
     await expect(dialog.getByText(/۱٬۰۰۰ امتیاز/)).toBeVisible();
-    // Three distinct actions.
+    // Three distinct actions. Suppress is a checkbox row (a choice); the
+    // other two are buttons.
     await expect(dialog.getByRole("button", { name: "انصراف" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "تکمیل پروفایل" })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "دیگر این پیام را به من نشان نده" })).toBeVisible();
+    await expect(dialog.getByRole("checkbox", { name: "دیگر این پیام را به من نشان نده" })).toBeVisible();
   });
 
   test("انصراف closes the modal and it reappears on re-login", async ({ page, request }) => {
@@ -184,7 +185,9 @@ test.describe("Profile Completion Prompt — behavior matrix", () => {
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await dialog.getByRole("button", { name: "دیگر این پیام را به من نشان نده" }).click();
+    // The control is a checkbox row: the label IS the click target (the input
+    // itself is sr-only, so clicking it directly is not what a user does).
+    await dialog.getByText("دیگر این پیام را به من نشان نده").click();
     await expect(dialog).toHaveCount(0);
 
     // Re-login as the same user — the suppress preference is persisted server-side.
@@ -204,7 +207,7 @@ test.describe("Profile Completion Prompt — behavior matrix", () => {
     await page.goto("/dashboard");
     const dialogA = page.getByRole("dialog");
     await expect(dialogA).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await dialogA.getByRole("button", { name: "دیگر این پیام را به من نشان نده" }).click();
+    await dialogA.getByText("دیگر این پیام را به من نشان نده").click();
     await expect(dialogA).toHaveCount(0);
 
     // User B (different account) must still see the prompt.

@@ -128,7 +128,12 @@ export function useProfileCompletionPrompt(): ProfileCompletionPromptController 
   return useMemo(
     () => ({
       phase,
-      open: phase === "OPEN",
+      // ERROR stays on screen. A failed save used to flip `open` to false,
+      // which unmounted the dialog in the same render as the failure — so the
+      // modal vanished with no explanation and the «تلاش دوباره» row could
+      // never be seen or clicked. The error state is still "the prompt is on
+      // screen", just with its error row rendered.
+      open: phase === "OPEN" || phase === "ERROR",
       loading: phase === "INITIALIZING" || phase === "LOADING_USER" || phase === "LOADING_PREFERENCES" || phase === "EVALUATING",
       saving: phase === "SAVING_PREFERENCE",
       error: suppressError,

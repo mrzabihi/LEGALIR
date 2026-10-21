@@ -42,7 +42,15 @@ describe("ProfileCompletionPromptModal", () => {
     render(<ProfileCompletionPromptModal controller={makeController()} />);
     expect(screen.getByRole("button", { name: "انصراف" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تکمیل پروفایل" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "دیگر این پیام را به من نشان نده" })).toBeInTheDocument();
+    // Suppress is a choice, so it is exposed as a checkbox, not a button.
+    expect(
+      screen.getByRole("checkbox", { name: "دیگر این پیام را به من نشان نده" })
+    ).toBeInTheDocument();
+  });
+
+  it("exposes an accessible dismiss control in the header", () => {
+    render(<ProfileCompletionPromptModal controller={makeController()} />);
+    expect(screen.getByRole("button", { name: "بستن" })).toBeInTheDocument();
   });
 
   it("انصراف calls cancel (close only)", () => {
@@ -62,7 +70,16 @@ describe("ProfileCompletionPromptModal", () => {
   it("suppress action calls suppress (persist)", () => {
     const controller = makeController();
     render(<ProfileCompletionPromptModal controller={controller} />);
-    fireEvent.click(screen.getByRole("button", { name: "دیگر این پیام را به من نشان نده" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "دیگر این پیام را به من نشان نده" }));
+    expect(controller.suppress).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppress row is the click target, not just the box", () => {
+    const controller = makeController();
+    render(<ProfileCompletionPromptModal controller={controller} />);
+    // The Checkbox's own label element wraps box + text, so clicking the
+    // text must fire the same action as clicking the box.
+    fireEvent.click(screen.getByText("دیگر این پیام را به من نشان نده"));
     expect(controller.suppress).toHaveBeenCalledTimes(1);
   });
 

@@ -128,7 +128,7 @@ describe("useProfileCompletionPrompt — انصراف vs suppress", () => {
     expect(result.current.saving).toBe(false);
   });
 
-  it("suppress surfaces an error and stays open on failure", async () => {
+  it("suppress surfaces an error and STAYS OPEN so the error is visible", async () => {
     const { result } = renderHook(() => useProfileCompletionPrompt());
     await waitFor(() => expect(result.current.open).toBe(true));
 
@@ -137,7 +137,10 @@ describe("useProfileCompletionPrompt — انصراف vs suppress", () => {
     act(() => onError());
 
     expect(result.current.error).toBe(true);
-    expect(result.current.open).toBe(false); // modal closed, error surfaced
+    // Regression guard: closing here unmounted the dialog in the same render,
+    // so the «تلاش دوباره» row could never be seen or acted on.
+    expect(result.current.open).toBe(true);
+    expect(result.current.saving).toBe(false);
   });
 
   it("retry reopens the modal after an error", async () => {
