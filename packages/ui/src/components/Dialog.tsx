@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
+import {
+  acquireOverlayLayer,
+  isTopOverlayLayer,
+  releaseOverlayLayer,
+  type OverlayToken,
+} from "../lib/overlay-layer";
 
 interface DialogProps {
   open: boolean;
@@ -73,6 +79,17 @@ export function Dialog({
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  // This dialog's entry in the shared layer stack. Two dialogs — or a dialog
+  // over a drawer — may be open at once; only the newest may answer Escape.
+  const layerToken = useRef<OverlayToken | null>(null);
+
+  // aria ids must be unique per instance. Two stacked dialogs used to share the
+  // literal "dialog-title", so the lower one was labelled by the upper one's
+  // heading (screen readers announced the wrong title, and `getElementById`
+  // resolved to the wrong node).
+  const baseId = useId();
+  const titleId = `${baseId}-dialog-title`;
+  const descriptionId = `${baseId}-dialog-description`;
 
   // Latest `onClose`/`persistent` reachable from the stable keydown listener
   // below without making them dependencies. A changing `onClose` identity (the
@@ -93,6 +110,11 @@ export function Dialog({
 
   // Trap focus and handle escape. Identity is stable (empty deps) on purpose.
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only the topmost overlay reacts. Without this, one Escape closed a
+    // confirm dialog AND the record drawer that opened it, discarding the
+    // form the user was working in.
+    if (!isTopOverlayLayer(layerToken.current)) return;
+
     if (e.key === "Escape" && !persistentRef.current) {
       onCloseRef.current();
       return;
@@ -132,14 +154,21 @@ export function Dialog({
     }
   }, []);
 
-  // Body scroll lock + key listener — tied ONLY to `open`.
+  // Layer registration + body scroll lock — tied ONLY to `open`.
+  //
+  // The lock is now reference counted (see lib/overlay-layer): a dialog opened
+  // over a drawer increments the depth, and closing it only decrements. Writing
+  // `overflow = ""` here on close used to release the lock for the whole page
+  // while the drawer underneath still covered it.
   useEffect(() => {
     if (!open) return;
     document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
+    const token = acquireOverlayLayer();
+    layerToken.current = token;
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      layerToken.current = null;
+      releaseOverlayLayer(token);
     };
   }, [open, handleKeyDown]);
 
@@ -200,8 +229,8 @@ export function Dialog({
         // Focusable so `initialFocus="container"` can move focus to the
         // surface itself. `-1` keeps it out of the Tab order.
         tabIndex={-1}
-        aria-labelledby={title ? "dialog-title" : undefined}
-        aria-describedby={description ? "dialog-description" : undefined}
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
         className={[
           "relative flex w-full flex-col bg-surface rounded-large shadow-elevation-24 ring-1 ring-black/5",
           // The surface can hold focus (`initialFocus="container"`), which
@@ -231,12 +260,12 @@ export function Dialog({
           >
             <div className={closeButton ? "min-w-0 flex-1" : undefined}>
               {title && (
-                <h2 id="dialog-title" className="text-headlineSmall font-medium text-on-surface">
+                <h2 id={titleId} className="text-headlineSmall font-medium text-on-surface">
                   {title}
                 </h2>
               )}
               {description && (
-                <p id="dialog-description" className="mt-1 text-bodyMedium text-on-surface-variant">
+                <p id={descriptionId} className="mt-1 text-bodyMedium text-on-surface-variant">
                   {description}
                 </p>
               )}

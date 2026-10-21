@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useEffect, useCallback, useRef } from "react";
+import { IconButton } from "./IconButton";
+import {
+  acquireOverlayLayer,
+  isTopOverlayLayer,
+  releaseOverlayLayer,
+  type OverlayToken,
+} from "../lib/overlay-layer";
 
 interface DrawerProps {
   open: boolean;
@@ -21,6 +28,9 @@ export function Drawer({
 }: DrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  // This drawer's entry in the shared layer stack — a Dialog opened from the
+  // drawer registers above it, so only one of them answers a keypress.
+  const layerToken = useRef<OverlayToken | null>(null);
 
   // Keep the latest `onClose` reachable from the stable listener below without
   // making it a dependency — a changing `onClose` identity (an inline arrow
@@ -32,6 +42,11 @@ export function Drawer({
   });
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only the topmost overlay reacts: Escape while a confirm dialog sits above
+    // this drawer must close the dialog, not the drawer (and not both, which is
+    // what two independent document listeners used to do).
+    if (!isTopOverlayLayer(layerToken.current)) return;
+
     if (e.key === "Escape") {
       onCloseRef.current();
       return;
@@ -76,14 +91,21 @@ export function Drawer({
     }
   }, []);
 
-  // Body scroll lock — tied ONLY to `open`.
+  // Layer registration + body scroll lock — tied ONLY to `open`.
+  //
+  // The lock is reference counted (lib/overlay-layer), so a dialog opened from
+  // this drawer and then closed leaves the page frozen until the drawer itself
+  // goes away. The key listener stays separate: `open` alone must not re-run
+  // the registration, and `handleKeyDown` has a stable identity.
   useEffect(() => {
     if (!open) return;
     document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
+    const token = acquireOverlayLayer();
+    layerToken.current = token;
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      layerToken.current = null;
+      releaseOverlayLayer(token);
     };
   }, [open, handleKeyDown]);
 
@@ -135,17 +157,25 @@ export function Drawer({
         style={{ width, maxWidth: "100%" }}
       >
         {title && (
-          <div className="flex items-center justify-between p-4 border-b border-divider">
+          <div className="flex items-center justify-between gap-2 border-b border-divider p-4">
             <h2 className="text-titleLarge text-onSurface">{title}</h2>
-            <button
+            {/* The shared IconButton, not a hand-rolled <button>: the drawer's
+                dismiss control is the first Tab stop in the panel, so it must
+                carry the same 48px MD3 target and focus ring as every other
+                icon action. `-m-2` pulls the 48px target back onto the same
+                optical corner the 40px glyph used to occupy. */}
+            <IconButton
+              variant="standard"
+              size="medium"
+              label="بستن منو"
               onClick={onClose}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors"
-              aria-label="بستن منو"
+              className="-m-2"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              {/* Material "close" glyph, same path the panel used inline. */}
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-full w-full">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
               </svg>
-            </button>
+            </IconButton>
           </div>
         )}
         <div className="flex-1 p-4">{children}</div>

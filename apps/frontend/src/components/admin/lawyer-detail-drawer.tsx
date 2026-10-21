@@ -27,7 +27,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Drawer, snackbar } from "@legalir/ui";
+import { Dialog, Drawer, snackbar } from "@legalir/ui";
 import {
   useAdminLawyer,
   useAdminMe,
@@ -228,48 +228,23 @@ function ReasonDialog({
   const [reason, setReason] = useState("");
   const valid = !requireReason || reason.trim().length >= minLength;
 
+  // Built on the shared Dialog rather than a local `fixed z-[60]` panel. This
+  // dialog is ALWAYS opened from inside the lawyer Drawer, so it has to join
+  // the shared overlay layer stack — otherwise it is invisible to the drawer's
+  // trap: Escape here would skip the dialog and dismiss the dossier underneath,
+  // and Tab would walk the form behind it.
+  //
+  // `persistent` while a request is in flight: the reason text must not be
+  // thrown away by a stray backdrop click or Escape mid-submit.
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-scrim backdrop-blur-[2px]"
-        onClick={busy ? undefined : onClose}
-        aria-hidden="true"
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="lawyer-reason-title"
-        className="relative w-full max-w-md rounded-large bg-surface p-6 shadow-elevation-24"
-      >
-        <h2 id="lawyer-reason-title" className="text-headlineSmall text-on-surface">
-          {title}
-        </h2>
-        <div className="mt-1 text-body-2 text-on-surface-variant">{description}</div>
-
-        {destructive && (
-          <div className="mt-3">
-            <InfoBanner tone="warning">
-              این عملیات بلافاصله در سایت عمومی اثر می‌گذارد. دلیل را دقیق ثبت کنید.
-            </InfoBanner>
-          </div>
-        )}
-
-        <div className="mt-4">
-          <Field
-            label={requireReason ? "دلیل (الزامی)" : "دلیل (اختیاری)"}
-            hint="این متن در گزارش عملیات (Audit Log) ثبت می‌شود."
-          >
-            <TextArea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              autoFocus
-              placeholder="دلیل این تغییر…"
-            />
-          </Field>
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2">
+    <Dialog
+      open
+      onClose={onClose}
+      persistent={busy}
+      title={title}
+      maxWidth="md"
+      actions={
+        <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             انصراف
           </Button>
@@ -280,9 +255,34 @@ function ReasonDialog({
           >
             {busy ? "در حال ثبت…" : confirmLabel}
           </Button>
+        </>
+      }
+    >
+      <div className="text-body-2 text-on-surface-variant">{description}</div>
+
+      {destructive && (
+        <div className="mt-3">
+          <InfoBanner tone="warning">
+            این عملیات بلافاصله در سایت عمومی اثر می‌گذارد. دلیل را دقیق ثبت کنید.
+          </InfoBanner>
         </div>
+      )}
+
+      <div className="mt-4">
+        <Field
+          label={requireReason ? "دلیل (الزامی)" : "دلیل (اختیاری)"}
+          hint="این متن در گزارش عملیات (Audit Log) ثبت می‌شود."
+        >
+          <TextArea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            autoFocus
+            placeholder="دلیل این تغییر…"
+          />
+        </Field>
       </div>
-    </div>
+    </Dialog>
   );
 }
 

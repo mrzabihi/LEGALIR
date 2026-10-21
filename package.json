@@ -1,6 +1,6 @@
 {
   "name": "legalir",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "LEGALIR — AI-powered Iranian legal platform",
   "workspaces": [
