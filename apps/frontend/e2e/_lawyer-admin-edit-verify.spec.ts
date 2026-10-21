@@ -125,11 +125,24 @@ test.describe("lawyer · caseload", () => {
       await expect(page.getByRole("tab", { name: label })).toBeVisible();
     }
 
-    // Each tab renders content (never a crash).
-    await page.getByRole("tab", { name: "وظایف" }).click();
-    await expect(page.getByRole("tabpanel")).toBeVisible();
-    await page.getByRole("tab", { name: "مهلت‌ها" }).click();
-    await expect(page.getByRole("tabpanel")).toBeVisible();
+    // Each tab renders its own content (never a crash). The shared `Tabs`
+    // primitive is tablist/tab only — there is no `tabpanel` element — so the
+    // proof is the selected state plus a body that actually swapped.
+    const body = page.getByRole("main");
+    const overviewText = await body.innerText();
+
+    const tasksTab = page.getByRole("tab", { name: /وظایف/ });
+    await tasksTab.click();
+    await expect(tasksTab).toHaveAttribute("aria-selected", "true");
+    const tasksText = await body.innerText();
+    expect(tasksText).not.toBe(overviewText);
+    expect(tasksText).not.toContain("وضعیت پرونده");
+
+    const deadlinesTab = page.getByRole("tab", { name: /مهلت‌ها/ });
+    await deadlinesTab.click();
+    await expect(deadlinesTab).toHaveAttribute("aria-selected", "true");
+    const deadlinesText = await body.innerText();
+    expect(deadlinesText).not.toBe(tasksText);
 
     expect(errors).toEqual([]);
   });
@@ -189,4 +202,16 @@ test.describe("admin · the same fields are editable from the operator side", ()
     await expect(page.getByText("دریافت ارجاع تازه")).toBeVisible();
     await expect(page.getByText(/شهر و محدودهٔ خدمات/)).toBeVisible();
 
-    // Rates tab — th
+    // Rates tab — the operator can set a price.
+    await page.getByRole("tab", { name: /نرخ‌ها/ }).click();
+    await expect(page.getByText("افزودن / تغییر نرخ یک خدمت")).toBeVisible();
+
+    // Bank tab — the operator can replace the account with a recorded reason.
+    await page.getByRole("tab", { name: /حساب تسویه/ }).click();
+    await page.getByRole("button", { name: "اصلاح اطلاعات حساب" }).click();
+    await expect(page.getByText("دلیل تغییر (الزامی)")).toBeVisible();
+    await expect(page.getByText(/شمارهٔ شبا/).first()).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
+});

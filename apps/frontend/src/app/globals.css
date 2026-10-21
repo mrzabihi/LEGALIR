@@ -4559,20 +4559,29 @@ button.landing-card:active {
   display: none;
 }
 
+/* The marker is a chevron drawn from two borders of a square. Physical
+   `right`/`bottom` — NOT the logical `inline-end`/`block-end` pair — because
+   this page is RTL: `inline-end` resolves to the LEFT edge, which leaves the
+   vertex at the bottom-start corner instead of the bottom-end one, and the
+   rotated square then points left. A left-pointing marker on a disclosure
+   reads as «back», not «expand», and the open state pointed the same way.
+
+   With the vertex at bottom-right, +45° puts it straight down (closed) and
+   +225° straight up (open), which is the contract the reader expects. */
 .landing-faq summary::after {
   content: "";
   flex: none;
   width: 0.625rem;
   height: 0.625rem;
   margin-inline-start: auto;
-  border-inline-end: 2px solid currentColor;
-  border-block-end: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
   transform: rotate(45deg) translate(-1px, -1px);
   transition: transform 250ms var(--ln-ease);
 }
 
 .landing-faq details[open] summary::after {
-  transform: rotate(-135deg) translate(-2px, -2px);
+  transform: rotate(225deg) translate(-2px, -2px);
 }
 
 .landing-faq summary:focus-visible {
