@@ -39,8 +39,9 @@ export function Drawer({
 
     // Focus trap within drawer
     if (e.key === "Tab" && drawerRef.current) {
+      const container = drawerRef.current;
       const focusable = Array.from(
-        drawerRef.current.querySelectorAll<HTMLElement>(
+        container.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         )
       ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
@@ -49,11 +50,26 @@ export function Drawer({
 
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
 
-      if (e.shiftKey && document.activeElement === first) {
+      // A drawer has no on-open autofocus, so focus is still on whatever opened
+      // it — outside the panel, over the page behind the scrim. Tab from there
+      // used to walk that page instead of entering the drawer. Focus outside
+      // the panel (or nowhere at all) is therefore a boundary in both
+      // directions: Tab pulls it in at the first control, Shift+Tab at the
+      // last. Same rule the shared Dialog applies to its own surface.
+      //
+      // Exception: a Dialog opened FROM a drawer is portalled to <body>, so it
+      // is outside this container in DOM terms while sitting on top of it. The
+      // drawer must not drag focus out of a modal stacked above it.
+      const stacked = active instanceof Element ? active.closest('[role="dialog"]') : null;
+      const ownedByOtherModal = !!stacked && stacked !== container;
+      const atBoundary = !ownedByOtherModal && (!active || !container.contains(active));
+
+      if (e.shiftKey && (atBoundary || active === first)) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
+      } else if (!e.shiftKey && (atBoundary || active === last)) {
         e.preventDefault();
         first.focus();
       }

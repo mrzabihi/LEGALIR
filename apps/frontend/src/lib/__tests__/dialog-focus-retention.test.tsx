@@ -154,18 +154,19 @@ function PromptHarness() {
   );
 }
 
-describe("Dialog — the focus trap keeps a container-focused dialog closed", () => {
-  // The trap skips controls that are not laid out (`offsetParent === null`),
-  // and jsdom never lays anything out — so every control would be filtered out
-  // and the trap would no-op. Report a parent for any attached node.
-  beforeAll(() => {
-    Object.defineProperty(HTMLElement.prototype, "offsetParent", {
-      configurable: true,
-      get() {
-        return this.parentNode;
-      },
-    });
+// The traps skip controls that are not laid out (`offsetParent === null`), and
+// jsdom never lays anything out — so every control would be filtered out and
+// both traps would no-op. Report a parent for any attached node.
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+    configurable: true,
+    get() {
+      return this.parentNode;
+    },
   });
+});
+
+describe("Dialog — the focus trap keeps a container-focused dialog closed", () => {
 
   it("focuses the surface on open, not a control", async () => {
     render(<PromptHarness />);
@@ -197,5 +198,70 @@ describe("Dialog — the focus trap keeps a container-focused dialog closed", ()
 
     expect(dialog.contains(document.activeElement)).toBe(true);
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "بستن" }));
+  });
+});
+
+/**
+ * The drawer's own gap: no on-open autofocus, so focus stays on whatever
+ * opened the panel (a row's «ویرایش», the sidebar toggle) — outside the
+ * drawer. Tab used to walk the page behind the scrim from there.
+ */
+function DrawerTrapHarness() {
+  return (
+    <Drawer open onClose={() => undefined} title="یادداشت">
+      <input aria-label="یادداشت" />
+      <button type="button">ذخیره</button>
+    </Drawer>
+  );
+}
+
+describe("Drawer — the focus trap pulls focus in from outside the panel", () => {
+  it("pulls focus in at the first control when Tab starts outside the drawer", async () => {
+    const outside = document.createElement("button");
+    outside.textContent = "بیرون";
+    document.body.appendChild(outside);
+    outside.focus();
+    expect(document.activeElement).toBe(outside);
+
+    render(<DrawerTrapHarness />);
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    const drawer = screen.getByRole("dialog");
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "بستن منو" }));
+
+    outside.remove();
+  });
+
+  it("pulls focus in at the last control when Shift+Tab starts outside the drawer", async () => {
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    outside.focus();
+
+    render(<DrawerTrapHarness />);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "ذخیره" }));
+
+    outside.remove();
+  });
+
+  it("leaves focus alone when a Dialog stacked above the drawer holds it", async () => {
+    render(
+      <>
+        <DrawerTrapHarness />
+        <Dialog open onClose={() => undefined} title="تأیید">
+          <button type="button">تأیید حذف</button>
+        </Dialog>
+      </>,
+    );
+
+    const stackedButton = screen.getByRole("button", { name: "تأیید حذف" });
+    act(() => stackedButton.focus());
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    // The drawer must not steal focus out of the modal sitting on top of it.
+    expect(document.activeElement).toBe(stackedButton);
   });
 });
