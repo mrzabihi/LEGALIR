@@ -156,7 +156,6 @@ function JudicialLauncher() {
   const [error, setError] = useState<string | null>(null);
 
   const summary = card.data?.summary;
-  const settings = summary?.settings;
   const capabilities = card.data?.capabilities;
 
   // The family shell names the page; the SELECTED document type names the
@@ -167,8 +166,22 @@ function JudicialLauncher() {
   const enabled = kindService
     ? kindService.availability === "available"
     : (summary?.availability.enabled ?? false);
-  const kindDescriptionFa =
-    kindService?.descriptionFa ?? settings?.descriptionFa ?? JUDICIAL_FAMILY_DESCRIPTION_FA;
+  // No fallback to the family `settings.descriptionFa`: that string describes the
+  // family, which the page header already says. Falling back to it made the
+  // form print a second, near-identical sentence a paint after load — visible
+  // as a 48 px line appearing under the form heading and pushing the form
+  // down (see the `availabilityKnown` note below).
+  const kindDescriptionFa = kindService?.descriptionFa ?? JUDICIAL_FAMILY_DESCRIPTION_FA;
+
+  // Availability may only be *stated* once the selected kind's own row has
+  // been read. Before that the old code spoke anyway — it fell back to the
+  // card summary, whose `enabled` is false until the service row is merged in,
+  // so the page asserted "not available", then took it back a paint later.
+  // Two answers, two paints: the availability note and the "the start button
+  // is disabled" line appeared and vanished, taking everything below them
+  // with them (measured 0.41 CLS at 390 px). The button stays inert until the
+  // answer is real — it just no longer narrates a state it does not know.
+  const availabilityKnown = Boolean(kindService) || services.isSuccess;
 
   // The declaration is its own service with its own entry point, so the page
   // must name it with its own words. Every other family keeps the shared
@@ -212,25 +225,17 @@ function JudicialLauncher() {
 
   return (
     <PageContainer dir="rtl">
+      {/* The availability chip used to ride in the header's title row. It is
+          written by the same two queries that rename the title, so it never
+          appeared in the first paint: the long family title fitted on one line
+          alone, then wrapped the moment the chip arrived, then un-wrapped when
+          the service's own (shorter) title replaced it — a 34 px jump down and
+          back up. Here it sits beside the heading of the block it actually
+          gates, on a row that is the chip's own height in every state. */}
       <CompactPageHeader
         eyebrow={JUDICIAL_FAMILY_EYEBROW_FA}
         title={headerTitleFa}
         description={headerDescriptionFa}
-        badge={
-          kindService ? (
-            <StatusBadge
-              label={JUDICIAL_STATUS_FA[kindService.availability]}
-              tone={JUDICIAL_STATUS_TONE[kindService.status]}
-              dot={false}
-            />
-          ) : summary ? (
-            <StatusBadge
-              label={summary.availability.statusLabelFa}
-              tone={JUDICIAL_STATUS_TONE[summary.settings.status]}
-              dot={false}
-            />
-          ) : undefined
-        }
         breadcrumb={[{ label: "پرونده‌ها", href: "/cases" }, { label: "تنظیم دادخواست و شکواییه" }]}
         actions={
           <Link
@@ -262,17 +267,31 @@ function JudicialLauncher() {
         </div>
       )}
 
-      {card.isLoading && (
-        <div className="mt-4 animate-pulse space-y-3">
-          <div className="h-24 rounded-large bg-surface-container" />
-          <div className="h-64 rounded-large bg-surface-container" />
-        </div>
-      )}
-
-      {capabilities && (
+      {/* While the service state is still loading there is no page-level
+          placeholder: the start form below renders immediately and is already
+          inert (`fieldset disabled`, button disabled), so it IS the loading
+          state. A pair of generic blocks used to sit here instead — 364 px of
+          placeholder above a ~900 px form — and they vanished the moment the
+          query resolved, taking the form up with them (measured CLS 0.37 on a
+          390 px viewport, past the 0.25 "poor" boundary).
+          Only the availability note is reserved, because it is the one thing
+          that genuinely arrives late. */}
+      {capabilities ? (
         <p className="mt-4 flex items-start gap-2 rounded-medium bg-surface-container-low px-3 py-2 text-caption leading-6 text-on-surface-variant">
           <IconInfo size={15} className="mt-0.5 shrink-0" />
           {capabilities.filingNoteFa}
+        </p>
+      ) : (
+        // Two bars below `tablet`, one above it — the same `leading-6` lines
+        // the note wraps to at each width, plus the note's own `py-2`. A flat
+        // `min-h-[64px]` matched the phone but left a 24 px gap on desktop,
+        // which is exactly the jump it was meant to remove.
+        <p
+          aria-hidden="true"
+          className="mt-4 animate-pulse rounded-medium bg-surface-container-low px-3 py-2"
+        >
+          <span className="block h-6 rounded bg-surface-container" />
+          <span className="block h-6 rounded bg-surface-container tablet:hidden" />
         </p>
       )}
 
@@ -295,16 +314,27 @@ function JudicialLauncher() {
         aria-labelledby="judicial-start-title"
         className="mt-6 rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4 tablet:p-5"
       >
-        <h2 id="judicial-start-title" className="text-titleMedium text-on-surface">
-          درخواست جدید
-        </h2>
+        {/* The chip and the heading are both 26 px, so this row is the same
+            height whether or not availability has been read yet. */}
+        <div className="flex min-h-[26px] flex-wrap items-center gap-2">
+          <h2 id="judicial-start-title" className="text-titleMedium text-on-surface">
+            درخواست جدید
+          </h2>
+          {kindService && (
+            <StatusBadge
+              label={JUDICIAL_STATUS_FA[kindService.availability]}
+              tone={JUDICIAL_STATUS_TONE[kindService.status]}
+              dot={false}
+            />
+          )}
+        </div>
         {/* The declaration already explains itself in the page header; a
             second identical line would just repeat it. */}
         {kindDescriptionFa !== headerDescriptionFa && (
           <p className="mt-1 text-body-2 text-on-surface-variant">{kindDescriptionFa}</p>
         )}
 
-        {!enabled && !card.isLoading && (
+        {availabilityKnown && !enabled && (
           <p className="mt-3 rounded-medium bg-surface-container px-3 py-2 text-caption leading-6 text-on-surface-variant">
             {card.data?.summary.availability.noteFa ??
               "این خدمت در حال حاضر برای حساب شما فعال نیست. پس از فعال شدن، از همین صفحه می‌توانید شروع کنید."}
@@ -392,7 +422,7 @@ function JudicialLauncher() {
           >
             شروع تنظیم
           </Button>
-          {!enabled && (
+          {availabilityKnown && !enabled && (
             <span className="text-caption text-on-surface-variant">
               تا فعال شدن خدمت، دکمهٔ شروع غیرفعال است.
             </span>
