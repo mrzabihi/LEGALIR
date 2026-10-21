@@ -77,6 +77,18 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [320, 375, 600, 900, 1024, 1440],
     minimumCacheTTL: 60 * 60 * 24,
+    // Which local `src` values next/image may optimize. Unset, Next 15 allows
+    // every local path but warns about query strings, and Next 16 makes that an
+    // error — so the two shapes we actually use are declared here: ordinary
+    // public assets (no query), and a stored lawyer portrait, whose
+    // `?v=<content-hash>` token must stay part of the optimizer's cache key so
+    // a replaced portrait is fetched fresh instead of served from cache.
+    // `search` is compared EXACTLY (no wildcards), so the avatar pattern omits
+    // it — "any query" — rather than trying to describe a variable hash.
+    localPatterns: [
+      { pathname: "/**", search: "" },
+      { pathname: "/api/v1/lawyers/**/avatar" },
+    ],
   },
 
   // Compress responses

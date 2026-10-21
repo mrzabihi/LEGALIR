@@ -10,9 +10,19 @@
 //
 // Demo portraits are synthetic. The alt text says «تصویر نمایه» (profile
 // image) and never claims to be a real photograph of the named person.
+//
+// The portrait goes through `next/image` rather than a raw <img>. An uploaded
+// portrait is stored at its original resolution and these tiles render it at
+// 44–96 px: three ~1.6 MB uploads on the marketplace alone added 4.7 MB to one
+// /lawyers load. The optimizer serves the same picture at 1.2–2.4 KB, and it
+// keeps the avatar's own `?v=<hash>` URL as the cache key, so a replaced
+// portrait is still fetched fresh. `data:` portraits (the synthetic demo SVGs)
+// are passed through untouched — next/image detects the scheme and leaves them
+// unoptimized, so one component covers both.
 // ============================================================
 
 import { useState } from "react";
+import Image from "next/image";
 import type { LawyerAvatarType } from "@legalir/types";
 import { TONE_DOT_CLASS, type AvailabilityTone } from "@/lib/lawyers/availability";
 
@@ -57,14 +67,12 @@ export function LawyerAvatar({
     >
       <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary-container shadow-elevation-1 ring-2 ring-surface">
         {showImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={avatarUrl!}
             alt={`تصویر نمایه ${name}`}
             width={size}
             height={size}
             loading="lazy"
-            decoding="async"
             data-avatar-type={avatarType}
             onError={() => setFailedUrl(avatarUrl)}
             className="h-full w-full object-cover"

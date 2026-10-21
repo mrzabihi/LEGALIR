@@ -12,6 +12,19 @@ import { render, fireEvent } from "@testing-library/react";
 
 import { LawyerAvatar } from "@/components/lawyers/lawyer-avatar";
 
+/**
+ * The portrait URL the DOM actually points at, regardless of whether it was
+ * wrapped by the image optimizer. These tests care that the *stored* portrait
+ * is the one requested (and that a replaced portrait is re-requested), not
+ * which layer fetches it — the component moved from a raw <img> to next/image
+ * precisely so an oversized upload is not served at full resolution.
+ */
+function requestedSrc(img: Element | null): string | null {
+  const src = img?.getAttribute("src") ?? null;
+  if (!src || !src.includes("/_next/image")) return src;
+  return new URL(src, "http://localhost:3000").searchParams.get("url");
+}
+
 describe("LawyerAvatar", () => {
   it("renders the initials chip when no avatar is set", () => {
     const { container } = render(<LawyerAvatar name="علی ذبیحی" avatarUrl={null} avatarType="real" />);
@@ -25,7 +38,7 @@ describe("LawyerAvatar", () => {
     );
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
-    expect(img?.getAttribute("src")).toBe("/api/v1/lawyers/l1/avatar?v=abc");
+    expect(requestedSrc(img)).toBe("/api/v1/lawyers/l1/avatar?v=abc");
   });
 
   it("degrades to the initials chip when the image fails to load", () => {
@@ -52,6 +65,6 @@ describe("LawyerAvatar", () => {
     );
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
-    expect(img?.getAttribute("src")).toBe("/api/v1/lawyers/l1/avatar?v=new");
+    expect(requestedSrc(img)).toBe("/api/v1/lawyers/l1/avatar?v=new");
   });
 });

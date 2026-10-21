@@ -58,10 +58,14 @@ const ADMIN_HOST_HEADER = { Host: "admin.localhost:3000" };
 //   route            measured (bytes / requests / LCP)
 //   /                1.49 MB / 53 / 904 ms
 //   /pricing         1.09 MB / 26 / 340 ms
-//   /lawyers         6.50 MB / 63 / 1024 ms   (avatar images dominate)
+//   /lawyers         1.46 MB / 63 /  710 ms
 //   /dashboard       1.53 MB / 65 / 708 ms
 //   /admin           1.34 MB / 40 / 1088 ms
 //   /admin/plans     1.34 MB / 39 / 820 ms
+//
+// /lawyers measured 6.50 MB before its portraits went through next/image: three
+// ~1.6 MB uploads were being served at full resolution to 64 px tiles. The
+// route now sits with the rest, so its ceiling is the same order as theirs.
 //
 // Doubling headroom catches the regressions this gate exists for — an added
 // request waterfall, an un-cached asset re-fetch, a page that starts polling —
@@ -84,7 +88,7 @@ interface RouteBudget {
 const BUDGETS: Record<string, RouteBudget> = {
   [`${MAIN}/`]: { label: "/", bytes: 3_200_000, requests: 120 },
   [`${MAIN}/pricing`]: { label: "/pricing", bytes: 2_800_000, requests: 100 },
-  [`${MAIN}/lawyers`]: { label: "/lawyers", bytes: 13_500_000, requests: 140 },
+  [`${MAIN}/lawyers`]: { label: "/lawyers", bytes: 3_200_000, requests: 140 },
   [`${MAIN}/dashboard`]: { label: "/dashboard", bytes: 3_200_000, requests: 140 },
   [`${ADMIN}/admin`]: { label: "admin.localhost/admin", bytes: 2_800_000, requests: 100 },
   [`${ADMIN}/admin/plans`]: {
