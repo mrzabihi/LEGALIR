@@ -29,6 +29,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Textarea } from "@legalir/ui";
 import { IconArrowBack, IconWarning } from "@/lib/icons";
+import { toPersianDigits } from "@/lib/persian-utils";
 import { useSessionStatus } from "@/lib/auth/use-auth";
 import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { useAuthStore } from "@/stores/auth-store";
@@ -120,11 +121,16 @@ export function LandingStartCard() {
           <p className="mt-2 text-[13.5px] leading-7 text-[color:var(--ln-ink-soft)] tablet:text-[14px]">
             موضوع حقوقی‌تان را کوتاه بنویسید تا مسیر مناسب را بررسی کنیم.
           </p>
-          <p className="mt-3 flex items-start gap-1.5 text-[11.5px] leading-6 text-[color:var(--ln-muted)]">
+          <p className="mt-3 flex items-center gap-2 text-[11.5px] leading-6 text-[color:var(--ln-muted)]">
+            {/* Same marker as the hero: amber, doubled, with an ink outline
+                so the pale gold keeps an edge. It points into the sentence
+                (RTL) rather than back against it, which is why the icon's
+                automatic mirroring is switched off here. */}
             <IconArrowBack
-              size={13}
+              size={26}
+              rtlFlip={false}
               aria-hidden="true"
-              className="mt-1.5 shrink-0 text-[color:var(--ln-faint)]"
+              className="landing-marker shrink-0"
             />
             متن شما فقط در همین تب و تا رسیدن به مرحلهٔ بعد نگه داشته می‌شود.
           </p>
@@ -143,6 +149,14 @@ export function LandingStartCard() {
             rows={3}
             maxLength={LANDING_START_MAX_LENGTH}
             showCharCount
+            /* No Latin digit on this page: the counter is printed with
+               Persian numerals, and the pair is isolated so the RTL
+               paragraph cannot reorder «۳۰۰/۰» into a mirrored run. */
+            formatCharCount={(count, max) => (
+              <span dir="rtl" className="inline-block [unicode-bidi:isolate]">
+                {toPersianDigits(count)}/{toPersianDigits(max)}
+              </span>
+            )}
             fullWidth
             disabled={submitting}
             placeholder="مثلاً: برای بررسی قرارداد اجاره‌ام از کجا شروع کنم؟"

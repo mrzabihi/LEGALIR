@@ -11,8 +11,10 @@
 //   • A shape that is CLIPPED by the section edge reads as a rendering
 //     artifact, not as a design decision — a low-alpha square cut in half
 //     by `overflow: hidden` is indistinguishable from a stray gradient.
-//     Every shape here is therefore fully inside the viewport at the
-//     breakpoint where it appears.
+//     Every shape is therefore fully inside its section on the BLOCK
+//     axis. The inline axis is the one exception: a disc that runs off
+//     the left/right screen edge reads as a deliberate crop (the page is
+//     a page), while one cut by a horizontal rule reads as a mistake.
 //   • A tint at 3–5% alpha needs a hard edge to read as a block. The
 //     colour field is a solid token fill with a radius; only the discs are
 //     soft, because a soft circle reads as depth rather than as a panel.
@@ -32,13 +34,15 @@ function shape(className: string, style: CSSProperties, key: string): ReactNode 
 }
 
 const LAYOUT: Record<GeometryVariant, ReactNode> = {
-  /* Hero — one soft cobalt disc in the top-start corner, behind the
-     headline. It echoes the circle the illustration itself is built
-     around, so the mark reads as part of the same drawing rather than as
-     an added ornament. */
+  /* Hero — one soft cobalt disc in the top-start corner, off the right
+     edge behind the headline's shoulder. It bleeds off the VIEWPORT edge
+     but stays entirely inside the section vertically: a negative
+     block-start would be sliced flat by the section's `overflow: hidden`
+     and leave a straight horizontal line where the circle should curve.
+     Horizontal bleed reads as a crop; vertical bleed reads as a bug. */
   hero: shape(
     "landing-geometry__disc",
-    { width: "30rem", height: "30rem", insetBlockStart: "-11rem", insetInlineStart: "-9rem" },
+    { width: "26rem", height: "26rem", insetBlockStart: "6rem", insetInlineStart: "-8rem" },
     "disc"
   ),
 
@@ -52,13 +56,18 @@ const LAYOUT: Record<GeometryVariant, ReactNode> = {
     "field"
   ),
 
-  /* Closing CTA — the page's last glass panel. A tinted disc sits fully
-     inside the frame behind it, which is what gives the backdrop blur an
-     edge to soften; without a subject the panel's translucency is
-     invisible and the blur is a no-op. */
+  /* Closing CTA — the page's last glass panel. A tinted disc sits behind
+     it, which is what gives the backdrop blur an edge to soften; without
+     a subject the panel's translucency is invisible and the blur is a
+     no-op. Its block-start is POSITIVE: a disc that starts above the
+     section gets guillotined by the section's `overflow: hidden` and
+     leaves a straight horizontal edge, whereas bleeding off the side
+     reads as a deliberate crop. The offset also has to absorb the
+     `[data-ln-depth]` parallax, which lifts this layer by up to 7% of
+     the section height. */
   cta: shape(
     "landing-geometry__disc landing-geometry__disc--soft",
-    { width: "19rem", height: "19rem", insetBlockStart: "-5rem", insetInlineEnd: "-4rem" },
+    { width: "19rem", height: "19rem", insetBlockStart: "3.5rem", insetInlineEnd: "-5rem" },
     "disc"
   ),
 };

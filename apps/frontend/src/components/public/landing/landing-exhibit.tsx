@@ -144,7 +144,9 @@ export function LandingExhibit({
 
   return (
     <div
-      className={`landing-exhibit ${SCALE_CLASS[scale]} ${flip ? "landing-exhibit--flip" : ""} ${className}`}
+      className={`landing-exhibit ${SCALE_CLASS[scale]} ${flip ? "landing-exhibit--flip" : ""} ${
+        !art ? "landing-exhibit--walltext" : secondaryArt ? "landing-exhibit--pair" : ""
+      } ${className}`}
     >
       {/* ---- Media ---------------------------------------------------- */}
       <div className="landing-exhibit__media" data-ln-reveal="0">
@@ -163,7 +165,7 @@ export function LandingExhibit({
           // Two works, one idea. The second plate is deliberately smaller
           // and sits on its own baseline so the pair reads as a comparison,
           // not as two equal panels.
-          <div className="grid w-full grid-cols-2 gap-3 tablet:gap-4">
+          <div className="landing-exhibit__pair grid w-full grid-cols-2 gap-3 tablet:gap-4">
             <Plate
               art={art}
               index={index}
@@ -171,7 +173,7 @@ export function LandingExhibit({
               showCaption={showCaption}
               sizes="(min-width: 900px) 24vw, 46vw"
             />
-            <div className="mt-8 tablet:mt-10">
+            <div className="landing-exhibit__pair-offset mt-8 tablet:mt-10">
               <Plate
                 art={secondaryArt}
                 index=""
@@ -187,26 +189,42 @@ export function LandingExhibit({
             index={index}
             variant={variant}
             showCaption={showCaption}
-            sizes="(min-width: 900px) 46vw, 92vw"
+            // Below 900px the plate is one cell of the bento row — about
+            // half the measure — so asking for a full-width variant would
+            // download twice the pixels the tile can ever show.
+            sizes="(min-width: 900px) 46vw, 50vw"
           />
         )}
       </div>
 
-      {/* ---- Copy ----------------------------------------------------- */}
-      <div className="min-w-0" data-ln-reveal="1">
+      {/* ---- Copy ----------------------------------------------------
+          Three elements, not one. Desktops stack them in a single column and
+          see exactly the old reading order. Phones use them as bento cells:
+          the chapter rule shares a two-cell header row with the plate, the
+          title then runs the full measure, and the body copy sits under both.
+          Splitting the block is what removes the "one picture owning a whole
+          screen, then a block of text" pattern without hiding any copy — the
+          chapter mark, the heading and the paragraph are the same elements
+          either way. Each part carries its own reveal index so GSAP still
+          animates real boxes. */}
+      <div className="landing-exhibit__mark min-w-0" data-ln-reveal="1">
         <p className="landing-chapter">
           <span className="landing-chapter__num">{index}</span>
           <span>{chapter}</span>
         </p>
+      </div>
 
+      <div className="landing-exhibit__head min-w-0" data-ln-reveal="2">
         <h2
           id={headingId}
-          className="mt-4 text-[clamp(1.5rem,1.1rem+1.5vw,2rem)] font-bold leading-[1.3] tracking-[-0.015em] text-[color:var(--ln-ink)] [text-wrap:balance]"
+          className="landing-exhibit__title text-[clamp(1.5rem,1.1rem+1.5vw,2rem)] font-bold leading-[1.3] tracking-[-0.015em] text-[color:var(--ln-ink)] [text-wrap:balance]"
         >
           {title}
         </h2>
+      </div>
 
-        <div className="landing-deck mt-4">{body}</div>
+      <div className="landing-exhibit__text min-w-0" data-ln-reveal="3">
+        <div className="landing-deck">{body}</div>
 
         {footnote && (
           <p className="mt-4 text-[13px] leading-7 text-[color:var(--ln-muted)]">

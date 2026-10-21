@@ -3474,6 +3474,12 @@ html {
   --ln-cobalt-deep: #1e3faf; /* hover */
   --ln-cobalt-soft: #e8eefd; /* Light Cobalt tint */
 
+  /* The one warm mark on the page. Used only on the small leading glyphs
+     that sit in front of a supporting line, never on text and never as a
+     surface. At this size it reads as a highlighter tick rather than as a
+     second accent hue. */
+  --ln-amber: #ffe285;
+
   /* Retired brand aliases — remapped, never emitted as themselves. */
   --ln-navy: #111111;
   --ln-navy-deep: #111111;
@@ -3541,8 +3547,10 @@ html {
   /* Layout */
   --ln-container: 1200px;
   --ln-gutter: 1.25rem;
-  /* Vertical rhythm between exhibits (8px scale). */
-  --ln-space: 4.5rem;
+  /* Vertical rhythm between exhibits (8px scale). Phones get a smaller
+     step: at 390px the gap between two rooms used to be taller than the
+     rooms themselves once the plate became a tile. */
+  --ln-space: 3.25rem;
 
   /* ---- MD3 role aliases (scoped) -------------------------------
      Two shared primitives render on this page from `@legalir/ui`:
@@ -3581,6 +3589,7 @@ html {
   .landing,
   .landing-portal {
     --ln-gutter: 2rem;
+    --ln-space: 4.5rem;
   }
 }
 
@@ -3621,21 +3630,313 @@ html {
 }
 
 /* ------------------------------------------------------------
+   Hero plate — the commissioned 4:5 portrait.
+   The art is drawn on a transparent ground, so the figure is never
+   stretched across its column: a fill would draw a rectangle around
+   nothing. It gets a shadow instead of a card.
+
+   Phones hold it at 74% of the measure, flush to the end edge, with
+   the wall label directly beneath it. That leaves a real margin on the
+   start side — the figure reads as a mounted work, and the first screen
+   is still the headline, not a picture.
+   ------------------------------------------------------------ */
+.landing-hero {
+  display: grid;
+  /* Reading-start edge: the plate lines up under the headline's own right
+     edge, so the eye travels straight down from «حقوق را دقیق‌تر بفهمید»
+     into the drawing. `end` would have pushed it to the opposite side and
+     left the first screen with a hole. */
+  justify-items: start;
+  gap: 0.875rem;
+}
+
+.landing-hero__frame {
+  width: 74%;
+  max-width: 24rem;
+  filter: drop-shadow(0 18px 38px rgb(17 17 17 / 0.08));
+}
+
+.landing-hero__img {
+  display: block;
+  block-size: auto;
+  inline-size: 100%;
+}
+
+.landing-hero__caption {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 74%;
+  max-width: 24rem;
+  border-block-start: 1px solid var(--ln-line);
+  padding-block-start: 0.625rem;
+}
+
+@media (min-width: 600px) {
+  .landing-hero {
+    justify-items: center;
+  }
+  .landing-hero__frame,
+  .landing-hero__caption {
+    width: 100%;
+    max-width: 23rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .landing-hero__frame,
+  .landing-hero__caption {
+    max-width: 30rem;
+  }
+}
+
+/* ------------------------------------------------------------
+   Finale — the closing room, built from the exhibit's own grammar.
+   Above 900px it is the two-column spread it always was (plate first,
+   copy second). Below that the mark and the plate share the header row
+   and the copy runs the full measure, so the last thing the visitor sees
+   is not one more full-screen drawing.
+   ------------------------------------------------------------ */
+.landing-finale {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-areas:
+    "mark art"
+    "copy copy";
+  align-items: start;
+  column-gap: 1rem;
+  row-gap: 1.25rem;
+}
+
+.landing-finale__mark {
+  grid-area: mark;
+  align-self: end;
+  padding-block-end: 0.125rem;
+}
+
+.landing-finale__art {
+  grid-area: art;
+}
+
+.landing-finale__copy {
+  grid-area: copy;
+}
+
+.landing-finale__caption {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .landing-finale {
+    column-gap: 2rem;
+    row-gap: 1.5rem;
+  }
+  .landing-finale__caption {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-block-start: 0.75rem;
+    border-block-start: 1px solid var(--ln-line);
+    padding-block-start: 0.625rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .landing-finale {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    grid-template-areas:
+      "art  mark"
+      "art  copy";
+    align-items: center;
+    column-gap: 4rem;
+    row-gap: 0;
+    align-content: center;
+  }
+  .landing-finale__mark {
+    align-self: start;
+    padding-block-end: 0;
+  }
+  .landing-finale__copy {
+    margin-block-start: 1rem;
+  }
+}
+
+/* ------------------------------------------------------------
    Exhibit — the building block of the museum narrative.
-   Each scene pairs one illustration with one message, and the
-   block flips sides on alternate exhibits so the eye is never
-   asked to read the same column twice in a row.
+   Four named cells — media / mark / head / text — so the SAME markup is a
+   two-column magazine spread on a desktop and a bento on a phone.
+
+   Below 900px the plate is a tile in the first row, with the chapter rule
+   running from its bottom edge to the far side of the measure; the title
+   takes the full width beneath that pair, and the body copy sits under the
+   title. That is what removes the old «text → full-width picture → text»
+   ladder without hiding a single word: the drawing stops being a band of
+   its own and becomes one cell of a composition.
+
+   `flip` mirrors the row, so consecutive rooms alternate sides the way the
+   desktop spread does.
+
+   The one exception is the comparison room: two drawings only work side by
+   side, so that room reads rule → title → strip of two → body.
    ------------------------------------------------------------ */
 .landing-exhibit {
   display: grid;
-  align-items: center;
-  gap: 2.5rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-areas:
+    "media mark"
+    "head  head"
+    "text  text";
+  align-items: start;
+  column-gap: 1rem;
+  row-gap: 1.25rem;
+}
+
+/* Tile weight. The `scale` prop already varies the two-column spread on a
+   desktop; on a phone it varies the size of the plate instead, so three
+   consecutive rooms are never the same proportion twice. */
+.landing-exhibit--wide-media {
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+}
+
+.landing-exhibit--narrow-media {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
+}
+
+.landing-exhibit__media {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 0;
+  grid-area: media;
+  align-self: start;
+}
+
+/* The plate is a flex item, so it would otherwise shrink to its content —
+   and a not-yet-decoded image has none. Pinning it to the cell keeps the
+   tile's box (and therefore the whole row's height) correct before the
+   bytes arrive, which is what stops the picture from popping the page
+   open as the visitor scrolls. */
+.landing-exhibit__media > figure,
+.landing-exhibit__media > .landing-exhibit__pair {
+  width: 100%;
+}
+
+.landing-exhibit__mark {
+  grid-area: mark;
+  /* The catalogue rule sits on the plate's bottom edge rather than
+     floating in the middle of a half-empty cell. */
+  align-self: end;
+  padding-block-end: 0.125rem;
+}
+
+.landing-exhibit__head {
+  grid-area: head;
+}
+
+.landing-exhibit__text {
+  grid-area: text;
+}
+
+.landing-exhibit--flip {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-areas:
+    "mark media"
+    "head head"
+    "text text";
+}
+
+.landing-exhibit--wide-media.landing-exhibit--flip {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+}
+
+.landing-exhibit--narrow-media.landing-exhibit--flip {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
+}
+
+.landing-exhibit--flip .landing-exhibit__media {
+  justify-content: flex-end;
+}
+
+/* The wall-text room has no plate, so its numeral IS the plate: it takes
+   the media cell, which keeps that chapter's rhythm identical to its
+   neighbours' without borrowing a cliché illustration. */
+.landing-exhibit--walltext .landing-walltext {
+  min-height: 0;
+  justify-content: flex-start;
+  gap: 0.625rem;
+}
+
+.landing-exhibit--walltext .landing-walltext__num {
+  font-size: clamp(3.25rem, 1.8rem + 7vw, 5.5rem);
+}
+
+/* Two drawings are a comparison, and a comparison needs the full measure
+   side by side. So the pair is the one room whose plate is a strip rather
+   than a tile: the rule, the title, then the two works across the page,
+   then the body. It is the page's one wider beat, not its default.
+
+   Doubled class on purpose: a pair can also carry `flip` + `scale`, and
+   those two-class selectors would otherwise win the cascade and squeeze
+   the comparison back into a tile. */
+.landing-exhibit.landing-exhibit--pair {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "mark"
+    "head"
+    "media"
+    "text";
+}
+
+/* The pair's second plate hangs on its own baseline on a desktop; on a
+   phone a 2rem drop reads as a mistake rather than a rhythm. */
+.landing-exhibit__pair-offset {
+  margin-block-start: 1.25rem;
+}
+
+/* A wall label needs a wall to sit under. Under a half-measure tile it
+   would wrap to five lines of 12px type and turn a composition into a
+   caption, so the label is a ≥600px detail; the tile keeps the drawing. */
+.landing-exhibit figcaption {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .landing-exhibit {
+    column-gap: 2rem;
+    row-gap: 1.5rem;
+  }
+  .landing-exhibit figcaption {
+    display: flex;
+  }
+  .landing-exhibit__pair-offset {
+    margin-block-start: 2rem;
+  }
 }
 
 @media (min-width: 900px) {
   .landing-exhibit {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 4rem;
+    grid-template-areas:
+      "media mark"
+      "media head"
+      "media text";
+    column-gap: 4rem;
+    row-gap: 0;
+    align-content: center;
+  }
+  .landing-exhibit__media {
+    align-self: center;
+    justify-content: center;
+  }
+  .landing-exhibit__mark {
+    align-self: start;
+    padding-block-end: 0;
+  }
+  /* The title follows the catalogue rule directly; the gap the old inline
+     `mt-4` supplied is restored here so the desktop stack is unchanged. */
+  .landing-exhibit__head {
+    margin-block-start: 1rem;
   }
   .landing-exhibit--wide-media {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
@@ -3643,19 +3944,45 @@ html {
   .landing-exhibit--narrow-media {
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   }
-  /* Flip: media moves to the second column. Written with `order` rather than
-     `direction` so the text inside keeps its RTL reading order. */
-  .landing-exhibit--flip .landing-exhibit__media {
-    order: 2;
+  /* Flip is written as areas rather than `order` so the text inside keeps
+     its RTL reading order while the plate changes sides. */
+  .landing-exhibit--flip {
+    grid-template-areas:
+      "mark  media"
+      "head  media"
+      "text  media";
   }
-}
-
-.landing-exhibit__media {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
+  .landing-exhibit--wide-media.landing-exhibit--flip {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+  .landing-exhibit--narrow-media.landing-exhibit--flip {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+  /* The comparison room returns to the spread here: its own two-column
+     figure sits inside the media column, exactly as it always has. */
+  .landing-exhibit.landing-exhibit--pair {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "media mark"
+      "media head"
+      "media text";
+  }
+  .landing-exhibit.landing-exhibit--pair.landing-exhibit--flip {
+    grid-template-areas:
+      "mark  media"
+      "head  media"
+      "text  media";
+  }
+  .landing-exhibit--walltext .landing-walltext {
+    justify-content: flex-end;
+    gap: 1rem;
+  }
+  .landing-exhibit--walltext .landing-walltext__num {
+    font-size: clamp(4.5rem, 3rem + 6vw, 9rem);
+  }
+  .landing-exhibit__pair-offset {
+    margin-block-start: 2.5rem;
+  }
 }
 
 /* The art frames. A hairline rule and a mist fill turn the illustration into
@@ -3686,6 +4013,18 @@ html {
     border-color var(--ln-dur-base) var(--ln-ease);
 }
 
+/* Below 600px the plate is a tile inside a composition, not a framed page:
+   20px of radius on a ~120px square turns the drawing into a lozenge. */
+.landing-plate {
+  border-radius: var(--ln-r-md);
+}
+
+@media (min-width: 600px) {
+  .landing-plate {
+    border-radius: var(--ln-r-lg);
+  }
+}
+
 .landing-plate--bare {
   background: transparent;
   border: 0;
@@ -3710,17 +4049,15 @@ html {
   font-size: clamp(4.5rem, 3rem + 6vw, 9rem);
   font-weight: 300;
   line-height: 0.85;
-  letter-spacing: -0.04em;
   color: var(--ln-line-strong);
   font-variant-numeric: tabular-nums;
-  /* The page-wide `ss01` (globals.css:788) substitutes Persian digit
-     glyphs for Latin ones. At 9rem «۱۰» splits into a bare stroke and a
-     ring, which reads as two marks rather than a number. The catalogue
-     numeral is Latin everywhere else on this page, so it is printed
-     Latin here too. */
-  font-feature-settings: normal;
+  /* Persian digits, like the catalogue mark beside it. Isolated so the
+     paragraph direction cannot reorder the glyph pair. Tracking is left at
+     zero: at 9rem a negative value closes the gap between ۱ and ۰ until
+     the pair reads as one broken mark. */
+  letter-spacing: 0;
   unicode-bidi: isolate;
-  direction: ltr;
+  direction: rtl;
   text-align: start;
 }
 
@@ -3793,6 +4130,116 @@ html {
   font-size: 1rem;
   line-height: 1.8;
   text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------
+   Download shelf (/download)
+
+   Four cards on one baseline: three store shelves that are not
+   open yet and one platform that is. The card is the same flat
+   recipe as the rest of the page — hairline, white, no shadow at
+   rest — so the shelf reads as part of the catalogue rather than
+   as an app-store banner dropped onto it.
+
+   The unavailable cards are not dimmed to invisibility: the
+   drawing, the name and the platform line stay at full contrast,
+   because a visitor needs to read what is coming. Only the action
+   slot differs — a plain status line instead of a button.
+   ------------------------------------------------------------ */
+.landing-store {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.landing-store__tile {
+  display: inline-flex;
+  height: 3rem;
+  width: 3rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ln-line);
+  border-radius: var(--ln-r-sm);
+  background: var(--ln-canvas);
+  color: var(--ln-ink);
+}
+
+.landing-store__name {
+  color: var(--ln-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.landing-store__platform {
+  margin-top: 0.125rem;
+  color: var(--ln-muted);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.landing-store__foot {
+  margin-top: auto;
+  padding-top: 1.25rem;
+}
+
+/* Status chip for a shelf that has not opened. Ink on mist — the page
+   never carries a status in colour alone, and a gold "coming soon"
+   badge would read as a promotional sticker rather than as a fact. */
+.landing-soon {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px dashed var(--ln-line-strong);
+  border-radius: var(--ln-r-sm);
+  padding-inline: 0.875rem;
+  color: var(--ln-ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.landing-soon::before {
+  content: "";
+  height: 0.375rem;
+  width: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ln-faint);
+}
+
+/* The one live shelf. Its tile takes the cobalt tint so the eye lands
+   on the only card that can act, and nowhere else on the shelf. */
+.landing-store--live .landing-store__tile {
+  border-color: var(--ln-cobalt-soft);
+  background: var(--ln-cobalt-soft);
+  color: var(--ln-cobalt);
+}
+
+.landing-store__steps {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--ln-line);
+  padding-top: 0.75rem;
+  color: var(--ln-ink-soft);
+  font-size: 0.8125rem;
+  line-height: 1.9;
+}
+
+/* The small leading marker in front of a supporting line. Filled with the
+   pale amber (1.5:1 on white on its own, which is why it is never allowed
+   to carry meaning) and outlined in ink so the shape keeps a hard edge at
+   this size. `paint-order` draws the ink stroke underneath the fill, which
+   leaves a hairline halo rather than eating into the glyph.
+   It is decorative: the sentence beside it already states everything. */
+.landing-marker {
+  color: var(--ln-amber);
+  stroke: var(--ln-ink);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
 }
 
 /* A short deck under an exhibit title — 17px body scale, capped measure so
@@ -4349,14 +4796,13 @@ button.landing-card:active {
 .landing-chapter__num {
   color: var(--ln-cobalt);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
-  /* Latin digits, like the display numeral in the wall-text room. The
-     page-wide `ss01` (globals.css:788) would print «۱۰» here while the
-     144px numeral beside it reads «10», so one mark in the catalogue
-     system would use two alphabets. */
-  font-feature-settings: normal;
+  /* No added tracking: Persian numerals already carry their own side
+     bearings, and the 0.08em that suited a Latin pair pushed «۱۲» apart
+     until the two glyphs no longer read as one mark. */
+  letter-spacing: 0;
+  /* Persian digits, matching the display numeral in the wall-text room. */
   unicode-bidi: isolate;
-  direction: ltr;
+  direction: rtl;
 }
 
 .landing-chapter::after {
@@ -4368,9 +4814,9 @@ button.landing-card:active {
 
 /* ------------------------------------------------------------
    Stats — three measures on one baseline. The number is the
-   subject; the label is a caption underneath it. Latin digits are
-   forced LTR so «+7» and «+40» can never be reordered by the RTL
-   paragraph direction.
+   subject; the label is a caption underneath it. The sign always
+   sits on the leading side of its digits; isolating the run keeps
+   the RTL paragraph from moving it to the far side.
    ------------------------------------------------------------ */
 .landing-stat {
   display: flex;
@@ -4384,17 +4830,10 @@ button.landing-card:active {
   font-size: clamp(2rem, 1.5rem + 1.6vw, 2.75rem);
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   unicode-bidi: isolate;
-  direction: ltr;
   text-align: start;
-}
-
-/* In an RTL block, `direction: ltr` would also flip the box's inline start,
-   so the numeral is aligned explicitly to the RTL start edge. */
-.landing-stat__value {
-  text-align: right;
 }
 
 .landing-stat__label {

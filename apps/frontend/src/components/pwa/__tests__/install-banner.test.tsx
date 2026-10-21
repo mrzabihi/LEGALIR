@@ -15,6 +15,7 @@ const baseResult: UseInstallPromptResult = {
   androidGuideVariant: "chrome",
   promptInstall,
   dismiss,
+  isInstalled: false,
 };
 
 let mockResult: UseInstallPromptResult = baseResult;

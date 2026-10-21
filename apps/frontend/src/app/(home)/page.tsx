@@ -50,24 +50,24 @@ export const metadata: Metadata = {
 // not rewritten, no claim was added, and every CTA points at the same
 // URL as before. Only the presentation around this data changed.
 //
-// The three measures are written with Latin digits and a leading sign on
-// purpose: `.landing-stat__value` isolates them with `unicode-bidi` and
-// forces `direction: ltr`, so «+7» can never be reordered into «7+» by
-// the RTL paragraph. The numbers themselves are the ones the product
-// already ships — nothing here was rounded up.
+// The three measures are printed with Persian digits, like every other
+// number on this page. `.landing-stat__value` isolates the run with
+// `unicode-bidi`, so the sign can never be reordered to the far side of
+// its digits by the RTL paragraph. The numbers themselves are the ones the
+// product already ships — nothing here was rounded up.
 // ================================================================
 
 interface StatItem {
-  /** Latin sign + digits, e.g. "+7". Rendered LTR inside an RTL block. */
+  /** Persian sign + digits, e.g. "+۷", rendered as one isolated run. */
   value: string;
   label: string;
   icon: ComponentType<{ size?: number; className?: string }>;
 }
 
 const statsItems: StatItem[] = [
-  { value: "+7", label: "خدمات اصلی", icon: IconCheckCircle },
-  { value: "+20", label: "حوزه حقوقی", icon: IconCategory },
-  { value: "24/7", label: "دسترسی آنلاین", icon: IconShield },
+  { value: "+۷", label: "خدمات اصلی", icon: IconCheckCircle },
+  { value: "+۲۰", label: "حوزه حقوقی", icon: IconCategory },
+  { value: "۲۴/۷", label: "دسترسی آنلاین", icon: IconShield },
 ];
 
 const howItWorksSteps = [
@@ -336,10 +336,11 @@ export default function LandingPage() {
         <div className="landing-container landing-layer pb-10 pt-10 tablet:pb-14 tablet:pt-16 laptop:min-h-[640px] laptop:pb-16 laptop:pt-20">
           <div className="grid items-center gap-10 laptop:grid-cols-[minmax(0,1fr)_minmax(0,0.94fr)] laptop:gap-14">
             <div className="min-w-0">
-              {/* Catalogue marks are Latin across the page («00»…«13»), the
-                  way a wall number is printed; only the copy is Persian. */}
+              {/* Catalogue marks are Persian numerals («۰۰»…«۱۳»), like every
+                  other number on the page — a wall number is read aloud the
+                  same way the copy is. */}
               <p className="landing-chapter landing-rise">
-                <span className="landing-chapter__num">00</span>
+                <span className="landing-chapter__num">۰۰</span>
                 <span>آغاز</span>
               </p>
 
@@ -349,12 +350,13 @@ export default function LandingPage() {
               >
                 {/* The marker under «دقیق‌تر» is the page's one drawn
                     gesture, and it is the first thing it does: the stroke
-                    draws as the hero settles. The words themselves are
-                    unchanged — the stroke is a sibling SVG, so the
-                    accessible name still reads «حقوق را دقیق‌تر بفهمید.» */}
-                حقوق را <LandingHighlight draw>دقیق‌تر</LandingHighlight> بفهمید.
+                    draws as the hero settles. The stroke is a sibling SVG,
+                    so the accessible name is just the sentence.
+                    No full stop: a headline on this page is never closed
+                    with one — the second line stands as its own statement. */}
+                حقوق را <LandingHighlight draw>دقیق‌تر</LandingHighlight> بفهمید
                 <span className="mt-1 block text-[color:var(--ln-ink-soft)]">
-                  مطمئن‌تر تصمیم بگیرید.
+                  مطمئن‌تر تصمیم بگیرید
                 </span>
                 <span className="sr-only">دستیار هوشمند حقوقی ایران</span>
               </h1>
@@ -384,10 +386,16 @@ export default function LandingPage() {
               </div>
 
               <p className="landing-rise landing-rise-4 mt-6 flex items-center gap-2 text-[12.5px] leading-6 text-[color:var(--ln-muted)]">
+                {/* The marker turns the line's direction: in an RTL sentence
+                    a left-pointing arrow is read as "back", so the leading
+                    bullet points into the text instead of against it. It is
+                    printed amber at double size, outlined in ink, because
+                    the pale gold alone has no edge on white. */}
                 <IconArrowBack
-                  size={14}
+                  size={28}
+                  rtlFlip={false}
                   aria-hidden="true"
-                  className="shrink-0 text-[color:var(--ln-cobalt)]"
+                  className="landing-marker shrink-0"
                 />
                 دانش حقوقی، تحلیل هوشمند و منابع مستند؛ یکپارچه در لیگالیر
               </p>
@@ -395,28 +403,38 @@ export default function LandingPage() {
 
             {/* The hero plate is the one eager image on the page: it is
                 above the fold, so it carries `priority` and an explicit
-                size. `bare` drops the frame — on white, the drawing is the
-                only mark, exactly like the opening wall of a show. */}
-            <figure className="landing-rise landing-rise-3 m-0 min-w-0">
-              <div data-ln-parallax="1">
+                size.
+
+                It is a 4:5 portrait with a transparent surround, so it is
+                NOT stretched to the column: on desktop it is capped at 30rem,
+                which keeps the figure at a sane optical size next to a 3.5rem
+                headline. On phones it follows the actions at 78% of the
+                measure, aligned to the end edge, with its caption running
+                down the free side instead of under it — one bento row rather
+                than a full-screen picture wedged between two blocks of text. */}
+            <figure className="landing-rise landing-rise-3 landing-hero m-0 min-w-0">
+              <div className="landing-hero__frame" data-ln-parallax="1">
                 <Image
-                  src={EXHIBIT.humanMeetsAi.src}
-                  alt={EXHIBIT.humanMeetsAi.alt}
-                  width={EXHIBIT.humanMeetsAi.width}
-                  height={EXHIBIT.humanMeetsAi.height}
-                  sizes="(min-width: 900px) 44vw, 92vw"
-                  className="h-auto w-full select-none"
+                  src={EXHIBIT.heroDesk.src}
+                  alt={EXHIBIT.heroDesk.alt}
+                  width={EXHIBIT.heroDesk.width}
+                  height={EXHIBIT.heroDesk.height}
+                  // Matches the CSS exactly: 74% of the measure below 600px,
+                  // capped at 23rem up to 900px, 30rem above. Asking for more
+                  // only downloads pixels the frame cannot show.
+                  sizes="(min-width: 900px) 30rem, (min-width: 600px) 23rem, 74vw"
+                  className="landing-hero__img select-none"
                   priority
                   draggable={false}
                 />
               </div>
-              <figcaption className="mt-3 flex items-baseline gap-2 border-t border-[color:var(--ln-line)] pt-2.5">
+              <figcaption className="landing-hero__caption">
                 <span className="shrink-0 text-[11px] font-semibold tracking-[0.12em] text-[color:var(--ln-faint)]">
-                  00
+                  ۰۰
                 </span>
                 <span className="text-[12px] leading-6 text-[color:var(--ln-muted)]">
-                  {EXHIBIT.humanMeetsAi.caption.title} —{" "}
-                  {EXHIBIT.humanMeetsAi.caption.note}
+                  {EXHIBIT.heroDesk.caption.title} —{" "}
+                  {EXHIBIT.heroDesk.caption.note}
                 </span>
               </figcaption>
             </figure>
@@ -463,12 +481,12 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-problem"
-            index="01"
+            index="۰۱"
             chapter="مسئله"
             art={EXHIBIT.complexity}
             scale="wide"
             variant="bare"
-            title="سند حقوقی، وقتی فقط یک دسته کاغذ است."
+            title="سند حقوقی، وقتی فقط یک دسته کاغذ است"
             body={
               <p>
                 قراردادها و اسناد حقوقی از بندهایی ساخته می‌شوند که به هم ارجاع
@@ -489,12 +507,12 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-order"
-            index="02"
+            index="۰۲"
             chapter="ساختار"
             art={EXHIBIT.order}
             flip
             variant="mist"
-            title="همان مسئله، این بار مرتب‌شده."
+            title="همان مسئله، این بار مرتب‌شده"
             body={
               <>
                 <p>
@@ -540,12 +558,12 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-dialogue"
-            index="03"
+            index="۰۳"
             chapter="گفت‌وگو"
             art={EXHIBIT.consultation}
             scale="narrow"
             variant="bare"
-            title="پیش از هر سند، یک پرسش روشن."
+            title="پیش از هر سند، یک پرسش روشن"
             body={
               <p>
                 موضوع را به زبان ساده و محاوره‌ای توضیح دهید. دستیار لیگالیر
@@ -565,12 +583,12 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-knowledge"
-            index="04"
+            index="۰۴"
             chapter="دانش"
             art={EXHIBIT.knowledge}
             flip
             variant="mist"
-            title="قانون، رویه و تفسیر در یک تنه."
+            title="قانون، رویه و تفسیر در یک تنه"
             body={
               <p>
                 لیگالیر بر پایه منابع ساختاریافته حقوقی ایران آموزش دیده است:
@@ -620,11 +638,11 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-sources"
-            index="05"
+            index="۰۵"
             chapter="ارجاع"
             art={EXHIBIT.sources}
             variant="bare"
-            title="هر بند، به منبع خودش."
+            title="هر بند، به منبع خودش"
             body={
               <p>
                 هر پاسخ با ارجاع دقیق به ماده قانونی، رأی وحدت رویه یا بخشنامه
@@ -666,14 +684,14 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-analysis"
-            index="06"
+            index="۰۶"
             chapter="تحلیل"
             art={EXHIBIT.contractAnalysis}
             secondaryArt={EXHIBIT.traceability}
             flip
             scale="wide"
             variant="mist"
-            title="بندهای مهم، مشخص‌شده."
+            title="بندهای مهم، مشخص‌شده"
             body={
               <p>
                 سند یا قرارداد را بارگذاری کنید؛ بندهای پرریسک و تعهدات پنهان
@@ -726,13 +744,13 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-drafting"
-            index="07"
+            index="۰۷"
             chapter="پیش‌نویس"
             art={EXHIBIT.drafting}
             secondaryArt={EXHIBIT.contractDomains}
             scale="wide"
             variant="bare"
-            title="از پاسخ‌ها تا سند آمادهٔ بازبینی."
+            title="از پاسخ‌ها تا سند آمادهٔ بازبینی"
             body={
               <p>
                 با پاسخ به پرسش‌نامه گام‌به‌گام، پیش‌نویس قرارداد شخصی‌سازی‌شده
@@ -766,12 +784,12 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-calc"
-            index="08"
+            index="۰۸"
             chapter="محاسبه"
             art={EXHIBIT.calculator}
             flip
             variant="mist"
-            title="عدد دقیق، جای حدس."
+            title="عدد دقیق، جای حدس"
             body={
               <p>
                 محاسبات حقوقی — خسارت تأخیر تأدیه، مهریه، نفقه، ارث و دیه — بر
@@ -795,7 +813,7 @@ export default function LandingPage() {
         <div className="landing-container landing-layer">
           <header className="max-w-2xl" data-ln-reveal="0">
             <p className="landing-chapter">
-              <span className="landing-chapter__num">08</span>
+              <span className="landing-chapter__num">۰۸</span>
               <span>کاتالوگ خدمات</span>
             </p>
             <h2 id="services-title" className="landing-title mt-4">
@@ -818,12 +836,12 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-review"
-            index="09"
+            index="۰۹"
             chapter="بازبینی"
             art={EXHIBIT.review}
             scale="narrow"
             variant="mist"
-            title="وقتی تصمیم به چشم متخصص نیاز دارد."
+            title="وقتی تصمیم به چشم متخصص نیاز دارد"
             body={
               <p>
                 در موضوعات حساس، لیگالیر مسیر ارتباط با وکلای متخصص و تأییدشده
@@ -843,14 +861,14 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-precision"
-            index="10"
+            index="۱۰"
             chapter="دقت"
             // No plate here on purpose. The one unused drawing in the set is
             // a classical column, which the brief bans outright, so this
             // room is set in type (see `LandingExhibit` without `art`).
             flip
             variant="bare"
-            title="اندازه‌گیری، نه تخمین."
+            title="اندازه‌گیری، نه تخمین"
             body={
               <p>
                 لیگالیر مرز بین هوش مصنوعی، منابع معتبر حقوقی و وکیل متخصص را
@@ -894,13 +912,13 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-company"
-            index="11"
+            index="۱۱"
             chapter="همراهی"
             art={EXHIBIT.helpingHand}
             secondaryArt={EXHIBIT.guidance}
             scale="narrow"
             variant="mist"
-            title="قدم‌به‌قدم، تا رسیدن به تصمیم."
+            title="قدم‌به‌قدم، تا رسیدن به تصمیم"
             body={
               <>
                 <p>
@@ -924,13 +942,13 @@ export default function LandingPage() {
         <div className="landing-container">
           <LandingExhibit
             id="ch-trust"
-            index="12"
+            index="۱۲"
             chapter="اعتماد"
             art={EXHIBIT.judgment}
             flip
             scale="narrow"
             variant="bare"
-            title="مسیر تخصصی، وقتی کار به وکیل می‌رسد."
+            title="مسیر تخصصی، وقتی کار به وکیل می‌رسد"
             body={
               <p>
                 لیگالیر جای وکیل را نمی‌گیرد. تحلیل و پیش‌نویس مسیر را روشن
@@ -1052,21 +1070,33 @@ export default function LandingPage() {
           ============================================================ */}
       <section className={bandClass(false)} aria-labelledby="finale-title">
         <div className="landing-container">
-          <div className="grid items-center gap-10 laptop:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] laptop:gap-16">
-            <figure className="m-0 min-w-0" data-ln-reveal="0">
+          {/* The closing room uses the exhibits' own grammar instead of the
+              old "full-measure picture, then copy" stack: the chapter mark
+              and the plate share a header row, the headline runs the full
+              measure beneath them, and the actions close the block. Desktop
+              still sees the two-column spread it had. */}
+          <div className="landing-finale">
+            <div className="landing-finale__mark min-w-0" data-ln-reveal="0">
+              <p className="landing-chapter">
+                <span className="landing-chapter__num">۱۳</span>
+                <span>پایان نمایش</span>
+              </p>
+            </div>
+
+            <figure className="landing-finale__art m-0 min-w-0" data-ln-reveal="0">
               <div data-ln-parallax="1">
                 <Image
                   src={EXHIBIT.lawPrinciples.src}
                   alt={EXHIBIT.lawPrinciples.alt}
                   width={EXHIBIT.lawPrinciples.width}
                   height={EXHIBIT.lawPrinciples.height}
-                  sizes="(min-width: 900px) 38vw, 92vw"
+                  sizes="(min-width: 900px) 38vw, 42vw"
                   className="h-auto w-full select-none"
                   loading="lazy"
                   draggable={false}
                 />
               </div>
-              <figcaption className="mt-3 flex items-baseline gap-2 border-t border-[color:var(--ln-line)] pt-2.5">
+              <figcaption className="landing-finale__caption">
                 <span className="shrink-0 text-[11px] font-semibold tracking-[0.12em] text-[color:var(--ln-faint)]">
                   ۱۳
                 </span>
@@ -1077,17 +1107,13 @@ export default function LandingPage() {
               </figcaption>
             </figure>
 
-            <div className="min-w-0" data-ln-reveal="1">
-              <p className="landing-chapter">
-                <span className="landing-chapter__num">13</span>
-                <span>پایان نمایش</span>
-              </p>
+            <div className="landing-finale__copy min-w-0" data-ln-reveal="1">
               <h2
                 id="finale-title"
-                className="landing-title mt-4 text-[clamp(1.5rem,1.1rem+1.6vw,2rem)]"
+                className="landing-title text-[clamp(1.5rem,1.1rem+1.6vw,2rem)]"
               >
                 از یک <LandingHighlightWide draw>پرسش</LandingHighlightWide>{" "}
-                شروع کنید.
+                شروع کنید
               </h2>
               <p className="landing-deck mt-4">
                 مسیر روشن است: موضوع را بنویسید، تحلیل مستند بگیرید و اگر تصمیم

@@ -34,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "صفحه اصلی" },
   { href: "/features", label: "قابلیت‌ها" },
   { href: "/pricing", label: "تعرفه‌ها" },
+  { href: "/download", label: "دانلود" },
   { href: "/blog", label: "وبلاگ حقوقی" },
   { href: "/about", label: "درباره ما" },
   { href: "/contact", label: "تماس با ما" },
@@ -198,7 +199,13 @@ export function LandingHeader() {
         <Link
           href="/"
           aria-label="لیگالیر — صفحه اصلی"
-          className="landing-link flex min-h-11 shrink-0 items-center rounded-sm"
+          /* On phones the crest and the menu trigger trade places: the
+             hamburger takes the reading-start edge (the right, in RTL) and
+             the crest sits at the far end. This is expressed as flex
+             `order`, not by moving DOM nodes, so the tab order and the
+             accessible name stay exactly as they were, and the desktop
+             row is untouched (`laptop:order-none` restores source order). */
+          className="landing-link order-3 flex min-h-11 shrink-0 items-center rounded-sm laptop:order-none"
         >
           {/* Static brand mark, fixed height, `w-auto` — the repo's logo
               convention across every shell (see components/public/Header).
@@ -243,7 +250,7 @@ export function LandingHeader() {
           })}
         </nav>
 
-        <div className="ms-auto" />
+        <div className="order-2 ms-auto laptop:order-none" />
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-2 laptop:flex">
@@ -324,7 +331,7 @@ export function LandingHeader() {
           onClick={() => setMobileOpen(true)}
           aria-label="باز کردن منو"
           aria-expanded={mobileOpen}
-          className="ms-auto flex h-11 w-11 items-center justify-center rounded-[var(--ln-r-sm)] text-[color:var(--ln-navy)] transition-colors hover:bg-[color:var(--ln-canvas)] laptop:hidden"
+          className="order-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--ln-r-sm)] text-[color:var(--ln-navy)] transition-colors hover:bg-[color:var(--ln-canvas)] laptop:order-none laptop:hidden"
         >
           <IconMenu size={24} />
         </button>

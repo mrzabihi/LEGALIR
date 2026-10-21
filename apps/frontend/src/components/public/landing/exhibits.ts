@@ -34,22 +34,29 @@ function art(
   alt: string,
   title: string,
   note: string,
+  size: { width: number; height: number } = SIZE,
 ): ExhibitArt {
   return {
     src: `/assets/landing/${file}.webp`,
-    ...SIZE,
+    ...size,
     alt,
     caption: { title, note },
   };
 }
 
 export const EXHIBIT = {
-  /** Hero — a human profile with a book branch and a cobalt disc. */
-  humanMeetsAi: art(
-    "minimal-15-human-meets-ai",
-    "نمای نیم‌رخ یک انسان با شاخه‌ای از برگ‌های کتاب که از ذهن او می‌روید، همراه با دایره‌ای آبی",
-    "انسان و هوش مصنوعی",
-    "اندیشهٔ انسانی، خوانده‌شده با ابزار هوشمند",
+  /**
+   * Hero — the commissioned hero plate: a robed figure at a desk, writing in
+   * an open book, a gavel, the constitution, and a window onto a bookshelf.
+   * It arrived as a 1024×1280 (4:5) portrait with a transparent surround, so
+   * it is declared with its real ratio here rather than the set's 1:1.
+   */
+  heroDesk: art(
+    "hero-legalir-desk",
+    "نمای پشت میز یک حقوقدان با ردای قضایی در حال نوشتن در کتابی باز؛ مهر، پیکان، ترازو، قانون اساسی و قفسهٔ کتاب در پس‌زمینه و برگه‌هایی که در هوا می‌چرخند",
+    "میز حقوقی",
+    "یک پرسش، یک تحلیل مستند، یک تصمیم روشن",
+    { width: 1024, height: 1280 },
   ),
 
   /** Opening — the problem: documents arrive as an unreadable pile. */

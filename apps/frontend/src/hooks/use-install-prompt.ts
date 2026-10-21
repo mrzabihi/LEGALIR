@@ -38,6 +38,16 @@ export interface BeforeInstallPromptEvent extends Event {
 
 export type InstallOutcome = "accepted" | "dismissed" | "unavailable";
 
+/**
+ * Chromium fires `beforeinstallprompt` once per page load. The floating
+ * banner and the download page each mount their own hook, and a per-instance
+ * ref would leave whichever mounted second with no event — its button would
+ * then do nothing. This module-scoped holder is shared by every instance, so
+ * both surfaces offer the same real prompt, and the event survives the
+ * unmount of the surface that captured it.
+ */
+let sharedPrompt: BeforeInstallPromptEvent | null = null;
+
 export interface UseInstallPromptResult {
   /** The banner should be visible right now. */
   visible: boolean;
@@ -51,6 +61,8 @@ export interface UseInstallPromptResult {
   promptInstall: () => Promise<InstallOutcome>;
   /** Snooze the banner for 7 days. */
   dismiss: () => void;
+  /** True once the app is running as an installed window. */
+  isInstalled: boolean;
 }
 
 export function useInstallPrompt(): UseInstallPromptResult {
@@ -61,7 +73,9 @@ export function useInstallPrompt(): UseInstallPromptResult {
   const [dismissed, setDismissed] = useState(false);
   const [canPrompt, setCanPrompt] = useState(false);
 
-  const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
+  // The page may already have received `beforeinstallprompt` before this
+  // hook mounted (the banner mounts at the root, the download page later).
+  const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(sharedPrompt);
 
   // ---- Detect platform / browser / standalone on mount ----------------
   useEffect(() => {
@@ -71,6 +85,7 @@ export function useInstallPrompt(): UseInstallPromptResult {
     setBrowser(detectBrowser(ua));
     setStandalone(isStandalone());
     setDismissed(isDismissed(Date.now()));
+    if (sharedPrompt) setCanPrompt(true);
   }, []);
 
   // ---- Capture beforeinstallprompt ------------------------------------
@@ -78,10 +93,12 @@ export function useInstallPrompt(): UseInstallPromptResult {
     const onBeforeInstall = (e: Event) => {
       // Suppress the browser's own mini-infobar; we surface our own banner.
       e.preventDefault();
-      deferredPrompt.current = e as BeforeInstallPromptEvent;
+      sharedPrompt = e as BeforeInstallPromptEvent;
+      deferredPrompt.current = sharedPrompt;
       setCanPrompt(true);
     };
     const onInstalled = () => {
+      sharedPrompt = null;
       deferredPrompt.current = null;
       setCanPrompt(false);
       setInstalled(true);
@@ -104,12 +121,13 @@ export function useInstallPrompt(): UseInstallPromptResult {
   }, []);
 
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
-    const evt = deferredPrompt.current;
+    const evt = deferredPrompt.current ?? sharedPrompt;
     if (!evt) return "unavailable";
     try {
       await evt.prompt();
       const { outcome } = await evt.userChoice;
       // A prompt can only be used once.
+      sharedPrompt = null;
       deferredPrompt.current = null;
       setCanPrompt(false);
       if (outcome === "accepted") {
@@ -118,6 +136,7 @@ export function useInstallPrompt(): UseInstallPromptResult {
       }
       return "dismissed";
     } catch {
+      sharedPrompt = null;
       deferredPrompt.current = null;
       setCanPrompt(false);
       return "unavailable";
@@ -161,5 +180,6 @@ export function useInstallPrompt(): UseInstallPromptResult {
     androidGuideVariant,
     promptInstall,
     dismiss,
+    isInstalled: standalone || installed,
   };
 }

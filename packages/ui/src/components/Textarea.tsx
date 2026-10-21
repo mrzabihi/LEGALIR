@@ -24,6 +24,13 @@ export interface TextareaProps
   /** Grow the box to fit its content instead of scrolling. */
   autoResize?: boolean;
   showCharCount?: boolean;
+  /**
+   * Render the character counter. Defaults to the raw `count/max` pair, so
+   * every existing caller is unchanged. Persian-only surfaces pass a
+   * formatter here: the shipped Vazir build has no `ss01` digit substitution,
+   * so the default pair would print Latin digits inside Persian copy.
+   */
+  formatCharCount?: (count: number, max: number) => React.ReactNode;
   /** Force the value direction (e.g. `ltr` for codes). */
   inputDir?: "ltr" | "rtl";
 }
@@ -39,6 +46,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     fullWidth = false,
     autoResize = false,
     showCharCount,
+    formatCharCount,
     disabled,
     readOnly,
     required,
@@ -127,7 +135,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         id={errorId || helperId}
         error={resolvedError}
         helper={resolvedHelper}
-        counter={showCharCount && maxLength ? `${charCount}/${maxLength}` : undefined}
+        counter={
+          showCharCount && maxLength
+            ? formatCharCount
+              ? formatCharCount(charCount, maxLength)
+              : `${charCount}/${maxLength}`
+            : undefined
+        }
       />
     </div>
   );

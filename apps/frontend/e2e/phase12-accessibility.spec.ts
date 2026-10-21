@@ -230,8 +230,12 @@ test.describe("Phase 12 — Accessibility & Responsive", () => {
         page.getByRole("navigation", { name: /منوی موبایل/i }),
       ).toBeVisible();
 
-      // Click the backdrop (the scrim div with aria-hidden)
-      await page.locator(".bg-scrim").click();
+      // Click the backdrop (the scrim div with aria-hidden).
+      // The drawer is 86vw wide and anchored to the inline-start edge, so on
+      // a 390px viewport it covers x≈55–390 — the scrim's centre sits under
+      // the drawer and Playwright reports the click as intercepted. Aim at
+      // the sliver of scrim that is genuinely exposed instead.
+      await page.locator(".bg-scrim").click({ position: { x: 8, y: 300 } });
 
       // Verify drawer is hidden
       await expect(

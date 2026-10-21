@@ -13,6 +13,7 @@
 
 import Link from "next/link";
 import { IconChevronLeft } from "@/lib/icons";
+import { toPersianDigits } from "@/lib/persian-utils";
 
 const LINK_GROUPS = [
   {
@@ -43,7 +44,10 @@ const LINK_GROUPS = [
 ];
 
 export function LandingFooter() {
-  const year = new Date().getFullYear();
+  // Persian digits, like every other number on the page. The run is
+  // isolated because «© ۲۰۲۶» in an RTL line would otherwise let the
+  // bidi algorithm park the sign on the far side of the year.
+  const year = toPersianDigits(new Date().getFullYear());
 
   return (
     <footer role="contentinfo" dir="rtl" className="bg-[color:var(--ln-ink)] text-white">
@@ -115,7 +119,8 @@ export function LandingFooter() {
 
         <div className="flex flex-col gap-3 border-t border-white/[0.12] py-6 text-center tablet:flex-row tablet:items-center tablet:justify-between tablet:text-start">
           <p className="text-[12px] text-white/55">
-            &#169; {year} لیگالیر. تمام حقوق محفوظ است.
+            <span className="inline-block [unicode-bidi:isolate]">&#169; {year}</span>{" "}
+            لیگالیر. تمام حقوق محفوظ است.
           </p>
           <p className="text-[12px] leading-6 text-white/55">
             خدمات تخصصی حقوقی با پشتیبانی هوش مصنوعی و منابع حقوقی معتبر
