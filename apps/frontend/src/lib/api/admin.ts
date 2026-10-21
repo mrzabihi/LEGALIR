@@ -31,6 +31,8 @@ import type {
   AuditLogListResponse,
   FeatureFlag,
   FeatureFlagStatus,
+  OrganizationLegalType,
+  OrganizationStatus,
   CommissionRule,
   LawyerIncomeSummary,
   LawyerSettlement,
@@ -610,6 +612,121 @@ export function fetchAdminUsers(query: AdminUsersQuery = {}): Promise<AdminUsers
 
 export function fetchAdminUser(id: string): Promise<AdminUserDetail> {
   return apiClient.get<AdminUserDetail>(`${A}/users/${encodeURIComponent(id)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Organizations (the entity register behind «کاربران و سازمان‌ها»)
+// ---------------------------------------------------------------------------
+
+export interface AdminOrganizationRow {
+  id: string;
+  name: string;
+  tradeName: string | null;
+  legalType: OrganizationLegalType | null;
+  legalTypeFa: string | null;
+  nationalId: string | null;
+  status: OrganizationStatus;
+  statusFa: string;
+  industry: string | null;
+  province: string | null;
+  city: string | null;
+  ownerUserId: string;
+  ownerNameFa: string | null;
+  memberCount: number;
+  signatoryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminOrganizationsResponse {
+  items: AdminOrganizationRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  /** Counts over the WHOLE register, never just the current page. */
+  summary: Record<OrganizationStatus, number> & { total: number };
+}
+
+export interface AdminOrganizationMemberRow {
+  id: string;
+  userId: string;
+  publicId: string | null;
+  displayNameFa: string | null;
+  mobile: string | null;
+  role: string;
+  roleFa: string;
+  title: string | null;
+  status: string;
+  joinedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminOrganizationSignatoryRow {
+  id: string;
+  fullName: string;
+  nationalCode: string | null;
+  position: string | null;
+  authorityType: string | null;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface AdminOrganizationDetail {
+  id: string;
+  name: string;
+  tradeName: string | null;
+  legalType: OrganizationLegalType | null;
+  legalTypeFa: string | null;
+  nationalId: string | null;
+  registrationNumber: string | null;
+  economicCode: string | null;
+  registrationDate: string | null;
+  industry: string | null;
+  province: string | null;
+  city: string | null;
+  address: string | null;
+  postalCode: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  status: OrganizationStatus;
+  statusFa: string;
+  ownerUserId: string;
+  ownerNameFa: string | null;
+  ownerMobile: string | null;
+  members: AdminOrganizationMemberRow[];
+  signatories: AdminOrganizationSignatoryRow[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function fetchAdminOrganizations(
+  query: { search?: string; status?: OrganizationStatus; page?: number; pageSize?: number } = {}
+): Promise<AdminOrganizationsResponse> {
+  return apiClient.get<AdminOrganizationsResponse>(
+    `${A}/organizations${qs({
+      search: query.search,
+      status: query.status,
+      page: query.page,
+      pageSize: query.pageSize,
+    })}`
+  );
+}
+
+export function fetchAdminOrganization(id: string): Promise<AdminOrganizationDetail> {
+  return apiClient.get<AdminOrganizationDetail>(`${A}/organizations/${encodeURIComponent(id)}`);
+}
+
+/** Move an organization to a new lifecycle status (audited server-side). */
+export function setAdminOrganizationStatus(
+  id: string,
+  status: OrganizationStatus
+): Promise<AdminOrganizationDetail> {
+  return apiClient.patch<AdminOrganizationDetail>(
+    `${A}/organizations/${encodeURIComponent(id)}`,
+    { status }
+  );
 }
 
 // ---------------------------------------------------------------------------

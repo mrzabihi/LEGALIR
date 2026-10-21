@@ -28,6 +28,7 @@ import type {
   UsageReportQuery,
   PlatformWorkCalendar,
   LawyerBankReview,
+  OrganizationStatus,
 } from "@legalir/types";
 import { roleHasPermission, canAccessAdminPanel } from "@legalir/types";
 import { useMe } from "@/hooks/useDashboard";
@@ -38,6 +39,9 @@ import {
   type AdminWindow,
   fetchAdminUsers,
   fetchAdminUser,
+  fetchAdminOrganizations,
+  fetchAdminOrganization,
+  setAdminOrganizationStatus,
   fetchAdminUserSubscription,
   fetchAdminUserUsageReport,
   fetchAdminTariffHistory,
@@ -413,6 +417,48 @@ export function useAdminUser(id: string | null) {
     enabled: Boolean(id),
     staleTime: 30_000,
     retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Organizations — the entity register behind «کاربران و سازمان‌ها»
+// ---------------------------------------------------------------------------
+
+export function useAdminOrganizations(
+  query: { search?: string; status?: OrganizationStatus; page?: number; pageSize?: number } = {}
+) {
+  return useQuery({
+    queryKey: ["admin", "organizations", query],
+    queryFn: () => fetchAdminOrganizations(query),
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminOrganization(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "organizations", "detail", id],
+    queryFn: () => fetchAdminOrganization(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Change an organization's lifecycle status. Both the filtered list (under any
+ * status filter) and the open dossier must re-read, because the new status can
+ * move the row out of the list the operator is looking at.
+ */
+export function useSetAdminOrganizationStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: OrganizationStatus }) =>
+      setAdminOrganizationStatus(id, status),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "organizations"] });
+    },
   });
 }
 

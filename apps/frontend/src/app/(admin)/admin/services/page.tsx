@@ -3,12 +3,16 @@
 // ============================================================
 // The release-control surface. Each feature flag names a platform
 // capability and its rollout state (on / off / experiment / limited). A
-// "limited" flag also carries a rollout percentage and an allow-list of
-// plans/orgs. Every change is permission-gated server-side and audited, and
-// the mutation is optimistic so the toggle never lags behind the click.
+// "limited" or "experiment" flag is evaluated as: allowed plan → allowed org
+// → rollout bucket. All three inputs are editable here — the status and
+// percentage inline, the plan/org allow-lists in the scope drawer — because
+// leaving them read-only meant the release decision was visible but not
+// operable. Every change is permission-gated server-side and audited with the
+// before → after value, and the mutation is optimistic so the toggle never
+// lags behind the click.
 //
 // The plan catalog is shown below as a read-only reference so an operator
-// can see what "allowedPlans" refer to without leaving the page.
+// can see what the allow-list chips refer to without leaving the page.
 // ============================================================
 
 "use client";
@@ -18,7 +22,9 @@ import { useAdminFlags, useUpdateAdminFlag, useAdminMe } from "@/hooks/useAdmin"
 import { useQuery } from "@tanstack/react-query";
 import { fetchAdminPlans } from "@/lib/api/admin";
 import { FEATURE_FLAG_STATUS_FA } from "@legalir/types";
-import type { FeatureFlagStatus } from "@legalir/types";
+import type { FeatureFlag, FeatureFlagStatus } from "@legalir/types";
+import { FlagScopeDrawer } from "@/components/admin/flag-scope-drawer";
+import { toPersianNumber } from "@/lib/persian-utils";
 import {
   PageHeader,
   Card,
@@ -87,6 +93,12 @@ export default function AdminServicesPage() {
     null
   );
   const [drafts, setDrafts] = useState<Record<string, number>>({});
+  /** The flag whose plan/org allow-list is open in the scope drawer. */
+  const [scopeKey, setScopeKey] = useState<string | null>(null);
+  const scopeFlag = useMemo(
+    () => flagItems.find((f) => f.key === scopeKey) ?? null,
+    [flagItems, scopeKey]
+  );
 
   const planOptions = useMemo(() => {
     const items = (plans.data?.items ?? []) as { code: string; nameFa: string }[];
@@ -201,9 +213,35 @@ export default function AdminServicesPage() {
                   <Td>
                     <div className="flex flex-col gap-1">
                       <span className="text-caption text-muted">{f.environment}</span>
-                      {f.allowedPlans.length > 0 && (
-                        <span className="text-caption text-muted" dir="ltr">
-                          {f.allowedPlans.join(", ")}
+                      {f.status === "limited" || f.status === "experiment" ? (
+                        <>
+                          <span className="text-caption text-on-surface-variant">
+                            {f.allowedPlans.length === 0 && f.allowedOrgIds.length === 0
+                              ? "بدون فهرست مجاز — فقط درصد ترافیک"
+                              : [
+                                  f.allowedPlans.length > 0
+                                    ? `پلن: ${f.allowedPlans.join("، ")}`
+                                    : null,
+                                  f.allowedOrgIds.length > 0
+                                    ? `${toPersianNumber(f.allowedOrgIds.length)} سازمان`
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                          </span>
+                          {canManage && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setScopeKey(f.key)}
+                            >
+                              ویرایش محدوده
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-caption text-muted">
+                          فهرست مجاز در این وضعیت ارزیابی نمی‌شود
                         </span>
                       )}
                     </div>
@@ -258,6 +296,13 @@ export default function AdminServicesPage() {
           </div>
         )}
       </Section>
+
+      <FlagScopeDrawer
+        flag={scopeFlag as FeatureFlag | null}
+        planOptions={planOptions}
+        open={Boolean(scopeFlag)}
+        onClose={() => setScopeKey(null)}
+      />
     </div>
   );
 }

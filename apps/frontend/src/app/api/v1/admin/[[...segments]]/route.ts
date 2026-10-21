@@ -52,6 +52,12 @@ import { buildLiveReport } from "@/lib/admin/live-report";
 import { buildDiscoveryStats, hasDiscovery } from "@/lib/admin/discovery-stats";
 import { listFlags, updateFlag } from "@/lib/admin/flags";
 import {
+  ADMIN_ORG_STATUSES,
+  getAdminOrganization,
+  listAdminOrganizations,
+  setAdminOrganizationStatus,
+} from "@/lib/admin/organizations";
+import {
   listOrders,
   getOrder,
   listAdjustments,
@@ -564,6 +570,25 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
 
   flags: () => ok({ items: listFlags() }),
 
+  // §15 — the organization register. The users section is titled
+  // «کاربران و سازمان‌ها», so the legal entities must be a real, inspectable
+  // surface: the list carries the real member/signatory counts and the status
+  // summary, and the dossier is what the detail drawer renders.
+  organizations: ({ url }) => {
+    const rawStatus = url.searchParams.get("status");
+    return ok(
+      listAdminOrganizations({
+        search: url.searchParams.get("search") ?? undefined,
+        status:
+          rawStatus && (ADMIN_ORG_STATUSES as string[]).includes(rawStatus)
+            ? (rawStatus as (typeof ADMIN_ORG_STATUSES)[number])
+            : undefined,
+        page: intParam(url, "page", 1),
+        pageSize: intParam(url, "pageSize", 25),
+      })
+    );
+  },
+
   plans: () =>
     ok({
       items: sortPlans(readPlans()).map((p) => ({
@@ -832,6 +857,11 @@ async function handleNestedGet(c: GetCtx): Promise<NextResponse> {
       const member = b ? getStaffMember(b) : undefined;
       if (!member) return adminError(404, "STAFF_NOT_FOUND", "کارمند یافت نشد");
       return ok(member);
+    }
+    case "organizations": {
+      const org = b ? getAdminOrganization(b) : null;
+      if (!org) return adminError(404, "ORG_NOT_FOUND", "سازمان یافت نشد");
+      return ok(org);
     }
     case "users": {
       const user = b ? findUserById(b) : undefined;
@@ -2897,6 +2927,50 @@ async function handlePatch(
     return ok(res.coupon);
   }
 
+  // §15 — organization life-cycle. Verification/suspension is an operator
+  // decision over a legal entity, so it rides on the users pair (identity and
+  // entity registers are managed together) and is always audited with the
+  // before → after status.
+  if (a === "organizations" && b) {
+    const body = (await readJson(request)) as Body | null;
+    if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
+    const status = str(body["status"]);
+    if (!status) {
+      return adminError(400, "INVALID_BODY", "وضعیت سازمان لازم است");
+    }
+    const res = setAdminOrganizationStatus(b, status);
+    if (!res.ok) {
+      const reason =
+        res.reason === "not_found" ? "ORGANIZATION_NOT_FOUND" : "INVALID_STATUS";
+      recordAudit({
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        orgId: actor.orgId,
+        action: "organization.status.change",
+        resourceType: "organization",
+        resourceId: b,
+        result: "denied",
+        reason,
+        ...meta,
+      });
+      return res.reason === "not_found"
+        ? adminError(404, "NOT_FOUND", "سازمان یافت نشد")
+        : adminError(400, "INVALID_STATUS", "وضعیت سازمان معتبر نیست");
+    }
+    recordAudit({
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      orgId: actor.orgId,
+      action: "organization.status.change",
+      resourceType: "organization",
+      resourceId: b,
+      before: { status: res.before },
+      after: { status: res.organization.status },
+      ...meta,
+    });
+    return ok(res.organization);
+  }
+
   if (a === "users" && b) {
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
@@ -2939,21 +3013,31 @@ async function handlePatch(
     const body = (await readJson(request)) as Body | null;
     if (!body) return adminError(400, "INVALID_BODY", "بدنه درخواست نامعتبر است");
     const before = listFlags().find((f) => f.key === b);
-    const res = updateFlag(
-      b,
-      {
-        status: body["status"] as never,
-        rolloutPercent:
-          body["rolloutPercent"] === undefined ? undefined : num(body["rolloutPercent"]),
-        allowedPlans: Array.isArray(body["allowedPlans"])
-          ? (body["allowedPlans"] as string[])
-          : undefined,
-        allowedOrgIds: Array.isArray(body["allowedOrgIds"])
-          ? (body["allowedOrgIds"] as string[])
-          : undefined,
-      },
-      actor.userId
-    );
+
+    // Build the patch from the keys that were ACTUALLY sent. `updateFlag`
+    // spreads this object over the stored row, so an explicitly-undefined
+    // field would overwrite the stored value — a partial update (the scope
+    // drawer sends only the allow-lists) must not erase the status or the
+    // rollout percentage.
+    const updates: Parameters<typeof updateFlag>[1] = {};
+    if (body["status"] !== undefined) updates.status = body["status"] as never;
+    if (body["rolloutPercent"] !== undefined) {
+      updates.rolloutPercent = num(body["rolloutPercent"]);
+    }
+    if (Array.isArray(body["allowedPlans"])) {
+      updates.allowedPlans = (body["allowedPlans"] as unknown[])
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+    if (Array.isArray(body["allowedOrgIds"])) {
+      updates.allowedOrgIds = (body["allowedOrgIds"] as unknown[])
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+
+    const res = updateFlag(b, updates, actor.userId);
     if (!res) return adminError(404, "NOT_FOUND", "ویژگی یافت نشد");
     recordAudit({
       actorUserId: actor.userId,
@@ -2962,8 +3046,24 @@ async function handlePatch(
       action: "flag.update",
       resourceType: "feature_flag",
       resourceId: b,
-      before: before ? { status: before.status, rolloutPercent: before.rolloutPercent } : null,
-      after: { status: res.status, rolloutPercent: res.rolloutPercent },
+      // The allow-lists are part of the release decision, not decoration:
+      // `isFlagEnabled` reads them ahead of the rollout bucket, so an entry
+      // added or removed here changes who actually sees the feature. The
+      // audit must therefore carry them alongside status and percentage.
+      before: before
+        ? {
+            status: before.status,
+            rolloutPercent: before.rolloutPercent,
+            allowedPlans: before.allowedPlans,
+            allowedOrgIds: before.allowedOrgIds,
+          }
+        : null,
+      after: {
+        status: res.status,
+        rolloutPercent: res.rolloutPercent,
+        allowedPlans: res.allowedPlans,
+        allowedOrgIds: res.allowedOrgIds,
+      },
       ...meta,
     });
     return ok(res);
@@ -3923,6 +4023,10 @@ function permissionFor(method: string, segments: string[]): Permission {
       return method === "GET" ? "admin:users:read" : "admin:users:manage";
     case "requests":
       return method === "GET" ? "admin:requests:read" : "admin:requests:manage";
+    // §15 — the organization register belongs to the identity domain, so it
+    // shares the users pair rather than inventing a fifth permission family.
+    case "organizations":
+      return method === "GET" ? "admin:users:read" : "admin:users:manage";
     // The discovery analytics surface reads the same records the requests
     // section does, so it is gated by the same read permission.
     case "discovery":

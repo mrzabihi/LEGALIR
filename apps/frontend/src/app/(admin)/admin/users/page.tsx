@@ -1,27 +1,40 @@
 // ============================================================
 // LEGALIR — Admin · Users & Organizations (کاربران و سازمان‌ها)
 // ============================================================
-// Lists platform users with their role, account type and subscription
-// state. A super-admin (holding admin:users:manage) may change a user's
-// role — the LAST super-admin cannot be demoted (server-enforced lockout
-// guard). Mobile numbers are masked by default (the four middle digits hidden
-// with a star each) and revealed per row via the eye toggle in the same cell;
-// both states render LTR (isolated) within the RTL panel so digits never
-// reorder.
+// Two real registers behind one page title:
+//
+//   · «کاربران» — platform users with their role, account type and
+//     subscription state. A super-admin (holding admin:users:manage) may change
+//     a user's role — the LAST super-admin cannot be demoted (server-enforced
+//     lockout guard). Mobile numbers are masked by default and revealed per row
+//     via the eye toggle in the same cell; both states render LTR (isolated)
+//     within the RTL panel so digits never reorder.
+//
+//   · «سازمان‌ها» — the legal entities registered on the platform, projected
+//     from organizations/org_members/org_signatories. The status summary is
+//     computed over the WHOLE register, so a filtered page still reports the
+//     true shape of the book of business. Opening a row renders the full
+//     dossier in a drawer, where a manager can move it through its lifecycle.
 // ============================================================
 
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useChangeStaffRole, useAdminMe } from "@/hooks/useAdmin";
+import { useChangeStaffRole, useAdminMe, useAdminOrganizations } from "@/hooks/useAdmin";
 import { useUsersList } from "@/hooks/useAnalyticsDrill";
 import { DrillWindowBanner } from "@/components/admin/drill-window-banner";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { UserSubscriptionDrawer } from "@/components/admin/user-subscription-drawer";
 import { UserRequestsDrawer } from "@/components/admin/user-requests-drawer";
-import { toPersianDate } from "@/lib/persian-utils";
-import { ROLE_FA, STAFF_ROLES } from "@legalir/types";
-import type { PlatformRole } from "@legalir/types";
+import { OrganizationDetailDrawer } from "@/components/admin/organization-detail-drawer";
+import { toPersianDate, toPersianNumber } from "@/lib/persian-utils";
+import {
+  ORGANIZATION_STATUS_FA,
+  ROLE_FA,
+  STAFF_ROLES,
+  type OrganizationStatus,
+  type PlatformRole,
+} from "@legalir/types";
 import {
   PageHeader,
   DataTable,
@@ -38,6 +51,8 @@ import {
   InlineNotice,
   Pagination,
   ExportButton,
+  Tabs,
+  FilterPills,
 } from "@/components/admin/ui";
 import { DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 import { IconWarning } from "@/lib/icons";
@@ -50,6 +65,31 @@ const ASSIGNABLE_ROLES: PlatformRole[] = [
   "COMPANY_MEMBER",
   ...STAFF_ROLES,
 ];
+
+const ORG_STATUS_ORDER: OrganizationStatus[] = [
+  "DRAFT",
+  "PROFILE_INCOMPLETE",
+  "PROFILE_COMPLETE",
+  "PENDING_VERIFICATION",
+  "ACTIVE",
+  "REJECTED",
+  "SUSPENDED",
+];
+
+const ORG_STATUS_TONE: Record<
+  OrganizationStatus,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
+  DRAFT: "neutral",
+  PROFILE_INCOMPLETE: "warning",
+  PROFILE_COMPLETE: "info",
+  PENDING_VERIFICATION: "info",
+  ACTIVE: "success",
+  REJECTED: "danger",
+  SUSPENDED: "danger",
+};
+
+type View = "users" | "orgs";
 
 function RoleBadge({ role }: { role: PlatformRole }) {
   const isStaff = STAFF_ROLES.includes(role);
@@ -65,6 +105,36 @@ export default function AdminUsersPage() {
 }
 
 function AdminUsersView() {
+  const [view, setView] = useState<View>("users");
+
+  return (
+    <div>
+      <PageHeader
+        title="کاربران و سازمان‌ها"
+        description="دو دفتر ثبت پلتفرم: کاربران با نقش، نوع حساب و وضعیت اشتراک — و سازمان‌های حقوقی با اعضا، صاحبان امضا و چرخهٔ تأیید."
+        actions={view === "users" ? <ExportButton kind="users" /> : undefined}
+      />
+
+      <Tabs<View>
+        ariaLabel="کاربران یا سازمان‌ها"
+        value={view}
+        onChange={setView}
+        items={[
+          { value: "users", label: "کاربران" },
+          { value: "orgs", label: "سازمان‌ها" },
+        ]}
+      />
+
+      {view === "users" ? <UsersPanel /> : <OrganizationsPanel />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Users register
+// ---------------------------------------------------------------------------
+
+function UsersPanel() {
   const { can } = useAdminMe();
   const canManage = can("admin:users:manage");
   // §8 — reading a user's request history is its own permission, so a staff
@@ -112,12 +182,6 @@ function AdminUsersView() {
 
   return (
     <div>
-      <PageHeader
-        title="کاربران و سازمان‌ها"
-        description="فهرست کاربران پلتفرم با نقش، نوع حساب و وضعیت اشتراک. شماره‌های تماس به‌صورت پیش‌فرض ماسک هستند و با آیکون چشم هر ردیف به‌طور کامل نمایش داده می‌شوند."
-        actions={<ExportButton kind="users" />}
-      />
-
       <DrillWindowBanner subjectFa="کاربران" />
 
       {!canManage && (
@@ -274,6 +338,145 @@ function AdminUsersView() {
         canManage={canManage}
         open={Boolean(requestsUser)}
         onClose={() => setRequestsUser(null)}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Organizations register
+// ---------------------------------------------------------------------------
+
+function OrganizationsPanel() {
+  const { can } = useAdminMe();
+  const canManage = can("admin:users:manage");
+
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<OrganizationStatus | "">("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [openOrgId, setOpenOrgId] = useState<string | null>(null);
+
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  useEffect(() => setPage(1), [debouncedSearch, pageSize, status]);
+
+  const query = useAdminOrganizations({
+    search: debouncedSearch || undefined,
+    status: status || undefined,
+    page,
+    pageSize,
+  });
+
+  const summary = query.data?.summary;
+
+  return (
+    <div>
+      {!canManage && (
+        <InfoBanner tone="warning">
+          شما مجوز مدیریت کاربران را ندارید؛ پرونده‌های سازمان فقط‌خواندنی هستند.
+        </InfoBanner>
+      )}
+
+      <div className="mb-4 flex flex-col gap-3">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="جستجو در نام، شناسهٔ ملی، شمارهٔ ثبت، شهر یا نام نماینده"
+          className="min-w-[240px]"
+        />
+        <FilterPills<OrganizationStatus | "">
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: "", label: `همه (${toPersianNumber(summary?.total ?? 0)})` },
+            ...ORG_STATUS_ORDER.map((s) => ({
+              value: s,
+              label: `${ORGANIZATION_STATUS_FA[s]} (${toPersianNumber(summary?.[s] ?? 0)})`,
+            })),
+          ]}
+        />
+      </div>
+
+      <StateView
+        query={query}
+        loadingRows={6}
+        isEmpty={(d) => d.items.length === 0}
+        emptyMessage="سازمانی با این فیلتر یافت نشد."
+        emptyHint="سازمان‌ها زمانی در این دفتر ثبت ظاهر می‌شوند که یک کاربر حقیقی، پروندهٔ شخص حقوقی بسازد."
+      >
+        {(data) => (
+          <>
+            <DataTable
+              head={
+                <tr>
+                  <Th>سازمان</Th>
+                  <Th>نوع شخصیت</Th>
+                  <Th>شناسهٔ ملی</Th>
+                  <Th>نماینده</Th>
+                  <Th>اعضا</Th>
+                  <Th>امضاها</Th>
+                  <Th>وضعیت</Th>
+                  <Th>ثبت</Th>
+                  <Th>عملیات</Th>
+                </tr>
+              }
+            >
+              {data.items.map((o) => (
+                <tr key={o.id}>
+                  <Td>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-on-surface">{o.name}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        {o.tradeName && (
+                          <span className="text-caption text-muted">{o.tradeName}</span>
+                        )}
+                        <IdChip id={o.id} />
+                      </span>
+                    </div>
+                  </Td>
+                  <Td>{o.legalTypeFa ?? "ثبت نشده"}</Td>
+                  <Td>
+                    {o.nationalId ? (
+                      <span dir="ltr" className="tabular-nums">
+                        {o.nationalId}
+                      </span>
+                    ) : (
+                      <span className="text-muted">ثبت نشده</span>
+                    )}
+                  </Td>
+                  <Td>{o.ownerNameFa ?? "ثبت نشده"}</Td>
+                  <Td className="tabular-nums">{toPersianNumber(o.memberCount)}</Td>
+                  <Td className="tabular-nums">{toPersianNumber(o.signatoryCount)}</Td>
+                  <Td>
+                    <Badge tone={ORG_STATUS_TONE[o.status]}>{o.statusFa}</Badge>
+                  </Td>
+                  <Td className="whitespace-nowrap">{toPersianDate(o.createdAt)}</Td>
+                  <Td>
+                    <Button size="sm" variant="secondary" onClick={() => setOpenOrgId(o.id)}>
+                      پرونده
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+            </DataTable>
+
+            <Pagination
+              page={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              totalPages={data.totalPages}
+              itemLabel="سازمان"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
+        )}
+      </StateView>
+
+      <OrganizationDetailDrawer
+        orgId={openOrgId}
+        open={Boolean(openOrgId)}
+        onClose={() => setOpenOrgId(null)}
       />
     </div>
   );
