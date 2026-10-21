@@ -485,6 +485,57 @@ describe("admin audit trail", () => {
     expect(page.items).toHaveLength(2);
     expect(page.total).toBe(4);
   });
+
+  it("narrows to one resource id — the filter the dossiers link into", () => {
+    for (let i = 0; i < 3; i++) {
+      recordAudit({
+        actorUserId: "u-a",
+        actorRole: "ADMIN",
+        action: "organization.status.change",
+        resourceType: "organization",
+        resourceId: `org-${i}`,
+        result: "success",
+      });
+    }
+    recordAudit({
+      actorUserId: "u-a",
+      actorRole: "ADMIN",
+      action: "user.role.change",
+      resourceType: "user",
+      resourceId: "org-0",
+      result: "success",
+    });
+
+    // The id alone is enough: both resource kinds carry it.
+    expect(listAudit({ resourceId: "org-0" }).total).toBe(2);
+    // …and kind + id pins exactly one entity's history.
+    const scoped = listAudit({ resourceType: "organization", resourceId: "org-0" });
+    expect(scoped.total).toBe(1);
+    expect(scoped.items[0]!.action).toBe("organization.status.change");
+  });
+
+  it("reports the filter values that actually exist, over the whole log", () => {
+    recordAudit({
+      actorUserId: "u-a",
+      actorRole: "ADMIN",
+      action: "flag.update",
+      resourceType: "feature_flag",
+      resourceId: "f-1",
+    });
+    recordAudit({
+      actorUserId: "u-a",
+      actorRole: "ADMIN",
+      action: "refund.decide",
+      resourceType: "adjustment",
+      resourceId: "adj-1",
+    });
+
+    const facets = listAudit({ resourceType: "feature_flag" }).facets;
+    // Filtering the rows must NOT shrink the dropdown: `adjustment` is still
+    // offered even though only `feature_flag` rows came back.
+    expect(facets.resourceTypes).toEqual(["adjustment", "feature_flag"]);
+    expect(facets.actions).toEqual(["flag.update", "refund.decide"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -9,7 +9,12 @@
 
 import { readTable, writeTable } from "@/lib/db";
 import { matchesRow } from "@/lib/search/normalize";
-import type { AdminAuditEntry, AuditResult } from "@legalir/types";
+import type {
+  AdminAuditEntry,
+  AuditFacets,
+  AuditLogListResponse,
+  AuditResult,
+} from "@legalir/types";
 
 const TABLE = "admin_audit_log";
 
@@ -110,17 +115,24 @@ export interface AuditQuery {
   pageSize?: number;
 }
 
-/** Read the audit trail, newest first, with filtering and pagination. */
-export function listAudit(query: AuditQuery = {}): {
-  items: AdminAuditEntry[];
-  total: number;
-  page: number;
-  pageSize: number;
-} {
+/**
+ * Read the audit trail, newest first, with filtering and pagination.
+ *
+ * `facets` is always computed over the WHOLE log, never the filtered page:
+ * the filter dropdowns must keep offering every value that exists, otherwise
+ * selecting one value would erase the others from the list you pick next.
+ */
+export function listAudit(query: AuditQuery = {}): AuditLogListResponse {
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 25));
 
-  let rows = readTable<AdminAuditEntry>(TABLE);
+  const all = readTable<AdminAuditEntry>(TABLE);
+  const facets: AuditFacets = {
+    resourceTypes: [...new Set(all.map((r) => r.resourceType))].sort(),
+    actions: [...new Set(all.map((r) => r.action))].sort(),
+  };
+
+  let rows = all;
   if (query.actorUserId) rows = rows.filter((r) => r.actorUserId === query.actorUserId);
   if (query.action) rows = rows.filter((r) => r.action === query.action);
   if (query.resourceType) rows = rows.filter((r) => r.resourceType === query.resourceType);
@@ -133,5 +145,5 @@ export function listAudit(query: AuditQuery = {}): {
 
   const total = rows.length;
   const start = (page - 1) * pageSize;
-  return { items: rows.slice(start, start + pageSize), total, page, pageSize };
+  return { items: rows.slice(start, start + pageSize), total, page, pageSize, facets };
 }

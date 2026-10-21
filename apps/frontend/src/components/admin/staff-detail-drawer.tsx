@@ -13,6 +13,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Drawer, snackbar } from "@legalir/ui";
 import { useAdminStaffMember, useChangeStaffRole, useAdminMe } from "@/hooks/useAdmin";
 import { ROLE_FA, STAFF_ROLES, type PlatformRole } from "@legalir/types";
@@ -221,10 +222,20 @@ export function StaffDetailDrawer({
             )}
           </Block>
 
-          <p className="text-caption leading-relaxed text-muted">
-            برای مشاهدهٔ رویدادهای امنیتی این کارمند، از فیلتر «شناسهٔ کنشگر» در بخش رویدادهای
-            پایین صفحهٔ کارکنان استفاده کنید.
-          </p>
+          {can("admin:audit:read") ? (
+            <Link
+              href={`/admin/staff?actor=${encodeURIComponent(detail.id)}`}
+              onClick={onClose}
+              className="inline-flex items-center gap-1 text-body-2 font-medium text-primary transition-colors hover:text-primary-600"
+            >
+              مشاهدهٔ رویدادهای این کارمند
+              <span aria-hidden="true">←</span>
+            </Link>
+          ) : (
+            <p className="text-caption leading-relaxed text-muted">
+              مشاهدهٔ رویدادهای امنیتی این کارمند نیازمند مجوز «ممیزی» است.
+            </p>
+          )}
         </div>
       )}
     </Drawer>

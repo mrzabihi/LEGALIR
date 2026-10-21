@@ -2797,6 +2797,7 @@ export interface AdminAuditQuery {
   actorUserId?: string;
   action?: string;
   resourceType?: string;
+  resourceId?: string;
   result?: "success" | "failure" | "denied";
   search?: string;
   page?: number;
@@ -2809,6 +2810,7 @@ export function fetchAdminAudit(query: AdminAuditQuery = {}): Promise<AuditLogLi
       actorUserId: query.actorUserId,
       action: query.action,
       resourceType: query.resourceType,
+      resourceId: query.resourceId,
       result: query.result,
       search: query.search,
       page: query.page,

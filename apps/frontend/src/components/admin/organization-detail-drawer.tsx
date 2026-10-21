@@ -17,6 +17,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Drawer, snackbar } from "@legalir/ui";
 import { useAdminOrganization, useSetAdminOrganizationStatus, useAdminMe } from "@/hooks/useAdmin";
 import { ORGANIZATION_STATUS_FA, type OrganizationStatus } from "@legalir/types";
@@ -93,6 +94,9 @@ export function OrganizationDetailDrawer({
   const setStatus = useSetAdminOrganizationStatus();
   const { can } = useAdminMe();
   const canManage = can("admin:users:manage");
+  // The trail lives behind its own permission; without it the link would only
+  // land on the access notice.
+  const canAudit = can("admin:audit:read");
 
   const [draftStatus, setDraftStatus] = useState<OrganizationStatus | "">("");
 
@@ -351,9 +355,18 @@ export function OrganizationDetailDrawer({
           )}
 
           <p className="text-caption leading-relaxed text-muted">
-            اطلاعات این پرونده از ثبت سازمان توسط نمایندهٔ آن می‌آید؛ برای مشاهدهٔ رویدادهای مرتبط، از
-            فیلتر «شناسهٔ منبع» در بخش رویدادها استفاده کنید.
+            اطلاعات این پرونده از ثبت سازمان توسط نمایندهٔ آن می‌آید؛ هر تغییر وضعیت با کنشگر و مقدار
+            قبلی/جدید در رویدادهای امنیتی ثبت می‌شود.
           </p>
+          {canAudit && (
+            <Link
+              href={`/admin/staff?resourceType=organization&resourceId=${encodeURIComponent(detail.id)}`}
+              className="inline-flex items-center gap-1 text-body-2 font-medium text-primary transition-colors hover:text-primary-600"
+            >
+              مشاهدهٔ رویدادهای این سازمان
+              <span aria-hidden="true">←</span>
+            </Link>
+          )}
         </div>
       )}
     </Drawer>

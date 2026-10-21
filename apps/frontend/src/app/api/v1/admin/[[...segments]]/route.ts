@@ -722,6 +722,7 @@ const GET_ROUTES: Record<string, (c: GetCtx) => Promise<NextResponse> | NextResp
         actorUserId: url.searchParams.get("actorUserId") ?? undefined,
         action: url.searchParams.get("action") ?? undefined,
         resourceType: url.searchParams.get("resourceType") ?? undefined,
+        resourceId: url.searchParams.get("resourceId") ?? undefined,
         result:
           (url.searchParams.get("result") as "success" | "failure" | "denied" | null) ?? undefined,
         search: url.searchParams.get("search") ?? undefined,

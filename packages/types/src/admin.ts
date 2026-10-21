@@ -47,11 +47,22 @@ export interface AdminAuditEntry {
   createdAt: string;
 }
 
+/**
+ * The distinct filter values that actually appear in the trail. The filter UI
+ * is built from these rather than from a hand-maintained catalog, so a new
+ * recorded action/resource kind shows up on its own.
+ */
+export interface AuditFacets {
+  resourceTypes: string[];
+  actions: string[];
+}
+
 export interface AuditLogListResponse {
   items: AdminAuditEntry[];
   total: number;
   page: number;
   pageSize: number;
+  facets: AuditFacets;
 }
 
 // ---------------------------------------------------------------------------
