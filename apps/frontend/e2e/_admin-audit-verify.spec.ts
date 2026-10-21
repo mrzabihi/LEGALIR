@@ -182,6 +182,30 @@ test("a resource deep link lands on exactly that entity's trail", async ({ page,
   expect(errors, `console errors on the deep link: ${errors.join(" | ")}`).toEqual([]);
 });
 
+test("filtering the trail does not reset the staff directory beside it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 160)}`));
+
+  await page.goto("/admin/staff", { waitUntil: "networkidle" });
+
+  // Type into BOTH sections — the staff directory's own filter, and the trail's.
+  const staffSearch = page.getByPlaceholder("جست‌وجوی نام یا ایمیل…");
+  await staffSearch.fill("مدیر");
+
+  const section = page.locator("section", { hasText: "رویدادهای امنیتی (ممیزی)" }).last();
+  const auditSearch = section.getByPlaceholder("جست‌وجو در کلید عمل و شناسهٔ منبع…");
+  await auditSearch.fill("lawyer");
+
+  // The trail's filter reaches the address bar…
+  await expect.poll(() => page.url(), { timeout: 10_000 }).toContain("q=lawyer");
+  // …and the staff directory still holds what was typed: the trail writes the
+  // address with history.replaceState, so it must not remount the page.
+  await expect(staffSearch).toHaveValue("مدیر");
+  await expect(auditSearch).toHaveValue("lawyer");
+
+  expect(errors, `page errors on /admin/staff: ${errors.join(" | ")}`).toEqual([]);
+});
+
 test("the organization dossier links into its own trail", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (m) => {

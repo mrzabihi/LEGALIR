@@ -27,7 +27,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useAdminStaff,
   useAdminRoles,
@@ -381,114 +381,121 @@ export default function AdminStaffPage() {
 // Security events
 // ---------------------------------------------------------------------------
 
+/** The filter set, mirrored into the address bar so it can be shared. */
+interface AuditFilters {
+  actor: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  q: string;
+  result: string;
+  page: number;
+}
+
+const EMPTY_FILTERS: AuditFilters = {
+  actor: "",
+  action: "",
+  resourceType: "",
+  resourceId: "",
+  q: "",
+  result: "",
+  page: 1,
+};
+
+/** Read a deep link out of the address bar. */
+function readFilters(params: { get(key: string): string | null }): AuditFilters {
+  return {
+    actor: params.get("actor") ?? "",
+    action: params.get("action") ?? "",
+    resourceType: params.get("resourceType") ?? "",
+    resourceId: params.get("resourceId") ?? "",
+    q: params.get("q") ?? "",
+    result: params.get("result") ?? "",
+    page: Math.max(1, Number(params.get("page") ?? 1) || 1),
+  };
+}
+
 /**
- * Rebuild the URL with one audit filter changed. An empty value or page 1
- * removes the parameter, so a cleared filter leaves no residue in the address
- * an operator copies out of the bar.
+ * Serialise the filters, dropping anything at its default. An operator who
+ * clears a box should not be left with `&actor=` residue in the address they
+ * copy out of the bar.
  */
-function auditUrl(
-  params: URLSearchParams,
-  pathname: string,
-  patch: Record<string, string | number>
-): string {
-  const next = new URLSearchParams(params.toString());
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === "" || v === 0) next.delete(k);
-    else next.set(k, String(v));
-  }
-  const s = next.toString();
-  return s ? `${pathname}?${s}` : pathname;
+function toQueryString(f: AuditFilters): string {
+  const next = new URLSearchParams();
+  if (f.actor) next.set("actor", f.actor);
+  if (f.action) next.set("action", f.action);
+  if (f.resourceType) next.set("resourceType", f.resourceType);
+  if (f.resourceId) next.set("resourceId", f.resourceId);
+  if (f.q) next.set("q", f.q);
+  if (f.result) next.set("result", f.result);
+  if (f.page > 1) next.set("page", String(f.page));
+  return next.toString();
 }
 
 /**
  * The append-only security trail.
  *
- * Every filter is a URL parameter, so a dossier elsewhere in the panel can link
- * straight to the events for one entity (`?resourceType=organization&resourceId=…`)
- * instead of telling the operator to go and type two ids by hand. The
- * resource-kind and action dropdowns are built from the facets the log actually
- * contains — never a static catalog that could offer an empty filter.
+ * The URL is the ENTRY point, not the live source of truth: a dossier
+ * elsewhere in the panel links straight to the events for one entity
+ * (`?resourceType=organization&resourceId=…`), and this section seeds its
+ * state from that address on mount. Afterwards the local state drives the
+ * query and the address is kept in sync with `history.replaceState` — which
+ * does NOT run a Next.js navigation, so filtering here cannot remount the
+ * page or reset the sibling staff directory beside it.
+ *
+ * The resource-kind and action dropdowns are built from the facets the log
+ * actually contains — never a static catalog that could offer an empty filter.
  */
 function SecurityEventsSection() {
   const params = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
 
-  const applied = useMemo(
-    () => ({
-      actor: params.get("actor") ?? "",
-      action: params.get("action") ?? "",
-      resourceType: params.get("resourceType") ?? "",
-      resourceId: params.get("resourceId") ?? "",
-      q: params.get("q") ?? "",
-      result: params.get("result") ?? "",
-      page: Math.max(1, Number(params.get("page") ?? 1) || 1),
-    }),
-    [params]
-  );
+  const [filters, setFilters] = useState<AuditFilters>(() => readFilters(params));
+  const { actor, action, resourceType, resourceId, q, result, page } = filters;
 
-  const [actorDraft, setActorDraft] = useState(applied.actor);
-  const [actionDraft, setActionDraft] = useState(applied.action);
-  const [resourceIdDraft, setResourceIdDraft] = useState(applied.resourceId);
-  const [qDraft, setQDraft] = useState(applied.q);
-
-  // A deep link changes the URL underneath mounted inputs — re-seed the drafts
-  // so each box shows the value that is actually being applied.
-  useEffect(() => setActorDraft(applied.actor), [applied.actor]);
-  useEffect(() => setActionDraft(applied.action), [applied.action]);
-  useEffect(() => setResourceIdDraft(applied.resourceId), [applied.resourceId]);
-  useEffect(() => setQDraft(applied.q), [applied.q]);
-
+  // Text boxes keep their own draft so typing stays instant; the debounced
+  // value is what reaches the query.
+  const [actorDraft, setActorDraft] = useState(actor);
+  const [resourceIdDraft, setResourceIdDraft] = useState(resourceId);
+  const [qDraft, setQDraft] = useState(q);
   const debouncedActor = useDebouncedValue(actorDraft.trim(), 300);
-  const debouncedAction = useDebouncedValue(actionDraft.trim(), 300);
   const debouncedResourceId = useDebouncedValue(resourceIdDraft.trim(), 300);
   const debouncedQ = useDebouncedValue(qDraft.trim(), 300);
 
-  const write = useCallback(
-    (patch: Record<string, string | number>) =>
-      router.replace(auditUrl(params, pathname, patch), { scroll: false }),
-    [router, params, pathname]
-  );
-
-  // All four text filters are committed in ONE write. Firing one effect per
-  // field would race: the second write would rebuild the query string from the
-  // same stale `params` and silently drop the first field.
-  useEffect(() => {
-    if (
-      debouncedActor === applied.actor &&
-      debouncedAction === applied.action &&
-      debouncedResourceId === applied.resourceId &&
-      debouncedQ === applied.q
-    ) {
-      return;
-    }
-    write({
-      actor: debouncedActor,
-      action: debouncedAction,
-      resourceId: debouncedResourceId,
-      q: debouncedQ,
-      page: "",
+  const patch = useCallback((next: Partial<AuditFilters>) => {
+    setFilters((f) => {
+      const merged = { ...f, ...next };
+      // Any change other than paging restarts the list at page 1 — page 7 of
+      // the old filter is meaningless under a new one.
+      if (next.page === undefined) merged.page = 1;
+      return merged;
     });
-  }, [
-    debouncedActor,
-    debouncedAction,
-    debouncedResourceId,
-    debouncedQ,
-    applied.actor,
-    applied.action,
-    applied.resourceId,
-    applied.q,
-    write,
-  ]);
+  }, []);
+
+  // Commit the debounced text fields together, so two boxes typed in quick
+  // succession do not clobber one another.
+  useEffect(() => {
+    setFilters((f) =>
+      f.actor === debouncedActor && f.resourceId === debouncedResourceId && f.q === debouncedQ
+        ? f
+        : { ...f, actor: debouncedActor, resourceId: debouncedResourceId, q: debouncedQ, page: 1 }
+    );
+  }, [debouncedActor, debouncedResourceId, debouncedQ]);
+
+  // Mirror the filters into the address without navigating.
+  useEffect(() => {
+    const qs = toQueryString(filters);
+    window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+  }, [filters, pathname]);
 
   const audit = useAdminAudit({
-    actorUserId: applied.actor || undefined,
-    action: applied.action || undefined,
-    resourceType: applied.resourceType || undefined,
-    resourceId: applied.resourceId || undefined,
-    search: applied.q || undefined,
-    result: (applied.result || undefined) as AdminAuditEntry["result"] | undefined,
-    page: applied.page,
+    actorUserId: actor || undefined,
+    action: action || undefined,
+    resourceType: resourceType || undefined,
+    resourceId: resourceId || undefined,
+    search: q || undefined,
+    result: (result || undefined) as AdminAuditEntry["result"] | undefined,
+    page,
     pageSize: 25,
   });
 
@@ -501,22 +508,24 @@ function SecurityEventsSection() {
   // the filter is visible, rather than silently rendering "all kinds".
   const resourceTypeOptions = useMemo(
     () =>
-      applied.resourceType && !resourceTypes.includes(applied.resourceType)
-        ? [...resourceTypes, applied.resourceType].sort()
+      resourceType && !resourceTypes.includes(resourceType)
+        ? [...resourceTypes, resourceType].sort()
         : resourceTypes,
-    [resourceTypes, applied.resourceType]
+    [resourceTypes, resourceType]
   );
   const actionOptions = useMemo(
-    () =>
-      applied.action && !actions.includes(applied.action)
-        ? [...actions, applied.action].sort()
-        : actions,
-    [actions, applied.action]
+    () => (action && !actions.includes(action) ? [...actions, action].sort() : actions),
+    [actions, action]
   );
 
-  const hasFilters = Boolean(
-    applied.actor || applied.action || applied.resourceType || applied.resourceId || applied.q || applied.result
-  );
+  const hasFilters = Boolean(actor || action || resourceType || resourceId || q || result);
+
+  function clearFilters() {
+    setFilters(EMPTY_FILTERS);
+    setActorDraft("");
+    setResourceIdDraft("");
+    setQDraft("");
+  }
 
   return (
     <Section
@@ -532,8 +541,8 @@ function SecurityEventsSection() {
         />
         <Select
           aria-label="نوع منبع"
-          value={applied.resourceType}
-          onChange={(e) => write({ resourceType: e.target.value, page: "" })}
+          value={resourceType}
+          onChange={(e) => patch({ resourceType: e.target.value })}
           className="min-w-[170px]"
         >
           <option value="">همهٔ انواع منبع</option>
@@ -553,8 +562,8 @@ function SecurityEventsSection() {
         />
         <Select
           aria-label="کلید عمل"
-          value={applied.action}
-          onChange={(e) => write({ action: e.target.value, page: "" })}
+          value={action}
+          onChange={(e) => patch({ action: e.target.value })}
           className="min-w-[190px]"
         >
           <option value="">همهٔ عمل‌ها</option>
@@ -574,8 +583,8 @@ function SecurityEventsSection() {
         />
         <Select
           aria-label="نتیجه"
-          value={applied.result}
-          onChange={(e) => write({ result: e.target.value, page: "" })}
+          value={result}
+          onChange={(e) => patch({ result: e.target.value })}
           className="min-w-[140px]"
         >
           <option value="">همهٔ نتایج</option>
@@ -584,17 +593,17 @@ function SecurityEventsSection() {
           <option value="denied">رد شده</option>
         </Select>
         {hasFilters && (
-          <Button size="sm" variant="ghost" onClick={() => router.replace(pathname, { scroll: false })}>
+          <Button size="sm" variant="ghost" onClick={clearFilters}>
             پاک‌کردن فیلترها
           </Button>
         )}
       </div>
 
-      {(applied.resourceType || applied.resourceId) && (
+      {(resourceType || resourceId) && (
         <p className="mb-3 text-caption text-muted">
           محدودهٔ منبع:{" "}
           <span dir="ltr" className="font-mono text-on-surface-variant">
-            {applied.resourceType || "*"}:{applied.resourceId || "*"}
+            {resourceType || "*"}:{resourceId || "*"}
           </span>
         </p>
       )}
@@ -643,11 +652,7 @@ function SecurityEventsSection() {
                       dir="ltr"
                       title="نمایش رویدادهای همین منبع"
                       onClick={() =>
-                        write({
-                          resourceType: e.resourceType,
-                          resourceId: e.resourceId,
-                          page: "",
-                        })
+                        patch({ resourceType: e.resourceType, resourceId: e.resourceId })
                       }
                       className="rounded-small px-1 text-start font-mono underline decoration-dotted underline-offset-2 transition-colors hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     >
@@ -676,7 +681,7 @@ function SecurityEventsSection() {
                   size="sm"
                   variant="ghost"
                   disabled={data.page <= 1}
-                  onClick={() => write({ page: Math.max(1, data.page - 1) })}
+                  onClick={() => patch({ page: Math.max(1, data.page - 1) })}
                 >
                   قبلی
                 </Button>
@@ -687,7 +692,7 @@ function SecurityEventsSection() {
                   size="sm"
                   variant="ghost"
                   disabled={data.page >= totalPages}
-                  onClick={() => write({ page: data.page + 1 })}
+                  onClick={() => patch({ page: data.page + 1 })}
                 >
                   بعدی
                 </Button>
