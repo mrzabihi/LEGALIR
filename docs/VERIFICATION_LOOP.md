@@ -186,3 +186,223 @@ The vitest duration breakdown (transform 56 s, setup 255 s, environment 248 s,
 collect 89 s, tests 239 s) is the shape of the remaining cost: it is per-file
 `jsdom` + MSW setup multiplied by 225, not slow tests. Disabling isolation
 would remove it but breaks 554 tests, so the floor stands.
+
+---
+
+# Part 2 — the loop after the 2026-10-21 profile
+
+Part 1 removed redundant *work* inside each command. Part 2 changes which
+commands run and when. Every number below was taken on the same machine, in
+the same session, with the same warm caches as Part 1.
+
+The rule is unchanged: **a check you skip is not a check you passed.** The
+new machinery is built so that it either widens the check or says out loud
+that it narrowed it — never neither.
+
+## What changed
+
+| Piece | Before | After |
+|---|---|---|
+| `npm run verify` | `check:assets && typecheck && lint:fast`, sequential | three gates spawned together, plus a fourth self-check |
+| Choosing tests for a change | the full suite, every time | `npm run affected` — a reverse-import query |
+| Orientation for a cold start | re-derived by hand | `npm run repo-map` → `docs/CODEMAPS/REPO_MAP.md` |
+
+These are three files. Nothing was added to `node_modules`; every one is
+plain Node ESM using only `node:fs`, `node:path`, `node:crypto` and
+`node:child_process`.
+
+## 1. `verify` runs its gates concurrently — 2.1×
+
+The gates answer unrelated questions and share no state. Their runtimes were
+`assets 0.5 s + types 3.9 s + lint 2.6 s` (plus `harness 1.6 s`, added in
+Part 2), and the `&&` chain made the wall clock their **sum**.
+
+| Run | Wall | Sequential equivalent |
+|---|---|---|
+| `verify` (cold lint cache, three gates) | 9.4 s | 15.3 s |
+| `verify` (warm, four gates) | 4.0–5.2 s, median **4.6 s** | 8.6 s |
+
+On the run that produced the gate table (4.0 s wall, 8.6 s of gate time) the
+ratio is **2.1×**; the median of three consecutive warm runs is 4.6 s. Same
+four gates, same exit code. The runner prints a timing table every run, so a
+gate that quietly gets slower is visible rather than absorbed.
+
+`--only=types,lint`, `--quiet` and `--json` exist for when one gate is what
+you need. `--json` reports `{ wallMs, gates: [{ name, ok, code, ms }] }`.
+
+## 2. `affected` — the smallest test set, in 0.32 s
+
+This is the piece that changes the shape of the loop. Vitest's own answers
+were already measured and rejected in Part 1 (`--changed` 90.3 s,
+`related` >180 s, both slower than the suite they replace). The reason both
+lose is that they invoke TypeScript; this one scans import specifiers with
+a regex and resolves them against the tsconfig aliases, then answers from a
+cached reverse graph.
+
+| | Time |
+|---|---|
+| cold (graph built) | 1.10 s |
+| warm (cache hit) | **0.32 s** |
+
+The graph covers 1,316 files and 227 test files. It is cached at
+`node_modules/.cache/legalir/affected-graph.json`, keyed by a SHA-256 over
+every `(path, size, mtime)` in the universe — so any add, remove, rename or
+write invalidates it. A stale graph under-selects silently, so the key is
+deliberately sensitive to mtime alone: a `touch` costs one rebuild, which is
+cheap, and a missed rebuild is not.
+
+### What it selects, measured
+
+| Changed file | Test files selected | Selected-test wall |
+|---|---|---|
+| `src/lib/services/catalog.ts` | 2 / 227 | 9.6 s |
+| `src/lib/calculators/engine.ts` | 26 / 227 | 21.1 s |
+| `src/lib/lawyer-portal/sla.ts` | 83 / 227 | 35.4 s |
+| `src/lib/persian-utils.ts` | 147 / 227 | 66.0 s |
+| full suite, for comparison | 227 / 227 | **81.2 s** |
+
+Four consecutive `--run` invocations on an otherwise idle machine, all green,
+`vitest`'s own reported duration never more than 2 s under the wall clock.
+The small selection is the headline: a leaf module costs **9.6 s instead of
+81.2 s**, an 8.5× reduction, against 227 files and 3391 tests.
+
+The two large selections are honest, not a leak. `persian-utils` and
+`lawyer-portal/sla` are both reached through shared hubs — `sla.ts` is
+imported by `lib/db.ts`, which most of the API surface imports. `--why`
+proves it in one line:
+
+```
+$ node scripts/affected.mjs --files=src/lib/lawyer-portal/sla.ts \
+    --why=src/lib/__tests__/authorization.test.ts
+
+src/lib/__tests__/authorization.test.ts reaches a changed file in 3 hop(s):
+  → apps/frontend/src/lib/__tests__/authorization.test.ts
+  → apps/frontend/src/app/api/v1/cases/[id]/route.ts
+  → apps/frontend/src/lib/db.ts
+  → apps/frontend/src/lib/lawyer-portal/sla.ts
+```
+
+A selection you cannot explain is one you learn to distrust, so every
+surprising count is one command away from its explanation.
+
+### Tiers — where selection switches itself off
+
+The graph sees static imports. What it cannot see, it must not guess.
+
+- **T0** — only docs, asset binaries, design material, scratch. Nothing runs.
+- **T1** — every changed file is a module with importers. The graph decides.
+- **T2** — a graph-invisible but scoped change: a stylesheet, a page/layout
+  entry, a public asset. Unit selection still applies where it can; e2e is
+  chosen by matching the route.
+- **T3** — a global change: `packages/*`, an API route, auth/db/store,
+  middleware, any build or test config. Selection is off; both full suites
+  run, and the report names the file that forced it.
+
+CSS is the interesting case. A stylesheet has no unit-level assertion to
+fail — vitest processes it, but nothing reads computed styles — so sending
+it to the full suite bought 80 s of tests that could not observe the change.
+`affected` reports `unit — none`, says why, and hands the change to the
+contract suite, which is the gate that can see it.
+
+The reverse case matters as much: a component that **no test imports** is
+reported under `NO UNIT COVERAGE` rather than being quietly assigned zero
+tests. It is not a skip; it is a named gap.
+
+### The property that makes it safe
+
+Each of these is asserted by `affected --selftest`, which now runs as a
+fourth gate inside `verify` (1.6 s, concurrent, so free in wall time):
+
+```
+✓ stylesheet skips the unit suite
+✓ stylesheet is gated by e2e
+✓ covered module selects its own test
+✓ covered module does not run the whole suite
+✓ uncovered module is reported
+✓ uncovered module still gets a gate
+✓ API route runs the full unit suite
+✓ a new file changes the cache key
+```
+
+A selector fails quietly — if it under-selects, the tests it dropped do not
+report themselves and the run is green for the wrong reason. That is a
+failure mode no other gate in this repo can catch, so the selector checks
+itself.
+
+Correctness was also confirmed end to end, not just by inspection: a
+throwaway `proof.test.ts` importing `@/lib/persian-utils` with a
+deliberately false assertion was created, `--files=src/lib/persian-utils.ts`
+selected it, and it failed with the expected message. The fixture was
+removed afterwards. (An earlier attempt to prove this by injecting a
+regression into a real tracked file was refused — correctly, with concurrent
+sessions editing the same tree — and the disposable fixture replaced it.)
+
+## 3. `repo-map` — orientation with a real invalidation key
+
+`docs/CODEMAPS/REPO_MAP.md` is generated in 0.44 s: area sizes, the full
+route table (derived from the App Router's own filename convention), the
+gates, and the invariants a change can silently violate.
+
+Its first line is a fingerprint — SHA-256 over every source file's
+`(path, size, mtime)`. `--check` exits 1 when the map is stale. There is no
+"last updated" date to interpret, and no judgement call about whether a doc
+feels current.
+
+It is a summary, not an index: listing 1,250 files costs more to read than
+to regenerate.
+
+## 4. Measured and deliberately not adopted
+
+| Candidate | Result | Verdict |
+|---|---|---|
+| `vitest --minWorkers=1 --maxWorkers=6` | 102 s vs 96 s default | Default parallelism is already optimal on 12 logical CPUs; the suite is per-file `jsdom` setup, which more workers cannot divide further. |
+| `playwright.live.config.ts` for the whole contract suite | >10 min, killed | Its `workers: 1` is deliberate (specs share server state), which makes it the wrong config for a full run — and why the *selected* e2e command is the only place it is used. |
+| Selecting e2e by filename alone | 10 specs for one `/dashboard` change | Filenames repeat (`admin`, `mobile`). Route literals are the reliable signal; the filename is only consulted for a distinctive segment of 5+ characters. |
+
+## 5. Rollback
+
+Every piece is additive and independent. Nothing was deleted.
+
+| To undo | Do this |
+|---|---|
+| the parallel `verify` | `"verify": "npm run check:assets && npm run typecheck && npm run lint:fast"` in `apps/frontend/package.json` |
+| the selector | delete `scripts/affected.mjs` and the `affected*` scripts |
+| the repo map | delete `scripts/repo-map.mjs` and `docs/CODEMAPS/` |
+| all of it | `git revert <this commit>` — no `node_modules` change, no lockfile change, no config edit |
+
+`npm test`, `npm run test:e2e`, `npm run typecheck` and `npm run lint` are
+untouched. Anything that worked before still works the same way.
+
+## 6. The loop, restated
+
+```
+Understand  →  read docs/CODEMAPS/REPO_MAP.md (or `npm run repo-map --check`)
+Plan        →  brief
+Execute     →  edit
+Validate    →  npm run verify            (4.6 s, four gates)
+               npm run affected --run    (0.3 s + the selected tests)
+Deliver     →  npm run verify && npm test && npm run test:e2e
+```
+
+Time from "file saved" to "I know whether this is sound" for a leaf-module
+change: **~10 s** (`affected` 0.3 s, then 2 test files in 9.6 s; `verify` runs
+alongside or before it in 4.6 s), against **~90 s** before (8.1 s chain +
+81.2 s suite). For a module near the `db.ts` hub the selected run grows to
+35–66 s — an honest reflection of how much of the suite can observe the
+change, still under the full 81.2 s, and the report says so before you run it.
+
+Full regression before delivering is unchanged and still mandatory. The
+selector is an iteration tool, never a delivery gate.
+
+---
+
+## Where the landing's own numbers live
+
+`docs/LANDING_MOBILE.md` is the companion to this document for the public
+landing: the mobile bento grammar per section, the 320/360/390/430 sweep with
+CLS/LCP/image bytes, and a rollback table for each piece. Its measurements come
+from `e2e/_mobile-measure.spec.ts`, which prints the tables rather than
+asserting them — the *assertions* (`no horizontal overflow`, `no non-hero image
+> 0.5 screens`) are the four added to `landing-polish.spec.ts`, which is why
+they cost 1.2–1.8 s per width and belong in the contract suite rather than a
+scratch file.
