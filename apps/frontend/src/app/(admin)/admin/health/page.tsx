@@ -120,7 +120,8 @@ export default function AdminHealthPage() {
           </p>
           {settings.data && (
             <p className="mt-1.5 text-caption leading-relaxed text-muted">
-              منطقه زمانی: {settings.data.timezone} · واحد پول: {settings.data.currency}
+              منطقهٔ زمانی سرور: {settings.data.serverTimezone} · منطقهٔ نمایش پنل:{" "}
+              {settings.data.displayTimezone} · واحد پول: {settings.data.currency}
             </p>
           )}
         </Card>

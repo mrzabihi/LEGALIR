@@ -13,7 +13,7 @@ import Link from "next/link";
 import { Button } from "@legalir/ui";
 import { useConsultations } from "@/hooks/useConsultations";
 import { IconAdd, IconArrowBack, IconHeadset, IconInfo, IconRefresh } from "@/lib/icons";
-import { PageIntroBanner } from "@/components/shared";
+import { PageContainer, PageIntroBanner } from "@/components/shared";
 import { LEGAL_CATEGORY_FA } from "@legalir/types";
 import { ConsultationStatusBadge, formatDateTime } from "@/components/consultations/consultation-status";
 
@@ -21,7 +21,7 @@ export default function ConsultationsPage() {
   const { data: requests, isLoading, isError, refetch } = useConsultations();
 
   return (
-    <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
+    <PageContainer>
       <PageIntroBanner
         className="mb-6"
         icon={IconHeadset}
@@ -106,6 +106,6 @@ export default function ConsultationsPage() {
           ))}
         </ul>
       )}
-    </div>
+    </PageContainer>
   );
 }

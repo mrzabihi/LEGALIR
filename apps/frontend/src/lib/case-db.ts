@@ -33,6 +33,7 @@ import type {
   CaseContractKind,
 } from "@legalir/types";
 import { WORKFLOW_TEMPLATE_VERSION } from "./cases/domain";
+import { listAcceptedReferralCaseIds } from "./legal-request-db";
 
 const DB_DIR = path.resolve(process.cwd(), ".data");
 
@@ -397,6 +398,10 @@ export function listReferredCases(accountIds: readonly string[]): DbCase[] {
       )
       .map((m) => m.case_id)
   );
+  // Cases created by an ACCEPTED referral that predates the explicit
+  // membership insert: the accepted request is the evidence of access, so the
+  // case belongs in the lawyer's caseload even without a `case_members` row.
+  for (const caseId of listAcceptedReferralCaseIds([...ids])) referredIds.add(caseId);
   if (referredIds.size === 0) return [];
   return readTable<DbCase>("cases")
     .filter((c) => referredIds.has(c.id))

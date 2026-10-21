@@ -28,7 +28,8 @@ import {
   adminSectionTitle,
   type AdminNavItem,
 } from "@/lib/admin-nav";
-import { useAdminMe } from "@/hooks/useAdmin";
+import { useAdminMe, useAdminSettings } from "@/hooks/useAdmin";
+import { setDisplayTimeZone } from "@/lib/persian-utils";
 import { useLogout } from "@/lib/auth/use-auth";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { UserAvatar } from "@/components/user/user-avatar";
@@ -460,6 +461,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const sectionTitle = adminSectionTitle(pathname);
   const roleFa = role ? (ROLE_FA[role] ?? role) : "";
+
+  // Apply the SAVED display zone to every `toPersianDate` call in the panel.
+  // This is presentation only: the instants themselves stay the same UTC
+  // values the API returned. Cleared on unmount so consumer surfaces are not
+  // affected by a zone chosen in the console.
+  const settings = useAdminSettings();
+  const savedDisplayZone = settings.data?.displayTimezone ?? null;
+  useEffect(() => {
+    setDisplayTimeZone(savedDisplayZone);
+    return () => setDisplayTimeZone(null);
+  }, [savedDisplayZone]);
 
   const displayName = me?.profile?.displayName ?? me?.user?.mobileDisplay ?? "کاربر";
 

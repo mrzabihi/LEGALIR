@@ -24,6 +24,7 @@ import Link from "next/link";
 import { buttonClasses } from "@legalir/ui";
 import type { JudicialServiceId, JudicialServiceView } from "@legalir/types";
 import {
+  IconChevronLeft,
   IconFilePen,
   IconGavel,
   IconInfo,
@@ -106,26 +107,60 @@ function isEnterable(service: JudicialServiceView): boolean {
 function JudicialServiceCard({
   service,
   mode,
+  appearance,
 }: {
   service: JudicialServiceView;
   mode: "app" | "public";
+  appearance: "app" | "marketing";
 }) {
   const Icon = SERVICE_ICON[service.id];
   const href = ctaHref(service, mode);
   const enterable = isEnterable(service);
+  const marketing = appearance === "marketing";
 
-  return (
-    <article className="flex h-full flex-col rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4">
-      <div className="flex items-start gap-3">
+  const note =
+    service.availabilityNoteFa ??
+    service.statusNoteFa ??
+    "این خدمت هنوز برای شروع در دسترس نیست.";
+
+  const body = (
+    <>
+      {/* Phones: icon beside the copy keeps one card near 170px instead of
+          ~250px, so six services stay scannable instead of becoming six
+          screens. From `tablet` the icon sits above the title, as it does on
+          the app surfaces. */}
+      <div
+        className={
+          marketing ? "flex items-start gap-3 tablet:block" : "flex items-start gap-3"
+        }
+      >
         <span
           aria-hidden="true"
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-gradient-to-br ${SERVICE_GRADIENT[service.id]} text-white shadow-elevation-1`}
+          className={
+            marketing
+              ? `flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--ln-r-md)] bg-gradient-to-br ${SERVICE_GRADIENT[service.id]} text-white tablet:h-11 tablet:w-11`
+              : `flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-gradient-to-br ${SERVICE_GRADIENT[service.id]} text-white shadow-elevation-1`
+          }
         >
-          <Icon size={22} />
+          <Icon size={marketing ? 20 : 22} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-body-1 font-semibold text-on-surface">{service.titleFa}</h3>
+          <div
+            className={
+              marketing
+                ? "flex flex-wrap items-center gap-x-2 gap-y-1 tablet:mt-3"
+                : "flex flex-wrap items-center gap-2"
+            }
+          >
+            <h3
+              className={
+                marketing
+                  ? "text-[15px] font-semibold leading-7 text-[color:var(--ln-navy)]"
+                  : "text-body-1 font-semibold text-on-surface"
+              }
+            >
+              {service.titleFa}
+            </h3>
             {/* Every state carries its label — «در دسترس» included — so the
                 badge position matches the /cases card and a working service
                 is never quieter than a disabled one. */}
@@ -135,7 +170,13 @@ function JudicialServiceCard({
               dot={false}
             />
           </div>
-          <p className="mt-1 text-caption leading-6 text-on-surface-variant">
+          <p
+            className={
+              marketing
+                ? "mt-1 text-[12.5px] leading-6 text-[color:var(--ln-muted)] tablet:mt-1.5"
+                : "mt-1 text-caption leading-6 text-on-surface-variant"
+            }
+          >
             {service.descriptionFa}
           </p>
         </div>
@@ -145,13 +186,65 @@ function JudicialServiceCard({
           actually delivers the artifact. The note is the same server string
           the intake page repeats — one source, two placements. */}
       {(!enterable || service.availability === "request_only") && (
-        <p className="mt-3 flex items-start gap-1.5 rounded-medium bg-surface-container-low px-2.5 py-2 text-caption leading-6 text-on-surface-variant">
+        <p
+          className={
+            marketing
+              ? "mt-2.5 flex items-start gap-1.5 rounded-[var(--ln-r-sm)] bg-[color:var(--ln-canvas)] px-2.5 py-2 text-[11.5px] leading-6 text-[color:var(--ln-muted)]"
+              : "mt-3 flex items-start gap-1.5 rounded-medium bg-surface-container-low px-2.5 py-2 text-caption leading-6 text-on-surface-variant"
+          }
+        >
           <IconInfo size={14} className="mt-1 shrink-0" />
-          {service.availabilityNoteFa ??
-            service.statusNoteFa ??
-            "این خدمت هنوز برای شروع در دسترس نیست."}
+          {note}
         </p>
       )}
+    </>
+  );
+
+  // Marketing: the whole card is the action, like every other card on the
+  // home page. One label names the next step and the arrow follows the text
+  // — no separate full-width button row, which on a phone cost ~52px per
+  // card for six cards. The app surfaces keep their explicit button.
+  if (marketing) {
+    const action = (
+      <span
+        className={
+          href
+            ? "mt-auto flex items-center gap-1.5 pt-3 text-[12.5px] font-semibold text-[color:var(--ln-green)]"
+            : "mt-auto flex items-center gap-1.5 pt-3 text-[12.5px] font-semibold text-[color:var(--ln-muted)]"
+        }
+      >
+        {service.ctaFa}
+        <IconChevronLeft
+          size={15}
+          aria-hidden="true"
+          className={
+            href
+              ? "transition-transform duration-300 group-hover:-translate-x-0.5 motion-reduce:transition-none"
+              : "opacity-60"
+          }
+        />
+      </span>
+    );
+
+    return href ? (
+      <Link href={href} className="landing-card group p-4 tablet:p-5">
+        {body}
+        {action}
+      </Link>
+    ) : (
+      <article
+        aria-disabled="true"
+        className="landing-card p-4 opacity-70 tablet:p-5"
+      >
+        {body}
+        {action}
+      </article>
+    );
+  }
+
+  return (
+    <article className="flex h-full flex-col rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4">
+      {body}
 
       <div className="mt-auto pt-4">
         {href ? (
@@ -190,6 +283,15 @@ export interface JudicialServiceZoneProps {
   className?: string;
   /** Rendered after the cards (e.g. a link to the full judicial launcher). */
   footer?: ReactNode;
+  /**
+   * Which card language this placement speaks. `app` (the default) is the
+   * MD3 card used by /services, /new and /dashboard. `marketing` swaps in
+   * the landing's own card recipe (`landing-card`) and a tighter phone
+   * anatomy, so the home page does not drop six tall app cards into the
+   * middle of its marketing rhythm. Only presentation changes — the data,
+   * the statuses and every CTA destination are identical.
+   */
+  appearance?: "app" | "marketing";
 }
 
 /**
@@ -206,6 +308,7 @@ export function JudicialServiceZone({
   description,
   className,
   footer,
+  appearance = "app",
 }: JudicialServiceZoneProps) {
   const { data, isLoading } = useJudicialServices();
   const items = data?.items;
@@ -229,7 +332,11 @@ export function JudicialServiceZone({
       <ul className={`grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3 ${className ?? ""}`}>
         {matches.map((service) => (
           <li key={service.id} className="h-full">
-            <JudicialServiceCard service={service} mode={mode} />
+            <JudicialServiceCard
+              service={service}
+              mode={mode}
+              appearance={appearance}
+            />
           </li>
         ))}
       </ul>
@@ -242,27 +349,55 @@ export function JudicialServiceZone({
       className={className}
     >
       {title !== null && (
-        <div className="mb-3">
-          {/* Same eyebrow → title → description stack as the /cases card. */}
-          <p className="text-labelSmall font-medium tracking-wide text-primary">
+        <div className={appearance === "marketing" ? "mb-5 max-w-2xl" : "mb-3"}>
+          {/* Same eyebrow → title → description stack as the /cases card,
+              wearing the landing's type scale when it sits on the home page
+              so it reads as one of the page's own sections. */}
+          <p
+            className={
+              appearance === "marketing"
+                ? "landing-eyebrow"
+                : "text-labelSmall font-medium tracking-wide text-primary"
+            }
+          >
             {JUDICIAL_FAMILY_EYEBROW_FA}
           </p>
           <h2
             id={`judicial-zone-${surface}`}
-            className="mt-0.5 text-h4 font-bold text-on-surface"
+            className={
+              appearance === "marketing"
+                ? "landing-title mt-3"
+                : "mt-0.5 text-h4 font-bold text-on-surface"
+            }
           >
             {title ?? JUDICIAL_FAMILY_TITLE_FA}
           </h2>
-          <p className="mt-1 text-caption text-on-surface-variant">
+          <p
+            className={
+              appearance === "marketing"
+                ? "landing-lead mt-3"
+                : "mt-1 text-caption text-on-surface-variant"
+            }
+          >
             {description ?? JUDICIAL_FAMILY_DESCRIPTION_FA}
           </p>
         </div>
       )}
 
-      <ul className="grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3">
+      <ul
+        className={
+          appearance === "marketing"
+            ? "grid grid-cols-1 gap-3 tablet:grid-cols-2 tablet:gap-4 laptop:grid-cols-3"
+            : "grid grid-cols-1 gap-3 tablet:grid-cols-2 laptop:grid-cols-3"
+        }
+      >
         {matches.map((service) => (
           <li key={service.id} className="h-full">
-            <JudicialServiceCard service={service} mode={mode} />
+            <JudicialServiceCard
+              service={service}
+              mode={mode}
+              appearance={appearance}
+            />
           </li>
         ))}
       </ul>

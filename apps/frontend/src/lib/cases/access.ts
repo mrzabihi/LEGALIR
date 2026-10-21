@@ -27,6 +27,7 @@ import {
   type DbCaseMember,
 } from "@/lib/case-db";
 import { getLawyerProfileByUserId } from "@/lib/lawyer-db";
+import { listAcceptedReferralCaseIds } from "@/lib/legal-request-db";
 import type { CaseMemberRole } from "@legalir/types";
 
 /**
@@ -83,8 +84,24 @@ export function resolveCaseAccess(userId: string, caseId: string): CaseAccess | 
     };
   }
 
-  const member = getActiveCaseMemberAny(caseId, caseMemberAccountIds(userId));
-  if (!member) return null;
+  const accountIds = caseMemberAccountIds(userId);
+  const member = getActiveCaseMemberAny(caseId, accountIds);
+  if (!member) {
+    // Legacy referrals: acceptance created the case and named the lawyer, but
+    // predates the `case_members` insert. The accepted request IS the grant.
+    if (!listAcceptedReferralCaseIds(accountIds).includes(caseId)) return null;
+    return {
+      case: c,
+      member: null,
+      role: "lawyer",
+      isOwner: false,
+      canWrite: true,
+      canManageMembers: false,
+      canReadDocuments: true,
+      canReadPrivateNotes: false,
+      canBeAssigned: true,
+    };
+  }
 
   const role = member.role;
   const scopes = member.scopes ?? [];

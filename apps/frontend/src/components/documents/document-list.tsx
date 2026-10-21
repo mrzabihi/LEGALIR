@@ -415,7 +415,14 @@ export function DocumentList({
           )}
         </div>
       ) : (
-        <div className="mt-1 space-y-2.5">
+        // The list is its own labelled region. The heading is sr-only: the
+        // ResultsBar already states the count, so a visible title would
+        // repeat it, but the outline still needs the H2 between the page H1
+        // and the row H3s.
+        <section aria-labelledby="documents-results-title" className="mt-1 space-y-2.5">
+          <h2 id="documents-results-title" className="sr-only">
+            فهرست اسناد
+          </h2>
           <ResultsBar
             countLabel={`${documents.length} سند`}
             filters={activeFilters}
@@ -432,7 +439,7 @@ export function DocumentList({
               />
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

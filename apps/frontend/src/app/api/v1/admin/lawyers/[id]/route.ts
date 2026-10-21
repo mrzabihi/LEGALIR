@@ -48,14 +48,17 @@ import { listLawyerSettlements, summarizeLawyerIncome } from "@/lib/admin/settle
 // so the operator never sees a parallel copy, and the bank account is rendered
 // in its MASKED form — the full IBAN never leaves the owner's own surface.
 import {
+  clearLawyerRate,
   getBankRecord,
   listBankEvents,
   listLawyerRateChanges,
   listLawyerRates,
   maskBankAccount,
+  replaceBankAccountAsAdmin,
   reviewBankAccount,
+  setLawyerRate,
 } from "@/lib/lawyer-portal/store";
-import type { LawyerBankReview } from "@legalir/types";
+import type { LawyerBankReview, LawyerRateUnit } from "@legalir/types";
 import {
   lawyerDecisionBucket,
   type LawyerProfile,
@@ -169,6 +172,9 @@ interface LawyerPatchBody {
   gender?: LawyerProfile["gender"];
   featured?: boolean;
   acceptingClients?: boolean;
+  /** The switch that decides whether new referrals reach this lawyer at all. */
+  acceptingRequests?: boolean;
+  avatarUrl?: string | null;
   visibility?: LawyerProfile["visibility"];
   yearsExperience?: number | null;
   expertise?: LawyerExpertise[];
@@ -199,6 +205,8 @@ function pickPatch(body: LawyerPatchBody): Partial<LawyerProfile> {
   if ("gender" in body) patch.gender = (body.gender as LawyerProfile["gender"]) ?? null;
   if (typeof body.featured === "boolean") patch.featured = body.featured;
   if (typeof body.acceptingClients === "boolean") patch.acceptingClients = body.acceptingClients;
+  if (typeof body.acceptingRequests === "boolean") patch.acceptingRequests = body.acceptingRequests;
+  if ("avatarUrl" in body) patch.avatarUrl = str(body.avatarUrl) ?? null;
   if ("visibility" in body)
     patch.visibility = (body.visibility as LawyerProfile["visibility"]) ?? null;
   if ("yearsExperience" in body)
@@ -289,12 +297,22 @@ export async function PATCH(
 }
 
 // ---------------------------------------------------------------------------
-// §7 — settlement-account review
+// POST — the operator's write sub-actions
 // ---------------------------------------------------------------------------
-// A POST sub-action so the review decision is a single, auditable write. The
-// action and its reason are validated by the store (a correction request must
-// carry a reason), the account is never returned in full, and the decision is
-// recorded on the account AND as an immutable event.
+// Everything an operator can DO to a lawyer beyond a profile PATCH lives here,
+// as a single audited write per action:
+//
+//   VERIFY / REQUEST_CORRECTION — decide the settlement-account review. The
+//     account is never returned in full, and the decision is recorded on the
+//     account AND as an immutable event.
+//   ADMIN_UPDATE_BANK — REPLACE the settlement account on the lawyer's behalf
+//     (the lawyer asked support to fix a typo, or supplied it by phone). It is
+//     stored as a distinct `ADMIN_UPDATED` event and still lands in
+//     PENDING_REVIEW, so an operator edit is a correction and never a
+//     self-approval. A reason is mandatory.
+//   SET_RATE / CLEAR_RATE — set or remove one per-service price, through the
+//     same `lawyer_rates` store the lawyer's own /lawyer/rates writes to, so
+//     the marketplace and the portal show the operator's price immediately.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -303,27 +321,107 @@ export async function POST(
   if (!auth.ok) return auth.response;
   const { id } = await params;
 
-  const body = (await readJson(request)) as (LawyerBankReview & { action?: string }) | null;
-  if (!body || (body.action !== "VERIFY" && body.action !== "REQUEST_CORRECTION")) {
+  const body = (await readJson(request)) as
+    | (LawyerBankReview & {
+        action?: string;
+        submission?: {
+          holderName?: string;
+          bankName?: string;
+          iban?: string;
+          accountNumber?: string | null;
+          cardLast4?: string | null;
+          cardNumber?: string | null;
+        };
+        serviceKey?: string;
+        amountToman?: number;
+        unit?: LawyerRateUnit;
+        noteFa?: string | null;
+      })
+    | null;
+  if (!body) {
     return NextResponse.json(
-      { code: "VALIDATION_ERROR", message: "نوع تصمیم معتبر نیست" },
+      { code: "VALIDATION_ERROR", message: "بدنه درخواست نامعتبر است" },
       { status: 400 }
     );
   }
 
-  const res = reviewBankAccount({
-    lawyerId: id,
-    actor: { userId: auth.ctx.userId, role: auth.ctx.role },
-    review: { action: body.action, reason: body.reason },
-  });
-  if (!res.ok) {
-    return NextResponse.json({ code: "VALIDATION_ERROR", message: res.messageFa }, { status: 400 });
+  const actor = { userId: auth.ctx.userId, role: auth.ctx.role };
+
+  if (body.action === "VERIFY" || body.action === "REQUEST_CORRECTION") {
+    const res = reviewBankAccount({
+      lawyerId: id,
+      actor,
+      review: { action: body.action, reason: body.reason },
+    });
+    if (!res.ok) {
+      return NextResponse.json({ code: "VALIDATION_ERROR", message: res.messageFa }, { status: 400 });
+    }
+    return NextResponse.json({
+      data: {
+        ...res.record,
+        account: res.record.account ? maskBankAccount(res.record.account) : null,
+      },
+    });
   }
 
-  return NextResponse.json({
-    data: {
-      ...res.record,
-      account: res.record.account ? maskBankAccount(res.record.account) : null,
-    },
-  });
+  if (body.action === "ADMIN_UPDATE_BANK") {
+    const sub = body.submission ?? {};
+    const res = replaceBankAccountAsAdmin({
+      lawyerId: id,
+      actor,
+      submission: {
+        holderName: typeof sub.holderName === "string" ? sub.holderName : "",
+        bankName: typeof sub.bankName === "string" ? sub.bankName : "",
+        iban: typeof sub.iban === "string" ? sub.iban : "",
+        accountNumber: typeof sub.accountNumber === "string" ? sub.accountNumber : null,
+        cardLast4: typeof sub.cardLast4 === "string" ? sub.cardLast4 : null,
+        cardNumber: typeof sub.cardNumber === "string" ? sub.cardNumber : null,
+      },
+      reason: typeof body.reason === "string" ? body.reason : "",
+    });
+    if (!res.ok) {
+      return NextResponse.json({ code: "VALIDATION_ERROR", message: res.messageFa }, { status: 400 });
+    }
+    return NextResponse.json({
+      data: {
+        ...res.record,
+        account: res.record.account ? maskBankAccount(res.record.account) : null,
+      },
+    });
+  }
+
+  if (body.action === "SET_RATE") {
+    const res = setLawyerRate({
+      lawyerId: id,
+      actor,
+      serviceKey: typeof body.serviceKey === "string" ? body.serviceKey : "",
+      amountToman: typeof body.amountToman === "number" ? body.amountToman : Number.NaN,
+      unit: (body.unit ?? "fixed") as LawyerRateUnit,
+      noteFa: typeof body.noteFa === "string" ? body.noteFa : null,
+    });
+    if (!res.ok) {
+      return NextResponse.json({ code: "VALIDATION_ERROR", message: res.messageFa }, { status: 400 });
+    }
+    return NextResponse.json({ data: { rate: res.rate } });
+  }
+
+  if (body.action === "CLEAR_RATE") {
+    const res = clearLawyerRate({
+      lawyerId: id,
+      actor,
+      serviceKey: typeof body.serviceKey === "string" ? body.serviceKey : "",
+    });
+    if (!res.ok) {
+      return NextResponse.json(
+        { code: "NOT_FOUND", message: "نرخی برای این خدمت ثبت نشده است" },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json({ data: { change: res.change } });
+  }
+
+  return NextResponse.json(
+    { code: "VALIDATION_ERROR", message: "نوع تصمیم معتبر نیست" },
+    { status: 400 }
+  );
 }

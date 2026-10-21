@@ -6,7 +6,11 @@
 // ============================================================
 
 import type {
+  CaseDetailResponseV2,
+  CaseTaskStatusV2,
   LawyerBankRecord,
+  LawyerCaseFilters,
+  LawyerCaseListResponse,
   LawyerDashboard,
   LawyerProfile,
   LawyerProfileCompleteness,
@@ -146,8 +150,11 @@ export interface LawyerServiceRow {
   rate: LawyerServiceRate | null;
   sla: Pick<
     ServiceSlaPolicy,
-    "responseHours" | "completionHours" | "clock" | "pauseBehavior" | "warnBeforeHours" | "enabled"
-  >;
+    "responseHours" | "completionHours" | "clock" | "pauseBehavior" | "warnBeforeHours" | "audience"
+  > & {
+    /** True only for an `active` policy — an inactive/archived one is not in force. */
+    active: boolean;
+  };
 }
 
 export function fetchLawyerServices(): Promise<{ services: LawyerServiceRow[] }> {
@@ -183,7 +190,7 @@ export function clearLawyerRate(serviceKey: string): Promise<unknown> {
 export interface LawyerBankResponse extends LawyerBankRecord {
   events: {
     id: string;
-    action: "SUBMITTED" | "VERIFIED" | "CORRECTION_REQUESTED";
+    action: "SUBMITTED" | "VERIFIED" | "CORRECTION_REQUESTED" | "ADMIN_UPDATED";
     reason: string | null;
     destinationMasked: string | null;
     createdAt: string;
@@ -200,6 +207,51 @@ export function submitLawyerBank(input: {
   iban: string;
   accountNumber?: string | null;
   cardLast4?: string | null;
+  /** The full 16-digit card; the server keeps only BIN + last four. */
+  cardNumber?: string | null;
 }): Promise<LawyerBankRecord> {
   return apiClient.put<LawyerBankRecord>("/api/v1/lawyer/bank", input);
+}
+
+// ---------------------------------------------------------------------------
+// Caseload
+// ---------------------------------------------------------------------------
+
+/** Mirrors the route's query names — a mismatch drops the filter silently. */
+function caseQuery(filters: LawyerCaseFilters): string {
+  const params = new URLSearchParams();
+  if (filters.lifecycle) params.set("lifecycle", filters.lifecycle);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.overdueOnly) params.set("overdueOnly", "1");
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
+  if (filters.sort) params.set("sort", filters.sort);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export function fetchLawyerCases(
+  filters: LawyerCaseFilters = {}
+): Promise<LawyerCaseListResponse> {
+  return apiClient.get<LawyerCaseListResponse>(`/api/v1/lawyer/cases${caseQuery(filters)}`);
+}
+
+/**
+ * The case itself. This is the SAME `/api/v1/cases/[id]` endpoint the client
+ * portal uses — authorization runs through `resolveCaseAccess`, so a lawyer
+ * sees it only because accepting the referral granted them a membership.
+ */
+export function fetchLawyerCase(id: string): Promise<CaseDetailResponseV2> {
+  return apiClient.get<CaseDetailResponseV2>(`/api/v1/cases/${id}`);
+}
+
+export type LawyerTaskStatus = CaseTaskStatusV2;
+
+/** Move one task on a case the lawyer can write to. */
+export function updateLawyerCaseTask(
+  caseId: string,
+  taskId: string,
+  status: LawyerTaskStatus
+): Promise<unknown> {
+  return apiClient.patch(`/api/v1/cases/${caseId}/tasks/${taskId}`, { status });
 }

@@ -70,12 +70,15 @@ interface LenisHandle {
   destroy: () => void;
   start: () => void;
   stop: () => void;
+  /** Current scroll offset. */
+  readonly scroll: number;
   /** Smooth-scroll to a target. Declared as the lenient signature so a
    *  numeric offset works on every 1.x build. */
   scrollTo: (target: number | string | HTMLElement, options?: {
     offset?: number;
     duration?: number;
     immediate?: boolean;
+    onComplete?: () => void;
   }) => void;
 }
 
@@ -181,7 +184,21 @@ export function LandingMotion() {
           if (!target) return;
 
           event.preventDefault();
-          lenis.scrollTo(target, { offset: HEADER_OFFSET });
+          // Lenis resolves an element target to an absolute scroll offset
+          // *before* the tween starts. The landing page grows as its lazy
+          // plates decode — measured at ~750px on a cold desktop load — so
+          // a target computed up front lands short by however much the
+          // document gained on the way down. Re-assert once on arrival;
+          // one correction, never a loop.
+          lenis.scrollTo(target, {
+            offset: HEADER_OFFSET,
+            onComplete: () => {
+              const drift = target.getBoundingClientRect().top + HEADER_OFFSET;
+              if (Math.abs(drift) > 4) {
+                lenis.scrollTo(lenis.scroll + drift, { immediate: true });
+              }
+            },
+          });
           // Keep the address bar honest without letting the browser jump.
           window.history.pushState(null, "", hash);
           // Move focus for keyboard and screen-reader users; the smooth

@@ -17,6 +17,7 @@
 
 "use client";
 
+import type { Ref } from "react";
 import { TextField } from "@legalir/ui";
 import { IconClose, IconSearch } from "@/lib/icons";
 
@@ -30,8 +31,12 @@ export interface SearchFieldProps {
   placeholder?: string;
   /** Called when the user submits with Enter. */
   onSubmit?: () => void;
+  /** Called when Escape is pressed while the query is non-empty. */
+  onEscape?: () => void;
   className?: string;
   autoFocus?: boolean;
+  /** The underlying input, for callers that refocus after a clear. */
+  inputRef?: Ref<HTMLInputElement>;
   /**
    * Reserve the empty helper row below the field (default). Set `false` when
    * the field sits inside bespoke chrome (e.g. a search card) where the blank
@@ -52,20 +57,27 @@ export function SearchField({
   label,
   placeholder,
   onSubmit,
+  onEscape,
   className = "",
   autoFocus = false,
+  inputRef,
   reserveMessageSpace = true,
   inputSize = "medium",
 }: SearchFieldProps) {
   return (
     <div className={`w-full ${className}`}>
       <TextField
+        ref={inputRef}
         type="search"
         label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") onSubmit?.();
+          if (e.key === "Escape" && value) {
+            e.preventDefault();
+            onEscape?.();
+          }
         }}
         placeholder={placeholder}
         inputSize={inputSize}

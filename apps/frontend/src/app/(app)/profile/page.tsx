@@ -29,7 +29,8 @@ import { useContracts } from "@/hooks/useContracts";
 import { useConsultations } from "@/hooks/useConsultations";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import { JalaliDatePicker, formatJalaliLong } from "@/components/shared/JalaliDatePicker";
-import { Breadcrumb } from "@/components/shared/Breadcrumb";
+import { CompactPageHeader } from "@/components/shared/compact-page-header";
+import { PageContainer } from "@/components/shared/page-container";
 import {
   computeProfileCompletion,
   BASIC_PROFILE_FIELDS,
@@ -1054,9 +1055,18 @@ export default function AccountHubPage() {
   const lastPayment = subItems[0] ?? null;
 
   return (
-    <div className="p-4 tablet:p-6 max-w-3xl mx-auto" dir="rtl">
-      <Breadcrumb items={[{ label: "داشبورد", href: "/dashboard" }, { label: "پروفایل" }]} />
-      <h1 className="text-h2 text-onSurface font-bold mb-6">پروفایل</h1>
+    <PageContainer>
+      {/* The shared flat list header — the same H1 scale, breadcrumb and
+          border as the other utility pages, so the identity band below is the
+          only visual anchor rather than a second, larger title. */}
+      <CompactPageHeader
+        breadcrumb={[
+          { label: "داشبورد", href: "/dashboard" },
+          { label: "پروفایل" },
+        ]}
+        title="پروفایل"
+        className="mb-6"
+      />
 
       {/* ================================================ */}
       {/* Profile Summary — one cohesive identity section   */}
@@ -1452,6 +1462,6 @@ export default function AccountHubPage() {
         onDelete={handleDeleteAvatar}
         onSelectPreset={handleSelectPreset}
       />
-    </div>
+    </PageContainer>
   );
 }

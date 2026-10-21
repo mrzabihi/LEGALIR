@@ -154,10 +154,15 @@ function FeaturedServiceCard({ service }: { service: LandingService }) {
   const artKey = serviceArtKey(service.id);
   const Art = artKey ? SERVICE_ART[artKey] : null;
 
+  // `col-span-full`, not `tablet:col-span-3`: the featured card must own the
+  // whole row at EVERY width. Without the phone rule it fell into a single
+  // half-measure cell of the two-up grid, which shrank the page's primary
+  // entry point to the size of a secondary service and wrapped its title
+  // onto two lines.
   return (
     <article
       style={accentVars(service.accent)}
-      className="landing-card relative overflow-hidden p-5 tablet:col-span-3 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-6 tablet:p-6 laptop:gap-8 laptop:p-7"
+      className="landing-card relative col-span-full overflow-hidden p-5 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-6 tablet:p-6 laptop:gap-8 laptop:p-7"
     >
       <div className="relative min-w-0">
         {/* Phones: icon and title share a row — one band of height saved on
@@ -217,7 +222,7 @@ function ServiceCard({ service, index }: { service: LandingService; index: numbe
       href={service.href}
       data-ln-reveal={String(index % 3)}
       style={accentVars(service.accent)}
-      className="landing-card group relative overflow-hidden p-4 tablet:p-5"
+      className="landing-card group relative overflow-hidden p-3.5 tablet:p-5"
     >
       {/* Faint shared illustration — texture, never a competing subject. */}
       {Art && (
@@ -231,11 +236,11 @@ function ServiceCard({ service, index }: { service: LandingService; index: numbe
       )}
 
       <div className="relative flex flex-1 flex-col">
-        {/* Phones: icon beside the copy, so one card is ~120px instead of
-            ~200px and the section does not become seven screens of scroll.
-            From `tablet` the icon sits above the title, the taller card the
-            3-up grid can afford. */}
-        <div className="flex items-start gap-3 tablet:block">
+        {/* The icon sits above the title at every width. Beside the copy it
+            stole 52px from a ~160px phone column, which is where the
+            description used to break mid-clause; stacked, the text gets the
+            whole card and the row simply stretches to the taller of the two. */}
+        <div className="block">
           <span
             aria-hidden="true"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--ln-r-md)] transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none"
@@ -245,10 +250,10 @@ function ServiceCard({ service, index }: { service: LandingService; index: numbe
           </span>
 
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold leading-7 text-[color:var(--ln-navy)] tablet:mt-3">
+            <h3 className="mt-2.5 text-[14.5px] font-semibold leading-6 text-[color:var(--ln-navy)] tablet:mt-3 tablet:text-[15px] tablet:leading-7">
               {service.title}
             </h3>
-            <p className="mt-1 line-clamp-2 text-[12.5px] leading-6 text-[color:var(--ln-muted)] tablet:mt-1.5">
+            <p className="mt-1 text-[12.5px] leading-6 text-[color:var(--ln-muted)] tablet:mt-1.5 tablet:line-clamp-2">
               {service.description}
             </p>
           </div>
@@ -283,12 +288,16 @@ function ServiceCard({ service, index }: { service: LandingService; index: numbe
 export function LandingServices() {
   const featured = SERVICES[0];
 
-  // One column on phones: at 390px a two-up splits each card to ~165px and
-  // the two-line description truncates mid-clause, which reads as broken
-  // copy. Full-width cards keep every description intact and leave the
-  // action row a comfortable tap target.
+  // Bento on phones, not a stack of seven identical bands. The featured
+  // card owns the full measure; the other six pair up two-by-two.
+  //
+  // A two-up was rejected here once because a clipped description reads as
+  // broken copy — and it does. So the cards keep their full description:
+  // the row stretches both cards to the taller one instead, which is the
+  // bento look anyway and loses no words. The single column survives only
+  // below 375px, where two 130px cards cannot hold a Persian clause.
   return (
-    <div className="mt-10 grid grid-cols-1 gap-3 tablet:mt-12 tablet:grid-cols-3 tablet:gap-4">
+    <div className="mt-10 grid grid-cols-1 gap-3 mobile-l:grid-cols-2 tablet:mt-12 tablet:grid-cols-3 tablet:gap-4">
       {featured && <FeaturedServiceCard service={featured} />}
       {SERVICES.slice(1).map((service, index) => (
         <ServiceCard key={service.id} service={service} index={index} />

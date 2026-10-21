@@ -19,8 +19,8 @@
 
 "use client";
 
-import { TextField } from "@legalir/ui";
-import { IconClose, IconSearch } from "@/lib/icons";
+import { IconClose } from "@/lib/icons";
+import { SearchField } from "@/components/shared/search-field";
 import { CalculatorFilter } from "./calculator-filter";
 import type { ControlOption } from "./types";
 
@@ -63,40 +63,14 @@ export function CalculatorControls({
 }: CalculatorControlsProps) {
   return (
     <div className="flex flex-col gap-3">
-      <form
-        role="search"
-        onSubmit={(e) => e.preventDefault()}
-        aria-label="جستجوی محاسبه‌گر"
-        className="w-full"
-      >
-        <TextField
-          type="search"
-          label="جستجو در محاسبه‌گرها"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && query) {
-              e.preventDefault();
-              onClearQuery();
-            }
-          }}
-          placeholder={placeholder}
-          leadingIcon={<IconSearch size={20} />}
-          endAdornment={
-            query ? (
-              <button
-                type="button"
-                onClick={onClearQuery}
-                aria-label="پاک کردن جستجو"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <IconClose size={18} />
-              </button>
-            ) : undefined
-          }
-          fullWidth
-        />
-      </form>
+      <SearchField
+        label="جستجو در محاسبه‌گرها"
+        value={query}
+        onChange={onQueryChange}
+        onEscape={onClearQuery}
+        placeholder={placeholder}
+        reserveMessageSpace={false}
+      />
 
       <div className="flex items-center gap-3">
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:max-w-lg">
@@ -122,7 +96,7 @@ export function CalculatorControls({
           <button
             type="button"
             onClick={onClearFilters}
-            className="inline-flex shrink-0 items-center gap-1 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="touch-target-pad inline-flex shrink-0 items-center gap-1 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <IconClose size={14} />
             <span className="hidden mobile-l:inline">پاک کردن</span>

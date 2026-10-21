@@ -29,8 +29,9 @@ import {
   taxonomyLabel,
   taxonomyNode,
 } from "@legalir/types";
-import { Button, Chip, SegmentedControl, Select, TextField, Tooltip } from "@legalir/ui";
-import { IconChevronLeft, IconChevronRightSmall, IconFilter, IconSearch } from "@/lib/icons";
+import { Button, Chip, SegmentedControl, Select, Tooltip } from "@legalir/ui";
+import { IconCheck, IconChevronLeft, IconChevronRightSmall, IconFilter } from "@/lib/icons";
+import { SearchField } from "@/components/shared/search-field";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { type LawyerFilterValues } from "./lawyer-filters-sheet";
 
@@ -113,6 +114,13 @@ export function LawyerFilterBar({
       const node = taxonomyNode(id);
       return node !== undefined && node.type !== "DOMAIN";
     }) ?? "";
+
+  // Selecting a chip adds a checkmark, which widens the rail without
+  // resizing its box — the ResizeObserver above would not fire. Re-measure
+  // so the paging arrows never sit disabled over real overflow.
+  useEffect(() => {
+    syncChipScroll();
+  }, [activeDomainId, syncChipScroll]);
 
   // Specialty options follow the chosen category (its children); with no
   // category we fall back to the full specialty-level catalogue.
@@ -307,10 +315,15 @@ export function LawyerFilterBar({
 
   const chipClass = (selected: boolean) =>
     [
-      "shrink-0 rounded-full border px-4 py-2 text-caption font-medium transition-all touch-target-min",
+      // The same geometry as the shared `FilterChips` used by /history,
+      // /cases and /documents: 36px, one row, identical border and
+      // selected state. The rail keeps its own arrow paging because it
+      // holds the taxonomy, but the chip itself must not be a second,
+      // taller-looking design.
+      "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-labelLarge transition-colors duration-short3 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2",
       selected
         ? "border-control-selected-border bg-control-selected-surface text-control-selected"
-        : "border-divider bg-surface text-on-surface hover:border-control-selected",
+        : "border-[color:var(--color-outline-variant)] bg-surface text-on-surface-variant hover:bg-surface-hover hover:text-on-surface",
     ].join(" ");
 
   return (
@@ -321,14 +334,12 @@ export function LawyerFilterBar({
       {/* Search + advanced trigger */}
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <TextField
-            type="search"
+          <SearchField
             label="جستجوی وکیل"
             value={searchInput}
-            onChange={(e) => onSearchInputChange(e.target.value)}
-            placeholder="نام وکیل، تخصص یا موضوع پرونده را جستجو کنید…"
-            leadingIcon={<IconSearch size={20} />}
-            fullWidth
+            onChange={onSearchInputChange}
+            onEscape={onClearSearch}
+            placeholder="نام وکیل، تخصص یا موضوع پرونده"
           />
         </div>
         <Tooltip content="فیلترهای بیشتر">
@@ -373,31 +384,41 @@ export function LawyerFilterBar({
         <div
           ref={chipsRef}
           onScroll={syncChipScroll}
-          role="tablist"
+          // A single-select segmented filter, not a tab set: the rail
+          // swaps the roster in place and there is no tabpanel to pair a
+          // `tab` with. `group` + `radio` is the same contract the shared
+          // `FilterChips` uses, and the selected chip carries a checkmark
+          // so its state never depends on colour alone.
+          role="group"
           aria-label="دسته‌بندی تخصص‌ها"
           className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 scrollbar-hide"
         >
           <button
             type="button"
-            role="tab"
-            aria-selected={activeDomainId === ""}
+            role="radio"
+            aria-checked={activeDomainId === ""}
             onClick={() => setDomain("")}
             className={chipClass(activeDomainId === "")}
           >
+            {activeDomainId === "" && <IconCheck size={15} aria-hidden="true" />}
             همه
           </button>
-          {DOMAINS.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              role="tab"
-              aria-selected={activeDomainId === d.id}
-              onClick={() => setDomain(d.id)}
-              className={chipClass(activeDomainId === d.id)}
-            >
-              {d.nameFa}
-            </button>
-          ))}
+          {DOMAINS.map((d) => {
+            const selected = activeDomainId === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setDomain(d.id)}
+                className={chipClass(selected)}
+              >
+                {selected && <IconCheck size={15} aria-hidden="true" />}
+                {d.nameFa}
+              </button>
+            );
+          })}
         </div>
 
         <button

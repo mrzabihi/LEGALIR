@@ -55,6 +55,9 @@ import {
   saveAdminWorkCalendar,
   fetchAdminUserRequests,
   reviewAdminLawyerBank,
+  adminUpdateLawyerBank,
+  setAdminLawyerRate,
+  clearAdminLawyerRate,
   type AdminSlaPolicyInput,
   fetchAdminContracts,
   fetchAdminContract,
@@ -691,6 +694,55 @@ export function useReviewLawyerBank() {
   return useMutation({
     mutationFn: ({ lawyerId, review }: { lawyerId: string; review: LawyerBankReview }) =>
       reviewAdminLawyerBank(lawyerId, review),
+    onSuccess: (_res, { lawyerId }) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", lawyerId] });
+    },
+  });
+}
+
+/**
+ * Replace the settlement account on the lawyer's behalf. It lands in
+ * PENDING_REVIEW, so the drawer must refresh BOTH the account and its event
+ * trail — the operator needs to see the row they just wrote.
+ */
+export function useAdminUpdateLawyerBank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      lawyerId,
+      input,
+    }: {
+      lawyerId: string;
+      input: Parameters<typeof adminUpdateLawyerBank>[1];
+    }) => adminUpdateLawyerBank(lawyerId, input),
+    onSuccess: (_res, { lawyerId }) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", lawyerId] });
+    },
+  });
+}
+
+/** Set or clear one per-service price. The rate list is part of the dossier. */
+export function useSetAdminLawyerRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      lawyerId,
+      input,
+    }: {
+      lawyerId: string;
+      input: Parameters<typeof setAdminLawyerRate>[1];
+    }) => setAdminLawyerRate(lawyerId, input),
+    onSuccess: (_res, { lawyerId }) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", lawyerId] });
+    },
+  });
+}
+
+export function useClearAdminLawyerRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lawyerId, serviceKey }: { lawyerId: string; serviceKey: string }) =>
+      clearAdminLawyerRate(lawyerId, serviceKey),
     onSuccess: (_res, { lawyerId }) => {
       void qc.invalidateQueries({ queryKey: ["admin", "lawyers", "detail", lawyerId] });
     },

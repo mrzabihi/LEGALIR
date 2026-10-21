@@ -92,6 +92,32 @@ const ALLOWED_STATUS_TRANSITIONS: Record<PlanStatus, PlanStatus[]> = {
   archived: [],
 };
 
+/**
+ * The period a plan is sold for, worded from its real `durationDays`. Whole
+ * years and whole months read as such; anything else stays in days so the
+ * label never rounds a 31-day plan into «یک‌ماهه».
+ */
+function periodLabelFa(days: number): string {
+  if (days >= 365 && days % 365 === 0) {
+    const years = days / 365;
+    return years === 1 ? "یک‌ساله" : `${toPersianNumber(years)} ساله`;
+  }
+  if (days >= 60 && days % 30 === 0) {
+    return `${toPersianNumber(days / 30)} ماهه`;
+  }
+  return `${toPersianNumber(days)} روزه`;
+}
+
+/** The impact of a status change, stated before the operator confirms it. */
+const STATUS_IMPACT_FA: Partial<Record<PlanStatus, string>> = {
+  active:
+    "پلن بلافاصله در صفحهٔ اشتراک برای خرید نمایش داده می‌شود. اشتراک‌های خریداری‌شده تغییری نمی‌کنند.",
+  inactive:
+    "خرید جدید این پلن متوقف می‌شود؛ اشتراک‌های فعال فعلی دست‌نخورده می‌مانند و به کار خود ادامه می‌دهند.",
+  archived:
+    "پلن بایگانی‌شده دیگر قابل خرید نیست؛ اشتراک‌های فعال و تاریخچهٔ سفارش‌ها حفظ می‌شوند.",
+};
+
 function errMessage(err: unknown, fallback: string): string {
   return err && typeof err === "object" && "message" in err
     ? String((err as { message: unknown }).message)
@@ -893,14 +919,42 @@ export default function AdminPlansPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PlanStatus | "all">("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editCode, setEditCode] = useState<string | null>(null);
-  const [archiveTarget, setArchiveTarget] = useState<string | null>(null);
+  // Every status change passes through one confirmation, not just archiving:
+  // publishing or pausing a plan changes what the whole /subscription page
+  // sells, so the operator states the intent before it lands.
+  const [statusTarget, setStatusTarget] = useState<{ code: string; status: PlanStatus } | null>(
+    null
+  );
+
+  const allRows = plans.data?.items ?? [];
+
+  /**
+   * The periods the catalogue actually sells, derived from real rows. Offering
+   * a «ساله» tab with no annual plan would be a control that can only ever
+   * return an empty page.
+   */
+  const periodOptions = useMemo(() => {
+    const days = [...new Set(allRows.map((p) => p.durationDays))].sort((a, b) => a - b);
+    return [{ value: "all", label: "همه دوره‌ها" }].concat(
+      days.map((d) => ({ value: String(d), label: periodLabelFa(d) }))
+    );
+  }, [allRows]);
+
+  // A filter that stopped existing (the last annual plan was archived) must
+  // not silently hide every row.
+  useEffect(() => {
+    if (periodFilter !== "all" && !periodOptions.some((o) => o.value === periodFilter)) {
+      setPeriodFilter("all");
+    }
+  }, [periodFilter, periodOptions]);
 
   const visible = useMemo(() => {
-    const rows = plans.data?.items ?? [];
-    return rows
+    return allRows
       .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
+      .filter((p) => (periodFilter === "all" ? true : String(p.durationDays) === periodFilter))
       .filter(
         (p) =>
           !search.trim() ||
@@ -914,13 +968,13 @@ export default function AdminPlansPage() {
         if (ao !== bo) return ao - bo;
         return a.createdAt.localeCompare(b.createdAt);
       });
-  }, [plans.data, search, statusFilter]);
+  }, [allRows, search, statusFilter, periodFilter]);
 
   const pager = useClientPagination(visible);
   const { reset: resetPager } = pager;
   useEffect(() => {
     resetPager();
-  }, [resetPager, search, statusFilter]);
+  }, [resetPager, search, statusFilter, periodFilter]);
 
   async function changeStatus(code: string, status: PlanStatus) {
     try {
@@ -933,6 +987,14 @@ export default function AdminPlansPage() {
       snackbar.show({ message: errMessage(err, "تغییر وضعیت ناموفق بود."), variant: "error" });
     }
   }
+
+  function statusActionLabel(t: PlanStatus): string {
+    return t === "active" ? "انتشار" : t === "inactive" ? "غیرفعال" : "بایگانی";
+  }
+
+  const statusTargetPlan = statusTarget
+    ? allRows.find((p) => p.code === statusTarget.code)
+    : undefined;
 
   return (
     <div>
@@ -960,27 +1022,54 @@ export default function AdminPlansPage() {
 
       <PlanMixChart />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <SearchInput value={search} onChange={setSearch} placeholder="جست‌وجوی نام، شناسه یا برچسب…" />
-        <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
+      <div className="mb-4 flex flex-col gap-3 tablet:flex-row tablet:items-center">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="جست‌وجوی نام، شناسه یا برچسب…"
+          className="tablet:min-w-[240px] tablet:flex-1"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
+          {periodOptions.length > 2 && (
+            <Select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value)}
+              aria-label="فیلتر دورهٔ پلن"
+              className="w-auto min-w-[140px]"
+            >
+              {periodOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          )}
+        </div>
       </div>
 
       <StateView
         query={plans}
         loadingRows={4}
         isEmpty={() => visible.length === 0}
-        emptyMessage="پلنی با این فیلتر یافت نشد."
+        emptyMessage={
+          search.trim() || statusFilter !== "all" || periodFilter !== "all"
+            ? "پلنی با این فیلترها یافت نشد."
+            : "هنوز پلنی ثبت نشده است."
+        }
       >
         {() => (
           <>
           <DataTable
+            minWidth={520}
             head={
               <tr>
                 <Th>پلن</Th>
+                <Th className="hidden tablet:table-cell">دوره</Th>
                 <Th>وضعیت</Th>
                 <Th>قیمت</Th>
-                <Th>سقف درخواست روزانه</Th>
-                <Th>ترتیب</Th>
+                <Th className="hidden laptop:table-cell">سقف‌ها</Th>
+                <Th className="hidden desktop:table-cell">آخرین به‌روزرسانی</Th>
                 <Th>اقدام‌ها</Th>
               </tr>
             }
@@ -991,19 +1080,32 @@ export default function AdminPlansPage() {
               return (
                 <tr key={p.code}>
                   <Td>
-                    <span className="font-medium text-on-surface">{p.nameFa}</span>
-                    <span className="block text-caption text-muted" dir="ltr">
-                      {p.code}
-                    </span>
-                    {(p.tags ?? []).length > 0 && (
-                      <span className="mt-1 flex flex-wrap gap-1">
-                        {(p.tags ?? []).map((t) => (
-                          <Badge key={t} tone="brand">
-                            {t}
-                          </Badge>
-                        ))}
+                    <div className="flex max-w-[240px] flex-col">
+                      <span className="truncate font-medium text-on-surface" title={p.nameFa}>
+                        {p.nameFa}
                       </span>
-                    )}
+                      <span className="text-caption text-muted" dir="ltr" title={p.code}>
+                        {p.code}
+                      </span>
+                      <span className="text-caption text-muted tablet:hidden">
+                        {periodLabelFa(p.durationDays)}
+                      </span>
+                      {(p.tags ?? []).length > 0 && (
+                        <span className="mt-1 flex flex-wrap gap-1">
+                          {(p.tags ?? []).map((t) => (
+                            <Badge key={t} tone="brand">
+                              {t}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                  </Td>
+                  <Td className="hidden whitespace-nowrap tablet:table-cell">
+                    {periodLabelFa(p.durationDays)}
+                    <span className="block text-caption text-muted tabular-nums">
+                      {toPersianNumber(p.durationDays)} روز
+                    </span>
                   </Td>
                   <Td>
                     <Badge tone={meta.tone} dot title={meta.hint}>
@@ -1020,9 +1122,18 @@ export default function AdminPlansPage() {
                       </span>
                     )}
                   </Td>
-                  <Td className="tabular-nums">{toPersianNumber(p.dailyRequestLimit)}</Td>
-                  <Td className="tabular-nums">
-                    {p.displayOrder === undefined ? "—" : toPersianNumber(p.displayOrder)}
+                  <Td className="hidden laptop:table-cell">
+                    <div className="flex flex-col text-caption text-muted">
+                      <span className="tabular-nums">
+                        {toPersianNumber(p.dailyRequestLimit)} درخواست/روز
+                      </span>
+                      <span className="tabular-nums">
+                        {toPersianNumber(p.aiMessageLimit)} پیام هوش مصنوعی
+                      </span>
+                    </div>
+                  </Td>
+                  <Td className="hidden whitespace-nowrap tabular-nums desktop:table-cell">
+                    {p.updatedAt ? toPersianDate(p.updatedAt) : "—"}
                   </Td>
                   <Td>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -1036,12 +1147,9 @@ export default function AdminPlansPage() {
                             size="sm"
                             variant={t === "active" ? "tonal" : "ghost"}
                             disabled={setStatus.isPending}
-                            onClick={() => {
-                              if (t === "archived") setArchiveTarget(p.code);
-                              else void changeStatus(p.code, t);
-                            }}
+                            onClick={() => setStatusTarget({ code: p.code, status: t })}
                           >
-                            {t === "active" ? "انتشار" : t === "inactive" ? "غیرفعال" : "بایگانی"}
+                            {statusActionLabel(t)}
                           </Button>
                         ))}
                     </div>
@@ -1078,32 +1186,50 @@ export default function AdminPlansPage() {
       )}
 
       <Dialog
-        open={archiveTarget !== null}
-        onClose={() => setArchiveTarget(null)}
-        title="بایگانی پلن"
-        description="پلن بایگانی‌شده دیگر قابل خرید نیست؛ اشتراک‌های فعال و تاریخچهٔ سفارش‌ها حفظ می‌شوند."
+        open={statusTarget !== null}
+        onClose={() => setStatusTarget(null)}
+        title={
+          statusTarget
+            ? `${statusActionLabel(statusTarget.status)} پلن «${
+                statusTargetPlan?.nameFa ?? statusTarget.code
+              }»`
+            : ""
+        }
+        description={statusTarget ? STATUS_IMPACT_FA[statusTarget.status] : undefined}
         actions={
           <>
-            <Button variant="ghost" onClick={() => setArchiveTarget(null)}>
+            <Button variant="ghost" onClick={() => setStatusTarget(null)}>
               انصراف
             </Button>
             <Button
-              variant="danger"
+              variant={statusTarget?.status === "active" ? "primary" : "danger"}
               disabled={setStatus.isPending}
               onClick={() => {
-                const c = archiveTarget;
-                setArchiveTarget(null);
-                if (c) void changeStatus(c, "archived");
+                const target = statusTarget;
+                setStatusTarget(null);
+                if (target) void changeStatus(target.code, target.status);
               }}
             >
-              بایگانی کن
+              {statusTarget ? `${statusActionLabel(statusTarget.status)} کن` : "تأیید"}
             </Button>
           </>
         }
       >
-        <p className="text-body-2 text-on-surface-variant">
-          آیا از بایگانی این پلن مطمئن هستید؟ امکان بازگردانی با تغییر وضعیت به «فعال» وجود دارد.
-        </p>
+        {statusTargetPlan && (
+          <div className="space-y-2 text-body-2 text-on-surface-variant">
+            <p>
+              وضعیت فعلی: <b>{STATUS_META[statusTargetPlan.status].labelFa}</b> — وضعیت جدید:{" "}
+              <b>{statusTarget ? STATUS_META[statusTarget.status].labelFa : "—"}</b>
+            </p>
+            <p>
+              دوره: {periodLabelFa(statusTargetPlan.durationDays)} · قیمت فروش:{" "}
+              {toPersianNumber(statusTargetPlan.salePrice)} تومان
+            </p>
+            {statusTarget?.status === "archived" && (
+              <p>بازگردانی از بایگانی با تغییر وضعیت به «فعال» ممکن است.</p>
+            )}
+          </div>
+        )}
       </Dialog>
     </div>
   );

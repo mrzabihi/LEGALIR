@@ -3860,15 +3860,41 @@ html {
 
 /* The wall-text room has no plate, so its numeral IS the plate: it takes
    the media cell, which keeps that chapter's rhythm identical to its
-   neighbours' without borrowing a cliché illustration. */
+   neighbours' without borrowing a cliché illustration.
+
+   On a phone the room needs a body, not just a mark. A bare numeral
+   wedged between two illustrated tiles read as a broken chapter: `۱۰` is
+   two thin glyph outlines, so at any size it floats instead of filling a
+   cell. So below 900px the room borrows the plate's own surface — the
+   canvas fill, hairline and radius — and the numeral is centred in it.
+   The tile then sits in the bento exactly like the six drawings do, and
+   the room reads as a chapter SET IN TYPE rather than one missing its
+   picture. The hairline rule is the plate's bottom edge on a desktop; the
+   tile's border does that job here, so the rule is hidden.
+
+   `tabular-nums` is deliberately switched off at this size: it gives each
+   digit a full-em advance, which pushed «۱» and «۰» so far apart that the
+   pair stopped reading as one number. */
 .landing-exhibit--walltext .landing-walltext {
-  min-height: 0;
-  justify-content: flex-start;
-  gap: 0.625rem;
+  min-height: 9.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: var(--ln-canvas);
+  border: 1px solid var(--ln-line);
+  border-radius: var(--ln-r-md);
 }
 
 .landing-exhibit--walltext .landing-walltext__num {
-  font-size: clamp(3.25rem, 1.8rem + 7vw, 5.5rem);
+  font-size: clamp(4rem, 23vw, 7rem);
+  font-variant-numeric: normal;
+  /* One step darker than the desktop wall mark: `--ln-line-strong` on a
+     pale fill disappears at this size, where on a bare white wall it reads. */
+  color: var(--ln-faint);
+}
+
+.landing-exhibit--walltext .landing-walltext__rule {
+  display: none;
 }
 
 /* Two drawings are a comparison, and a comparison needs the full measure
@@ -3915,15 +3941,21 @@ html {
 }
 
 @media (min-width: 900px) {
+  /* Four rows: a flexible row above and below the copy, so the chapter
+     rule / title / body stay one tight group centred against the plate.
+     Without the two `1fr` rows, the plate spanning all of them would
+     distribute its extra height into the auto rows and push the body
+     away from its own heading. */
   .landing-exhibit {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 1fr auto auto 1fr;
     grid-template-areas:
+      "media ."
       "media mark"
       "media head"
       "media text";
     column-gap: 4rem;
     row-gap: 0;
-    align-content: center;
   }
   .landing-exhibit__media {
     align-self: center;
@@ -3948,6 +3980,7 @@ html {
      its RTL reading order while the plate changes sides. */
   .landing-exhibit--flip {
     grid-template-areas:
+      ".     media"
       "mark  media"
       "head  media"
       "text  media";
@@ -3963,22 +3996,40 @@ html {
   .landing-exhibit.landing-exhibit--pair {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
+      "media ."
       "media mark"
       "media head"
       "media text";
   }
   .landing-exhibit.landing-exhibit--pair.landing-exhibit--flip {
     grid-template-areas:
+      ".     media"
       "mark  media"
       "head  media"
       "text  media";
   }
+  /* Back to the quiet wall: no tile surface, the numeral on the bare wall
+     with its hairline under it. Only the phone treatment above 600px is
+     undone here, so the desktop room is byte-for-byte the one it was. */
   .landing-exhibit--walltext .landing-walltext {
+    /* The desktop room keeps the plate's footprint: without this floor the
+       numeral alone is ~130px and the chapter reads as a thin band between
+       two full-height neighbours. */
+    min-height: 14rem;
+    align-items: stretch;
     justify-content: flex-end;
     gap: 1rem;
+    background: none;
+    border: 0;
+    border-radius: 0;
   }
   .landing-exhibit--walltext .landing-walltext__num {
     font-size: clamp(4.5rem, 3rem + 6vw, 9rem);
+    font-variant-numeric: tabular-nums;
+    color: var(--ln-line-strong);
+  }
+  .landing-exhibit--walltext .landing-walltext__rule {
+    display: block;
   }
   .landing-exhibit__pair-offset {
     margin-block-start: 2.5rem;

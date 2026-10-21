@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { LAWYER_SERVICES } from "@legalir/types";
 import { requireLawyer } from "@/lib/lawyer-portal/http";
 import { getSlaPolicyForService, listLawyerRates } from "@/lib/lawyer-portal/store";
+import { isPolicyActive } from "@/lib/lawyer-portal/sla";
 
 export async function GET(request: Request) {
   const auth = requireLawyer(request, "lawyer:rates:manage");
@@ -32,7 +33,10 @@ export async function GET(request: Request) {
         clock: policy.clock,
         pauseBehavior: policy.pauseBehavior,
         warnBeforeHours: policy.warnBeforeHours,
-        enabled: policy.enabled,
+        // A deactivated/archived policy still shows its numbers (so the lawyer
+        // can see what WOULD apply) but is clearly not in force.
+        active: isPolicyActive(policy),
+        audience: policy.audience ?? "both",
       },
     };
   });

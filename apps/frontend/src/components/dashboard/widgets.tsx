@@ -28,6 +28,7 @@ import {
   IconDatabase,
   IconBolt,
   IconCalendar,
+  IconClock,
   IconShield,
   IconHistory,
   IconRefresh,
@@ -35,6 +36,7 @@ import {
   IconLibrary,
 } from "@/lib/icons";
 import { PointsSummaryCard } from "./points-summary-card";
+import { HeroStatCard } from "./hero-stat-card";
 import { TextField, Button } from "@legalir/ui";
 
 // ============================================================
@@ -321,15 +323,10 @@ interface HeroSectionProps {
 }
 
 /**
- * One shared surface for the hero's stat cards: a flat ivory veil over the
- * photographic hero, so the cards read as one family while each keeps its own
- * accent glow. No `backdrop-blur` — nothing moves behind these cards, so the
- * blur bought no legibility and cost five full-frame backdrop layers on the
- * first paint of every dashboard visit. White text on the navy scrim still
- * clears WCAG AA comfortably at every breakpoint.
+ * The hero's stat row is rendered by `HeroStatCard`, which owns the one
+ * geometry every card in the row shares (icon tile → value+unit → optional
+ * visual → pinned note). Nothing here re-declares a card shell.
  */
-const HERO_STAT_CARD =
-  "group relative overflow-hidden rounded-large border border-white/15 bg-white/[0.12] p-3.5 tablet:p-4 flex flex-col gap-2 text-white transition-colors duration-short4 ease-standard hover:bg-white/[0.18] hover:border-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
 
 /**
  * Photographic hero backdrop: one image, responsively cropped, sitting under a
@@ -356,41 +353,23 @@ function HeroBackdrop() {
   );
 }
 
-/** Soft per-card accent wash so each stat is instantly distinguishable. */
-function HeroAccentGlow({ color }: { color: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute -top-8 -end-8 h-24 w-24 rounded-full blur-2xl transition-opacity duration-long2 opacity-70 group-hover:opacity-100"
-      style={{ background: color }}
-    />
-  );
-}
-
 export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps) {
   const name = displayName ?? "کاربر";
 
-  // Pie-chart geometry for the days-remaining card: remaining days sweep
-  // clockwise from the top, elapsed days fill the rest.
+  // 30-day strip for the days-remaining card: elapsed days read as the
+  // consumed cells, remaining days as the live ones.
   const daysTotal = 30;
   const daysLeft = Math.max(0, Math.min(daysTotal, stats.daysRemaining));
   const daysElapsed = daysTotal - daysLeft;
-  const sweep = (daysLeft / daysTotal) * 360;
-  const pieDash = `${sweep} ${360 - sweep}`;
-  const pieRotate = 90; // start at 12 o'clock
-
-  // 30-day strip: elapsed days red, remaining days green.
   const dayCells = Array.from({ length: daysTotal }, (_, i) => i < daysElapsed);
 
-  // Donut geometry for the daily-requests card: the remaining allowance
-  // sweeps clockwise from the top; consumed requests fill the rest.
+  // Daily requests: consumed vs the day's allowance.
   const dailyTotal = Math.max(0, stats.dailyTotal);
   const dailyUsed = Math.min(Math.max(0, stats.dailyUsed), dailyTotal);
   const dailyRemaining = Math.max(0, dailyTotal - dailyUsed);
-  const dailySweep = dailyTotal > 0 ? (dailyRemaining / dailyTotal) * 360 : 0;
-  const dailyDash = `${dailySweep} ${360 - dailySweep}`;
   const dailyExhausted = dailyTotal > 0 && dailyRemaining === 0;
   const dailyLow = !dailyExhausted && dailyTotal > 0 && dailyRemaining / dailyTotal <= 0.25;
+  const dailyUsedPct = dailyTotal > 0 ? (dailyUsed / dailyTotal) * 100 : 0;
 
   if (isLoading) {
     return (
@@ -428,132 +407,93 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
         </div>
 
         {/* Stat cards — RTL: the points card is first in DOM, so it renders
-            as the right-most card. */}
-        <div className="relative grid grid-cols-2 tablet:grid-cols-3 laptop:grid-cols-5 gap-3 mt-6 tablet:mt-8">
+            as the right-most card. All five share `HeroStatCard`'s geometry:
+            icon tile + title → value + unit → visual → pinned note. */}
+        <div className="relative mt-6 grid grid-cols-2 gap-3 tablet:mt-8 tablet:grid-cols-3 laptop:grid-cols-5">
         {/* امتیاز من — balance + mini consumption chart (shared rewards source) */}
         <PointsSummaryCard />
 
-        {/* درخواست امروز — donut: consumed vs remaining */}
-        <div className={HERO_STAT_CARD}>
-          <HeroAccentGlow color="rgba(96,165,250,0.30)" />
-          <div className="relative flex items-center gap-3">
-            <div
-              className="relative w-11 h-11 shrink-0"
-              role="img"
-              aria-label={`${dailyUsed.toLocaleString("fa-IR")} درخواست مصرف‌شده از ${dailyTotal.toLocaleString("fa-IR")}؛ ${dailyRemaining.toLocaleString("fa-IR")} باقی‌مانده`}
-            >
-              <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
-                <defs>
-                  <linearGradient id="dailyQuotaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="100%" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-                {/* track = consumed portion */}
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
-                {/* remaining allowance sweeps from 12 o'clock */}
-                <circle
-                  cx="18" cy="18" r="15.915" fill="none"
-                  stroke={dailyExhausted ? "#f87171" : dailyLow ? "#fbbf24" : "url(#dailyQuotaGrad)"}
-                  strokeWidth="4" strokeLinecap="round"
-                  strokeDasharray={dailyDash}
-                  className="transition-all duration-long4 ease-emphasized"
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
-                {dailyRemaining.toLocaleString("fa-IR")}
+        {/* درخواست امروز — consumed vs the day's allowance */}
+        <HeroStatCard
+          title="درخواست امروز"
+          icon={<IconClock size={18} />}
+          value={`${dailyUsed.toLocaleString("fa-IR")}/${dailyTotal.toLocaleString("fa-IR")}`}
+          unit="درخواست"
+          note={
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className={`h-2 w-2 shrink-0 rounded-full ${dailyExhausted ? "bg-error-300" : dailyLow ? "bg-warning-300" : "bg-info-300"}`}
+              />
+              <span className="truncate">
+                {dailyRemaining.toLocaleString("fa-IR")} از{" "}
+                {dailyTotal.toLocaleString("fa-IR")} باقی‌مانده
               </span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">
-                {dailyUsed}/{dailyTotal}
-              </p>
-              <p className="text-caption text-white/75 mt-0.5">درخواست امروز</p>
-            </div>
-          </div>
-          {/* legend: consumed vs remaining */}
-          <div className="relative flex items-center gap-3 text-[10px] text-white/75">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-info-300" aria-hidden="true" />
-              {dailyRemaining.toLocaleString("fa-IR")} مانده
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-white/30" aria-hidden="true" />
-              {dailyUsed.toLocaleString("fa-IR")} مصرف
+          }
+        >
+          <div
+            className="flex h-9 flex-col justify-center"
+            role="progressbar"
+            aria-valuenow={dailyUsed}
+            aria-valuemin={0}
+            aria-valuemax={dailyTotal}
+            aria-label="درخواست‌های مصرف‌شدهٔ امروز"
+          >
+            <span className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+              <span
+                className="block h-full rounded-full transition-all duration-long4 ease-emphasized"
+                style={{
+                  width: `${dailyUsedPct}%`,
+                  background: dailyExhausted
+                    ? "#f87171"
+                    : dailyLow
+                      ? "#fbbf24"
+                      : "linear-gradient(90deg,#93c5fd,#3b82f6)",
+                }}
+              />
             </span>
           </div>
-        </div>
+        </HeroStatCard>
 
-        {/* اسناد — icon chip + count badge */}
-        <div className={HERO_STAT_CARD}>
-          <HeroAccentGlow color="rgba(74,222,128,0.30)" />
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-white/15 text-white ring-1 ring-inset ring-white/20 transition-transform duration-short4 ease-standard group-hover:scale-105">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-            </svg>
-            <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-success-400 text-success-900 text-[10px] font-bold tabular-nums ring-2 ring-white/20">
-              {stats.docCount.toLocaleString("fa-IR")}
+        {/* اسناد — the document count */}
+        <HeroStatCard
+          title="اسناد"
+          icon={<IconDocument size={18} />}
+          value={stats.docCount.toLocaleString("fa-IR")}
+          unit="سند"
+          note={<span className="truncate">در کتابخانهٔ شما</span>}
+        />
+
+        {/* درخواست فعال — live processing requests */}
+        <HeroStatCard
+          title="درخواست فعال"
+          icon={<IconBolt size={18} />}
+          value={stats.activeReqCount.toLocaleString("fa-IR")}
+          unit="درخواست"
+          live
+          sweep
+          note={
+            <span className="truncate">
+              {stats.activeReqCount > 0 ? "در حال انجام" : "همهٔ کارها به‌روز است"}
             </span>
-          </span>
-          <div className="relative">
-            <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.docCount.toLocaleString("fa-IR")}</p>
-            <p className="text-caption text-white/75 mt-0.5">اسناد</p>
-          </div>
-        </div>
+          }
+        />
 
-        {/* درخواست فعال — blinking light-sweep effect */}
-        <div className={HERO_STAT_CARD}>
-          <span className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-            <span className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-light-sweep" />
-          </span>
-          <HeroAccentGlow color="rgba(96,165,250,0.30)" />
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-medium bg-white/15 text-white ring-1 ring-inset ring-white/20 transition-transform duration-short4 ease-standard group-hover:scale-105">
-            <span className="absolute top-1 end-1 w-2 h-2 rounded-full bg-info-300 animate-status-blink" aria-hidden="true" />
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-          </span>
-          <div className="relative">
-            <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.activeReqCount.toLocaleString("fa-IR")}</p>
-            <p className="text-caption text-white/75 mt-0.5">درخواست فعال</p>
-          </div>
-        </div>
-
-        {/* روز باقی‌مانده — pie chart + 30-day strip */}
-        <div className={HERO_STAT_CARD}>
-          <HeroAccentGlow color="rgba(251,191,36,0.30)" />
-          <div className="relative flex items-center gap-3">
-            <div className="relative w-11 h-11 shrink-0" role="img" aria-label={`${daysLeft} روز باقی‌مانده از ${daysTotal} روز`}>
-              <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
-                <defs>
-                  <linearGradient id="daysLeftGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#fcd34d" />
-                    <stop offset="100%" stopColor="#f59e0b" />
-                  </linearGradient>
-                </defs>
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
-                <circle
-                  cx="18" cy="18" r="15.915" fill="none"
-                  stroke="url(#daysLeftGrad)" strokeWidth="4" strokeLinecap="round"
-                  strokeDasharray={pieDash}
-                  transform={`rotate(${pieRotate} 18 18)`}
-                  className="transition-all duration-long4 ease-emphasized"
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white tabular-nums">
-                {daysLeft.toLocaleString("fa-IR")}
-              </span>
-            </div>
-            <div>
-              <p className="text-h3 text-white font-bold tabular-nums" dir="ltr">{stats.daysRemaining.toLocaleString("fa-IR")}</p>
-              <p className="text-caption text-white/75 mt-0.5">روز باقی‌مانده</p>
-            </div>
-          </div>
-          {/* 30-day strip: elapsed red, remaining green */}
-          <div className="relative grid grid-cols-10 gap-1 mt-1" aria-hidden="true">
+        {/* روز باقی‌مانده — remaining days + the 30-day strip */}
+        <HeroStatCard
+          title="روز باقی‌مانده"
+          icon={<IconCalendar size={18} />}
+          value={daysLeft.toLocaleString("fa-IR")}
+          unit="روز"
+          note={<span className="truncate">از {daysTotal.toLocaleString("fa-IR")} روز دوره</span>}
+        >
+          {/* 30-day strip: elapsed cells consumed, remaining cells live */}
+          <div
+            className="grid h-9 grid-cols-10 content-center gap-1"
+            role="img"
+            aria-label={`${daysElapsed.toLocaleString("fa-IR")} روز گذشته، ${daysLeft.toLocaleString("fa-IR")} روز باقی‌مانده از ${daysTotal.toLocaleString("fa-IR")} روز`}
+          >
             {dayCells.map((elapsed, i) => (
               <span
                 key={i}
@@ -566,7 +506,7 @@ export function HeroSection({ displayName, isLoading, stats }: HeroSectionProps)
               />
             ))}
           </div>
-        </div>
+        </HeroStatCard>
         </div>
       </div>
     </div>
@@ -1242,7 +1182,10 @@ export function SmartInputBar({ className = "" }: SmartInputBarProps) {
                 key={chip.label}
                 type="button"
                 onClick={() => handleChipClick(chip.query)}
-                className="group inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_7%,transparent)] px-3 py-[5px] text-caption leading-none text-[var(--brand-fg)] transition-colors duration-short4 ease-standard hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] hover:border-[var(--brand-green)] active:scale-[0.97]"
+                // `touch-target-pad` paints a 44px hit area around this 24px
+                // chip without enlarging it — the example row stays visually
+                // light but is still comfortably tappable on a phone.
+                className="touch-target-pad group inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-green)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-green)_7%,transparent)] px-3 py-[5px] text-caption leading-none text-[var(--brand-fg)] transition-colors duration-short4 ease-standard hover:bg-[var(--brand-green)] hover:text-[var(--brand-ivory)] hover:border-[var(--brand-green)] active:scale-[0.97]"
               >
                 <span className="h-1 w-1 rounded-full bg-[var(--brand-green)] transition-colors duration-short4 group-hover:bg-[var(--brand-ivory)]" aria-hidden="true" />
                 {chip.label}
@@ -1388,7 +1331,11 @@ export function SmartRecommendationCard({ rec }: { rec: DashboardRecommendation 
         <span className={`h-2 w-2 rounded-full ${styles.dot} mt-1.5 shrink-0`} aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-body-2 text-on-surface font-medium leading-snug line-clamp-2">{rec.text}</p>
+            {/* No clamp: the cards stack vertically inside the card, so a
+                longer recommendation simply makes its own card taller. Cutting
+                the sentence mid-way removed the part that states WHY the
+                suggestion applies — the only reason to show it. */}
+            <p className="text-body-2 text-on-surface font-medium leading-snug">{rec.text}</p>
             <span
               className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles.chip}`}
             >
@@ -1396,7 +1343,7 @@ export function SmartRecommendationCard({ rec }: { rec: DashboardRecommendation 
             </span>
           </div>
           {rec.detail && (
-            <p className="text-caption text-on-surface-variant mt-0.5 leading-snug line-clamp-1">{rec.detail}</p>
+            <p className="text-caption text-on-surface-variant mt-0.5 leading-snug">{rec.detail}</p>
           )}
         </div>
         {rec.icon && (
@@ -1421,7 +1368,7 @@ export function SmartRecommendationCard({ rec }: { rec: DashboardRecommendation 
 
       <Link
         href={rec.link}
-        className="ms-4.5 mt-auto inline-flex w-fit items-center gap-1 text-caption text-primary font-medium hover:underline"
+        className="touch-target-pad ms-4.5 mt-auto inline-flex w-fit items-center gap-1 text-caption text-primary font-medium hover:underline"
       >
         {rec.linkLabel}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl-flip" aria-hidden="true">

@@ -57,15 +57,33 @@ export function defaultPolicy(serviceKey: string, labelFa: string): ServiceSlaPo
     id: `sla-${serviceKey}`,
     serviceKey,
     labelFa,
+    audience: "both",
+    priority: "NORMAL",
     responseHours: 24,
     completionHours: 72,
     clock: "BUSINESS_HOURS",
     pauseBehavior: "PAUSE",
     warnBeforeHours: 6,
-    enabled: true,
+    status: "active",
     updatedAt: "1970-01-01T00:00:00.000Z",
     updatedBy: null,
   };
+}
+
+/**
+ * Whether a policy starts a NEW clock.
+ *
+ * Rows written before the lifecycle existed carry `enabled` and no `status`;
+ * they are read as active only when `enabled !== false`, so an old disabled
+ * row keeps behaving as disabled without a migration rewriting the table.
+ */
+export function isPolicyActive(
+  policy: ServiceSlaPolicy | null | undefined
+): policy is ServiceSlaPolicy {
+  if (!policy) return false;
+  const legacy = policy as ServiceSlaPolicy & { enabled?: boolean };
+  if (policy.status) return policy.status === "active";
+  return legacy.enabled !== false;
 }
 
 // ---------------------------------------------------------------------------
@@ -296,7 +314,7 @@ export function responseDeadline(
   assignedAt: string,
   calendar: PlatformWorkCalendar
 ): string | null {
-  if (!policy.enabled) return null;
+  if (!isPolicyActive(policy)) return null;
   return addClock(assignedAt, hoursToMs(policy.responseHours), calendar, policy.clock);
 }
 
@@ -305,7 +323,7 @@ export function completionDeadline(
   acceptedAt: string,
   calendar: PlatformWorkCalendar
 ): string | null {
-  if (!policy.enabled) return null;
+  if (!isPolicyActive(policy)) return null;
   return addClock(acceptedAt, hoursToMs(policy.completionHours), calendar, policy.clock);
 }
 
@@ -390,7 +408,7 @@ export function slaSnapshot(params: {
   const outcomeAt = state.completedAt ?? state.declinedAt;
   if (outcomeAt) {
     const outcomeDue = state.completedAt ? state.completionDueAt : state.responseDueAt;
-    if (!outcomeDue || !policy || !policy.enabled) {
+    if (!outcomeDue || !isPolicyActive(policy)) {
       return { ...EMPTY_SNAPSHOT, phase: "DONE", done: true };
     }
     const met = Date.parse(outcomeAt) <= Date.parse(outcomeDue);
@@ -419,7 +437,7 @@ export function slaSnapshot(params: {
   const referenceMs = paused && state.pausedAt ? Date.parse(state.pausedAt) : nowMs;
   const remainingMs = dueAt ? Date.parse(dueAt) - referenceMs : null;
 
-  if (!policy || !policy.enabled || !dueAt) {
+  if (!isPolicyActive(policy) || !dueAt) {
     return {
       ...EMPTY_SNAPSHOT,
       phase,
@@ -564,7 +582,7 @@ export function pauseClock(
   policy: ServiceSlaPolicy | null,
   at: string
 ): LegalRequestSla {
-  if (!policy || !policy.enabled || policy.pauseBehavior !== "PAUSE") return state;
+  if (!isPolicyActive(policy) || policy.pauseBehavior !== "PAUSE") return state;
   if (state.paused || state.completedAt || state.declinedAt) return state;
   return { ...state, paused: true, pausedAt: at };
 }

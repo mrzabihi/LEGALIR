@@ -52,6 +52,36 @@ const REVIEW_STATUSES: ContractAdminReviewStatus[] = [
 
 const MAX_PAGE_SIZE = 100;
 
+/** The sort keys the queue accepts; anything else falls back to `updated_desc`. */
+const SORT_KEYS = [
+  "updated_desc",
+  "updated_asc",
+  "created_desc",
+  "created_asc",
+  "reference_asc",
+] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
+function isSortKey(value: string | null): value is SortKey {
+  return value !== null && (SORT_KEYS as readonly string[]).includes(value);
+}
+
+/**
+ * Two-digit-padded `YYYY-MM-DD` bounds are compared against the stored ISO
+ * timestamps. A date-only upper bound includes that whole day (the same rule
+ * `withinRange` in lib/contracts/db uses), and an unparsable value is ignored
+ * rather than silently emptying the queue.
+ */
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function upperBoundDay(raw: string | null): string | null {
+  return raw && DAY_RE.test(raw) ? `${raw}T23:59:59.999Z` : null;
+}
+
+function lowerBoundDay(raw: string | null): string | null {
+  return raw && DAY_RE.test(raw) ? `${raw}T00:00:00.000Z` : null;
+}
+
 /** The two primary party names, e.g. «مریم محمدی و رضا کریمی». */
 function partySummaryFa(contract: PropertyContract, parties: ContractParty[]): string {
   const def = getContractDefinition(contract.type);
@@ -120,6 +150,12 @@ export async function GET(request: NextRequest) {
   const statusParam = url.searchParams.get("status");
   const typeParam = url.searchParams.get("type");
   const search = (url.searchParams.get("search") ?? "").trim();
+  // Date window over the row's stable «آخرین تغییر» column. Both bounds are
+  // inclusive, so picking the same day for both ends matches that day.
+  const fromIso = lowerBoundDay(url.searchParams.get("from"));
+  const toIso = upperBoundDay(url.searchParams.get("to"));
+  const sortParam = url.searchParams.get("sort");
+  const sort: SortKey = isSortKey(sortParam) ? sortParam : "updated_desc";
 
   let rows = listAllContracts();
 
@@ -131,6 +167,8 @@ export async function GET(request: NextRequest) {
   if (typeParam) {
     rows = rows.filter((c) => c.type === typeParam);
   }
+  if (fromIso) rows = rows.filter((c) => c.updatedAt >= fromIso);
+  if (toIso) rows = rows.filter((c) => c.updatedAt <= toIso);
   if (search) {
     rows = rows.filter((c) => {
       const owner = ownerLabelFa(c.userId);
@@ -156,6 +194,23 @@ export async function GET(request: NextRequest) {
     else if (s === "CHANGES_REQUESTED") counts.changesRequested += 1;
   }
 
+  // Sort BEFORE pagination so the whole filtered set is ordered, not just the
+  // visible page.
+  rows = [...rows].sort((a, b) => {
+    switch (sort) {
+      case "updated_asc":
+        return a.updatedAt.localeCompare(b.updatedAt);
+      case "created_desc":
+        return b.createdAt.localeCompare(a.createdAt);
+      case "created_asc":
+        return a.createdAt.localeCompare(b.createdAt);
+      case "reference_asc":
+        return a.referenceCode.localeCompare(b.referenceCode, "fa");
+      default:
+        return b.updatedAt.localeCompare(a.updatedAt);
+    }
+  });
+
   const page = intParam(url, "page", 1);
   const pageSize = Math.min(intParam(url, "pageSize", 20), MAX_PAGE_SIZE);
   const total = rows.length;
@@ -163,10 +218,19 @@ export async function GET(request: NextRequest) {
   const start = (page - 1) * pageSize;
   const items = rows.slice(start, start + pageSize).map(toAdminItem);
 
+  // The type filter vocabulary is derived from the contracts that actually
+  // exist, so the operator is never offered a type with no rows.
+  const typeMap = new Map<string, string>();
+  for (const c of all) typeMap.set(c.type, c.typeFa);
+  const types = [...typeMap.entries()]
+    .map(([value, labelFa]) => ({ value, labelFa }))
+    .sort((a, b) => a.labelFa.localeCompare(b.labelFa, "fa"));
+
   const body: AdminContractListResponse = {
     items,
     pagination: { page, pageSize, total, totalPages },
     counts,
+    types,
   };
 
   return NextResponse.json({ data: body });

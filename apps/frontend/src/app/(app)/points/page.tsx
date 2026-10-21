@@ -8,13 +8,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { Button } from "@legalir/ui";
 import { useMe } from "@/hooks/useDashboard";
 import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { useRewardsSummary, useClaimDailyVisit } from "@/hooks/useRewards";
 import { usePointsAccount, usePointsTransactions } from "@/hooks/useAccount";
-import { Breadcrumb } from "@/components/shared/Breadcrumb";
+import { CompactPageHeader } from "@/components/shared/compact-page-header";
+import { PageContainer } from "@/components/shared/page-container";
 import { toPersianNumber, toPersianDate } from "@/lib/persian-utils";
 import {
   IconCoin,
@@ -22,7 +22,6 @@ import {
   IconStar,
   IconSubscription,
   IconCheck,
-  IconArrowBack,
   IconInfo,
 } from "@/lib/icons";
 import type { RewardRuleInfo, RewardLedgerItem } from "@legalir/types";
@@ -125,7 +124,7 @@ export default function MyPointsPage() {
   }, [claim]);
 
   return (
-    <div className="p-4 tablet:p-6 max-w-3xl mx-auto" dir="rtl">
+    <PageContainer>
       {/* Toast (daily reward micro-interaction) */}
       {toast && (
         <div
@@ -136,23 +135,18 @@ export default function MyPointsPage() {
         </div>
       )}
 
-      <Breadcrumb
-        items={[
+      {/* The shared flat list header — the same H1 scale, breadcrumb and
+          border the rest of the scan pages use. The old back-arrow pointed at
+          the same destination as the breadcrumb's «داشبورد», so one of the two
+          was always redundant chrome. */}
+      <CompactPageHeader
+        breadcrumb={[
           { label: "داشبورد", href: "/dashboard" },
           { label: "امتیازهای من" },
         ]}
+        title="امتیازهای من"
+        className="mb-6"
       />
-
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/dashboard"
-          className="w-10 h-10 flex items-center justify-center rounded-medium bg-surface border border-divider text-muted hover:text-primary transition-colors touch-target-min"
-          aria-label="بازگشت"
-        >
-          <IconArrowBack size={20} rtlFlip />
-        </Link>
-        <h1 className="text-h2 text-onSurface font-bold">امتیازهای من</h1>
-      </div>
 
       {/* Balance hero */}
       <section className="relative rounded-large bg-gradient-to-br from-secondary-600 via-secondary-700 to-secondary-900 p-6 mb-6 overflow-hidden">
@@ -237,7 +231,10 @@ export default function MyPointsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-body-1 text-onSurface font-medium">{rule.labelFa}</p>
                   {rule.descriptionFa && (
-                    <p className="text-caption text-muted mt-0.5 line-clamp-1">{rule.descriptionFa}</p>
+                    // Two lines: the rule's condition («با تکمیل پروفایل…») was
+                    // cut after one line on a phone, which hid the requirement
+                    // that makes the row actionable.
+                    <p className="text-caption text-muted mt-0.5 line-clamp-2">{rule.descriptionFa}</p>
                   )}
                 </div>
                 <div className="shrink-0 flex flex-col items-end gap-1">
@@ -293,7 +290,7 @@ export default function MyPointsPage() {
           </div>
         )}
       </section>
-    </div>
+    </PageContainer>
   );
 }
 

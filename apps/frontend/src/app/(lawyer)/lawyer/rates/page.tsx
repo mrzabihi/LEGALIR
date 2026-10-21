@@ -204,7 +204,7 @@ export default function LawyerRatesPage() {
                 )}
               </Td>
               <Td className="text-caption">
-                {row.sla.enabled
+                {row.sla.active
                   ? `${toPersianNumber(row.sla.responseHours)} / ${toPersianNumber(
                       row.sla.completionHours
                     )} ساعت`
@@ -333,7 +333,7 @@ export default function LawyerRatesPage() {
                 maxLength={200}
               />
             </Field>
-            {activeRow && activeRow.sla.enabled && (
+            {activeRow && activeRow.sla.active && (
               <p className="flex items-center gap-1.5 rounded-medium bg-surface-container px-3 py-2 text-caption text-muted">
                 <IconClock size={14} aria-hidden="true" />
                 مهلت پاسخ {toPersianNumber(activeRow.sla.responseHours)} ساعت و مهلت تکمیل{" "}

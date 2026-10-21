@@ -44,6 +44,28 @@ export function listRequestsForLawyer(lawyerId: string): LegalRequest[] {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+/**
+ * Case ids created by an ACCEPTED referral naming any of these lawyer ids.
+ *
+ * Acceptance is what grants a lawyer access to the case it creates. Rows
+ * written before the explicit `case_members` insert carry the `caseId` but no
+ * membership row, so the accepted request itself is the evidence of access —
+ * without this lookup those historical cases would be permanently invisible.
+ */
+export function listAcceptedReferralCaseIds(lawyerIds: readonly string[]): string[] {
+  if (lawyerIds.length === 0) return [];
+  const wanted = new Set(lawyerIds);
+  return readTable<LegalRequest>("legal_requests")
+    .filter(
+      (r) =>
+        r.state === "ACCEPTED" &&
+        Boolean(r.caseId) &&
+        typeof r.selectedLawyerId === "string" &&
+        wanted.has(r.selectedLawyerId)
+    )
+    .map((r) => r.caseId as string);
+}
+
 export function listRequestEvents(requestId: string): LegalRequestEvent[] {
   return readTable<LegalRequestEvent>("legal_request_events")
     .filter((e) => e.requestId === requestId)

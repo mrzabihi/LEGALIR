@@ -126,7 +126,7 @@ export function AllCalculators() {
           </Button>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4">
+        <ul className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-4">
           {results.map((card) => (
             <li key={card.slug} className="h-full">
               <CalculatorCard card={card} />

@@ -27,6 +27,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Button, ProgressLinear, SkeletonCard, Tabs } from "@legalir/ui";
+import { PageContainer } from "@/components/shared/page-container";
 import { PageIntroBanner } from "@/components/shared/page-intro-banner";
 import { PlanCarousel } from "@/components/subscription/plan-carousel";
 import { CheckoutModal } from "@/components/subscription/checkout-modal";
@@ -789,7 +790,7 @@ export default function SubscriptionPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-4 tablet:p-6" dir="rtl">
+    <PageContainer>
       <PageIntroBanner
         title="اشتراک"
         description="وضعیت اشتراک، انرژی امروز، سهمیه‌های دوره، تاریخچهٔ خرید و پلن‌های قابل خرید."
@@ -842,6 +843,6 @@ export default function SubscriptionPage() {
           <IconChevronRight size={16} className="shrink-0 text-muted" rtlFlip />
         </a>
       )}
-    </div>
+    </PageContainer>
   );
 }

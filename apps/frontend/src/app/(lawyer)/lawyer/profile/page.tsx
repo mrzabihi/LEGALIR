@@ -41,6 +41,7 @@ import {
   TextInput,
 } from "@/components/admin/ui";
 import { SwitchRow, snackbar } from "@legalir/ui";
+import { SettlementAccountForm } from "@/components/lawyer/settlement-account";
 import { ApiClientError } from "@/lib/api/errors";
 import { toPersianNumber } from "@/lib/persian-utils";
 import {
@@ -674,16 +675,24 @@ function ProfileContent({
                 <span className="text-caption text-muted">قیمت هر خدمت</span>
               </Link>
               <Link
-                href="/lawyer/bank"
+                href="/lawyer/settings"
                 className="flex items-center justify-between rounded-medium border border-divider px-3 py-2.5 text-body-2 text-on-surface transition-colors hover:border-primary-300 hover:bg-surface-hover"
               >
                 <span className="flex items-center gap-2">
-                  <IconDocument size={16} /> حساب تسویه
+                  <IconDocument size={16} /> تنظیمات
                 </span>
-                <span className="text-caption text-muted">اطلاعات بانکی</span>
+                <span className="text-caption text-muted">تماس و پذیرش</span>
               </Link>
             </CardBody>
           </Card>
+        </div>
+
+        {/* Settlement account — the SAME editor /lawyer/bank and /lawyer/settings
+            render. Placed here so a lawyer who is already editing their details
+            can supply the banking data in the same pass, without leaving the
+            page to find it. */}
+        <div className="laptop:col-span-2">
+          <SettlementAccountForm title="حساب تسویه (شماره حساب، شبا، کارت)" />
         </div>
       </div>
     </div>

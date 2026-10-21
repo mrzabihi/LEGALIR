@@ -53,7 +53,7 @@ import {
   updateRequest,
 } from "../legal-request-db";
 import { getLawyerProfileByUserId } from "../lawyer-db";
-import { addCaseTimelineEvent, createCase } from "../case-db";
+import { addCaseMember, addCaseTimelineEvent, createCase } from "../case-db";
 import {
   DEFAULT_WORK_CALENDAR,
   applyOverride,
@@ -199,13 +199,45 @@ function ensureDefaultPolicy(): void {
   writeTable(POLICY_TABLE, rows);
 }
 
-export function listSlaPolicies(): ServiceSlaPolicy[] {
+const POLICY_PRIORITY_RANK: Record<string, number> = { HIGH: 0, NORMAL: 1, LOW: 2 };
+
+/**
+ * Normalise one stored row into the current shape.
+ *
+ * Three fields post-date the first version of this table, and rows written
+ * then simply do not have them. Rather than a migration that rewrites the
+ * store (and could lose a field this code does not know about), every read
+ * fills the gaps: `status` derives from the legacy `enabled` flag, and the
+ * audience/priority default to the values the old behaviour implied.
+ */
+function normalizePolicy(row: ServiceSlaPolicy): ServiceSlaPolicy {
+  const legacy = row as ServiceSlaPolicy & { enabled?: boolean };
+  return {
+    ...row,
+    audience: row.audience ?? "both",
+    priority: row.priority ?? "NORMAL",
+    status: row.status ?? (legacy.enabled === false ? "inactive" : "active"),
+  };
+}
+
+export function listSlaPolicies(includeArchived = false): ServiceSlaPolicy[] {
   ensureDefaultPolicy();
-  return [...readTable<ServiceSlaPolicy>(POLICY_TABLE)].sort((a, b) => {
-    if (a.serviceKey === DEFAULT_SLA_SERVICE_KEY) return -1;
-    if (b.serviceKey === DEFAULT_SLA_SERVICE_KEY) return 1;
-    return a.labelFa.localeCompare(b.labelFa, "fa");
-  });
+  const rows = readTable<ServiceSlaPolicy>(POLICY_TABLE).map(normalizePolicy);
+  return rows
+    .filter((p) => includeArchived || p.status !== "archived")
+    .sort((a, b) => {
+      if (a.serviceKey === DEFAULT_SLA_SERVICE_KEY) return -1;
+      if (b.serviceKey === DEFAULT_SLA_SERVICE_KEY) return 1;
+      const rank = (POLICY_PRIORITY_RANK[a.priority] ?? 1) - (POLICY_PRIORITY_RANK[b.priority] ?? 1);
+      if (rank !== 0) return rank;
+      // Active before inactive before archived, so the rows that actually
+      // start clocks are the first thing an operator sees.
+      const lifecycle = (p: ServiceSlaPolicy) =>
+        p.status === "active" ? 0 : p.status === "inactive" ? 1 : 2;
+      const byStatus = lifecycle(a) - lifecycle(b);
+      if (byStatus !== 0) return byStatus;
+      return a.labelFa.localeCompare(b.labelFa, "fa");
+    });
 }
 
 /**
@@ -215,9 +247,16 @@ export function listSlaPolicies(): ServiceSlaPolicy[] {
  */
 export function getSlaPolicyForService(serviceKey: string | null | undefined): ServiceSlaPolicy {
   const key = serviceKey ?? DEFAULT_SLA_SERVICE_KEY;
-  const rows = readTable<ServiceSlaPolicy>(POLICY_TABLE);
+  const rows = readTable<ServiceSlaPolicy>(POLICY_TABLE).map(normalizePolicy);
   const exact = rows.find((r) => r.serviceKey === key);
   if (exact) return exact;
+  // A service whose own policy was ARCHIVED must not silently inherit the
+  // default: archiving is the operator saying "this service has no deadline
+  // right now". Its own (archived) row is returned so the UI can say so.
+  const archivedOwn = rows.find(
+    (r) => r.serviceKey === key && r.status === "archived"
+  );
+  if (archivedOwn) return archivedOwn;
   const fallback = rows.find((r) => r.serviceKey === DEFAULT_SLA_SERVICE_KEY);
   if (fallback) return { ...fallback, serviceKey: key };
   return defaultPolicy(key, key === DEFAULT_SLA_SERVICE_KEY ? "پیش‌فرض (همهٔ درخواست‌ها)" : key);
@@ -226,17 +265,51 @@ export function getSlaPolicyForService(serviceKey: string | null | undefined): S
 export interface SlaPolicyInput {
   serviceKey: string;
   labelFa: string;
+  /** Optional so a caller that predates the audience field still validates. */
+  audience?: ServiceSlaPolicy["audience"];
+  priority?: ServiceSlaPolicy["priority"];
   responseHours: number;
   completionHours: number;
   clock: ServiceSlaPolicy["clock"];
   pauseBehavior: ServiceSlaPolicy["pauseBehavior"];
   warnBeforeHours: number;
-  enabled: boolean;
+  /** Optional: `active` / `inactive` / `archived`. Legacy callers used `enabled`. */
+  status?: ServiceSlaPolicy["status"];
+  /** Legacy flag, honoured only when `status` is absent. */
+  enabled?: boolean;
+}
+
+const SLA_AUDIENCES = ["user", "lawyer", "both"] as const;
+const SLA_PRIORITIES = ["HIGH", "NORMAL", "LOW"] as const;
+const SLA_STATUSES = ["active", "inactive", "archived"] as const;
+
+/**
+ * Resolve the lifecycle from the new `status`, the legacy `enabled` flag, or —
+ * when a caller supplies NEITHER — the policy's current status. That last case
+ * matters: a partial PATCH that only edits hours must not silently re-activate
+ * a policy the operator deliberately paused.
+ */
+export function resolvePolicyStatus(
+  input: { status?: ServiceSlaPolicy["status"]; enabled?: boolean },
+  current: ServiceSlaPolicy["status"] = "active"
+): ServiceSlaPolicy["status"] {
+  if (input.status) return input.status;
+  if (input.enabled !== undefined) return input.enabled === false ? "inactive" : "active";
+  return current;
 }
 
 function validatePolicy(input: SlaPolicyInput): string | null {
   if (!input.serviceKey.trim()) return "شناسهٔ سرویس الزامی است.";
   if (!input.labelFa.trim()) return "عنوان سیاست الزامی است.";
+  if (input.audience !== undefined && !SLA_AUDIENCES.includes(input.audience)) {
+    return "مخاطب سیاست باید «کاربر»، «وکیل» یا «هر دو» باشد.";
+  }
+  if (input.priority !== undefined && !SLA_PRIORITIES.includes(input.priority)) {
+    return "اولویت سیاست معتبر نیست.";
+  }
+  if (input.status !== undefined && !SLA_STATUSES.includes(input.status)) {
+    return "وضعیت سیاست معتبر نیست.";
+  }
   for (const [label, value] of [
     ["مهلت پاسخ", input.responseHours],
     ["مهلت تکمیل", input.completionHours],
@@ -263,20 +336,32 @@ export function saveSlaPolicy(
 ): { ok: true; policy: ServiceSlaPolicy } | { ok: false; messageFa: string } {
   const error = validatePolicy(input);
   if (error) return { ok: false, messageFa: error };
+  // The `__default__` row is the fallback every unconfigured service inherits.
+  // Archiving it would leave those services with no deadline at all while the
+  // UI still claimed a platform-wide policy existed — so it may be deactivated
+  // (clock paused) but never archived.
+  if (
+    input.serviceKey === DEFAULT_SLA_SERVICE_KEY &&
+    resolvePolicyStatus(input) === "archived"
+  ) {
+    return { ok: false, messageFa: "سیاست پیش‌فرض را می‌توان غیرفعال کرد، اما بایگانی آن مجاز نیست." };
+  }
 
   const rows = readTable<ServiceSlaPolicy>(POLICY_TABLE);
   const idx = rows.findIndex((r) => r.serviceKey === input.serviceKey);
-  const before = idx === -1 ? null : rows[idx]!;
+  const before = idx === -1 ? null : normalizePolicy(rows[idx]!);
   const policy: ServiceSlaPolicy = {
     id: before?.id ?? `sla-${input.serviceKey}`,
     serviceKey: input.serviceKey,
     labelFa: input.labelFa.trim(),
+    audience: input.audience ?? before?.audience ?? "both",
+    priority: input.priority ?? before?.priority ?? "NORMAL",
     responseHours: input.responseHours,
     completionHours: input.completionHours,
     clock: input.clock,
     pauseBehavior: input.pauseBehavior,
     warnBeforeHours: input.warnBeforeHours,
-    enabled: input.enabled,
+    status: resolvePolicyStatus(input, before?.status ?? "active"),
     updatedAt: nowIso(),
     updatedBy: actor.userId,
   };
@@ -284,10 +369,16 @@ export function saveSlaPolicy(
   else rows[idx] = policy;
   writeTable(POLICY_TABLE, rows);
 
+  // The action name distinguishes a lifecycle change from a numeric edit, so
+  // an operator reading the audit log sees "activated/archived" as its own
+  // event rather than having to diff two hour counts to find it.
+  const lifecycleChange = before !== null && before.status !== policy.status;
   recordAudit({
     actorUserId: actor.userId,
     actorRole: actor.role,
-    action: "sla.policy.update",
+    action: lifecycleChange
+      ? `sla.policy.${policy.status === "archived" ? "archive" : policy.status === "active" ? "activate" : "deactivate"}`
+      : "sla.policy.update",
     resourceType: "sla_policy",
     resourceId: policy.serviceKey,
     before: before ? { ...before } : null,
@@ -534,6 +625,19 @@ export function acceptRequest(params: {
       metadata: { requestId: request.id },
     });
   }
+
+  // Acceptance is also what GRANTS the lawyer access to the case. The
+  // `/api/v1/cases/**` routes authorize through `resolveCaseAccess`, which
+  // reads `case_members`; without this row the lawyer creates the case and
+  // then cannot open it. Keyed on the USER id (the same key those routes
+  // resolve), `lawyer` role = write access without owner-only powers.
+  addCaseMember({
+    id: crypto.randomUUID(),
+    caseId,
+    accountId: params.actor.userId,
+    role: "lawyer",
+    grantedByUserId: params.actor.userId,
+  });
 
   const result = transitionRequest({
     requestId: request.id,
@@ -1147,6 +1251,35 @@ export function normalizeAndValidateIban(value: string): string | null {
   return /^IR\d{24}$/.test(compact) ? compact : null;
 }
 
+/**
+ * The Luhn checksum every Iranian payment card carries. Catches a mistyped
+ * digit before the number is ever accepted for review.
+ */
+function luhnValid(digits: string): boolean {
+  let sum = 0;
+  let double = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits.charCodeAt(i) - 48;
+    if (double) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+/**
+ * The only card projection that is ever persisted: the BIN prefix, a fixed
+ * run of bullets and the last four. The middle six digits never reach disk.
+ */
+export function maskCardNumber(digits: string): string {
+  const compact = digits.replace(/\D/g, "");
+  if (compact.length < 10) return `••••${compact.slice(-4)}`;
+  return `${compact.slice(0, 6)} •••• •••• ${compact.slice(-4)}`;
+}
+
 export function getBankRecord(lawyerId: string): LawyerBankRecord {
   const row = readTable<LawyerBankRecord>(BANK_TABLE).find((r) => r.lawyerId === lawyerId);
   return (
@@ -1171,6 +1304,7 @@ export function maskBankAccount(account: LawyerBankAccount): LawyerBankAccount {
     iban: maskIban(account.iban),
     accountNumber: maskAccountNumber(account.accountNumber),
     cardLast4: account.cardLast4 ? `••••${account.cardLast4.slice(-4)}` : null,
+    cardMasked: account.cardMasked ?? null,
   };
 }
 
@@ -1199,13 +1333,38 @@ export function submitBankAccount(params: {
   if (accountNumber && !/^\d{6,30}$/.test(accountNumber)) {
     return { ok: false, messageFa: "شمارهٔ حساب باید فقط رقم و بین ۶ تا ۳۰ رقم باشد." };
   }
-  const cardLast4 = params.submission.cardLast4?.replace(/\D/g, "").slice(-4) || null;
-  if (cardLast4 && cardLast4.length !== 4) {
-    return { ok: false, messageFa: "چهار رقم آخر کارت باید ۴ رقم باشد." };
+
+  // A full card number (when given) is the authoritative card input: it is
+  // checksum-validated, reduced to BIN + last four and then DISCARDED. The
+  // legacy four-digit-only path stays for callers that predate the field.
+  const rawCard = params.submission.cardNumber?.replace(/\D/g, "") ?? "";
+  let cardLast4: string | null = null;
+  let cardMasked: string | null = null;
+  if (rawCard) {
+    if (rawCard.length !== 16) {
+      return { ok: false, messageFa: "شمارهٔ کارت باید ۱۶ رقم باشد." };
+    }
+    if (!luhnValid(rawCard)) {
+      return { ok: false, messageFa: "شمارهٔ کارت معتبر نیست؛ ارقام را بررسی کنید." };
+    }
+    cardLast4 = rawCard.slice(-4);
+    cardMasked = maskCardNumber(rawCard);
+  } else {
+    cardLast4 = params.submission.cardLast4?.replace(/\D/g, "").slice(-4) || null;
+    if (cardLast4 && cardLast4.length !== 4) {
+      return { ok: false, messageFa: "چهار رقم آخر کارت باید ۴ رقم باشد." };
+    }
   }
 
   const at = nowIso();
-  const account: LawyerBankAccount = { holderName, bankName, iban, accountNumber, cardLast4 };
+  const account: LawyerBankAccount = {
+    holderName,
+    bankName,
+    iban,
+    accountNumber,
+    cardLast4,
+    cardMasked,
+  };
   const record: LawyerBankRecord = {
     lawyerId: params.lawyerId,
     status: "PENDING_REVIEW",
@@ -1308,6 +1467,62 @@ export function reviewBankAccount(params: {
   });
 
   return { ok: true, record };
+}
+
+/**
+ * An operator replacing the settlement account on the lawyer's behalf.
+ *
+ * Same validation as the lawyer's own submission, but the event is recorded
+ * as `ADMIN_UPDATED` (so the trail distinguishes who supplied the details),
+ * a reason is mandatory, and the record still lands in `PENDING_REVIEW` — an
+ * admin edit is a correction, never a self-approval. The full IBAN is used
+ * only to write the masked snapshot and is never returned.
+ */
+export function replaceBankAccountAsAdmin(params: {
+  lawyerId: string;
+  actor: CommandActor;
+  submission: LawyerBankSubmission;
+  reason: string;
+}): { ok: true; record: LawyerBankRecord } | { ok: false; messageFa: string } {
+  const reason = params.reason.trim();
+  if (reason.length < 5) {
+    return { ok: false, messageFa: "برای ویرایش اطلاعات بانکی، ثبت دلیل الزامی است." };
+  }
+
+  const previous = getBankRecord(params.lawyerId);
+  const saved = submitBankAccount({
+    lawyerId: params.lawyerId,
+    actor: params.actor,
+    submission: params.submission,
+  });
+  if (!saved.ok) return saved;
+
+  // `submitBankAccount` already wrote a SUBMITTED event. Rewrite that row so
+  // the trail says an operator made the change, not the lawyer — editing the
+  // just-appended row keeps the log append-only (no event is ever removed).
+  const events = readTable<LawyerBankEvent>(BANK_EVENT_TABLE);
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]!;
+    if (e.lawyerId !== params.lawyerId) continue;
+    if (e.action !== "SUBMITTED") continue;
+    if (e.actorId !== params.actor.userId) continue;
+    events[i] = { ...e, action: "ADMIN_UPDATED", reason };
+    break;
+  }
+  writeTable(BANK_EVENT_TABLE, events);
+
+  recordAudit({
+    actorUserId: params.actor.userId,
+    actorRole: params.actor.role,
+    action: "lawyer.bank.admin_update",
+    resourceType: "lawyer_bank_account",
+    resourceId: params.lawyerId,
+    reason,
+    before: { status: previous.status },
+    after: { status: saved.record.status },
+  });
+
+  return saved;
 }
 
 // ---------------------------------------------------------------------------

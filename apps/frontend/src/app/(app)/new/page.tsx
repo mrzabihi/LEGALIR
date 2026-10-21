@@ -30,6 +30,7 @@
 
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { PageContainer } from "@/components/shared/page-container";
 import {
   IconCalculator,
   IconChat,
@@ -303,7 +304,7 @@ export default function NewServicePage() {
     quickServices.filter((s) => s.category === category);
 
   return (
-    <div className="mx-auto max-w-5xl p-4 tablet:p-6" dir="rtl">
+    <PageContainer>
       {/* Hero — a brand panel so the launcher opens with intent instead
           of a bare heading. The destination (full catalog) is unchanged. */}
       <header className="relative mb-6 overflow-hidden rounded-xlarge bg-gradient-to-br from-primary-700 via-primary-800 to-primary-900 p-5 text-white shadow-elevation-3 tablet:p-6">
@@ -315,20 +316,21 @@ export default function NewServicePage() {
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-24 -start-16 h-52 w-52 rounded-full bg-black opacity-20 blur-3xl"
         />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm">
-              <IconSparkle size={14} />
-              شروع سریع
-            </span>
-            <h1 className="mt-3 text-h2 font-bold text-white">ساخت جدید</h1>
-            <p className="mt-2 max-w-lg text-body-2 leading-relaxed text-white/80">
-              چه خدمتی نیاز دارید؟ یکی از گزینه‌های پرکاربرد را انتخاب کنید
-            </p>
-          </div>
+        {/* The copy and its action form ONE block at the reading start (RTL:
+            the right). Pushing the button to the opposite edge of a 1120px
+            panel left a wide dead gap between the promise and the way on. */}
+        <div className="relative max-w-2xl">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm">
+            <IconSparkle size={14} />
+            شروع سریع
+          </span>
+          <h1 className="mt-3 text-h2 font-bold text-white">ساخت جدید</h1>
+          <p className="mt-2 max-w-lg text-body-2 leading-relaxed text-white/80">
+            چه خدمتی نیاز دارید؟ یکی از گزینه‌های پرکاربرد را انتخاب کنید
+          </p>
           <Link
             href="/services"
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-5 py-2.5 text-button font-semibold text-primary-800 shadow-elevation-1 transition-all duration-short4 ease-standard hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary-800 touch-target"
+            className="mt-4 inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-5 py-2.5 text-button font-semibold text-primary-800 shadow-elevation-1 transition-all duration-short4 ease-standard hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary-800 touch-target"
           >
             <IconGrid size={16} />
             مشاهده همه خدمات
@@ -381,7 +383,7 @@ export default function NewServicePage() {
           <IconChevronRight size={16} />
         </Link>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 

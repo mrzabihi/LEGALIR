@@ -419,10 +419,11 @@ export default function LandingPage() {
                   alt={EXHIBIT.heroDesk.alt}
                   width={EXHIBIT.heroDesk.width}
                   height={EXHIBIT.heroDesk.height}
-                  // Matches the CSS exactly: 74% of the measure below 600px,
-                  // capped at 23rem up to 900px, 30rem above. Asking for more
-                  // only downloads pixels the frame cannot show.
-                  sizes="(min-width: 900px) 30rem, (min-width: 600px) 23rem, 74vw"
+                  // Matches the CSS exactly: 74% of the measure below 600px
+                  // (≈65vw once the gutters are taken out), capped at 23rem up
+                  // to 900px and 30rem above. Asking for more only downloads
+                  // pixels the frame cannot show.
+                  sizes="(min-width: 900px) 30rem, (min-width: 600px) 23rem, 65vw"
                   className="landing-hero__img select-none"
                   priority
                   draggable={false}

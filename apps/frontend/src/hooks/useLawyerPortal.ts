@@ -7,10 +7,12 @@
 // ============================================================
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LawyerReferralFilters } from "@legalir/types";
+import type { LawyerCaseFilters, LawyerReferralFilters } from "@legalir/types";
 import {
   clearLawyerRate,
   fetchLawyerBank,
+  fetchLawyerCase,
+  fetchLawyerCases,
   fetchLawyerDashboard,
   fetchLawyerProfile,
   fetchLawyerRates,
@@ -21,10 +23,12 @@ import {
   setLawyerRate,
   submitLawyerBank,
   updateLawyerAvatar,
+  updateLawyerCaseTask,
   updateLawyerProfile,
   type LawyerAvatarPatch,
   type LawyerProfilePatch,
   type LawyerReferralActionPayload,
+  type LawyerTaskStatus,
 } from "@/lib/api/lawyer-portal";
 import { queryKeys } from "@/lib/api/query-keys";
 
@@ -40,6 +44,9 @@ export const lawyerPortalKeys = {
   services: [...root, "services"] as const,
   rates: [...root, "rates"] as const,
   bank: [...root, "bank"] as const,
+  cases: (filters: LawyerCaseFilters) => [...root, "cases", filters] as const,
+  casesAll: [...root, "cases"] as const,
+  case: (id: string | undefined) => [...root, "case", id] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -109,6 +116,27 @@ export function useLawyerBank() {
     queryKey: lawyerPortalKeys.bank,
     queryFn: fetchLawyerBank,
     staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useLawyerCases(filters: LawyerCaseFilters = {}) {
+  return useQuery({
+    queryKey: lawyerPortalKeys.cases(filters),
+    queryFn: () => fetchLawyerCases(filters),
+    staleTime: 15_000,
+    retry: false,
+    // Same reasoning as the referral list: paging must not blank the table.
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useLawyerCase(id: string | undefined) {
+  return useQuery({
+    queryKey: lawyerPortalKeys.case(id),
+    queryFn: () => fetchLawyerCase(id as string),
+    enabled: Boolean(id),
+    staleTime: 10_000,
     retry: false,
   });
 }
@@ -193,6 +221,25 @@ export function useSubmitLawyerBank() {
     mutationFn: submitLawyerBank,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: lawyerPortalKeys.bank });
+      void qc.invalidateQueries({ queryKey: lawyerPortalKeys.dashboard });
+    },
+  });
+}
+
+/**
+ * A task write changes three things at once: the case detail, the caseload row
+ * (its open/blocked counters and the nearest deadline) and the dashboard tiles
+ * built from those counters. Invalidate all three so no surface keeps a stale
+ * number.
+ */
+export function useUpdateLawyerCaseTask(caseId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { taskId: string; status: LawyerTaskStatus }) =>
+      updateLawyerCaseTask(caseId as string, input.taskId, input.status),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: lawyerPortalKeys.case(caseId) });
+      void qc.invalidateQueries({ queryKey: lawyerPortalKeys.casesAll });
       void qc.invalidateQueries({ queryKey: lawyerPortalKeys.dashboard });
     },
   });

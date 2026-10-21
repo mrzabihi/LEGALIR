@@ -125,7 +125,13 @@ export function ContractTemplateCard({
         <h3 className="line-clamp-2 text-titleMedium text-on-surface">
           {definition.typeFa}
         </h3>
-        <p className="line-clamp-2 text-caption leading-5 text-muted">
+        {/* Three lines, measured rather than guessed: the longest
+            descriptions («قرارداد خدمات ابری — زیرساخت…») need a third
+            line on a 296px card, and the `mt-auto` metadata row above
+            already holds ~28px of slack, so the extra line costs the
+            card no height. Two lines cut the sentence before the part
+            that says WHAT the contract covers. */}
+        <p className="line-clamp-3 text-caption leading-5 text-muted">
           {definition.descriptionFa}
         </p>
 

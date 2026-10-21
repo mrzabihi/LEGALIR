@@ -65,6 +65,10 @@ _shot.png
 iran legal/
 .tmp-qa/
 .tmp-pptx/
+# Per-session scratch: screenshot dumps, one-off scripts, file snapshots.
+# Matched at any depth so the workspace copies — apps/frontend/.tmp-mobile is
+# ~23MB of PNGs — are never staged by an over-eager `git add`.
+.tmp-*/
 /Contract smaple/
 /Documents/
 

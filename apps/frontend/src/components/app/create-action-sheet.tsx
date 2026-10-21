@@ -298,7 +298,7 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
                 onClick={() => setExpanded((v) => !v)}
                 aria-label={expanded ? "کوچک کردن پنل" : "بازتر کردن پنل"}
                 aria-expanded={expanded}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
+                className="touch-target-pad flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
               >
                 <IconChevronUp
                   size={20}
@@ -312,7 +312,7 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
                 type="button"
                 onClick={onClose}
                 aria-label="بستن"
-                className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
+                className="touch-target-pad flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400"
               >
                 <IconClose size={20} />
               </button>
@@ -359,13 +359,16 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
               </Link>
             )}
 
-            {/* Specialist services — two-column grid from `tablet` up: the
-                first two fill row one, the third sits alone on row two. On
-                phones the grid collapses to one column in the same order, so
-                a narrow screen never forces a horizontal scroll. */}
+            {/* Specialist services — two-column grid from `tablet` up. An odd
+                count would leave the final row half empty, so the trailing
+                card takes the full width instead: the grid always reads as
+                complete rather than unfinished. On phones the grid collapses
+                to one column in the same order, so a narrow screen never
+                forces a horizontal scroll. */}
             <div className="grid grid-cols-1 gap-2.5 tablet:grid-cols-2">
               {specialistActions.map((action, i) => {
                 const Icon = ACTION_ICON_MAP[action.icon];
+                const fillsRow = specialistActions.length % 2 === 1 && i === specialistActions.length - 1;
                 return (
                   <Link
                     key={action.id}
@@ -373,7 +376,7 @@ export function CreateActionSheet({ open, onClose }: CreateActionSheetProps) {
                     onClick={onClose}
                     className={`group flex min-h-[84px] items-center gap-3 rounded-large border border-divider bg-surface-container-low p-3 transition-[transform,background-color,border-color,box-shadow] duration-short4 ease-standard can-hover:hover:-translate-y-0.5 can-hover:hover:border-primary/25 can-hover:hover:bg-surface-container can-hover:hover:shadow-elevation-1 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-400 animate-create-card animate-create-card-m${
                       i + 2
-                    }`}
+                    } ${fillsRow ? "tablet:col-span-2" : ""}`}
                   >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-medium bg-secondary-50 text-secondary-700 transition-colors duration-short4 ease-standard group-hover:bg-secondary-100">
                       {Icon ? <Icon size={22} /> : null}

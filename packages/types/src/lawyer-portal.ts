@@ -46,6 +46,25 @@ export type SlaPauseBehavior =
   /** The clock keeps running — the client's delay still counts. */
   | "CONTINUE";
 
+/**
+ * Whom the policy's deadlines are measured against / shown to.
+ *
+ * · `user`   — a commitment to the client (first platform reply, delivery).
+ * · `lawyer` — a commitment the lawyer is held to (accept/decline, delivery).
+ * · `both`   — the same window applies to both sides (the default).
+ *
+ * The audience never changes the arithmetic; it states, next to the numbers,
+ * who is expected to act inside them.
+ */
+export type SlaAudience = "user" | "lawyer" | "both";
+
+/**
+ * How time-critical the service's deadlines are. Used to order the operator's
+ * policy list (HIGH first) and shown on the policy row — it never changes a
+ * stored deadline.
+ */
+export type SlaPriority = "HIGH" | "NORMAL" | "LOW";
+
 /** A single `HH:mm` window in the platform timezone. */
 export interface WorkingHoursWindow {
   /** "HH:mm" — inclusive. */
@@ -72,6 +91,21 @@ export interface PlatformWorkCalendar {
   updatedBy: string | null;
 }
 
+/**
+ * Where a policy sits in its lifecycle.
+ *
+ * · `active`   — new deadlines are computed from it.
+ * · `inactive` — temporarily paused: no NEW clock starts, but the row keeps its
+ *                numbers so re-activating restores them unchanged.
+ * · `archived` — retired from service. Same effect on clocks as `inactive`,
+ *                but the row is meant to stay that way and is hidden from the
+ *                default list unless the operator asks for archived rows.
+ *
+ * None of these touch a deadline already stored on a request: those are
+ * snapshots taken when the clock started and are never recomputed.
+ */
+export type SlaPolicyStatus = "active" | "inactive" | "archived";
+
 /** Per-service SLA policy. */
 export interface ServiceSlaPolicy {
   id: string;
@@ -79,6 +113,10 @@ export interface ServiceSlaPolicy {
   serviceKey: string;
   /** Human label, so the admin list reads without joining the taxonomy. */
   labelFa: string;
+  /** Whom the deadline is a commitment to. */
+  audience: SlaAudience;
+  /** Relative urgency, for ordering the operator list. Never changes a clock. */
+  priority: SlaPriority;
   /** Hours allowed from referral to the lawyer's accept/decline decision. */
   responseHours: number;
   /** Hours allowed from acceptance to the delivered result. */
@@ -88,7 +126,8 @@ export interface ServiceSlaPolicy {
   pauseBehavior: SlaPauseBehavior;
   /** Start warning the lawyer/admin this many hours before the deadline. */
   warnBeforeHours: number;
-  enabled: boolean;
+  /** Lifecycle. Only `active` policies start a new clock. */
+  status: SlaPolicyStatus;
   updatedAt: string;
   updatedBy: string | null;
 }
@@ -313,13 +352,29 @@ export interface LawyerBankAccount {
   accountNumber: string | null;
   /** Last four digits of the settlement card, for human confirmation. */
   cardLast4: string | null;
+  /**
+   * The card number in display form — first six digits, a run of bullets and
+   * the last four (`6037 •••• •••• 1234`).
+   *
+   * The FULL card number is never stored: a settlement card is only ever
+   * matched by its BIN + last four, and keeping a PAN would turn this table
+   * into a cardholder-data store. The form accepts a full number, validates
+   * it and persists only this projection.
+   */
+  cardMasked?: string | null;
 }
 
 /** One append-only bank review event. */
 export interface LawyerBankEvent {
   id: string;
   lawyerId: string;
-  action: "SUBMITTED" | "VERIFIED" | "CORRECTION_REQUESTED";
+  /**
+   * `ADMIN_UPDATED` records an operator replacing the account on the lawyer's
+   * behalf. It is deliberately distinct from the lawyer's own `SUBMITTED`
+   * row: the audit trail must show WHO supplied the details, and an admin
+   * edit still lands in `PENDING_REVIEW` so a second operator confirms it.
+   */
+  action: "SUBMITTED" | "VERIFIED" | "CORRECTION_REQUESTED" | "ADMIN_UPDATED";
   actorId: string;
   actorRole: PlatformRole;
   reason: string | null;
@@ -346,6 +401,12 @@ export interface LawyerBankSubmission {
   iban: string;
   accountNumber?: string | null;
   cardLast4?: string | null;
+  /**
+   * The full 16-digit settlement card number. The server validates the Luhn
+   * checksum, then stores only `cardMasked` + `cardLast4` — the number itself
+   * is discarded. When both are sent, `cardNumber` wins.
+   */
+  cardNumber?: string | null;
 }
 
 /** What a staff reviewer may decide. */
@@ -663,3 +724,94 @@ export const LAWYER_RATE_UNIT_FA: Record<LawyerRateUnit, string> = {
   HOURLY: "نرخ ساعتی",
   PER_SESSION: "هر جلسه",
 };
+
+// ---------------------------------------------------------------------------
+// Case management (پنل وکیل · پرونده‌ها)
+// ---------------------------------------------------------------------------
+// The lawyer's own caseload: the cases they own plus the ones shared with them
+// through an accepted `case_members` row. Every row here is derived from the
+// case store — no counter is seeded, and a case the lawyer cannot open never
+// appears in the list.
+//
+// The list is deliberately FLAT: the lawyer works a queue of matters, not a
+// hierarchy, so the only grouping is by urgency and the only filter that
+// matters is "which of these need me today".
+
+/** How a lawyer is attached to the case they are looking at. */
+export type LawyerCaseRelation =
+  /** The case the lawyer accepted from a referral — full write access. */
+  | "assigned"
+  /** Closed by the lawyer (legacy path) and still open in the store. */
+  | "owner"
+  /** A limited collaborator: only the delegated resources are readable. */
+  | "limited"
+  /** Read-only. */
+  | "viewer";
+
+export const LAWYER_CASE_RELATION_FA: Record<LawyerCaseRelation, string> = {
+  assigned: "ارجاع‌شده به شما",
+  owner: "پروندهٔ شما",
+  limited: "همکاری محدود",
+  viewer: "مشاهده",
+};
+
+/**
+ * One row in the lawyer's caseload. `nextActionAt` is the nearest of the open
+ * task/deadline instants — null means nothing is scheduled, which the list
+ * renders as «بدون اقدام زمان‌دار» rather than inventing a date.
+ */
+export interface LawyerCaseListItem {
+  caseId: string;
+  title: string;
+  category: string;
+  categoryLabelFa: string;
+  /** `CaseLifecycleStatus`: ACTIVE / ON_HOLD / CLOSED / ARCHIVED. */
+  lifecycle: string;
+  lifecycleLabelFa: string;
+  /** `CaseStageKey` of the current proceeding, or null when none is recorded. */
+  stage: string | null;
+  stageLabelFa: string | null;
+  relation: LawyerCaseRelation;
+  clientNameFa: string;
+  priority: string;
+  /** Nearest open deadline instant, ISO. */
+  nextDeadlineAt: string | null;
+  /** Open (not done, not cancelled) task count. */
+  openTasks: number;
+  /** Tasks whose state is `blocked`. */
+  blockedTasks: number;
+  documentCount: number;
+  /** The nearest overdue deadline, ISO — the reason a row sorts first. */
+  overdueAt: string | null;
+  updatedAt: string;
+  /** Where the lawyer opens it. */
+  href: string;
+}
+
+export interface LawyerCaseFilters {
+  /** ACTIVE / ON_HOLD / CLOSED / ARCHIVED. Absent = every lifecycle. */
+  lifecycle?: string | null;
+  search?: string | null;
+  /** Only rows with an overdue deadline. */
+  overdueOnly?: boolean;
+  page?: number;
+  pageSize?: number;
+  sort?: "updated" | "deadline" | "title";
+}
+
+export interface LawyerCaseListResponse {
+  items: LawyerCaseListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  /** Counts over the WHOLE caseload, not the current page. */
+  summary: {
+    total: number;
+    active: number;
+    onHold: number;
+    closed: number;
+    overdue: number;
+    withOpenTasks: number;
+  };
+}

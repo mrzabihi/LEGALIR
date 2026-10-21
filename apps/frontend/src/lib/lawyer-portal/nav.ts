@@ -38,6 +38,14 @@ export const LAWYER_NAV: LawyerNavItem[] = [
     permission: "lawyer:request:read:assigned",
   },
   {
+    key: "cases",
+    path: "/lawyer/cases",
+    titleFa: "پرونده‌ها",
+    hintFa: "پرونده‌های در جریان، مهلت‌ها و وظایف",
+    icon: "Briefcase",
+    permission: "lawyer:request:read:assigned",
+  },
+  {
     key: "profile",
     path: "/lawyer/profile",
     titleFa: "پروفایل حرفه‌ای",
@@ -60,6 +68,14 @@ export const LAWYER_NAV: LawyerNavItem[] = [
     hintFa: "شماره شبا و وضعیت بررسی",
     icon: "Balance",
     permission: "lawyer:bank:manage",
+  },
+  {
+    key: "settings",
+    path: "/lawyer/settings",
+    titleFa: "تنظیمات",
+    hintFa: "اطلاعات تماس، حساب بانکی و دسترسی",
+    icon: "Settings",
+    permission: "lawyer:profile:write",
   },
 ];
 

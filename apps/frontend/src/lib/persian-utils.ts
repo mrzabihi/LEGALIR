@@ -44,12 +44,38 @@ const DATE_TIME_COMPONENT_KEYS = [
 ] as const;
 
 /**
+ * A panel-wide DISPLAY zone override.
+ *
+ * `null` (the default) means "format in the viewer's zone", which is what the
+ * rest of the app wants. The admin shell sets it once from the saved platform
+ * setting so every date on every admin page renders in the chosen zone — while
+ * the underlying value stays the same UTC instant.
+ *
+ * A caller that passes its own `timeZone` always wins, so explicit formatting
+ * (a server clock, a specific zone label) is never overridden.
+ */
+let displayTimeZone: string | null = null;
+
+/** Set (or, with `null`, clear) the display zone used by `toPersianDate`. */
+export function setDisplayTimeZone(tz: string | null): void {
+  displayTimeZone = tz;
+}
+
+/** The zone `toPersianDate` currently formats in, or `null` for the viewer's. */
+export function getDisplayTimeZone(): string | null {
+  return displayTimeZone;
+}
+
+/**
  * Format a date as Persian/Jalali locale string.
  *
  * `dateStyle: "long"` is only applied as a DEFAULT: when the caller asks for
  * individual components (e.g. `{ month: "2-digit", day: "2-digit" }`) the
  * default is dropped, because Intl forbids `dateStyle` together with any
  * component option. Forcing both made such calls throw at runtime.
+ *
+ * When no `timeZone` is given, the panel-wide display zone (if one is set) is
+ * used; otherwise Intl falls back to the viewer's zone as before.
  */
 export function toPersianDate(
   date: Date | number | string,
@@ -57,6 +83,9 @@ export function toPersianDate(
 ): string {
   const d = date instanceof Date ? date : new Date(date);
   const resolved: Intl.DateTimeFormatOptions = { calendar: "persian", ...options };
+  if (resolved.timeZone === undefined && displayTimeZone) {
+    resolved.timeZone = displayTimeZone;
+  }
   const usesComponents = DATE_TIME_COMPONENT_KEYS.some((k) => resolved[k] !== undefined);
   if (!usesComponents && resolved.dateStyle === undefined && resolved.timeStyle === undefined) {
     resolved.dateStyle = "long";

@@ -39,6 +39,9 @@ import {
   useSetAdminLawyerRating,
   useModerateAdminLawyerReview,
   useReviewLawyerBank,
+  useAdminUpdateLawyerBank,
+  useSetAdminLawyerRate,
+  useClearAdminLawyerRate,
 } from "@/hooks/useAdmin";
 import {
   Badge,
@@ -48,6 +51,7 @@ import {
   LoadingBlock,
   ErrorBlock,
   InfoBanner,
+  InlineNotice,
   Tabs,
   TextArea,
   TextInput,
@@ -66,6 +70,7 @@ import {
   LAWYER_VISIBILITY_FA,
   LAWYER_SERVICES,
   LAWYER_JURISDICTIONS,
+  IRAN_PROVINCES,
   LAWYER_REVIEW_STATUS_FA,
   LAWYER_REVIEW_REPORT_STATUS_FA,
   ADMIN_LAWYER_STATUS_FA,
@@ -86,13 +91,16 @@ import {
   type AdminLawyerStatus,
   LAWYER_BANK_STATUS_FA,
   LAWYER_RATE_UNIT_FA,
+  type LawyerBankAccount,
   SETTLEMENT_STATUS_FA,
+  type LawyerRateUnit,
   type LawyerBankStatus,
   type SettlementStatus,
 } from "@legalir/types";
 import { toPersianCurrency, toPersianDate, toPersianNumber } from "@/lib/persian-utils";
 import { specialtyLabel } from "@/lib/lawyers/specialty";
 import { demoAvatarDataUri } from "@/lib/lawyers/demo-generator";
+import { digitsOnly, luhnValid } from "@/lib/payments/card";
 import { IconUpload } from "@/lib/icons";
 import type { AdminLawyerDetail, AdminLawyerPatchInput } from "@/lib/api/admin";
 
@@ -1293,6 +1301,13 @@ function ProfileEditForm({ detail, canEdit }: { detail: AdminLawyerDetail; canEd
     p.visibility ?? "PUBLIC"
   );
   const [acceptingClients, setAcceptingClients] = useState(p.acceptingClients ?? true);
+  const [acceptingRequests, setAcceptingRequests] = useState(p.acceptingRequests ?? true);
+  // Locations are edited as a small list: the same province/city pair is the
+  // identity, so a duplicate add is simply ignored.
+  const [locations, setLocations] = useState<LawyerLocation[]>(p.locations ?? []);
+  const [provinceInput, setProvinceInput] = useState("");
+  const [cityInput, setCityInput] = useState("");
+  const [remoteInput, setRemoteInput] = useState(false);
   const [serviceIds, setServiceIds] = useState<string[]>(
     (p.services ?? []).filter((s) => s.enabled).map((s) => s.serviceId)
   );
@@ -1315,6 +1330,11 @@ function ProfileEditForm({ detail, canEdit }: { detail: AdminLawyerDetail; canEd
     setYearsExperience(p.yearsExperience?.toString() ?? "");
     setVisibility(p.visibility ?? "PUBLIC");
     setAcceptingClients(p.acceptingClients ?? true);
+    setAcceptingRequests(p.acceptingRequests ?? true);
+    setLocations(p.locations ?? []);
+    setProvinceInput("");
+    setCityInput("");
+    setRemoteInput(false);
     setServiceIds((p.services ?? []).filter((s) => s.enabled).map((s) => s.serviceId));
     setJurisdictionIds(p.jurisdictions ?? []);
     setExpertise(p.expertise ?? []);
@@ -1345,6 +1365,18 @@ function ProfileEditForm({ detail, canEdit }: { detail: AdminLawyerDetail; canEd
       },
     ]);
     setAddNodeId("");
+  }
+
+  function addLocation() {
+    if (!provinceInput || !cityInput) return;
+    if (locations.some((l) => l.province === provinceInput && l.city === cityInput)) return;
+    setLocations([...locations, { province: provinceInput, city: cityInput, remote: remoteInput }]);
+    setCityInput("");
+    setRemoteInput(false);
+  }
+
+  function removeLocation(province: string, city: string) {
+    setLocations(locations.filter((l) => !(l.province === province && l.city === city)));
   }
 
   function removeExpertise(nodeId: string) {
@@ -1388,6 +1420,8 @@ function ProfileEditForm({ detail, canEdit }: { detail: AdminLawyerDetail; canEd
       yearsExperience: yearsNum,
       visibility,
       acceptingClients,
+      acceptingRequests,
+      locations,
       expertise,
       serviceIds,
       jurisdictionIds,
@@ -1527,6 +1561,88 @@ function ProfileEditForm({ detail, canEdit }: { detail: AdminLawyerDetail; canEd
               وکیل در حال پذیرش موکل جدید است
             </label>
           </Field>
+          <Field label="دریافت ارجاع تازه">
+            <label className="flex items-center gap-2 py-2 text-body-2 text-on-surface">
+              <input
+                type="checkbox"
+                checked={acceptingRequests}
+                onChange={(e) => setAcceptingRequests(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              درخواست‌های جدید به این وکیل ارجاع شود
+            </label>
+          </Field>
+        </div>
+      </Block>
+
+      <Block title={`شهر و محدودهٔ خدمات (${toPersianNumber(locations.length)})`}>
+        {locations.length === 0 ? (
+          <p className="mb-2 text-caption text-muted">محدوده‌ای ثبت نشده است.</p>
+        ) : (
+          <ul className="mb-2 divide-y divide-divider">
+            {locations.map((l) => (
+              <li
+                key={`${l.province}-${l.city}`}
+                className="flex items-center justify-between gap-2 py-2"
+              >
+                <span className="text-body-2 text-on-surface">
+                  {l.province} · {l.city}
+                  {l.remote && <span className="ms-2 text-caption text-muted">آنلاین</span>}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeLocation(l.province, l.city)}
+                >
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-full tablet:w-44">
+            <Field label="استان">
+              <Select value={provinceInput} onChange={(e) => setProvinceInput(e.target.value)}>
+                <option value="">انتخاب…</option>
+                {IRAN_PROVINCES.map((pr) => (
+                  <option key={pr.slug} value={pr.nameFa}>
+                    {pr.nameFa}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="w-full tablet:w-44">
+            <Field label="شهر">
+              <Select
+                value={cityInput}
+                onChange={(e) => setCityInput(e.target.value)}
+                disabled={!provinceInput}
+              >
+                <option value="">انتخاب…</option>
+                {(
+                  IRAN_PROVINCES.find((pr) => pr.nameFa === provinceInput)?.cities ?? []
+                ).map((ct) => (
+                  <option key={ct} value={ct}>
+                    {ct}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <label className="flex items-center gap-2 pb-2 text-body-2 text-on-surface">
+            <input
+              type="checkbox"
+              checked={remoteInput}
+              onChange={(e) => setRemoteInput(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            آنلاین
+          </label>
+          <Button variant="secondary" disabled={!provinceInput || !cityInput} onClick={addLocation}>
+            افزودن
+          </Button>
         </div>
       </Block>
 
@@ -1646,14 +1762,223 @@ const SETTLEMENT_TONES: Record<
   NEEDS_REVIEW: "danger",
 };
 
-function RatesPanel({ detail }: { detail: AdminLawyerDetail }) {
+const RATE_UNITS: LawyerRateUnit[] = ["FIXED", "HOURLY", "PER_SESSION"];
+
+/**
+ * The bank event vocabulary. `ADMIN_UPDATED` must read as the operator's edit,
+ * never as the lawyer's own submission — that is the whole point of keeping
+ * the two event types apart.
+ */
+const BANK_EVENT_LABEL_FA: Record<
+  "SUBMITTED" | "VERIFIED" | "CORRECTION_REQUESTED" | "ADMIN_UPDATED",
+  string
+> = {
+  SUBMITTED: "ثبت اطلاعات توسط وکیل",
+  VERIFIED: "تأیید",
+  CORRECTION_REQUESTED: "درخواست اصلاح",
+  ADMIN_UPDATED: "اصلاح توسط پشتیبانی",
+};
+
+interface RateDraft {
+  serviceKey: string;
+  amountText: string;
+  unit: LawyerRateUnit;
+  noteFa: string;
+}
+
+/** One existing rate, edited in place. The service key never changes. */
+function RateEditor({
+  serviceKey,
+  initialAmount,
+  initialUnit,
+  initialNote,
+  pending,
+  onCancel,
+  onSave,
+}: {
+  serviceKey: string;
+  initialAmount: number;
+  initialUnit: LawyerRateUnit;
+  initialNote: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSave: (input: RateDraft) => void;
+}) {
+  const [amountText, setAmountText] = useState(String(initialAmount));
+  const [unit, setUnit] = useState<LawyerRateUnit>(initialUnit);
+  const [noteFa, setNoteFa] = useState(initialNote);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-body-2 font-medium text-on-surface">{lawyerServiceLabel(serviceKey)}</p>
+      <div className="grid grid-cols-1 gap-2 tablet:grid-cols-3">
+        <Field label="مبلغ (تومان)">
+          <TextInput
+            value={amountText}
+            onChange={(e) => setAmountText(e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+          />
+        </Field>
+        <Field label="روش محاسبه">
+          <Select value={unit} onChange={(e) => setUnit(e.target.value as LawyerRateUnit)}>
+            {RATE_UNITS.map((u) => (
+              <option key={u} value={u}>
+                {LAWYER_RATE_UNIT_FA[u]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="یادداشت">
+          <TextInput value={noteFa} onChange={(e) => setNoteFa(e.target.value)} maxLength={120} />
+        </Field>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+          انصراف
+        </Button>
+        <Button
+          size="sm"
+          loading={pending}
+          onClick={() => onSave({ serviceKey, amountText, unit, noteFa })}
+        >
+          ذخیره
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** A brand-new rate for a service the lawyer has not priced yet. */
+function AddRateForm({
+  options,
+  pending,
+  onSubmit,
+}: {
+  options: { id: string; nameFa: string }[];
+  pending: boolean;
+  onSubmit: (input: RateDraft) => void;
+}) {
+  const [serviceKey, setServiceKey] = useState("");
+  const [amountText, setAmountText] = useState("");
+  const [unit, setUnit] = useState<LawyerRateUnit>("FIXED");
+  const [noteFa, setNoteFa] = useState("");
+
+  if (options.length === 0) {
+    return (
+      <p className="text-caption text-muted">
+        همهٔ خدمات موجود نرخ دارند. برای تغییر مبلغ، ردیف مربوط را ویرایش کنید.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 tablet:grid-cols-2">
+        <Field label="خدمت">
+          <Select value={serviceKey} onChange={(e) => setServiceKey(e.target.value)}>
+            <option value="">انتخاب خدمت…</option>
+            {options.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nameFa}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="مبلغ (تومان)">
+          <TextInput
+            value={amountText}
+            onChange={(e) => setAmountText(e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+            placeholder="مثلاً 2500000"
+          />
+        </Field>
+        <Field label="روش محاسبه">
+          <Select value={unit} onChange={(e) => setUnit(e.target.value as LawyerRateUnit)}>
+            {RATE_UNITS.map((u) => (
+              <option key={u} value={u}>
+                {LAWYER_RATE_UNIT_FA[u]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="یادداشت (اختیاری)">
+          <TextInput value={noteFa} onChange={(e) => setNoteFa(e.target.value)} maxLength={120} />
+        </Field>
+      </div>
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          disabled={!serviceKey || !amountText.trim()}
+          loading={pending}
+          onClick={() => {
+            onSubmit({ serviceKey, amountText, unit, noteFa });
+            setServiceKey("");
+            setAmountText("");
+            setNoteFa("");
+          }}
+        >
+          ثبت نرخ
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RatesPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage: boolean }) {
+  const setRate = useSetAdminLawyerRate();
+  const clearRate = useClearAdminLawyerRate();
   const [showHistory, setShowHistory] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+
+  // The add form only offers services the lawyer does not already price; the
+  // edit form keeps the row's own serviceKey.
+  const pricedKeys = detail.rates.map((r) => r.serviceKey);
+
+  async function saveRate(input: {
+    serviceKey: string;
+    amountText: string;
+    unit: LawyerRateUnit;
+    noteFa: string;
+  }) {
+    const amount = Number(input.amountText.replace(/[,\s]/g, ""));
+    if (!Number.isInteger(amount) || amount < 0) {
+      snackbar.show({ message: "مبلغ باید عددی صحیح و نامنفی (تومان) باشد.", variant: "error" });
+      return;
+    }
+    try {
+      await setRate.mutateAsync({
+        lawyerId: detail.profile.id,
+        input: {
+          serviceKey: input.serviceKey,
+          amountToman: amount,
+          unit: input.unit,
+          noteFa: input.noteFa.trim() || null,
+        },
+      });
+      snackbar.show({ message: "نرخ ذخیره شد.", variant: "success" });
+      setEditing(null);
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "ذخیرهٔ نرخ ناموفق بود"), variant: "error" });
+    }
+  }
+
+  async function removeRate(serviceKey: string) {
+    try {
+      await clearRate.mutateAsync({ lawyerId: detail.profile.id, serviceKey });
+      snackbar.show({ message: "نرخ حذف شد.", variant: "success" });
+    } catch (err) {
+      snackbar.show({ message: errMessage(err, "حذف نرخ ناموفق بود"), variant: "error" });
+    }
+  }
 
   return (
     <div className="space-y-3">
       <InfoBanner tone="info">
         نرخ‌ها فقط بر درخواست‌های آینده اثر دارند. درخواستی که پذیرش شده، قیمت توافق‌شدهٔ خود را
-        حفظ می‌کند.
+        حفظ می‌کند. ویرایش این‌جا همان رکوردی را می‌نویسد که پنل خود وکیل، پس بازار فوراً آن را
+        می‌بیند.
       </InfoBanner>
 
       <Block title="نرخ‌های منتشرشده">
@@ -1662,27 +1987,69 @@ function RatesPanel({ detail }: { detail: AdminLawyerDetail }) {
         ) : (
           <ul className="divide-y divide-divider">
             {detail.rates.map((r) => (
-              <li
-                key={r.serviceKey}
-                className="flex flex-wrap items-baseline justify-between gap-2 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="text-body-2 text-on-surface">
-                    {lawyerServiceLabel(r.serviceKey)}
-                  </p>
-                  {r.noteFa && <p className="text-caption text-muted">{r.noteFa}</p>}
-                </div>
-                <div className="text-end">
-                  <p className="tabular-nums text-body-2 font-medium text-on-surface">
-                    {toPersianNumber(r.amountToman)} تومان
-                  </p>
-                  <p className="text-caption text-muted">{LAWYER_RATE_UNIT_FA[r.unit]}</p>
-                </div>
+              <li key={r.serviceKey} className="py-2">
+                {editing === r.serviceKey ? (
+                  <RateEditor
+                    serviceKey={r.serviceKey}
+                    initialAmount={r.amountToman}
+                    initialUnit={r.unit}
+                    initialNote={r.noteFa ?? ""}
+                    pending={setRate.isPending}
+                    onCancel={() => setEditing(null)}
+                    onSave={(input) => void saveRate(input)}
+                  />
+                ) : (
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-body-2 text-on-surface">
+                        {lawyerServiceLabel(r.serviceKey)}
+                      </p>
+                      {r.noteFa && <p className="text-caption text-muted">{r.noteFa}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-end">
+                        <p className="tabular-nums text-body-2 font-medium text-on-surface">
+                          {toPersianNumber(r.amountToman)} تومان
+                        </p>
+                        <p className="text-caption text-muted">{LAWYER_RATE_UNIT_FA[r.unit]}</p>
+                      </div>
+                      {canManage && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditing(r.serviceKey)}
+                          >
+                            ویرایش
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={clearRate.isPending}
+                            onClick={() => void removeRate(r.serviceKey)}
+                          >
+                            حذف
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         )}
       </Block>
+
+      {canManage && (
+        <Block title="افزودن / تغییر نرخ یک خدمت">
+          <AddRateForm
+            options={LAWYER_SERVICES.filter((s) => !pricedKeys.includes(s.id))}
+            pending={setRate.isPending}
+            onSubmit={(input) => void saveRate(input)}
+          />
+        </Block>
+      )}
 
       <Block title="تاریخچهٔ تغییر نرخ">
         <div className="mb-2 flex justify-end">
@@ -1721,10 +2088,173 @@ function RatesPanel({ detail }: { detail: AdminLawyerDetail }) {
 // §7 — settlement account (masked) + review decision
 // ---------------------------------------------------------------------------
 
+/**
+ * Operator-side replacement of the settlement account. Used when the lawyer
+ * asks support to fix a typo, or supplies the details by phone. The write is
+ * recorded as `ADMIN_UPDATED` and still lands in PENDING_REVIEW, so it is a
+ * correction and never a self-approval — which is why the reason is mandatory.
+ */
+function AdminBankReplaceForm({
+  lawyerId,
+  initial,
+  pending,
+  onDone,
+}: {
+  lawyerId: string;
+  initial: LawyerBankAccount | null;
+  pending: boolean;
+  onDone: () => void;
+}) {
+  const update = useAdminUpdateLawyerBank();
+  const [holderName, setHolderName] = useState(initial?.holderName ?? "");
+  const [bankName, setBankName] = useState(initial?.bankName ?? "");
+  const [iban, setIban] = useState(initial?.iban ?? "");
+  const [accountNumber, setAccountNumber] = useState(initial?.accountNumber ?? "");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardLast4, setCardLast4] = useState(initial?.cardLast4 ?? "");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    const cleanIban = iban.replace(/[\s-]/g, "").toUpperCase();
+    if (!/^IR\d{24}$/.test(cleanIban)) {
+      setError("شمارهٔ شبا باید با IR شروع شود و ۲۴ رقم داشته باشد.");
+      return;
+    }
+    if (holderName.trim().length < 3) {
+      setError("نام صاحب حساب را کامل بنویسید.");
+      return;
+    }
+    if (bankName.trim().length < 2) {
+      setError("نام بانک را بنویسید.");
+      return;
+    }
+    const account = accountNumber.trim();
+    if (account && !/^\d{6,30}$/.test(account)) {
+      setError("شمارهٔ حساب باید فقط رقم و بین ۶ تا ۳۰ رقم باشد.");
+      return;
+    }
+    const card = digitsOnly(cardNumber);
+    if (card) {
+      if (card.length !== 16) {
+        setError("شمارهٔ کارت باید ۱۶ رقم باشد.");
+        return;
+      }
+      if (!luhnValid(card)) {
+        setError("شمارهٔ کارت معتبر نیست؛ ارقام را بررسی کنید.");
+        return;
+      }
+    }
+    const last4 = digitsOnly(cardLast4);
+    if (!card && last4 && last4.length !== 4) {
+      setError("چهار رقم آخر کارت باید دقیقاً ۴ رقم باشد.");
+      return;
+    }
+    if (reason.trim().length < 5) {
+      setError("ثبت دلیل الزامی است (حداقل ۵ نویسه) — این تغییر در سابقهٔ وکیل می‌ماند.");
+      return;
+    }
+
+    try {
+      await update.mutateAsync({
+        lawyerId,
+        input: {
+          holderName: holderName.trim(),
+          bankName: bankName.trim(),
+          iban: cleanIban,
+          accountNumber: account || null,
+          cardNumber: card || null,
+          cardLast4: card ? null : last4 || null,
+          reason: reason.trim(),
+        },
+      });
+      snackbar.show({
+        message: "حساب تسویه جایگزین شد و برای بررسی دوباره در انتظار است.",
+        variant: "success",
+      });
+      onDone();
+    } catch (err) {
+      setError(errMessage(err, "جایگزینی حساب ناموفق بود"));
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <InlineNotice tone="warning">
+        این تغییر به‌نام پشتیبانی ثبت می‌شود و حساب را دوباره در وضعیت «در انتظار بررسی»
+        قرار می‌دهد؛ تأیید نهایی با یک اپراتور دیگر است.
+      </InlineNotice>
+      <div className="grid grid-cols-1 gap-2 tablet:grid-cols-2">
+        <Field label="نام صاحب حساب">
+          <TextInput value={holderName} onChange={(e) => setHolderName(e.target.value)} />
+        </Field>
+        <Field label="نام بانک">
+          <TextInput value={bankName} onChange={(e) => setBankName(e.target.value)} />
+        </Field>
+        <Field label="شمارهٔ شبا" hint="با IR شروع می‌شود.">
+          <TextInput
+            value={iban}
+            onChange={(e) => setIban(e.target.value)}
+            dir="ltr"
+            placeholder={initial ? undefined : "IR000000000000000000000000"}
+            maxLength={34}
+          />
+        </Field>
+        <Field label="شمارهٔ حساب (اختیاری)">
+          <TextInput
+            value={accountNumber}
+            onChange={(e) => setAccountNumber(e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+          />
+        </Field>
+        <Field label="شمارهٔ کارت (۱۶ رقم)">
+          <TextInput
+            value={cardNumber}
+            onChange={(e) => setCardNumber(e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+            placeholder={
+              initial?.cardLast4 ? `آخرین چهار رقم ثبت‌شده: ${initial.cardLast4}` : undefined
+            }
+            maxLength={19}
+          />
+        </Field>
+        <Field label="یا فقط چهار رقم آخر">
+          <TextInput
+            value={cardLast4}
+            onChange={(e) => setCardLast4(e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+            maxLength={4}
+            disabled={Boolean(cardNumber)}
+          />
+        </Field>
+      </div>
+      <Field label="دلیل تغییر (الزامی)" error={error ?? undefined}>
+        <TextArea
+          rows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          maxLength={400}
+          placeholder="مثلاً: وکیل تلفنی شمارهٔ شبا را اصلاح کرد."
+        />
+      </Field>
+      <div className="flex justify-end">
+        <Button size="sm" loading={pending || update.isPending} onClick={() => void submit()}>
+          جایگزینی حساب
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function BankPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage: boolean }) {
   const review = useReviewLawyerBank();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState(false);
 
   const bank = detail.bank;
   const actionable = bank.status === "PENDING_REVIEW" || bank.status === "NEEDS_CORRECTION";
@@ -1817,6 +2347,24 @@ function BankPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage
         </Block>
       )}
 
+      {canManage && (
+        <Block title="جایگزینی حساب به‌نام وکیل">
+          <div className="mb-2 flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setReplacing((v) => !v)}>
+              {replacing ? "بستن فرم" : "اصلاح اطلاعات حساب"}
+            </Button>
+          </div>
+          {replacing && (
+            <AdminBankReplaceForm
+              lawyerId={detail.profile.id}
+              initial={bank.account}
+              pending={false}
+              onDone={() => setReplacing(false)}
+            />
+          )}
+        </Block>
+      )}
+
       <Block title="سابقهٔ بررسی">
         {detail.bankEvents.length === 0 ? (
           <p className="text-caption text-muted">رویدادی ثبت نشده است.</p>
@@ -1825,11 +2373,7 @@ function BankPanel({ detail, canManage }: { detail: AdminLawyerDetail; canManage
             {detail.bankEvents.map((e) => (
               <li key={e.id} className="flex flex-wrap justify-between gap-2">
                 <span className="text-on-surface-variant">
-                  {e.action === "VERIFIED"
-                    ? "تأیید"
-                    : e.action === "CORRECTION_REQUESTED"
-                      ? "درخواست اصلاح"
-                      : "ثبت اطلاعات"}
+                  {BANK_EVENT_LABEL_FA[e.action]}
                   {e.reason ? ` — ${e.reason}` : ""}
                 </span>
                 <span className="tabular-nums text-muted">{toPersianDate(e.createdAt)}</span>
@@ -2173,7 +2717,7 @@ export function LawyerDetailDrawer({
 
           {tab === "dossier" && <DossierPanel detail={detail} />}
           {tab === "edit" && <ProfileEditForm detail={detail} canEdit={canEdit} />}
-          {tab === "rates" && <RatesPanel detail={detail} />}
+          {tab === "rates" && <RatesPanel detail={detail} canManage={canEdit} />}
           {tab === "bank" && <BankPanel detail={detail} canManage={canBank} />}
           {tab === "income" && <IncomePanel detail={detail} />}
           {tab === "avatar" && <AvatarPanel detail={detail} canManage={canAvatar} />}

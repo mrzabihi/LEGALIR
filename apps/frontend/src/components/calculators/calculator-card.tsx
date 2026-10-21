@@ -52,22 +52,25 @@ export function CalculatorCard({ card, showStatus = true, className = "" }: Calc
         className,
       ].join(" ")}
     >
-      <div className="flex items-start gap-3">
+      {/* Icon + name share a row; the subtitle then takes the card's FULL
+          width. Keeping it inside the icon's row stole 56px of a narrow card
+          and forced the description to wrap five deep, where a two-line clamp
+          hid most of it. Line counts follow the measured text, not a guess:
+          the longest names need two lines, the longest subtitles three. */}
+      <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-gradient-to-br ${card.categoryGradient} text-white shadow-elevation-1 transition-transform duration-short4 ease-standard group-hover:scale-[1.05]`}
         >
           <span className="text-xl leading-none">{card.icon}</span>
         </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-1 text-body-2 font-semibold leading-snug text-on-surface transition-colors group-hover:text-primary">
-            {card.title}
-          </h3>
-          <p className="mt-0.5 line-clamp-2 text-caption leading-relaxed text-on-surface-variant">
-            {card.subtitle}
-          </p>
-        </div>
+        <h3 className="line-clamp-2 min-w-0 flex-1 text-body-2 font-semibold leading-snug text-on-surface transition-colors group-hover:text-primary">
+          {card.title}
+        </h3>
       </div>
+      <p className="mt-2 line-clamp-3 text-caption leading-relaxed text-on-surface-variant">
+        {card.subtitle}
+      </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container px-2.5 py-0.5 text-labelSmall text-on-surface-variant">

@@ -1342,6 +1342,11 @@ export interface AdminContractListResponse {
   };
   /** Counts by admin-review status, for the queue tabs. */
   counts: { pending: number; approved: number; rejected: number; changesRequested: number };
+  /**
+   * The contract types actually present in the queue, so the type filter
+   * only ever offers a value that can return rows.
+   */
+  types: { value: string; labelFa: string }[];
 }
 
 /** A request body for an admin review action. */

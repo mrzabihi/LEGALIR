@@ -7,6 +7,8 @@
 
 import { useState } from "react";
 import { Tabs } from "@legalir/ui";
+import { CompactPageHeader } from "@/components/shared/compact-page-header";
+import { PageContainer } from "@/components/shared/page-container";
 import { AiAssistantPanel } from "@/components/assistant";
 
 // ============================================================
@@ -77,8 +79,17 @@ export default function SupportPage() {
   const [tab, setTab] = useState<SupportTab>("faq");
 
   return (
-    <div className="p-4 tablet:p-6 max-w-5xl mx-auto" dir="rtl">
-      <h1 className="text-h2 text-on-surface mb-6 font-bold">پشتیبانی و راهنما</h1>
+    <PageContainer>
+      {/* The shared flat list header: same H1 scale and breadcrumb as every
+          other utility page, so the title never changes size between routes. */}
+      <CompactPageHeader
+        breadcrumb={[
+          { label: "داشبورد", href: "/dashboard" },
+          { label: "پشتیبانی و راهنما" },
+        ]}
+        title="پشتیبانی و راهنما"
+        className="mb-6"
+      />
 
       {/* Mobile/tablet: one section at a time. Hidden at desktop, where the
           two-column grid below shows everything at once. */}
@@ -212,6 +223,6 @@ export default function SupportPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

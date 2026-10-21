@@ -27,6 +27,7 @@ import {
   formatRemaining,
   hoursToMs,
   initializeSla,
+  isPolicyActive,
   markAccepted,
   markBreached,
   markCompleted,
@@ -164,10 +165,20 @@ describe("responseDeadline / completionDeadline", () => {
     );
   });
 
-  it("returns null for a disabled policy — a paused service has no obligation", () => {
-    const off = policy({ enabled: false });
-    expect(responseDeadline(off, WED_0900, calendar())).toBeNull();
-    expect(completionDeadline(off, WED_0900, calendar())).toBeNull();
+  it("returns null for an inactive or archived policy — a paused service has no obligation", () => {
+    for (const status of ["inactive", "archived"] as const) {
+      const off = policy({ status });
+      expect(responseDeadline(off, WED_0900, calendar())).toBeNull();
+      expect(completionDeadline(off, WED_0900, calendar())).toBeNull();
+    }
+  });
+
+  it("still recognises a legacy row that only carries `enabled: false`", () => {
+    // Rows written before the lifecycle existed must keep behaving as paused;
+    // `isPolicyActive` reads `enabled` only when `status` is absent.
+    const legacy = { ...policy(), status: undefined, enabled: false } as unknown as ServiceSlaPolicy;
+    expect(isPolicyActive(legacy)).toBe(false);
+    expect(responseDeadline(legacy, WED_0900, calendar())).toBeNull();
   });
 });
 

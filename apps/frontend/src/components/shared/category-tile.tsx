@@ -83,24 +83,28 @@ export function CategoryTile({
           {icon}
         </span>
 
-        <span className="min-w-0 flex-1 pt-0.5">
-          <span className="flex items-center gap-1.5">
-            <span className="truncate text-body-2 font-semibold text-on-surface">{label}</span>
-            {selected && (
-              <IconCheck
-                size={15}
-                className="shrink-0 text-[var(--ct-accent)]"
-                aria-hidden="true"
-              />
-            )}
-          </span>
-          {description && (
-            <span className="mt-0.5 block line-clamp-2 text-caption leading-relaxed text-on-surface-variant">
-              {description}
-            </span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 pt-0.5">
+          <span className="truncate text-body-2 font-semibold text-on-surface">{label}</span>
+          {selected && (
+            <IconCheck
+              size={15}
+              className="shrink-0 text-[var(--ct-accent)]"
+              aria-hidden="true"
+            />
           )}
         </span>
       </div>
+
+      {/* The description takes the tile's FULL width. Nested under the
+          40px icon it had ~95px on a two-column phone grid, where a real
+          category line («هزینه دادرسی، حق‌الوکاله، کارشناسی، داوری و اجرا»)
+          needed three or four lines and the two-line clamp hid half the
+          sentence. Full width, the same text fits its two lines. */}
+      {description && (
+        <span className="line-clamp-2 text-caption leading-relaxed text-on-surface-variant">
+          {description}
+        </span>
+      )}
 
       {countLabel && (
         <span className="mt-auto inline-flex w-fit items-center rounded-full bg-surface-container px-2 py-0.5 text-labelSmall text-on-surface-variant">

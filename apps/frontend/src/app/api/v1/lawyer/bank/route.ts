@@ -40,6 +40,7 @@ export async function PUT(request: Request) {
       iban: typeof body["iban"] === "string" ? body["iban"] : "",
       accountNumber: typeof body["accountNumber"] === "string" ? body["accountNumber"] : null,
       cardLast4: typeof body["cardLast4"] === "string" ? body["cardLast4"] : null,
+      cardNumber: typeof body["cardNumber"] === "string" ? body["cardNumber"] : null,
     },
   });
   if (!result.ok) return badRequest(result.messageFa);

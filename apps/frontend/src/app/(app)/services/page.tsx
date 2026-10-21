@@ -28,9 +28,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { TextField, Button } from "@legalir/ui";
-import { IconClose, IconSearch, IconServices, IconLawBook } from "@/lib/icons";
-import { PageIntroBanner, PromoPanel } from "@/components/shared";
+import { Button } from "@legalir/ui";
+import { IconSearch, IconServices, IconLawBook } from "@/lib/icons";
+import { PageContainer, PageIntroBanner, PromoPanel, SearchField } from "@/components/shared";
 import {
   CATALOG_CATEGORIES,
   CATALOG_SIZE,
@@ -146,7 +146,7 @@ export default function ServicesPage() {
     results.length > 0 || bannerResults.length > 0 || judicialMatchCount > 0;
 
   return (
-    <div className="mx-auto max-w-6xl p-4 tablet:p-6" dir="rtl">
+    <PageContainer>
       {/* ============================================================
           1. Intro + search
           ============================================================ */}
@@ -161,41 +161,16 @@ export default function ServicesPage() {
         title="خدمات لیگالیر"
         description="خدمات حقوقی قانون‌مدار لیگالیر — از پرسش و تحلیل سند تا تنظیم قرارداد، محاسبه‌گرهای دقیق و مشاوره با وکیل انسانی."
         actions={
-          <form
-            role="search"
-            onSubmit={(e) => e.preventDefault()}
+          <SearchField
             className="w-full laptop:w-[420px]"
-            aria-label="جستجو در خدمات"
-          >
-            <TextField
-              ref={searchRef}
-              type="search"
-              label="جستجو در خدمات"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape" && query) {
-                  e.preventDefault();
-                  clearSearch();
-                }
-              }}
-              placeholder="مثلاً: اظهارنامه، مهریه، NDA"
-              leadingIcon={<IconSearch size={20} />}
-              endAdornment={
-                query ? (
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    aria-label="پاک کردن جستجو"
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  >
-                    <IconClose size={18} />
-                  </button>
-                ) : undefined
-              }
-              fullWidth
-            />
-          </form>
+            inputRef={searchRef}
+            label="جستجو در خدمات"
+            placeholder="مثلاً: اظهارنامه، مهریه، NDA"
+            value={query}
+            onChange={(next) => setQuery(next)}
+            onEscape={clearSearch}
+            reserveMessageSpace={false}
+          />
         }
       />
 
@@ -213,7 +188,7 @@ export default function ServicesPage() {
             <button
               type="button"
               onClick={clearSearch}
-              className="shrink-0 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="touch-target-pad shrink-0 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               نمایش همه خدمات
             </button>
@@ -453,6 +428,6 @@ export default function ServicesPage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

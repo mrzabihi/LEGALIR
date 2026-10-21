@@ -247,7 +247,11 @@ export default function DashboardPage() {
                 <h3 className="mb-2 line-clamp-2 text-body-1 font-semibold leading-snug text-on-surface transition-colors group-hover:text-primary">
                   {post.titleFa}
                 </h3>
-                <p className="line-clamp-2 flex-1 text-caption leading-relaxed text-muted">
+                {/* Three lines: the excerpt is one sentence of real legal
+                    prose and needs a third line on a phone. The card sits
+                    in a grid, so siblings equalise on the tallest one
+                    rather than leaving this row short. */}
+                <p className="line-clamp-3 flex-1 text-caption leading-relaxed text-muted">
                   {post.excerpt}
                 </p>
                 <span className="mt-3 text-caption tabular-nums text-muted">

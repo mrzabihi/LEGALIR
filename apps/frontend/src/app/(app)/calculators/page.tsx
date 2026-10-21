@@ -152,7 +152,7 @@ export default function CalculatorsPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="shrink-0 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="touch-target-pad shrink-0 rounded-small text-caption font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               نمایش همه محاسبه‌گرها
             </button>
@@ -177,7 +177,10 @@ export default function CalculatorsPage() {
               </Button>
             </div>
           ) : (
-            <ul className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4">
+            // One column on phones — the same rule /services follows. A
+            // two-column phone grid left ~140px of text width, which forced
+            // calculator names onto three lines.
+            <ul className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-4">
               {results.map((card) => (
                 <li key={card.slug} className="h-full">
                   <CalculatorCard card={card} />
@@ -247,7 +250,7 @@ export default function CalculatorsPage() {
               }
             />
 
-            <ul className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-6">
+            <ul className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-3 laptop:grid-cols-6">
               {quickAccess.map((card) => (
                 <li key={card.slug} className="h-full">
                   <CalculatorCard card={card} showStatus={false} />
@@ -297,7 +300,7 @@ export default function CalculatorsPage() {
                   Every card is a real link to its own calculator page. */}
               <ul
                 aria-label={`محاسبه‌گرهای دسته ${group.meta.title}`}
-                className="mt-3 grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4"
+                className="mt-3 grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-4"
               >
                 {group.items.map((card) => (
                   <li key={card.slug} className="h-full">

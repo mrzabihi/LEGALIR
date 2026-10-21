@@ -105,6 +105,7 @@ import type {
   LawyerBankRecord,
   LawyerBankReview,
   LawyerRateChange,
+  LawyerRateUnit,
   LawyerServiceRate,
   DiscoveryIntent,
   AdminContractListResponse,
@@ -2776,6 +2777,61 @@ export function reviewAdminLawyerBank(
 }
 
 /**
+ * REPLACE the settlement account on the lawyer's behalf. Stored as a distinct
+ * `ADMIN_UPDATED` event and still sent to PENDING_REVIEW, so an operator edit
+ * is a correction and never a self-approval. The reason is mandatory.
+ */
+export function adminUpdateLawyerBank(
+  id: string,
+  input: {
+    holderName: string;
+    bankName: string;
+    iban: string;
+    accountNumber?: string | null;
+    cardLast4?: string | null;
+    cardNumber?: string | null;
+    reason: string;
+  }
+): Promise<LawyerBankRecord> {
+  const { reason, ...submission } = input;
+  return apiClient.post<LawyerBankRecord>(`${A}/lawyers/${encodeURIComponent(id)}`, {
+    action: "ADMIN_UPDATE_BANK",
+    submission,
+    reason,
+  });
+}
+
+/**
+ * Set one per-service price. Writes the SAME `lawyer_rates` row the lawyer's
+ * own /lawyer/rates page writes, so the marketplace reflects it immediately.
+ */
+export function setAdminLawyerRate(
+  id: string,
+  input: {
+    serviceKey: string;
+    amountToman: number;
+    unit: LawyerRateUnit;
+    noteFa?: string | null;
+  }
+): Promise<{ rate: LawyerServiceRate }> {
+  return apiClient.post<{ rate: LawyerServiceRate }>(
+    `${A}/lawyers/${encodeURIComponent(id)}`,
+    { action: "SET_RATE", ...input }
+  );
+}
+
+/** Remove one per-service price, restoring the platform default. */
+export function clearAdminLawyerRate(
+  id: string,
+  serviceKey: string
+): Promise<unknown> {
+  return apiClient.post(`${A}/lawyers/${encodeURIComponent(id)}`, {
+    action: "CLEAR_RATE",
+    serviceKey,
+  });
+}
+
+/**
  * Record a verification decision. A non-empty `reason` is mandatory for every
  * transition — the server refuses the request without it.
  */
@@ -2815,6 +2871,9 @@ export interface AdminLawyerPatchInput {
   gender?: LawyerGender | null;
   featured?: boolean;
   acceptingClients?: boolean;
+  /** The switch that decides whether new referrals reach this lawyer at all. */
+  acceptingRequests?: boolean;
+  avatarUrl?: string | null;
   visibility?: LawyerMarketplaceVisibility;
   yearsExperience?: number | null;
   expertise?: LawyerExpertise[];

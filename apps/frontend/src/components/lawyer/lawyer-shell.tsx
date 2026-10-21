@@ -37,6 +37,8 @@ import {
   IconBalance,
   IconPerson,
   IconCalculator,
+  IconBriefcase,
+  IconSettings,
   IconMenu,
   IconClose,
   IconChevronLeft,
@@ -53,6 +55,8 @@ const ICONS: Record<string, IconComponent> = {
   Balance: IconBalance,
   Person: IconPerson,
   Calculator: IconCalculator,
+  Briefcase: IconBriefcase,
+  Settings: IconSettings,
 };
 
 const RAIL_W = "w-20";

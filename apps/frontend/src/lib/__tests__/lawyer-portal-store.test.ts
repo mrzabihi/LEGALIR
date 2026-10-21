@@ -31,12 +31,18 @@ import {
 import { DEFAULT_WORK_CALENDAR, responseDeadline } from "../lawyer-portal/sla";
 import type * as LegalRequestDbModule from "../legal-request-db";
 import type * as StoreModule from "../lawyer-portal/store";
+import type * as AuditModule from "../admin/audit";
+import type * as CaseDbModule from "../case-db";
+import type * as CaseAccessModule from "../cases/access";
 
 type LegalRequestDb = typeof LegalRequestDbModule;
 type Store = typeof StoreModule;
 
 let legalRequestDb: LegalRequestDb;
 let store: Store;
+let audit: typeof AuditModule;
+let caseDb: typeof CaseDbModule;
+let caseAccess: typeof CaseAccessModule;
 
 let tmpDir: string;
 let originalCwd: string;
@@ -88,6 +94,9 @@ beforeAll(async () => {
 
   legalRequestDb = await import("../legal-request-db");
   store = await import("../lawyer-portal/store");
+  audit = await import("../admin/audit");
+  caseDb = await import("../case-db");
+  caseAccess = await import("../cases/access");
 });
 
 afterAll(() => {
@@ -167,7 +176,7 @@ describe("SLA policies", () => {
     clock: "BUSINESS_HOURS",
     pauseBehavior: "PAUSE",
     warnBeforeHours: 2,
-    enabled: true,
+    status: "active",
   };
 
   it("seeds the default policy once and sorts it first", () => {
@@ -207,6 +216,58 @@ describe("SLA policies", () => {
     }
     // Nothing above reached the table.
     expect(store.getSlaPolicyForService("family-consultation").responseHours).toBe(4);
+  });
+
+  it("hides archived rows from the default list but keeps them reviewable", () => {
+    const archived = store.saveSlaPolicy({ ...familyPolicy, status: "archived" }, ADMIN);
+    expect(archived.ok).toBe(true);
+    expect(store.listSlaPolicies().some((p) => p.serviceKey === "family-consultation")).toBe(false);
+    expect(store.listSlaPolicies(true).some((p) => p.serviceKey === "family-consultation")).toBe(true);
+    // A service whose own policy is archived does not silently inherit the
+    // default's live deadline — it returns its own archived row.
+    expect(store.getSlaPolicyForService("family-consultation").status).toBe("archived");
+    expect(responseDeadline(store.getSlaPolicyForService("family-consultation"), "2026-10-14T05:30:00.000Z", DEFAULT_WORK_CALENDAR)).toBeNull();
+  });
+
+  it("records a lifecycle transition under its own audit action", () => {
+    store.saveSlaPolicy(familyPolicy, ADMIN);
+    store.saveSlaPolicy({ ...familyPolicy, status: "inactive" }, ADMIN);
+    store.saveSlaPolicy({ ...familyPolicy, status: "active" }, ADMIN);
+    const { items } = audit.listAudit({ resourceType: "sla_policy", pageSize: 50 });
+    const actions = items.map((r) => r.action);
+    expect(actions).toContain("sla.policy.deactivate");
+    expect(actions).toContain("sla.policy.activate");
+  });
+
+  it("does not re-activate a paused policy when a save omits the lifecycle", () => {
+    store.saveSlaPolicy({ ...familyPolicy, status: "inactive" }, ADMIN);
+    // A partial save (hours only) must keep the policy paused.
+    store.saveSlaPolicy(
+      {
+        serviceKey: familyPolicy.serviceKey,
+        labelFa: familyPolicy.labelFa,
+        responseHours: 6,
+        completionHours: familyPolicy.completionHours,
+        clock: "BUSINESS_HOURS",
+        pauseBehavior: "PAUSE",
+        warnBeforeHours: 2,
+      },
+      ADMIN
+    );
+    expect(store.getSlaPolicyForService("family-consultation").status).toBe("inactive");
+  });
+
+  it("refuses to archive the default policy but allows deactivating it", () => {
+    const archived = store.saveSlaPolicy(
+      { ...familyPolicy, serviceKey: DEFAULT_SLA_SERVICE_KEY, status: "archived" },
+      ADMIN
+    );
+    expect(archived.ok).toBe(false);
+    const deactivated = store.saveSlaPolicy(
+      { ...familyPolicy, serviceKey: DEFAULT_SLA_SERVICE_KEY, status: "inactive" },
+      ADMIN
+    );
+    expect(deactivated.ok).toBe(true);
   });
 
   it("falls back to the default row for a service with no policy of its own", () => {
@@ -463,7 +524,21 @@ describe("settlement account masking", () => {
       iban: maskedIban,
       accountNumber: "••••••7890",
       cardLast4: "••••1234",
+      // The projection is already masks-only, so it passes through unchanged.
+      cardMasked: null,
     });
+  });
+
+  it("passes the card projection through without un-masking it", () => {
+    const masked = store.maskBankAccount({
+      holderName: "سارا محمدی",
+      bankName: "بانک پاسارگاد",
+      iban: "IR123456789012345678901234",
+      accountNumber: null,
+      cardLast4: "1111",
+      cardMasked: "411111 •••• •••• 1111",
+    });
+    expect(masked.cardMasked).toBe("411111 •••• •••• 1111");
   });
 
   it("validates the Iranian IBAN and its canonical form", () => {
@@ -594,6 +669,157 @@ describe("settlement account lifecycle", () => {
       review: { action: "APPROVE" as "VERIFY" },
     });
     expect(result.ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §7 — the full settlement card
+// ---------------------------------------------------------------------------
+// A card is entered in full so the Luhn checksum can reject a typo, then
+// reduced to BIN + last four. The PAN itself must never be persisted.
+
+describe("settlement card", () => {
+  // The canonical Luhn-valid test number (Visa's 4111…1111); not a real card.
+  const VALID_CARD = "4111111111111111";
+  const LUHN_BREAKING_CARD = "4111111111111112";
+  const CARD_LAWYER = "law-store-card";
+
+  it("projects a full card to BIN + bullets + last four", () => {
+    expect(store.maskCardNumber(VALID_CARD)).toBe("411111 •••• •••• 1111");
+    expect(store.maskCardNumber("4111 1111 1111 1111")).toBe("411111 •••• •••• 1111");
+    expect(store.maskCardNumber("41111111")).toBe("••••1111");
+  });
+
+  it("rejects a card that fails the checksum without writing anything", () => {
+    const result = store.submitBankAccount({
+      lawyerId: CARD_LAWYER,
+      actor: LAWYER_B_ACTOR,
+      submission: {
+        holderName: "سارا محمدی",
+        bankName: "بانک پاسارگاد",
+        iban: "IR123456789012345678901234",
+        cardNumber: LUHN_BREAKING_CARD,
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(store.getBankRecord(CARD_LAWYER).status).toBe("NOT_SET");
+    expect(store.listBankEvents(CARD_LAWYER)).toHaveLength(0);
+  });
+
+  it("rejects a card that is not 16 digits", () => {
+    const result = store.submitBankAccount({
+      lawyerId: CARD_LAWYER,
+      actor: LAWYER_B_ACTOR,
+      submission: {
+        holderName: "سارا محمدی",
+        bankName: "بانک پاسارگاد",
+        iban: "IR123456789012345678901234",
+        cardNumber: "411111111111",
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("stores only the projection, never the PAN", () => {
+    const result = store.submitBankAccount({
+      lawyerId: CARD_LAWYER,
+      actor: LAWYER_B_ACTOR,
+      submission: {
+        holderName: "سارا محمدی",
+        bankName: "بانک پاسارگاد",
+        iban: "IR123456789012345678901234",
+        cardNumber: VALID_CARD,
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const account = result.record.account!;
+    expect(account.cardLast4).toBe("1111");
+    expect(account.cardMasked).toBe("411111 •••• •••• 1111");
+    // The middle digits must not survive anywhere on the stored record.
+    expect(JSON.stringify(account)).not.toContain(VALID_CARD);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §7 — an operator replacing the account on the lawyer's behalf
+// ---------------------------------------------------------------------------
+
+describe("admin bank replacement", () => {
+  const REPLACE_LAWYER = "law-store-replace";
+  const SUBMISSION = {
+    holderName: "مریم کاظمی",
+    bankName: "بانک صادرات",
+    iban: "IR123456789012345678901234",
+    accountNumber: "1234567890",
+  };
+
+  it("requires a real reason and writes nothing without one", () => {
+    for (const reason of ["", "کم", "   "]) {
+      const result = store.replaceBankAccountAsAdmin({
+        lawyerId: REPLACE_LAWYER,
+        actor: ADMIN,
+        submission: SUBMISSION,
+        reason,
+      });
+      expect(result.ok).toBe(false);
+    }
+    expect(store.getBankRecord(REPLACE_LAWYER).status).toBe("NOT_SET");
+    expect(store.listBankEvents(REPLACE_LAWYER)).toHaveLength(0);
+  });
+
+  it("records ADMIN_UPDATED — not SUBMITTED — and returns to PENDING_REVIEW", () => {
+    const before = store.submitBankAccount({
+      lawyerId: REPLACE_LAWYER,
+      actor: LAWYER_B_ACTOR,
+      submission: { ...SUBMISSION, holderName: "نام قدیمی" },
+    });
+    expect(before.ok).toBe(true);
+    store.reviewBankAccount({
+      lawyerId: REPLACE_LAWYER,
+      actor: ADMIN,
+      review: { action: "VERIFY" },
+    });
+    expect(store.getBankRecord(REPLACE_LAWYER).status).toBe("VERIFIED");
+
+    const reason = "وکیل تلفنی شمارهٔ شبا را اصلاح کرد.";
+    const result = store.replaceBankAccountAsAdmin({
+      lawyerId: REPLACE_LAWYER,
+      actor: ADMIN,
+      submission: SUBMISSION,
+      reason,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // A correction is never a self-approval: it goes back to review.
+    expect(result.record.status).toBe("PENDING_REVIEW");
+    expect(result.record.account?.holderName).toBe("مریم کاظمی");
+
+    const events = store.listBankEvents(REPLACE_LAWYER);
+    // The lawyer's own SUBMITTED row survives; the operator's row is distinct.
+    expect(events.filter((e) => e.action === "ADMIN_UPDATED")).toHaveLength(1);
+    expect(events.filter((e) => e.action === "SUBMITTED")).toHaveLength(1);
+    const adminEvent = events.find((e) => e.action === "ADMIN_UPDATED")!;
+    expect(adminEvent.actorId).toBe(ADMIN.userId);
+    expect(adminEvent.reason).toBe(reason);
+    expect(adminEvent.destinationMasked).toContain("•");
+    expect(adminEvent.destinationMasked).not.toBe(SUBMISSION.iban);
+  });
+
+  it("keeps the whole log append-only across repeated operator edits", () => {
+    const before = store.listBankEvents(REPLACE_LAWYER).length;
+    const result = store.replaceBankAccountAsAdmin({
+      lawyerId: REPLACE_LAWYER,
+      actor: ADMIN,
+      submission: { ...SUBMISSION, holderName: "مریم کاظمی‌نژاد" },
+      reason: "اصلاح املاک نام صاحب حساب.",
+    });
+    expect(result.ok).toBe(true);
+    const after = store.listBankEvents(REPLACE_LAWYER);
+    expect(after).toHaveLength(before + 1);
+    expect(after.filter((e) => e.action === "ADMIN_UPDATED")).toHaveLength(2);
   });
 });
 
@@ -756,5 +982,48 @@ describe("reassignRequest", () => {
       expect(result.reason).toBe("illegal_state");
       expect(result.messageFa).toContain("بسته");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance grants case access
+// ---------------------------------------------------------------------------
+// Accepting a referral is what creates the Case AND what grants the lawyer the
+// `case_members` row every `/api/v1/cases/**` route authorizes against. Without
+// it a lawyer would create a case and then be unable to open it (the routes
+// answer 404, never 403).
+
+describe("acceptRequest grants case access", () => {
+  it("adds an ACTIVE lawyer member keyed on the actor's user id", () => {
+    const row = seedRequest();
+    store.startReferralClock({ requestId: row.id, assignedAt: ANCHOR });
+
+    const accepted = store.acceptRequest({
+      requestId: row.id,
+      lawyerId: LAWYER_A,
+      actor: LAWYER_A_ACTOR,
+    });
+    expect(accepted.ok).toBe(true);
+    if (!accepted.ok) return;
+
+    const caseId = accepted.request.caseId!;
+    expect(caseId).toBeTruthy();
+
+    const members = caseDb.getCaseMembers(caseId);
+    const member = members.find((m) => m.account_id === LAWYER_A_ACTOR.userId);
+    expect(member).toBeDefined();
+    expect(member?.role).toBe("lawyer");
+    expect(member?.status).toBe("active");
+    expect(member?.granted_by_user_id).toBe(LAWYER_A_ACTOR.userId);
+
+    // The SAME gate the case routes call resolves write access for the lawyer.
+    const access = caseAccess.resolveCaseAccess(LAWYER_A_ACTOR.userId, caseId);
+    expect(access).not.toBeNull();
+    expect(access?.role).toBe("lawyer");
+    expect(access?.isOwner).toBe(false);
+    expect(access?.canWrite).toBe(true);
+
+    // A stranger still resolves to null — the existence of the case is not leaked.
+    expect(caseAccess.resolveCaseAccess("user-store-stranger", caseId)).toBeNull();
   });
 });

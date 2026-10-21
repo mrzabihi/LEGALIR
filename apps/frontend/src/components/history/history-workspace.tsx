@@ -831,7 +831,14 @@ export function HistoryWorkspace() {
       )}
 
       {!isLoading && !isError && items.length > 0 && (
-        <div className="mt-4 space-y-2.5">
+        /* The list is its own labelled region. The heading is sr-only: the
+           ResultsBar already says how many results there are, so a visible
+           title here would repeat it, but the outline still needs the H2
+           between the page H1 and the row H3s. */
+        <section aria-labelledby="history-results-title" className="mt-4 space-y-2.5">
+          <h2 id="history-results-title" className="sr-only">
+            {archivedView ? "موارد بایگانی‌شده" : "فهرست تاریخچه"}
+          </h2>
           <ResultsBar
             countLabel={countLabel}
             filters={activeFilters}
@@ -844,7 +851,7 @@ export function HistoryWorkspace() {
               <HistoryCard key={item.id} item={item} onAction={handleAction} busy={busy} />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       <DeleteHistoryDialog

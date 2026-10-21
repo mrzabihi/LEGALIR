@@ -41,20 +41,24 @@ export function ServiceCard({ item }: ServiceCardProps) {
       href={item.href}
       className="group relative flex h-full flex-col overflow-hidden rounded-large border border-[color:var(--color-outline-variant)] bg-surface p-4 transition-all duration-short4 ease-standard hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-primary)_28%,transparent)] hover:shadow-elevation-3 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface)] touch-target"
     >
-      <div className="flex items-start gap-3">
+      {/* Icon + name share the top row; the description then takes the card's
+          full width. Confining it beside the 44px icon reduced it to a ~150px
+          column on a phone, where a two-line clamp hid the second half of the
+          sentence — the part that explains what the service actually does. */}
+      <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-medium bg-gradient-to-br ${item.gradient} text-white shadow-elevation-1 transition-transform duration-short4 ease-standard group-hover:scale-[1.04]`}
         >
           <Icon size={22} />
         </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-body-2 font-semibold text-on-surface">{item.title}</h3>
-          <p className="mt-1 text-caption leading-relaxed text-on-surface-variant line-clamp-2">
-            {item.description}
-          </p>
-        </div>
+        <h3 className="min-w-0 flex-1 text-body-2 font-semibold text-on-surface">
+          {item.title}
+        </h3>
       </div>
+      <p className="mt-2 line-clamp-3 text-caption leading-relaxed text-on-surface-variant">
+        {item.description}
+      </p>
 
       {(item.duration || tone) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
