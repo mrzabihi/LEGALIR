@@ -328,3 +328,64 @@ test.describe("landing polish — mobile 390", () => {
     await expect(highlight).toHaveClass(/is-drawn/, { timeout: 10_000 });
   });
 });
+
+/**
+ * The phone layouts the product is expected to hold at, measured on the real
+ * page rather than asserted in prose.
+ *
+ * Two invariants, both of which the mobile redesign exists to protect:
+ *
+ *   1. No horizontal overflow. A single element poking past the measure turns
+ *      the whole page into a sideways scroller, and on a phone that is far
+ *      more destructive than any spacing mistake.
+ *   2. No illustration owns a whole band. The old page dropped a picture to the
+ *      full measure between two blocks of text on almost every chapter, so
+ *      scrolling felt like a slideshow of plates. The chapter plates are now
+ *      cells inside a composition; the bound below is what keeps them cells.
+ *      It is measured against the VIEWPORT, not the section, because "a
+ *      picture fills the screen" is the thing a reader actually notices.
+ *
+ * The hero is excluded from (2) on purpose: the first screen is allowed to be
+ * dominated by the commissioned portrait — that is the one place a large image
+ * is the point rather than filler.
+ */
+test.describe("landing polish — phone width sweep", () => {
+  // 320 is the narrowest screen the product supports; 430 is a large phone,
+  // where a layout that only works at 390 usually breaks.
+  const WIDTHS = [320, 360, 390, 430];
+
+  for (const width of WIDTHS) {
+    test(`no overflow and no band-filling image at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await gotoLanding(page);
+
+      const report = await page.evaluate(() => {
+        const vh = window.innerHeight;
+        const hero = document.querySelector(".landing-hero");
+        const images = Array.from(
+          document.querySelectorAll<HTMLImageElement>("main img")
+        )
+          // The hero is the deliberate exception, see the block comment above.
+          .filter((img) => !hero?.contains(img))
+          .map((img) => ({
+            src: img.currentSrc.split("/").pop() ?? "",
+            screens: +(img.getBoundingClientRect().height / vh).toFixed(2),
+          }));
+        return {
+          overflow:
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+          images,
+        };
+      });
+
+      expect(report.overflow).toBeLessThanOrEqual(1);
+
+      const offenders = report.images.filter((img) => img.screens > 0.5);
+      expect(
+        offenders,
+        `images filling more than half a screen at ${width}px`
+      ).toEqual([]);
+    });
+  }
+});

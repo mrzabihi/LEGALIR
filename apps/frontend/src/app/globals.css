@@ -3874,19 +3874,33 @@ html {
 
    `tabular-nums` is deliberately switched off at this size: it gives each
    digit a full-em advance, which pushed «۱» and «۰» so far apart that the
-   pair stopped reading as one number. */
+   pair stopped reading as one number.
+
+   `aspect-ratio: 1` rather than a fixed height, because every drawing on
+   this page is a 1:1 plate: on a wide phone or a tablet a hard-coded
+   height turned this tile into a letterbox beside eight squares and broke
+   the row it sits in. */
 .landing-exhibit--walltext .landing-walltext {
-  min-height: 9.5rem;
+  /* `min-height: 0` cancels the 14rem floor the base rule sets for the
+     desktop room — otherwise the square grows to 14rem tall and becomes a
+     portrait tile wider than it is tall. */
+  min-height: 0;
+  aspect-ratio: 1;
   align-items: center;
   justify-content: center;
   gap: 0;
   background: var(--ln-canvas);
   border: 1px solid var(--ln-line);
   border-radius: var(--ln-r-md);
+  /* The numeral is sized against the TILE, not the viewport: the tile ranges
+     from 138px on a 320 phone to 392px on a tablet, and a `vw`-based ramp
+     either overflows the small one or strands a 110px mark in the middle of
+     the large one. */
+  container-type: inline-size;
 }
 
 .landing-exhibit--walltext .landing-walltext__num {
-  font-size: clamp(4rem, 23vw, 7rem);
+  font-size: 48cqi;
   font-variant-numeric: normal;
   /* One step darker than the desktop wall mark: `--ln-line-strong` on a
      pale fill disappears at this size, where on a bare white wall it reads. */
@@ -4016,6 +4030,7 @@ html {
        numeral alone is ~130px and the chapter reads as a thin band between
        two full-height neighbours. */
     min-height: 14rem;
+    aspect-ratio: auto;
     align-items: stretch;
     justify-content: flex-end;
     gap: 1rem;
