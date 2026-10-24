@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Profile } from "@legalir/types";
+import type { Profile, V1LegalLibraryListResponse } from "@legalir/types";
 import {
   fetchMe,
   fetchDashboardSummary,
@@ -16,7 +16,6 @@ import {
   fetchBlogPost,
   fetchDailyQuota,
   fetchLegalLibraryItems,
-  fetchLegalLibrarySource,
   fetchLegalLibraryTopics,
   setLegalLibraryBookmark,
 } from "@/lib/api/v1";
@@ -187,27 +186,31 @@ export function useBlogPost(slug: string | undefined) {
 // ============================================================
 // Own cache namespace (["library", …]) so it never collides with the blog.
 
-export function useLegalLibraryItems(params: {
-  search?: string;
-  topic?: string;
-  sourceType?: string;
-  sort?: "newest" | "oldest" | "title" | "popular";
-  page?: number;
-  pageSize?: number;
-} = {}) {
+export function useLegalLibraryItems(
+  params: {
+    search?: string;
+    topic?: string;
+    sourceType?: string;
+    sort?: "newest" | "oldest" | "title" | "popular";
+    page?: number;
+    pageSize?: number;
+  } = {},
+  /**
+   * Server-rendered first page. The public library listing renders its cards on
+   * the server (so a crawler sees real content and real links, not skeletons)
+   * and seeds this query with that payload, so hydration does not re-fetch what
+   * the HTML already shows.
+   *
+   * Callers MUST pass it only for the params it was rendered with — seeding
+   * every filter combination would show the unfiltered list under an active
+   * search.
+   */
+  initialData?: V1LegalLibraryListResponse
+) {
   return useQuery({
     queryKey: ["library", "items", params],
     queryFn: () => fetchLegalLibraryItems(params),
-    staleTime: 5 * 60_000, // 5 min
-    retry: 1,
-  });
-}
-
-export function useLegalLibrarySource(id: string | undefined) {
-  return useQuery({
-    queryKey: ["library", "source", id],
-    queryFn: () => fetchLegalLibrarySource(id as string),
-    enabled: Boolean(id),
+    ...(initialData ? { initialData } : {}),
     staleTime: 5 * 60_000, // 5 min
     retry: 1,
   });
@@ -223,12 +226,17 @@ export function useLegalLibraryTopics() {
 }
 
 /** Toggle a bookmark on a library source; refreshes the affected detail. */
+/**
+ * Toggle a bookmark on a library source.
+ *
+ * The detail page is server-rendered, so there is no `["library","source"]`
+ * query to invalidate — the island owning the button holds the optimistic flag
+ * and calls `router.refresh()` after the write, which re-renders the server page
+ * with the stored value. No round-trip is blocked on, and the label flips in the
+ * same frame as the click.
+ */
 export function useSetLegalBookmark(id: string) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (bookmarked: boolean) => setLegalLibraryBookmark(id, bookmarked),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["library", "source", id] });
-    },
   });
 }

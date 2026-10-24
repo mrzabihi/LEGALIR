@@ -35,7 +35,6 @@ export default function robots(): MetadataRoute.Robots {
           "/calculators",
           "/lawyer",
           "/consultations",
-          "/legal-library",
           "/onboarding",
           // Auth + API: never indexable.
           "/auth",

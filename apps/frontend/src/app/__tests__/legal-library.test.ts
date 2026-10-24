@@ -17,6 +17,9 @@ import {
   readLegalLibrary,
   readBlog,
   readBookmarks,
+  readPublishedSource,
+  projectSourceDetail,
+  isPubliclyVisible,
   writeBookmarks,
   getBookmarkedIds,
   setBookmark,
@@ -321,6 +324,40 @@ describe("Legal Library route handlers", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.code).toBe("NOT_FOUND");
+  });
+
+  it("resolves a source by slug as well as by id", () => {
+    // The URL accepts either, and the metadata layer resolves it through this
+    // same helper — a divergence would let a page render a source the API 404s.
+    const byId = readPublishedSource("src-law-civil-230");
+    expect(byId?.item.id).toBe("src-law-civil-230");
+    expect(byId?.detail?.id).toBe("src-law-civil-230");
+
+    const slugged = readLegalLibrary().items.find((i) => i.slug);
+    if (slugged?.slug) {
+      expect(readPublishedSource(slugged.slug)?.item.id).toBe(slugged.id);
+    }
+  });
+
+  it("refuses an unknown id and a non-published row", () => {
+    expect(readPublishedSource("__no-such-source__")).toBeNull();
+    // A row exists but the lifecycle says DRAFT — the resolution rule must win
+    // over the row's mere existence.
+    const published = readLegalLibrary().items.find(isPubliclyVisible);
+    expect(published).toBeTruthy();
+    expect(isPubliclyVisible({ ...published!, status: "DRAFT" })).toBe(false);
+  });
+
+  it("projects a detail from the list item without inventing fields", () => {
+    const item = readLegalLibrary().items[0]!;
+    const projected = projectSourceDetail(item, true);
+    expect(projected.id).toBe(item.id);
+    expect(projected.title).toBe(item.title);
+    expect(projected.isBookmarked).toBe(true);
+    // Nothing the store does not hold: the projection is nulls, not prose.
+    expect(projected.body).toBeNull();
+    expect(projected.simpleExplanation).toBeNull();
+    expect(projected.relatedServices).toEqual([]);
   });
 
   it("serves a published source without a stored detail row from its list item", async () => {

@@ -170,6 +170,80 @@ export function readLegalLibrary(): LegalLibraryTable {
 }
 
 /**
+ * Resolve a published source by the id or slug in the URL, in ONE store read,
+ * returning both halves the callers need:
+ *   • `item`   — the list row (what the public list filters and projects from)
+ *   • `detail` — the authored detail row, or `undefined` when an operator has
+ *               only created the card so far
+ *
+ * Returns null for an unknown, draft or archived row, so a caller can never
+ * render or serve a source the public site must not show.
+ *
+ * Shared by `GET /api/v1/legal-library/[id]`, the public detail page (server
+ * rendered) and its metadata: three surfaces, one rule — otherwise the page
+ * could show a source the API 404s, or vice versa.
+ */
+export function readPublishedSource(
+  id: string
+): { item: StoredLegalListItem; detail: StoredLegalDetail | undefined } | null {
+  const { items, details } = readLegalLibrary();
+  const item = items.find((i) => i.id === id || i.slug === id);
+  if (!item || !isPubliclyVisible(item)) return null;
+  return { item, detail: details[item.id] };
+}
+
+/**
+ * A detail projection for a published source that has no stored detail row yet.
+ * Every value comes from the real list item; unknown fields are null (never a
+ * placeholder document). This keeps the card → detail journey working for
+ * sources whose full text an operator has not authored yet.
+ *
+ * Lives here (not in the API route) because the public detail page server-
+ * renders the same projection for its first paint: one shape, one owner.
+ */
+export function projectSourceDetail(
+  item: StoredLegalListItem,
+  isBookmarked: boolean
+): V1LegalSourceDetail {
+  return {
+    id: item.id,
+    sourceType: item.sourceType,
+    sourceTypeFa: item.sourceTypeFa,
+    title: item.title,
+    shortTitle: null,
+    lawName: null,
+    articleNumber: null,
+    judgmentNumber: null,
+    authority: item.authority,
+    jurisdiction: "ایران",
+    publicationDate: item.publishedDate,
+    effectiveDate: null,
+    lastAmendmentDate: null,
+    status: "معتبر",
+    summary: item.summary,
+    body: null,
+    simpleExplanation: null,
+    practicalApplication: null,
+    keyPoints: null,
+    examples: null,
+    sourceUrl: null,
+    officialSourceUrl: null,
+    sourceProvider: null,
+    sourceDomain: null,
+    verificationStatus: item.verificationStatus,
+    lastVerifiedAt: null,
+    version: 1,
+    relatedSources: [],
+    relatedGuides: [],
+    relatedServices: [],
+    legalReviewStatus: "NOT_REVIEWED",
+    isBookmarked,
+    createdAt: item.updatedAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+/**
  * Persist the library table. Used ONLY by the admin authoring layer
  * (lib/admin/legal-library) — the public site never writes reference content.
  */

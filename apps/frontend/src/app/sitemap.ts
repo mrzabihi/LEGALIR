@@ -1,14 +1,20 @@
 import type { MetadataRoute } from "next";
-import { readBlog, isBlogPostPubliclyVisible } from "@/lib/legal-library-db";
+import {
+  readBlog,
+  isBlogPostPubliclyVisible,
+  readLegalLibrary,
+  isPubliclyVisible,
+} from "@/lib/legal-library-db";
 import { absoluteUrl } from "@/lib/site";
 
 // ============================================================
 // LEGALIR — sitemap.xml (Next.js metadata route)
 // ============================================================
-// Lists ONLY publicly indexable content: the marketing pages and the published
-// blog articles. Every authenticated surface (dashboard, subscription, app
-// features) and the admin panel are deliberately EXCLUDED — they are noindexed
-// in metadata and disallowed in robots.ts.
+// Lists ONLY publicly indexable content: the marketing pages, the published
+// blog articles and the published legal-library sources. Every authenticated
+// surface (dashboard, subscription, app features) and the admin panel are
+// deliberately EXCLUDED — they are noindexed in metadata and disallowed in
+// robots.ts.
 //
 // Read at request time (force-dynamic) so newly published articles appear
 // without a rebuild and the file-backed DB is not touched during `next build`.
@@ -23,6 +29,7 @@ const PUBLIC_ROUTES: { path: string; priority: number; changeFrequency: Metadata
   { path: "/download", priority: 0.8, changeFrequency: "monthly" },
   { path: "/pricing", priority: 0.9, changeFrequency: "monthly" },
   { path: "/blog", priority: 0.8, changeFrequency: "weekly" },
+  { path: "/legal-library", priority: 0.8, changeFrequency: "weekly" },
   { path: "/about", priority: 0.7, changeFrequency: "monthly" },
   { path: "/contact", priority: 0.6, changeFrequency: "yearly" },
   { path: "/privacy-policy", priority: 0.3, changeFrequency: "yearly" },
@@ -58,5 +65,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
     postEntries = [];
   }
 
-  return [...staticEntries, ...postEntries];
+  // Published library sources only — drafts and archived rows are excluded for
+  // the same reason a draft blog post is: the detail page is a 200 with a
+  // «یافت نشد» body, which must never be invited into an index.
+  let sourceEntries: MetadataRoute.Sitemap = [];
+  try {
+    const { items } = readLegalLibrary();
+    sourceEntries = items.filter(isPubliclyVisible).map((item) => ({
+      url: absoluteUrl(`/legal-library/${encodeURIComponent(item.id)}`),
+      lastModified: item.updatedAt ? new Date(item.updatedAt) : now,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    }));
+  } catch {
+    // Same contract as the blog block: a store failure must never break the
+    // sitemap, so the static pages still ship.
+    sourceEntries = [];
+  }
+
+  return [...staticEntries, ...postEntries, ...sourceEntries];
 }

@@ -1,21 +1,33 @@
-// ============================================================
-// LEGALIR — Legal Library (کتابخانه حقوقی) — public list
-// ============================================================
-// A product section of its OWN, distinct from the blog: it reads the real,
-// published-only library store through its own API + hooks (namespace
-// ["library", …]). Nothing here is hard-coded — every card, topic and filter
-// comes from the backend; drafts and archived sources never reach this surface.
-// ============================================================
-
 "use client";
+
+// ============================================================
+// LEGALIR — Legal library browser (client island)
+// ============================================================
+// Search / topic / type filtering is stateful, so this is the client half.
+// The SERVER page renders the first, unfiltered page of cards as real HTML and
+// passes it in as `initialData` — which is what makes the route genuinely
+// indexable: a crawler that does not run JavaScript still receives every card
+// and every detail link. Without the seed it would receive only skeletons.
+//
+// The seed is bound to exactly the params it was rendered with (no search, no
+// filters). Any filter change produces a different query key, so TanStack treats
+// it as a fresh fetch and never shows the unfiltered list under an active
+// search.
+// ============================================================
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, TextField } from "@legalir/ui";
-import type { LegalContentType, V1LegalLibraryListItem } from "@legalir/types";
-import { useLegalLibraryItems, useLegalLibraryTopics } from "@/hooks/useDashboard";
+import type {
+  LegalContentType,
+  V1LegalLibraryListItem,
+  V1LegalLibraryListResponse,
+  V1LegalLibraryTopic,
+} from "@legalir/types";
+import { useLegalLibraryItems } from "@/hooks/useDashboard";
 import { toPersianNumber } from "@/lib/persian-utils";
 import { IconClose, IconRefresh } from "@/lib/icons";
+import { LIBRARY_PAGE_SIZE } from "./constants";
 
 // ============================================================
 // Inline SVG helpers
@@ -220,10 +232,16 @@ function CardSkeleton() {
 }
 
 // ============================================================
-// Page
+// Browser
 // ============================================================
 
-export default function LegalLibraryPage() {
+export function LibraryBrowser({
+  initialData,
+  topics,
+}: {
+  initialData: V1LegalLibraryListResponse;
+  topics: V1LegalLibraryTopic[];
+}) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [activeType, setActiveType] = useState<"" | LegalContentType>("");
@@ -241,17 +259,17 @@ export default function LegalLibraryPage() {
       sourceType: activeType || undefined,
       topic: activeTopic || undefined,
       sort: "newest" as const,
-      pageSize: 60,
+      pageSize: LIBRARY_PAGE_SIZE,
     }),
     [search, activeType, activeTopic]
   );
 
-  const itemsQuery = useLegalLibraryItems(params);
-  const topicsQuery = useLegalLibraryTopics();
+  // The server rendered exactly this query — seed it, and only it. Once a filter
+  // is active the key differs and TanStack fetches fresh data.
+  const isUnfiltered = !params.search && !params.sourceType && !params.topic;
+  const itemsQuery = useLegalLibraryItems(params, isUnfiltered ? initialData : undefined);
 
   const items = itemsQuery.data?.items ?? [];
-  const topics = topicsQuery.data ?? [];
-
   const hasFilters = Boolean(search.trim() || activeType || activeTopic);
   const showEmpty = !itemsQuery.isLoading && !itemsQuery.isError && items.length === 0;
 
@@ -262,16 +280,7 @@ export default function LegalLibraryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-4 tablet:p-6" dir="rtl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="mb-2 text-h2 text-on-surface">کتابخانه حقوقی</h1>
-        <p className="max-w-2xl text-body-2 text-muted">
-          قوانین، مقررات، آرای قضایی، راهنماها و ابزارهای حقوقی — دسترسی سریع به دانش حقوقی
-          معتبر با جستجوی هوشمند و دسته‌بندی موضوعی.
-        </p>
-      </div>
-
+    <>
       {/* Search */}
       <div className="mb-5 max-w-xl">
         <TextField
@@ -297,7 +306,7 @@ export default function LegalLibraryPage() {
         />
       </div>
 
-      {/* Topics — real topics from the library store */}
+      {/* Topics — real topics from the library store (server-rendered) */}
       {topics.length > 0 && (
         <section className="mb-6">
           <h2 className="mb-3 text-titleSmall font-semibold text-on-surface">موضوعات</h2>
@@ -358,13 +367,7 @@ export default function LegalLibraryPage() {
       </div>
 
       {/* Results */}
-      {itemsQuery.isLoading ? (
-        <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 desktop:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-      ) : itemsQuery.isError ? (
+      {itemsQuery.isError ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-large bg-error-container">
             <SvgIcon size={30} className="text-error">
@@ -384,6 +387,12 @@ export default function LegalLibraryPage() {
           >
             تلاش دوباره
           </Button>
+        </div>
+      ) : itemsQuery.isLoading ? (
+        <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2 desktop:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
         </div>
       ) : showEmpty ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
@@ -411,30 +420,35 @@ export default function LegalLibraryPage() {
           ))}
         </div>
       )}
+    </>
+  );
+}
 
-      {/* Bottom CTA */}
-      <div className="mb-4 mt-12 rounded-xlarge border border-divider bg-surface-container-low p-6 text-center">
-        <p className="mb-1 text-body-1 font-medium text-on-surface">
-          منبع حقوقی مورد نظر خود را پیدا نکردید؟
-        </p>
-        <p className="mb-4 text-body-2 text-muted">
-          می‌توانید درخواست افزودن منبع جدید را ثبت کنید یا از مشاور هوش مصنوعی LEGALIR کمک بگیرید.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/chat"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
-          >
-            <IconArrowLeft />
-            پرسش از مشاور
-          </Link>
-          <Link
-            href="/support"
-            className="inline-flex items-center gap-2 rounded-full border border-divider px-6 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.98] touch-target"
-          >
-            درخواست منبع جدید
-          </Link>
-        </div>
+/** Bottom CTA — plain links, no state, so it belongs with the client island it
+ *  follows rather than being duplicated on the server page. */
+export function LibraryFooterCta() {
+  return (
+    <div className="mb-4 mt-12 rounded-xlarge border border-divider bg-surface-container-low p-6 text-center">
+      <p className="mb-1 text-body-1 font-medium text-on-surface">
+        منبع حقوقی مورد نظر خود را پیدا نکردید؟
+      </p>
+      <p className="mb-4 text-body-2 text-muted">
+        می‌توانید درخواست افزودن منبع جدید را ثبت کنید یا از مشاور هوش مصنوعی LEGALIR کمک بگیرید.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Link
+          href="/chat"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98] touch-target"
+        >
+          <IconArrowLeft />
+          پرسش از مشاور
+        </Link>
+        <Link
+          href="/support"
+          className="inline-flex items-center gap-2 rounded-full border border-divider px-6 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.98] touch-target"
+        >
+          درخواست منبع جدید
+        </Link>
       </div>
     </div>
   );

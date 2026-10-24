@@ -1,32 +1,37 @@
 // ============================================================
 // LEGALIR — Legal Source Detail — /legal-library/[slug]
 // ============================================================
-// Real detail view for a published library source. Every section is rendered
-// ONLY when the backend actually has the data (body, explanation, key points,
-// examples, related sources, services); nothing is fabricated. The route param
-// is the source **id** (what the cards link to), and the API serves it only
-// when the source is PUBLISHED — a draft or archived source shows «یافت نشد».
+// A SERVER component, so a crawler receives the article itself rather than a
+// skeleton: the whole point of moving this route into the public group. The
+// interactive slice (bookmark / copy-citation / share) is the `SourceActions`
+// island below, mirroring the blog article page's split.
+//
+// Every section renders ONLY when the backend actually has the data (body,
+// explanation, key points, examples, related sources, services); nothing is
+// fabricated. The route param is the source **id or slug**, resolved by
+// `readPublishedSource` — the same call the API handler makes, so the page can
+// never show a source the API 404s.
+//
+// An unknown, draft or archived id calls `notFound()`: a real 404, not a 200
+// soft-404. That is the only honest answer once the page is indexable.
 // ============================================================
 
-"use client";
-
-import { useCallback, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
 import type { V1LegalSourceDetail } from "@legalir/types";
-import { Button } from "@legalir/ui";
-import { useLegalLibrarySource, useSetLegalBookmark, useMe } from "@/hooks/useDashboard";
+import { findSessionById } from "@/lib/db";
+import { getBookmarkedIds, projectSourceDetail, readPublishedSource } from "@/lib/legal-library-db";
 import { toPersianDate } from "@/lib/persian-utils";
-import { ApiClientError } from "@/lib/api/errors";
-import {
-  IconCopy,
-  IconLinkSource,
-  IconCheckCircle,
-  IconChat,
-  IconDocument,
-  IconContract,
-  IconRefresh,
-} from "@/lib/icons";
+import { IconChat, IconCheckCircle, IconContract, IconDocument } from "@/lib/icons";
+import { SourceActions } from "./source-actions";
+
+// The library is a JSON DB read from disk at request time.
+export const dynamic = "force-dynamic";
+
+interface PageProps {
+  params: Promise<{ slug: string }>;
+}
 
 // ============================================================
 // Inline SVG helpers
@@ -58,21 +63,6 @@ function SvgIcon({
     </svg>
   );
 }
-
-const IconBookmark = ({ filled, size = 18 }: { filled?: boolean; size?: number }) => (
-  <SvgIcon size={size}>
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" fill={filled ? "currentColor" : "none"} />
-  </SvgIcon>
-);
-
-const IconShare = ({ size = 18 }: { size?: number }) => (
-  <SvgIcon size={size}>
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
-  </SvgIcon>
-);
 
 const IconArrowLeft = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
   <SvgIcon size={size} className={className}>
@@ -128,9 +118,7 @@ function VerificationBadge({ status }: { status: V1LegalSourceDetail["verificati
     <span
       className={[
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-caption font-medium",
-        verified
-          ? "bg-success-container text-success"
-          : "bg-warning-container text-warning",
+        verified ? "bg-success-container text-success" : "bg-warning-container text-warning",
       ].join(" ")}
     >
       <IconCheckCircle />
@@ -151,92 +139,6 @@ function SectionBlock({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function ActionButton({
-  label,
-  icon,
-  onClick,
-  active,
-  loading,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onClick?: () => void;
-  active?: boolean;
-  loading?: boolean;
-}) {
-  return (
-    <Button
-      type="button"
-      variant={active ? "filled" : "secondary"}
-      onClick={onClick}
-      loading={loading}
-      startIcon={icon}
-      // Below tablet the visible label is hidden, so the button is
-      // icon-only and needs an explicit accessible name.
-      aria-label={label}
-      aria-pressed={active}
-    >
-      <span className="hidden tablet:inline">{label}</span>
-    </Button>
-  );
-}
-
-// ============================================================
-// Not-found / error states
-// ============================================================
-
-function NotFoundState({ id }: { id: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center px-4 py-20 text-center" dir="rtl">
-      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-large bg-error-container">
-        <SvgIcon size={36} className="text-error">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M15 9l-6 6M9 9l6 6" />
-        </SvgIcon>
-      </div>
-      <h2 className="mb-2 text-h2 text-on-surface">منبع حقوقی یافت نشد</h2>
-      <p className="mb-2 max-w-md text-body-1 text-muted">
-        منبعی با شناسه «{id}» در کتابخانه حقوقی LEGALIR یافت نشد یا در دسترس عمومی نیست.
-      </p>
-      <p className="mb-8 max-w-md text-body-2 text-muted">
-        لطفاً از صفحه کتابخانه حقوقی به جستجوی منابع معتبر بپردازید یا از مشاور هوش مصنوعی کمک بگیرید.
-      </p>
-      <div className="flex items-center gap-3">
-        <Link
-          href="/legal-library"
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-button font-medium text-primary-on transition-colors hover:bg-primary-700 hover:text-white active:scale-[0.98]"
-        >
-          کتابخانه حقوقی
-        </Link>
-        <Link
-          href="/chat"
-          className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface px-5 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.98]"
-        >
-          مشاوره با LEGALIR
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="space-y-5">
-      <div className="animate-pulse rounded-large border border-divider bg-surface p-6">
-        <div className="mb-4 h-6 w-40 rounded-full bg-surface-container" />
-        <div className="mb-3 h-8 w-2/3 rounded bg-surface-container" />
-        <div className="h-4 w-1/2 rounded bg-surface-container" />
-      </div>
-      <div className="h-40 animate-pulse rounded-large border border-divider bg-surface" />
-      <div className="h-40 animate-pulse rounded-large border border-divider bg-surface" />
-    </div>
-  );
-}
-
-// ============================================================
-// Service icon map (real relatedServices only)
-// ============================================================
-
 function ServiceIcon({ href }: { href: string }) {
   if (href.includes("contract")) return <IconContract size={20} />;
   if (href.includes("document")) return <IconDocument size={20} />;
@@ -247,105 +149,22 @@ function ServiceIcon({ href }: { href: string }) {
 // Page
 // ============================================================
 
-export default function LegalSourceDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const id = (params?.["slug"] as string) ?? "";
+export default async function LegalSourceDetailPage({ params }: PageProps) {
+  const { slug } = await params;
 
-  const query = useLegalLibrarySource(id);
-  const me = useMe();
-  const setBookmark = useSetLegalBookmark(id);
+  const hit = readPublishedSource(slug);
+  if (!hit) notFound();
 
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  // Optional session: the detail view is public; a cookie only personalises the
+  // bookmark flag. A guest sees an un-bookmarked page and is routed to /login
+  // when they press «ذخیره».
+  const sessionId = (await cookies()).get("legalir-session")?.value;
+  const userId = sessionId ? (findSessionById(sessionId)?.userId ?? null) : null;
+  const isBookmarked = userId ? getBookmarkedIds(userId).has(hit.item.id) : false;
 
-  const source = query.data;
-  const isAuthed = Boolean(me.data?.user);
-
-  const notFound = query.error instanceof ApiClientError && query.error.category === "not_found";
-  const genericError = query.isError && !notFound;
-
-  const handleCopyCitation = useCallback(() => {
-    if (!source) return;
-    const citation = `${source.title} — ${source.authority} (${source.updatedAt})\n${
-      source.sourceUrl ?? source.officialSourceUrl ?? "لینک منبع ثبت نشده است"
-    }`;
-    navigator.clipboard
-      .writeText(citation)
-      .then(() => {
-        setCopyFeedback(true);
-        setTimeout(() => setCopyFeedback(false), 2000);
-      })
-      .catch(() => {
-        // Clipboard API can be unavailable (insecure context / denied) — the
-        // copy button simply does not flip to its "copied" state.
-      });
-  }, [source]);
-
-  const handleShare = useCallback(async () => {
-    if (!source) return;
-    const shareData = { title: source.title, text: source.title, url: window.location.href };
-    try {
-      if (navigator.share) await navigator.share(shareData);
-      else {
-        await navigator.clipboard.writeText(window.location.href);
-        setCopyFeedback(true);
-        setTimeout(() => setCopyFeedback(false), 2000);
-      }
-    } catch {
-      /* user cancelled */
-    }
-  }, [source]);
-
-  const handleBookmark = useCallback(() => {
-    if (!source) return;
-    if (!isAuthed) {
-      router.push("/login");
-      return;
-    }
-    setBookmark.mutate(!source.isBookmarked);
-  }, [source, isAuthed, router, setBookmark]);
-
-  if (query.isLoading) {
-    return (
-      <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-        <DetailSkeleton />
-      </div>
-    );
-  }
-
-  if (notFound || (!query.isError && !source)) {
-    return (
-      <div className="mx-auto max-w-4xl p-4 tablet:p-6">
-        <NotFoundState id={id} />
-      </div>
-    );
-  }
-
-  if (genericError) {
-    return (
-      <div className="mx-auto max-w-4xl p-4 tablet:p-6" dir="rtl">
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-large bg-error-container">
-            <SvgIcon size={30} className="text-error">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 8v4M12 16h.01" />
-            </SvgIcon>
-          </div>
-          <p className="text-body-1 font-medium text-on-surface">بارگذاری منبع ناموفق بود</p>
-          <Button
-            type="button"
-            onClick={() => query.refetch()}
-            startIcon={<IconRefresh size={18} />}
-            className="mt-2"
-          >
-            تلاش دوباره
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!source) return null;
+  const source: V1LegalSourceDetail = hit.detail
+    ? { ...hit.detail, isBookmarked }
+    : projectSourceDetail(hit.item, isBookmarked);
 
   const sourceLink = source.sourceUrl ?? source.officialSourceUrl ?? null;
   const identifiers: { label: string; value: string }[] = [];
@@ -415,38 +234,15 @@ export default function LegalSourceDetailPage() {
         )}
       </header>
 
-      {/* Actions */}
-      <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        <ActionButton
-          label={source.isBookmarked ? "ذخیره‌شده" : "ذخیره"}
-          icon={<IconBookmark filled={source.isBookmarked} />}
-          onClick={handleBookmark}
-          active={source.isBookmarked}
-          loading={setBookmark.isPending}
-        />
-        <ActionButton
-          label={copyFeedback ? "کپی شد" : "کپی ارجاع"}
-          icon={copyFeedback ? <IconCheckCircle className="text-success" /> : <IconCopy />}
-          onClick={handleCopyCitation}
-        />
-        {sourceLink ? (
-          <a
-            href={sourceLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface px-4 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.97] touch-target"
-          >
-            <IconLinkSource />
-            <span className="hidden tablet:inline">مشاهده منبع</span>
-          </a>
-        ) : (
-          <span className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface-container px-4 py-2.5 text-caption text-muted">
-            <IconLinkSource className="opacity-40" />
-            لینک منبع ثبت نشده است
-          </span>
-        )}
-        <ActionButton label="اشتراک‌گذاری" icon={<IconShare />} onClick={handleShare} />
-      </div>
+      {/* Actions (client island) */}
+      <SourceActions
+        id={source.id}
+        title={source.title}
+        authority={source.authority}
+        updatedAt={source.updatedAt}
+        sourceUrl={sourceLink}
+        isBookmarked={isBookmarked}
+      />
 
       {/* Body */}
       <div className="space-y-5">
