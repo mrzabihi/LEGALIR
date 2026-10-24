@@ -91,6 +91,16 @@ three measured layout defects that had been shipping unnoticed were fixed.
   lookalike.
 - **Flaky E2E assertions.** Specs that failed only under parallel workers were
   made order-independent; they now pass serially and in parallel.
+- **Rate-change history could be read backwards.** `listLawyerRateChanges`
+  sorted only by `createdAt`. Two price changes written inside the same
+  millisecond share that value, and a stable sort then leaves the pair in table
+  order — oldest first, the exact opposite of the newest-first contract the list
+  is read under (the admin slices the first 30 as "the 30 most recent"). The
+  visible effect was a history that sometimes showed the first change as the
+  latest, and a `slice` that could drop the newest row instead of the oldest.
+  Found because it failed CI twice on 2026-10-24 on two different commits; now
+  pinned by a test that freezes the clock so the collision is guaranteed rather
+  than occasional.
 
 ### Notable fixes with no user-visible surface
 
@@ -163,7 +173,7 @@ Recorded because they cost real debugging time and are easy to reintroduce:
 | Check | Result |
 |-------|--------|
 | `npm run verify` (types, lint, harness, assets) | ✅ 4/4 gates, 7.4 s |
-| Vitest, locally | ✅ 229 files / 3419 tests |
+| Vitest, locally | ✅ 229 files / 3420 tests |
 | `repo-map --check` | ✅ fresh |
 | `e2e/library-source-actions.spec.ts` | ✅ 4/4 (320 / 390 / 768 / 1440) |
 | `e2e/seo-indexability.spec.ts` | ✅ 5/5 |

@@ -19,7 +19,7 @@
 // imported DYNAMICALLY after chdir (team convention).
 // ============================================================
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -422,6 +422,42 @@ describe("lawyer rates", () => {
       actorId: LAWYER_A_ACTOR.userId,
     });
     expect(changes[1]).toMatchObject({ previousAmountToman: null, nextAmountToman: 700_000 });
+  });
+
+  // Pins the tie-break, not the clock. Two writes in the same millisecond both
+  // carry the same `createdAt`, so comparing that field alone leaves the pair in
+  // table order — oldest first — and this list is read as "newest first" (the
+  // admin slices the first 30). The freezer is what makes the collision certain
+  // instead of one-run-in-a-hundred; CI hit it twice before the fix.
+  it("keeps two same-millisecond changes in newest-first order", () => {
+    const frozen = new Date("2026-10-24T12:00:00.000Z");
+    const spy = vi.spyOn(Date.prototype, "toISOString").mockReturnValue(frozen.toISOString());
+    try {
+      const base = store.setLawyerRate({
+        lawyerId: LAWYER_B,
+        actor: LAWYER_B_ACTOR,
+        serviceKey: "same-ms",
+        amountToman: 100_000,
+        unit: "FIXED",
+      });
+      expect(base.ok).toBe(true);
+      const bumped = store.setLawyerRate({
+        lawyerId: LAWYER_B,
+        actor: LAWYER_B_ACTOR,
+        serviceKey: "same-ms",
+        amountToman: 250_000,
+        unit: "FIXED",
+      });
+      expect(bumped.ok).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+
+    const changes = store.listLawyerRateChanges(LAWYER_B);
+    expect(changes).toHaveLength(2);
+    expect(changes.every((c) => c.createdAt === "2026-10-24T12:00:00.000Z")).toBe(true);
+    expect(changes[0]).toMatchObject({ previousAmountToman: 100_000, nextAmountToman: 250_000 });
+    expect(changes[1]).toMatchObject({ previousAmountToman: null, nextAmountToman: 100_000 });
   });
 
   it("refuses a price that is not a sane integer Toman amount", () => {
