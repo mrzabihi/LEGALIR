@@ -219,7 +219,15 @@ test.describe("Services discovery page", () => {
     await expect(page.getByText("خدمتی با این مشخصات پیدا نشد")).toBeVisible();
 
     // Clear via the labelled button restores the discovery layout.
-    await page.getByRole("button", { name: "پاک کردن جستجو" }).click();
+    //
+    // The label carries a ZWNJ («جست‌وجو», U+200C) because that is what the
+    // shared `SearchField` renders and the correct Persian typography in
+    // this repo. This assertion originally named the page's own hand-rolled
+    // button («جستجو», no ZWNJ); that button was deleted when `/services`
+    // moved onto the shared field, and the literal went stale. Playwright
+    // collapses whitespace when matching accessible names but does not strip
+    // ZWNJ, so the two strings are genuinely different.
+    await page.getByRole("button", { name: "پاک کردن جست‌وجو" }).click();
     await expect(page.getByRole("heading", { name: "دسترسی سریع" })).toBeVisible();
     await expect(input).toHaveValue("");
   });

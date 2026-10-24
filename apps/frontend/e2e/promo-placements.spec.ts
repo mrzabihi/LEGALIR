@@ -66,8 +66,21 @@ const READY_TIMEOUT = 15_000;
  */
 type PlacementKind = "square" | "photo";
 
+/**
+ * The landing page used to carry `legalir-promo-one` in an editorial panel
+ * after «چطور کار میکند». The three landing rebuilds of 2026-10-19…21
+ * (`e82a7e1`, `001f861`, `bcf7adc`) replaced that panel with the exhibition
+ * chapters, and nothing under `src/` references the asset any more — the
+ * placement is genuinely gone, not merely renamed.
+ *
+ * So the row is removed rather than the assertion weakened: this table
+ * asserts "the artwork a page is supposed to show is actually on the page",
+ * and a page that is supposed to show nothing would make the assertion
+ * vacuous. The landing stays covered by `landing-polish.spec.ts` (8 tests)
+ * and `phase12-accessibility.spec.ts` (hero, RTL, touch targets, reduced
+ * motion). `legalir-promo-one.webp` is now an unreferenced asset.
+ */
 const PLACEMENTS: { route: string; asset: string; kind: PlacementKind; cta: string }[] = [
-  { route: "/", asset: "legalir-promo-one", kind: "square", cta: "/lawyers" },
   {
     route: "/services",
     asset: "legalir-banner-legal-sources",

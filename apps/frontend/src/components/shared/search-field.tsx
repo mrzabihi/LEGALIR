@@ -65,7 +65,22 @@ export function SearchField({
   inputSize = "medium",
 }: SearchFieldProps) {
   return (
-    <div className={`w-full ${className}`}>
+    // `role="search"` is the landmark, and it belongs to the wrapper, not the
+    // input: an `<input type="search">` announces its role as a textbox, so
+    // the search landmark never exists unless an ancestor declares it.
+    //
+    // Every caller used to hand-roll `<form role="search">`. When the list
+    // surfaces were migrated onto this shared field the landmark went with
+    // the old markup, and `e2e/services-discovery.spec.ts` is the assertion
+    // that noticed. Owning it here means it cannot be lost by a caller again.
+    //
+    // The landmark is deliberately unnamed. Naming it with `label` gave the
+    // same string to the landmark and to the input inside it, so assistive
+    // tech announced the name twice and `getByLabelText` in the unit tests
+    // resolved to two nodes. WCAG asks a landmark to carry a name only when
+    // several of its kind share a page, and every page renders this field
+    // once — so the unlabeled `search` landmark is the honest choice.
+    <div role="search" className={`w-full ${className}`}>
       <TextField
         ref={inputRef}
         type="search"

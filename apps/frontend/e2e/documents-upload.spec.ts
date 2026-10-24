@@ -136,15 +136,25 @@ test.describe("Document Upload Wizard", () => {
     });
     await page.getByText("اسناد لیگالیر").click();
 
-    // Demo user owns 6 documents — at least one should render.
-    const row = page.getByText("قرارداد-کار-و-تعهدات-بیمه.pdf");
-    await expect(row).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    // The demo account is the shared local store, and every run of this file
+    // uploads two more documents into it. The list endpoint pages at 20 rows,
+    // newest-updated first, so after ten runs the seeded `doc-emp-001` is no
+    // longer on page 1 — the account held 29 documents when this was written.
+    // Naming one seeded file therefore asserts "nobody has run this spec
+    // before", which is not the behaviour under test.
+    //
+    // What the title promises is the behaviour below: the library source
+    // lists the user's documents, and selecting one opens that document.
+    const rows = page.getByRole("button").filter({ has: page.locator("span.truncate") });
+    await expect(rows.first()).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    expect((await rows.first().locator("span.truncate").innerText()).trim()).not.toBe("");
 
     // Selecting a document navigates to its detail page. Wait for the row to
     // be interactive first, or the click silently no-ops.
+    const row = rows.first();
     await waitForHydration(row);
     await row.click();
-    await expect(page).toHaveURL(/\/documents\/doc-emp-001/, {
+    await expect(page).toHaveURL(/\/documents\/[^/?#]+$/, {
       timeout: APP_READY_TIMEOUT,
     });
   });

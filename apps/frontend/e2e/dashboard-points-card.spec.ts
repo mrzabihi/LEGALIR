@@ -96,20 +96,36 @@ test.describe("Dashboard points card", () => {
     await expect(headerBadge).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     // Wait for the card's balance to leave the loading skeleton.
-    const cardBalance = card.locator("p.tabular-nums");
+    //
+    // The value lives on the inner `<span class="tabular-nums">`, not on the
+    // wrapping `<p>`: `15a4bea` unified every stat card onto `HeroStatCard`,
+    // whose slot 2 is `<p><span>{value}</span><span>{unit}</span></p>` so the
+    // unit sits on the same baseline as a flex sibling. `p.tabular-nums`
+    // described the pre-unification markup.
+    const cardBalance = card.locator("span.tabular-nums").first();
     await expect(cardBalance).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
-    const headerNumber = (await headerBadge.innerText()).replace(
-      /[^\u06F0-\u06F9\u0660-\u0669,٬]/g,
-      "",
-    );
-    const cardNumber = (await cardBalance.innerText()).replace(
-      /[^\u06F0-\u06F9\u0660-\u0669,٬]/g,
-      "",
-    );
+    const digits = (s: string) => s.replace(/[^\u06F0-\u06F9\u0660-\u0669,٬]/g, "");
 
-    expect(headerNumber.length).toBeGreaterThan(0);
-    expect(cardNumber).toBe(headerNumber);
+    // Poll, don't sample. Both surfaces read ONE `useRewardsSummary()` query,
+    // but the header renders `balance ?? 0`, so between first paint and the
+    // response it legitimately shows «۰» while the card is still a skeleton.
+    // A single read of both raced that window and reported a mismatch that
+    // never existed. The card's value span exists from the first frame but is
+    // empty until the query lands, so the poll requires BOTH to be non-empty
+    // and equal — a real divergence never converges and still fails.
+    await expect
+      .poll(
+        async () => {
+          const header = digits(await headerBadge.innerText());
+          const cardText = digits(await cardBalance.innerText());
+          return cardText && cardText === header ? cardText : null;
+        },
+        { timeout: APP_READY_TIMEOUT },
+      )
+      .not.toBeNull();
+
+    expect(digits(await headerBadge.innerText())).toBe(digits(await cardBalance.innerText()));
   });
 
   test("keeps the balance after a refresh (no reset to zero)", async ({ page, request }) => {
@@ -121,14 +137,19 @@ test.describe("Dashboard points card", () => {
     await expect(card).toBeVisible({ timeout: APP_READY_TIMEOUT });
 
     // Wait past the loading skeleton — the balance is a Persian numeral.
-    const balance = card.locator("p.tabular-nums");
+    //
+    // Same slot as the sibling test: the value is the inner
+    // `<span class="tabular-nums">` of `HeroStatCard`, not the `<p>`. The old
+    // `p.tabular-nums` matched nothing at all here, so the "before" snapshot
+    // was always the empty string.
+    const balance = card.locator("span.tabular-nums").first();
     await expect(balance).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    await expect(balance).toHaveText(/[\u06F0-\u06F9]/);
     const before = (await balance.innerText()).trim();
-    expect(before).toMatch(/[\u06F0-\u06F9]/);
 
     await page.reload();
     await expect(card).toBeVisible({ timeout: APP_READY_TIMEOUT });
-    await expect(balance).toBeVisible({ timeout: APP_READY_TIMEOUT });
+    await expect(balance).toHaveText(/[\u06F0-\u06F9]/, { timeout: APP_READY_TIMEOUT });
     const after = (await balance.innerText()).trim();
 
     expect(after).toBe(before);
