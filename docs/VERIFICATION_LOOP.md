@@ -116,20 +116,50 @@ You have used a rule which requires type information, but don't have
 parserOptions set to generate type information for this file.
 ```
 
-Two independent causes, both from paths that no tsconfig owns:
+Three independent causes, each from a path that no tsconfig owns:
 
-1. `apps/frontend/.next/build/chunks/[root-of-the-server]__*.js` — flat-config
-   `ignores` are resolved relative to the config file (the repo root), so the
-   bare `".next"` entry only ever excluded `./.next`, not the workspace's.
-2. root-level scratch directories such as `.tmp-qa/*.mjs`.
+1. **Nested build output.** Flat-config `ignores` resolve relative to the config
+   file (the repo root), so the bare `".next"` entry only ever excluded
+   `./.next` — not `apps/frontend/.next`, whose generated chunks were then
+   linted. Same shape for `dist` and `coverage`.
+2. **Root-level scratch directories** — `.tmp-qa/*.mjs`, `.tmp-pptx/capture.mjs`,
+   and loose `_*.js` helpers.
+3. **A typed rule applied to untyped files.** The rule block has no `files`
+   restriction, so `@typescript-eslint/consistent-type-imports` (which needs
+   type information) also runs on `.mjs` config files such as
+   `apps/frontend/postcss.config.mjs` — where a typed rule cannot work at all.
 
-The correct fix is glob ignores (`**/.next/**`, `**/dist/**`, …) in
-`eslint.config.mjs`. That edit is blocked by the `config-protection` hook, and
-the guard is right to exist — weakening lint config to make a command pass is
-the failure mode it is defending against. So the finding is recorded rather
-than worked around. **Use `npm run verify`, `npm run lint:fast`, or
-`npm run lint -w apps/frontend`; do not use root `npm run lint:strict` until
-the config is fixed by someone with the authority to change it.**
+**Fixing (1) and (2) is not enough to get a green run.** Measured with the
+ignore globs supplied on the command line, so the config file stayed untouched:
+
+```
+eslint . --ignore-pattern "**/.next/**" --ignore-pattern "**/node_modules/**" \
+         --ignore-pattern "**/dist/**" --ignore-pattern "**/coverage/**" \
+         --ignore-pattern "**/.tmp-*/**" --ignore-pattern "**/*.js" \
+         --ignore-pattern "**/*.mjs" --ignore-pattern "**/*.cjs"
+→ 67 errors, 81 warnings (148 problems) across 22 files
+```
+
+Concentrated, not diffuse: `packages/types/src/index.ts` (20 — mostly
+`no-invalid-void-type`), `packages/testing/src/index.ts` (12 unused vars),
+generated `apps/frontend/next-env.d.ts` (1), a few `packages/ui` files, and
+~10 throwaway `e2e/_*-verify.spec.ts` harnesses that are deliberately
+uncommitted.
+
+So the root config differs from the gate in two ways that compound: it lints a
+wider tree, and it applies `tseslint.configs.strict` to packages that were
+authored against the frontend's looser preset. A green root `eslint .` needs a
+config edit **and** a separate repo-wide cleanup — a decision of its own, not a
+side effect of fixing ignores.
+
+The correct fix is glob ignores (`**/.next/**`, `**/dist/**`, …) plus a `files`
+scope on the typed rules in `eslint.config.mjs`. That edit is blocked by the
+`config-protection` hook, and the guard is right to exist — weakening lint
+config to make a command pass is the failure mode it is defending against. So
+the finding is recorded rather than worked around. **Use `npm run verify`,
+`npm run lint:fast`, or `npm run lint -w apps/frontend`; do not use root
+`npm run lint:strict` until the config is fixed by someone with the authority
+to change it.**
 
 ---
 
