@@ -107,13 +107,35 @@ Recorded because they cost real debugging time and are easy to reintroduce:
   rendered an empty list. Constants shared across the boundary must live in a
   server-safe module.
 
+### Documentation
+
+- **`CHANGELOG.md`** (this file) — new; the repo previously had no changelog.
+- **`HANDOFF.md`** — rewritten against this release; the previous revision
+  described `v0.7.0` on `chore/post-merge-baseline` and predated the public
+  library.
+- **`PUBLISH-PROMPT.md`** — new; a runbook written as a pasteable prompt for the
+  session that takes this version live, including the origin question in
+  "Deployment requirements" below, which it refuses to guess.
+
 ### Deployment requirements
 
-- **`NEXT_PUBLIC_SITE_URL` must be set in the deployment environment.**
-  `docker-compose.prod.yml` does **not** set it. Without it the app falls back to
-  `http://localhost:3000` and will publish `sitemap.xml`, `robots.txt` and every
+- **`NEXT_PUBLIC_SITE_URL` must be set before the image is built.**
+  `docker-compose.prod.yml` does **not** set it and `Dockerfile` declares no
+  build arg for it. Without it the app falls back to `http://localhost:3000`
+  (`src/lib/site.ts`) and will publish `sitemap.xml`, `robots.txt` and every
   canonical URL pointing at localhost — which defeats the purpose of this
-  release. Set it to the real public origin before starting the container.
+  release. Confirmed live against the dev server.
+
+  Which path carries it is not settled by reading the code: `lib/site.ts` reads
+  the value with bracket notation (`process.env["…"]`), which Next does not
+  statically replace, and every importer of that module is server-only — but a
+  `NEXT_PUBLIC_` variable may still be inlined at build time. Set it in **both**
+  places to the same literal and let the deployed `sitemap.xml` prove which one
+  is live. `PUBLISH-PROMPT.md` STEP 2 has the exact edits.
+
+  The origin itself is unconfirmed: `docker-compose.prod.yml` names
+  `api.simotech.ai`, `.env.example` names `legalir.ir` as an example. A wrong
+  origin renders perfectly and is wrong only in search results.
 - **No database migration.** The app uses the JSON file store in `.data/`; no
   schema in this release changed shape and no table needs rewriting. The
   `legalir-data` volume requirement is unchanged.
@@ -140,12 +162,18 @@ Recorded because they cost real debugging time and are easy to reintroduce:
 
 | Check | Result |
 |-------|--------|
-| `npm run check:assets` | ✅ |
-| `npm run typecheck` | ✅ |
-| `npm run lint` | ✅ |
-| Vitest | ✅ 229 files / 3419 tests |
+| `npm run verify` (types, lint, harness, assets) | ✅ 4/4 gates, 7.4 s |
+| Vitest, locally | ✅ 229 files / 3419 tests |
 | `repo-map --check` | ✅ fresh |
-| `next build` | not run locally (a dev server holds the shared `.next`); CI's `build` job is the authority |
+| `e2e/library-source-actions.spec.ts` | ✅ 4/4 (320 / 390 / 768 / 1440) |
+| `e2e/seo-indexability.spec.ts` | ✅ 5/5 |
+| `e2e/speed-and-sync.spec.ts` | ✅ 13/13 (both origins) |
+| CI on the release PR | ✅ typecheck/lint/assets · ✅ unit+integration · ✅ production build |
+
+`next build` was not run locally because a dev server holds the shared `.next`
+directory; the CI `build` job is the authority and it passed. CI's `e2e` job is
+manual-dispatch only, so the e2e rows above are local runs against a live dev
+server, not CI output.
 
 ---
 
