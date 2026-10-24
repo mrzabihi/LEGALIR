@@ -17,6 +17,7 @@ standalone bundle.
 | `public/*.png`, `*.ico` | logos, favicons, PWA/app icons |
 | `public/assets/blog/` | blog cover art |
 | `public/assets/promo/` | dashboard / services promotion banners (`*-sm` = mobile) |
+| `public/assets/social/` | generated social share card (`og:image` / `twitter:image`) |
 | `public/assets/lawyers/` | demo portrait thumbnails |
 | `public/demo-documents/` | seeded demo PDFs |
 
@@ -64,6 +65,20 @@ source logos. `Documents/` and `iran legal/` are gitignored; `DESIGN/` and
    (never in `public/`) and commit only the production-size file.
 5. **Drop it in `public/`** and reference it root-relative. No build step, no
    config entry.
+
+**Generated, not hand-drawn.** Two assets are produced by scripts and committed
+so the app never renders them at request time — rerun the generator rather than
+editing the output:
+
+| Output | Generator | Why generated |
+| --- | --- | --- |
+| favicons, PWA icons, `favicon.ico` | `scripts/generate-icons.mjs` | one master, eight sizes + packed ICO |
+| `public/assets/social/legalir-og.png` | `scripts/generate-og-image.mjs` | 1200×630 card for `og:image` / `twitter:image` |
+
+Both derive from `scripts/assets/` masters and the brand palette in
+`globals.css`. `assets/social/legalir-og.png` is pinned by
+`src/lib/__tests__/social-card.test.ts`, which fails if the declared metadata
+size and the file's real pixels disagree.
 
 ---
 
