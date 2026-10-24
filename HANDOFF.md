@@ -197,10 +197,10 @@ Full detail and reasoning is in `CHANGELOG.md`. In deployment terms:
   `notFound()` on a streaming page could not set a 404 status, and a constant
   exported from a `"use client"` module arrived as a proxy in Server Components
   (`Math.max(1, proxy)` → `NaN` → an empty list).
-- **New regression gates**: `speed-and-sync` (11 tests, both origins),
-  `seo-indexability` (5), `library-source-actions` (4). CI will run them only
-  if dispatched — this release's gate evidence is `/tmp`-style local runs, not
-  CI output.
+- **New regression gates**: `speed-and-sync` (13 tests, both origins),
+  `seo-indexability` (5), `library-source-actions` (4). CI runs the unit and
+  build jobs; the e2e job is manual dispatch only, so this release's e2e
+  evidence is local runs against a live dev server, not CI output.
 
 Not in this release: no dependency changes, no schema changes, no data
 migration, no new external service.

@@ -47,7 +47,7 @@ three measured layout defects that had been shipping unnoticed were fixed.
   pages with properly branded alt text. Pinned by `src/lib/__tests__/social-card.test.ts`
   (3 tests, including a pixel check that the declared dimensions match the real
   PNG).
-- **Cross-host and speed gate.** `e2e/speed-and-sync.spec.ts` (11 tests) adds
+- **Cross-host and speed gate.** `e2e/speed-and-sync.spec.ts` (13 tests) adds
   per-route performance budgets on **both** origins plus an assertion that the
   public and admin surfaces return identical payloads for the same entity.
 - **Indexability gate.** `e2e/seo-indexability.spec.ts` (5 tests) pins the
