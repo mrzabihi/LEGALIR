@@ -1,12 +1,12 @@
 # LEGALIR — Handoff to CI/CD & DevOps
 
-> **Release:** `v0.7.0` · **Branch:** `chore/post-merge-baseline`
-> **Prepared:** 2026-10-20
+> **Version:** `1.8.20261024` · **Branch:** `pr/10-release-v1.8.20261024`
+> **Prepared:** 2026-10-24 · **Base:** `main` at `c7935ba`
 >
 > This document is everything the CI/CD or DevOps team needs to build and run
 > this release. Every fact below was verified against the working tree on the
-> date above — the previous revision of this file described v0.6.0 and had
-> drifted (it claimed there was no Dockerfile and no CI, both of which exist).
+> date above — the previous revision of this file described v0.7.0 and had
+> drifted (wrong branch, wrong version, and it predated the public library).
 
 ---
 
@@ -23,36 +23,38 @@
 
 | Item | Value |
 |------|-------|
-| Working branch | `chore/post-merge-baseline` |
+| Working branch | `pr/10-release-v1.8.20261024` |
 | Base branch | `main` |
-| Push status | ✅ pushed and in sync with `origin` |
+| Base commit | `c7935ba` (= `origin/main` when the branch was cut) |
+| Push status | pushed; opened as a single PR into `main` (see §11) |
 
-> `main` currently sits at the merge of PR #8. Everything shipped since then
-> lives on `chore/post-merge-baseline` and is opened as a pull request against
-> `main` (see §11). **Pin deployments to the annotated tag, not to either
-> branch** — branches move, tags do not.
+> `main` currently sits at the merge of PR #9. Everything shipped since `v0.8.0`
+> lives on this branch and is opened as one pull request against `main`.
+> **Pin deployments to a commit SHA or a tag, not to a branch** — branches move.
+> No tag has been cut for `1.8.20261024`; cutting one is a separate, explicitly
+> authorised step.
 
 **Clone the branch:**
 ```bash
-git clone -b chore/post-merge-baseline https://github.com/mrzabihi/LEGALIR.git
+git clone -b pr/10-release-v1.8.20261024 https://github.com/mrzabihi/LEGALIR.git
 ```
 
 ## 3. Version & Commit
 
 | Item | Value |
 |------|-------|
-| Release tag | `v0.7.0` (annotated) — cut from the release commit |
-| Package version | `0.7.0` (both root `legalir` and `apps/frontend` `@legalir/frontend`) |
-| Previous release | `v0.6.0` (2026-09-27) |
+| Version | `1.8.20261024` (`1.8` = product generation, suffix = release-preparation date) |
+| Package version | `1.8.20261024` (both root `legalir` and `apps/frontend` `@legalir/frontend`) |
+| Previous release | `v0.8.0` (2026-10-21, `031bfd1`) |
+| Commits in this release | 11 since `v0.8.0` |
 
 The version is not cosmetic: `GET /api/health` reports `package.json`'s
 `version`, so the deployed container's release is readable without shell
-access.
+access. The `packages/*` workspaces remain at `0.4.0` by design — they are
+internal libraries and nothing about their contract changed.
 
-> **Recommended for deploy:** pin to the tag.
-> ```bash
-> git clone --branch v0.7.0 --depth 1 https://github.com/mrzabihi/LEGALIR.git
-> ```
+> **Recommended for deploy:** pin to the release commit SHA once this PR is
+> merged, or to an annotated tag cut from it.
 
 ## 4. Runtime Requirements
 
@@ -82,19 +84,27 @@ npm run start
 
 ## 5. Environment Variables
 
-`.env.example` at the repo root documents every variable. **No variable is
-required to run this release** — the default mode is `mock` (no external
-services, no API keys).
+`.env.example` at the repo root documents every variable. The default mode is
+`mock` (no external services, no API keys), so the app boots without secrets —
+**but `NEXT_PUBLIC_SITE_URL` is now required for this release to be correct.**
 
 Key values:
 ```env
 NEXT_PUBLIC_API_MODE=mock          # mock | hybrid | real-dev | staging
 NEXT_PUBLIC_OTP_DEV_MODE=true      # demo OTP is 405405
-NEXT_PUBLIC_SITE_URL=...           # canonical origin for metadata/canonical URLs
+NEXT_PUBLIC_SITE_URL=https://...   # REQUIRED — see the warning below
 SESSION_SECRET=<32+ chars>         # production only
 LEGALIR_DEV_ADMIN_MOBILE=+989120000000   # dev-only admin seed
 LEGALIR_DEV_ADMIN_PASSWORD=...           # optional; enables the password tab
 ```
+
+> ⚠️ **`NEXT_PUBLIC_SITE_URL` is not set in `docker-compose.prod.yml`.** This
+> release publishes `sitemap.xml`, `robots.txt` and a self-canonical URL on
+> every public page, all built from `src/lib/site.ts`. With the variable unset
+> they fall back to `http://localhost:3000` — verified live against the dev
+> server. Set it to the real public origin (e.g. `https://legalir.ir`) in the
+> deployment environment or compose file before starting the container,
+> otherwise the release ships canonical URLs pointing at localhost.
 
 Server-only (optional, only for real AI / OTP):
 ```env
@@ -157,51 +167,60 @@ why the release branch is opened as a PR.
 |-------|--------|
 | `npm run check:assets` | ✅ OK |
 | `npm run typecheck` (`tsc --noEmit`) | ✅ clean |
-| `npm run lint` | ✅ 0 errors (warnings only) |
-| Unit + integration tests (Vitest) | ✅ **219 files / 3218 tests passed** |
-| `npm run build` | not run locally (dev server was live) — CI `build` job covers it |
+| `npm run lint` | ✅ 0 errors, 38 warnings |
+| Unit + integration tests (Vitest) | ✅ **229 files / 3419 tests passed** |
+| `npm run verify` (types + lint + harness + assets) | ✅ all four gates pass, 7.4 s wall |
+| `repo-map --check` | ✅ fresh |
+| `npm run build` | not run locally (dev server holds the shared `.next`) — CI `build` job is the authority |
+| E2E | run serially via `playwright.live.config.ts`; parallel "failures" were flakes and pass serially |
 
 ## 9. What's in this release
 
-- **Lawyer workbench** — referral queue with server-side filtering, search,
-  sorting and pagination; SLA engine (breached / at-risk / met) driven by a
-  work calendar with holidays; derived referral **priority**
-  (BREACHED→URGENT, AT_RISK→HIGH, open→NORMAL, waiting/done→LOW) computed on
-  every read, never persisted.
-- **Admin contract lifecycle** — «مراحل و گردش کار قرارداد» derived
-  server-side from the contract's own records; one current stage; per-stage
-  detail dialog; stamp eligibility with an ordered, server-authored blocker
-  list so no disabled action is ever unexplained; current-version PDF built
-  from the frozen version.
-- **Contract signing & verification** — version-bound, hash-verified
-  signatures; public verification endpoint that attests only FINAL documents
-  and exposes no personal data.
-- **Judicial declarations** — one declaration identity on every discovery
-  surface; final petition artifact issuance.
-- **Landing refresh** — reworked topic grid and a unified CTA card family,
-  scoped to the `.landing` wrapper so no app surface moves.
-- **Operations** — `GET|HEAD /api/health` liveness probe (version + uptime,
-  `Cache-Control: no-store`); container healthcheck moved off `/`; atomic
-  JSON writes and corrupt-table quarantine.
-- **Shared UI fixes** — `Dialog` is portalled to `<body>`, so a dialog opened
-  inside a transformed drawer is anchored to the viewport instead of the
-  drawer's scrolled content.
+Full detail and reasoning is in `CHANGELOG.md`. In deployment terms:
+
+- **The legal library is now public and crawlable.** `/legal-library` and
+  `/legal-library/[slug]` moved from the `(app)` group to `(public)`:
+  server-rendered HTML for crawlers, indexable, self-canonical, present in
+  `sitemap.xml`, and no longer disallowed by `robots.txt`. An unknown slug is
+  `noindex` with no canonical. Interactive parts (bookmark, copy citation,
+  share) are one client island.
+- **Every page has a real social share card** — a 1.91:1 Open Graph image with
+  brand alt text, pinned by a test that checks the PNG's actual pixels.
+- **Lawyer portraits are served at tile size.** `/lawyers` dropped from
+  6.50 MB to 1.46 MB of portraits warm; the route boundary from 13.5 MB to
+  3.2 MB. Requires `images.localPatterns` in `next.config.ts` (already added).
+- **Three measured layout shifts fixed.** Dashboard CLS 0.4595 → 0.0156 at
+  1440px (holding across nine widths); judicial launcher 0.4079 → 0.0358 at
+  390px. The source-detail action row, which rendered at three different
+  heights (44 / 48 / 62px), is now one contract: 40px desktop, 44px below it.
+- **Two server/client boundary bugs fixed** with no visible surface: a page-level
+  `notFound()` on a streaming page could not set a 404 status, and a constant
+  exported from a `"use client"` module arrived as a proxy in Server Components
+  (`Math.max(1, proxy)` → `NaN` → an empty list).
+- **New regression gates**: `speed-and-sync` (13 tests, both origins),
+  `seo-indexability` (5), `library-source-actions` (4). CI runs the unit and
+  build jobs; the e2e job is manual dispatch only, so this release's e2e
+  evidence is local runs against a live dev server, not CI output.
+
+Not in this release: no dependency changes, no schema changes, no data
+migration, no new external service.
 
 ## 10. One-line summary
 
 ```
 Repo:   https://github.com/mrzabihi/LEGALIR.git
-Branch: chore/post-merge-baseline   (opened as a PR into main)
-Tag:    v0.7.0
+Branch: pr/10-release-v1.8.20261024   (one PR into main)
+Tag:    none yet for 1.8.20261024
 Node:   >=20   |   Port: 3000   |   npm workspaces monorepo
 Run:    npm install && npm run build && npm run start
 Deploy: docker compose -f docker-compose.prod.yml up -d --build
-Health: GET /api/health  → 200 {status, version, uptimeSeconds}
+Env:    NEXT_PUBLIC_SITE_URL must be set, or canonicals point at localhost
+Health: GET /api/health  → 200 {status, version:"1.8.20261024", uptimeSeconds}
 Data:   JSON store in .data/ (needs the legalir-data volume; no DB required)
 ```
 
 ## 11. Open a Pull Request to `main`
 
 ```
-https://github.com/mrzabihi/LEGALIR/compare/main...chore/post-merge-baseline?expand=1
+https://github.com/mrzabihi/LEGALIR/compare/main...pr/10-release-v1.8.20261024?expand=1
 ```

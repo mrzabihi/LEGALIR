@@ -1121,9 +1121,20 @@ export function getLawyerRate(
 }
 
 export function listLawyerRateChanges(lawyerId: string): LawyerRateChange[] {
-  return readTable<LawyerRateChange>(RATE_CHANGE_TABLE)
-    .filter((c) => c.lawyerId === lawyerId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return (
+    readTable<LawyerRateChange>(RATE_CHANGE_TABLE)
+      .filter((c) => c.lawyerId === lawyerId)
+      // Reverse BEFORE sorting, because the table is in append order. `sort` is
+      // stable, so reversing first makes the newer of two identical-millisecond
+      // rows win the tie; comparing `createdAt` alone left ties in table order,
+      // which is oldest-first. That is the opposite of the newest-first contract
+      // this list is read under — the admin takes `.slice(0, 30)` as "the 30 most
+      // recent" — so a tie showed the history backwards and could truncate the
+      // newest row. Two writes inside one millisecond is not hypothetical: it
+      // flaked CI twice on 2026-10-24.
+      .reverse()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  );
 }
 
 const RATE_UNITS: ReadonlySet<LawyerRateUnit> = new Set(["FIXED", "HOURLY", "PER_SESSION"]);
