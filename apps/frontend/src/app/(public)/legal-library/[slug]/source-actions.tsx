@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@legalir/ui";
+import { Button, buttonClasses } from "@legalir/ui";
 import { useMe, useSetLegalBookmark } from "@/hooks/useDashboard";
 import { IconCheckCircle, IconCopy, IconLinkSource } from "@/lib/icons";
 
@@ -60,6 +60,25 @@ const IconShare = ({ size = 18 }: { size?: number }) => (
   </SvgIcon>
 );
 
+// The source-link slot is a chip in BOTH states (usable link / not recorded), so
+// it is one box contract — and that contract is `Button`'s medium box: `h-10`,
+// `max-desktop:min-h-11`, `rounded-medium`, `whitespace-nowrap`. The link branch
+// reaches it through `buttonClasses()`; this mirrors it by hand for the inert
+// chip, which must not inherit a button's hover/press state layers (a status
+// chip that lights up under the cursor claims to be clickable).
+//
+// The row used to mix three boxes. Measured on a 390px viewport: the buttons
+// stood 44px, the link chip 48px (`.touch-target`'s floor, unreachable here
+// because no seeded source has a URL yet), and the "not recorded" chip wrapped
+// its sentence onto two lines and stood 62px. The row is `items-center`, so
+// that read as a mis-alignment, not as hierarchy.
+const INERT_CHIP_CLASS = [
+  "inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap",
+  "rounded-medium border border-divider bg-surface-container px-5",
+  "text-caption text-muted",
+  "max-desktop:min-h-11",
+].join(" ");
+
 function ActionButton({
   label,
   icon,
@@ -84,6 +103,12 @@ function ActionButton({
       // icon-only and needs an explicit accessible name.
       aria-label={label}
       aria-pressed={active}
+      // The row is a `scrollbar-hide` scroller. `Button` is
+      // `overflow-hidden` + `whitespace-nowrap`, so a squeezed button clips
+      // its own label — and with the scrollbar hidden, that clipping is
+      // invisible and unrecoverable. Refusing to shrink makes the row scroll
+      // instead, which is the whole point of `overflow-x-auto` here.
+      className="shrink-0"
     >
       <span className="hidden tablet:inline">{label}</span>
     </Button>
@@ -182,15 +207,27 @@ export function SourceActions({
           href={sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface px-4 py-2.5 text-button font-medium text-on-surface transition-colors hover:bg-surface-hover active:scale-[0.97] touch-target"
+          // A navigation target wearing the button primitive's own classes,
+          // which is what `buttonClasses()` is exported for. Hand-rolling this
+          // is how it drifted out of the row in the first place.
+          className={buttonClasses({ variant: "secondary" })}
+          // Below tablet the visible label is hidden (same density rule as the
+          // sibling ActionButtons), so the link is icon-only and needs a name of
+          // its own — it had none before.
+          aria-label="مشاهده منبع"
         >
           <IconLinkSource />
           <span className="hidden tablet:inline">مشاهده منبع</span>
         </a>
       ) : (
-        <span className="inline-flex items-center gap-2 rounded-full border border-divider bg-surface-container px-4 py-2.5 text-caption text-muted">
+        <span className={INERT_CHIP_CLASS}>
           <IconLinkSource className="opacity-40" />
-          لینک منبع ثبت نشده است
+          {/* The full sentence does not fit beside three 57px icon buttons on a
+              390px viewport, and being content it cannot be hidden on small
+              screens the way an action's label can. Short form there, the real
+              sentence from tablet up. */}
+          <span className="tablet:hidden">بدون لینک</span>
+          <span className="hidden tablet:inline">لینک منبع ثبت نشده است</span>
         </span>
       )}
       <ActionButton label="اشتراک‌گذاری" icon={<IconShare />} onClick={handleShare} />
